@@ -8,7 +8,7 @@ import type { DisplayEntry, StoredRunRecord, Timeline, TimelineWrite, UnknownSta
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText, insetPhoneEdge } from '@retake/components/geometry';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@retake/components/geometry';
 import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@retake/editor/plan';
-import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@retake/editor/plan';
+import type { CameraFrame, ClipSegment, EditPlan, NamedRender, ResolvedComponent } from '@retake/editor/plan';
 import type { OutputClick } from './timeline.js';
 import { cursorAt } from './timeline.js';
 import type { Finding, FindingAt, ReviewEnvironment, ReviewRules, SegmentDuration, Severity } from './types.js';
@@ -16,7 +16,7 @@ import type { SegmentSpan, TransitionSpan } from './spans.js';
 import { isClip, meanSpeed, round, segmentLabel, spanAt, stepAt, timecode } from './spans.js';
 
 export interface CheckContext {
-  record: RenderRecord;
+  record: NamedRender;
   plan: EditPlan;
   timeline?: Timeline;
   rules: ReviewRules;

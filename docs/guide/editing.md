@@ -330,7 +330,7 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
   and the video renders again in software, progress does not go back —, `encoding`, `done`; `settings`: the
   `render:` keys below, over the workspace's); `renderStill({plan,
   frame, out})` → the PNG path; `renderStills({plan, frames: [{frame, out}…]})` renders several frames in one
-  browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the records of `renders/`;
+  browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the complete records of their own file in `renders/`, oldest first;
   `renderPlan({plan, out})` renders any plan.
 
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
@@ -488,6 +488,30 @@ failing); earlier exports of other formats into the folder are kept):
 
 Without `--formats` it exports `mp4_1080p,webm,gif_preview` (no re-render); `all` exports the six. A format that fails
 is reported (exit code 1) and the others are still written.
+
+**Which render.** A render is the record of its own file (`renders/<id>.json` holds `id`). `latest` is the newest
+succeeded record of `renders/` (of `--scenario` when given) that holds its scenario, its creation time and its plan,
+whatever its file is called — a render written with `--out` included —, and the command then works on **that file**.
+What it passed over is one line on stderr: `1 newer file of renders/ passed over — quote-v2.json: its record lacks
+its scenario, its creation time or its plan` (the first five files with their reason, then a count; `2 files of
+renders/ do not read: not considered` for files that say nothing readable). A render you **name** — its id, or a
+`.json` / `.mp4` path — keeps working whatever its record lacks, and is refused only where the export needs the
+missing member: `render quote-v2 has no plan (…/renders/quote-v2.json): nothing to export`. A record renamed or
+copied by hand is exported under the id it says, with the line `renders/quote-final.json says it is quote-v1` (an
+empty id or one that is no render id is said in fixed words: `says an empty id`, `says an id that is no render id`);
+it is refused when the video it names is now **another** render's (the record beside that video was made at another
+time): `renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render:
+nothing to export — correct "file" in the record, or render again with --out`. Its folder of `exports/` is never
+another render's: when another file of `renders/` answers to the id it says — as the disk compares names: on a disk
+that ignores case `QUOTE-V1` is `quote-v1` — or the id names no folder (an empty id, a path, a control character, over
+200 bytes), it is exported into `exports/<its file's name>/`, and the line says so: `renders/quote-final.json says it
+is quote-v1 — its exports and review are named quote-final`; when its file's name is taken too (a record named by a
+path elsewhere whose name is a record's of `renders/`), the export is refused in one sentence. A record of a variant this version does not write is
+refused in one sentence (`render quote-v2: its record says variant "cube", which this Retake does not export
+(landscape, vertical or square)`); a file that is no render record says what it is (`…/renders/quote-v2.json does not
+read as a render record (status)`, or the update sentence of a record a newer Retake wrote). Through MCP a render is
+named by its id only and read from its own file: a link, or a record that says another id, is refused; its
+sentences quote no word of the record (`its record says a variant this Retake does not export`).
 
 ## Raw export for editors
 

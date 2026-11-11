@@ -1,5 +1,6 @@
 export * from './types.js';
 export * from './run-record.js';
+export * from './render-record.js';
 export * from './take.js';
 export * from './formats.js';
 export * from './targets.js';

@@ -79,7 +79,8 @@ describe('the renders of a project, as the review finds them', () => {
     expect((await findRender(project, 'quote-v3')).status).toBe('failed');
     await expect(findRender(project, 'latest', 'ghost')).rejects.toThrow(`no render of scenario "ghost" in ${join(tmp, 'renders')}: render one with \`retake render demo ghost\``);
     await expect(findRender(project, 'nope')).rejects.toThrow(`render "nope" not found in ${join(tmp, 'renders')} (renders: quote-v1, quote-v2, quote-v3, other-v1)`);
-    await expect(findRender(project, 'notes')).rejects.toThrow(/is not a render record/);
+    // A file that is there and says no status is said as that (L7.6b; before: `… is not a render record`).
+    await expect(findRender(project, 'notes')).rejects.toThrow(/notes\.json does not read as a render record \(status\)$/);
   });
 
   it('compares with the previous succeeded render of the same scenario and variant', async () => {

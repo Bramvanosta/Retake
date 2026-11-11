@@ -409,7 +409,8 @@ describe('frame comment store', () => {
         expect(e.code, JSON.stringify(edit)).toBe('refused');
         expect(e.message).toBe('renders/quote-v2.json has a scenario, created_at or variant the tool never writes: not used');
         const listed = await engineError(listComments(project, { scenario: 'quote', render: 'quote-v2' }));
-        expect(listed.code).toBe('not_found');
+        // L7.6b: a file that is there is never "not found" — refused, in fixed words.
+        expect(listed.code).toBe('refused');
         expect(`${listed.message} ${JSON.stringify(listed.details ?? {})}`).not.toContain('IGNORE');
         expect((await getComment(project, thread.id)).newer_renders).toEqual([]);
       }

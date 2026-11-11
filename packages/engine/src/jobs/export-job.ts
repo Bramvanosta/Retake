@@ -16,6 +16,8 @@ import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
+import { latestRenderMembers } from '../render-records.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
 import { editor } from '../lazy.js';
 import { exportWork, planWork } from '../pipeline.js';
@@ -60,7 +62,7 @@ export async function submitExportJob(
   ctx: SubmitContext,
   req: ExportRequest,
   o: { admit?: (renderId: string) => Promise<void> } = {},
-): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] }> {
+): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] } & LatestRenderNotice & { untrusted?: { renders_passed_over: PassedOverRenders } }> {
   checkProjectSlug(req.project);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   const formats = checkFormats(req.formats);
@@ -70,11 +72,19 @@ export async function submitExportJob(
   }
   const project = await openProjectBySlug(ctx.ws, req.project);
   const fix = (id: string) => exportCommandLine(ctx.cli, { project: req.project, render_id: id, formats });
-  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix });
+  // With `latest`: what it passed over on the way (a count, and the names for `untrusted`).
+  let latest: Parameters<typeof latestRenderMembers>[0];
+  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
   // The admission rules see the render this export is of once `latest` is resolved (admission.ts export_cap).
   await o.admit?.(record.id);
   const ed = await editor();
-  const rerendered = formats.filter((f) => ed.exportMethod(record, f) === 'render');
+  // (A variant this version does not write has no size: the editor's sentence in fixed words, as the engine's error.)
+  let rerendered: ExportFormatName[];
+  try {
+    rerendered = formats.filter((f) => ed.exportMethod(record, f, { trust: 'mcp' }) === 'render');
+  } catch (e) {
+    throw toEngineError(e);
+  }
   if (rerendered.length) {
     // A re-render plans the master's run with its theme and overrides: through the same gates as a render job.
     try {
@@ -93,7 +103,7 @@ export async function submitExportJob(
     ...(gif && (gif.start_s !== undefined || gif.duration_s !== undefined) ? { gif: { ...(gif.start_s !== undefined ? { start_s: gif.start_s } : {}), ...(gif.duration_s !== undefined ? { duration_s: gif.duration_s } : {}) } } : {}),
     submitted_by: ctx.client,
   };
-  return { job: await ctx.queue.enqueue(input), render_id: record.id, formats, rerendered };
+  return { job: await ctx.queue.enqueue(input), render_id: record.id, formats, rerendered, ...latestRenderMembers(latest) };
 }
 
 /**

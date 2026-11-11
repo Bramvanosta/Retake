@@ -4,7 +4,7 @@
  */
 import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components/geometry';
-import type { PlanSegment, RenderRecord } from '@retake/editor/plan';
+import type { NamedRender, PlanSegment } from '@retake/editor/plan';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -295,7 +295,7 @@ export interface ReviewResult {
     fps: number;
     width: number;
     height: number;
-    variant: RenderRecord['variant'];
+    variant: NamedRender['variant'];
   };
   review: { created_at: string; fps: 1 | 2; ms: number; rules: ReviewRules };
   /** No error and no warning. */

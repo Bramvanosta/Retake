@@ -681,7 +681,7 @@ exportRender(opts: { project; render /* id | path | latest */; formats?: ExportF
 //  `run_dir` inside the project (`recordPathProblem`), re-renders through planRun's gates; `network` / `onBrowser`
 //  passed to the re-renders (`guard` in the worker). `exportMethod(record, format)` says copy / transcode / render.
 generateTestTrack(out, { seconds? }): Promise<string>   // procedural sine-chord AAC track for tests / demos (ffmpeg)
-listRenders(project): Promise<RenderRecord[]>
+listRenders(project): Promise<StoredRender[]>      // L7.6b: the complete records of their own file (core/io readRendersFolder, core renderRecordsOf), oldest first
 ```
 
 ### 2.1 Planner rules (SPEC §9 + reference look)

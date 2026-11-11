@@ -46,7 +46,7 @@ import {
   transitionWindows,
   urlAt,
 } from '@retake/editor';
-import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
+import type { BundleComponent, ClipSegment, EditPlan } from '@retake/editor';
 import { fixtureProject, realTimeline, template } from './helpers.js';
 import { syntheticRunRecord } from './render-helpers.js';
 import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
@@ -289,11 +289,14 @@ describe('render versions and records', () => {
   it('listRenders reads the records of renders/ (oldest first) and skips other files', async () => {
     const project = join(tmp, 'p');
     await mkdir(join(project, 'renders'), { recursive: true });
-    const rec = (id: string, at: string) => ({ version: 1, id, created_at: at, plan: { version: 1 } }) as unknown as RenderRecord;
+    // (Since L7.6b a record says its status and its scenario: three members decide — version, status, id — and a listing
+    // takes the complete records of their own file, core renderRecordsOf.)
+    const rec = (id: string, at: string) => ({ version: 1, id, scenario: id.replace(/-v\d+$/, ''), status: 'succeeded', created_at: at, plan: { version: 1 } });
     await writeFile(join(project, 'renders', 'b-v1.json'), JSON.stringify(rec('b-v1', '2026-10-11T10:00:00.000Z')));
     await writeFile(join(project, 'renders', 'a-v1.json'), JSON.stringify(rec('a-v1', '2026-10-11T11:00:00.000Z')));
     await writeFile(join(project, 'renders', 'junk.json'), '{"x": 1}');
     await writeFile(join(project, 'renders', 'broken.json'), '{');
+    await writeFile(join(project, 'renders', 'a-v1 copy.json'), JSON.stringify(rec('a-v1', '2026-10-11T12:00:00.000Z')));
     expect((await listRenders({ dir: project })).map((r) => r.id)).toEqual(['b-v1', 'a-v1']);
     expect((await listRenders(project)).map((r) => r.id)).toEqual(['b-v1', 'a-v1']);
     expect(await listRenders(join(tmp, 'none'))).toEqual([]);

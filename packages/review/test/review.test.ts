@@ -6,7 +6,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rename, rm } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -368,5 +368,32 @@ describe.skipIf(!can)('reviewRender', () => {
     expect(byPath.render.id).toBe('clean-v1');
     await expect(review('nope-v9')).rejects.toThrow(/render "nope-v9" not found/);
     await expect(review('latest', { scenario: 'ghost' })).rejects.toThrow(/no render of scenario "ghost"/);
+  }, LONG);
+
+  it('a record renamed by hand is reviewed; one whose id names no folder goes into review/<its file\'s name>, never review/ itself (L7.6b)', async () => {
+    const reviews = join(ws.project.dir, 'review');
+    const renders = join(ws.project.dir, 'renders');
+    const record = JSON.parse(await readFile(join(renders, 'clean-v1.json'), 'utf8')) as Record<string, unknown>;
+    const before = (await readdir(reviews)).sort();
+    // An empty id (before the lot the review went into review/ itself, and its swap set every other review aside).
+    await writeFile(join(renders, 'x.json'), JSON.stringify({ ...record, id: '' }));
+    const r = await review('x', { thumbnails: false, previous: false });
+    expect([r.render.id, r.files.dir]).toEqual(['x', join(reviews, 'x')]);
+    expect((await readdir(reviews)).sort()).toEqual([...before, 'x'].sort());
+    // An id that is a path: the same (it never names a folder outside review/).
+    await writeFile(join(renders, 'y.json'), JSON.stringify({ ...record, id: '../../escape' }));
+    expect((await review('y', { thumbnails: false, previous: false })).files.dir).toBe(join(reviews, 'y'));
+    // A copy that says the id of a render of renders/ (clean-v1.json is there): reviewed into review/<its file's name>
+    // — review/clean-v1/ is clean-v1's and stays as it was (L7.6b fix pass; before: the copy's review replaced it).
+    // An upper-case id is the same on a disk that ignores case (review/CLEAN-V1 is review/clean-v1 there).
+    const kept = await readFile(join(reviews, 'clean-v1', 'report.json'));
+    await writeFile(join(renders, 'clean-v1 copy.json'), JSON.stringify(record));
+    expect((await review('clean-v1 copy', { thumbnails: false, previous: false })).files.dir).toBe(join(reviews, 'clean-v1 copy'));
+    await writeFile(join(renders, 'upper.json'), JSON.stringify({ ...record, id: 'CLEAN-V1' }));
+    const caseless = existsSync(join(renders, 'CLEAN-V1.json'));
+    expect((await review('upper', { thumbnails: false, previous: false })).files.dir).toBe(join(reviews, caseless ? 'upper' : 'CLEAN-V1'));
+    expect((await readFile(join(reviews, 'clean-v1', 'report.json'))).equals(kept)).toBe(true);
+    for (const f of ['x.json', 'y.json', 'clean-v1 copy.json', 'upper.json']) await rm(join(renders, f));
+    for (const d of ['x', 'y', 'clean-v1 copy', caseless ? 'upper' : 'CLEAN-V1']) await rm(join(reviews, d), { recursive: true });
   }, LONG);
 });

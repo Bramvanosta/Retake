@@ -172,8 +172,82 @@ release — for the person about to click Install and Restart.
 - The scenario view's takes (`scenario_view`, `scenario_actions` of the Studio) each say whether Render can edit
   them (`take`), and the scenario view names the capture Render edits (`capture`, as `scenario_actions` does).
 - `retake doctor` and `retake list` say "theme" where they said "template" (the check names stay).
+- Render records (`renders/<id>.json`) are read by one reader everywhere — `retake review`, `retake export`,
+  `retake prune`, the MCP tools and the Studio —, and a render is the record of its own file: a copy of a record
+  (`quote-v1 copy.json`), a record renamed by hand (`quote-final.json` that says `quote-v1`), a record file that is a
+  link, a record written by a newer Retake, one whose status Retake never writes and one that lacks its scenario, its
+  creation time or its plan are no longer listed or taken by `latest`; each is said instead. Only projects with such a
+  hand-made, renamed, copied, linked, damaged or newer file in `renders/` see a difference:
+  - `retake review|export <project> latest` takes the newest succeeded record of `renders/`, whatever its file is
+    called (a render written with `--out` included, as before), and works on **that file** — before, it looked the
+    id the record says up again and answered `render "quote-v2" not found` for a record renamed by hand. What it
+    passed over is one line: `! 1 newer file of renders/ passed over — quote-v2.json: its record lacks its scenario,
+    its creation time or its plan` (also `its record is a link`, `its status is not one Retake writes`, `written by a
+    newer Retake`, `its record does not read`, `failed or cancelled`; then `! 1 file of renders/ does not read: not
+    considered`).
+  - A record renamed or copied by hand, named at a terminal, still exports and reviews, with one line: `! renders/
+    quote-final.json says it is quote-v1` (`says an empty id`, `says an id that is no render id`). Its folders of
+    `exports/` and `review/` are never another render's: when another file of `renders/` has the id it says — as the
+    disk compares names, so `QUOTE-V1` is `quote-v1` on a disk that ignores case — they are named after its own file,
+    and the line says so: `! renders/quote-final.json says it is quote-v1 — its exports and review are named
+    quote-final` (before: it was exported into `exports/quote-v1/` and its review replaced `review/quote-v1/`, the real
+    render's; an id with a control character, or over 200 bytes, names no folder either). It is refused when
+    the video it names is now another render's: `✗ renders/quote-final.json says it is quote-v1, and renders/
+    quote-v1.mp4 is now the video of another render: nothing to export — correct "file" in the record, or render again
+    with --out` (before: exit 0 and the other render's video in `exports/quote-v1/`).
+  - Named at a terminal: a record of a newer Retake says `…/renders/quote-v2.json: this render record is version 2: it
+    was made for a newer Retake (this one reads version 1) — update Retake` (before: `… is not a render record`); a
+    record without its plan `render quote-v2 has no plan (…/renders/quote-v2.json): nothing to export` (or `nothing to
+    review`); a file that does not read `…/renders/quote-v2.json does not read as a render record (it is not JSON)` —
+    `(status)`, `(id)`, `(version)` for the member that decides — instead of a JSON parser's message; a record without
+    a status is no record any more (before: `render quote-v2 undefined: nothing to export`, and a review of it started).
+  - Through MCP and the Studio, a render named by its id whose file is there is never "not found": `render "quote-v2":
+    renders/quote-v2.json does not read as a render record (status)`, `… is a link: through MCP a render is read from
+    its own file` (refused), `… says it is another render`, the newer-Retake sentence, `render quote-v2 has no plan
+    (renders/quote-v2.json): nothing to read`. `render_status` answers a record without its plan or its creation time,
+    and hands on a member that does not read as its type as its empty value (or leaves it out). Their `latest` (and
+    `review`, `export`, `comments_list`, `comment_resolve` with `latest`) counts the newer files it passed over in the
+    summary — `1 newer file of renders/ passed over: "untrusted.renders_passed_over" names it` — with
+    `renders_passed_over`, `renders_not_considered` and `untrusted.renders_passed_over` (`[{file, why}]`) in the answer;
+    `render_status latest` answers a record of a status Retake never writes as `unknown`, in its text and its answer.
+    Their sentences quote no word of a record: a job of a record of such a status says `render quote-v2: its status is
+    not one Retake writes: nothing to read`, an export of an unknown variant `its record says a variant this Retake
+    does not export`, a missing video `the video of render quote-v2 is missing: its record names a file that is not
+    there` (the path under `details.untrusted`). The comment list on a render named by its id reads a record bigger
+    than a listing reads, as every by-id read does.
+  - The Studio's list of a scenario's renders no longer shows a record of an unknown status as succeeded, nor a record
+    of another scenario, without its scenario or without its plan; one line per reason under the list says what it
+    did not show: `1 file of renders/ is not shown as a render: its status is not one Retake writes` (`2 files of
+    renders/ are not shown as renders — for each, …`).
+  - `retake prune` and `project_prune` leave every such file alone with the render and the take it names, and say so:
+    `kept  render  quote-final.json  its record says another id`, `kept  run  <id>  a file of renders/ that is no
+    render names it`; through MCP `1 file of renders/ left alone (no render of its own name, or a record that lacks a
+    member), with the renders and the takes it names ("untrusted.renders_alone" names it)`; `renders_alone`, `renders_unread` and `untrusted.renders_alone` in the
+    result. A record renamed by hand keeps its take however many newer renders there are (before: its take was offered
+    once three newer renders existed, with a line `render quote-v0` for a file that does not exist), a render whose
+    number was reused is no longer listed twice, `quote-v1.final.json` and `.mp4` no longer go with `quote-v1`, a
+    record of a status Retake never writes and its video are no longer offered (`paused render`), and the takes of a
+    record of a newer Retake or without a plan are kept. A file of `renders/` too big to read keeps everything: `1 file
+    of renders/ is too big to read: every render, review and take is kept`. Prune's `kept:` line counts such files
+    apart: `kept: 1 take, 3 renders and 1 other file of renders/` (`retake prune --json`'s `kept.renders` counts every
+    record file that stays). A record whose variant is no text (`5`, `null`) is kept and counted in no scenario's
+    window. Prune lists nothing it kept before.
 
 ### Fixed
+- `retake prune`, `retake review latest`, `retake export latest`, the comment list and MCP's `latest` no longer stop
+  on `Cannot read properties of undefined (reading 'localeCompare')` when a file of `renders/` has no creation time;
+  a review of such a record named at a terminal starts (with no render to compare with).
+- `retake export` of a record whose variant this version does not write says `render quote-v2: its record says
+  variant "cube", which this Retake does not export (landscape, vertical or square)` instead of `unexpected error:
+  Cannot read properties of undefined (reading 'base')`; through MCP the export is refused in the same sentence
+  without the word.
+- A review of a record without its run id starts (before: `unexpected error: The "path" argument must be of type
+  string`).
+- A record whose id is empty or holds a path, named at a terminal, is exported into `exports/<its file's name>/` and
+  reviewed into `review/<its file's name>/`: before, the export went straight into `exports/` and a review into
+  `review/` itself.
+- `retake export <project> <name>` of a record file that is a pipe answers at once that it is no file (before: it
+  waited for ever).
 - The Studio, in a project that keeps the captures' frames: Render and the timeline offer the newest capture (they
   never did there; with one capture they said there was no finished capture yet).
 - The Studio's timeline opened without a chosen take shows the take Render edits; after a failed, cancelled or

@@ -115,5 +115,5 @@ export type {
   RenderedPreview,
 } from './render/preview.js';
 export { generateTestTrack, testTrackExpression } from './render/audio.js';
-export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportMethod, exportRender, exportRenderWarnings, findRenderRecord, gifWindow, mp4TranscodeArgs, recordPathProblem, transcodeMp4 } from './render/export.js';
-export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult } from './render/export.js';
+export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportMethod, exportRender, exportRenderWarnings, findRenderRecord, gifWindow, locateRenderRecord, mp4TranscodeArgs, recordPathProblem, transcodeMp4 } from './render/export.js';
+export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult, FoundRender } from './render/export.js';

@@ -141,6 +141,16 @@ export const projectUpdateReadme = defineTool({
  * What prune kept beyond its list, one line per reason in the order the reasons are met: the fixed words of the reason
  * and how many takes — never a folder's name (a folder of runs/ is named by whoever can write there).
  */
+/**
+ * The record files of renders/ that stay, in words: the renders, and — when some are files that are no render of
+ * their own name — those apart (a count: "untrusted.renders_alone" names them), never counted as renders.
+ */
+function keptRenders(r: { kept: { renders: number }; renders_alone?: { reasons: Array<{ why: string; count: number }> } }): string {
+  const other = (r.renders_alone?.reasons ?? []).filter((x) => x.why !== 'incomplete').reduce((n, x) => n + x.count, 0);
+  const renders = plural(r.kept.renders - other, 'render');
+  return other ? `${renders} and ${plural(other, 'other file')} of renders/` : renders;
+}
+
 function keptLines(kept: ReadonlyArray<{ why: string; reason: string }>): string[] {
   const by = new Map<string, { reason: string; count: number }>();
   for (const k of kept) by.set(k.why, { reason: k.reason, count: (by.get(k.why)?.count ?? 0) + 1 });
@@ -175,9 +185,13 @@ export const projectPrune = defineTool({
         head,
         ...lines,
         ...(r.items.length > 40 ? [`… and ${r.items.length - 40} more (data.items)`] : []),
-        `kept: ${plural(r.kept.runs, 'take')}, ${plural(r.kept.renders, 'render')}, ${plural(r.kept.reviews, 'review')}`,
+        `kept: ${plural(r.kept.runs, 'take')}, ${keptRenders(r)}, ${plural(r.kept.reviews, 'review')}`,
         // The takes that stay for a reason the list does not show: the engine's fixed words and a count (their names: data.kept_takes).
         ...keptLines(r.kept_takes ?? []),
+        // The files of renders/ left alone: a count (their names are text anyone who can write renders/ chose: data.untrusted.renders_alone).
+        ...(r.renders_alone ? [((one: boolean) => `${plural(r.renders_alone!.count, 'file')} of renders/ left alone (no render of ${one ? 'its' : 'their'} own name, or a record that lacks a member), with the renders and the takes ${one ? 'it names' : 'they name'} ("untrusted.renders_alone" names ${one ? 'it' : 'them'})`)(r.renders_alone.count === 1)] : []),
+        // A file of renders/ too big to read: everything stays (the engine's fixed sentence, with a count).
+        ...(r.renders_unread ? [r.renders_unread] : []),
         ...(r.skipped?.length ? [`${plural(r.skipped.length, 'approved item')} kept: something uses ${r.skipped.length === 1 ? 'it' : 'them'} now, or ${r.skipped.length === 1 ? 'it is' : 'they are'} gone (${r.skipped.map((i) => `${i.kind} ${i.id}`).join(', ')})`] : []),
         ...(r.not_asked ? [`${plural(r.not_asked, 'item')} that can go now ${r.not_asked === 1 ? 'was' : 'were'} not in the approval: kept`] : []),
         // Comment threads that could not be read: what stayed for it (the engine's sentence: the slug, scenario names, an error code).

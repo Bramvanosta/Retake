@@ -308,7 +308,7 @@ running: the MCP server keeps working without it.
   most at once; followed here and in the activity), and the raw capture for an editing tool is a command to copy
   (`retake export-capture <project> <run>`, see [Raw export for editors](editing.md#raw-export-for-editors)). The status bar:
   *Rendered · when · vN* (a neutral mark: what the render did, not a verdict), **Open in Edit**, **Render again** (the
-  latest capture with the file on disk; a render you start here opens its report once reviewed). An unknown render says so and reads nothing. Not yet: Show in
+  latest capture with the file on disk; a render you start here opens its report once reviewed). An unknown render says so and reads nothing. A file of `renders/` named like a render of the scenario that is not shown as one (its status is not one Retake writes, it lacks its scenario, its creation time or its plan, it is a link, it says another scenario or id, it does not read) is said under the list in one line per reason, with a count: *1 file of renders/ is not shown as a render: its status is not one Retake writes* (several: *2 files of renders/ are not shown as renders — for each, …*). Not yet: Show in
   Finder, other formats, "Open the step", the checks that ran (BACKLOG BL-132).
 - **The timeline** (L4.5). The **Edit** mode (⌘3: the newest finished capture), **Open in Edit** after a capture on
   its live screen or on Prepare's last take, or **Show in timeline** on a

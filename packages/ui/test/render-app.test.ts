@@ -7,7 +7,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ScenarioRenderJobView, ScenarioRendersView } from '@retake/engine';
-import { findingAt, findingFrame, heldShortWords, heldWords, jobVersionNote, jobWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords, yieldWords } from '../src/app/render-words.js';
+import { renderNotWords } from '@retake/core';
+import type { RenderNot } from '@retake/core';
+import { RENDER_NOT_WORDS, findingAt, findingFrame, heldShortWords, heldWords, jobVersionNote, jobWords, notShownWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords, yieldWords } from '../src/app/render-words.js';
 
 const H = 'a'.repeat(64);
 const job = (o: Partial<ScenarioRenderJobView> = {}): ScenarioRenderJobView => ({
@@ -107,5 +109,18 @@ describe('versions and words', () => {
     // A finding placed by its segment only (a review finding's `at` carries more than the frame and the time).
     const bySegment: { frame?: number; segment?: string } = { segment: 'a' };
     expect(findingFrame(bySegment, 30)).toBeUndefined();
+  });
+});
+
+describe('the files of renders/ the list does not show (L7.6b)', () => {
+  it('one line per reason, counts and fixed words only; the words are core\'s', () => {
+    expect(notShownWords(undefined)).toEqual([]);
+    expect(notShownWords({ count: 3, reasons: [{ why: 'unknown-status', count: 1 }, { why: 'renamed', count: 2 }] })).toEqual([
+      '1 file of renders/ is not shown as a render: its status is not one Retake writes',
+      '2 files of renders/ are not shown as renders — for each, its record says another id', // fix pass: "files … its" (review B L-8)
+    ]);
+    // The mirror of core's words (the app imports core's types only): every reason, word for word.
+    for (const why of Object.keys(RENDER_NOT_WORDS) as RenderNot[]) expect(RENDER_NOT_WORDS[why], why).toBe(renderNotWords(why));
+    expect(Object.keys(RENDER_NOT_WORDS)).toHaveLength(10);
   });
 });

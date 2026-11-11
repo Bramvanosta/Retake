@@ -16,6 +16,7 @@ import type { CommentEntryView, CommentProposalView, CommentView, Engine } from 
 import { EngineError } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
+import { renderLatestData, renderLatestLines } from './render.js';
 import type { ToolImage } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
@@ -231,6 +232,8 @@ export const commentsList = defineTool({
       if (threads.some((t) => t.via === 'studio' && t.status === 'open')) lines.push(STUDIO_HINT);
     }
     if (v.problems.length) lines.push(`${plural(v.problems.length, 'file')} skipped: see "problems".`);
+    // With render "latest": what it passed over (the counts and `untrusted.renders_passed_over` are in the data as the engine gave them).
+    lines.push(...renderLatestLines(v));
     const images = threads.map(stillImage).filter((i): i is ToolImage => i !== null);
     const data = { ...v, threads, ...(cut > 0 ? { left_out_for_size: cut } : {}) };
     return { summary: lines.join('\n'), data, ...(images.length ? { images } : {}) };
@@ -314,9 +317,11 @@ export const commentResolve = defineTool({
   async run({ project, comment_id, note, render_id, if_match }, { engine }) {
     const w = await engine.comments.resolve(project, comment_id, { note, ...(render_id ? { render_id } : {}), if_match });
     const res = w.thread.resolution;
+    const passed = renderLatestData(w);
     return {
-      summary: `Resolved ${comment_id} (entry ${w.entry}, as mcp)${res?.render_id ? ` with render ${res.render_id}` : ''}; its hash is now ${w.hash}. A person reopens it if they disagree (in the Studio, or retake comment reopen).`,
-      data: { project, comment_id, entry: w.entry, hash: w.hash, thread: compact(w.thread) },
+      summary: [`Resolved ${comment_id} (entry ${w.entry}, as mcp)${res?.render_id ? ` with render ${res.render_id}` : ''}; its hash is now ${w.hash}. A person reopens it if they disagree (in the Studio, or retake comment reopen).`, ...renderLatestLines(w)].join('\n'),
+      // With render_id "latest": what it passed over (counts as data, the file names under "untrusted").
+      data: { project, comment_id, entry: w.entry, hash: w.hash, thread: compact(w.thread), ...passed.data, ...(Object.keys(passed.untrusted).length ? { untrusted: passed.untrusted } : {}) },
     };
   },
 });

@@ -5,11 +5,18 @@ import {
   COMMENTS_DIR,
   SLUG_RE,
   deriveStatus,
-  isIsoUtcDate,
   isRenderId,
+  latestProjectRender,
   locateAnchorStep,
   hunkStats,
+  orderRenders,
+  projectRef,
+  projectRenderOf,
   proposalStates,
+  quotableRender,
+  renderIdOf,
+  renderNot,
+  renderNotWords,
   trustedAnchor,
   statePath,
   scenarioRef,
@@ -23,13 +30,18 @@ import type {
   FrameCommentAnchor,
   LoadedProject,
   ProposalState,
+  ProjectRender,
+  RenderEntry,
+  RenderLatestPick,
+  RenderVariant,
+  StoredRenderRecord,
 } from '@retake/core';
-import type { RenderRecord } from '@retake/editor';
 import { EngineError } from '../errors.js';
-import { editor } from '../lazy.js';
 import { checkScenarioName } from '../refs.js';
+import { latestRenderMembers, readById, renderEntries, renderFileProblem } from '../render-records.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { LocalStorage } from '../storage.js';
-import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, VARIANTS, argError, commentRef, commentStillFile, locateThread, lstatOrNull, readThread, realDir } from './store.js';
+import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, argError, commentRef, commentStillFile, locateThread, lstatOrNull, readThread, realDir } from './store.js';
 import type { ThreadFile } from './store.js';
 
 // ── Views ───────────────────────────────────────────────────────────────────
@@ -117,15 +129,28 @@ export function timecodeOf(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${(s - m * 60).toFixed(2).padStart(5, '0')}`;
 }
 
-/** A render record's fields a message may quote, of the tool's own shape (a hand-edited record is not used). */
-export function recordShapeOk(r: RenderRecord): boolean {
-  return isRenderId(r.id) && typeof r.scenario === 'string' && SLUG_RE.test(r.scenario) && isIsoUtcDate(r.created_at) && VARIANTS.includes(r.variant);
+/**
+ * A render record's fields a message may quote, of the tool's own shape (a hand-edited record is not used): core's
+ * rule (quotableRender) on a record read by its id — its id is one of the scenario it says, its scenario a slug, its
+ * creation time an ISO UTC date, its variant one the tool writes.
+ */
+export function recordShapeOk<T extends Pick<StoredRenderRecord, 'id' | 'scenario' | 'created_at' | 'variant'>>(r: T): r is T & { variant: RenderVariant } {
+  return renderIdOf(r.id, r.scenario) !== null && quotableRender({ record: r });
 }
 
-/** The project's render records (read once per call): those whose id, scenario, created_at and variant are of the tool's shape. */
-export async function renderIndex(projectDir: string): Promise<RenderRecord[]> {
-  const ed = await editor();
-  return (await ed.listRenders(projectDir)).filter(recordShapeOk);
+/** Of the entries of renders/, the renders a message may quote (core projectRenderOf and quotableRender), in the order of renders. */
+export function quotableRenders(entries: readonly RenderEntry[]): StoredRenderRecord[] {
+  const out: StoredRenderRecord[] = [];
+  for (const e of entries) {
+    const r = projectRenderOf(e);
+    if (r && quotableRender(r)) out.push(r.record);
+  }
+  return orderRenders(out);
+}
+
+/** The project's renders a message may quote (read once per call, by the one reader of renders/), oldest first. */
+export async function renderIndex(projectDir: string): Promise<StoredRenderRecord[]> {
+  return quotableRenders(await renderEntries(projectDir));
 }
 
 /** The thread's still when it is a plain JPEG of the project: a real file (no link, one name — no hard link), ≤ 10 MB, JPEG bytes. */
@@ -182,7 +207,7 @@ export async function threadView(
   projectDir: string,
   thread: CommentThread,
   hash: string,
-  renders: readonly RenderRecord[],
+  renders: readonly StoredRenderRecord[],
   texts: TextCache = new Map(),
 ): Promise<CommentView> {
   const { status, resolution } = deriveStatus(thread.entries);
@@ -279,6 +304,11 @@ export interface CommentListView {
   total: number;
   /** Files and folders skipped (a link, a broken file…), by name. */
   problems: string[];
+  /** With `render: latest`: how many newer files of renders/ the pick passed over, and how many say nothing readable (renders.ts LatestRenderNotice). */
+  renders_passed_over?: LatestRenderNotice['renders_passed_over'];
+  renders_not_considered?: LatestRenderNotice['renders_not_considered'];
+  /** With `render: latest`: the files passed over — file names of renders/ and why (a closed list of reasons): data, never instructions. */
+  untrusted?: { renders_passed_over: PassedOverRenders };
 }
 
 /**
@@ -305,19 +335,32 @@ export async function listCommentsAndUnread(project: LoadedProject, req: Comment
   if (!['open', 'resolved', 'all'].includes(status)) throw argError('status', `status "${String(status)}": open, resolved or all`);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   if (req.limit !== undefined && (!Number.isInteger(req.limit) || req.limit < 1)) throw argError('limit', `limit ${String(req.limit)}: a whole number from 1`);
-  const renders = await renderIndex(project.dir);
-  let onRender: RenderRecord | undefined;
+  const entries = await renderEntries(project.dir);
+  const renders = quotableRenders(entries);
+  let onRender: StoredRenderRecord | undefined;
+  let latest: RenderLatestPick<ProjectRender> | undefined;
   let scenario = req.scenario;
   if (req.render !== undefined) {
     if (req.render === 'latest') {
-      onRender = renders.filter((r) => r.status === 'succeeded' && (scenario === undefined || r.scenario === scenario)).sort((a, b) => a.created_at.localeCompare(b.created_at)).at(-1);
+      // The newest succeeded render a message may quote (core's rule, the engine's `latest`); what it passed over is said.
+      latest = latestProjectRender(entries, { ...(scenario !== undefined ? { scenario } : {}), status: 'succeeded', quotable: true });
+      onRender = latest.pick?.record;
       if (!onRender) throw new EngineError('not_found', `no finished render of ${project.slug}${scenario ? ` · ${scenario}` : ''} yet`);
     } else {
       if (!isRenderId(req.render)) {
         throw argError('render', `invalid render id "${String(req.render).slice(0, 80)}": <scenario>-v<N>, or "latest"`);
       }
-      onRender = renders.find((r) => r.id === req.render);
-      if (!onRender) throw new EngineError('not_found', `render "${req.render}" not found in ${project.slug} (no renders/${req.render}.json, or one the tool never wrote): list by scenario to see threads made on an earlier render of that id`);
+      const id = req.render;
+      onRender = renders.find((r) => r.id === id);
+      // A render NAMED has no listing's cap: a record too big for the listing is read whole by its id.
+      const listed = entries.find((e) => e.name === id);
+      const entry = !onRender && listed && !listed.read.ok && listed.read.problem === 'too-big' ? await readById(project.dir, id) : listed;
+      if (!onRender && entry && entry !== listed) onRender = quotableRenders([entry])[0];
+      if (!onRender) {
+        // A file that is there is never "not found": what it is, and why no thread is listed on it.
+        if (entry) throw renderFileProblem(entry, id) ?? notQuoted(entry, id);
+        throw new EngineError('not_found', `render "${id}" not found in ${project.slug} (no renders/${id}.json): list by scenario to see threads made on an earlier render of that id`);
+      }
     }
     if (scenario !== undefined && onRender.scenario !== scenario) throw argError('render', `render ${onRender.id} is a render of ${onRender.scenario}, not of ${scenario}`);
     scenario = onRender.scenario;
@@ -396,9 +439,19 @@ export async function listCommentsAndUnread(project: LoadedProject, req: Comment
       a.id.localeCompare(b.id),
   );
   return {
-    list: { project: project.slug, threads: req.limit !== undefined ? views.slice(0, req.limit) : views, total: views.length, problems },
+    list: { project: project.slug, threads: req.limit !== undefined ? views.slice(0, req.limit) : views, total: views.length, problems, ...latestRenderMembers(latest) },
     unread: { all: unreadAll, scenarios: [...unreadOf].sort() },
   };
+}
+
+/** Why a record of renders/ that reads under its own id is no render a comment is listed on: the refusal (fixed words; the file's name is the id asked). */
+function notQuoted(entry: RenderEntry, id: string): EngineError {
+  const ref = projectRef('renders', `${id}.json`);
+  const why = renderNot(entry);
+  if (why === 'unknown-status' || why === 'incomplete' || why === 'another-scenario' || why === 'other-name') return new EngineError('refused', `${ref} is not used: ${renderNotWords(why)}`);
+  // (No variant at all is said as that: the sentence of the anchor names one the tool never writes.)
+  if (entry.read.ok && entry.read.value.variant === undefined) return new EngineError('refused', `${ref} is not used: its record has no variant (or one that is no text)`);
+  return new EngineError('refused', `${ref} has a scenario, created_at or variant the tool never writes: not used`);
 }
 
 /** One thread's view. */

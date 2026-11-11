@@ -3,7 +3,7 @@
  * the whole text of the command, layout by layout, with the run folders under their labels and the sizes left out.
  * The marks over the rows are those of the engine's table (engine/test/prune-keeps.test.ts).
  */
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -77,22 +77,23 @@ const TABLE: Record<string, string[]> = {
     'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
     'kept run NEW written by a newer Retake (left alone)',
   ],
-  // C
+  // C — L7.6b R-1: the renamed record is left alone and keeps its take; a line says each
   C1: [
-    'nothing to prune in <p> (kept: 2 takes, 1 render, 0 reviews)',
+    'nothing to prune in <p> (kept: 2 takes, 0 renders and 1 other file of renders/, 0 reviews)',
+    'kept run OLD a file of renders/ that is no render names it',
+    'kept render quote-final.json its record says another id',
   ],
-  // C
+  // C — L7.6b R-1 (was: OLD and a `render quote-v1` without a file offered)
   C2: [
-    'would delete run OLD older capture nothing uses',
-    'would delete render quote-v1 older render',
-    '2 items (<size>) can go; kept: 1 take, 3 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
+    'nothing to prune in <p> (kept: 2 takes, 3 renders and 1 other file of renders/, 0 reviews)',
+    'kept run OLD a file of renders/ that is no render names it',
+    'kept render quote-final.json its record says another id',
   ],
-  // C
+  // C — L7.6b R-1 (was: OLD offered, `render quote-v1` twice)
   C3: [
-    'would delete run OLD older capture nothing uses',
-    'would delete render quote-v1 older render',
-    'would delete render quote-v1 older render',
-    '3 items (<size>) can go; kept: 1 take, 3 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
+    'nothing to prune in <p> (kept: 2 takes, 4 renders and 1 other file of renders/, 0 reviews)',
+    'kept run OLD a file of renders/ that is no render names it',
+    'kept render quote-final.json its record says another id',
   ],
   // C
   C4: [
@@ -293,5 +294,30 @@ describe('retake prune: the takes kept beyond the list', () => {
     const io = memoryIo();
     await main(['node', 'retake', '--root', root, '--no-color', 'prune', b.slug, '--json'], io);
     expect((JSON.parse(io.stdout()) as { kept_takes: unknown[] }).kept_takes.length).toBe(6);
+  });
+
+  it('the files of renders/ left alone (L7.6b): a line each in the columns of the list, the name printable, per reason the first five and then a count', async () => {
+    // C1 (a record renamed by hand) with seven files that do not read beside it, one of them named with an escape character.
+    const b = buildLayout(root, 'C1', { slug: 'd-alone-cli' });
+    built.set('d-alone', b);
+    for (const n of [1, 2, 3, 4, 5, 6]) writeFileSync(join(b.dir, 'renders', `stray${n}.json`), '[]');
+    writeFileSync(join(b.dir, 'renders', 'a\x1b[31mred.json'), '[]');
+    const io = memoryIo();
+    await main(['node', 'retake', '--root', root, '--no-color', 'prune', b.slug], io);
+    const lines = io.stderr().split('\n').filter((l) => /^\s+kept\s+render /.test(l));
+    expect(lines).toEqual([
+      // Reason by reason, in the folder's order: the name with the escape character first, said printable (never sent
+      // to the terminal as it is).
+      '  kept          render a [31mred.json  its record does not read',
+      ...[1, 2, 3, 4].map((n) => `  kept          render stray${n}.json  its record does not read`),
+      '  kept          render and 2 more (--json names them)  its record does not read',
+      '  kept          render quote-final.json  its record says another id',
+    ]);
+    expect(io.stderr()).not.toContain('\x1b');
+    // --json names every one, under `untrusted`.
+    const json = memoryIo();
+    await main(['node', 'retake', '--root', root, '--no-color', 'prune', b.slug, '--json'], json);
+    const r = JSON.parse(json.stdout()) as { renders_alone: { count: number }; untrusted: { renders_alone: unknown[] } };
+    expect([r.renders_alone.count, r.untrusted.renders_alone.length]).toEqual([8, 8]);
   });
 });

@@ -28,11 +28,11 @@ import type { Stats } from 'node:fs';
 import { join } from 'node:path';
 import { isRenderId, projectPath, PROJECT_DIRS, projectRef, renderIdOf } from '@retake/core';
 import { ffprobeBin } from '@retake/core/io';
-import type { LoadedProject, WorkPolicy } from '@retake/core';
-import type { RenderRecord } from '@retake/editor';
+import type { LoadedProject, RenderVariant, WorkPolicy } from '@retake/core';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
 import { EngineError } from './errors.js';
 import { renderForWork } from './renders.js';
+import type { RenderForWork } from './renders.js';
 import type { Semaphore } from './run-thumbs.js';
 
 /** Long side of a viewer frame, at most. */
@@ -83,7 +83,7 @@ export interface RenderOutlineView {
   render_id: string;
   created_at: string;
   scenario: string;
-  variant: RenderRecord['variant'];
+  variant: RenderVariant;
   /** The video's own fps (= the record's, checked). */
   fps: number;
   /** Frames a comment and the viewer may name: 0 … frames − 1. */
@@ -116,7 +116,7 @@ interface VideoProbe {
  * their offset), its path and signature.
  */
 interface Opened {
-  record: RenderRecord;
+  record: RenderForWork & { variant: RenderVariant };
   fd: number;
   file: string;
   st: Stats;

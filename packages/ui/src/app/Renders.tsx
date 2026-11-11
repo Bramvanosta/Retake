@@ -29,7 +29,7 @@ import { hrefTo } from './route.js';
 import { usePaletteGroup } from './shell/command-bus.js';
 import { SessionEnded } from './session.js';
 import { clockWords, reportHint, sharedWhen } from './review-words.js';
-import { jobVersionNote, jobWords, rendersEventAction, reviewBadge, shownJobsOf, sizeWords, versionNote, versionWords } from './render-words.js';
+import { jobVersionNote, jobWords, notShownWords, rendersEventAction, reviewBadge, shownJobsOf, sizeWords, versionNote, versionWords } from './render-words.js';
 import type { ReviewTone, ShownVersion } from './render-words.js';
 import { Button, Callout, Progress, RowCard, RowList, RowListItem, StatusMark } from './ui-kit/index.js';
 import type { MarkState } from './ui-kit/index.js';
@@ -282,6 +282,11 @@ export function RendersList({ r, slug, name, shown, limit, current }: { r: Rende
           <Txt text={all ? 'Show the newest only' : `Show all ${d.renders.length} renders`} />
         </Button>
       )}
+      {notShownWords(d.not_shown).map((line) => (
+        <p key={line} className="ed-quiet" data-testid="renders-not-shown">
+          <Txt text={line} />
+        </p>
+      ))}
     </div>
   );
 }

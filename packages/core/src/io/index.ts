@@ -19,6 +19,7 @@ export * from './media.js';
 export * from './media-tools.js';
 export * from './plain-file.js';
 export * from './project.js';
+export * from './render-folder.js';
 export * from './run-folder.js';
 export * from './sandbox.js';
 export * from './scenario.js';

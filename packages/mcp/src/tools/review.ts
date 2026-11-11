@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Engine, ReviewImagesMode, ReviewView } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
+import { renderLatestData, renderLatestLines } from './render.js';
 import { READ, RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { WAIT_MAX_S, waitJob, waitS } from './run.js';
@@ -74,7 +75,11 @@ export const reviewTool = defineTool({
     const { engine } = ctx;
     const sub = await engine.reviews.submit({ project, render_id, ...(scenario ? { scenario } : {}), fps, ...(previous !== undefined ? { previous } : {}) });
     await waitJob(engine, sub.job, wait_s, ctx);
-    return reviewOutput(engine, project, sub.render_id, mode, [`review of ${sub.render_id} submitted (job ${sub.job.id}).`], level);
+    const out = await reviewOutput(engine, project, sub.render_id, mode, [`review of ${sub.render_id} submitted (job ${sub.job.id}).`, ...renderLatestLines(sub)], level);
+    // With render_id "latest": what it passed over (counts as data, the file names under "untrusted").
+    const passed = renderLatestData(sub);
+    if (!Object.keys(passed.data).length && !Object.keys(passed.untrusted).length) return out;
+    return { ...out, data: { ...out.data, ...passed.data, untrusted: { ...(out.data.untrusted as Record<string, unknown> | undefined), ...passed.untrusted } } };
   },
 });
 

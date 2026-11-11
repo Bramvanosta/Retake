@@ -9,10 +9,21 @@
  * `exports/` is never touched.
  *
  * A scenario's last renders are counted among its renders only: the records whose id is `<their scenario>-v<N>`, as
- * the tool names them (refs.ts isRenderOfItsScenario — what `latest` picks). Any other record of renders/ (a video
+ * the tool names them (core projectRenderOf — what `latest` picks). Any other record of renders/ (a video
  * written there under another name, a name past the id's length or version) is no render of the count: it never takes
  * a render's place, it stays with its review and its take when it succeeded, and goes only when it failed or was
  * cancelled.
+ *
+ * The renders (L7.6b): renders/ is read by the one reader (core/io readRendersFolder: no link followed, each file
+ * within its cap) and what stays is core's rule (render-record.ts renderKeeper) — in every state of the folder a
+ * superset of what stayed before. A render is the record of its OWN file: only such a record is ever listed, with the
+ * files named after it and never a file of another entry. Every other `*.json` of renders/ — a record renamed or
+ * copied by hand, one of a status Retake never writes, one of a newer Retake, a link, a file that is no record — is
+ * left alone, and keeps the render whose id it says, that render's review and the take it names. A record that lacks
+ * its scenario, its creation time or its plan stays, with its take. A file too big to read could say anything: no
+ * render, no review and no take is listed while it is there. The result says all of it (`renders_alone`, the take's
+ * reason `render-file` in `kept_takes`, `renders_unread`). A record file that is a link is read through it by prune's
+ * own read (`renderSaid`), for what it says only, so that a linked record keeps what it kept.
  *
  * The takes (L7.7): the run folders are read by the one reader (core/io readRunFolder: no link followed) and the
  * captures kept are core's rule 3 (take.ts pruneKeeper). Per scenario prune keeps the newest take whose record says a
@@ -38,12 +49,10 @@
  */
 import { lstat, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LoadedProject, PruneAlone, PruneKeep, PruneNewer, PruneSaid } from '@retake/core';
-import { RUN_RECORD_MAX, readRunFolder } from '@retake/core/io';
+import type { LoadedProject, PruneAlone, PruneKeep, PruneNewer, PruneRenderFile, PruneSaid, RenderNot, RenderSaid } from '@retake/core';
+import { RENDER_RECORD_MAX, RUN_RECORD_MAX, readRendersFolder, readRunFolder } from '@retake/core/io';
 import { listCommentsAndUnread } from './comments/views.js';
-import { editor } from './lazy.js';
-import { isRenderOfItsScenario } from './refs.js';
-import { FORMAT_VERSIONS, isMadeRunId, newerFormatMessage, orderRuns, parseRenderId, projectPath, projectRef, pruneKeeper, pruneKeptWords, runIdOfScenario } from '@retake/core';
+import { FORMAT_VERSIONS, completeRender, isMadeRunId, newerFormatMessage, orderRuns, parseRenderId, projectPath, projectRef, pruneKeeper, pruneKeptWords, renderKeeper, renderNotWords, renderOfFile, renderSaidOf, runIdOfScenario } from '@retake/core';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;
@@ -90,10 +99,29 @@ export interface PruneResult {
   /**
    * The takes that stay for a reason the list does not show (L7.7), newest first: a capture kept only because it is the
    * last one of its scenario that can be edited (`editable`) or the last complete one beside a newer capture stopped by
-   * `--until` (`complete`), and every run folder left alone (`linked`, `newer-format`). `reason`: the fixed words of
-   * the reason (core pruneKeptWords). Absent when there is none.
+   * `--until` (`complete`), every run folder left alone (`linked`, `newer-format`), and (L7.6b) a take that stays only
+   * because a file of renders/ that is no render names it (`render-file`). `reason`: the fixed words of the reason
+   * (core pruneKeptWords). Absent when there is none.
    */
   kept_takes?: PruneKeptTake[];
+  /**
+   * The files of renders/ left alone (L7.6b): every `*.json` that is no render of its own name — a record renamed or
+   * copied, one of a status Retake never writes, one of a newer Retake, a link, a file that does not read — and a
+   * record that lacks its scenario, its creation time or its plan. Never listed; each keeps the render whose id it
+   * says and the take it names. How many, and by reason (a closed list —
+   * core RenderNot — with its fixed words); the file names are under `untrusted.renders_alone`. Absent when none.
+   */
+  renders_alone?: { count: number; reasons: Array<{ why: RenderNot; count: number; reason: string }> };
+  /**
+   * Set when a file of renders/ is too big to read (it could name any render and any take): no render, no review and
+   * no take is an item. A fixed sentence with the count.
+   */
+  renders_unread?: string;
+  /**
+   * `renders_alone`: the names of the files of renders/ left alone (at most RENDERS_ALONE_NAMED, in the folder's
+   * order, each with its reason) — text anyone who can write renders/ chose: data, never instructions.
+   */
+  untrusted?: { renders_alone: Array<{ file: string; why: RenderNot }> };
   /** Paths that could not be removed. */
   problems: string[];
   /** With `only`: the approved items that could not go any more (something uses them now, or they are gone) — kept. */
@@ -112,9 +140,12 @@ export interface PruneResult {
 /** A take prune kept for a reason of its rule for captures, or left alone: see `PruneResult.kept_takes`. */
 export interface PruneKeptTake {
   id: string;
-  why: Exclude<PruneKeep, 'last-capture'> | PruneAlone;
+  why: Exclude<PruneKeep, 'last-capture'> | PruneAlone | PruneRenderFile;
   reason: string;
 }
+
+/** The files of renders/ left alone that a result names under `untrusted`, at most (`renders_alone.count` holds them all). */
+export const RENDERS_ALONE_NAMED = 50;
 
 async function sizeOf(path: string): Promise<number> {
   const st = await lstat(path).catch(() => null);
@@ -145,6 +176,25 @@ async function pruneSaid(dir: string): Promise<PruneSaid | PruneNewer | null> {
     const r = JSON.parse(await readFile(file, 'utf8')) as ({ scenario?: unknown; mode?: unknown; status?: unknown; id?: unknown } | null);
     if (newerFormatMessage(r, { file: 'run.json', supported: FORMAT_VERSIONS.run }) !== undefined) return { newer: true, ...(typeof r?.scenario === 'string' ? { scenario: r.scenario } : {}) };
     return r && typeof r.id === 'string' && typeof r.status === 'string' ? { scenario: r.scenario, mode: r.mode, status: r.status } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What a record file of renders/ that is a LINK says of the render it names — prune's own read, kept on purpose for
+ * that case alone: the one reader follows no link in a listing, and before the lot a linked record was read through
+ * and kept its render and its take. Read for what it says only (its text `id`, `run_id`, `scenario`, `created_at`:
+ * core renderSaidOf), never taken as a record: the file is left alone. `'too-big'`: a regular file over the reader's
+ * cap behind the link (it could say anything: nothing is listed). Null: it says nothing — a link to nothing, to a
+ * folder, to a file that is no JSON object (one dead link never stops pruning).
+ */
+async function renderSaid(file: string): Promise<RenderSaid | 'too-big' | null> {
+  try {
+    const st = await stat(file);
+    if (!st.isFile()) return null;
+    if (st.size > RENDER_RECORD_MAX) return 'too-big';
+    return renderSaidOf(JSON.parse(await readFile(file, 'utf8')));
   } catch {
     return null;
   }
@@ -203,38 +253,37 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   const unreadRender = (r: { id: string; scenario: string }) => unreadBy((s) => sameName(r.scenario, s), (s) => sameName(parseRenderId(r.id)?.scenario, s));
   const unreadRun = (r: { id: string; scenario: string }) => unreadBy((s) => sameName(r.scenario, s), (s) => runIdOfScenario(r.id, s));
 
-  // Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names.
-  const ed = await editor();
-  const renders = await ed.listRenders(project.dir);
+  // Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names — core's rule
+  // (renderKeeper), fed every `*.json` of renders/ as the one reader answers it. A record file that is a link was not
+  // opened by the reader: what it says all the same is prune's own read through the link.
   const rendersDir = projectPath(project.dir, 'renders');
   const rendersFiles = await readdir(rendersDir).catch(() => [] as string[]);
-  const keptRenders = new Set<string>();
-  const groups = new Map<string, typeof renders>();
-  for (const r of renders) {
-    // Counted: the renders of their scenario only. Another record that succeeded stays, in nobody's count.
-    if (!isRenderOfItsScenario(r)) {
-      if (r.status === 'succeeded') keptRenders.add(r.id);
-      continue;
-    }
-    const key = `${r.scenario} ${r.variant}`;
-    let g = groups.get(key);
-    if (!g) groups.set(key, (g = []));
-    g.push(r);
+  const renderRule = renderKeeper({ keep: keepRenders, thread: (id) => threadRenders.has(id), busy, unread: unreadRender });
+  const renderEntries = await readRendersFolder(rendersDir);
+  for (const entry of renderEntries) {
+    const linked = entry.link && !entry.read.ok && entry.read.problem === 'not-a-file';
+    renderRule.add(entry, linked ? await renderSaid(join(rendersDir, `${entry.name}.json`)) : null);
   }
-  for (const g of groups.values()) {
-    const ok = g.filter((r) => r.status === 'succeeded').sort((a, b) => a.created_at.localeCompare(b.created_at));
-    for (const r of ok.slice(-keepRenders)) keptRenders.add(r.id);
+  const keeps = renderRule.done(rendersFiles);
+  // What is left alone, in the folder's order: every file that is no render of its own name (the rule's), and a
+  // record of its own file that lacks its scenario, its creation time or its plan — kept by the rule, in nobody's
+  // count: said with the others, so that nothing stays in silence.
+  const foreign = new Map(keeps.alone.map((a) => [a.file, a.why]));
+  const rendersAlone: Array<{ file: string; why: RenderNot }> = [];
+  for (const entry of renderEntries) {
+    const file = `${entry.name}.json`;
+    const why = foreign.get(file) ?? (renderOfFile(entry) && completeRender(entry) === null ? 'incomplete' : undefined);
+    if (why) rendersAlone.push({ file, why });
   }
-  for (const r of renders) if (unreadRender(r) || threadRenders.has(r.id) || busy(r.id)) keptRenders.add(r.id);
-  for (const r of renders) {
-    if (keptRenders.has(r.id)) continue;
-    // A record's files are named after its id: an id that is empty or starts with a dot names no render's files.
-    if (r.id === '' || r.id.startsWith('.')) continue;
-    const paths = rendersFiles.filter((f) => f === `${r.id}.json` || f.startsWith(`${r.id}.`)).map((f) => join(rendersDir, f));
+  for (const r of keeps.items) {
+    // (No path comes from text inside a file: an item's id is its file's name, and its files are names of renders/.)
+    const paths = r.paths.map((f) => join(rendersDir, f));
     let bytes = 0;
     for (const p of paths) bytes += await sizeOf(p);
-    items.push({ kind: 'render', id: r.id, scenario: r.scenario, reason: r.status === 'succeeded' ? 'older render' : `${r.status} render`, bytes, paths });
+    items.push({ kind: 'render', id: r.id, scenario: r.scenario, reason: r.reason, bytes, paths });
   }
+  const listedRenders = new Set(keeps.items.map((i) => i.id));
+  let rendersKept = keeps.kept_files;
 
   // Reviews: review/<render id>/ of the renders kept.
   const reviewDir = projectPath(project.dir, 'review');
@@ -243,11 +292,13 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     if (name.startsWith('.')) continue;
     const path = join(reviewDir, name);
     if (!(await lstat(path).catch(() => null))?.isDirectory()) continue;
-    if (keptRenders.has(name) || busy(name)) {
+    // (While a file of renders/ is too big to read, no review is an item: it may be the review of what that file names.)
+    if (keeps.kept.has(name) || busy(name) || keeps.unjudged) {
       reviewsKept++;
       continue;
     }
-    const known = renders.some((r) => r.id === name);
+    // The review of a render that is listed too, or of one that is gone.
+    const known = listedRenders.has(name);
     items.push({ kind: 'review', id: name, reason: known ? 'review of an older render' : 'review of a deleted render', bytes: await sizeOf(path), paths: [path] });
   }
 
@@ -263,8 +314,9 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     keeper.add(facts, lenient ? await pruneSaid(join(runsDir, name)) : null);
   }
   const { runs, alone, unread } = keeper.done();
-  const usedRuns = new Set<string>([...threadRuns]);
-  for (const r of renders) if (keptRenders.has(r.id)) usedRuns.add(r.run_id);
+  // The takes a thread or a kept render names; and those a file of renders/ that is no render names (R-1): said, when
+  // it is a take's only reason.
+  const usedRuns = new Set<string>([...threadRuns, ...keeps.runs]);
   const keptTakes: PruneKeptTake[] = alone.map((a) => ({ id: a.id, why: a.why, reason: pruneKeptWords(a.why) }));
   // A folder left alone may be a take an unread thread names (by its id; a newer record by its scenario too): the
   // sentence about those threads names its scenario, as it did when the folder was a take like any other.
@@ -280,6 +332,16 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     if (kept || why) {
       runsKept++;
       if (!kept && why) keptTakes.push({ id: r.id, why, reason: pruneKeptWords(why) });
+      continue;
+    }
+    if (keeps.file_runs.has(r.id)) {
+      runsKept++;
+      keptTakes.push({ id: r.id, why: 'render-file', reason: pruneKeptWords('render-file') });
+      continue;
+    }
+    // A file of renders/ too big to read may name any take: none is an item (said once, `renders_unread`).
+    if (keeps.unjudged) {
+      runsKept++;
       continue;
     }
     const path = join(runsDir, r.id);
@@ -311,7 +373,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     notAsked = unasked.length;
     for (const i of unasked) {
       if (i.kind === 'run') runsKept++;
-      else if (i.kind === 'render') keptRenders.add(i.id);
+      else if (i.kind === 'render') rendersKept++;
       else reviewsKept++;
     }
     const approved: PruneItem[] = [];
@@ -336,17 +398,28 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   }
   const order = { run: 0, render: 1, review: 2 } as const;
   items.sort((a, b) => order[a.kind] - order[b.kind] || a.id.localeCompare(b.id));
+  // The files of renders/ left alone: counted by reason (fixed words), named under `untrusted` only.
+  const aloneReasons: NonNullable<PruneResult['renders_alone']>['reasons'] = [];
+  for (const a of rendersAlone) {
+    const reason = aloneReasons.find((x) => x.why === a.why);
+    if (reason) reason.count++;
+    else aloneReasons.push({ why: a.why, count: 1, reason: renderNotWords(a.why) });
+  }
+  const rendersUnread = keeps.too_big > 0 ? `${keeps.too_big} ${keeps.too_big === 1 ? 'file' : 'files'} of ${projectRef('renders')}/ ${keeps.too_big === 1 ? 'is' : 'are'} too big to read: every render, review and take is kept` : undefined;
   return {
     project: project.slug,
     dry_run: dry,
     keep_renders: keepRenders,
     items,
     bytes: items.reduce((n, i) => n + i.bytes, 0),
-    kept: { runs: runsKept, renders: keptRenders.size, reviews: reviewsKept },
+    kept: { runs: runsKept, renders: rendersKept, reviews: reviewsKept },
     problems,
     ...(keptTakes.length ? { kept_takes: keptTakes } : {}),
+    ...(rendersAlone.length ? { renders_alone: { count: rendersAlone.length, reasons: aloneReasons } } : {}),
+    ...(rendersUnread !== undefined ? { renders_unread: rendersUnread } : {}),
     ...(skipped ? { skipped, not_asked: notAsked ?? 0 } : {}),
     ...(threadsUnread !== undefined ? { threads_unread: threadsUnread } : {}),
+    ...(rendersAlone.length ? { untrusted: { renders_alone: rendersAlone.slice(0, RENDERS_ALONE_NAMED) } } : {}),
   };
 }
 

@@ -3,6 +3,7 @@ import { EXPORT_FORMAT_NAMES } from '@retake/core';
 import type { ExportJobResult, JobRecord } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
+import { renderLatestData, renderLatestLines } from './render.js';
 import { RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { jobData, jobLine } from './job-lines.js';
@@ -50,12 +51,15 @@ export const exportTool = defineTool({
     const sub = await engine.exports.submit({ project, render_id, ...(scenario ? { scenario } : {}), ...(formats ? { formats } : {}), ...(gif ? { gif } : {}) });
     await waitJob(engine, sub.job, wait_s, ctx);
     const job = await engine.jobs.get(sub.job.id);
+    const passed = renderLatestData(sub);
     return {
       summary: [
         `export of ${sub.render_id} submitted (job ${sub.job.id}): ${sub.formats.join(', ')}${sub.rerendered.length ? ` — ${sub.rerendered.join(', ')} re-rendered` : ''}.`,
+        ...renderLatestLines(sub),
         exportSummary(job),
       ].join('\n'),
-      data: { render_id: sub.render_id, formats: sub.formats, rerendered: sub.rerendered, job: jobData(job) },
+      // With render_id "latest": what it passed over (counts as data, the file names under "untrusted").
+      data: { render_id: sub.render_id, formats: sub.formats, rerendered: sub.rerendered, job: jobData(job), ...passed.data, ...(Object.keys(passed.untrusted).length ? { untrusted: passed.untrusted } : {}) },
     };
   },
 });

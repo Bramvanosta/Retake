@@ -1,5 +1,5 @@
 /** Types of the render API (DESIGN-phase2 §2: renderVideo, renderStill, listRenders). */
-import type { RenderRecord } from '../render-record.js';
+import type { RenderAttempt, RenderRecord } from '../render-record.js';
 import { GUIDE } from '@retake/core';
 import type { ErrorKind } from '@retake/core';
 
@@ -7,8 +7,8 @@ import type { ErrorKind } from '@retake/core';
 export class RenderError extends Error {
   constructor(
     message: string,
-    /** The record of the failed/cancelled render (not written to disk). */
-    readonly record?: RenderRecord,
+    /** The record of the failed/cancelled render (never written to a disk). */
+    readonly record?: RenderAttempt,
   ) {
     super(message);
     this.name = 'RenderError';
@@ -33,7 +33,7 @@ export class RenderError extends Error {
 
 /** The render was cancelled through its AbortSignal: nothing was written under the final name. */
 export class RenderCancelledError extends RenderError {
-  constructor(record?: RenderRecord) {
+  constructor(record?: RenderAttempt) {
     super('render cancelled: no output written', record);
     this.name = 'CancelledError';
   }

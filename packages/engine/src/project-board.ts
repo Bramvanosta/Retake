@@ -29,9 +29,8 @@
 import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, filmedChanges, isRunId, isThemeName, parseRenderId, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
-import type { LoadedProject, RunStatus } from '@retake/core';
-import type { RenderRecord } from '@retake/editor';
+import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, filmedChanges, isRunId, isThemeName, orderRenders, parseRenderId, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
+import type { LoadedProject, RenderEntry, RunStatus, StoredRenderRecord } from '@retake/core';
 import { fileFacts } from '@retake/core/io';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
@@ -41,7 +40,7 @@ import type { JobFiles } from './jobs/queue.js';
 import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from './run-data.js';
 import { RunFolder, lsig } from './run-files.js';
 import type { ThumbSource } from './run-thumbs.js';
-import { readRenderRecord, renderView, failureWords } from './renders.js';
+import { readListedRecord, renderView, failureWords, scenarioRenderOf } from './renders.js';
 import type { ScenarioRenderView } from './renders.js';
 import { readRecord, runFolderIds, takeVerdict } from './runs.js';
 import type { RunRecordOnDisk } from './runs.js';
@@ -243,7 +242,7 @@ export class ProjectBoards {
   private readonly takes = new Map<string, boolean>();
   private readonly currents = new Map<string, boolean | null>();
   private readonly posters = new Map<string, RunPoster>();
-  private readonly renderRecords = new Map<string, { sig: string; record: RenderRecord | undefined }>();
+  private readonly renderRecords = new Map<string, { sig: string; entry: RenderEntry }>();
   private readonly jobMemo = new Map<string, { sig: string; rec: JobRecord | null }>();
   private readonly older = new Map<string, OlderIndex>();
   /** The board's own run reader (never the scenario screen's cache). */
@@ -663,29 +662,37 @@ export class ProjectBoards {
   // ── Renders ─────────────────────────────────────────────────────────────
 
   /** The project's render records per scenario, newest first (one readdir; records held while their stat holds). */
-  private async renderRecordsOf(p: LoadedProject, names: ReadonlySet<string>): Promise<Map<string, RenderRecord[]>> {
-    const out = new Map<string, RenderRecord[]>();
+  private async renderRecordsOf(p: LoadedProject, names: ReadonlySet<string>): Promise<Map<string, StoredRenderRecord[]>> {
+    const out = new Map<string, StoredRenderRecord[]>();
     const files = await readdir(projectPath(p.dir, 'renders')).catch(() => [] as string[]);
-    await Promise.all(
-      files.map(async (f) => {
-        // renders/<render id>.json of one of the scenarios; the record is filed under the scenario its name gives.
-        const scenario = f.endsWith('.json') ? parseRenderId(f.slice(0, -5))?.scenario : undefined;
-        if (scenario === undefined || !names.has(scenario)) return;
-        const key = `${p.dir}\0${f}`;
-        const sig = await lsig(projectPath(p.dir, 'renders', f));
-        let held = this.renderRecords.get(key);
-        if (!held || held.sig !== sig) {
-          held = { sig, record: readRenderRecord(p.dir, f) };
-          remember(this.renderRecords, key, held, 4096);
-        }
-        if (held.record) {
-          const list = out.get(scenario) ?? [];
-          list.push(held.record);
-          out.set(scenario, list);
-        }
-      }),
-    );
-    for (const list of out.values()) list.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
+    // renders/<render id>.json of one of the scenarios (named by the file first: no other file is read); the record is
+    // filed under the scenario its name gives when it is a render of it (core's rule: a complete record of its own
+    // file that says that scenario).
+    const wanted: Array<{ f: string; scenario: string }> = [];
+    for (const f of files) {
+      const scenario = f.endsWith('.json') ? parseRenderId(f.slice(0, -5))?.scenario : undefined;
+      if (scenario !== undefined && names.has(scenario)) wanted.push({ f, scenario });
+    }
+    const sigs = await Promise.all(wanted.map((w) => lsig(projectPath(p.dir, 'renders', w.f))));
+    // The files whose stat changed are read one after another: a record's text (megabytes with its plan) is parsed and
+    // let go before the next one is read — two hundred of them held at once cost a cold board a tenth of its time.
+    for (const [i, { f, scenario }] of wanted.entries()) {
+      const key = `${p.dir}\0${f}`;
+      const sig = sigs[i] as string;
+      let held = this.renderRecords.get(key);
+      if (!held || held.sig !== sig) {
+        held = { sig, entry: await readListedRecord(p.dir, f.slice(0, -5)) };
+        remember(this.renderRecords, key, held, 4096);
+      }
+      const record = scenarioRenderOf(held.entry, scenario);
+      if (record) {
+        const list = out.get(scenario) ?? [];
+        list.push(record);
+        out.set(scenario, list);
+      }
+    }
+    // Newest first (the one order of renders, reversed).
+    for (const [scenario, list] of out) out.set(scenario, orderRenders(list).reverse());
     return out;
   }
 }

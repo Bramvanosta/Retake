@@ -1,15 +1,15 @@
 /**
  * Runs and renders of a project on disk: the run a render works on (id, directory or `latest`), the next free render
- * version and the RenderRecords already written.
+ * version and the render records already written.
  */
 import { existsSync, readdirSync } from 'node:fs';
-import { open, readFile, readdir, rm } from 'node:fs/promises';
+import { open, readFile, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RENDER_VERSION_MAX, insideFolder, latestTake, orderRuns, parseScenario, projectPath, projectRef, renderFileVersionOf, renderLockName, renderSuffix, takeNeedsTimeline, takeOf, takeWords } from '@retake/core';
-import { nodeFileFacts, readRunFolder, readRunRecord } from '@retake/core/io';
+import { RENDER_VERSION_MAX, insideFolder, latestTake, orderRuns, parseScenario, projectPath, projectRef, renderFileVersionOf, renderLockName, renderRecordsOf, renderSuffix, takeNeedsTimeline, takeOf, takeWords } from '@retake/core';
+import { nodeFileFacts, readRendersFolder, readRunFolder, readRunRecord } from '@retake/core/io';
 import type { LatestPick, LoadedProject, RunRead, Scenario } from '@retake/core';
-import { readRenderRecords } from '../render-record.js';
-import type { RenderRecord } from '../render-record.js';
+import { withPlan } from '../render-record.js';
+import type { StoredRender } from '../render-record.js';
 import { RenderError } from './types.js';
 
 export interface RunRef {
@@ -208,8 +208,12 @@ export async function reserveVersion(dir: string, name: string, owner = String(p
   throw new RenderError(`could not reserve a render version of ${name} in ${dir}`);
 }
 
-/** The RenderRecords of a project (renders/*.json), oldest first. Unreadable files are skipped. */
-export async function listRenders(project: Pick<LoadedProject, 'dir'> | string): Promise<RenderRecord[]> {
+/**
+ * The render records of a project (renders/*.json), oldest first: the complete records of their own file, read by the
+ * one reader (core/io readRendersFolder: no link followed, each file within its cap) and ordered by core's order of
+ * renders (renderRecordsOf). A copy, a record renamed by hand, one that lacks a member or does not read is not listed.
+ */
+export async function listRenders(project: Pick<LoadedProject, 'dir'> | string): Promise<StoredRender[]> {
   const dir = typeof project === 'string' ? projectPath(resolve(project), 'renders') : rendersDir(project);
-  return readRenderRecords(dir, { list: (d) => readdir(d), read: (f) => readFile(f, 'utf8') });
+  return renderRecordsOf(await readRendersFolder(dir)).map((r) => withPlan(r).value);
 }

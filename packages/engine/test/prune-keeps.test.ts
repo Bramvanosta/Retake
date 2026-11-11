@@ -82,12 +82,12 @@ const TABLE: Record<string, string> = {
   B2: 'nothing | kept 2 | NEW newer-format',
   // P-1
   B2f: 'nothing | kept 2 | NEW newer-format',
-  // C
-  C1: 'nothing | kept 2',
-  // C
-  C2: 'run OLD (older capture nothing uses); render quote-v1 (older render) no file | kept 1',
-  // C
-  C3: 'run OLD (older capture nothing uses); render quote-v1 (older render); render quote-v1 (older render) | kept 1',
+  // C — L7.6b R-1: the take a renamed record names stays whatever the count of newer renders, and it is said
+  C1: 'nothing | kept 2 | OLD render-file',
+  // C — L7.6b R-1 (was: OLD offered, and a line `render quote-v1` without a file)
+  C2: 'nothing | kept 2 | OLD render-file',
+  // C — L7.6b R-1 (was: OLD offered, and `render quote-v1` twice): the renamed file says quote-v1, the real one stays
+  C3: 'nothing | kept 2 | OLD render-file',
   // C
   C4: 'render quote-v2 (older render) | kept 2',
   ctl: 'run OLD (older capture nothing uses) | kept 1',
@@ -291,7 +291,10 @@ describe('what the result says, and what a deletion leaves', () => {
   it('the form a person approves says what stays: the take that can be edited, the complete one, and what is left alone', () => {
     const text = pruneApprovalFormText({ what: 'prune', project: 'p', keep_renders: 3, count: 1, bytes: 1000, by_kind: [{ kind: 'run', count: 1, bytes: 1000 }], lines: ['take 20261001-100000-quote — failed take, 1 kB'], more: 0, fix: 'retake prune p --yes' });
     expect(text.split('\n')[1]).toBe(
-      'Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last 3 renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone; exports/ is not touched.',
+      'Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last 3 renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone, and so is a file of renders/ that is no render of its own name, or a record that lacks a member, with the render and the take it names; exports/ is not touched.',
     );
+    // L7.6b: the files of renders/ left alone are said with a count, never a name.
+    const alone = (n: number) => pruneApprovalFormText({ what: 'prune', project: 'p', keep_renders: 3, count: 1, bytes: 1000, by_kind: [{ kind: 'run', count: 1, bytes: 1000 }], lines: ['take 20261001-100000-quote — failed take, 1 kB'], more: 0, fix: 'retake prune p --yes', renders_alone: n }).split('\n')[2];
+    expect([alone(1), alone(2)]).toEqual(['1 file of renders/ is no render of its own name, or lacks a member: left alone, with the renders and the takes it names.', '2 files of renders/ are no render of their own name, or lack a member: left alone, with the renders and the takes they name.']);
   });
 });

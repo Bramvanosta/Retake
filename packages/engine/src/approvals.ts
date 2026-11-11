@@ -150,6 +150,8 @@ export interface PruneApprovalRequest {
   more: number;
   /** The `retake prune … --yes` command a human runs for the same deletion. */
   fix: string;
+  /** How many files of renders/ are no render of their own name: left alone, with the render and the take each names (a count: never a file's name). Absent: none. */
+  renders_alone?: number;
 }
 
 /** How a client asks its human (MCP: elicitation). Absent: the client cannot ask anyone. */
@@ -399,7 +401,7 @@ export function pruneApprovalRequest(listed: PruneResult, fix: string): PruneApp
     })
     .filter((k) => k.count > 0);
   const lines = listed.items.slice(0, PRUNE_FORM_MAX_LINES).map((i) => `${PRUNE_KIND_WORDS[i.kind][0]} ${visibleName(i.id)} — ${i.reason}, ${formatBytes(i.bytes)}`);
-  return { what: 'prune', project: listed.project, keep_renders: listed.keep_renders, count: listed.items.length, bytes: listed.bytes, by_kind, lines, more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES), fix };
+  return { what: 'prune', project: listed.project, keep_renders: listed.keep_renders, count: listed.items.length, bytes: listed.bytes, by_kind, lines, more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES), fix, ...(listed.renders_alone ? { renders_alone: listed.renders_alone.count } : {}) };
 }
 
 /**
@@ -411,7 +413,8 @@ export function pruneApprovalFormText(req: PruneApprovalRequest): string {
   const items = `${req.count} item${req.count === 1 ? '' : 's'}`;
   return [
     `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
-    `Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone; exports/ is not touched.`,
+    `Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone, and so is a file of renders/ that is no render of its own name, or a record that lacks a member, with the render and the take it names; exports/ is not touched.`,
+    ...(req.renders_alone ? [`${req.renders_alone} ${req.renders_alone === 1 ? 'file' : 'files'} of renders/ ${req.renders_alone === 1 ? 'is no render of its own name, or lacks a member' : 'are no render of their own name, or lack a member'}: left alone, with the renders and the takes ${req.renders_alone === 1 ? 'it names' : 'they name'}.`] : []),
     req.more ? `The first ${req.lines.length} of the ${items}:` : `${req.count === 1 ? 'It' : 'They'}:`,
     ...req.lines.map((l) => `- ${l}`),
     ...(req.more ? [`… and ${req.more} more, not listed here (counted in the totals above).`] : []),

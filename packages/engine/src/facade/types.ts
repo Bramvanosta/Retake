@@ -35,6 +35,7 @@ import type { SiteList } from '../site-list.js';
 import type { SiteSubmitted } from '../jobs/site-job.js';
 import type { ThemeCreated } from '../brand/create.js';
 import type { TemplateDetail, TemplateListView } from '../templates.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import type { PlanPreviewView, RenderStatusView, ScenarioRendersView } from '../renders.js';
 import type { SandboxSubmitRequest } from '../jobs/sandbox-job.js';
 import type { CommentAddRequest, CommentAdded, CommentAnchorRequest, CommentAnchorView, CommentApplied, CommentCountsView, CommentListRequest, CommentListView, CommentProposalView, CommentView, CommentWritten } from '../comments.js';
@@ -350,8 +351,11 @@ export interface Engine {
     view(req: TimelineViewRequest): Promise<TimelineViewResult>;
   };
   reviews: {
-    /** Queue a review of a render (its video and run must lie in the project; `latest` is resolved now). */
-    submit(req: ReviewRequest): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean } }>;
+    /**
+     * Queue a review of a render (its video and run must lie in the project; `latest` is resolved now — the answer then
+     * says how many newer files of renders/ it passed over, their names under `untrusted`).
+     */
+    submit(req: ReviewRequest): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean }; untrusted?: { renders_passed_over: PassedOverRenders } } & LatestRenderNotice>;
     /** A render's review: its newest job, then review/<id>/report.json (paths rebuilt from the folder, messages untrusted). */
     get(project: string, renderId: string, o?: { scenario?: string; images?: ReviewImagesMode }): Promise<ReviewView>;
     /**
@@ -361,8 +365,11 @@ export interface Engine {
     image(project: string, renderId: string, image: string): Promise<ReviewImageView>;
   };
   exports: {
-    /** Queue an export of a render to delivery formats (exports/<id>/; re-rendered formats are planned and checked first). */
-    submit(req: ExportRequest): Promise<{ job: JobRecord; render_id: string; formats: string[]; rerendered: string[]; worker?: { pid?: number; spawned: boolean } }>;
+    /**
+     * Queue an export of a render to delivery formats (exports/<id>/; re-rendered formats are planned and checked first).
+     * With `latest`: the answer says how many newer files of renders/ it passed over, their names under `untrusted`.
+     */
+    submit(req: ExportRequest): Promise<{ job: JobRecord; render_id: string; formats: string[]; rerendered: string[]; worker?: { pid?: number; spawned: boolean }; untrusted?: { renders_passed_over: PassedOverRenders } } & LatestRenderNotice>;
   };
   templates: {
     /** Workspace and starter themes with their component per kind (with `project`: which one is its own). */

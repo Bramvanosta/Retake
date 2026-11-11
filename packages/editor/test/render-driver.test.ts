@@ -17,7 +17,7 @@ import type { LoadedProject, LoadedTemplate } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { RenderCancelledError, RenderDiskFullError, RenderError, exportRender, isDiskFullError, planRun, previewDriver, renderComponentLoops, renderComponentPreviews, renderStill, renderVideo, versionLockFile } from '@retake/editor';
-import type { DriverVideoRequest, DriverVideoResult, LoopItem, PreviewBackend, RenderDriver, RenderRecord } from '@retake/editor';
+import type { DriverVideoRequest, DriverVideoResult, LoopItem, PreviewBackend, RenderAttempt, RenderDriver } from '@retake/editor';
 import { RUN_ID, TEMPLATES, syntheticTimeline } from './render-helpers.js';
 
 let root: string;
@@ -129,7 +129,7 @@ describe('renderVideo on a driver handed to it', () => {
   it('a driver\'s cancel is read by its kind: the record says `cancelled`, this package\'s cancel error is thrown', async () => {
     const e = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => kinded('cancelled', 'stopped by the driver') }) }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(RenderCancelledError);
-    const record = (e as RenderCancelledError).record as RenderRecord;
+    const record = (e as RenderCancelledError).record as RenderAttempt;
     expect(record.status).toBe('cancelled');
     expect(record.error).toBe('stopped by the driver');
     expect(existsSync(record.file)).toBe(false);
@@ -142,7 +142,7 @@ describe('renderVideo on a driver handed to it', () => {
     expect(e).toBeInstanceOf(RenderError);
     expect(e).not.toBeInstanceOf(RenderCancelledError);
     expect((e as Error).message).toBe('the encoder stopped');
-    const record = (e as RenderError).record as RenderRecord;
+    const record = (e as RenderError).record as RenderAttempt;
     expect(record.status).toBe('failed');
     expect(record.policy).toEqual(path);
     expect(record.warnings).toContain('blocked: example.com');
@@ -152,11 +152,11 @@ describe('renderVideo on a driver handed to it', () => {
     for (const path of ['/somewhere/video.mp4', { ...PATH }]) {
       const e = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => Object.assign(new Error('ENOTDIR: not a directory'), { code: 'ENOTDIR', path }) }) }).catch((x: unknown) => x);
       expect(e).toBeInstanceOf(RenderError);
-      expect(((e as RenderError).record as RenderRecord).policy).toBeUndefined();
+      expect(((e as RenderError).record as RenderAttempt).policy).toBeUndefined();
     }
     // …and a `renderPath` that is not an object is not one either.
     const e = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => Object.assign(new Error('odd'), { renderPath: 'software' }) }) }).catch((x: unknown) => x);
-    expect(((e as RenderError).record as RenderRecord).policy).toBeUndefined();
+    expect(((e as RenderError).record as RenderAttempt).policy).toBeUndefined();
   });
 });
 
@@ -273,5 +273,38 @@ describe('a preview session on a driver handed to it', () => {
     await session.close();
     await session.close();
     await expect(session.still({} as never, join(root, 'late.png'), 1)).rejects.toThrow('this preview session is closed');
+  });
+});
+
+// ── The bytes of a record (L7.6b, pinned before the record becomes a union) ──
+
+describe('the record renderVideo writes, and the one a failure carries: their members, in order', () => {
+  const BASE = ['version', 'id', 'project', 'scenario', 'run_id', 'run_dir', 'template', 'template_sha256', 'overrides', 'edit', 'variant', 'status', 'file', 'record', 'render_version', 'created_at', 'finished_at', 'duration_s', 'frames', 'fps', 'width', 'height', 'size_bytes', 'encoding', 'concurrency', 'bundle', 'browser', 'timings', 'warnings'];
+
+  it('a succeeded record: `policy` and `probe` come after `plan`; the file is the record as JSON, two spaces, a final newline', async () => {
+    const probe = { duration_s: 1, frames: 30, width: 1920, height: 1080, fps: 30, audio_streams: 1 };
+    const record = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ probe }) });
+    const text = await readFile(record.record, 'utf8');
+    expect(text).toBe(`${JSON.stringify(record, null, 2)}\n`);
+    expect(Object.keys(JSON.parse(text) as object)).toEqual([...BASE, 'plan', 'policy', 'probe']);
+    expect(Object.keys(record.encoding)).toEqual(['codec', 'pixel_format', 'faststart', 'audio', 'encoder', 'crf']);
+    expect([record.status, 'error' in record]).toEqual(['succeeded', false]);
+    // Without a probe from the driver: no `probe` member at all.
+    const bare = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver() });
+    expect(Object.keys(JSON.parse(await readFile(bare.record, 'utf8')) as object)).toEqual([...BASE, 'plan', 'policy']);
+  });
+
+  it('a failed or cancelled render writes no record: the attempt rides on the error, `error` after `plan`, then the path it tried', async () => {
+    const failed = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => kinded('render', 'the driver broke', { renderPath: PATH }) }) }).catch((x: unknown) => x);
+    expect(failed).toBeInstanceOf(RenderError);
+    const attempt = (failed as RenderError).record as RenderAttempt;
+    expect(Object.keys(attempt)).toEqual([...BASE, 'plan', 'error', 'policy']);
+    expect([attempt.status, attempt.error, attempt.size_bytes, attempt.bundle, attempt.browser, 'probe' in attempt]).toEqual(['failed', 'the driver broke', 0, { hash: '', cached: false, ms: 0 }, { path: null, source: 'none' }, false]);
+    expect([existsSync(attempt.record), existsSync(attempt.file)]).toEqual([false, false]);
+    const cancelled = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => kinded('cancelled', 'stopped') }) }).catch((x: unknown) => x);
+    expect(cancelled).toBeInstanceOf(RenderCancelledError);
+    const stopped = (cancelled as RenderCancelledError).record as RenderAttempt;
+    expect(Object.keys(stopped)).toEqual([...BASE, 'plan', 'error']);
+    expect([stopped.status, stopped.error, existsSync(stopped.record)]).toEqual(['cancelled', 'stopped', false]);
   });
 });

@@ -172,16 +172,30 @@
   },
   {
    "rule": "record-read",
-   "reason": "Prune reads the run folders through the reader (L7.7) and keeps its lenient read for one case: a run.json the reader does not take as a record (a finished run without its end, a failed one without its error, a linked file) is still read as any object with a text id and status, so that a take prune could delete before the lot can still be deleted — leaving such a take alone is a change nobody decided. Where this read is stricter than before it only keeps: a file of a newer format is left alone, one that is no regular file or is over the reader's cap is not read.",
+   "reason": "Prune reads the run folders through the reader (L7.7) and keeps its lenient read for one case: a run.json the reader does not take as a record (a finished run without its end, a failed one without its error, a linked file) is still read as any object with a text id and status, so that a take prune could delete before the lot can still be deleted — leaving such a take alone is a change nobody decided. Where this read is stricter than before it only keeps: a file of a newer format is left alone, one that is no regular file or is over the reader's cap is not read. Its second read (L7.6b) is of renders/: a record file that is a link is not opened by the one reader of renders/, and is read through the link for the id, the take, the scenario and the creation time it says — never taken as a record — so that a linked record keeps the render and the take it kept before the lot.",
    "entries": [
-    "packages/engine/src/prune.ts → 1 own read of a run folder's file"
+    "packages/engine/src/prune.ts → 2 own reads of a run folder's or renders/'s file"
    ]
   },
   {
    "rule": "record-read",
    "reason": "A reserved run is closed from outside on a lenient read of its run.json (its status alone decides): a record the reader refuses must still be closed, or it would say running for ever.",
    "entries": [
-    "packages/engine/src/jobs/run-job.ts → 1 own read of a run folder's file"
+    "packages/engine/src/jobs/run-job.ts → 1 own read of a run folder's or renders/'s file"
+   ]
+  },
+  {
+   "rule": "record-read",
+   "reason": "The search index reads renders/*.json into a row of its own (version 1, a text id), with its own cap and link rule: its one read of a render record (its two other parses are history lines — history.jsonl and the index's history rows —, which RECORD_READ_NOT_RECORD names). Not on the one reader of renders/ until L7.6c: it lists a renamed or copied record under its inner id.",
+   "entries": [
+    "packages/engine/src/index-db/index-db.ts → 1 own read of a run folder's or renders/'s file"
+   ]
+  },
+  {
+   "rule": "record-read",
+   "reason": "The timeline's version matcher reads renders/<id>.json synchronously without the reader (no version, status or id test) to compare a creation time, a theme hash and a plan signature: its one read of a render record (its other parse is ffprobe's output, which RECORD_READ_NOT_RECORD names). Not on the one reader of renders/ until L7.6c: the reader is async.",
+   "entries": [
+    "packages/engine/src/timeline-view.ts → 1 own read of a run folder's or renders/'s file"
    ]
   }
  ]

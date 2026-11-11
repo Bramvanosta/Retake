@@ -2596,3 +2596,26 @@ Recorded for the founder; nothing here changes the roadmap until they decide.
 - Agent-channel listings parked; the GitHub Action stays a candidate for our own CI. From the competitive study: fold the GitHub Action (BL-45) and the agent-channel listings (BL-52) into L3.7 packaging. *Why:* Both are small, and they are how the open-source rivals are found. *L3.7:* not folded (own use; BL-77).
 - Parked (commercialisation). From the competitive study: consider a first public release (CLI + MCP) at the end of phase 3, before the nine Studio lots, and decide the open-core question then. *Why:* It tests the market early; free MIT engines set the developer price at zero, so what is sold must sit above the engine (Studio, packs, team features).
 - From the competitive study: do not trim L1.6 (personas) or L1.8 (sandbox). *Why:* Reproducible data preparation with rollback and a sandbox is the one capability no checked competitor has.
+
+### BL-166 — Render records: what the one reader left
+*From:* L7.6b. Small pieces, any order.
+
+- The Studio's render list and the board disagree on a render record whose variant Retake never writes: the list shows
+  it as landscape, the board passes it over. Pick one rule (a slug-shaped word shown, anything else `unknown`) when
+  the views stop being flat (U7).
+- A video in `renders/` without its record is never listed nor pruned.
+- A lock left by a killed terminal render burns its version number.
+- `nextVersion` reads file names only, which is what frees the number of a render renamed by hand (the root of a
+  number reused).
+- The `variant` a render record holds is never compared with its id's suffix.
+- The board's "render failed" is fed by failed records, which no version writes.
+- Prune has no option to list or free a file of `renders/` it left alone (nor the take it keeps for it).
+- A terminal's `retake review|export … latest --json` carries nothing of what `latest` passed over (stderr only).
+- `retake review|export <name>` reads a named record twice (once for the renamed line, once to work on it): an
+  `onFound` callback on the export and review options would read it once (it moves the CLI golden).
+- The folder of exports/ or review/ of a render named is compared with the other files of `renders/` only, not with a
+  folder an earlier, deleted render left in `exports/` or `review/`.
+- The lists of renders check each record against its schema: 7–10 % slower than before at 2 000 records; a cache by
+  file signature (as the board's) would take it back.
+- `retake prune --json`'s `kept.renders` counts every record file that stays, a file that is no render included (the
+  text counts them apart).

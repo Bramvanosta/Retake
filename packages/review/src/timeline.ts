@@ -4,7 +4,7 @@
  * output frames and seconds, so an agent or the Studio can say "at 00:23.4 the second click of scene X".
  */
 import type { Timeline } from '@retake/core';
-import type { EditPlan, RenderRecord, ResolvedComponent } from '@retake/editor/plan';
+import type { EditPlan, NamedRender, ResolvedComponent } from '@retake/editor/plan';
 import { mapPaneRect, mapSourceRect, paneIndexOf } from '@retake/editor/plan';
 import { isClip, meanSpeed, outputFrameOf, round, segmentSpans, transitionSpans } from './spans.js';
 
@@ -150,7 +150,7 @@ export function outputClicks(plan: EditPlan, timeline: Timeline | undefined): Ou
   return out.sort((a, b) => a.frame - b.frame);
 }
 
-export function buildOutputTimeline(record: RenderRecord, timeline?: Timeline): OutputTimeline {
+export function buildOutputTimeline(record: NamedRender, timeline?: Timeline): OutputTimeline {
   const plan = record.plan;
   const fps = plan.fps;
   const s = (f: number) => round(f / fps, 3);

@@ -276,7 +276,18 @@ keeps them all, and a warning says so (`threads_unread` with `--json`) — repai
 reports, then prune again. Only folders of `runs/` named the way Retake names a take are ever deleted, and the last
 renders of a scenario are counted among the records named `<scenario>-v<N>` only: another record of `renders/` (a video
 written there under a name of its own) takes no render's place, stays with its review and its take when it succeeded,
-and goes only when it failed or was cancelled. Claude has the same as the MCP tool `project_prune`: a dry run unless `dry_run: false`, and then it
+and goes only when it failed or was cancelled. A render is the record of its own file (`renders/<id>.json` holds `id`): every other
+`*.json` of `renders/` — a record renamed or copied by hand, a link, a record of a newer Retake, one whose status
+Retake never writes, one that lacks its scenario, its creation time or its plan, a file that does not read — is left
+alone, never deleted and never counted among a scenario's renders, and it keeps the render and the take it names
+(nothing is deleted on the word of a file prune cannot judge). Each is said: `kept  render  quote-final.json  its
+record says another id` (per reason the first five files, then `and N more (--json names them)`), and
+`kept  run  <id>  a file of renders/ that is no render names it` for a take it keeps; `renders_alone` with `--json`.
+A file of `renders/` too big to read could name anything: then every render, review and take is kept, with the
+warning `1 file of renders/ is too big to read: every render, review and take is kept`. A file without a creation
+time is such a file too: prune lists around it. A record whose variant is no text (`5`, `null`) is kept and counted in
+no scenario's window. The closing line counts the files left alone apart from the renders: `kept: 1 take, 3 renders and
+1 other file of renders/` (`kept.renders` with `--json` counts every record file that stays). Claude has the same as the MCP tool `project_prune`: a dry run unless `dry_run: false`, and then it
 asks you first in an approval form (how many items, how much, what stays, the first 20 and how many more) and deletes the items of
 that approval — all of them — that can still go at that moment — nothing when you decline or the client cannot ask
 ([MCP: Safety](mcp.md)).

@@ -208,10 +208,11 @@ class ScenarioError extends Error { issues: ValidationIssue[] }
 
 // file formats (R-PRIN-13, L1.4; formats.ts)
 RETAKE_VERSION: string                          // the package version (`retake --version`, run.json engine)
-FORMAT_VERSIONS: { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 }
+FORMAT_VERSIONS: { scenario: 1, project: 1, template: 1, workspace: 1, run: 1, render: 1 }
 newerFormatMessage(value, { file, supported }): string | undefined   // "this project.yaml is version 2: it was made
                                                                      //  for a newer Retake (this one reads version 1) — update Retake"
-                                                     // a run.json goes through the one reader (io/run-folder.ts, below):
+                                                     // a run.json goes through the one reader (io/run-folder.ts, below),
+                                                     // a render record through io/render-folder.ts (L7.6b):
                                                      // `{ ok: false, problem: 'newer-format', message }` with this sentence
 checkYamlDocument(text, schema, semantic?, empty?, { formatVersion?: { file, supported } }): CheckedDocument
 ```
@@ -229,6 +230,41 @@ id or its folder whose run.json is newer is refused by every command that works 
 export-capture: the named run's rule, core `namedRunProblem`); `latest` passes such a run over and says so, and
 answers the "update Retake" sentence only when no capture this version reads is left; a run.json without `version`
 (before L1.4) reads as 1. No migration: Retake never rewrites a user's file (a `retake migrate` is BL-70).
+
+**Render records** (L7.6b; `packages/core/src/render-record.ts`, pure, and `packages/core/src/io/render-folder.ts`).
+A render record is a union of states: `FinishedRender` (`status: 'succeeded'`, never an `error`: the only state a
+writer puts on a disk, made by `finishedRender`) and `RenderAttempt` (`failed` / `cancelled` with its `error` and no
+`probe`: what a render's error carries, made by `renderAttempt`, never written). `StoredRenderRecord` is what any
+version or a person left on a disk; `parseRenderRecord` (the parse boundary) answers it or a typed problem and never
+throws. **Only three members decide** whether a file of `renders/` is a record: its format `version` (1; above:
+`newer-format` with the sentence above), its `status` (a text; one Retake never writes is `unknown-status`, read
+leniently and said as that) and its `id` (a text). Every other member is read leniently — a closed word is kept as its
+text, a member every record holds and that does not read is its empty value (`''`, `0`, `[]`, `{}`), a block that
+does not read is dropped, each noted — and a record that lacks its `scenario`, its `created_at` or its `plan` says so
+(`lacks`). **A render is the record of its own file** (D-10: `renders/<id>.json` holds `id`); a render of its scenario
+is one whose id is `<scenario>-v<N>[-variant]`. The rules over records are each written once there: `renderOfFile`,
+`completeRender`, `projectRenderOf`, `quotableRender`, `orderRenders` (creation time, then id, as text),
+`previousRender`, the two `latest` — `latestProjectRender` (the engine's: MCP, the Studio, the comments; renders of
+their scenario only) and `latestNamedRender` (a terminal's: the newest succeeded complete record of `renders/` under
+any name, acted on by its file; D-11: two rules on purpose) —, `renderNot` (why an entry is no render, in fixed words),
+`byIdProblem` (the one by-id rule: a link, a newer format, a file that does not read, another id — the engine's and an
+export or review job's), `renamedProblem` and `namedRenderProblem` (a render someone named), `renderOutputName` (the
+folder of `exports/` and `review/`: the id when it is a folder name a person can read that no other file of
+`renders/` answers to — the disk's own comparison of names, and Unicode normalisation —, else the file's name, else
+refused), and prune's `renderKeeper` (a record whose variant does not read is kept and counted in no window). The
+transitions take a render's fields only: a state handed back in does not compile and throws. Every read of a record
+goes through one file seam (`RecordFs`, exported from `@retake/core/io` with `NODE_RECORD_FS`; a listing and a by-id
+read on the descriptor, `O_NOFOLLOW` and `O_NONBLOCK`; a named read through links, `O_NONBLOCK`). The reader reads a
+listing without following a link and within 16 MiB (`readRendersFolder`, `readListedRender`); a file named by its id
+(`readRenderById`: MCP, the Studio, a job) without a link and without a cap; a file a person named at a terminal
+(`readNamedRender`, `findNamedRender`) through links and without a cap. **A thing a person names keeps working**: a
+named record that lacks its scenario or its creation time works, one without its plan is refused naming it, a record
+renamed by hand works and is said — refused only when the video it names is now another render's —; only `latest`
+and the lists take complete records of their own file, and they say what they passed over. The editor's
+`render-record.ts` gives the stored plan the type of an edit plan in one place (`withPlan`). Three readers still read
+`renders/` on their own until L7.6c (the search index and the timeline's version matcher, each one read counted by the
+ratchet's `record-read` check; the frame service, which reads no record file itself — its record comes from
+`renderForWork` — and holds its own identity test).
 
 Validation rules beyond the schema (semantic): exactly one action key per step; unknown keys are
 errors (typo protection) with a "did you mean" suggestion; scene ids unique and slug-like; step ids

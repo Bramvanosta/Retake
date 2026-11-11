@@ -16,6 +16,7 @@ import type {
   ExportProgress,
   ExportRenderOptions,
   ExportResult,
+  FoundRender,
   PlanRunOptions,
   PlannedRun,
   RenderProgress,
@@ -27,7 +28,7 @@ import type {
 import type { ReviewOptions, ReviewResult } from '@retake/review';
 import { editor, review } from './lazy.js';
 
-export type { EditOverrides, ExportFormat, ExportProgress, ExportRenderOptions, ExportResult, PlannedRun, RenderProgress, RenderRecord, RenderStillOptions, RenderVideoOptions, ReviewResult, RunRef };
+export type { EditOverrides, ExportFormat, ExportProgress, ExportRenderOptions, ExportResult, FoundRender, PlannedRun, RenderProgress, RenderRecord, RenderStillOptions, RenderVideoOptions, ReviewResult, RunRef };
 
 // ── the pipeline ──
 
@@ -52,9 +53,13 @@ export async function findRunOf(project: LoadedProject, arg: string, scenario?: 
   return (await editor()).findRun(project, arg, scenario);
 }
 
-/** The render record named: `latest` (of `scenario`), an id, or a .json / .mp4 path (the editor's findRenderRecord; ExportError otherwise). */
-export async function findRenderOf(project: LoadedProject, arg: string, scenario?: string): Promise<RenderRecord> {
-  return (await editor()).findRenderRecord(project, arg, scenario);
+/**
+ * The render named at a terminal: `latest` (of `scenario`), an id, or a .json / .mp4 path (the editor's
+ * locateRenderRecord; ExportError otherwise) — the record, the FILE it was read from (`entry.name`: what a command then
+ * names, never the id the record says) and, with `latest`, what it passed over.
+ */
+export async function findRenderOf(project: LoadedProject, arg: string, scenario?: string): Promise<FoundRender> {
+  return (await editor()).locateRenderRecord(project, arg, scenario);
 }
 
 /** Where a still of `scenario` goes by default: renders/stills/<scenario><variant suffix>-f<frame, 5 digits>.png. */

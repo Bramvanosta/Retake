@@ -7,7 +7,10 @@
  * only because it is the last one of its scenario that can be edited, or the last complete one, and a run folder
  * prune leaves alone (a link, a take of a newer Retake) get a line `kept` with the reason
  * (L7.7: the list is shorter, and says why) — per reason the first five, newest first, then how many more (their
- * names: --json). Without --yes it only lists.
+ * names: --json). A file of renders/ that is no render of its own name (a record renamed or copied by hand, one of a
+ * status Retake never writes or of a newer Retake, a link, a file that does not read) is left alone and gets a line
+ * `kept  render  <file>  <reason>` the same way (L7.6b), and the take it names a line `kept  run`; a file of renders/
+ * too big to read keeps everything, and a warning says so. Without --yes it only lists.
  */
 import { resolve } from 'node:path';
 import { printableText } from '@retake/core';
@@ -20,6 +23,18 @@ import { plural } from '../ui.js';
 import type { GlobalOptions } from '../workspace.js';
 
 /** How many takes kept for one reason `retake prune` names (it counts the others), as a notice names the captures `latest` passed over. */
+
+/**
+ * The record files of renders/ that stay, in words: the renders, and — when some are files that are no render of
+ * their own name (renamed, copied, a link, unreadable…; each said in a `kept render` line) — those apart, never
+ * counted as renders.
+ */
+function keptRenders(r: { kept: { renders: number }; renders_alone?: { reasons: Array<{ why: string; count: number }> } }): string {
+  const other = (r.renders_alone?.reasons ?? []).filter((x) => x.why !== 'incomplete').reduce((n, x) => n + x.count, 0);
+  const renders = plural(r.kept.renders - other, 'render');
+  return other ? `${renders} and ${plural(other, 'other file')} of renders/` : renders;
+}
+
 export const KEPT_NAMED = 5;
 
 export interface PruneOptions {
@@ -52,10 +67,19 @@ export async function pruneCommand(ui: Ui, global: GlobalOptions, projectArg: st
       for (const k of takes.slice(0, KEPT_NAMED)) line(printableText(k.id), k.reason);
       if (takes.length > KEPT_NAMED) line(`and ${takes.length - KEPT_NAMED} more (--json names them)`, takes[0].reason);
     }
+    // The files of renders/ left alone: a file's name, said printable; the engine's fixed words; reason by reason, the
+    // first KEPT_NAMED of each named and the rest counted.
+    const file = (what: string, reason: string): void => ui.line(`  ${c.dim('kept'.padEnd(12))}  ${'render'.padEnd(6)} ${what}  ${c.dim(reason)}`);
+    for (const reason of r.renders_alone?.reasons ?? []) {
+      const named = (r.untrusted?.renders_alone ?? []).filter((a) => a.why === reason.why).slice(0, KEPT_NAMED);
+      for (const a of named) file(printableText(a.file), reason.reason);
+      if (reason.count > named.length) file(`and ${reason.count - named.length} more (--json names them)`, reason.reason);
+    }
   };
   if (!r.items.length) {
-    ui.line(`nothing to prune in ${r.project} (kept: ${plural(r.kept.runs, 'take')}, ${plural(r.kept.renders, 'render')}, ${plural(r.kept.reviews, 'review')})`);
+    ui.line(`nothing to prune in ${r.project} (kept: ${plural(r.kept.runs, 'take')}, ${keptRenders(r)}, ${plural(r.kept.reviews, 'review')})`);
     kept();
+    if (r.renders_unread) ui.warn(r.renders_unread);
     if (r.threads_unread) ui.warn(r.threads_unread);
     return EXIT.ok;
   }
@@ -67,10 +91,12 @@ export async function pruneCommand(ui: Ui, global: GlobalOptions, projectArg: st
   ui.line();
   ui.line(
     r.dry_run
-      ? `${what} can go; kept: ${plural(r.kept.runs, 'take')}, ${plural(r.kept.renders, 'render')} (the last ${r.keep_renders} per scenario), ${plural(r.kept.reviews, 'review')} — ${c.bold('retake prune ' + r.project + ' --yes')} deletes them`
-      : `${c.green('✓')} ${what} deleted; kept: ${plural(r.kept.runs, 'take')}, ${plural(r.kept.renders, 'render')}, ${plural(r.kept.reviews, 'review')}`,
+      ? `${what} can go; kept: ${plural(r.kept.runs, 'take')}, ${keptRenders(r)} (the last ${r.keep_renders} per scenario), ${plural(r.kept.reviews, 'review')} — ${c.bold('retake prune ' + r.project + ' --yes')} deletes them`
+      : `${c.green('✓')} ${what} deleted; kept: ${plural(r.kept.runs, 'take')}, ${keptRenders(r)}, ${plural(r.kept.reviews, 'review')}`,
   );
-  // Comment threads that could not be read: what stayed for it (not a failure: nothing that could matter was deleted).
+  // A file of renders/ too big to read, comment threads that could not be read: what stayed for it (not a failure:
+  // nothing that could matter was deleted).
+  if (r.renders_unread) ui.warn(r.renders_unread);
   if (r.threads_unread) ui.warn(r.threads_unread);
   for (const p of r.problems) ui.warn(p);
   return r.problems.length ? EXIT.failure : EXIT.ok;

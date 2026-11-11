@@ -49,6 +49,48 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.6b)
+- **L7.6b done (2026-11-11; branch `claude/arch-l7`)**— the render record as a union, one tolerant reader, D-10 and
+  R-1 (second half of U5 of the 2026-11-10 action plan, finding D2). A render record is a union of two states — a
+  succeeded record never holds an error and is the only state written; a failed or cancelled one rides on the render's
+  error; a state is never made from another (it does not compile, and throws) — with a strict schema for what is
+  written and a tolerant reader for what any version or a person left (`packages/core/src/render-record.ts`, pure;
+  `packages/core/src/io/render-folder.ts`, every read through one file seam `RecordFs`, exported from
+  `@retake/core/io`): only the format version, the status and the id decide; every other member is read leniently, and
+  a record that lacks its scenario, its creation time or its plan says so. A render is the record of its own file
+  (D-10). The rules are each written once (a render of its scenario, what a message may quote, the order, the previous
+  render, the two `latest` — the engine's and a terminal's, two on purpose (D-11) —, the by-id rule, why an entry is
+  no render, a renamed record named, the folder of its exports and review, prune's keeper), and every reader of
+  `renders/` in the editor, the review, the CLI, the engine and prune goes through them; the editor's `withPlan` is
+  the one place a stored plan becomes an edit plan. **A render someone names keeps working**: at a terminal a record
+  without its scenario or its creation time works, one without its plan is refused naming it, a record renamed by hand
+  works and is said — refused only when the video it names is now another render's —; its folders of `exports/` and
+  `review/` are never another render's (named after its file when another file of `renders/` answers to its id, as the
+  disk compares names: `QUOTE-V1` is `quote-v1` on APFS); `latest` at a terminal acts on the file it picked. Through
+  MCP and the Studio a file that is there is never "not found", a record file that is a link is refused, and no
+  sentence quotes a word of a record (`render_status latest` says an unknown status as `unknown`). `latest` and the
+  lists take complete records of their own file only and say what they passed over (a line at a terminal; a count
+  through MCP with the file names under `untrusted`; a line under the Studio's list). **Prune keeps more** (R-1):
+  every file of `renders/` that is no render of its own name is left alone with the render and the take it names, and
+  said; a record whose variant is no text is counted in no window; a file too big to read keeps everything.
+  **Proved:** against a build of the commit before the lot, two independent generators of 3 000 layouts each in dry
+  mode — 0 violations (with the keeper's variant rule removed: 20 each) — and 300 real deletions in temp projects
+  (exactly the dry list removed; part D's run); the suite holds the property on 300 seeded layouts against a frozen
+  copy of the old rule, non-text variants included. Bugs fixed on the way: a stray file without a creation time
+  stopped prune, `latest` and the comment list; an empty id sent a review into `review/` itself; an id that is another
+  render's (a copy, a renamed record, upper case on APFS) sent an export or a review into that render's folders; an
+  unknown variant and a missing run id were raw `TypeError`s; a record without a status was taken; a named record that
+  is a pipe held `retake export`; the comment list refused a named record over the listing's cap. The MCP tool list,
+  the op table, the generated schemas and the CLI golden are byte-identical; the answers of `render_status`, `review`,
+  `export`, `comments_list`, `comment_resolve`, `scenario_renders` and `project_prune` gain members. Ratchet
+  `record-read` extended to render records: 95 entries (two readers staged to L7.6c, one read each: back to 93 then).
+  **Left:** the search index, the timeline's version matcher and the frame service read `renders/` on their own
+  (L7.6c); the plan inside a record is not validated; the views stay flat (U7); `render_status` by its id (L7.8); an
+  unknown variant: the list says `landscape`, the board passes it; the lists cost 7–10 % more at 2 000 records.
+  **Checked:** `pnpm typecheck`, the ratchet, `test-guard`, `--check-cites`, each changed test file alone, mutations
+  in every part (A 38, C 18, D 25, B and E 30, fix pass 35: all red but one ill-formed mutant, replaced), the built
+  CLI on crafted projects, MCP over stdio. **The full suite was not run.**
+
 ## State (after L7.7)
 - **L7.7 done (2026-11-11; branch `claude/arch-l7`)** — prune keeps the capture that can be edited (decided by the person,
   2026-11-10: keep both). Per scenario prune keeps the newest take whose record says the capture
@@ -1203,7 +1245,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: L7.6b (render records, the rest of U5), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: L7.8 (the hooks journal, prune's MCP description, BL-164, the render status), L7.6c (the three readers of renders/ left), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

@@ -15,7 +15,9 @@
  */
 import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
 import type { RunId } from './id-grammar.js';
-import { z } from 'zod';
+import { asRead, firstPath, isObj, lenient } from './record-read.js';
+import type { LenientTables } from './record-read.js';
+import type { z } from 'zod';
 import { StoredRunEngineSchema, StoredRunPerfSchema, StoredRunRecordSchema, StoredRunStateSchemas, UnknownStatusRunSchema } from './schemas/timeline.js';
 import type { EnvironmentAccess, OptionalFailure, RunEngine, RunError, RunMode, RunOutlineStep, RunPause, RunPerf, RunPerfCpu, RunSandbox, RunSessionStatus, Timeline, TimelineEvent } from './types.js';
 
@@ -274,19 +276,8 @@ export function isFilmName(name: string): boolean {
   return name !== '' && name !== '.' && name !== '..' && !/[\\/]/.test(name);
 }
 
-const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
-const firstPath = (issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey> }>): string => issues[0]?.path.map(String).join('.') || '(root)';
 const STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 const isStatus = (s: string): s is (typeof STATUSES)[number] => KNOWN_STATUS.has(s);
-
-/**
- * The value the schema accepted, as the file held it: the schemas judge and change nothing (no default, no transform),
- * so what was read is what the file says, its members in the file's order. The stored schemas carry the static types
- * of the strict ones (schemas/timeline.ts); `T` is the type the record is read as, which says text where they take text.
- */
-function asRead<T>(value: Record<string, unknown>): T {
-  return value as T;
-}
 
 // ── The lenient read of the members that decide nothing ──────────────────────
 
@@ -314,42 +305,8 @@ const EMPTY: Readonly<Record<string, () => unknown>> = {
   'environment.access': () => '',
   'error.message': () => '',
 };
-const unwrapped = (schema: z.ZodType): z.ZodType => (schema instanceof z.ZodOptional ? unwrapped(schema.unwrap() as z.ZodType) : schema);
-
-/**
- * `value` with every member of `shape` that does not read repaired: an object is read member by member; a member a
- * record may lack is left out; one every record holds becomes its empty value (EMPTY). Undefined (inside a block
- * only): a member that must be there has no empty value, so the block does not read. A member a state never has is
- * not touched: its presence is what makes the record impossible. `value` itself is never changed, and is answered as
- * it is when everything reads.
- */
-function lenient(value: Record<string, unknown>, shape: Readonly<Record<string, z.ZodType>>, path: string, notes: ReadNote[]): Record<string, unknown> | undefined {
-  let out = value;
-  for (const [key, schema] of Object.entries(shape)) {
-    const at = `${path}${key}`;
-    const inner = unwrapped(schema);
-    if ((path === '' && DECIDING.has(key)) || inner instanceof z.ZodNever) continue;
-    const held = out[key];
-    if (schema.safeParse(held).success) continue;
-    let next: unknown;
-    const from = isObj(held) ? held : undefined;
-    if (inner instanceof z.ZodObject && (from !== undefined || at in EMPTY)) next = lenient(from ?? {}, inner.shape as Record<string, z.ZodType>, `${at}.`, notes);
-    else next = EMPTY[at]?.();
-    if (next === undefined && !schema.safeParse(undefined).success) {
-      // A member that must be there and has no empty value. Inside a block: the block does not read (the caller
-      // leaves it out). At the root: left as it is, for the schema to refuse the record at this member — the other
-      // members are still repaired, so the refusal names what decides, never a member that decides nothing.
-      if (path !== '') return undefined;
-      continue;
-    }
-    // An object read member by member says which of its members were left out; anything else says itself.
-    if (held !== undefined && !(isObj(next) && from !== undefined)) notes.push(`${at}-dropped`);
-    out = { ...out };
-    if (next === undefined) delete out[key];
-    else out[key] = next;
-  }
-  return out;
-}
+/** The two tables of a run record's lenient read. */
+const TABLES: LenientTables = { deciding: DECIDING, empty: EMPTY };
 
 /**
  * A parsed run.json as a stored record. Only what the rules and the union need decides whether it is one: an object,
@@ -383,7 +340,7 @@ export function parseRunRecord(value: unknown): RunRead {
   const state = isStatus(status) ? StoredRunStateSchemas[status] : StoredRunStateSchemas.unknown;
   // What decides is left as the file holds it, for the schema to judge (a failed run's error that is no object is
   // refused there, at `error`).
-  rest = lenient(rest, state.shape as Record<string, z.ZodType>, '', notes) ?? rest;
+  rest = lenient(rest, state.shape as Record<string, z.ZodType>, '', notes, TABLES) ?? rest;
   if (!known) {
     const unknown = UnknownStatusRunSchema.safeParse(rest);
     return unknown.success ? { ok: false, problem: 'unknown-status', record: asRead<UnknownStatusRun>(rest) } : { ok: false, problem: 'invalid', detail: firstPath(unknown.error.issues) };

@@ -2,11 +2,13 @@ import type { Finding, ReviewProgress } from '@retake/review';
 import { environmentLine, findingLine, summaryLine } from '@retake/review';
 import { findRenderOf, reviewWork } from '@retake/engine';
 import type { ReviewResult } from '@retake/engine';
+import { printableText } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
+import { renderNotes } from './render-notes.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
@@ -94,16 +96,21 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
-  let renderId = render;
+  // `latest` names a FILE of renders/: the review then reads that file (never the id its record says, looked up again).
+  // A render named is looked at first only to say what it is (a record renamed by hand); the review finds it again
+  // and says why when it cannot be reviewed.
+  let found: Awaited<ReturnType<typeof findRenderOf>> | undefined;
   if (render === 'latest') {
     try {
-      renderId = (await findRenderOf(project, render, opts.scenario)).id;
+      found = await findRenderOf(project, render, opts.scenario);
     } catch (e) {
       throw new CliError((e as Error).message);
     }
-  }
+  } else found = await findRenderOf(project, render).catch(() => undefined);
+  const renderId = render === 'latest' && found ? found.entry.name : render;
+  if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
   const gate = await heavyGate(ui, { root: ws.root, what: 'reviewing', noWait: opts.wait === false });
-  if (gate.waited) ui.info(`reviewing render ${renderId}`);
+  if (gate.waited) ui.info(`reviewing render ${printableText(renderId)}`);
   let result: ReviewResult;
   try {
     result = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });

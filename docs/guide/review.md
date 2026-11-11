@@ -7,7 +7,13 @@ How Retake checks a render, and how people comment on its frames. Part of the [R
 `retake review <project> <render>` (a render id such as `catalogue-v3`, a `renders/<id>.json` or `.mp4` path, or
 `latest` — of `--scenario` when given) looks at a finished video the way an editor would and writes everything an
 agent or a person needs to check it before showing it, in `review/<render-id>/` (git-ignored, replaced at each
-review):
+review). Which render `latest` and a name take is the export's rule ([Which render](editing.md#export)): `latest`
+works on the file it picked and says what it passed over; a render named keeps working whatever its record lacks but
+its plan (a render without its creation time has no render to compare with), a record renamed by hand is reviewed and
+said, and one whose id names no folder — or is another file's of `renders/`, as the disk compares names — is reviewed
+into `review/<its file's name>/` (never into another render's review). The render compared with is the
+newest succeeded render of the same scenario and variant made before it, among the records of their own file whose
+video is there.
 
 ```
 $ retake review northfield-fixture catalogue-v3

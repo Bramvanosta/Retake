@@ -58,8 +58,8 @@ export type {
   TimelineStep,
   TimelineZoom,
 } from './timeline.js';
-export { isRenderRecord, readRenderRecords } from './render-record.js';
-export type { RenderRecord, RenderRecordReader } from './render-record.js';
+export { withPlan } from './render-record.js';
+export type { FinishedRender, NamedRender, RenderAttempt, RenderRecord, StoredRender } from './render-record.js';
 // The frame geometry of src/remotion/frames.ts is renderer-free (no React, no Remotion): the compositions draw with it,
 // the review checks frames with it.
 export { OVERLAY_BOX_MARGIN, brandmarkRect, captionBandOver, drawnOverlayBox, duckSpans, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayBoxAt, overlayRects, overlayTargets, plateOf, playsSound, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, standInTransition, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';

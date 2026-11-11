@@ -10,6 +10,8 @@ import { mkdirSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROJECT_YAML, SCENARIO_YAML, STATES, writeRunFolder } from './build.js';
 import type { StateSpec } from './build.js';
+import { writeRenderFile } from './build-renders.js';
+import type { RenderFileSpec } from './build-renders.js';
 
 export interface LayoutRunOptions {
   /** The scenario the record and the timeline name (default `quote`). */
@@ -29,6 +31,11 @@ export interface LayoutRender {
   /** The files' name when it is not the id (a render renamed by hand). */
   file?: string;
 }
+/** A file of renders/ in a state of render-states.json's kind (L7.6b): the entry, and the label of the run it names. */
+export interface LayoutRenderFile {
+  spec: RenderFileSpec;
+  run: string;
+}
 export interface LayoutThread {
   scenario: string;
   /** A thread made on this render id and this run (by label); absent: a thread file that is no JSON. */
@@ -38,6 +45,10 @@ export interface Layout {
   about: string;
   runs: LayoutRun[];
   renders?: LayoutRender[];
+  /** Files of renders/ written after `renders`, in order (L7.6b). */
+  files?: LayoutRenderFile[];
+  /** Folders of review/ (each holds one small file). */
+  reviews?: string[];
   threads?: LayoutThread[];
 }
 
@@ -178,6 +189,14 @@ export function buildLayout(root: string, id: string, o: { slug?: string; film?:
     const at = `2026-10-20T09:${pad(r.at)}:00.000Z`;
     writeFileSync(join(dir, 'renders', `${file}.json`), JSON.stringify({ version: 1, id: r.id, scenario: 'quote', run_id: ids[r.run], status: 'succeeded', created_at: at, variant: 'landscape', template: 'editorial', plan: {} }));
     writeFileSync(join(dir, 'renders', `${file}.mp4`), 'mp4');
+  }
+  for (const f of layout.files ?? []) {
+    const run = ids[f.run] ?? f.run;
+    writeRenderFile(join(dir, 'renders'), { ...f.spec, run: 'NEW' }, { dir, project: slug, old: run, new: run }, { outside: join(root, 'outside') });
+  }
+  for (const name of layout.reviews ?? []) {
+    mkdirSync(join(dir, 'review', name), { recursive: true });
+    writeFileSync(join(dir, 'review', name, 'report.json'), '{}');
   }
   for (const [n, t] of (layout.threads ?? []).entries()) {
     const thread = `c_01K8AB1CDE2FGH3JKM4NPQ5RS${'TVWXYZ'[n]}`;

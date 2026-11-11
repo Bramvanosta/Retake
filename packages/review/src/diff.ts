@@ -3,7 +3,7 @@
  * the plan (components, captions, transitions, run, theme) and which sample frames changed visibly (frames compared
  * at the same offset inside the same segment, so a longer scene does not shift every later comparison).
  */
-import type { EditPlan, PlanSegment, RenderRecord } from '@retake/editor/plan';
+import type { EditPlan, NamedRender, PlanSegment } from '@retake/editor/plan';
 import { isClip, round, segmentSpans, spanAt } from './spans.js';
 import type { SegmentSpan } from './spans.js';
 import type { Finding, ReviewDiff } from './types.js';
@@ -44,7 +44,7 @@ function segmentChanges(prev: PlanSegment, cur: PlanSegment): string[] {
 }
 
 /** The plan-level part of the diff (no pixels). */
-export function diffRecords(previous: RenderRecord, current: RenderRecord): Omit<ReviewDiff, 'compared' | 'changed_frames'> {
+export function diffRecords(previous: NamedRender, current: NamedRender): Omit<ReviewDiff, 'compared' | 'changed_frames'> {
   const ps = segmentSpans(previous.plan);
   const cs = segmentSpans(current.plan);
   const pf = previous.plan.fps;

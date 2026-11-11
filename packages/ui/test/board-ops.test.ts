@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, reportReads, scanSources } from '@retake/engine';
+import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, renderRecordReads, reportReads, scanSources } from '@retake/engine';
 import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
@@ -115,7 +115,8 @@ describe('project_board: the op', () => {
     // A render of this capture on this file (sameVersion), then its review.
     await mkdir(join(project(), 'renders'), { recursive: true });
     // The fixture's theme is editorial (project.yaml `template:`): a render with it (L5.10a fixes: the theme counts).
-    const render = { version: 1, id: 'blocks-v1', created_at: '2026-10-20T11:00:00.000Z', status: 'succeeded', run_id: A, template: 'editorial', variant: 'landscape', duration_s: 6.5, edit: { from: 'scenario', sha256: s.hash } };
+    // (L7.6b: a render is a complete record of its own file — it says its scenario and holds its plan.)
+    const render = { version: 1, id: 'blocks-v1', scenario: 'blocks', plan: {}, created_at: '2026-10-20T11:00:00.000Z', status: 'succeeded', run_id: A, template: 'editorial', variant: 'landscape', duration_s: 6.5, edit: { from: 'scenario', sha256: s.hash } };
     await writeFile(join(project(), 'renders', 'blocks-v1.json'), JSON.stringify(render));
     s = of((await board()).v, 'blocks');
     expect(productionState(s)).toEqual({ state: 'waiting', word: 'Rendered · review pending', group: null });
@@ -331,7 +332,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     fresh();
     const hash = of(await boards.board('renders'), 'blocks').hash;
     await mkdir(join(dir, 'renders'), { recursive: true });
-    const rec = (id: string, at: string, o: Record<string, unknown> = {}) => writeFile(join(dir, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, created_at: at, status: 'succeeded', run_id: A1, template: 'editorial', variant: 'landscape', duration_s: 6, edit: { from: 'scenario', sha256: hash }, ...o }));
+    const rec = (id: string, at: string, o: Record<string, unknown> = {}) => writeFile(join(dir, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'blocks', plan: {}, created_at: at, status: 'succeeded', run_id: A1, template: 'editorial', variant: 'landscape', duration_s: 6, edit: { from: 'scenario', sha256: hash }, ...o }));
     await rec('blocks-v1', '2026-10-20T11:00:00.000Z');
     await mkdir(join(dir, 'review', 'blocks-v1'), { recursive: true });
     await writeFile(join(dir, 'review', 'blocks-v1', 'report.json'), JSON.stringify({ version: 1, findings: [], counts: { error: 0, warning: 0, info: 0 }, review: { created_at: '2026-10-20T11:05:00.000Z' } }));
@@ -345,6 +346,14 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     await boards.board('renders');
     await boards.board('renders');
     expect(reportReads.n).toBe(n);
+    // L7.6b: the same for the records of renders/ (the one reader) — each read once while its stat holds, and a file
+    // whose name is no render id of a scenario of the project is never read.
+    const m = renderRecordReads.n;
+    await writeFile(join(dir, 'renders', 'blocks-final.json'), '{}');
+    await writeFile(join(dir, 'renders', 'nosuch-v1.json'), '{}');
+    await boards.board('renders');
+    expect(renderRecordReads.n).toBe(m);
+    expect(m).toBeGreaterThan(0);
     // project.yaml's theme changes: a render with editorial is no longer today's version.
     const yaml = join(dir, 'project.yaml');
     await writeFile(yaml, (await readFile(yaml, 'utf8')).replace(/^template: editorial$/m, 'template: default'));

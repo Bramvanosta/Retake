@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES } from '@retake/core';
+import { EXPORT_FORMAT_NAMES, printableText } from '@retake/core';
 import { DEFAULT_JOB_EXPORT_FORMATS, editorRenderer, exportInProcess, findRenderOf } from '@retake/engine';
 import type { ExportFormat, ExportProgress } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
@@ -9,6 +9,7 @@ import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes } from './render.js';
+import { renderNotes } from './render-notes.js';
 import { heavyGate } from '../heavy-gate.js';
 
 export interface ExportCommandOptions {
@@ -58,9 +59,14 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const project = await openProject(ws, projectArg);
   // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
   // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
-  const render = renderArg === 'latest' ? (await findRenderOf(project, renderArg, opts.scenario)).id : renderArg;
+  // `latest` names a FILE of renders/: the export then reads that file (never the id its record says, looked up again).
+  // A render named is looked at first only to say what it is (a record renamed by hand); the export finds it again
+  // and says why when it cannot be exported.
+  const found = renderArg === 'latest' ? await findRenderOf(project, renderArg, opts.scenario) : await findRenderOf(project, renderArg).catch(() => undefined);
+  const render = renderArg === 'latest' && found ? found.entry.name : renderArg;
+  if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
   const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
-  if (gate.waited) ui.info(`exporting render ${render}`);
+  if (gate.waited) ui.info(`exporting render ${printableText(render)}`);
   const ac = new AbortController();
   const onSigint = () => ac.abort();
   process.once('SIGINT', onSigint);

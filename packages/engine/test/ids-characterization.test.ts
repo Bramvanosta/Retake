@@ -12,8 +12,8 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { LoadedProject } from '@retake/core';
-import { PERSON_POLICY, ulid } from '@retake/core';
+import type { LoadedProject, StoredRenderRecord } from '@retake/core';
+import { PERSON_POLICY, projectRenderOf, ulid } from '@retake/core';
 import { STARTER_TEMPLATES_DIR, loadProject } from '@retake/core/io';
 import type { RenderRecord } from '@retake/editor';
 import { APPROVALS_USED_DIR, EngineError, JOB_RECORD_VERSION, LIVE_FILE_VERSION, RunFolder, addComment, checkRunId, checkTemplateName, consumeApprovals, createEngine, listComments, listRuns, openLiveChannel, pruneProject, readLiveChannel, renderForWork, restoreApprovals, selfIdentity, toEngineError } from '../src/index.js';
@@ -21,7 +21,7 @@ import type { Engine } from '../src/index.js';
 import { recordShapeOk } from '../src/comments/views.js';
 import { checkJobId } from '../src/jobs/queue-core.js';
 import { checkRenderRequest, renderVersionOf } from '../src/jobs/render-job.js';
-import { readRenderRecord, renderView } from '../src/renders.js';
+import { readListedRecord, renderView } from '../src/renders.js';
 import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
 import { capture, writeRun } from './synthetic-runs.js';
@@ -70,11 +70,11 @@ async function run(dir: string, id: string, o: { scenario?: string; mode?: 'capt
   );
 }
 
-/** renders/<file>.json, written by hand: a record of `id` (the file's base name unless `file` says otherwise). */
+/** renders/<file>.json, written by hand: a record of `id` (the file's base name unless `file` says otherwise), with a plan (L7.6b: a record without its plan is in no list). */
 async function record(dir: string, id: string, o: Partial<RenderRecord> & { file_name?: string } = {}): Promise<void> {
   const { file_name, ...rest } = o;
   const scenario = id.replace(/-v\d+(-vertical|-square)?$/, '');
-  await writeFile(join(dir, 'renders', `${file_name ?? id}.json`), JSON.stringify({ version: 1, id, scenario, run_id: '20261017-142233-quote', status: 'succeeded', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', template: 'editorial', ...rest }));
+  await writeFile(join(dir, 'renders', `${file_name ?? id}.json`), JSON.stringify({ version: 1, id, scenario, run_id: '20261017-142233-quote', status: 'succeeded', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', template: 'editorial', plan: {}, ...rest }));
 }
 
 beforeAll(async () => {
@@ -419,11 +419,12 @@ describe('render records', () => {
     await record(p.dir, 'quote-v9', { created_at: 7 as unknown as string });
   });
 
-  it('a file of renders/ is a render record when its id is its file name, a render id', () => {
-    const read = (file: string) => readRenderRecord(p.dir, `${file}.json`)?.id ?? null;
-    expect(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', `${a(197)}-v1`, 'final', 'quote-v8', 'quote-v9', 'missing-v1'].map(read).map((x) => x && short(x))).toEqual(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', '<197 a>-v1', null, null, null, null]);
-    expect(read('quote-v1000000')).toBe(null); // D-6
-    expect(short(read(`${a(198)}-v1`) ?? '(none)')).toBe('(none)'); // D-2: 201 characters
+  it('a file of renders/ is a render record when its id is its file name, a render id', async () => {
+    // L7.6b: read by the one reader of renders/, and a render by core's rule (a complete record of its own file whose id is one of its scenario).
+    const read = async (file: string): Promise<string | null> => projectRenderOf(await readListedRecord(p.dir, file))?.id ?? null;
+    expect((await Promise.all(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', `${a(197)}-v1`, 'final', 'quote-v8', 'quote-v9', 'missing-v1'].map(read))).map((x) => x && short(x))).toEqual(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', '<197 a>-v1', null, null, null, null]);
+    expect(await read('quote-v1000000')).toBe(null); // D-6
+    expect(short((await read(`${a(198)}-v1`)) ?? '(none)')).toBe('(none)'); // D-2: 201 characters
   });
 
   it('a scenario\'s renders are the records named <scenario>-v<N>[-vertical|-square].json', async () => {
@@ -434,7 +435,7 @@ describe('render records', () => {
 
   it('a render as listed names its take and its theme, or says unknown', () => {
     const view = (extra: Record<string, unknown>) => {
-      const v = renderView(p.dir, { version: 1, id: 'quote-v3', scenario: 'quote', status: 'succeeded', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', run_id: `${STAMP}quote`, template: 'editorial', ...extra } as unknown as RenderRecord, [], []);
+      const v = renderView(p.dir, { version: 1, id: 'quote-v3', scenario: 'quote', status: 'succeeded', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', run_id: `${STAMP}quote`, template: 'editorial', ...extra } as unknown as StoredRenderRecord, [], []);
       return [short(v.run_id), short(v.theme)];
     };
     expect(view({})).toEqual([`${STAMP}quote`, 'editorial']);
@@ -450,7 +451,9 @@ describe('render records', () => {
 
   it('a record whose fields a message may quote: a render id, a scenario name, a date, a variant', () => {
     const ok = (extra: Record<string, unknown>) => recordShapeOk({ id: 'quote-v3', scenario: 'quote', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', ...extra } as unknown as RenderRecord);
-    expect([ok({}), ok({ id: 'final' }), ok({ id: 7 }), ok({ id: `${a(197)}-v1` }), ok({ scenario: 'a.b' }), ok({ variant: 'tall' })]).toEqual([true, false, false, true, false, false]);
+    // L7.6b: the rule is core's quotableRender — the id is one of the scenario the record says (a render id of another scenario is not quoted).
+    expect([ok({}), ok({ id: 'final' }), ok({ id: 7 }), ok({ id: `${a(197)}-v1`, scenario: a(197) }), ok({ scenario: 'a.b' }), ok({ variant: 'tall' })]).toEqual([true, false, false, true, false, false]);
+    expect(ok({ id: `${a(197)}-v1` })).toBe(false);
     expect(ok({ id: `${a(198)}-v1` })).toBe(false); // D-2: 201 characters
     expect(ok({ id: 'quote-v1000000' })).toBe(false); // D-6
   });
@@ -670,7 +673,9 @@ describe('pruning: the files of a render that goes', () => {
     await record(p.dir, 'quote-v7', { ...failed, file_name: 'quote-v8' });
     await writeFile(join(p.dir, 'renders', 'quote-v7.mp4'), 'x');
     await writeFile(join(p.dir, 'renders', 'quote-v8.mp4'), 'x');
-    expect(await renderItems(p)).toEqual([['quote-v7', ['quote-v7.mp4']]]);
+    // L7.6b (D-10, R-1): a render is the record of its own file — this one is left alone, and no path of an item
+    // comes from the id a file says (before: an item `quote-v7` whose one path was another file's video).
+    expect(await renderItems(p)).toEqual([]);
   });
 
   it('a record whose id is empty, starts with a dot or holds a separator', async () => {
@@ -685,8 +690,8 @@ describe('pruning: the files of a render that goes', () => {
     expect(await of('prune-empty', '')).toEqual([]); // D-8
     expect(await of('prune-dot', '.quote-v3')).toEqual([]); // D-8
     expect(await of('prune-up', '..')).toEqual([]); // D-8
-    // An id that holds a separator is the name of no file of renders/: an item without a path.
-    expect(await of('prune-sep', 'a/b')).toEqual([['a/b', []]]);
+    // An id that holds a separator is the name of no file of renders/: its record is left alone (L7.6b; before: an item without a path).
+    expect(await of('prune-sep', 'a/b')).toEqual([]);
   });
 });
 

@@ -14,6 +14,8 @@ import type { ReviewProgress } from '@retake/review';
 import { EngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
+import { latestRenderMembers } from '../render-records.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
 import { editor, review } from '../lazy.js';
 import { reviewWork } from '../pipeline.js';
@@ -41,7 +43,7 @@ export function reviewCommandLine(cli: string, r: { project: string; render_id: 
 }
 
 /** Check, resolve the render (and the one compared with) and queue a `review` job. */
-export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): Promise<{ job: JobRecord; render_id: string }> {
+export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): Promise<{ job: JobRecord; render_id: string } & LatestRenderNotice & { untrusted?: { renders_passed_over: PassedOverRenders } }> {
   checkProjectSlug(req.project);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   const fps = req.fps ?? 1;
@@ -51,7 +53,9 @@ export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): P
   }
   const project = await openProjectBySlug(ctx.ws, req.project);
   const fix = (id: string) => reviewCommandLine(ctx.cli, { project: req.project, render_id: id, fps, ...(req.previous !== undefined ? { previous: req.previous } : {}) });
-  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix });
+  // With `latest`: what it passed over on the way (a count, and the names for `untrusted`).
+  let latest: Parameters<typeof latestRenderMembers>[0];
+  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
   if (typeof req.previous === 'string') {
     if (req.previous === record.id) throw new EngineError('invalid', `previous ${req.previous} is the render under review`);
     await renderForWork(project, req.previous, { fix });
@@ -65,7 +69,7 @@ export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): P
     ...(req.previous !== undefined ? { previous: req.previous } : {}),
     submitted_by: ctx.client,
   };
-  return { job: await ctx.queue.enqueue(input), render_id: record.id };
+  return { job: await ctx.queue.enqueue(input), render_id: record.id, ...latestRenderMembers(latest) };
 }
 
 /** review/<render_id>/ of a review job's project. */

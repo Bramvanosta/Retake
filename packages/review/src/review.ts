@@ -12,13 +12,14 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
+import { printableText } from '@retake/core';
 import type { EditPlan } from '@retake/editor/plan';
 import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkSlowTransitions, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { fontFileMeasurer } from './fonts.js';
-import { ReviewError, findPrevious, findRender, openProject, renderRun, renderTimeline, reviewsDir } from './load.js';
+import { ReviewError, findPrevious, locateRender, openProject, renderRun, renderTimeline, reviewsDir } from './load.js';
 import { checkPixels, sourceFramesAtStarts, sourceKey, stillPair, stillSourceFrames } from './pixel-checks.js';
 import type { FrameAnalysis } from './pixel-checks.js';
 import type { RegionStats, RgbImage } from './pixels.js';
@@ -175,9 +176,12 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   check();
   progress({ stage: 'loading' });
   const project = await openProject(opts.project, opts.root);
-  const record = await findRender(project, opts.render, opts.scenario);
+  const found = await locateRender(project, opts.render, opts.scenario);
+  const record = found.record;
+  // The name of its folder of review/ (never an empty name or a path: an id written by hand is any text).
+  const name = found.output;
   const plan = record.plan;
-  if (!existsSync(record.file)) throw new ReviewError(`the video of render ${record.id} is missing: ${record.file}`);
+  if (!existsSync(record.file)) throw new ReviewError(`the video of render ${printableText(name)} is missing: ${record.file ? printableText(record.file) : 'no "file" in its record'}`);
   const fps = opts.fps ?? 1;
   if (fps !== 1 && fps !== 2) throw new ReviewError(`fps ${String(fps)}: the contact sheet takes 1 or 2 frames per second`);
   const rules = reviewRules(plan, opts.rules);
@@ -219,7 +223,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   const wanted = new Set<number>([...mainFrames, ...sceneSet, ...keyframes.values(), ...stills.flat()]);
 
   // ── Output directory (written aside, swapped in at the end) ──
-  const finalDir = opts.out ?? join(reviewsDir(project), record.id);
+  const finalDir = opts.out ?? join(reviewsDir(project), name);
   // Leftovers of a review that died are put back in order first (the previous review set aside comes back).
   await recoverReviewDir(finalDir);
   const tmpDir = `${finalDir}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
@@ -465,7 +469,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     const result: Omit<ReviewResult, 'thumbnails'> = {
       version: 1,
       render: {
-        id: record.id,
+        id: name,
         file: record.file,
         record: record.record,
         scenario: record.scenario,

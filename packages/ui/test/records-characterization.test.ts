@@ -20,6 +20,10 @@ import { LastRun } from '../src/app/WelcomeScreen.js';
 import { timelineRun } from '../src/app/scenario-words.js';
 import { STATES, buildState, stateIds, writeRunFolder, writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import type { BuiltState } from '../../core/test/fixtures/records/build.js';
+import { buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
+import { startStudioServer } from '../src/index.js';
+import type { StudioServer } from '../src/index.js';
+import { raw } from './http.js';
 
 let root: string;
 let engine: Engine;
@@ -102,4 +106,81 @@ describe('the take the timeline plans and Render edits, state by state', () => {
       expect([id, a.capture?.id], id).toEqual([id, timelineRun(a)]);
     }
   });
+});
+
+// ── The render records (L7.6b): the Studio's `scenario_renders` op, state by state ─
+//
+// The states are those of core/test/fixtures/records/render-states.json. Every row was first pinned on the code before
+// the lot (its P0): the op's status, its summary, the renders it lists and the members of its answer; the thirteen rows
+// the lot's engine part changed are marked `moved: <row>` (the lead's plan §4) — each flipped on purpose, no other moved.
+
+describe("the Studio's list of renders, state by state", () => {
+  let studio: StudioServer;
+  beforeAll(async () => {
+    studio = await startStudioServer({ root, startWorker: false });
+  }, 60_000);
+  afterAll(async () => {
+    await studio.close();
+  });
+  const RTABLE: Record<string, string> = {
+    ctl: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    v2: '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 1
+    'no-created': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 1
+    'created-5': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    'renamed-newest': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'renamed-fixed': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'renamed-old': '200 quote: 3 renders, 0 queued or running | quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'renamed-reused': '200 quote: 4 renders, 0 queued or running | quote-v4:succeeded quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    copy: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'copy-backup': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'video-gone': '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    // moved: row 11 — quote-v2 is not shown under `quote` (its record says another scenario): counted in `not_shown`
+    'scenario-other': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: row 11 — quote-v2 is not shown (its scenario is no text): counted in `not_shown`
+    'scenario-7': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: row 11 — quote-v2 is not shown (no scenario): counted in `not_shown`
+    'no-scenario': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    'no-variant': '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'lock-only': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'video-only': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    // moved: row 12 — quote-v2 is not shown as succeeded: counted in `not_shown` (its status is not one Retake writes)
+    paused: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    failed: '200 quote: 2 renders, 0 queued or running | quote-v2:failed quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'variant-cube': '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 10
+    'version-2': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 14
+    link: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    'out-name': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    // moved: row 13 — quote-v2 is not shown (no plan): counted in `not_shown`
+    'no-plan': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 15
+    'cut-short': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 15
+    array: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: the answer gains `not_shown` (a count and fixed words) for quote-v2.json, which the list does not show — row 15
+    null: '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    // moved: row 15 — quote-v2 is not shown as succeeded (no status: no record): counted in `not_shown`
+    'no-status': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted,not_shown',
+    'no-run-id': '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'empty-id': '200 quote: 1 render, 0 queued or running | quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'file-outside': '200 quote: 2 renders, 0 queued or running | quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'keep-json': '200 quote: 4 renders, 0 queued or running | quote-v4:succeeded quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'keep-json-without': '200 quote: 4 renders, 0 queued or running | quote-v4:succeeded quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+    'final-files': '200 quote: 4 renders, 0 queued or running | quote-v4:succeeded quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
+
+  };
+
+  it('every state of the table through the op', async () => {
+    const got: Record<string, string> = {};
+    for (const id of renderStateIds()) {
+      const b = buildRenderState(root, id);
+      const r = await raw(studio.port, 'POST', '/v1/call/scenario_renders', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify({ project: b.slug, name: 'quote' }));
+      const body = r.json<{ summary?: string; data?: { renders: Array<{ render_id: string; status: string }> } & Record<string, unknown> }>();
+      got[id] = `${r.status} ${body.summary ?? ''} | ${body.data?.renders.map((x) => `${x.render_id}:${x.status}`).join(' ') || '-'} | ${Object.keys(body.data ?? {}).join(',')}`;
+    }
+    expect(got).toEqual(RTABLE);
+  }, 120_000);
 });

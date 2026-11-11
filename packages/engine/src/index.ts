@@ -109,7 +109,7 @@ export type {
   Renderer,
   RendererFailure,
 } from './render/renderer.js';
-export type { EditOverrides, ExportFormat, ExportProgress, ExportResult, PlannedRun, RenderProgress, RenderRecord, ReviewResult, RunRef } from './pipeline.js';
+export type { EditOverrides, ExportFormat, ExportProgress, ExportResult, FoundRender, PlannedRun, RenderProgress, RenderRecord, ReviewResult, RunRef } from './pipeline.js';
 export { newJobId } from './jobs/ids.js';
 export type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, JobQueueView, TakeHold, YieldMark } from './jobs/job-queue.js';
 export { jobProject } from './jobs/queue-core.js';
@@ -210,7 +210,8 @@ export {
   reviewInline,
 } from './jobs/render-job.js';
 export type { InlineReview, LatestRunNotice, PassedOverRuns, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
-export { SCENARIO_RENDERS_MAX, failureWords, planPreview, planSignature, renderForWork, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
+export { SCENARIO_RENDERS_MAX, failureWords, latestRenderMembers, planPreview, planSignature, renderForWork, renderRecordReads, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
+export type { LatestRenderNotice, PassedOverRenders, RenderForWork } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
 export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine } from './jobs/export-job.js';

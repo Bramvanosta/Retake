@@ -112,8 +112,8 @@ function vitestAliases(): Record<string, string> {
   return out;
 }
 
-/** How many expected-error directives the test folders hold (2026-11-10). */
-const EXPECT_ERRORS = 32;
+/** How many expected-error directives the test folders hold (2026-11-11). */
+const EXPECT_ERRORS = 35;
 
 describe('the type check of the test files (tsconfig.test.json)', () => {
   const config = readConfig('tsconfig.test.json');
@@ -241,6 +241,9 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
     // are): one more is a decision, written here in the commit that adds it; one fewer lowers the number.
     // L7.6a, +3 (29 → 32), all in packages/core/test/run-record.test.ts: the three assignments that must not compile on
     // a run record — its status, its error, its end — each over the assignment itself, wrong on purpose.
+    // L7.6b, +3 (32 → 35), all in packages/core/test/render-record.test.ts: a render record made from another state —
+    // an attempt handed to `finishedRender`, a finished render to `renderAttempt`, fields holding a policy — each over
+    // the call itself, wrong on purpose (the transitions take a render's fields only).
     expect(count).toBe(EXPECT_ERRORS);
   });
 

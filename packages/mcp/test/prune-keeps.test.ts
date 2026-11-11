@@ -82,25 +82,26 @@ const TABLE: Record<string, string[]> = {
     'kept: 2 takes, 0 renders, 0 reviews',
     'kept: written by a newer Retake (left alone) — 1 take',
   ],
-  // C
+  // C — L7.6b R-1: the renamed record is left alone and keeps its take; both are said, the file's name under "untrusted" only
   C1: [
     'nothing to prune in <p>',
-    'kept: 2 takes, 1 render, 0 reviews',
+    'kept: 2 takes, 0 renders and 1 other file of renders/, 0 reviews',
+    'kept: a file of renders/ that is no render names it — 1 take',
+    '1 file of renders/ left alone (no render of its own name, or a record that lacks a member), with the renders and the takes it names ("untrusted.renders_alone" names it)',
   ],
-  // C
+  // C — L7.6b R-1 (was: OLD and a `render quote-v1` without a file offered)
   C2: [
-    '2 items of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)',
-    '- run OLD: older capture nothing uses (<size>)',
-    '- render quote-v1: older render (<size>)',
-    'kept: 1 take, 3 renders, 0 reviews',
+    'nothing to prune in <p>',
+    'kept: 2 takes, 3 renders and 1 other file of renders/, 0 reviews',
+    'kept: a file of renders/ that is no render names it — 1 take',
+    '1 file of renders/ left alone (no render of its own name, or a record that lacks a member), with the renders and the takes it names ("untrusted.renders_alone" names it)',
   ],
-  // C
+  // C — L7.6b R-1 (was: OLD offered, `render quote-v1` twice)
   C3: [
-    '3 items of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)',
-    '- run OLD: older capture nothing uses (<size>)',
-    '- render quote-v1: older render (<size>)',
-    '- render quote-v1: older render (<size>)',
-    'kept: 1 take, 3 renders, 0 reviews',
+    'nothing to prune in <p>',
+    'kept: 2 takes, 4 renders and 1 other file of renders/, 0 reviews',
+    'kept: a file of renders/ that is no render names it — 1 take',
+    '1 file of renders/ left alone (no render of its own name, or a record that lacks a member), with the renders and the takes it names ("untrusted.renders_alone" names it)',
   ],
   // C
   C4: [
@@ -306,8 +307,12 @@ describe('project_prune: the takes kept beyond the list', () => {
     // In every layout: a line about what was kept names no run folder (the labels stand for the folders here).
     for (const id of Object.keys(LAYOUTS)) {
       const keptLines = (await said(id)).lines.filter((l) => l.startsWith('kept: ') && !/^kept: \d+ takes?, /.test(l));
-      for (const l of keptLines) expect(l, id).toMatch(/^kept: (the last capture that can be edited|the last complete capture \(a newer one was stopped by --until\)|its folder is a link \(left alone\)|written by a newer Retake \(left alone\)) — \d+ takes?$/);
+      for (const l of keptLines) expect(l, id).toMatch(/^kept: (the last capture that can be edited|the last complete capture \(a newer one was stopped by --until\)|its folder is a link \(left alone\)|written by a newer Retake \(left alone\)|a file of renders\/ that is no render names it) — \d+ takes?$/);
     }
+    // L7.6b: a file of renders/ left alone is counted in the text and named under `untrusted` only (C1: a record renamed by hand).
+    const c1 = await said('C1');
+    expect(c1.lines.join('\n')).not.toContain('quote-final');
+    expect([c1.data.renders_alone, c1.data.untrusted]).toEqual([{ count: 1, reasons: [{ why: 'renamed', count: 1, reason: 'its record says another id' }] }, { renders_alone: [{ file: 'quote-final.json', why: 'renamed' }] }]);
   });
 
   it('two takes kept for one reason are one line with their count', async () => {

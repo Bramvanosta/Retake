@@ -52,3 +52,23 @@ Where a file also holds marks of the lot before (L7.5 used `D-4` and `D-7` for o
 characterization files), this lot's are written `L7.6a D-4`.
 
 Past timelines are not copied here: the tests read those of `packages/editor/test/fixtures/` by path.
+
+## Render records (L7.6b)
+
+| File | What it is | Made how |
+|---|---|---|
+| `render-states.json` | The states of a project's `renders/` folder beside two good captures `OLD` and `NEW` of scenario `quote` and (unless the state says otherwise) one good render `quote-v1`: per state, the files written — a record under its own name or another, one that lacks a member or says a word no version writes, a record of a newer format, a link, a copy, a file that is no JSON, a lock or a video alone. Its plan holds one card: enough for an export that copies, for a comment's anchor and for the viewer's outline, not for a whole review. | written for the tests |
+| `build-renders.ts` | Writes those folders into a temp workspace, one project per state (`r-<state>`), on top of `build.ts`'s control state. Each test file holds its own expected answers. | written for the tests |
+| `past/render-l24.json`, `render-l55.json`, `render-l515.json`, `render-l73.json` | A succeeded render record as the type said it at four commits: the first shape (no theme hash, no `edit`, no `policy`; `browser.source: remotion`), with `edit` (L5.5), with `policy`, `encoding.encoder` and the theme hash (L5.15), with `policy.ffmpeg` (L7.3). | hand-written from the type of each commit: no version of the tool left a render record on the machine this lot was made on |
+| `prune-layouts.ts` (`files`, `reviews`) | A layout may now hold files of `renders/` in the entries of `build-renders.ts` and folders of `review/`: the generated layouts of the engine's `prune-only-keeps-more` test. | written for the tests |
+
+**How honest these are.** No render record here was written by a build: every one is made from the type by hand. The
+reader of the lot is therefore built not to depend on them — only a record's format version, its status and its id
+decide whether a file is a record. No version ever wrote a failed or a cancelled record: the ones the states hold are
+what a person could write by hand.
+
+The marks on the rows of the render tables: `moves: row <n>` names the row of the lot's list of visible changes that
+changes the cell (the lot's notes hold the list); `N1` – `N10` name a thing that works today when a person names it
+and must keep working; `D-10` (a render is the record of its own file) and `D-11` (a terminal's `latest` and the
+engine's stay two rules) are the lot's decisions. A cell that holds a raw `TypeError` is today's answer, pinned as it
+is until the part that owns it answers a sentence.

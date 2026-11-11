@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SLUG_RE, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { JOB_STATES, SLUG_RE, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
 import { yieldWords } from '@retake/engine';
 import type { Engine, RenderStatusView } from '@retake/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
@@ -45,10 +45,16 @@ export function renderStatusSummary(r: RenderStatusView): string {
   return lines.join('\n');
 }
 
-async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}, extraUntrusted: Record<string, unknown> = {}) {
-  const r = await engine.renders.status(project, id);
+async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}, extraUntrusted: Record<string, unknown> = {}, o: { unknown?: boolean } = {}) {
+  const read = await engine.renders.status(project, id);
+  // `latest` answered a record whose status Retake never writes as `unknown` (the lead's ruling 27): the second read,
+  // by its id, says it so too — never the file's word.
+  const r = o.unknown && !KNOWN_STATUS.has(read.status) ? { ...read, status: 'unknown' as RenderStatusView['status'] } : read;
   return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...r, ...extraData, untrusted: { ...r.untrusted, ...extraUntrusted } } };
 }
+
+/** The statuses of the tool's own (a job's states and a record's): any other word is the file's. */
+const KNOWN_STATUS: ReadonlySet<string> = new Set(JOB_STATES);
 
 /** A scene id as a scenario writes one (a slug of at most 100 characters): only such a text is said in a trusted line — run.json is a file anyone may write. */
 const isSceneId = (v: unknown): v is string => typeof v === 'string' && v.length <= 100 && SLUG_RE.test(v);
@@ -69,6 +75,27 @@ export function latestLines(p: { run_id: string; passed_over?: number; not_consi
     lines.push(`run ${p.run_id} stops${step} (\`--until\`): the render shows the scenario up to there`);
   }
   return lines;
+}
+
+/**
+ * The trusted lines about the render `latest` picked (none for a render named by its id): how many newer files of
+ * renders/ were passed over — a record renamed or copied, a link, one that lacks a member, of a newer Retake… — as a
+ * count only (their names are text anyone who can write renders/ chose, and stay under "untrusted"), and how many
+ * files say nothing readable under a name that is no render id.
+ */
+export function renderLatestLines(p: { renders_passed_over?: number; renders_not_considered?: number }): string[] {
+  const lines: string[] = [];
+  if (p.renders_passed_over) lines.push(`${plural(p.renders_passed_over, 'newer file')} of renders/ passed over: "untrusted.renders_passed_over" names ${p.renders_passed_over === 1 ? 'it' : 'them'}`);
+  if (p.renders_not_considered) lines.push(`${plural(p.renders_not_considered, 'file')} of renders/ ${p.renders_not_considered === 1 ? 'does' : 'do'} not read: not considered`);
+  return lines;
+}
+
+/** The members an answer carries on from a `latest` of renders: the counts as data, the names under `untrusted`. */
+export function renderLatestData(p: { renders_passed_over?: number; renders_not_considered?: number; untrusted?: { renders_passed_over?: unknown } }): { data: Record<string, unknown>; untrusted: Record<string, unknown> } {
+  return {
+    data: { ...(p.renders_passed_over !== undefined ? { renders_passed_over: p.renders_passed_over } : {}), ...(p.renders_not_considered !== undefined ? { renders_not_considered: p.renders_not_considered } : {}) },
+    untrusted: p.untrusted?.renders_passed_over ? { renders_passed_over: p.untrusted.renders_passed_over } : {},
+  };
 }
 
 /**
@@ -167,7 +194,9 @@ export const renderStatus = defineTool({
     const { engine } = ctx;
     const first = await engine.renders.status(project, render_id, scenario ? { scenario } : {});
     if (wait_s > 0 && first.job && !first.finished) await waitJob(engine, await engine.jobs.get(first.job.id), wait_s, ctx);
-    return statusOutput(engine, project, first.render_id);
+    // What `latest` passed over is said by the first read (the second names the render by its id).
+    const passed = renderLatestData(first);
+    return statusOutput(engine, project, first.render_id, renderLatestLines(first), passed.data, passed.untrusted, { unknown: render_id === 'latest' && first.status === ('unknown' as RenderStatusView['status']) });
   },
 });
 

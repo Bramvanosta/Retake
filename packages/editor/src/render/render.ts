@@ -46,9 +46,10 @@ import { VIDEO_COMPOSITIONS, videoProps } from '../remotion/contract.js';
 import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia, run } from './probe.js';
-import type { RenderRecord } from '../render-record.js';
+import type { RenderAttempt, RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
-import { errorKindOf, formatRenderId } from '@retake/core';
+import { errorKindOf, finishedRender, formatRenderId, renderAttempt } from '@retake/core';
+import type { RenderFields } from '@retake/core';
 import { handedDriver } from './driver-guard.js';
 import { rendererLibrary } from './library.js';
 import type { LibraryBrowser, RenderBrowserHandle } from './library.js';
@@ -833,7 +834,9 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   } catch {
     /* renderPlan says why */
   }
-  const base = (): RenderRecord => ({
+  // Every member of the record but its status, its error, its policy and its probe: the two functions of core
+  // render-record.ts make the state (a succeeded record never holds an error; a failed one is never written).
+  const base = (): RenderFields<EditPlan, EditOverrides> => ({
     version: 1,
     id,
     project: project.slug,
@@ -845,7 +848,6 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     overrides,
     edit: { from: edit.from, ...(edit.sha256 ? { sha256: edit.sha256 } : {}), ...(edit.changes?.length ? { changes: edit.changes } : {}), ...(edit.from === 'scenario' ? { captions: sceneCaptions(timeline) } : {}) },
     variant: plan.variant,
-    status: 'succeeded',
     file,
     record: recordFile,
     ...(version !== undefined ? { render_version: version } : {}),
@@ -880,23 +882,22 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
       ...(opts.onBrowser ? { onProcess: opts.onBrowser } : {}),
       ...(opts.settings ? { settings: opts.settings } : {}),
     });
-    const record = base();
-    record.size_bytes = res.size_bytes;
-    record.concurrency = res.concurrency;
-    record.encoding = { ...record.encoding, ...res.encoding };
-    record.policy = res.renderPath;
-    record.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
-    record.browser = { path: res.browser.path, source: res.browser.source };
-    record.warnings.push(...res.warnings);
+    const fields = base();
+    fields.size_bytes = res.size_bytes;
+    fields.concurrency = res.concurrency;
+    fields.encoding = { ...fields.encoding, ...res.encoding };
+    fields.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
+    fields.browser = { path: res.browser.path, source: res.browser.source };
+    fields.warnings.push(...res.warnings);
     // The driver's probe of the file it wrote (ffprobe for this package's; a driver that has none says nothing).
     const probe = res.probe;
     if (probe) {
-      record.probe = probe;
       const expected = plan.durationInFrames / plan.fps;
-      if (Math.abs(probe.duration_s - expected) > 1.5 / plan.fps) record.warnings.push(`the file lasts ${probe.duration_s.toFixed(3)} s, the plan ${expected.toFixed(3)} s`);
+      if (Math.abs(probe.duration_s - expected) > 1.5 / plan.fps) fields.warnings.push(`the file lasts ${probe.duration_s.toFixed(3)} s, the plan ${expected.toFixed(3)} s`);
     }
-    record.finished_at = new Date().toISOString();
-    record.timings = { plan_ms: planMs, bundle_ms: res.bundle_ms, render_ms: res.render_ms, total_ms: Math.round(performance.now() - t0) };
+    fields.finished_at = new Date().toISOString();
+    fields.timings = { plan_ms: planMs, bundle_ms: res.bundle_ms, render_ms: res.render_ms, total_ms: Math.round(performance.now() - t0) };
+    const record: RenderRecord = finishedRender(fields, { ...(res.renderPath ? { policy: res.renderPath } : {}), ...(probe ? { probe } : {}) });
     await writeFile(recordFile, `${JSON.stringify(record, null, 2)}\n`);
     emit({ stage: 'done', progress: 1, overall: 1, totalFrames: plan.durationInFrames });
     return record;
@@ -904,14 +905,17 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     // The driver's failure, read by what it says (its kind, its fields), never by its class: another driver's counts too.
     const cancelled = errorKindOf(e) === 'cancelled';
     const said = (e ?? {}) as { renderPath?: RenderRecord['policy']; renderWarnings?: unknown };
-    const record = base();
-    record.status = cancelled ? 'cancelled' : 'failed';
-    record.error = (e as Error).message;
-    // What was tried (the GPU path, its fallback and why) and the warnings so far (review B L1).
-    if (said.renderPath && typeof said.renderPath === 'object') record.policy = said.renderPath;
-    if (Array.isArray(said.renderWarnings)) record.warnings.push(...said.renderWarnings.filter((w): w is string => typeof w === 'string'));
-    record.finished_at = new Date().toISOString();
-    record.timings.total_ms = Math.round(performance.now() - t0);
+    const fields = base();
+    // The warnings so far (review B L1).
+    if (Array.isArray(said.renderWarnings)) fields.warnings.push(...said.renderWarnings.filter((w): w is string => typeof w === 'string'));
+    fields.finished_at = new Date().toISOString();
+    fields.timings.total_ms = Math.round(performance.now() - t0);
+    // What was tried (the GPU path, its fallback and why). Never written to a disk: it rides on the error.
+    const record: RenderAttempt = renderAttempt(fields, {
+      status: cancelled ? 'cancelled' : 'failed',
+      error: (e as Error).message,
+      ...(said.renderPath && typeof said.renderPath === 'object' ? { policy: said.renderPath } : {}),
+    });
     if (cancelled) throw new RenderCancelledError(record);
     throw new RenderError((e as Error).message, record);
   } finally {

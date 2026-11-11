@@ -24,6 +24,8 @@ import type { StepSchema } from './steps.js';
 import type { TemplateSchema } from './template.js';
 import type { FailedRun, RunBase, RunRecord, StoredRunEngine, StoredRunPerf, StoredRunRecord, SucceededRun, UnknownStatusRun } from '../run-record.js';
 import type { RunError, RunStatus } from '../types.js';
+import type { FinishedRender, RenderAttempt, RenderBase, StoredPlan, StoredRenderBase, StoredRenderRecord, UnknownStatusRender } from '../render-record.js';
+import type { RenderAttemptSchema, RenderRecordSchema, StoredRenderRecordSchema, UnknownStatusRenderSchema } from './render.js';
 import type { RunRecordSchema, StoredRunEngineSchema, StoredRunPerfSchema, StoredRunRecordSchema, TimelineSchema, UnknownStatusRunSchema } from './timeline.js';
 
 type Extends<A, B> = [A] extends [B] ? true : false;
@@ -103,3 +105,47 @@ type _U2 = Assert<Not<Extends<string, UnknownStatusRun['status']>>>;
 export type SchemaTypeChecks = [_O1, _O2, _O3, _O4, _O5, _O6, _O7, _O8, _O9, _O10, _I1, _I2, _I3, _I4, _I5, _I6, _I7];
 /** The same for the run record's. */
 export type RunRecordTypeChecks = [_W1, _W2, _W3, _W4, _U1, _U2, _R2, _R3, _R4, _R5, _R6, _R7, _N1, _N2, _N3, _N4, _N5, _N6, _N7, _N8, _N9, _N10, _N11, _M1, _M2];
+
+// ── The render record: a union of states (render-record.ts) ──────────────────
+
+type _Plan = StoredPlan;
+type _Over = Readonly<Record<string, unknown>>;
+type _Written = FinishedRender<_Plan, _Over>;
+type _Tried = RenderAttempt<_Plan, _Over>;
+type _Base = RenderBase<_Plan, _Over>;
+// The schemas' outputs are the types (what this version writes; what it carries on an error; what a disk holds).
+type _RR1 = Assert<Extends<z.output<typeof RenderRecordSchema>, _Written>>;
+type _RR2 = Assert<Extends<z.output<typeof RenderAttemptSchema>, _Tried>>;
+type _RR3 = Assert<Extends<z.output<typeof StoredRenderRecordSchema>, StoredRenderRecord>>;
+// (the schema takes any text for the status; the reader alone says which text is none of the three)
+type _RR4 = Assert<Extends<z.output<typeof UnknownStatusRenderSchema>, Omit<UnknownStatusRender, 'status'> & { status: string }>>;
+// A written record is a stored one, not the reverse (a stored record may lack its plan and its variant).
+type _RR5 = Assert<Extends<_Written, StoredRenderRecord>>;
+type _RR6 = Assert<Extends<_Tried, StoredRenderRecord>>;
+type _RR7 = Assert<Not<Extends<StoredRenderRecord, _Written | _Tried>>>;
+// The states no writer may build.
+type _RN1 = Assert<Not<Extends<_Base & { status: 'succeeded'; error: string }, _Written | _Tried>>>;
+// (without `probe`, which an attempt never has: so that it is the missing error that is refused, nothing else)
+type _NoProbe = Omit<_Base, 'probe'>;
+type _RN2 = Assert<Not<Extends<_NoProbe & { status: 'failed' }, _Written | _Tried>>>;
+type _RN3 = Assert<Not<Extends<_NoProbe & { status: 'cancelled' }, _Written | _Tried>>>;
+// … and with its error it IS one (this fails if the two asserts above pass for another reason).
+type _RN6 = Assert<Extends<_NoProbe & { status: 'failed'; error: string }, _Tried>>;
+type _RN4 = Assert<Not<Extends<_NoProbe & { status: 'failed'; error: string; probe: NonNullable<_Base['probe']> }, _Written | _Tried>>>;
+type _RN5 = Assert<Not<Extends<StoredRenderBase & { status: 'succeeded'; error: string }, StoredRenderRecord>>>;
+// The flat shape itself is not a state (this fails if the union is folded back into optional members).
+type _RM1 = Assert<Not<Extends<_Base & { status: 'succeeded' | 'failed' | 'cancelled'; error?: string }, _Written | _Tried>>>;
+type _RM2 = Assert<Not<Extends<StoredRenderBase & { status: 'succeeded' | 'failed' | 'cancelled'; error?: string }, StoredRenderRecord>>>;
+// The two members that decide a state cannot be assigned, on a state or on the union.
+type _RDecides = 'status' | 'error';
+type _RSealed<T> = (T extends unknown ? _Same<Pick<T, _RDecides & keyof T>, Readonly<Pick<T, _RDecides & keyof T>>> : never) extends true ? true : false;
+type _RW1 = Assert<_RSealed<_Written | _Tried>>;
+type _RW2 = Assert<_RSealed<StoredRenderRecord>>;
+type _RW3 = Assert<_RSealed<UnknownStatusRender>>;
+type _RW4 = Assert<Not<_RSealed<{ status: 'succeeded'; error?: string }>>>;
+// A status Retake never writes is no literal, and no plain text is one either: only the reader makes it.
+type _RU1 = Assert<Not<Extends<'succeeded', UnknownStatusRender['status']>>>;
+type _RU2 = Assert<Not<Extends<string, UnknownStatusRender['status']>>>;
+
+/** The same for the render record's. */
+export type RenderRecordTypeChecks = [_RR1, _RR2, _RR3, _RR4, _RR5, _RR6, _RR7, _RN1, _RN2, _RN3, _RN4, _RN5, _RN6, _RM1, _RM2, _RW1, _RW2, _RW3, _RW4, _RU1, _RU2];

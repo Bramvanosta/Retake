@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { LoadedProject } from '@retake/core';
@@ -323,8 +323,10 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
     try {
       await mkdir(join(w.proj, 'renders'), { recursive: true });
       for (let i = 0; i < 20; i++) {
-        const id = `r${String(i).padStart(2, '0')}-${'x'.repeat(931)}`;
-        await writeFile(join(w.proj, 'renders', `r${i}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+        // L7.6b: a render is the record of its own file, so a long line comes from a name a file can have — 155
+        // DEL characters, each written out in the form as `\u{7f}` (935 visible characters, as before).
+        const id = `r${String(i).padStart(2, '0')}-x${'\x7f'.repeat(155)}`;
+        await writeFile(join(w.proj, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
       }
       // Its lines and command alone fit in 16,000 characters; with the form's other lines they do not.
       const mcp = await engineOf(w.root, 'mcp');
@@ -346,8 +348,9 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
     try {
       await mkdir(join(w.proj, 'renders'), { recursive: true });
       for (let i = 0; i < 20; i++) {
-        const id = `r${i}-${'x'.repeat(1200)}`;
-        await writeFile(join(w.proj, 'renders', `r${i}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+        // (L7.6b: named as its file — 200 DEL characters, 1,200 visible ones in the form.)
+        const id = `r${i}-${'\x7f'.repeat(200)}`;
+        await writeFile(join(w.proj, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
       }
       const a = asking({ approved: true });
       const e = await refusal((await engineOf(w.root, 'mcp')).projects.prune('p', { dry_run: false }, { approver: a }));
@@ -652,6 +655,101 @@ describe('the last renders of a scenario are counted among its renders only (L7.
       expect((await readdir(join(d, 'runs'))).sort()).toEqual(['20261020-080000-quote', '20261020-120000-quote']);
     } finally {
       await rm(d, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the files of renders/ that are no render of their own name (L7.6b, R-1)', () => {
+  /** A project with two good captures of `quote` (OLD, NEW), four renders made on NEW (the oldest, quote-v1, goes with keep 3) and a failed render. */
+  async function projectOf(): Promise<{ d: string; p: LoadedProject; old: string; young: string; list: (r: Awaited<ReturnType<typeof pruneProject>>) => string[] }> {
+    const d = await mkdtemp(join(tmpdir(), 'ds-prune-r1-'));
+    const p = { slug: 'p', dir: d, root: d, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(d, 'project.yaml') } as unknown as LoadedProject;
+    const [old, young] = ['20261001-100000-quote', '20261002-100000-quote'];
+    await mkdir(join(d, 'renders'), { recursive: true });
+    for (const id of [old, young]) {
+      await mkdir(join(d, 'runs', id), { recursive: true });
+      await writeFile(join(d, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-01T10:00:00.000Z', dir: join(d, 'runs', id), env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+    }
+    for (const n of [1, 2, 3, 4]) await writeFile(join(d, 'renders', `quote-v${n}.json`), record(`quote-v${n}`, young, `2026-10-02T09:0${n}:00.000Z`));
+    await writeFile(join(d, 'renders', 'quote-v5.json'), record('quote-v5', young, '2026-10-02T09:05:00.000Z', { status: 'failed', error: 'x' }));
+    const list = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id === old ? 'OLD' : i.id === young ? 'NEW' : i.id}`);
+    return { d, p, old, young, list };
+  }
+  const record = (id: string, run: string, at: string, o: Record<string, unknown> = {}): string => JSON.stringify({ version: 1, id, scenario: 'quote', run_id: run, status: 'succeeded', created_at: at, variant: 'landscape', plan: { fps: 30 }, ...o });
+
+  it('a record file that is a link is left alone and still keeps the render and the take it names; a link to nothing keeps nothing and stops nothing', async () => {
+    const w = await projectOf();
+    try {
+      expect(w.list(await pruneProject(w.p))).toEqual(['run OLD', 'render quote-v1', 'render quote-v5']);
+      // A link to nothing, a link to a folder, a link to a file that is no JSON: each said, none keeps anything.
+      await symlink(join(w.d, 'gone.json'), join(w.d, 'renders', 'quote-v7.json'));
+      await symlink(join(w.d, 'runs'), join(w.d, 'renders', 'quote-v8.json'));
+      await writeFile(join(w.d, 'notes.txt'), 'not json');
+      await symlink(join(w.d, 'notes.txt'), join(w.d, 'renders', 'quote-v9.json'));
+      let r = await pruneProject(w.p);
+      expect(w.list(r)).toEqual(['run OLD', 'render quote-v1', 'render quote-v5']);
+      expect([r.renders_alone, r.renders_unread, r.kept.renders]).toEqual([{ count: 3, reasons: [{ why: 'linked', count: 3, reason: 'its record is a link' }] }, undefined, 6]);
+      // A link to a record made on OLD that says quote-v1 (kept on another disk): the take and the render it names stay.
+      await mkdir(join(w.d, 'elsewhere'), { recursive: true });
+      await writeFile(join(w.d, 'elsewhere', 'kept.json'), record('quote-v1', w.old, '2026-10-01T09:00:00.000Z'));
+      await symlink(join(w.d, 'elsewhere', 'kept.json'), join(w.d, 'renders', 'quote-kept.json'));
+      r = await pruneProject(w.p);
+      expect(w.list(r)).toEqual(['render quote-v5']);
+      expect((r.kept_takes ?? []).map((k) => `${k.id === w.old ? 'OLD' : k.id} ${k.why}: ${k.reason}`)).toEqual(['OLD render-file: a file of renders/ that is no render names it']);
+      expect(r.untrusted?.renders_alone.map((a) => `${a.file} ${a.why}`)).toEqual(expect.arrayContaining(['quote-kept.json linked', 'quote-v7.json linked']));
+      // The form an agent's prune asks with says how many files are left alone: a count, never a name.
+      const form = pruneApprovalRequest(r, 'retake prune p --yes');
+      expect([form.renders_alone, pruneApprovalFormText(form).split('\n')[2], pruneApprovalFormText(form).includes('quote-kept')]).toEqual([4, '4 files of renders/ are no render of their own name, or lack a member: left alone, with the renders and the takes they name.', false]);
+      // A deletion removes the failed render only: the links and what they point at are as they were.
+      const done = await pruneProject(w.p, { dry_run: false });
+      expect(w.list(done)).toEqual(['render quote-v5']);
+      expect((await readdir(join(w.d, 'renders'))).sort()).toEqual(['quote-kept.json', 'quote-v1.json', 'quote-v2.json', 'quote-v3.json', 'quote-v4.json', 'quote-v7.json', 'quote-v8.json', 'quote-v9.json']);
+      expect([existsSync(join(w.d, 'elsewhere', 'kept.json')), existsSync(join(w.d, 'notes.txt')), existsSync(join(w.d, 'runs', w.old))]).toEqual([true, true, true]);
+    } finally {
+      await rm(w.d, { recursive: true, force: true });
+    }
+  });
+
+  it('a file of renders/ too big to read, directly or behind a link, keeps every render, review and take, and the result says so', async () => {
+    for (const how of ['file', 'link'] as const) {
+      const w = await projectOf();
+      try {
+        await mkdir(join(w.d, 'review', 'quote-v99'), { recursive: true });
+        expect(w.list(await pruneProject(w.p))).toEqual(['run OLD', 'render quote-v1', 'render quote-v5', 'review quote-v99']);
+        // Over the reader's cap (16 MB): the text of a record, then zeros (a sparse file).
+        const target = how === 'file' ? join(w.d, 'renders', 'stray.json') : join(w.d, 'big.json');
+        await writeFile(target, record('quote-v1', w.old, '2026-10-01T09:00:00.000Z'));
+        await truncate(target, 16 * 1024 * 1024 + 1);
+        if (how === 'link') await symlink(target, join(w.d, 'renders', 'stray.json'));
+        const r = await pruneProject(w.p);
+        expect([how, r.items, r.renders_unread, r.kept]).toEqual([how, [], '1 file of renders/ is too big to read: every render, review and take is kept', { runs: 2, renders: 6, reviews: 1 }]);
+        expect(r.renders_alone?.reasons.map((x) => `${x.why} ${x.count}`)).toEqual([how === 'file' ? 'too-big 1' : 'linked 1']);
+      } finally {
+        await rm(w.d, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('a record that lacks a member, one of a status Retake never writes, one of a newer Retake: left alone, said, and the take each names stays', async () => {
+    const w = await projectOf();
+    try {
+      const { plan: _plan, ...noPlan } = JSON.parse(record('quote-v6', w.old, '2026-10-01T09:06:00.000Z')) as Record<string, unknown>;
+      await writeFile(join(w.d, 'renders', 'quote-v6.json'), JSON.stringify(noPlan));
+      let r = await pruneProject(w.p);
+      // The record without its plan is kept (never an item, never counted among the last renders) and protects OLD.
+      expect([w.list(r), r.renders_alone?.reasons, r.kept_takes]).toEqual([['render quote-v1', 'render quote-v5'], [{ why: 'incomplete', count: 1, reason: 'its record lacks its scenario, its creation time or its plan' }], undefined]);
+      await writeFile(join(w.d, 'renders', 'quote-v6.json'), record('quote-v6', w.old, '2026-10-01T09:06:00.000Z', { status: 'paused' }));
+      await writeFile(join(w.d, 'renders', 'quote-v6.mp4'), 'mp4');
+      r = await pruneProject(w.p);
+      expect([w.list(r), r.renders_alone?.reasons.map((x) => x.why), (r.kept_takes ?? []).map((k) => k.why)]).toEqual([['render quote-v1', 'render quote-v5'], ['unknown-status'], ['render-file']]);
+      await writeFile(join(w.d, 'renders', 'quote-v6.json'), record('quote-v6', w.old, '2026-10-01T09:06:00.000Z', { version: 2 }));
+      r = await pruneProject(w.p);
+      expect([w.list(r), r.renders_alone?.reasons.map((x) => x.why), (r.kept_takes ?? []).map((k) => k.why)]).toEqual([['render quote-v1', 'render quote-v5'], ['newer-format'], ['render-file']]);
+      // Deleted for real: the file left alone and its video are still there.
+      await pruneProject(w.p, { dry_run: false });
+      expect((await readdir(join(w.d, 'renders'))).sort()).toEqual(['quote-v2.json', 'quote-v3.json', 'quote-v4.json', 'quote-v6.json', 'quote-v6.mp4']);
+    } finally {
+      await rm(w.d, { recursive: true, force: true });
     }
   });
 });

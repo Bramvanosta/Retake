@@ -7,14 +7,15 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
-import { canonicalJson, formatRenderId, isRenderId, isRunId, isThemeName, projectPath, renderIdOf } from '@retake/core';
-import { readPlainFile } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core';
-import type { RenderRecord } from '@retake/editor';
+import { canonicalJson, formatRenderId, isRenderId, isRunId, isThemeName, latestProjectRender, orderRenders, projectPath, projectRef, projectRenderOf, renderIdOf, renderLackWords, renderNot, renderNotWords } from '@retake/core';
+import { readListedRender, readPlainFile } from '@retake/core/io';
+import type { LoadedProject, ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core';
+import type { StoredRender } from '@retake/editor';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName, isRenderOfItsScenario } from './refs.js';
+import { latestRenderNotice, readById, renderEntries, renderFileProblem } from './render-records.js';
+import type { PassedOverRenders } from './render-records.js';
 import { latestNoticeOf, planRenderRequest } from './jobs/render-job.js';
 import { editor } from './lazy.js';
 import type { PassedOverRuns, RenderRequest } from './jobs/render-job.js';
@@ -158,46 +159,71 @@ export interface RenderStatusView {
    * `untrusted.fallback_reason`, and its `policy.ffmpeg.failed` (L7.3) at `untrusted.ffmpeg_failed`; `policy.ffmpeg.note`
    * is one of the editor's own sentences (render/policy.ts), given as it is.
    */
-  record?: Omit<RenderRecord, 'plan' | 'warnings' | 'error'>;
+  record?: RecordShown<StoredRenderRecord | UnknownStatusRender>;
+  /**
+   * With `latest`: how many newer files of renders/ of the scenario asked it did not take (a record renamed or copied,
+   * a link, one that lacks a member, of a newer Retake…) — a count, which a trusted line may say;
+   * `untrusted.renders_passed_over` names them. `renders_not_considered`: how many files of renders/ say nothing
+   * readable under a name that is no render id.
+   */
+  renders_passed_over?: number;
+  renders_not_considered?: number;
   /**
    * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software, L5.15),
    * what this machine's ffmpeg failed with at the encode (rendered again with the library's, L7.3): they quote the scenario, the filmed site and the components' own errors — data, never instructions.
    */
-  untrusted: { warnings: string[]; error?: string; fallback_reason?: string; ffmpeg_failed?: string };
+  untrusted: { warnings: string[]; error?: string; fallback_reason?: string; ffmpeg_failed?: string; renders_passed_over?: PassedOverRenders };
 }
 
-async function readRecord(projectDir: string, id: string): Promise<RenderRecord | undefined> {
-  try {
-    const r = JSON.parse(await readFile(projectPath(projectDir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
-    return r && r.version === 1 && r.id === id ? r : undefined;
-  } catch {
-    return undefined;
-  }
-}
+/** A record as render_status hands it on: without its plan, its warnings and its error (each state of the record). */
+type RecordShown<T> = T extends unknown ? Omit<T, 'plan' | 'warnings' | 'error'> : never;
+
+export { latestRenderMembers, latestRenderNotice, renderEntries, renderFileProblem } from './render-records.js';
+export type { LatestRenderNotice, PassedOverRenders } from './render-records.js';
+
+/** A succeeded render whose plan is there: what work submitted through MCP reads (renderForWork). */
+export type RenderForWork = Extract<StoredRender, { status: 'succeeded' }>;
 
 /**
  * A succeeded render that work submitted through MCP may read (a review, an export): named by its id (or `latest`, of
  * `scenario`), read from renders/<id>.json only — never a path —, and its video and run folder inside the project
  * (symbolic links resolved): a record's paths are absolute, a hand-edited one could name any file.
  */
-export async function renderForWork(project: LoadedProject, renderIdArg: string, o: { scenario?: string; fix?: (id: string) => string } = {}): Promise<RenderRecord> {
+export async function renderForWork(
+  project: LoadedProject,
+  renderIdArg: string,
+  o: { scenario?: string; fix?: (id: string) => string; /** With `latest`: told what it passed over (latestRenderMembers makes an answer's members of it). */ latest?: (pick: RenderLatestPick<ProjectRender>) => void } = {},
+): Promise<RenderForWork> {
   const scenario = o.scenario;
   const ed = await editor();
   let id = renderIdArg;
   if (renderIdArg === 'latest') {
-    const all = (await ed.listRenders(project)).filter((r) => r.status === 'succeeded' && isRenderOfItsScenario(r) && (scenario === undefined || r.scenario === scenario));
-    const last = all[all.length - 1];
-    if (!last) throw new EngineError('not_found', `no finished render of ${project.slug}${scenario ? ` · ${scenario}` : ''} yet: render makes one`);
-    id = last.id;
+    // The newest succeeded render of its scenario (core's rule, the engine's `latest`): a complete record of its own file.
+    const pick = latestProjectRender(await renderEntries(project.dir), { ...(scenario !== undefined ? { scenario } : {}), status: 'succeeded' });
+    if (!pick.pick) throw new EngineError('not_found', `no finished render of ${project.slug}${scenario ? ` · ${scenario}` : ''} yet: render makes one`);
+    o.latest?.(pick);
+    id = pick.pick.id;
   } else if (!isRenderId(renderIdArg)) {
     throw new EngineError('invalid', `invalid render id "${String(renderIdArg)}": <scenario>-v<N> (render returns it), or "latest"`);
   }
-  const record = await readRecord(project.dir, id);
-  if (!record) throw new EngineError('not_found', `render "${id}" not found in ${project.slug} (no renders/${id}.json): render_status says whether it is still running`);
+  const entry = await readById(project.dir, id);
+  const unread = renderFileProblem(entry, id);
+  if (unread) throw unread;
+  if (!entry.read.ok) {
+    // Its status is not one Retake writes (said in fixed words: the file's word is text anyone could write), or the file is not there.
+    if (entry.read.problem === 'unknown-status') throw new EngineError('invalid', `render ${id}: ${renderNotWords('unknown-status')}: nothing to read`);
+    throw new EngineError('not_found', `render "${id}" not found in ${project.slug} (no renders/${id}.json): render_status says whether it is still running`);
+  }
+  if (entry.read.value.status !== 'succeeded') throw new EngineError('invalid', `render ${id} ${entry.read.value.status}: nothing to read`);
+  // Work reads the plan: a record without it is refused here, naming it (the one place a stored plan becomes an edit plan).
+  const planned = ed.withPlan(entry.read.value);
+  if (!planned.ok) throw new EngineError('invalid', `render ${id} has ${renderLackWords('plan')} (${projectRef('renders', `${id}.json`)}): nothing to read`);
+  const record = planned.value;
   if (record.status !== 'succeeded') throw new EngineError('invalid', `render ${id} ${record.status}: nothing to read`);
   const problem = ed.recordPathProblem(project.dir, record);
   if (problem) throw new EngineError('refused', problem, { ...(o.fix ? { fix: o.fix(id) } : {}), details: { problems: [problem] } });
-  if (!existsSync(record.file)) throw new EngineError('not_found', `the video of render ${id} is missing (${record.file})`);
+  // (The path is the record's text: under `details.untrusted`, never in the sentence.)
+  if (!existsSync(record.file)) throw new EngineError('not_found', `the video of render ${id} is missing: its record names a file that is not there`, { details: { untrusted: { video: record.file } } });
   return record;
 }
 
@@ -205,15 +231,21 @@ export async function renderForWork(project: LoadedProject, renderIdArg: string,
  * The render id `latest` names: the newest render (record or job) of the project, of `scenario` when given — among the
  * renders of their scenario only (isRenderOfItsScenario), so the id is one the by-id call takes.
  */
-async function latestRenderId(projectDir: string, queue: JobQueueView, slug: string, scenario?: string): Promise<string | undefined> {
-  const ed = await editor();
-  const candidates: Array<{ id: string; at: string }> = [];
-  for (const r of await ed.listRenders(projectDir)) if (isRenderOfItsScenario(r) && (scenario === undefined || r.scenario === scenario)) candidates.push({ id: r.id, at: r.created_at });
+async function latestRenderId(
+  projectDir: string,
+  queue: JobQueueView,
+  slug: string,
+  scenario?: string,
+): Promise<{ id?: string; /** The id is a record's whose status Retake never writes. */ unknown: boolean; pick: RenderLatestPick<unknown> }> {
+  // The newest record of any status (core's rule; a status Retake never writes is answered as unknown) …
+  const pick = latestProjectRender(await renderEntries(projectDir), { ...(scenario !== undefined ? { scenario } : {}), status: 'any' });
+  let best = pick.pick ? { id: pick.pick.id as string, at: 'record' in pick.pick ? pick.pick.record.created_at : pick.pick.unknown.created_at, unknown: 'unknown' in pick.pick } : undefined;
+  // … or a newer job of a render (a record wins a tie, as it always did).
   for (const j of await queue.list({ project: slug, kinds: ['render'], limit: 200 })) {
-    if (j.input.kind === 'render' && isRenderOfItsScenario({ id: j.input.render_id, scenario: j.input.scenario }) && (scenario === undefined || j.input.scenario === scenario)) candidates.push({ id: j.input.render_id, at: j.created_at });
+    if (j.input.kind !== 'render' || !isRenderOfItsScenario({ id: j.input.render_id, scenario: j.input.scenario }) || (scenario !== undefined && j.input.scenario !== scenario)) continue;
+    if (!best || j.created_at.localeCompare(best.at) > 0) best = { id: j.input.render_id, at: j.created_at, unknown: false };
   }
-  candidates.sort((a, b) => b.at.localeCompare(a.at));
-  return candidates[0]?.id;
+  return { ...(best ? { id: best.id } : {}), unknown: best?.unknown ?? false, pick };
 }
 
 /** A render's status: its newest job (queued, running, its result or error), then its record. */
@@ -222,15 +254,21 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
   if (scenario !== undefined) checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);
   let renderId = renderIdArg;
+  let latest: Awaited<ReturnType<typeof latestRenderId>> | undefined;
   if (renderIdArg === 'latest') {
-    const id = await latestRenderId(project.dir, queue, slug, scenario);
-    if (!id) throw new EngineError('not_found', `no render of ${slug}${scenario ? ` · ${scenario}` : ''} yet: render starts one`);
-    renderId = id;
+    latest = await latestRenderId(project.dir, queue, slug, scenario);
+    if (!latest.id) throw new EngineError('not_found', `no render of ${slug}${scenario ? ` · ${scenario}` : ''} yet: render starts one`);
+    renderId = latest.id;
   } else if (!isRenderId(renderIdArg)) {
     throw new EngineError('invalid', `invalid render id "${String(renderIdArg)}": <scenario>-v<N> (render returns it), or "latest"`);
   }
   const job = await queue.ofRender(slug, renderId);
-  let record = await readRecord(project.dir, renderId);
+  // The record of this id, read leniently: a status question is answered whatever the record lacks (its plan, its
+  // creation time) and whatever its status says. A file that is there and is no record of this id is said as that.
+  const entry = await readById(project.dir, renderId);
+  const unread = renderFileProblem(entry, renderId);
+  let record: StoredRenderRecord | UnknownStatusRender | undefined = unread ? undefined : entry.read.ok ? entry.read.value : entry.read.problem === 'unknown-status' ? entry.read.record : undefined;
+  if (!job && unread) throw unread;
   // A record older than the job belongs to an earlier render of the id only when the job did not write it — never here
   // (a free id has no record); a record newer than an unfinished or failed job is a later `retake render` of the id.
   const jobFirst = job && !(record && job.state !== 'succeeded' && record.created_at > (job.finished_at ?? job.created_at));
@@ -240,10 +278,15 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
     project: slug,
     render_id: renderId,
     ...(job?.input.kind === 'render' ? { scenario: job.input.scenario } : record ? { scenario: record.scenario } : {}),
-    status: jobFirst ? job.state : (record?.status ?? 'failed'),
+    status: jobFirst ? job.state : statusSaid(record, latest?.unknown === true),
     finished: jobFirst ? FINISHED_JOB_STATES.has(job.state) : true,
     untrusted: { warnings: [] },
   };
+  if (latest) {
+    const said = latestRenderNotice(latest.pick);
+    Object.assign(view, said.notice);
+    if (said.passed.length) view.untrusted.renders_passed_over = said.passed;
+  }
   if (job && jobFirst) {
     let queueView: RenderQueueView | undefined;
     if (job.state === 'queued') {
@@ -287,23 +330,37 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
   if (record) {
     const { plan: _plan, warnings, error, ...rest } = record;
     view.record = rest;
+    let shown: RecordShown<StoredRenderRecord | UnknownStatusRender> = rest;
     // The GPU path's failure quotes the error it saw (a component's own words can be in it): under untrusted only.
     if (rest.policy?.fallback) {
       view.untrusted.fallback_reason = rest.policy.fallback.reason;
-      view.record = { ...rest, policy: { ...rest.policy, fallback: { reason: 'the GPU path failed: its reason is untrusted.fallback_reason' } } };
+      shown = { ...rest, policy: { ...rest.policy, fallback: { reason: 'the GPU path failed: its reason is untrusted.fallback_reason' } } };
     }
     // What our ffmpeg failed with at the encode quotes its output: under untrusted only, like the GPU path's reason.
-    const ff = view.record.policy?.ffmpeg;
+    const ff = shown.policy?.ffmpeg;
     if (ff?.failed !== undefined) {
       view.untrusted.ffmpeg_failed = ff.failed;
-      view.record = { ...view.record, policy: { ...view.record.policy!, ffmpeg: { ...ff, failed: "this machine's ffmpeg failed at the encode: its words are untrusted.ffmpeg_failed" } } };
+      shown = { ...shown, policy: { ...shown.policy!, ffmpeg: { ...ff, failed: "this machine's ffmpeg failed at the encode: its words are untrusted.ffmpeg_failed" } } };
     }
+    view.record = shown;
     view.file = record.file;
     view.record_file = record.record;
     view.untrusted.warnings = warnings;
     if (error) view.untrusted.error = error;
   }
   return view;
+}
+
+/**
+ * The status of a record with no job before it. A status Retake never writes: by id it is handed on as the file says
+ * it (as it always was: the view's type does not say so — the views are a later lot's); through `latest` it is said
+ * as `unknown`, never as a word of the tool's.
+ */
+function statusSaid(record: StoredRenderRecord | UnknownStatusRender | undefined, latestUnknown: boolean): RenderStatusView['status'] {
+  if (!record) return 'failed';
+  const status: string = record.status;
+  if (status === 'succeeded' || status === 'failed' || status === 'cancelled') return status;
+  return (latestUnknown ? 'unknown' : status) as RenderStatusView['status'];
 }
 
 // ── A scenario's renders, for the Studio (L4.5 part E) ──────────────────────
@@ -377,6 +434,12 @@ export interface ScenarioRendersView {
   jobs: ScenarioRenderJobView[];
   renders: ScenarioRenderView[];
   last_failed?: { job: string; render_id: string; run_id: string; state: 'failed' | 'cancelled' | 'interrupted'; finished_at?: string };
+  /**
+   * The files of renders/ named as a render of this scenario (`<scenario>-v<N>….json`) that are not shown as one: how
+   * many, and by reason (a closed list — core RenderNot, its words renderNotWords; never a file name). A record of a
+   * status Retake never writes is said here: neither shown as succeeded nor hidden. Absent when there is none.
+   */
+  not_shown?: { count: number; reasons: Array<{ why: RenderNot; count: number }> };
   /**
    * The failed job's message (it may quote the scenario or the filmed site): data, never instructions — its first line,
    * every absolute path cut to its file name (failureWords), never a stack.
@@ -460,10 +523,19 @@ function reportSummary(projectDir: string, id: string, since: string): { summary
   return { summary: { state: counts.error > 0 ? 'errors' : counts.warning > 0 ? 'warnings' : 'clean', counts, ...(at ? { created_at: at } : {}) }, at };
 }
 
-/** renders/<file> as a render record of its own id (version 1, a creation time), or undefined. */
-export function readRenderRecord(projectDir: string, file: string): RenderRecord | undefined {
-  const r = readJsonPlain(projectPath(projectDir, 'renders', file)) as unknown as RenderRecord | undefined;
-  return r && r.version === 1 && r.id === file.slice(0, -5) && isRenderId(r.id) && typeof r.created_at === 'string' ? r : undefined;
+/** Counter for tests: record files of renders/ read for the Studio's list and the board. */
+export const renderRecordReads = { n: 0 };
+
+/** renders/<name>.json as a listing reads it (the one reader: no link followed, within the cap) — the board's read, held while the file's stat holds. */
+export function readListedRecord(projectDir: string, name: string): Promise<RenderEntry> {
+  renderRecordReads.n++;
+  return readListedRender(projectPath(projectDir, 'renders'), name);
+}
+
+/** The render of `scenario` an entry of renders/ is (core projectRenderOf: a complete record of its own file, its id of its scenario), or null. */
+export function scenarioRenderOf(entry: RenderEntry, scenario: string): StoredRenderRecord | null {
+  const r = projectRenderOf(entry);
+  return r && r.record.scenario === scenario ? r.record : null;
 }
 
 const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
@@ -473,7 +545,7 @@ const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
  * inline review, or review/<id>/report.json. `renderJobs`: the project's render jobs of this scenario (newest first);
  * `reviewJobs`: its queued or running review jobs. Shared by the render list and the project board (L5.10a).
  */
-export function renderView(projectDir: string, r: RenderRecord, renderJobs: readonly JobRecord[], reviewJobs: readonly JobRecord[]): ScenarioRenderView {
+export function renderView(projectDir: string, r: StoredRenderRecord, renderJobs: readonly JobRecord[], reviewJobs: readonly JobRecord[]): ScenarioRenderView {
   let review: RenderReviewSummary = { state: 'none' };
   const standalone = reviewJobs.find((j) => j.input.kind === 'review' && j.input.render_id === r.id);
   const job = renderJobs.find((j) => j.input.kind === 'render' && j.input.render_id === r.id && j.created_at <= r.created_at);
@@ -486,10 +558,9 @@ export function renderView(projectDir: string, r: RenderRecord, renderJobs: read
     if (stopped) review = { state: stopped };
     else if (report) review = report.summary;
   }
-  const status = r.status === 'failed' || r.status === 'cancelled' ? r.status : 'succeeded';
   return {
     render_id: r.id,
-    status,
+    status: r.status,
     created_at: r.created_at,
     run_id: isRunId(r.run_id) ? r.run_id : 'unknown',
     // The record's theme, by its folder's name (the board compares it with today's: project-board.ts themeName, the same test).
@@ -517,13 +588,29 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   const reviewJobs = await queue.list({ project: slug, kinds: ['review'], states: ['queued', 'running'], limit: 50 });
 
   // Records: renders/<scenario>-v<N>[-variant].json only (named by the file first: other scenarios' records are not read).
-  const files = (await readdir(projectPath(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => f.endsWith('.json') && renderIdOf(f.slice(0, -5), scenario) !== null);
-  const records: RenderRecord[] = [];
-  for (const f of files) {
-    const r = readRenderRecord(project.dir, f);
-    if (r) records.push(r);
+  const entries = await renderEntries(project.dir, (name) => {
+    if (renderIdOf(name, scenario) === null) return false;
+    renderRecordReads.n++;
+    return true;
+  });
+  const found: StoredRenderRecord[] = [];
+  // What is named as a render of the scenario and is none: counted by reason, never hidden in silence.
+  const notShown: Array<{ why: RenderNot; count: number }> = [];
+  for (const entry of entries) {
+    const r = scenarioRenderOf(entry, scenario);
+    if (r) {
+      found.push(r);
+      continue;
+    }
+    // (A file gone since the folder was listed is not there to be said.)
+    if (!entry.read.ok && entry.read.problem === 'missing') continue;
+    const why = renderNot(entry, { scenario }) ?? 'unreadable';
+    const reason = notShown.find((x) => x.why === why);
+    if (reason) reason.count++;
+    else notShown.push({ why, count: 1 });
   }
-  records.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
+  // Newest first (the one order of renders, reversed).
+  const records = orderRenders(found).reverse();
   const renders: ScenarioRenderView[] = records.slice(0, SCENARIO_RENDERS_MAX).map((r) => renderView(project.dir, r, renderJobs, reviewJobs));
 
   const jobs: ScenarioRenderJobView[] = [];
@@ -571,6 +658,7 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   }
 
   const view: ScenarioRendersView = { project: slug, scenario, jobs, renders, untrusted: {} };
+  if (notShown.length) view.not_shown = { count: notShown.reduce((n, x) => n + x.count, 0), reasons: notShown };
   const newest = renderJobs[0];
   if (newest && newest.input.kind === 'render' && (newest.state === 'failed' || newest.state === 'cancelled' || newest.state === 'interrupted')) {
     const ended = newest.finished_at ?? newest.created_at;
@@ -584,7 +672,7 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
 
 /** Plan signatures of render records (a record never changes once written: keyed by its id and times). */
 const planSigMemo = new Map<string, string>();
-function memoPlanSignature(r: RenderRecord): string {
+function memoPlanSignature(r: StoredRenderRecord): string {
   const key = `${r.id}|${r.created_at}|${r.finished_at}`;
   let sig = planSigMemo.get(key);
   if (sig === undefined) {

@@ -10,6 +10,7 @@ import {
   SLUG_RE,
   deriveStatus,
   isIsoUtcDate,
+  latestProjectRender,
   locateAnchorStep,
   newCommentEntryId,
   newCommentId,
@@ -26,17 +27,22 @@ import type {
   CommentThread,
   FrameCommentAnchor,
   LoadedProject,
+  ProjectRender,
+  RenderLatestPick,
+  RenderVariant,
   Timeline,
   ValidationIssue,
 } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
-import type { RenderRecord } from '@retake/editor';
 import { EngineError } from '../errors.js';
 import { toolDir } from '../project-lock.js';
 import { checkRunId, checkScenarioName } from '../refs.js';
 import { buildProposal } from '../comment-proposals.js';
 import type { ProposalInput } from '../comment-proposals.js';
+import { latestRenderMembers, renderEntries } from '../render-records.js';
+import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
+import type { RenderForWork } from '../renders.js';
 import type { StoreScope } from '../store/project-store.js';
 import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread, threadStore } from './store.js';
 import { review } from '../lazy.js';
@@ -79,7 +85,7 @@ export interface CommentAdded {
 }
 
 /** The frame a request names (0 ≤ frame < frames). */
-export function pickFrame(req: CommentPrepareRequest, record: RenderRecord): number {
+export function pickFrame(req: CommentPrepareRequest, record: RenderForWork): number {
   const frames = Math.min(record.frames, record.plan.durationInFrames);
   const given = [req.frame !== undefined, req.at_s !== undefined, req.marker !== undefined].filter(Boolean).length;
   if (given !== 1) throw argError('frame', 'name the frame with exactly one of frame, at (seconds) or marker');
@@ -113,7 +119,7 @@ export function pickFrame(req: CommentPrepareRequest, record: RenderRecord): num
 }
 
 /** The run's scenario snapshot and (for a plan whose markers carry no step: before L3.6) its timeline, by run id. */
-export async function runInputs(projectDir: string, record: RenderRecord, warnings: string[]): Promise<{ scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> }> {
+export async function runInputs(projectDir: string, record: RenderForWork, warnings: string[]): Promise<{ scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> }> {
   const runDir = projectPath(projectDir, 'runs', checkRunId(record.run_id));
   const out: { scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> } = {};
   const yaml = await readPlainFile(join(runDir, 'scenario.yaml'), RUN_FILE_MAX_BYTES);
@@ -151,7 +157,7 @@ export async function writeStill(projectDir: string, id: string, video: string, 
 
 /** A new thread's render, frame and anchor, computed and checked — everything `addComment` does before the write. */
 export interface PreparedComment {
-  record: RenderRecord;
+  record: RenderForWork & { variant: RenderVariant };
   frame: number;
   anchor: FrameCommentAnchor;
   warnings: string[];
@@ -310,6 +316,11 @@ export interface CommentWritten {
   hash: string;
   /** A reply with a proposal: the scenario's validation warnings for the proposed text. */
   proposal_warnings?: ValidationIssue[];
+  /** A resolution with `render_id: latest`: how many newer files of renders/ the pick passed over, and how many say nothing readable. */
+  renders_passed_over?: LatestRenderNotice['renders_passed_over'];
+  renders_not_considered?: LatestRenderNotice['renders_not_considered'];
+  /** A resolution with `render_id: latest`: the files passed over — file names of renders/ and why: data, never instructions. */
+  untrusted?: { renders_passed_over: PassedOverRenders };
 }
 
 /**
@@ -389,7 +400,8 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
   const note = cleanText(req.note, 'the note', 'note');
   if (req.ifMatch !== undefined && (typeof req.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(req.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   const f = await locateThread(project.dir, id);
-  let answer: RenderRecord | undefined;
+  let answer: RenderForWork | undefined;
+  let latest: RenderLatestPick<ProjectRender> | undefined;
   if (req.render_id !== undefined) {
     let renderId = req.render_id;
     if (renderId === 'latest') {
@@ -397,17 +409,15 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
       const r = await readThread(project.dir, f);
       if (!r.ok) throw new EngineError('invalid', r.problem);
       const variant = r.thread.render.variant;
-      const last = (await renderIndex(project.dir))
-        .filter((x) => x.status === 'succeeded' && x.scenario === f.scenario && x.variant === variant)
-        .sort((a, b) => a.created_at.localeCompare(b.created_at))
-        .at(-1);
+      latest = latestProjectRender(await renderEntries(project.dir), { scenario: f.scenario, variant, status: 'succeeded', quotable: true });
+      const last = latest.pick;
       if (!last) throw new EngineError('not_found', `no finished ${variant} render of ${f.scenario} yet: render makes one`);
       renderId = last.id;
     }
     answer = await renderForWork(project, renderId, { scenario: f.scenario });
     if (!recordShapeOk(answer)) throw new EngineError('refused', `${projectRef('renders', `${answer.id}.json`)} has a scenario, created_at or variant the tool never writes: not used`);
   }
-  return appendEntry(
+  const written = await appendEntry(
     project,
     id,
     'resolve',
@@ -438,6 +448,8 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
     },
     { ...(req.ifMatch !== undefined ? { ifMatch: req.ifMatch } : {}), ...(o.scope ? { scope: o.scope } : {}) },
   );
+  // What `latest` passed over on the way to the render that answers (none for a render named by its id).
+  return { ...written, ...latestRenderMembers(latest) };
 }
 
 /**

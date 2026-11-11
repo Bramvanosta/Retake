@@ -4,8 +4,10 @@
  * Every value here is a trusted word (ids, phases, numbers); untrusted text (a failure's message, a finding's message)
  * stays with the caller, shown through Txt.
  */
+import type { RenderNot } from '@retake/core';
 import type { HeldWork, JobYield, RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
 import type { StudioEvent } from './events.js';
+import { APP_NAME } from './brand.js';
 import { renderVersionWords } from './id-words.js';
 
 /** Why Render is off on a proposal's preview (Edit and the status bar say it the same, in every state of Edit). */
@@ -196,6 +198,30 @@ export function rendersEventAction(e: StudioEvent, slug: string, shownJobs: Read
 }
 
 /** The jobs a render list shows (unfinished ones and the last failed one), for rendersEventAction. */
+/** Why a file of renders/ is no render the list shows: core's fixed words (renderNotWords), mirrored here — the app imports core's types only; a test holds the two equal (the product's name comes from brand.ts, as everywhere in the app). */
+export const RENDER_NOT_WORDS: Record<RenderNot, string> = {
+  linked: 'its record is a link',
+  'too-big': 'its record is too big to read',
+  unreadable: 'its record does not read',
+  'newer-format': `written by a newer ${APP_NAME}`,
+  'unknown-status': `its status is not one ${APP_NAME} writes`,
+  renamed: 'its record says another id',
+  incomplete: 'its record lacks its scenario, its creation time or its plan',
+  'another-scenario': 'its record says another scenario',
+  'other-name': 'its name is not a render id of its scenario',
+  'not-succeeded': 'failed or cancelled',
+};
+
+/**
+ * The lines under the render list for the files of renders/ named as a render of the scenario that are not shown as
+ * one (L7.6b): one per reason, counts and fixed words only — never a file name ("1 file of renders/ is not shown as a
+ * render: its status is not one <the product> writes").
+ */
+export function notShownWords(n: ScenarioRendersView['not_shown']): string[] {
+  // (The reason's words speak of one file — "its record …": with several, said of each.)
+  return (n?.reasons ?? []).map((r) => (r.count === 1 ? `1 file of renders/ is not shown as a render: ${RENDER_NOT_WORDS[r.why]}` : `${r.count} files of renders/ are not shown as renders — for each, ${RENDER_NOT_WORDS[r.why]}`));
+}
+
 export function shownJobsOf(v: ScenarioRendersView): Set<string> {
   const s = new Set(v.jobs.map((j) => j.id));
   if (v.last_failed) s.add(v.last_failed.job);

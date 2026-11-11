@@ -9,11 +9,11 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, isRenderId, missingOrInvalid, projectPath } from '@retake/core';
-import { ffmpegBin, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts } from '@retake/core/io';
+import { basename, extname, join, resolve } from 'node:path';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, missingOrInvalid, printableText, projectPath } from '@retake/core';
+import { ffmpegBin, findNamedRender, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
-import type { H264Encoder } from '@retake/core/io';
+import type { H264Encoder, NamedRenderFound } from '@retake/core/io';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
@@ -22,9 +22,10 @@ import { probeMedia, renderVideo } from './render.js';
 import { handedDriver } from './driver-guard.js';
 import type { RenderDriver } from './driver-types.js';
 import type { RenderNetwork } from './render.js';
-import { listRenders, rendersDir } from './runs.js';
+import { rendersDir } from './runs.js';
 import { RenderError } from './types.js';
-import type { RenderRecord } from '../render-record.js';
+import { withPlan } from '../render-record.js';
+import type { NamedRender, RenderRecord } from '../render-record.js';
 
 /** Delivery formats (one list with core's job input). */
 export const EXPORT_FORMATS = EXPORT_FORMAT_NAMES;
@@ -136,34 +137,26 @@ export class ExportError extends Error {
   }
 }
 
-async function readRecord(file: string): Promise<RenderRecord> {
-  let r: RenderRecord;
-  try {
-    r = JSON.parse(await readFile(file, 'utf8')) as RenderRecord;
-  } catch (e) {
-    throw new ExportError(`cannot read the render record ${file}: ${(e as Error).message}`);
-  }
-  if (!r || r.version !== 1 || typeof r.id !== 'string' || !r.plan) throw new ExportError(`${file} is not a render record (renders/<id>.json)`);
-  return r;
+/**
+ * The render `arg` names, found as a terminal (or, `trust: 'mcp'`, an export job) names it — core/io findNamedRender:
+ * `latest` (the newest succeeded record of renders/, of `scenario` when given, whatever its file is called: then the
+ * record OF THAT FILE), a render id, or a .json / .mp4 path. A file that is there is a record or one sentence says what
+ * it is; a record that lacks its plan is refused, one that lacks its scenario or its creation time works; a record
+ * renamed by hand works, but when the video it names is now another render's.
+ */
+export async function locateRenderRecord(project: LoadedProject, arg: string, scenario?: string, o: { trust?: PlanTrust } = {}): Promise<FoundRender> {
+  const found = await findNamedRender(rendersDir(project), arg, { verb: 'export', slug: project.slug, ...(scenario !== undefined ? { scenario } : {}), ...(o.trust === 'mcp' ? { trust: 'mcp' as const } : {}) });
+  if (!found.ok) throw new ExportError(found.message);
+  // (findNamedRender refuses a record without its plan: this is the editor's type for what it read.)
+  return { ...found.render, record: withPlan(found.render.record).value };
 }
 
-/** The render to export: `latest` (most recent succeeded, of `scenario` when given), an id, or a .json / .mp4 path. */
-export async function findRenderRecord(project: LoadedProject, arg: string, scenario?: string): Promise<RenderRecord> {
-  if (arg === 'latest') {
-    const all = (await listRenders(project)).filter((r) => r.status === 'succeeded' && (!scenario || r.scenario === scenario));
-    const last = all[all.length - 1];
-    if (!last) throw new ExportError(`no render${scenario ? ` of scenario "${scenario}"` : ''} in ${rendersDir(project)}: render one with \`retake render ${project.slug} ${scenario ?? '<scenario>'}\``);
-    return last;
-  }
-  const byId = join(rendersDir(project), `${arg}.json`);
-  if (!/[\\/]/.test(arg) && existsSync(byId)) return readRecord(byId);
-  if (isAbsolute(arg) || arg.startsWith('.') || /[\\/]/.test(arg) || /\.(json|mp4)$/.test(arg)) {
-    const file = resolve(arg);
-    const json = extname(file) === '.json' ? file : join(dirname(file), `${basename(file, extname(file))}.json`);
-    if (existsSync(json)) return readRecord(json);
-  }
-  const ids = (await listRenders(project)).map((r) => r.id);
-  throw new ExportError(`render "${arg}" not found in ${rendersDir(project)}${ids.length ? ` (renders: ${ids.slice(-8).join(', ')})` : ''}; use a render id, a .json/.mp4 path or "latest"`);
+/** A render found (locateRenderRecord): what core/io findNamedRender answered, with its plan as an edit plan. */
+export type FoundRender = Omit<NamedRenderFound, 'record'> & { record: NamedRender };
+
+/** The render to export: `latest` (most recent succeeded, of `scenario` when given), an id, or a .json / .mp4 path (locateRenderRecord). */
+export async function findRenderRecord(project: LoadedProject, arg: string, scenario?: string): Promise<NamedRender> {
+  return (await locateRenderRecord(project, arg, scenario)).record;
 }
 
 function ffmpeg(bin: string, args: string[], signal?: AbortSignal): Promise<void> {
@@ -197,11 +190,27 @@ export function gifWindow(record: Pick<RenderRecord, 'plan'>, asked?: { start_s?
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 
 /**
+ * The variant an export makes its sizes from: the record's (a record without one: its plan's). A variant this version
+ * does not write (a record edited by hand) is refused in one sentence — there is no size for it: at a terminal its word
+ * made printable; through MCP (`trust: 'mcp'`) in fixed words only (the word is text anyone who can write renders/ chose).
+ */
+function knownVariant(record: Pick<NamedRender, 'variant' | 'plan'>, label: string, trust: 'author' | 'mcp' = 'author'): PlanVariant {
+  const variant: string = record.variant ?? record.plan.variant;
+  if (!isPlanVariant(variant)) {
+    const said = trust === 'mcp' ? 'its record says a variant this Retake does not export' : `its record says variant "${printableText(String(variant))}", which this Retake does not export`;
+    throw new ExportError(`render ${label}: ${said} (landscape, vertical or square)`);
+  }
+  return variant;
+}
+
+const isPlanVariant = (v: string): v is PlanVariant => Object.hasOwn(SIZES, v);
+
+/**
  * How each format of an export is made from a master: `copy` (the master as is), `transcode` (ffmpeg) or `render` (a
  * re-render through the planner: another framing, or 4K from a smaller master).
  */
-export function exportMethod(record: Pick<RenderRecord, 'variant' | 'width' | 'height' | 'plan'>, format: ExportFormat): ExportOutput['method'] {
-  const variant = record.variant ?? record.plan.variant;
+export function exportMethod(record: Pick<NamedRender, 'id' | 'variant' | 'width' | 'height' | 'plan'>, format: ExportFormat, o: { trust?: 'author' | 'mcp' } = {}): ExportOutput['method'] {
+  const variant = knownVariant(record, printableText(record.id), o.trust);
   const base = SIZES[variant].base;
   const isBase = record.width === base[0] && record.height === base[1];
   if (format === 'mp4_1080p') return isBase ? 'copy' : 'transcode';
@@ -273,21 +282,25 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
   const root = resolve(opts.root ?? project.root);
   const trust = opts.trust ?? 'author';
-  if (trust === 'mcp' && !isRenderId(opts.render)) throw new ExportError(`render "${opts.render}": through MCP a render is named by its id`);
-  const record = trust === 'mcp' ? await readRecord(join(rendersDir(project), `${opts.render}.json`)) : await findRenderRecord(project, opts.render, opts.scenario);
+  // Through MCP: a render id, its own file (core/io findNamedRender). At a terminal: as a person names it.
+  const found = await locateRenderRecord(project, opts.render, opts.scenario, { trust });
+  const record = found.record;
+  // The render as the sentences name it, and the name of its folder of exports/ (never an empty name or a path).
+  const name = found.output;
+  const label = printableText(name);
   if (trust === 'mcp') {
     const problem = recordPathProblem(project.dir, record);
     if (problem) throw new ExportError(problem);
   }
-  if (record.status !== 'succeeded') throw new ExportError(`render ${record.id} ${record.status}: nothing to export`);
-  if (!existsSync(record.file)) throw new ExportError(`the video of render ${record.id} is missing (${record.file})`);
+  if (record.status !== 'succeeded') throw new ExportError(`render ${label} ${trust === 'mcp' && record.status !== 'failed' && record.status !== 'cancelled' ? 'has a status Retake never writes' : printableText(record.status)}: nothing to export`);
+  if (!existsSync(record.file)) throw new ExportError(`the video of render ${label} is missing (${record.file ? (trust === 'mcp' ? 'the file its record names' : printableText(record.file)) : 'no "file" in its record'})`);
+  const variant = knownVariant(record, label, trust);
   const formats = [...new Set(opts.formats && opts.formats.length > 0 ? opts.formats : DEFAULT_EXPORT_FORMATS)];
   for (const f of formats) if (!(EXPORT_FORMATS as readonly string[]).includes(f)) throw new ExportError(`unknown export format "${f}": use ${EXPORT_FORMATS.join(', ')}`);
   const bin = ffmpegBin(opts.workPolicy, opts.ffmpeg);
-  const dir = resolve(opts.out ?? projectPath(project.dir, 'exports', record.id));
+  const dir = resolve(opts.out ?? projectPath(project.dir, 'exports', name));
   await mkdir(dir, { recursive: true });
   const emit = opts.onProgress ?? (() => undefined);
-  const variant = record.variant ?? record.plan.variant;
   const master = { file: record.file, record: record.record, variant, width: record.width, height: record.height, duration_s: record.duration_s, fps: record.fps };
   const base = SIZES[variant].base;
   const isBase = record.width === base[0] && record.height === base[1];
@@ -348,7 +361,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
 
   for (const format of formats) {
     if (opts.signal?.aborted) break;
-    const file = join(dir, `${record.id}${SUFFIX[format]}`);
+    const file = join(dir, `${name}${SUFFIX[format]}`);
     const tmp = join(dir, `.${basename(file, extname(file))}.partial-${process.pid}${extname(file)}`);
     emit({ format, stage: 'start', progress: 0 });
     const t0 = performance.now();
@@ -365,7 +378,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
           out = await finish(format, file, 'transcode', t0);
         }
       } else if (format === 'mp4_4k') {
-        if (exportMethod(record, format) === 'copy') {
+        if (exportMethod(record, format, { trust }) === 'copy') {
           await copyFile(record.file, tmp);
           await rename(tmp, file);
           out = await finish(format, file, 'copy', t0);
@@ -385,7 +398,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
         out = await finish(format, file, 'transcode', t0, { window: w });
       } else {
         const v: PlanVariant = format === 'vertical_9x16' ? 'vertical' : 'square';
-        if (exportMethod(record, format) === 'copy') {
+        if (exportMethod(record, format, { trust }) === 'copy') {
           await copyFile(record.file, tmp);
           await rename(tmp, file);
           out = await finish(format, file, 'copy', t0);
@@ -406,14 +419,14 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   let previous: ExportOutput[] = [];
   try {
     const old = JSON.parse(await readFile(manifest, 'utf8')) as ExportResult;
-    if (old.render === record.id) previous = (old.outputs ?? []).filter((o) => !outputs.some((n) => n.format === o.format) && existsSync(o.file));
+    if (old.render === name) previous = (old.outputs ?? []).filter((o) => !outputs.some((n) => n.format === o.format) && existsSync(o.file));
   } catch {
     // no manifest yet
   }
   const result: ExportResult = {
     version: 1,
     project: project.slug,
-    render: record.id,
+    render: name,
     scenario: record.scenario,
     run_id: record.run_id,
     master,

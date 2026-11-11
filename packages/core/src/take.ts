@@ -405,7 +405,11 @@ export function pruneKeeper(): { needsTimeline(record: RunRead): boolean; add(fa
   };
 }
 
-const PRUNE_KEPT_WORDS: Record<Exclude<PruneKeep, 'last-capture'> | PruneAlone, string> = {
+/** R-1 (L7.6b): a take kept because a file of renders/ that is no render of its own name says its id. */
+export type PruneRenderFile = 'render-file';
+
+const PRUNE_KEPT_WORDS: Record<Exclude<PruneKeep, 'last-capture'> | PruneAlone | PruneRenderFile, string> = {
+  'render-file': 'a file of renders/ that is no render names it',
   editable: 'the last capture that can be edited',
   complete: 'the last complete capture (a newer one was stopped by --until)',
   linked: 'its folder is a link (left alone)',
@@ -413,7 +417,7 @@ const PRUNE_KEPT_WORDS: Record<Exclude<PruneKeep, 'last-capture'> | PruneAlone, 
 };
 
 /** Why prune kept a take that its list would otherwise hold, or left a folder alone: fixed words, never a text read from a file. */
-export function pruneKeptWords(why: Exclude<PruneKeep, 'last-capture'> | PruneAlone): string {
+export function pruneKeptWords(why: Exclude<PruneKeep, 'last-capture'> | PruneAlone | PruneRenderFile): string {
   return PRUNE_KEPT_WORDS[why];
 }
 
