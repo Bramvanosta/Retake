@@ -40,6 +40,7 @@ import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './ty
 import { editor } from '../lazy.js';
 import { planWork, renderWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
+import type { Reviewer } from '../review/reviewer.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
 
@@ -298,9 +299,10 @@ function isTempProfile(dir: string): boolean {
 /**
  * After a render job was interrupted (its worker killed): kill the render browser it recorded when it still runs (same
  * pid AND start time: Remotion starts it detached, so it outlives its parent), remove its temporary profile, the
- * version lock and the partial video files. Best effort: what fails is logged.
+ * version lock and the partial video files — and, after an inline review, the review folder put back in order (the
+ * reviewer's `recover`). Best effort: what fails is logged.
  */
-export async function cleanupInterruptedRender(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedRender(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void, reviewer: Reviewer): Promise<void> {
   if (job.input.kind !== 'render') return;
   const input = job.input;
   await killRecordedBrowser(files, job, log);
@@ -309,7 +311,7 @@ export async function cleanupInterruptedRender(ws: OpenedWorkspace, files: JobFi
     const project = await openProjectBySlug(ws, input.project);
     await removePartials(projectPath(project.dir, 'renders'), `.${input.render_id}.partial-`);
     // A worker killed during the inline review (L4.5): the previous review set aside comes back.
-    if (input.review) await (await import('./review-job.js')).review().then((rv) => rv.recoverReviewDir(projectPath(project.dir, 'review', input.render_id)));
+    if (input.review) await reviewer.recover(projectPath(project.dir, 'review', input.render_id));
   } catch (e) {
     log(`job ${job.id}: render leftovers not removed (${(e as Error).message})`);
   }
@@ -345,7 +347,7 @@ export async function killRecordedBrowser(files: JobFiles, job: JobRecord, log: 
   if (browser?.user_data_dir && isTempProfile(browser.user_data_dir)) await rm(browser.user_data_dir, { recursive: true, force: true }).catch(() => undefined);
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface RenderJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
@@ -390,7 +392,7 @@ export type InlineReview = { review: NonNullable<RenderJobResult['review']>; err
  * as untrusted text) and never fails the render. `exec` is the review job's execution (replaced in tests).
  */
 export async function reviewInline(
-  ctx: Pick<RenderJobContext, 'ws' | 'cli' | 'signal' | 'event' | 'progress' | 'clock' | 'stores'> & { input: Pick<RenderJobInput, 'project' | 'submitted_by'> },
+  ctx: Pick<RenderJobContext, 'ws' | 'cli' | 'signal' | 'event' | 'progress' | keyof EnginePorts> & { input: Pick<RenderJobInput, 'project' | 'submitted_by'> },
   renderId: string,
   fps: 1 | 2,
   exec?: (c: import('./review-job.js').ReviewJobContext) => Promise<import('./types.js').ReviewJobResult>,
@@ -402,6 +404,8 @@ export async function reviewInline(
       cli: ctx.cli,
       clock: ctx.clock,
       stores: ctx.stores,
+      hooks: ctx.hooks,
+      reviewer: ctx.reviewer,
       input: { version: JOB_INPUT_VERSION, kind: 'review', project: ctx.input.project, render_id: renderId, fps, submitted_by: ctx.input.submitted_by },
       signal: ctx.signal,
       event: ctx.event,

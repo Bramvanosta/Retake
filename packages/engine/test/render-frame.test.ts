@@ -16,12 +16,15 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
-import { EngineError, RenderFrames, Semaphore, addComment, createEngine } from '../src/index.js';
+import { EngineError, RenderFrames, Semaphore, addComment, createEngine, packageReviewer } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
 import { authorScope } from './helpers.js';
 import { bitsVideo, readBits } from '../../ui/test/timeline-take.js';
 import { PERSON_POLICY } from '@retake/core';
+
+/** The product's frames (the review package's): the stills and frames these tests check are real. */
+const FRAMES = packageReviewer().frames;
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 240_000;
@@ -64,7 +67,7 @@ async function withRecord<T>(edit: (r: RenderRecord) => RenderRecord, fn: () => 
     await writeFile(recordFile(), savedRecord);
   }
 }
-const frames = (o: Partial<ConstructorParameters<typeof RenderFrames>[0]> = {}) => new RenderFrames({ policy: PERSON_POLICY, slots: new Semaphore(2), ...o });
+const frames = (o: Partial<ConstructorParameters<typeof RenderFrames>[0]> = {}) => new RenderFrames({ policy: PERSON_POLICY, slots: new Semaphore(2), ...o, frames: o.frames ?? FRAMES });
 const ask = (rf: RenderFrames, frame: number, o: { session?: string; created_at?: string } = {}) =>
   rf.frame(project, { render_id: 'quote-v1', created_at: o.created_at ?? v1.record.created_at, frame }, o.session ? { session: o.session } : {});
 
@@ -110,6 +113,11 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
     }
   }, LONG);
 
+  it('frames that cannot be loaded fail the call with their own error, not as a frame that could not be read (L7.11 fix pass)', async () => {
+    const broken = new Error('the thumbnail entry cannot be loaded');
+    await expect(ask(frames({ frames: { ...FRAMES, load: () => Promise.reject(broken) } }), 1)).rejects.toBe(broken);
+  });
+
   it('the frame shown is the frame asked — both sides of keyframes, the last — and a thread still on it shows the same (T7)', async () => {
     const rf = frames();
     const last = v1.record.frames - 1;
@@ -121,7 +129,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
     }
     // The thread's still (the store's exact frame-number select) shows the frame the viewer showed.
     for (const f of [GOP - 1, GOP + 1]) {
-      const { thread, warnings } = await addComment(project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: f, text: 'This frame' }, { via: 'cli', name: 'Reviewer' }, authorScope(project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY);
+      const { thread, warnings } = await addComment(project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: f, text: 'This frame' }, { via: 'cli', name: 'Reviewer' }, authorScope(project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY, FRAMES);
       expect(warnings).toEqual([]);
       expect(thread.frame).toBe(f);
       expect(readBits(await readFile(thread.still!))).toBe(f);

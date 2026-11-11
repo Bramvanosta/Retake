@@ -43,6 +43,8 @@ export default defineConfig({
       // Before '@retake/core', as for the kit: the side of core that touches the machine.
       '@retake/core/io': fileURLToPath(new URL('./packages/core/src/io/index.ts', import.meta.url)),
       '@retake/core': pkg('core'),
+      // Before '@retake/hooks', as for the kit: the hooks described without running them (a domain entry).
+      '@retake/hooks/describe': fileURLToPath(new URL('./packages/hooks/src/describe-entry.ts', import.meta.url)),
       '@retake/hooks': pkg('hooks'),
       '@retake/sandbox': pkg('sandbox'),
       // Before '@retake/components': the first matching alias wins and that one would also match '…/kit' and '…/geometry'.

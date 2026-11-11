@@ -261,7 +261,7 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   return { job, site_id: id, url: first.href, host: first.host, unicode_host: first.unicode_host, dir, warnings };
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface SiteJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;

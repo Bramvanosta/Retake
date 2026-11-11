@@ -31,6 +31,7 @@ export * from './writes.js';
 export * from './layout.js';
 export * from './clock.js';
 export * from './hook-writes.js';
+export * from './hook-run.js';
 export * from './named-hooks.js';
 export * from './agent-trust.js';
 export * from './agent-policy.js';

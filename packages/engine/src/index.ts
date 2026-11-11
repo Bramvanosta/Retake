@@ -32,6 +32,14 @@ export { ManualClock, dateOf, stampOf, systemClock } from './clock.js';
 export type { Clock } from './clock.js';
 export { enginePorts } from './ports.js';
 export type { EnginePorts } from './ports.js';
+// L7.11: the HookRunner and Reviewer ports, their package adapters (made by the roots: enginePorts), and the words of
+// their domain entries a shell prints (a journaled rollback in full; a review's findings, verdict and environment).
+export { packageHookRunner } from './hook-run/package-hooks.js';
+export type { HookJournal, HookJournalRollback, HookPlace, HookRunOptions, HookRunner, PendingHookJournal } from './hook-run/runner.js';
+export { packageReviewer } from './review/review-package.js';
+export type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './review/reviewer.js';
+export { rollbackActionLines } from '@retake/hooks/describe';
+export { environmentLine, findingLine, summaryLine } from '@retake/review/checks';
 export { JOURNAL_FILES_MAX, JOURNAL_VERSION, appendJournal, hookEntry, hookRunRecorder, journalFile, journalLine, journalPath, readJournal } from './store/journal.js';
 export type { HookRunResult, JournalBy, JournalEntry, JournalHook, JournalQuery, JournalWhat, JournalWrite } from './store/journal.js';
 export { README_MAX_CHARS, createProjectFromRequest, writeNewProject, firstErrorLine, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';

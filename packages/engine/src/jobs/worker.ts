@@ -64,7 +64,7 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
 /** Run a worker until it is idle, stopped or replaced; resolves with the process exit code. */
 export async function runWorker(o: WorkerOptions): Promise<number> {
   // The worker process's composition root: the ports its jobs run with (a test's, else the product's).
-  const { clock, stores } = enginePorts(o.ports);
+  const { clock, stores, hooks, reviewer } = enginePorts(o.ports);
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   // Two test stand-ins for the same thing: which one would draw a preview is not left to an order of precedence.
@@ -88,7 +88,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const sb = await import('@retake/sandbox');
   log(`serving ${root} (build ${build})`);
 
-  const w = newWorker({ o, log, root, clock, stores, ws, cli, queue, files: queue.files, dirs, build, lock, self, rw, sb });
+  const w = newWorker({ o, log, root, clock, stores, hooks, reviewer, ws, cli, queue, files: queue.files, dirs, build, lock, self, rw, sb });
   const stopListening = handleSignals(w);
   w.runJob = captureJobRunner(w);
   let handover = false;

@@ -4,7 +4,8 @@
  * bound to the raw hook (a hook changed between submit and run is refused by the executor), `confirm: true` ignored
  * through MCP and honoured by the CLI, a shell hook's `writes: false` ignored on production, dry runs that ask nobody,
  * and the `hooks` / `env_reset` executors the worker runs — on a copy of the fixture project, the fixture product on
- * free ports.
+ * free ports. The cases about the engine's own logic (what an approver's answer gives, what a dry submit asks) run on the
+ * in-memory hook runner (`fake`, an engine handed it); one case of each rule stays on the hooks package (`engine`).
  */
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -13,10 +14,11 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadScenario, fileFacts } from '@retake/core/io';
 import type { HookStep, HooksJobInput, EnvResetJobInput, RunJobInput } from '@retake/core';
-import { hookFingerprint, standaloneJournalFile } from '@retake/hooks';
+import { hookFiles, hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, EngineError, approvalFormText, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals, enginePorts, ManualClock } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
+import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
@@ -28,6 +30,9 @@ interface Fixture {
 let fixture: Fixture;
 let ws: string;
 let engine: Engine;
+/** The same workspace on the in-memory hook runner: the DELETE of catalogue's setup needs a human, as the package says. */
+let fake: Engine;
+const memory = new MemoryHookRunner({ needsHuman: (h) => (h.name === 'free-registry-ref' ? 'HTTP DELETE' : undefined) });
 let project: string;
 const savedHome = process.env.RETAKE_HOME;
 
@@ -76,6 +81,7 @@ beforeAll(async () => {
   await mkdir(join(project, 'hooks'), { recursive: true });
   await writeFile(join(project, 'hooks', 'echo.yaml'), '- name: echo\n  shell: {run: "echo hello"}\n  writes: false\n');
   engine = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
+  fake = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false, ports: { hooks: memory } });
 });
 
 afterAll(async () => {
@@ -128,6 +134,13 @@ describe('approvals at submit', () => {
 
   it('declined, dismissed, timed out, failed: refused with the CLI command, nothing queued; no approver: needs_approval', async () => {
     const before = (await engine.jobs.list()).length;
+    // On the hooks package: a decline refuses.
+    const real = await refusal(engine.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup', dry: false }, { approver: approver({ approved: false, reason: 'declined' }) }));
+    expect(real.code).toBe('refused');
+    expect(real.message).toContain('the user declined');
+    expect(real.message).toContain('free-registry-ref');
+    // Every answer, on the in-memory runner: the preflight ran through the port, a dry run of the agent's hooks.
+    memory.calls.splice(0);
     const cases: Array<[ApprovalOutcome | (() => Promise<ApprovalOutcome>), string]> = [
       [{ approved: false, reason: 'declined' }, 'the user declined'],
       [{ approved: false, reason: 'cancelled' }, 'the user dismissed the question'],
@@ -135,26 +148,51 @@ describe('approvals at submit', () => {
       [() => Promise.reject(new Error('connection closed')), 'the question failed (connection closed)'],
     ];
     for (const [outcome, why] of cases) {
-      const e = await refusal(engine.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup', dry: false }, { approver: approver(outcome) }));
+      const e = await refusal(fake.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup', dry: false }, { approver: approver(outcome) }));
       expect(e.code, why).toBe('refused');
       expect(e.message).toContain(why);
       expect(e.message).toContain('Do not retry on your own');
       expect(e.fix).toBe(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     }
-    const none = await refusal(engine.env.reset({ project: 'northfield-fixture', dry: false }).then(() => engine.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup', dry: false })));
+    const none = await refusal(fake.env.reset({ project: 'northfield-fixture', dry: false }).then(() => fake.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup', dry: false })));
     expect(none.code).toBe('needs_approval');
     expect(none.message).toContain('cannot ask its user (no elicitation support)');
     expect(none.fix).toBe(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
+    // A scenario's hooks are the agent's (trust `mcp`); project.yaml's reset is a person's.
+    const runs = memory.calls.flatMap((c) => (c.op === 'run' ? [[c.phase, c.dry, c.agentWritten, c.hooks.map((h) => h.name)]] : []));
+    expect(runs).toEqual([
+      ...Array.from({ length: 4 }, () => ['setup', true, true, ['reset', 'free-registry-ref']]),
+      ['reset', true, undefined, ['reset-fixture']],
+      ['setup', true, true, ['reset', 'free-registry-ref']],
+    ]);
+    expect(memory.executed).toEqual([]);
     // The reset (no hook needing a human) was queued without asking; nothing else.
     expect((await engine.jobs.list()).length).toBe(before + 1);
   });
 
+  it("a hook the dry run cannot template is still asked about, from its file: its approval binds the files it references, as the worker's check does", async () => {
+    await mkdir(join(project, 'scripts'), { recursive: true });
+    await writeFile(join(project, 'scripts', 'warm.sh'), 'echo warm\n');
+    // A variable the preflight cannot read: the dry run fails to template the hook, the backstop (its file) asks.
+    const hook = { name: 'warm', shell: { run: 'sh scripts/warm.sh {{env:RETAKE_APPROVALS_TEST_UNSET}}' } };
+    await writeFile(join(project, 'hooks', 'warm.yaml'), `- name: warm\n  shell: {run: "${hook.shell.run}"}\n`);
+    const a = accept();
+    const sub = await engine.hooks.submit({ project: 'northfield-fixture', source: 'hooks/warm.yaml', dry: false }, { approver: a });
+    expect(a.asked[0].items).toEqual([expect.objectContaining({ name: 'warm', reason: 'a shell command (runs local code)' })]);
+    const files = hookFiles(hook, { projectDir: project }).files;
+    expect(Object.keys(files)).toEqual(['scripts/warm.sh']);
+    expect((sub.job.input as HooksJobInput).approvals?.map((x) => x.fingerprint)).toEqual([hookFingerprint(hook, { phase: 'setup', index: 0, env: 'local', files })]);
+  });
+
   it('dry runs ask nobody; names that are paths are refused before anything is read', async () => {
     const a = accept();
-    const dry = await engine.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup' }, { approver: a });
+    memory.calls.splice(0);
+    const dry = await fake.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup' }, { approver: a });
     expect(dry.job.input).toMatchObject({ kind: 'hooks', dry: true, source: 'catalogue:setup' });
     expect((dry.job.input as HooksJobInput).approvals).toBeUndefined();
     expect(a.asked).toEqual([]);
+    // A dry submit runs no preflight: nothing reached the hook runner.
+    expect(memory.calls).toEqual([]);
     for (const source of ['/etc/hosts.yaml', '../x.yaml', 'hooks/../../x.yaml', 'scenarios/quote.yaml', 'x:y']) {
       expect((await refusal(engine.hooks.submit({ project: 'northfield-fixture', source }))).code, source).toBe('invalid');
     }
@@ -428,5 +466,13 @@ describe('the CLI keeps its trust rules', () => {
     expect(prod.stdout() + prod.stderr()).toContain('echo: done');
     const reset = memoryIo();
     expect(await main(['node', 'retake', '--root', ws, 'env', 'reset', 'northfield-fixture'], reset)).toBe(EXIT.ok);
+  });
+
+  it('`retake hooks rollback` of an id with no journal says the two places it looked, the run\'s first', async () => {
+    const io = memoryIo();
+    expect(await main(['node', 'retake', '--root', ws, 'hooks', 'rollback', 'northfield-fixture', '20990101-000000-none'], io)).toBe(EXIT.failure);
+    expect(io.stderr()).toContain(
+      `"20990101-000000-none" has no hooks journal (looked for ${join(project, 'runs', '20990101-000000-none', 'hooks-journal.json')} and ${join(project, '.retake', 'journals', '20990101-000000-none.json')})`,
+    );
   });
 });

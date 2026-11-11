@@ -17,7 +17,6 @@ export {
   journalId,
   openPendingJournals,
   pruneDoneRollbacks,
-  rollbackActionLines,
   rollbackJournals,
   rollbackPendingJournals,
   standaloneJournalFile,
@@ -27,7 +26,7 @@ export type { JournalLocations, JournalOptions, JournalRollback, PendingJournal 
 export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, checkShellHosts, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
 export { destructiveReason, isDestructive, psqlDestructiveStatement, shellDestructiveReason, shellWords } from './destructive.js';
 export { declaredHookLines, describeHook, describeRollback, hookKindOf } from './describe.js';
-export { actionLines, fieldLines, visible } from './shown.js';
+export { actionLines, fieldLines, rollbackActionLines, visible } from './shown.js';
 export type { ShownAction } from './shown.js';
 export { databaseTarget, describeTarget, sandboxDatabaseProblem } from './db-url.js';
 export type { DatabaseTarget } from './db-url.js';

@@ -5,7 +5,8 @@
  * still of a frame comment (L3.6).
  */
 export * from './types.js';
-export { recoverReviewDir, reviewImages, reviewRender, reviewRules, keyframePlan, sampleFrames, safeName } from './review.js';
+export { recoverReviewDir, reviewRender, reviewRules, keyframePlan, sampleFrames } from './review.js';
+export { reviewImages, safeName } from './images.js';
 export { ReviewError, findPrevious, findRender, locateRender, renderRun, renderTimeline, reviewsDir } from './load.js';
 export type { FoundReviewRender } from './load.js';
 export {
@@ -51,7 +52,8 @@ export { fontFileMeasurer, loadFontFace } from './fonts.js';
 export type { FaceFile, FontFace } from './fonts.js';
 export { bbox, colourDistance, compareSignatures, pixel, readImage, regionStats, signature, uniformity } from './pixels.js';
 export type { RegionRect, RegionStats, Rgb, RgbImage } from './pixels.js';
-export { findingLine, reportMarkdown, summaryLine } from './report.js';
+export { reportMarkdown } from './report.js';
+export { findingLine, summaryLine } from './report-lines.js';
 export { drawMarks, makeTile, pageFile, thumbnailOf, writeSheet } from './sheets.js';
 export type { MarkBox, Tile } from './sheets.js';
 export { isClip, meanSpeed, outputFrameOf, segmentLabel, segmentSpans, spanAt, stepAt, timecode, transitionAt, transitionSpans } from './spans.js';

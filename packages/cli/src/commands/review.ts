@@ -1,7 +1,6 @@
-import type { Finding, ReviewProgress } from '@retake/review';
-import { environmentLine, findingLine, summaryLine } from '@retake/review';
-import { findRenderOf, reviewWork } from '@retake/engine';
-import type { ReviewResult } from '@retake/engine';
+import type { Finding, ReviewProgress } from '@retake/review/checks';
+import { environmentLine, findRenderOf, findingLine, reviewWork, summaryLine } from '@retake/engine';
+import type { ReviewResult, Reviewer } from '@retake/engine';
 import { printableText } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -9,7 +8,7 @@ import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
 import { renderNotes } from './render-notes.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
 
@@ -62,13 +61,14 @@ export function printReview(ui: Ui, r: ReviewResult): void {
   ui.line(c.dim(`  report ${ui.path(files.report_md)} · ${formatMs(r.review.ms)}`));
 }
 
-/** Run a review with a status line; returns the result. */
+/** Run a review on `reviewer` (the command's: cliPorts) with a status line; returns the result. */
 export async function runReview(
   ui: Ui,
-  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
+  reviewer: Reviewer,
+  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[1]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
 ): Promise<ReviewResult> {
   try {
-    return await reviewWork({
+    return await reviewWork(reviewer, {
       policy: opts.policy,
       project: opts.project,
       root: opts.root,
@@ -113,7 +113,7 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (gate.waited) ui.info(`reviewing render ${printableText(renderId)}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, cliPorts.reviewer, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;

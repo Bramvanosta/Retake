@@ -55,7 +55,7 @@ export interface RunSubmitRequest {
   sessions_ack?: readonly string[];
 }
 
-/** What a job submission is handed; its ports (`clock`, `stores`) are the engine's (createEngine, ports.ts). */
+/** What a job submission is handed; its ports (ports.ts EnginePorts) are the engine's (createEngine, ports.ts). */
 export interface SubmitContext extends EnginePorts {
   ws: OpenedWorkspace;
   queue: JobQueue;
@@ -164,7 +164,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
             { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
             ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
-          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
+          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client), hooks: ctx.hooks },
         ).catch((e: unknown) => {
           throw toEngineError(e);
         })
@@ -178,7 +178,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
     },
     async () => {
       // `sandbox`: the reset before the take may run the seed — its shell steps need a human too.
-      const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv) : [];
+      const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv, ctx.hooks) : [];
       const p = await preflight();
       if (p) return takeApprovals({ what, project: project.slug, env: p.env, items: [...seedItems, ...p.items], fix }, approver, ctx.client, ctx.clock);
       if (seedItems.length) return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client, ctx.clock);
@@ -357,7 +357,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   return { job, run_id: runId, dir, warnings };
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface RunJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;

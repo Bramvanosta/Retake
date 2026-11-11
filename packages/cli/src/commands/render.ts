@@ -273,7 +273,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     let review;
     if (opts.review) {
       try {
-        review = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: record.record, quiet: opts.json });
+        review = await runReview(ui, cliPorts.reviewer, { policy: ws.policy, project, root: ws.root, render: record.record, quiet: opts.json });
       } catch (e) {
         if (e instanceof Error && e.name === 'ReviewError') throw new CliError(`rendered ${record.id}, but the review failed: ${e.message}`);
         throw e;

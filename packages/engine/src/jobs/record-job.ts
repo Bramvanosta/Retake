@@ -125,7 +125,7 @@ export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitReque
 /** Test hooks of the worker (in-process tests only): Playwright plays the person in a headless "headed" window. */
 export type RecordJobTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windowSize'>;
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface RecordJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;

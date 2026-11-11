@@ -10,6 +10,11 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./describe": {
+      "source": "./src/describe-entry.ts",
+      "types": "./dist/describe-entry.d.ts",
+      "default": "./dist/describe-entry.js"
     }
   },
   "files": [

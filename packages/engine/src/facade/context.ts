@@ -97,12 +97,13 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
 
   const { queue, files: jobFiles } = queueOf(ws.root, studio);
   const commentIndex = new CommentIndex();
-  const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, clock: ports.clock, stores: ports.stores };
+  const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, ...ports };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
-  const runThumbs = new RunThumbs({ policy: ws.policy }, runData);
+  // Both draw with this engine's reviewer (its frames: the product's load the review's light entry only).
+  const runThumbs = new RunThumbs({ policy: ws.policy, frames: ports.reviewer.frames }, runData);
   // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails (critique B7).
-  const renderFrames = new RenderFrames({ policy: ws.policy, slots: runThumbs.ffmpegSlots, comments: commentIndex });
+  const renderFrames = new RenderFrames({ policy: ws.policy, frames: ports.reviewer.frames, slots: runThumbs.ffmpegSlots, comments: commentIndex });
   const startWorker: EngineContext['startWorker'] = async () => {
     if (opts.autoStartWorker === false) return undefined;
     // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the Studio's

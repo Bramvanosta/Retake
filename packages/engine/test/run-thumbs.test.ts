@@ -20,11 +20,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REPO, fixtureWorkspace } from './helpers.js';
-import { EngineError, RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunFolder, RunThumbs, SCREENSHOT_MAX, THUMB_BASE64_MAX, createEngine, frameAt, gridFrame, parseFrameIndex, seekTime } from '../src/index.js';
+import { EngineError, RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunFolder, RunThumbs, SCREENSHOT_MAX, THUMB_BASE64_MAX, createEngine, frameAt, gridFrame, parseFrameIndex, seekTime, packageReviewer } from '../src/index.js';
 import type { Engine, RunThumbsView } from '../src/index.js';
 import { BLOCKS_YAML, BLUE, CYAN, GREEN, MAGENTA, ORANGE, RED, YELLOW, capture, centre, colourName, near, noisePng, png, pngBits, writeRun } from './synthetic-runs.js';
 import type { Rgb, SynthRun } from './synthetic-runs.js';
 import { PERSON_POLICY } from '@retake/core';
+
+/** The product's frames (the review package's light entry): the thumbnails these tests check are real. */
+const FRAMES = packageReviewer().frames;
 
 let ws: string;
 let tools: string;
@@ -105,7 +108,7 @@ describe('thumbnails of a capture: kept frames and the video agree', () => {
   });
 
   it('frames deleted: the same colours from the video, the last step included (one ffmpeg process)', async () => {
-    const svc = new RunThumbs({ policy: PERSON_POLICY });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     const v = await svc.thumbs(projectDir, P, '20261020-100100-blocks', KEYS);
     expect(v.missing).toEqual([]);
     expectColours(v, EXPECTED, 'video');
@@ -113,8 +116,15 @@ describe('thumbnails of a capture: kept frames and the video agree', () => {
     expect(colours(v)).toEqual(colours(await engine.runs.thumbs(P, '20261020-100000-blocks', KEYS)));
   });
 
+  it('frames that cannot be loaded fail the call with their own error, never as missing thumbnails (L7.11 fix pass)', async () => {
+    const broken = new Error('the thumbnail entry cannot be loaded');
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: { ...FRAMES, load: () => Promise.reject(broken) } });
+    await expect(svc.thumbs(projectDir, P, '20261020-100100-blocks', KEYS)).rejects.toBe(broken);
+    expect(svc.stats.made).toBe(0);
+  });
+
   it('a repeat comes from memory; unknown keys and steps the run never reached say so', async () => {
-    const svc = new RunThumbs({ policy: PERSON_POLICY });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     await svc.thumbs(projectDir, P, '20261020-100000-blocks', KEYS);
     const made = svc.stats.made;
     const again = await svc.thumbs(projectDir, P, '20261020-100000-blocks', [...KEYS, 'three.0', 'one.7']);
@@ -127,7 +137,7 @@ describe('thumbnails of a capture: kept frames and the video agree', () => {
   });
 
   it('the cache keeps within its byte bound', async () => {
-    const svc = new RunThumbs({ policy: PERSON_POLICY, cacheBytes: 1500 });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES, cacheBytes: 1500 });
     await svc.thumbs(projectDir, P, '20261020-100000-blocks', KEYS);
     expect(svc.cacheSize.bytes).toBeLessThanOrEqual(1500);
     expect(svc.cacheSize.entries).toBeLessThan(5);
@@ -178,7 +188,7 @@ describe('dry runs, failed steps, multi-page tracks', () => {
     expectColours(v, { 'two.0': ORANGE, 'one.1': GREEN });
     expect(v.thumbs.map((t) => t.from)).toEqual(['error_screenshot', 'frame']);
     await unlink(join(projectDir, 'runs', run.id, 'screenshots', 'error-two-0.png'));
-    const w = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, run.id, ['two.0']);
+    const w = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, run.id, ['two.0']);
     expectColours(w, { 'two.0': YELLOW }, 'frame');
   });
 
@@ -208,7 +218,7 @@ describe('dry runs, failed steps, multi-page tracks', () => {
       await rm(join(projectDir, 'runs', run.id, `frames-${t}`), { recursive: true });
       await rm(join(projectDir, 'runs', run.id, `frames-${t}.jsonl`));
     }
-    const svc = new RunThumbs({ policy: PERSON_POLICY });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     expectColours(await svc.thumbs(projectDir, P, run.id, Object.keys(want)), want, 'video');
     expect(svc.stats.ffmpeg).toBe(2);
   });
@@ -227,7 +237,7 @@ describe('dry runs, failed steps, multi-page tracks', () => {
       ],
     };
     const dir = await writeRun(projectDir, run);
-    const svc = new RunThumbs({ policy: PERSON_POLICY });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     expectColours(await svc.thumbs(projectDir, P, run.id, ['both.0']), { 'both.0': CYAN }, 'frame');
     // The phone's frames re-written (another picture, a new index): the next call shows it.
     await new Promise((r) => setTimeout(r, 20));
@@ -252,7 +262,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     await rm(join(dir, 'frames'), { recursive: true });
     await rm(join(dir, 'frames.jsonl'));
     await symlink(join(outside(), 'p', 'runs', '20261020-140000-blocks', 'capture.mp4'), join(dir, 'capture.mp4'));
-    const svc = new RunThumbs({ policy: PERSON_POLICY });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     const v = await svc.thumbs(projectDir, P, run.id, KEYS);
     expect(v.thumbs).toEqual([]);
     expect(v.missing.map((m) => m.reason)).toEqual(KEYS.map(() => 'unreadable'));
@@ -264,19 +274,19 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     const dir = await writeRun(projectDir, run);
     await rm(join(dir, 'frames'), { recursive: true });
     await symlink(join(outside(), 'p', 'runs', '20261020-140000-blocks', 'frames'), join(dir, 'frames'));
-    let v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, run.id, ['one.0']);
+    let v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, run.id, ['one.0']);
     expect([v.thumbs, v.missing]).toEqual([[], [{ key: 'one.0', reason: 'unreadable' }]]);
     // Frame names that are paths are left out of the index: nothing to read.
     await unlink(join(dir, 'frames'));
     await mkdir(join(dir, 'frames'));
     await writeFile(join(dir, 'frames.jsonl'), `${JSON.stringify({ file: '../../../../outside/p/runs/20261020-140000-blocks/frames/000001.png', t: 0 })}\n`);
-    v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, run.id, ['one.0']);
+    v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, run.id, ['one.0']);
     expect(v.thumbs).toEqual([]);
     // A dry screenshot that is a link.
     const dry = await writeRun(projectDir, { id: '20261020-170000-blocks', scenario: 'blocks', mode: 'dry', snapshot: BLOCKS_YAML, scenes: [{ id: 'one' }], events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }] });
     await writeFile(join(outside(), 'secret.png'), png(8, 8, ORANGE));
     await symlink(join(outside(), 'secret.png'), join(dry, 'screenshots', 'one-00-click.png'));
-    v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, '20261020-170000-blocks', ['one.0']);
+    v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, '20261020-170000-blocks', ['one.0']);
     expect([v.thumbs, v.missing]).toEqual([[], [{ key: 'one.0', reason: 'unreadable' }]]);
   });
 
@@ -294,7 +304,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     const tl = JSON.parse(await readFile(join(dir, 'timeline.json'), 'utf8'));
     tl.tracks[0].frames_file = '../../../../outside/p/runs/20261020-140000-blocks/frames.jsonl';
     await writeFile(join(dir, 'timeline.json'), JSON.stringify(tl));
-    const v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, run.id, ['both.0']);
+    const v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, run.id, ['both.0']);
     expect([v.thumbs, v.missing]).toEqual([[], [{ key: 'both.0', reason: 'no_picture' }]]);
   });
 
@@ -310,7 +320,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     await unlink(join(dir, 'frames.jsonl'));
     execFileSync('mkfifo', [join(dir, 'frames.jsonl')]);
     const t0 = Date.now();
-    const v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, run.id, ['two.1']);
+    const v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, run.id, ['two.1']);
     expect(Date.now() - t0).toBeLessThan(5000);
     expectColours(v, { 'two.1': MAGENTA }, 'video');
   }, 15_000);
@@ -321,7 +331,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     await rm(join(dir, 'frames.jsonl'));
     await rename(join(dir, 'capture.mp4'), join(dir, 'kept.mp4'));
     await symlink('kept.mp4', join(dir, 'capture.mp4'));
-    const svc = new RunThumbs({ policy: PERSON_POLICY });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     let v = await svc.thumbs(projectDir, P, run.id, ['one.0']);
     expect([v.thumbs, v.missing, svc.stats.ffmpeg]).toEqual([[], [{ key: 'one.0', reason: 'unreadable' }], 0]);
     // frames/ → screenshots/ (holding a "frame" of another colour).
@@ -329,7 +339,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     const odir = await writeRun(projectDir, other);
     await rm(join(odir, 'frames'), { recursive: true });
     await symlink('screenshots', join(odir, 'frames'));
-    v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, other.id, ['one.0']);
+    v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, other.id, ['one.0']);
     expect([v.thumbs, v.missing]).toEqual([[], [{ key: 'one.0', reason: 'unreadable' }]]);
     // runs/<id> → runs/<another id> of the same project.
     await symlink(run.id, join(projectDir, 'runs', '20261020-230200-blocks'));
@@ -365,7 +375,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     const wrapper = join(tools, 'ffmpeg-args.sh');
     await writeFile(wrapper, `#!/bin/sh\nprintf '%s\\n' "$@" > "${ws}/ffmpeg-args"\nexec "${real}" "$@"\n`);
     await chmod(wrapper, 0o755);
-    const v = await new RunThumbs({ policy: PERSON_POLICY, ffmpeg: wrapper }).thumbs(projectDir, P, run.id, KEYS);
+    const v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES, ffmpeg: wrapper }).thumbs(projectDir, P, run.id, KEYS);
     expectColours(v, EXPECTED, 'video');
     const args = (await readFile(join(ws, 'ffmpeg-args'), 'utf8')).split('\n');
     expect(args.filter((a) => a === 'fd:')).toHaveLength(KEYS.length);
@@ -386,7 +396,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     const big = join(dir, 'big.bin');
     await writeFile(big, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(size - 8)]));
     for (let i = 0; i < RUN_THUMBS_MAX_KEYS; i++) await link(big, join(dir, 'screenshots', `one-${String(i).padStart(2, '0')}-click.png`));
-    const svc = new RunThumbs({ policy: PERSON_POLICY });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     const v = await svc.thumbs(projectDir, P, '20261020-240100-big', events.map((e) => `one.${e.step}`));
     expect(v.missing.map((m) => m.reason)).toEqual(events.map(() => 'unreadable'));
     expect(svc.stats.sourceBytesPeak).toBeGreaterThanOrEqual(size);
@@ -398,7 +408,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     await unlink(huge);
     await writeFile(huge, '');
     await truncate(huge, SCREENSHOT_MAX + 1);
-    const svc2 = new RunThumbs({ policy: PERSON_POLICY });
+    const svc2 = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
     const v2 = await svc2.thumbs(projectDir, P, '20261020-240100-big', ['one.0']);
     expect(v2.missing).toEqual([{ key: 'one.0', reason: 'too_large' }]);
     expect(svc2.stats.sourceBytesPeak).toBe(0);
@@ -411,7 +421,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     const dir = await writeRun(projectDir, run);
     await writeFile(join(dir, 'frames', 'secret.png'), png(64, 36, ORANGE));
     await writeFile(join(dir, 'frames.jsonl'), `${JSON.stringify({ file: 'secret.png', t: 0 })}\n`);
-    let v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, run.id, ['one.0']);
+    let v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, run.id, ['one.0']);
     expect([v.thumbs, v.missing]).toEqual([[], [{ key: 'one.0', reason: 'no_picture' }]]);
     // A track whose files are the main capture's (valid file names, not track names).
     const multi: SynthRun = {
@@ -429,7 +439,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     tl.tracks[0].frames_file = 'frames.jsonl';
     tl.tracks[0].file = 'capture.mp4';
     await writeFile(join(mdir, 'timeline.json'), JSON.stringify(tl));
-    v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, multi.id, ['both.0']);
+    v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, multi.id, ['both.0']);
     expect([v.thumbs, v.missing]).toEqual([[], [{ key: 'both.0', reason: 'no_picture' }]]);
   });
 
@@ -452,7 +462,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     const dir = await writeRun(projectDir, { id: '20261020-240000-noise', scenario: 'noise', mode: 'dry', scenes: [{ id: 'one' }], events });
     for (const [name, bytes] of Object.entries(shots)) await writeFile(join(dir, 'screenshots', name), bytes);
     const keys = events.map((e) => `one.${e.step}`);
-    const v = await new RunThumbs({ policy: PERSON_POLICY }).thumbs(projectDir, P, '20261020-240000-noise', keys);
+    const v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, '20261020-240000-noise', keys);
     const total = v.thumbs.reduce((n, t) => n + t.base64.length, 0);
     console.log(`noise batch: ${v.thumbs.length} thumbnails, ${Math.round(total / 1024)} KB of base64, ${v.missing.length} left for another call`);
     expect(total).toBeLessThanOrEqual(RUN_THUMBS_RESPONSE_MAX);
@@ -490,13 +500,13 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
   }, 60_000);
 
   it('three runs at once: at most 2 ffmpeg processes; two batches of one run never overlap', async () => {
-    const svc = new RunThumbs({ policy: PERSON_POLICY, ffmpeg: await slowFfmpeg(0.4) });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES, ffmpeg: await slowFfmpeg(0.4) });
     const ids = ['20261020-220000-blocks', '20261020-220100-blocks', '20261020-220200-blocks'];
     const views = await Promise.all(ids.map((id) => svc.thumbs(projectDir, P, id, KEYS)));
     for (const v of views) expectColours(v, EXPECTED, 'video');
     expect(svc.stats.ffmpeg).toBe(3);
     expect(svc.stats.ffmpegPeak).toBe(2);
-    const one = new RunThumbs({ policy: PERSON_POLICY, ffmpeg: await slowFfmpeg(0.4) });
+    const one = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES, ffmpeg: await slowFfmpeg(0.4) });
     const t0 = Date.now();
     await Promise.all([one.thumbs(projectDir, P, ids[0], ['one.0']), one.thumbs(projectDir, P, ids[0], ['one.1'])]);
     expect(Date.now() - t0).toBeGreaterThanOrEqual(800);
@@ -505,7 +515,7 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
 
   it('an aborted call kills its ffmpeg and answers cancelled', async () => {
     await rm(join(ws, 'ffmpeg-pids'), { force: true });
-    const svc = new RunThumbs({ policy: PERSON_POLICY, ffmpeg: await hangingFfmpeg() });
+    const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES, ffmpeg: await hangingFfmpeg() });
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 300);
     const t0 = Date.now();
@@ -527,6 +537,10 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
       const src = await readFile(join(REPO, 'packages/engine/src', f), 'utf8');
       expect(src, f).not.toMatch(/['"]@retake\/(review|editor)['"]/);
     }
-    expect(await readFile(join(REPO, 'packages/engine/src/run-thumbs.ts'), 'utf8')).toContain("import('@retake/review/thumbs')");
+    // L7.11: the thumbnails are drawn by the reviewer's frames (run-thumbs.ts names no review entry at all), and the
+    // product's frames load the light entry (lazy.ts `thumbs`; ports.test asserts which loader each member calls).
+    expect(await readFile(join(REPO, 'packages/engine/src/run-thumbs.ts'), 'utf8')).not.toMatch(/@retake\/review/);
+    expect(await readFile(join(REPO, 'packages/engine/src/lazy.ts'), 'utf8')).toContain("thumbs = () => import('@retake/review/thumbs')");
+    expect(await readFile(join(REPO, 'packages/engine/src/review/review-package.ts'), 'utf8')).toMatch(/at: async \([^)]*\) => \(await thumbs\(\)\)\.videoFramesAt[\s\S]*thumb: async \([^)]*\) => \(await thumbs\(\)\)\.thumbJpeg/);
   });
 });

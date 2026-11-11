@@ -61,7 +61,7 @@ export function passedBuildDirs(raw: string | undefined): string[] | undefined {
 /** Run the job; resolves with the exit code. */
 export async function runJobChild(o: JobChildOptions): Promise<number> {
   // A job process is a composition root: the product's ports (a test's cannot reach a process).
-  const { clock, stores } = enginePorts();
+  const { clock, stores, hooks, reviewer } = enginePorts();
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} job process ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   const stamp = buildStamp(o.dirs ?? buildDirs());
@@ -177,6 +177,8 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     log,
     clock,
     stores,
+    hooks,
+    reviewer,
     rw,
     interrupts,
     slot,

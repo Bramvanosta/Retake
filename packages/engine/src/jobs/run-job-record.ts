@@ -35,7 +35,7 @@ import type { JobErrorView, JobEventBody, JobProgress, JobRecord, JobWorkerInfo 
 
 export type Workspace = Awaited<ReturnType<typeof openWorkspace>>;
 
-/** What a job runner runs with; its ports (`clock`, `stores`) are its composition root's (the worker, the job process). */
+/** What a job runner runs with; its ports (ports.ts EnginePorts) are its composition root's (the worker, the job process). */
 export interface JobRunnerContext extends EnginePorts {
   root: string;
   ws: Workspace;
@@ -132,7 +132,7 @@ export function unknownInput(input: unknown): string | null {
 
 /** Running claimed jobs with `c` (a worker, or a job process). */
 export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobRecord) => Promise<void> } {
-  const { root, ws, queue, files, cli, build, worker, self, log, rw, interrupts, slot, done, writeOrExit, clock, stores } = c;
+  const { root, ws, queue, files, cli, build, worker, self, log, rw, interrupts, slot, done, writeOrExit, clock, stores, hooks, reviewer } = c;
 
   /** The filming marker of a capture take (L5.14): written at capture time 0, paused with the take, removed at its end. */
   const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => void | FilmingReport; close: () => void } => {
@@ -285,7 +285,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
       const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
       // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
-      const base = { ws, cli, queue, signal: controller.signal, event, clock, stores };
+      const base = { ws, cli, queue, signal: controller.signal, event, clock, stores, hooks, reviewer };
       const onProgress = (p: JobProgress) => {
         latest = p;
         if (!progressTimer) progressTimer = setTimeout(flushProgress, 500);

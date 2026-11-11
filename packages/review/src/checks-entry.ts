@@ -7,7 +7,8 @@
  *
  * Every module reachable from here imports `@retake/core`, `@retake/editor/plan` and `@retake/components/geometry`
  * only — no Node module, no image library, no renderer (test/checks-entry.test.ts walks the imports and traces the
- * built entry). The names are the package root's, value for value.
+ * built entry). The names are the package root's, value for value: also a key frame's safe name, which images an
+ * agent is shown, and the findings as lines (L7.11: the engine's and the CLI's words for a review).
  */
 export * from './types.js';
 export {
@@ -44,6 +45,8 @@ export { captionOverDuring, checkPixels, overlayDuring, sourceFramesAtStarts, so
 export type { FrameAnalysis, PixelCheckInput } from './pixel-checks.js';
 export { diffFindings, diffRecords, framePairs } from './diff.js';
 export { frameAnchor } from './anchor.js';
+export { reviewImages, safeName } from './images.js';
+export { findingLine, summaryLine } from './report-lines.js';
 export type { FrameAnchorOptions } from './anchor.js';
 export { bbox, colourDistance, compareSignatures, pixel, regionStats, signature, uniformity } from './pixel-maths.js';
 export type { RegionRect, RegionStats, Rgb, RgbImage } from './pixel-maths.js';

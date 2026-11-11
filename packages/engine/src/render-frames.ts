@@ -34,6 +34,7 @@ import { EngineError } from './errors.js';
 import { renderForWork } from './renders.js';
 import type { RenderForWork } from './renders.js';
 import type { Semaphore } from './run-thumbs.js';
+import type { FrameTools } from './review/reviewer.js';
 
 /** Long side of a viewer frame, at most. */
 export const RENDER_FRAME_MAX_PX = 1280;
@@ -128,6 +129,8 @@ export interface RenderFramesOptions {
   policy: WorkPolicy;
   /** The engine's ffmpeg slots (shared with the run thumbnails). */
   slots: Semaphore;
+  /** What takes a frame of the video and makes its JPEG (its composition root's reviewer, review/reviewer.ts). */
+  frames: Pick<FrameTools, 'load' | 'at' | 'thumb'>;
   ffmpeg?: string;
   ffprobe?: string;
   cacheBytes?: number;
@@ -136,9 +139,6 @@ export interface RenderFramesOptions {
   /** Thread summaries (the outline's pins). */
   comments?: CommentIndex;
 }
-
-type Review = typeof import('@retake/review/thumbs');
-const review = (): Promise<Review> => import('@retake/review/thumbs');
 
 /** ffprobe of an open descriptor (the fd protocol only); null when it cannot be read. */
 function probeFd(fd: number, o: { ffprobe?: string; policy: WorkPolicy; signal: AbortSignal; timeoutMs: number }): Promise<VideoProbe | null> {
@@ -414,14 +414,15 @@ export class RenderFrames {
       const cacheKey = `${opened.sig}\0${record.created_at}\0${req.frame}\0${RENDER_FRAME_MAX_PX}`;
       const hit = this.cache.get(cacheKey);
       if (hit) return view(hit);
-      const r = await review();
+      // Loaded before the read below words its failures: frames that cannot be loaded fail with their own error.
+      await this.o.frames.load();
       const release = await this.o.slots.acquire(ctl.signal).catch(() => {
         throw this.abortError(ctl.signal, record.id);
       });
       let png: Buffer | null;
       try {
         this.stats.made++;
-        [png] = await r.videoFramesAt({ fds: [opened.fd] }, [(req.frame - 0.5) / probe.fps], {
+        [png] = await this.o.frames.at({ fds: [opened.fd] }, [(req.frame - 0.5) / probe.fps], {
           maxPx: RENDER_FRAME_MAX_PX,
           policy: this.o.policy,
           signal: ctl.signal,
@@ -436,7 +437,7 @@ export class RenderFrames {
       }
       if (ctl.signal.aborted) throw this.abortError(ctl.signal, record.id);
       if (!png) throw new EngineError('not_found', `frame ${req.frame} of render ${record.id} is not in its video`);
-      const jpeg = await r.thumbJpeg(png, { maxPx: RENDER_FRAME_MAX_PX, quality: RENDER_FRAME_QUALITY });
+      const jpeg = await this.o.frames.thumb(png, { maxPx: RENDER_FRAME_MAX_PX, quality: RENDER_FRAME_QUALITY });
       const img = { base64: jpeg.data.toString('base64'), width: jpeg.width, height: jpeg.height };
       if (img.base64.length > RENDER_FRAME_BASE64_MAX) throw new EngineError('refused', `frame ${req.frame} of render ${record.id} is larger than ${RENDER_FRAME_BASE64_MAX} base64 characters: not shown`);
       this.cache.set(cacheKey, img);

@@ -1,32 +1,31 @@
 /**
  * `review` jobs (L3.2, R-MCP-31): a render's review — contact sheets, per-scene sheets, key frames, checks, report.json
  * and report.md in review/<render_id>/ — submitted by a client outside the CLI and run by the jobs worker with the
- * review package's `reviewRender` (ffmpeg + sharp; no browser).
+ * reviewer its composition root chose (review/reviewer.ts; the product's: the review package's `reviewRender`, ffmpeg +
+ * sharp, no browser).
  *
  * The render is named by its id (`latest` is resolved at submit) and read from renders/<id>.json only; its video, its
  * run and the render it is compared with must lie in the project folder (the record's paths are absolute). A cancel
  * stops the review between its stages and kills ffmpeg; the previous review of the render stays as it was. No image
- * data goes into job.json: review_get makes thumbnails when it is read. The review package is imported lazily.
+ * data goes into job.json: review_get makes thumbnails when it is read.
  */
 import { JOB_INPUT_VERSION, isRenderId, projectPath } from '@retake/core';
 import type { ReviewJobInput } from '@retake/core';
-import type { ReviewProgress } from '@retake/review';
+import type { ReviewProgress } from '@retake/review/checks';
 import { stampOf } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
-import { latestRenderMembers } from '../render-records.js';
+import { latestRenderMembers, previousOfRender } from '../render-records.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
-import { editor, review } from '../lazy.js';
-import { reviewWork } from '../pipeline.js';
+import { editor } from '../lazy.js';
+import { reviewWork } from '../review/work.js';
+import type { Reviewer } from '../review/reviewer.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
-
-// The lazy @retake/review (lazy.ts), re-exported for the modules that import it from here.
-export { review };
 
 export interface ReviewRequest {
   project: string;
@@ -80,12 +79,11 @@ export async function reviewDirOf(ws: OpenedWorkspace, input: Pick<ReviewJobInpu
   return projectPath(project.dir, 'review', input.render_id);
 }
 
-/** After a review job was interrupted: the previous review set aside comes back, temporary folders go. */
-export async function cleanupInterruptedReview(ws: OpenedWorkspace, job: JobRecord, log: (m: string) => void): Promise<void> {
+/** After a review job was interrupted: the previous review set aside comes back, temporary folders go (the reviewer's `recover`). */
+export async function cleanupInterruptedReview(ws: OpenedWorkspace, job: JobRecord, log: (m: string) => void, reviewer: Reviewer): Promise<void> {
   if (job.input.kind !== 'review') return;
   try {
-    const rv = await review();
-    await rv.recoverReviewDir(await reviewDirOf(ws, job.input));
+    await reviewer.recover(await reviewDirOf(ws, job.input));
   } catch (e) {
     log(`job ${job.id}: review leftovers not removed (${(e as Error).message})`);
   }
@@ -103,7 +101,7 @@ const STAGE_SPAN: Record<ReviewProgress['stage'], [number, number]> = {
   done: [1, 1],
 };
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface ReviewJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
@@ -113,10 +111,9 @@ export interface ReviewJobContext extends EnginePorts {
   progress(p: JobProgress): void;
 }
 
-/** Execute a `review` job: the render checked again, then `reviewRender` (no thumbnails: review_get makes them). */
+/** Execute a `review` job: the render checked again, then the reviewer's review (no thumbnails: review_get makes them). */
 export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJobResult> {
   const { input } = ctx;
-  const rv = await review();
   const project = await openProjectBySlug(ctx.ws, input.project);
   const fix = (id: string) => reviewCommandLine(ctx.cli, { project: input.project, render_id: id, fps: input.fps, ...(input.previous !== undefined ? { previous: input.previous } : {}) });
   const record = await renderForWork(project, input.render_id, { fix });
@@ -125,7 +122,7 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
   else if (input.previous === false) previous = false;
   else {
     // The default comparison: the previous render of the scenario, when it may be read (else none).
-    const found = await rv.findPrevious(project, record, undefined);
+    const found = await previousOfRender(project.dir, record);
     const ed = await editor();
     const problem = found ? ed.recordPathProblem(project.dir, found) : null;
     if (problem) ctx.event({ type: 'log', level: 'warn', message: `not compared with ${found!.id}: its files are outside the project` });
@@ -133,7 +130,7 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
   }
   let last = '';
   // The pipeline's review that the CLI's `retake review` runs too.
-  const result = await reviewWork({
+  const result = await reviewWork(ctx.reviewer, {
     policy: ctx.ws.policy,
     project,
     root: ctx.ws.root,

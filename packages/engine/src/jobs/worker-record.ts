@@ -24,6 +24,8 @@ import type { JobRecord, JobWorkerInfo } from './types.js';
 import type { KillFn } from './signal.js';
 import type { Clock } from '../clock.js';
 import type { EnginePorts } from '../ports.js';
+import type { HookRunner } from '../hook-run/runner.js';
+import type { Reviewer } from '../review/reviewer.js';
 import type { ProjectStores } from '../store/store.js';
 import type { QosDeps, QosYield } from './yield.js';
 
@@ -109,6 +111,10 @@ export interface Worker {
   readonly clock: Clock;
   /** What its jobs' authored writes go through. */
   readonly stores: ProjectStores;
+  /** What its hooks and env_reset jobs run hooks with, and its recovery prunes the replayed rollbacks with. */
+  readonly hooks: HookRunner;
+  /** What its inline heavy jobs review with, and its recovery puts an interrupted review back with. */
+  readonly reviewer: Reviewer;
   readonly ws: Workspace;
   readonly cli: string;
   readonly queue: JobQueue;
@@ -158,6 +164,8 @@ export interface WorkerParts {
   root: string;
   clock: Clock;
   stores: ProjectStores;
+  hooks: HookRunner;
+  reviewer: Reviewer;
   ws: Workspace;
   cli: string;
   queue: JobQueue;
@@ -185,6 +193,8 @@ export function newWorker(p: WorkerParts): Worker {
     kill: o.jobProcessTest?.kill,
     clock: p.clock,
     stores: p.stores,
+    hooks: p.hooks,
+    reviewer: p.reviewer,
     ws: p.ws,
     cli: p.cli,
     queue: p.queue,

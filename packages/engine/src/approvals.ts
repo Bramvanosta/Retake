@@ -10,13 +10,14 @@
  */
 import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigationTrustProblems, showHiddenCharsLine } from '@retake/core';
 import type { AgentTrustEnvironment, WorkPolicy } from '@retake/core';
-import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
-import type { HookPhase, HookResult } from '@retake/hooks';
+import type { AgentChannel, HookPhase, HookResult, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import { nodeFileFacts } from '@retake/core/io';
+import { declaredHookLines, describeHook, describeRollback } from '@retake/hooks/describe';
 import { ENGINE_TRUST, submitterChannel } from './caller.js';
 import { stampOf } from './clock.js';
 import type { Clock } from './clock.js';
 import { EngineError } from './errors.js';
+import type { HookRunner } from './hook-run/runner.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
 import type { PruneItem, PruneResult } from './prune.js';
@@ -179,14 +180,14 @@ function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase):
 
 /**
  * Dry-run `lists` with trust `mcp` and collect what needs a human and what is refused. Executes nothing, opens no
- * browser, reads no keychain item.
+ * browser, reads no keychain item. `hooks`: the HookRunner port (the submitter's: SubmitContext).
  */
 export async function preflightHooks(
   project: LoadedProject,
   lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean }>,
-  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
+  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel; hooks: HookRunner },
 ): Promise<Preflight> {
-  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback, declaredHookLines } = await import('@retake/hooks');
+  const runner = o.hooks;
   const { ctx, access } = await createHookContext(project, {
     policy: o.policy,
     env: o.env,
@@ -199,26 +200,29 @@ export async function preflightHooks(
     loginCommand: (p) => `retake login ${p.project}`,
   });
   // A dry run journals nothing: the journal is never written.
-  const journal = await Journal.open(o.journalFile);
+  const journal = await runner.journals.open(o.journalFile);
   const items: ApprovalItem[] = [];
   const refused: Preflight['refused'] = [];
   for (const { phase, hooks, agentWritten } of lists) {
     if (!hooks.length) continue;
-    const { results } = await runHooks([...hooks], ctx, { phase, journal, ...(agentWritten ? { agentWritten } : {}) });
+    const { results } = await runner.run(hooks, ctx, { phase, journal, ...(agentWritten ? { agentWritten } : {}) });
     const byIndex = new Map<number, HookResult>(results.map((r) => [r.index, r]));
-    hooks.forEach((hook, index) => {
+    // In list order, one hook at a time (the items keep it): the port's fingerprint and files are async.
+    for (const [index, hook] of hooks.entries()) {
       const r = byIndex.get(index);
       if (r?.status === 'refused') {
         refused.push({ phase, index, ...(hook.name ? { name: hook.name } : {}), description: r.description, error: r.error ?? 'refused' });
-        return;
+        continue;
       }
       const reason = r?.approval?.reason ?? (phase === 'seed' ? null : staticReason(hook, project, phase));
-      if (!reason) return;
+      if (!reason) continue;
       const description = r?.status === 'dry' ? r.description : describeHook(hook);
       // Its rollback as the dry run templated it, else as its file declares it (a setup hook's only).
       const rollback = r?.status === 'dry' ? r.rollback : phase === 'setup' ? describeRollback(hook) : undefined;
+      // The dry run's fingerprint, else the one the worker checks (the files it references bound): never re-derived here.
+      const fingerprint = r?.approval?.fingerprint ?? (await runner.approval.fingerprint(hook, { phase, index, env: ctx.env.name, files: (await runner.approval.files(hook, { projectDir: project.dir })).files }));
       items.push({
-        fingerprint: r?.approval?.fingerprint ?? hookFingerprint(hook, { phase, index, env: ctx.env.name, files: hookFiles(hook, { projectDir: project.dir }).files }),
+        fingerprint,
         phase,
         index,
         ...(hook.name ? { name: hook.name } : {}),
@@ -228,7 +232,7 @@ export async function preflightHooks(
         reason,
         lines: r?.status === 'dry' && r.shown ? r.shown : declaredHookLines(hook, { rollback: phase === 'setup' || phase === 'step' }),
       });
-    });
+    }
   }
   return { env: { name: ctx.env.name, production: access.production === true, access: access.mode }, items, refused };
 }
@@ -242,10 +246,9 @@ export const SHELL_SEED_REASON = 'a shell command (runs local code)';
  * `seed` and its position among the seed steps, or phase `reset` and its position among `reset.hooks` — an approval of
  * one is never the other's —, the sandbox's environment, its files relative to sandbox.yaml; `exec` steps keep their
  * positions). A seed's http and sql steps rebuild the sandbox's own data (checked at run time) and an `exec` step runs
- * inside a sandbox container: none of them is asked about.
+ * inside a sandbox container: none of them is asked about. `hooks`: the HookRunner port (its fingerprints and files).
  */
-export async function seedApprovalItems(project: LoadedProject, env: string): Promise<ApprovalItem[]> {
-  const { hookFingerprint, hookFiles, describeHook, declaredHookLines } = await import('@retake/hooks');
+export async function seedApprovalItems(project: LoadedProject, env: string, hooks: HookRunner): Promise<ApprovalItem[]> {
   const sandbox = project.sandboxes?.[env];
   const seed = sandbox?.manifest.seed ?? [];
   const lists: Array<{ phase: 'seed' | 'reset'; steps: typeof seed }> = [
@@ -254,17 +257,19 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
   ];
   const items: ApprovalItem[] = [];
   for (const { phase, steps } of lists) {
-    steps.forEach((step, index) => {
-      if ('exec' in step) return;
+    // In list order, one step at a time: the port's fingerprint and files are async.
+    for (const [index, step] of steps.entries()) {
+      if ('exec' in step) continue;
       let kind: string;
       try {
         kind = hookKind(step);
       } catch {
-        return; // malformed: the seed itself fails on it
+        continue; // malformed: the seed itself fails on it
       }
-      if (kind !== 'shell') return;
+      if (kind !== 'shell') continue;
+      const { files } = await hooks.approval.files(step, { projectDir: project.dir, ...(sandbox?.dir ? { baseDir: sandbox.dir } : {}) });
       items.push({
-        fingerprint: hookFingerprint(step, { phase, index, env, files: hookFiles(step, { projectDir: project.dir, ...(sandbox?.dir ? { baseDir: sandbox.dir } : {}) }).files }),
+        fingerprint: await hooks.approval.fingerprint(step, { phase, index, env, files }),
         phase,
         index,
         ...(step.name ? { name: step.name } : {}),
@@ -274,7 +279,7 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
         // As sandbox.yaml declares it (a seed step or a reset hook journals no rollback).
         lines: declaredHookLines(step),
       });
-    });
+    }
   }
   return items;
 }

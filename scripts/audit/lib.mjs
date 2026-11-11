@@ -139,15 +139,15 @@ export const LAYERS = { domain: ['core'], adapters: ADAPTERS, application: ['eng
  * I/O, no renderer, no adapter code. A shell may import their types only (R4: a value would be the shell doing the
  * application's work by itself); the engine may import their values (R11), all but the editor's, which R9 holds whole
  * (`@retake/editor/plan` as a value in the engine outside its loader is an R9 hit). Each is held pure by its own walk
- * test (components geometry-entry, editor plan-entry, review checks-entry).
+ * test (components geometry-entry, editor plan-entry, review checks-entry, hooks describe-entry).
  */
-export const DOMAIN_ENTRIES = ['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks'];
+export const DOMAIN_ENTRIES = ['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe'];
 /**
  * The review's pure modules (packages/review/src/<name>.ts): what `@retake/review/checks` reaches. R7 keeps each free of
  * I/O and renderer imports, R12 keeps each on the components' geometry entry; both read one file at a time — the
  * transitive proof is packages/review/test/checks-entry.test.ts, which walks the entry's imports.
  */
-export const REVIEW_PURE = ['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types'];
+export const REVIEW_PURE = ['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types', 'images', 'report-lines'];
 const reviewPure = (f) => f.startsWith('packages/review/src/') && f.endsWith('.ts') && REVIEW_PURE.includes(f.slice('packages/review/src/'.length, -3));
 /** Core's side that touches the machine (`@retake/core/io`): R1 holds for the rest of core, which never imports it. */
 export const CORE_IO_DIR = 'packages/core/src/io/';
@@ -182,7 +182,28 @@ export const PORT_ROOTS = {
   systemClock: [CLOCK_HOME, 'packages/engine/src/ports.ts', 'packages/engine/src/jobs/queue.ts', 'packages/engine/src/jobs/memory-queue.ts'],
   enginePorts: ['packages/engine/src/ports.ts', 'packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/cli/src/workspace.ts'],
   diskProjectStores: ['packages/engine/src/store/project-store.ts', 'packages/engine/src/ports.ts'],
+  packageHookRunner: ['packages/engine/src/hook-run/package-hooks.ts', 'packages/engine/src/ports.ts'],
+  packageReviewer: ['packages/engine/src/review/review-package.ts', 'packages/engine/src/ports.ts'],
 };
+/** The check that holds each product adapter of PORT_ROOTS to its roots (its entries: `<name> outside a root`). */
+export const PORT_ROOT_RULE = { systemClock: 'clock-read', enginePorts: 'clock-read', diskProjectStores: 'store-new', packageHookRunner: 'loader-use', packageReviewer: 'loader-use' };
+/**
+ * The loaders of lazy.ts held to a home (loader-use): each is imported from lazy.ts only in its port's folder, where the
+ * port's package adapter lives. The editor's loader is not here: R9 and render-call hold the editor.
+ */
+export const LOADER_HOMES = { hooks: 'packages/engine/src/hook-run/', review: 'packages/engine/src/review/', thumbs: 'packages/engine/src/review/' };
+/**
+ * The engine's port files (port-types): the interfaces its adapters satisfy, which name no adapter package — types
+ * included — but through a domain entry (an adapter satisfies a port structurally: R2 forbids it the engine's types).
+ */
+export const PORT_FILES = [
+  CLOCK_HOME,
+  'packages/engine/src/store/store.ts',
+  'packages/engine/src/jobs/job-queue.ts',
+  'packages/engine/src/render/renderer.ts',
+  'packages/engine/src/hook-run/runner.ts',
+  'packages/engine/src/review/reviewer.ts',
+];
 /**
  * The editor's render entries: its functions that render (a video, stills, an export's formats, component previews)
  * and what makes its renderer or a part of one (the driver, the plan's part, the previews' part and their backend).
@@ -212,6 +233,8 @@ export const CHECKS = [
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter\'s own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)' },
   { id: 'clock-read', title: `the engine stamps what it writes with its Clock port (${CLOCK_HOME}): in packages/engine/src outside it, every wall-clock read is counted per file — \`new Date()\` with no argument, \`Date.now\` (called or passed on as a value, \`Date['now']\` too) and \`Date()\` called as a function — and the pinned files are elapsed time, deadlines, memo lifetimes and file times, never a stamp (entries: each file and its count); and the product's ports are named at the composition roots only: \`systemClock\` and \`enginePorts\` as values anywhere in packages/*/src outside PORT_ROOTS (a default parameter included; import and export declarations are not uses). Also read: a name imported under another (\`{ systemClock as sc }\`), a member of a namespace import (\`k.systemClock\`, \`k['enginePorts']\`) and \`now\` taken out of \`Date\` by a pattern (\`const { now } = Date\`). Not seen: \`globalThis.Date\`, \`Date\` or a port under another name made in the file (\`const D = Date\`, \`const c = systemClock\` then \`c\`: the first is counted, not the uses), a name reached through \`Reflect\`, \`Function.prototype.call\` or a computed key, a namespace from \`await import()\`, and \`performance.now()\`, which is allowed (elapsed time)` },
   { id: 'store-new', title: `only the project store builds a store or a storage of a folder: in packages/*/src outside ${STORE_HOME} and ${STORAGE_FILE}, \`new LocalStorage(…)\`, \`new DiskProjectStore(…)\`, a class extending either, or either class passed on as a value is a hit, and so is the disk adapter \`diskProjectStores\` named as a value outside PORT_ROOTS (entries: the file and the form; a type position, an import and an export are not uses), under its own name, an import alias (\`{ LocalStorage as LS }\`) or off a namespace import (\`new st.LocalStorage()\`, \`ps.diskProjectStores\`): every authored write is handed a ProjectStores port in its StoreScope. Not seen: \`Reflect.construct(LocalStorage, …)\` counted only as the class used as a value, a class reached through another variable, a namespace from \`await import()\`` },
+  { id: 'loader-use', title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\` and \`packageReviewer\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it` },
+  { id: 'port-types', title: `the engine's port files (PORT_FILES) name no adapter package — a type import, \`typeof import()\` and a value alike (entries: the file and the specifier) — but through a domain entry (DOMAIN_ENTRIES): an adapter satisfies a port structurally, so the vocabulary they share lives in core or a domain entry. Not seen: what a port file names through a relative engine module (not followed)` },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
   { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
@@ -658,7 +681,7 @@ export function portHits(root, files) {
     const patternNow = (pattern) =>
       (ts.isObjectBindingPattern(pattern) && pattern.elements.some((e) => (e.propertyName ? keyText(ts, e.propertyName) : ts.isIdentifier(e.name) ? e.name.text : undefined) === 'now')) ||
       (ts.isObjectLiteralExpression(pattern) && pattern.properties.some((p) => (ts.isShorthandPropertyAssignment(p) ? p.name.text : ts.isPropertyAssignment(p) ? keyText(ts, p.name) : undefined) === 'now'));
-    const portHit = (name) => found.add(name === 'diskProjectStores' ? `store-new:${name} outside a root` : `clock-read:${name} outside a root`);
+    const portHit = (name) => found.add(`${PORT_ROOT_RULE[name]}:${name} outside a root`);
     (function visit(n, inType = false) {
       if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) return;
       const typeHere = inType || (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
@@ -692,6 +715,73 @@ export function portHits(root, files) {
     for (const k of found) { const i = k.indexOf(':'); hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) }); }
   }
   return { clock, hits };
+}
+
+/** Whether a relative specifier of an engine file names the engine's loader file (lazy.ts, as `.js`, `.ts` or bare). */
+const namesLoader = (rel, spec) => spec.startsWith('.') && path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec)).replace(/\.(js|ts|mjs|mts)$/, '') === ENGINE_LOADER.slice(0, -3);
+
+/**
+ * The loaders' wiring (loader-use), read from the syntax tree: in packages/engine/src outside ENGINE_LOADER, a loader of
+ * LOADER_HOMES imported from the loader file outside its home, the loader file imported whole or by `import()`, and a
+ * loader re-exported (from the loader file, or a local name imported from it). Type-only imports load nothing.
+ */
+export function loaderHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  const LOADERS = Object.keys(LOADER_HOMES);
+  for (const { rel, text } of files) {
+    if (!rel.startsWith('packages/engine/src/') || rel === ENGINE_LOADER || !/lazy/.test(text)) continue;
+    const sf = parse(ts, rel, text);
+    const found = new Set();
+    const local = new Map(); // local name → loader imported from the loader file
+    sf.forEachChild((n) => {
+      if (ts.isImportDeclaration(n) && namesLoader(rel, literal(ts, n.moduleSpecifier) ?? '')) {
+        const c = n.importClause;
+        if (!c || c.isTypeOnly) return;
+        const b = c.namedBindings;
+        if (c.name || (b && ts.isNamespaceImport(b))) found.add('* as lazy');
+        if (b && ts.isNamedImports(b)) {
+          for (const e of b.elements) {
+            if (e.isTypeOnly) continue;
+            const orig = (e.propertyName ?? e.name).text;
+            local.set(e.name.text, orig);
+            if (LOADERS.includes(orig) && !rel.startsWith(LOADER_HOMES[orig])) found.add(orig);
+          }
+        }
+      }
+      if (ts.isExportDeclaration(n) && !n.isTypeOnly) {
+        const spec = literal(ts, n.moduleSpecifier);
+        const fromLoader = spec !== undefined && namesLoader(rel, spec);
+        if (fromLoader && (!n.exportClause || ts.isNamespaceExport(n.exportClause))) found.add('export * from lazy.ts');
+        if (n.exportClause && ts.isNamedExports(n.exportClause)) {
+          for (const e of n.exportClause.elements) {
+            if (e.isTypeOnly) continue;
+            const name = (e.propertyName ?? e.name).text;
+            const orig = fromLoader ? name : spec === undefined ? local.get(name) : undefined;
+            if (orig !== undefined && LOADERS.includes(orig)) found.add(`${orig} re-exported`);
+          }
+        }
+      }
+    });
+    (function visit(n) {
+      if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && namesLoader(rel, literal(ts, n.arguments[0]) ?? '')) found.add('import() of lazy.ts');
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'require' && namesLoader(rel, literal(ts, n.arguments[0]) ?? '')) found.add('require() of lazy.ts');
+      // `import lazy = require('./lazy.js')`: the loader file whole, as `import * as` (a type-only one loads nothing).
+      if (ts.isImportEqualsDeclaration(n) && !n.isTypeOnly && ts.isExternalModuleReference(n.moduleReference) && namesLoader(rel, literal(ts, n.moduleReference.expression) ?? '')) found.add('* as lazy');
+      n.forEachChild(visit);
+    })(sf);
+    for (const k of found) hits.push({ rule: 'loader-use', file: rel, spec: k });
+  }
+  return hits;
+}
+
+/** The port files' adapter imports (port-types): every specifier the scan lists (types and `typeof import()` included). */
+export function portTypeHits(fileImports) {
+  const hits = [];
+  for (const f of PORT_FILES) {
+    for (const s of new Set(fileImports[f] ?? [])) if (ADAPTERS.includes(retake(s) ?? '') && !DOMAIN_ENTRIES.includes(s)) hits.push({ rule: 'port-types', file: f, spec: s });
+  }
+  return hits;
 }
 
 /** The folder names of the layout (packages/core/src/layout.ts PROJECT_DIRS and STATE_DIR; the import-rules test checks they agree). */
@@ -1068,7 +1158,7 @@ export function seamHits(root, files) {
  */
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
-  for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)])]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
+  for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)]), ...loaderHits(root, scanned.files), ...portTypeHits(scanned.fileImports)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   const ports = portHits(root, scanned.files);
   for (const h of ports.hits) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   for (const h of ports.clock) set.add(`clock-read ${h.file} → ${h.count} wall-clock read${h.count === 1 ? '' : 's'}`);

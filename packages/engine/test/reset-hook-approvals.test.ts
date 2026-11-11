@@ -20,7 +20,7 @@ import { hookFingerprint } from '@retake/hooks';
 import { openSandbox } from '@retake/sandbox';
 import type { Sandbox } from '@retake/sandbox';
 import { approvalChecker } from '../src/approvals.js';
-import { createEngine, seedApprovalItems } from '../src/index.js';
+import { createEngine, packageHookRunner, seedApprovalItems } from '../src/index.js';
 import type { ApprovalItem, ApprovalRequest, Engine } from '../src/index.js';
 import { REPO } from './helpers.js';
 
@@ -125,7 +125,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
 
   it('the items: the seed\'s shell step, then the shell reset hook — phase reset, its position among the reset hooks, the fingerprint the sandbox checks', async () => {
     const p = await project();
-    const items = await seedApprovalItems(p, 'sandbox');
+    const items = await seedApprovalItems(p, 'sandbox', packageHookRunner());
     expect(items.map((i) => [i.phase, i.index, i.name, i.kind, i.reason])).toEqual([
       ['seed', 1, 'mark', 'shell', 'a shell command (runs local code)'],
       ['reset', 1, 'clean', 'shell', 'a shell command (runs local code)'],
@@ -145,7 +145,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
       ['version: 1', 'provider: docker-compose', 'services:', '  app: {url: "http://localhost:4790", health: false, pages: {app: "http://localhost:4790"}}', 'seed:', '  - exec: {service: app, command: "true"}', '  - shell: {run: "echo seeded"}', 'reset:', '  hooks:', '    - exec: {service: app, command: "true"}', '    - name: after-exec', '      shell: {run: "echo reset"}', ''].join('\n'),
     );
     const p = await loadProject('c', ws);
-    const items = await seedApprovalItems(p, 'sandbox');
+    const items = await seedApprovalItems(p, 'sandbox', packageHookRunner());
     expect(items.map((i) => [i.phase, i.index, i.name ?? '-'])).toEqual([
       ['seed', 1, '-'],
       ['reset', 1, 'after-exec'],
@@ -163,13 +163,13 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
   }, 60_000);
 
   it('approved (both items): the seed and the reset hook run under trust mcp', async () => {
-    const items = await seedApprovalItems(await project(), 'sandbox');
+    const items = await seedApprovalItems(await project(), 'sandbox', packageHookRunner());
     expect(await agentReset(approvalsOf(items))).toBe('ran');
     expect([await marker('seed-marker.txt'), await marker('reset-marker.txt')]).toEqual([3, 3]);
   }, 60_000);
 
   it('the reset hook not approved (only the seed\'s step): refused, it does not run', async () => {
-    const items = await seedApprovalItems(await project(), 'sandbox');
+    const items = await seedApprovalItems(await project(), 'sandbox', packageHookRunner());
     const r = await agentReset(approvalsOf(items.filter((i) => i.phase === 'seed')));
     expect(r).toMatch(/^refused: sandbox sandbox: reset hook step 2\/2/);
     expect(r).toContain('without a human approval');
@@ -177,7 +177,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
   }, 60_000);
 
   it('the reset hook changed since its approval: refused, the new command does not run', async () => {
-    const approved = approvalsOf(await seedApprovalItems(await project(), 'sandbox'));
+    const approved = approvalsOf(await seedApprovalItems(await project(), 'sandbox', packageHookRunner()));
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest('echo changed >> changed-marker.txt'));
     try {
       const r = await agentReset(approved);
@@ -191,7 +191,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
   it('a seed step that is the same command as an approved reset hook, at the position its approval was once bound to, does not share it', async () => {
     // Approved: the seed's shell step and the reset hook `clean` (reset hook 2 of 2; under a seed-phase binding after the
     // seed's two steps it would have been index 3).
-    const approved = approvalsOf(await seedApprovalItems(await project(), 'sandbox'));
+    const approved = approvalsOf(await seedApprovalItems(await project(), 'sandbox', packageHookRunner()));
     const grown = manifest(RESET)
       .replace("    shell: {run: \"echo seeded >> seed-marker.txt\"}\n", `    shell: {run: "echo seeded >> seed-marker.txt"}\n  - name: pad\n    http: {url: "{{app}}/health"}\n  - name: clean\n    shell: {run: "${RESET}"}\n`)
       .replace(/reset:\n  hooks:\n(?:    .*\n|      .*\n)*/, '');
@@ -199,7 +199,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     try {
       const p = await project();
       expect(p.sandboxes!.sandbox.manifest.seed![3]).toEqual({ name: 'clean', shell: { run: RESET } });
-      const items = await seedApprovalItems(p, 'sandbox');
+      const items = await seedApprovalItems(p, 'sandbox', packageHookRunner());
       expect(items.map((i) => `${i.phase} ${i.index} ${i.name}`)).toEqual(['seed 1 mark', 'seed 3 clean']);
       expect(approved.map((a) => a.fingerprint)).not.toContain(items[1].fingerprint);
       const before = await marker('reset-marker.txt');
@@ -223,7 +223,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
         { name: 'ping', http: { method: 'DELETE', url: '{{app}}/health' } },
         { name: 'health', http: { method: 'DELETE', url: '{{app}}/health' } },
       ]);
-      const items = await seedApprovalItems(p, 'sandbox');
+      const items = await seedApprovalItems(p, 'sandbox', packageHookRunner());
       expect(items.map((i) => `${i.phase} ${i.index} ${i.kind}`)).toEqual(['seed 1 shell', 'reset 1 shell']);
       const deletes = async () => Number(await (await fetch(`http://127.0.0.1:${port}/deletes`)).text());
       const before = await deletes();
@@ -245,7 +245,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     expect(none).toMatchObject({ code: 'needs_approval', message: expect.stringContaining('reset hook 2 "clean" (a shell command (runs local code))') });
     const asked: ApprovalRequest[] = [];
     const sub = await engine.sandbox.reset({ project: 's' }, { approver: { approve: async (req) => (asked.push(req), { approved: true }) } });
-    const items = await seedApprovalItems(await project(), 'sandbox');
+    const items = await seedApprovalItems(await project(), 'sandbox', packageHookRunner());
     expect(asked[0]?.items.map((i) => `${i.phase} ${i.index}`)).toEqual(['seed 1', 'reset 1']);
     expect(sub.job.input).toMatchObject({ kind: 'sandbox_reset', approvals: items.map((i) => expect.objectContaining({ fingerprint: i.fingerprint })) });
     await engine.jobs.cancel(sub.job.id).catch(() => undefined);

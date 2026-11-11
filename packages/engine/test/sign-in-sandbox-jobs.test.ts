@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import { openSandbox } from '@retake/sandbox';
-import { EngineError, FileJobQueue, createEngine, historyFile, seedApprovalItems } from '../src/index.js';
+import { EngineError, FileJobQueue, createEngine, historyFile, packageHookRunner, seedApprovalItems } from '../src/index.js';
 import type { ApprovalRequest, Approver, Engine, JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
@@ -183,7 +183,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
   });
 
   it('sandbox_up: a shell seed step needs a human — no approver: needs_approval with the command; a decline: refused', async () => {
-    const items = await seedApprovalItems(await loadProject('s', ws), 'sandbox');
+    const items = await seedApprovalItems(await loadProject('s', ws), 'sandbox', packageHookRunner());
     expect(items).toEqual([expect.objectContaining({ phase: 'seed', index: 1, name: 'mark', reason: 'a shell command (runs local code)' })]);
     const none = await engine.sandbox.up({ project: 's' }).catch((e: unknown) => e);
     expect(none).toBeInstanceOf(EngineError);

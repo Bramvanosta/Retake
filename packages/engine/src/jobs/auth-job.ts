@@ -139,7 +139,7 @@ export async function submitAuthLoginJob(ctx: SubmitContext, req: AuthLoginSubmi
   return { job: await ctx.queue.enqueue(input), persona: target.persona.name, env: target.env.name };
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface AuthLoginJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;

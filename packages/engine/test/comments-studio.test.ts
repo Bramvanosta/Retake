@@ -15,12 +15,15 @@ import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from '
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CommentThread, LoadedProject } from '@retake/core';
-import { CommentIndex, EngineError, addComment, anchorAt, createEngine, diffSources, scanSources, workspaceChanges } from '../src/index.js';
+import { CommentIndex, EngineError, addComment, anchorAt, createEngine, diffSources, scanSources, workspaceChanges, packageReviewer } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
 import { authorScope } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
+
+/** The product's frames (the review package's): the stills and frames these tests check are real. */
+const FRAMES = packageReviewer().frames;
 
 const LONG = 240_000;
 const SCENARIO = ['scenes:', '  - id: s1', '    steps:', '      - click: Go', '      - hold: 2.4', '  - id: s2', '    steps:', '      - click: Go', '      - wait_for: Proposal ready', '        mark: proposal', '      - hold: 2.4'].join('\n');
@@ -173,7 +176,7 @@ describe('the Studio channel (T1)', () => {
     const video = fifoCase.record.file;
     await rm(video);
     expect(spawnSync('mkfifo', [video]).status).toBe(0);
-    const adding = addComment(project, { render: 'slow-v1', frame: 5, text: 'The still waits' }, { via: 'cli', name: 'Reviewer' }, authorScope(project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY);
+    const adding = addComment(project, { render: 'slow-v1', frame: 5, text: 'The still waits' }, { via: 'cli', name: 'Reviewer' }, authorScope(project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY, FRAMES);
     const folder = join(project.dir, 'comments', 'slow');
     let seen: string[] = [];
     for (let i = 0; i < 200 && seen.length === 0; i++) {

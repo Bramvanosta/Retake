@@ -80,5 +80,5 @@ async function recoverOrphans(w: Worker): Promise<void> {
 export async function recoverLeftovers(w: Worker): Promise<void> {
   await recoverOrphans(w);
   await pruneUsedApprovals(process.env, w.clock.now()).catch(() => undefined);
-  await import('@retake/hooks').then((h) => h.pruneDoneRollbacks()).catch(() => undefined);
+  await w.hooks.journals.pruneDone().catch(() => undefined);
 }

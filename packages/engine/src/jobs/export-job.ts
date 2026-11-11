@@ -127,7 +127,7 @@ export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFi
   }
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface ExportJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;

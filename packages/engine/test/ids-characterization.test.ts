@@ -16,7 +16,7 @@ import type { LoadedProject, StoredRenderRecord } from '@retake/core';
 import { PERSON_POLICY, projectRenderOf, ulid } from '@retake/core';
 import { STARTER_TEMPLATES_DIR, loadProject } from '@retake/core/io';
 import type { RenderRecord } from '@retake/editor';
-import { APPROVALS_USED_DIR, EngineError, JOB_RECORD_VERSION, LIVE_FILE_VERSION, RunFolder, addComment, checkRunId, checkTemplateName, consumeApprovals, createEngine, listComments, listRuns, openLiveChannel, pruneProject, readLiveChannel, renderForWork, restoreApprovals, selfIdentity, toEngineError } from '../src/index.js';
+import { APPROVALS_USED_DIR, EngineError, JOB_RECORD_VERSION, LIVE_FILE_VERSION, RunFolder, addComment, checkRunId, checkTemplateName, consumeApprovals, createEngine, listComments, listRuns, openLiveChannel, pruneProject, readLiveChannel, renderForWork, restoreApprovals, selfIdentity, toEngineError, packageReviewer } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { recordShapeOk } from '../src/comments/views.js';
 import { checkJobId } from '../src/jobs/queue-core.js';
@@ -26,6 +26,9 @@ import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.j
 import type { Case, Workspace } from '../../review/test/helpers.js';
 import { authorScope } from './helpers.js';
 import { capture, writeRun } from './synthetic-runs.js';
+
+/** The product's frames (the review package's): the stills and frames these tests check are real. */
+const FRAMES = packageReviewer().frames;
 
 const a = (n: number, ch = 'a') => ch.repeat(n);
 const STAMP = '20261017-142233-';
@@ -592,7 +595,7 @@ describe('a render\'s review, comments and frames', () => {
     const mixed = { ...demo.record, id: 'quote-v2-v1', file: join(ws.project.dir, 'renders', 'quote-v2-v1.mp4'), record: join(ws.project.dir, 'renders', 'quote-v2-v1.json') };
     await writeFile(mixed.file, '');
     await writeFile(mixed.record, JSON.stringify(mixed));
-    const add = (render: string) => outcome(addComment(ws.project, { render, frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, authorScope(ws.project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY));
+    const add = (render: string) => outcome(addComment(ws.project, { render, frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, authorScope(ws.project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY, FRAMES));
     const frame = (render: string) => outcome(engine.renders.frame('demo', { render_id: render, created_at: demo.record.created_at, frame: 0 }));
     // L7.5 D-5: the id is the scenario's exactly, not by its start.
     expect(await add('quote-v2-v1')).toBe('invalid: render quote-v2-v1 has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments'); // D-5

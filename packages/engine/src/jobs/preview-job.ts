@@ -208,7 +208,7 @@ export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest):
   return { job: await ctx.queue.enqueue(input), preview_id: previewId, theme: prepared.template.name, targets: prepared.targets.map((t) => t.id), skipped: prepared.skipped };
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface PreviewJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;

@@ -61,7 +61,7 @@ export async function submitSandboxJob(
   checkEnvName(req.env);
   const project = await openProjectBySlug(ctx.ws, req.project);
   const sb = await openProjectSandbox(project, req.env, ctx.ws.policy);
-  const items = await seedApprovalItems(project, sb.env);
+  const items = await seedApprovalItems(project, sb.env, ctx.hooks);
   const approvals: JobApproval[] = await takeApprovals(
     {
       what: `${kind === 'sandbox_up' ? 'sandbox up' : 'the sandbox reset'} of ${project.slug} (${sb.env})`,
@@ -80,7 +80,7 @@ export async function submitSandboxJob(
   return { job: await ctx.queue.enqueue(input), env: sb.env };
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface SandboxJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;

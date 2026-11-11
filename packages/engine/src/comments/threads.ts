@@ -47,7 +47,8 @@ import { storeOf } from '../store/store.js';
 import type { StoreScope } from '../store/store.js';
 import { stampOf } from '../clock.js';
 import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread } from './store.js';
-import { review } from '../lazy.js';
+import { frameAnchor } from '@retake/review/checks';
+import type { FrameTools } from '../review/reviewer.js';
 import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
 import type { CommentView } from './views.js';
@@ -140,13 +141,16 @@ export async function runInputs(projectDir: string, record: RenderForWork, warni
   return out;
 }
 
-/** Make the still of a new thread (temp + rename in a real folder of the project); null and a warning when it fails. */
-export async function writeStill(projectDir: string, id: string, video: string, frame: number, region: CommentRegion | undefined, warnings: string[], policy: WorkPolicy): Promise<string | null> {
+/**
+ * Make the still of a new thread with the reviewer's frames (temp + rename in a real folder of the project); null and a
+ * warning when it fails.
+ */
+export async function writeStill(projectDir: string, id: string, video: string, frame: number, region: CommentRegion | undefined, warnings: string[], policy: WorkPolicy, frames: Pick<FrameTools, 'still'>): Promise<string | null> {
   const final = commentStillFile(projectDir, id);
   const tmp = join(dirname(final), `${id}.${randomBytes(4).toString('hex')}.tmp.jpg`);
   try {
     await toolDir(projectDir, 'comments');
-    await (await review()).extractStill(video, frame, tmp, { policy, ...(region ? { region } : {}) });
+    await frames.still(video, frame, tmp, { policy, ...(region ? { region } : {}) });
     await rename(tmp, final);
     return final;
   } catch (e) {
@@ -197,7 +201,7 @@ export async function prepareComment(project: LoadedProject, req: CommentPrepare
   const inputs = await runInputs(project.dir, record, warnings);
   let anchor: FrameCommentAnchor;
   try {
-    anchor = (await review()).frameAnchor(record.plan, frame, { ...(req.region ? { region: req.region } : {}), ...inputs });
+    anchor = frameAnchor(record.plan, frame, { ...(req.region ? { region: req.region } : {}), ...inputs });
   } catch (e) {
     if (e instanceof RangeError) throw argError('frame', e.message);
     throw e;
@@ -264,9 +268,9 @@ export async function anchorAt(project: LoadedProject, req: CommentAnchorRequest
 /**
  * A new thread on one frame of a render (the CLI and the Studio): prepareComment, then the thread created whole (never
  * over an existing file), then its still (critique B12: the thread exists whatever the still costs; a still that fails
- * is a warning).
+ * is a warning; it is made by `frames`, the caller's reviewer's).
  */
-export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope: StoreScope, policy: WorkPolicy): Promise<CommentAdded> {
+export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope: StoreScope, policy: WorkPolicy, frames: Pick<FrameTools, 'still'>): Promise<CommentAdded> {
   const text = cleanText(req.text, 'the comment', 'text');
   const { record, frame, anchor, warnings } = await prepareComment(project, req);
   const clash = await caseVariantFolder(project.dir, record.scenario);
@@ -306,7 +310,7 @@ export async function addComment(project: LoadedProject, req: CommentAddRequest,
     throw new EngineError('invalid', `the comment does not make a valid thread: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
   const written = await storeOf(project, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
-  await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy);
+  await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy, frames);
   return { thread: await threadView(project.dir, parsed.data, written.sha256, await renderIndex(project.dir)), warnings };
 }
 

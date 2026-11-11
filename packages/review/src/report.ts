@@ -2,29 +2,11 @@
 import { basename, relative } from 'node:path';
 import type { OutputTimeline } from './timeline.js';
 import { environmentLine } from './checks.js';
+import { findingLine, summaryLine } from './report-lines.js';
 import { timecode } from './spans.js';
-import type { Finding, ReviewResult, Severity } from './types.js';
+import type { ReviewResult, Severity } from './types.js';
 
 const ICON: Record<Severity, string> = { error: 'ERROR', warning: 'WARNING', info: 'info' };
-
-/** One finding on one line: "[00:12.5 · f375 · scene · step 2] message (code)" — the code in backticks for Markdown. */
-export function findingLine(f: Finding, markdown = true): string {
-  const where: string[] = [];
-  if (f.at?.time !== undefined) where.push(timecode(f.at.time));
-  if (f.at?.frame !== undefined) where.push(`f${f.at.frame}`);
-  if (f.at?.segment) where.push(f.at.segment);
-  if (f.at?.step !== undefined) where.push(`step ${f.at.step}`);
-  return `${where.length ? `[${where.join(' · ')}] ` : ''}${f.message} (${markdown ? `\`${f.code}\`` : f.code})`;
-}
-
-export function summaryLine(r: Pick<ReviewResult, 'clean' | 'counts'>): string {
-  if (r.clean) return `clean: no error, no warning${r.counts.info ? ` (${r.counts.info} info)` : ''}`;
-  const parts: string[] = [];
-  if (r.counts.error) parts.push(`${r.counts.error} error${r.counts.error > 1 ? 's' : ''}`);
-  if (r.counts.warning) parts.push(`${r.counts.warning} warning${r.counts.warning > 1 ? 's' : ''}`);
-  if (r.counts.info) parts.push(`${r.counts.info} info`);
-  return `not clean: ${parts.join(', ')}`;
-}
 
 export function reportMarkdown(r: Omit<ReviewResult, 'thumbnails'>, tl: OutputTimeline): string {
   const rel = (f: string) => relative(r.files.dir, f) || basename(f);

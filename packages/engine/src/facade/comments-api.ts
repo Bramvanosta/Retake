@@ -34,7 +34,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
       if (anchorsOnShownRender(caller) && (req.render_created_at === undefined || req.render_created_at === null)) {
         throw new EngineError('invalid', 'render_created_at is required to comment from the Studio: the created_at of the render shown', { details: { argument: 'render_created_at' } });
       }
-      return addComment(await project(slug), req, commentAuthor(), scope, ws.policy);
+      return addComment(await project(slug), req, commentAuthor(), scope, ws.policy, ctx.ports.reviewer.frames);
     },
     reply: async (slug, id, text, o = {}) => {
       // Proposals are Claude's: a person changes the file; any other channel's entry would be labelled as Claude's.

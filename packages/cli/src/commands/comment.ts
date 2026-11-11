@@ -158,6 +158,7 @@ export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectAr
       by,
       personScope(project.root, cliPorts),
       ws.policy,
+      cliPorts.reviewer.frames,
     ),
   );
   if (opts.json) {

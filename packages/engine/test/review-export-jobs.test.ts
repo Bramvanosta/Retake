@@ -6,15 +6,19 @@
  * review. An export transcodes and re-renders (trust `mcp`, guarded) and the history counts its re-renders; a cancel
  * mid re-render leaves no partial file. A render record whose files lie outside the project is refused at submit and
  * again by the worker. Needs ffmpeg and a headless shell.
+ * L7.11: what is the engine's own around a review — the job's cancel, the cleanups after a worker died — runs on the
+ * in-memory reviewer (WorkerOptions.ports, the renders' files left empty: no tool runs); the review package's own
+ * cancel and recovery are its contract's (reviewer.test.ts).
  */
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rename, symlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_INPUT_VERSION } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
-import { FileJobQueue, createEngine, historyFile, runWorker } from '../src/index.js';
-import type { Engine, ExportJobResult, ReviewJobResult } from '../src/index.js';
+import { FileJobQueue, JobFiles, cleanupInterruptedRender, cleanupInterruptedReview, createEngine, historyFile, openWorkspace, runWorker } from '../src/index.js';
+import type { Engine, ExportJobResult, JobRecord, ReviewJobResult } from '../src/index.js';
+import { MemoryReviewer } from '../src/review/memory-reviewer.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Workspace } from '../../review/test/helpers.js';
 import { linkSharedCache } from '../../editor/test/render-helpers.js';
@@ -46,9 +50,8 @@ beforeAll(async () => {
   if (!can) return;
   ws = await workspace();
   process.env.RETAKE_HOME = join(ws.root, '.home');
-  // A short case (exports, its re-render) and a long one (a review long enough to be cancelled mid-way).
+  // A short case (exports, its re-render; the reviews).
   await makeCase(ws, 'quote', scenesTimeline([5, 5], { captions: [`${INJECTION}. `.repeat(6), 'A short caption.'] }));
-  await makeCase(ws, 'long', scenesTimeline([19, 19, 21]));
   outside = join(ws.root, 'outside');
   await mkdir(outside, { recursive: true });
   await linkSharedCache(ws.root);
@@ -155,23 +158,6 @@ describe.skipIf(!can)('review jobs', () => {
     await work();
   }, LONG);
 
-  it('a cancel mid-review: cancelled, the previous review intact, no temporary folder', async () => {
-    const first = await engine.reviews.submit({ project: 'demo', render_id: 'long-v1', fps: 2 });
-    await work();
-    expect((await engine.jobs.get(first.job.id)).state).toBe('succeeded');
-    const report = join(ws.project.dir, 'review', 'long-v1', 'report.json');
-    const before = await readFile(report, 'utf8');
-    const sub = await engine.reviews.submit({ project: 'demo', render_id: 'long-v1', fps: 2 });
-    const worker = work();
-    await waitFor('the review running', async () => (await queue.get(sub.job.id))?.state === 'running');
-    await engine.jobs.cancel(sub.job.id);
-    await worker;
-    const job = await engine.jobs.get(sub.job.id);
-    expect(job.state).toBe('cancelled');
-    expect(await readFile(report, 'utf8')).toBe(before);
-    expect((await readdir(join(ws.project.dir, 'review'))).filter((n) => n.startsWith('long-v1.'))).toEqual([]);
-    expect(await engine.reviews.get('demo', 'long-v1')).toMatchObject({ status: 'cancelled', clean: expect.any(Boolean), job: { id: sub.job.id } });
-  }, LONG);
 });
 
 describe.skipIf(!can)('export jobs', () => {
@@ -247,5 +233,78 @@ describe.skipIf(!can)('export jobs', () => {
     // Paths and unknown formats never reach the engine as names.
     await expect(engine.exports.submit({ project: 'demo', render_id: '../quote-v1' })).rejects.toMatchObject({ code: 'invalid' });
     await expect(engine.exports.submit({ project: 'demo', render_id: 'quote-v1', formats: ['mp4_8k'] })).rejects.toMatchObject({ code: 'invalid' });
+  }, LONG);
+});
+
+describe('a review job on the in-memory reviewer: the engine around it (L7.11)', () => {
+  let mws: Workspace;
+  let mengine: Engine;
+  let mqueue: FileJobQueue;
+  /** Waits in the review until its signal aborts (then the review stops as a cancelled one). */
+  let hold = false;
+  const reviewer = new MemoryReviewer({
+    duringReview: (o) =>
+      hold
+        ? new Promise<void>((resolve) => {
+            if (o.signal?.aborted) resolve();
+            o.signal?.addEventListener('abort', () => resolve(), { once: true });
+          })
+        : undefined,
+  });
+  const mwork = () => runWorker({ root: mws.root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { reviewer } });
+
+  beforeAll(async () => {
+    mws = await workspace();
+    await makeCase(mws, 'long', scenesTimeline([19, 19, 21]), { noVideo: true });
+    mengine = await createEngine({ root: mws.root, client: 'test', autoStartWorker: false, ports: { reviewer } });
+    mqueue = new FileJobQueue(mws.root);
+  }, LONG);
+  afterAll(async () => {
+    await mws?.cleanup();
+  });
+
+  it('a cancel mid-review: cancelled, the previous review intact, no temporary folder', async () => {
+    const first = await mengine.reviews.submit({ project: 'demo', render_id: 'long-v1', fps: 2 });
+    await mwork();
+    expect((await mengine.jobs.get(first.job.id)).state).toBe('succeeded');
+    const report = join(mws.project.dir, 'review', 'long-v1', 'report.json');
+    const before = await readFile(report, 'utf8');
+    const sub = await mengine.reviews.submit({ project: 'demo', render_id: 'long-v1', fps: 2 });
+    hold = true;
+    const worker = mwork();
+    await waitFor('the review running', async () => (await mqueue.get(sub.job.id))?.state === 'running');
+    await mengine.jobs.cancel(sub.job.id);
+    await worker;
+    hold = false;
+    const job = await mengine.jobs.get(sub.job.id);
+    expect(job.state).toBe('cancelled');
+    expect(await readFile(report, 'utf8')).toBe(before);
+    expect((await readdir(join(mws.project.dir, 'review'))).filter((n) => n.startsWith('long-v1.'))).toEqual([]);
+    expect(await mengine.reviews.get('demo', 'long-v1')).toMatchObject({ status: 'cancelled', clean: expect.any(Boolean), job: { id: sub.job.id } });
+    // The job's review: the render named by its id, its signal, no thumbnails; the cancel reached the reviewer.
+    const reviews = reviewer.calls.filter((c) => c.op === 'review');
+    expect(reviews.at(-1)).toMatchObject({ o: { render: 'long-v1', fps: 2, thumbnails: false } });
+    expect(reviews.at(-1)?.op === 'review' && reviews.at(-1)?.o.signal?.aborted).toBe(true);
+  }, LONG);
+
+  it('a worker that died mid-review or mid inline review: the cleanups put the review folder back with the worker\'s reviewer', async () => {
+    const ows = await openWorkspace({ root: mws.root, agent: true });
+    const dir = join(mws.project.dir, 'review', 'long-v1');
+    const report = await readFile(join(dir, 'report.json'), 'utf8');
+    // A review set aside by a dead process (the swap's first rename done, not the second): it comes back.
+    const dead = `${dir}.old-1999999-abc123`;
+    await rename(dir, dead);
+    const job = { id: 'j_dead', input: { version: JOB_INPUT_VERSION, kind: 'review', project: 'demo', render_id: 'long-v1', fps: 1, submitted_by: 'test' } } as unknown as JobRecord;
+    const logs: string[] = [];
+    await cleanupInterruptedReview(ows, job, (m) => void logs.push(m), reviewer);
+    expect(reviewer.calls.at(-1)).toEqual({ op: 'recover', dir });
+    expect(await readFile(join(dir, 'report.json'), 'utf8')).toBe(report);
+    await rename(dir, dead);
+    const render = { id: 'j_dead2', input: { version: JOB_INPUT_VERSION, kind: 'render', project: 'demo', scenario: 'long', render_id: 'long-v1', review: { fps: 1 }, submitted_by: 'test' } } as unknown as JobRecord;
+    await cleanupInterruptedRender(ows, new JobFiles(mws.root), render, (m) => void logs.push(m), reviewer);
+    expect(reviewer.calls.at(-1)).toEqual({ op: 'recover', dir });
+    expect(await readFile(join(dir, 'report.json'), 'utf8')).toBe(report);
+    expect((await readdir(join(mws.project.dir, 'review'))).filter((n) => n.startsWith('long-v1.'))).toEqual([]);
+    expect(logs).toEqual([]);
   }, LONG);
 });

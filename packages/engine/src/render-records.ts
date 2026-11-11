@@ -5,9 +5,10 @@
  * say; the file names under `untrusted`). Kept apart from renders.ts so that the comment views, prune and the jobs
  * read renders/ without importing the render views.
  */
-import { byIdProblem, projectPath } from '@retake/core';
+import { existsSync } from 'node:fs';
+import { byIdProblem, previousRender, projectPath, renderRecordsOf } from '@retake/core';
 import { readRenderById, readRendersFolder } from '@retake/core/io';
-import type { RenderEntry, RenderLatestPick, RenderNot } from '@retake/core';
+import type { CompleteRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord } from '@retake/core';
 import { EngineError } from './errors.js';
 
 /**
@@ -61,4 +62,16 @@ export function readById(projectDir: string, id: string): Promise<RenderEntry> {
 export function renderFileProblem(entry: RenderEntry, id: string): EngineError | null {
   const p = byIdProblem(entry, id);
   return p ? new EngineError(p.kind, p.message) : null;
+}
+
+/**
+ * The render a review compares `current` with by default (L7.11: the records rule the review package's findPrevious
+ * runs, over core, not the reviewer's): core previousRender over the complete records of their own file of renders/
+ * (core renderRecordsOf), whose video is there. Undefined when there is none.
+ */
+export async function previousOfRender(
+  projectDir: string,
+  current: Pick<StoredRenderRecord, 'file' | 'scenario' | 'variant' | 'created_at' | 'render_version'>,
+): Promise<CompleteRender | undefined> {
+  return previousRender(renderRecordsOf(await renderEntries(projectDir)), current, existsSync);
 }

@@ -83,6 +83,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
       ...(targets.length ? { targets } : {}),
       ...(limit !== undefined ? { limit } : {}),
       images: opts.images ?? 'marked',
+      frames: cliPorts.reviewer.frames,
       loginCommand: loginCommandFor(global),
     });
   } finally {

@@ -126,6 +126,44 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.11)
+- **L7.11 done (2026-11-11; branch `claude/arch-l7`)** — two more slices of U6: the engine runs hooks outside a capture through a `HookRunner` port and reviews and draws frames through a `Reviewer` port, both chosen at the composition roots through `EnginePorts`; no behaviour change for the product.
+  - **Ports.**
+    - `HookRunner` (`packages/engine/src/hook-run/runner.ts`: `run`, `journals`, `approval`).
+    - `Reviewer` (`packages/engine/src/review/reviewer.ts`: `review`, `recover`, `frames` with `load`, `at`, `thumb`, `thumbnailOf`, `still`, `marks`).
+    - Both are members of `EnginePorts`, defaulted in `enginePorts` only.
+  - **Adapters.**
+    - Package adapters: `packageHookRunner()` and `packageReviewer()`. Each member loads its package through lazy.ts, in the port's folder only. The reviewer's frames come from the light thumbnail entry.
+    - Callers await `frames.load()` outside their catches, so a package that cannot load fails the call with its own error.
+    - In-memory adapters: `MemoryHookRunner` and `MemoryReviewer`.
+    - One contract suite each: hook-runner-contract.ts (8 cases) and reviewer-contract.ts (6 cases).
+  - **Vocabulary.**
+    - The hook-run types live in core (`hook-run.ts`); `@retake/hooks` re-exports them.
+    - New domain entry `@retake/hooks/describe`.
+    - The review's checks entry gains `safeName`, `reviewImages`, `findingLine` and `summaryLine`.
+    - The previous render is a records rule over core (`previousOfRender`).
+    - The CLI's hooks and review commands now go through the engine.
+  - **Ratchet.**
+    - `loader-use`: lazy.ts's adapter loaders are used in their homes only and never re-exported; the adapters are named at the roots only.
+    - `port-types`: port files name no adapter but through a domain entry. Its 2 entries pin the renderer port's borrowed types.
+    - R11 27 → 21, CLI R4 14 → 12, baseline 116 → 110.
+  - **Checked.**
+    - Differentials against `2537130`:
+      - hooks: CLI run, rollback and env reset, jobs, approvals, seed items, an unsigned entry, L7.8's shape. 1,236 normalised lines identical; fingerprints compared as literals.
+      - review: CLI, a review job, `reviews.get`, MCP summaries, every image, thumbnails. No difference; images byte-equal.
+    - A table of 10 fingerprints computed on `2537130`.
+    - CLI golden, MCP tool list and op table unchanged.
+    - `tsc -b`, `pnpm typecheck`, `rules.mjs --check` (110), `test-guard` (exit 0), `--check-cites`, and the lot's test files one by one.
+    - One real inline review through the worker runs in the default suite (`render-review-inline-real.test.ts`, skipped without ffmpeg), with a cancel through the job.
+    - About 34 mutations, all red.
+  - **Not done.**
+    - **The full suite was not run.**
+    - The capture's hooks still load `@retake/hooks` inside runner-web (L7.12).
+    - A cancel in the middle of a review stage is run on the package by the contract, not through a job.
+    - `loader-use` does not see a computed `import(p)`, a loader exported under another name, or the editor loader.
+    - The engine now loads `@retake/review/checks` and `@retake/hooks/describe` when it loads: about 13–29 ms and 1–3 ms per engine load (the review's measure).
+    - The exported free functions whose signature changed are not versioned by `ENGINE_API_VERSION`, which describes the façade (still 1): `reviewWork`, `preflightHooks`, `seedApprovalItems`, `thumbnail`, `reviewImage`, `addComment`, `runInspection`.
+
 ## State (after L7.10)
 - **L7.10 done (2026-11-11; branch `claude/arch-l7`)** — two more slices of U6 ([2026-11-10 action plan](audit/2026-11-10/action-plan.md)): the engine's clock and the project store are ports, chosen at the composition roots; no behaviour change for the product.
   - **Ports.**
@@ -1446,7 +1484,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: U6 (L7.11 HookRunner and Reviewer, L7.12 CaptureRunner), then U7 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: U6 (L7.12 CaptureRunner), then U7 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

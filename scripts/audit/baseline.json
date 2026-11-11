@@ -10,7 +10,7 @@
   },
   {
    "rule": "R4",
-   "reason": "CLI commands drive the adapters themselves (raw export, plan, components, the review's summary lines, hooks, sandboxes, doctor, sign-in checks, the session copies an interrupt removes) until they run on the engine operations.",
+   "reason": "CLI commands drive the adapters themselves (raw export, plan, components, sandboxes, doctor, sign-in checks, the session copies an interrupt removes) until they run on the engine operations.",
    "entries": [
     "packages/cli/src/commands/auth.ts → @retake/runner-web",
     "packages/cli/src/commands/components.ts → @retake/components",
@@ -20,10 +20,8 @@
     "packages/cli/src/commands/doctor.ts → @retake/sandbox",
     "packages/cli/src/commands/export-capture.ts → @retake/editor",
     "packages/cli/src/commands/export-capture.ts → @retake/runner-web",
-    "packages/cli/src/commands/hooks.ts → @retake/hooks",
     "packages/cli/src/commands/plan.ts → @retake/components",
     "packages/cli/src/commands/plan.ts → @retake/editor",
-    "packages/cli/src/commands/review.ts → @retake/review",
     "packages/cli/src/commands/sandbox.ts → @retake/sandbox",
     "packages/cli/src/interrupt.ts → @retake/runner-web"
    ]
@@ -91,16 +89,14 @@
   },
   {
    "rule": "R11",
-   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 27 file → specifier pairs on 2026-11-10: sandbox 11, runner-web 9, hooks 3, review/thumbs 3, components 1.",
+   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 21 file → specifier pairs on 2026-11-11 (L7.11: hooks and review/thumbs went through their ports): sandbox 11, runner-web 9, components 1.",
    "entries": [
-    "packages/engine/src/approvals.ts → @retake/hooks",
     "packages/engine/src/auth.ts → @retake/runner-web",
     "packages/engine/src/components.ts → @retake/components",
     "packages/engine/src/execute-run.ts → @retake/runner-web",
     "packages/engine/src/execute-run.ts → @retake/sandbox",
     "packages/engine/src/hooks.ts → @retake/runner-web",
     "packages/engine/src/jobs/captures.ts → @retake/sandbox",
-    "packages/engine/src/jobs/hooks-job.ts → @retake/hooks",
     "packages/engine/src/jobs/inspect-job.ts → @retake/runner-web",
     "packages/engine/src/jobs/job-child.ts → @retake/runner-web",
     "packages/engine/src/jobs/lock.ts → @retake/sandbox",
@@ -108,7 +104,6 @@
     "packages/engine/src/jobs/sandbox-job.ts → @retake/sandbox",
     "packages/engine/src/jobs/signal.ts → @retake/sandbox",
     "packages/engine/src/jobs/site-job.ts → @retake/runner-web",
-    "packages/engine/src/jobs/worker-recovery.ts → @retake/hooks",
     "packages/engine/src/jobs/worker.ts → @retake/runner-web",
     "packages/engine/src/jobs/worker.ts → @retake/sandbox",
     "packages/engine/src/jobs/yield.ts → @retake/sandbox",
@@ -116,9 +111,6 @@
     "packages/engine/src/project-lock.ts → @retake/sandbox",
     "packages/engine/src/record.ts → @retake/runner-web",
     "packages/engine/src/record.ts → @retake/sandbox",
-    "packages/engine/src/render-frames.ts → @retake/review/thumbs",
-    "packages/engine/src/reviews.ts → @retake/review/thumbs",
-    "packages/engine/src/run-thumbs.ts → @retake/review/thumbs",
     "packages/engine/src/sandbox.ts → @retake/sandbox"
    ]
   },
@@ -173,6 +165,14 @@
     "packages/engine/src/index-db/index-db.ts → new LocalStorage",
     "packages/engine/src/runs.ts → new LocalStorage",
     "packages/engine/src/scenarios.ts → new LocalStorage"
+   ]
+  },
+  {
+   "rule": "port-types",
+   "reason": "The renderer port still borrows the editor's and the components' types (the registry, bundle components, preview specs, render progress: L7.1 and L7.2, left), until they have a home in core or a domain entry.",
+   "entries": [
+    "packages/engine/src/render/renderer.ts → @retake/components",
+    "packages/engine/src/render/renderer.ts → @retake/editor"
    ]
   },
   {

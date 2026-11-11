@@ -9,9 +9,9 @@
  * approvals' signatures): the worker reads the file once and runs those bytes only, else the job fails as `conflict`.
  */
 import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment, projectRef } from '@retake/core';
-import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval } from '@retake/core';
-import type { HookResult } from '@retake/hooks';
+import type { EnvResetJobInput, HookResult, HookStep, HooksJobInput, JobApproval } from '@retake/core';
 import { fileFacts } from '@retake/core/io';
+import { describeHook } from '@retake/hooks/describe';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { ENGINE_TRUST, callerOf } from '../caller.js';
@@ -90,6 +90,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
         ...(sel.vars ? { vars: sel.vars } : {}),
         ...(sel.scenario ? { scenario: sel.scenario } : {}),
         journalFile: preflightJournal(project),
+        hooks: ctx.hooks,
       });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
@@ -126,7 +127,7 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
-      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project) });
+      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project), hooks: ctx.hooks });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
     }
@@ -164,7 +165,7 @@ export function hookResultView(r: HookResult, declared?: HookStep, describe?: (h
   };
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface HooksJobContext<I> extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
@@ -179,7 +180,6 @@ const levelOf = (l: string): 'debug' | 'info' | 'warn' | 'error' => (l === 'erro
 /** Execute a `hooks` job: the hooks of its source, with trust `mcp` and the approvals taken at submit. */
 export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Promise<HooksJobResult> {
   const { input } = ctx;
-  const hooks = await import('@retake/hooks');
   const project = await openProjectBySlug(ctx.ws, input.project);
   // A scenario's hooks run from the bytes submitted (one read, compared with their sha256 before they are parsed).
   const scenario = scenarioOfHooksSource(input.source);
@@ -210,8 +210,8 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
   });
   try {
-    const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
-    const res = await hooks.runHooks(sel.hooks, hctx, { phase: sel.phase, journal, agentWritten: sel.scenario !== undefined });
+    const journal = await ctx.hooks.journals.open(await ctx.hooks.journals.standaloneFile(project.dir, input.journal_id));
+    const res = await ctx.hooks.run(sel.hooks, hctx, { phase: sel.phase, journal, agentWritten: sel.scenario !== undefined });
     const pending = journal.pending().length;
     return {
       kind: 'hooks',
@@ -220,7 +220,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
       env: hctx.env.name,
       dry: input.dry,
       ok: res.ok,
-      results: res.results.map((r) => hookResultView(r, r.phase === 'rollback' ? undefined : sel.hooks[r.index], hooks.describeHook)),
+      results: res.results.map((r) => hookResultView(r, r.phase === 'rollback' ? undefined : sel.hooks[r.index], describeHook)),
       ...(!input.dry ? { journal: { id: input.journal_id, pending } } : {}),
       ...(ctx.signal.aborted ? { interrupted: true as const } : {}),
     };
@@ -232,7 +232,6 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
 /** Execute an `env_reset` job: every pending rollback, then the project's reset hooks (trust `mcp`, approvals). */
 export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>): Promise<EnvResetJobResult> {
   const { input } = ctx;
-  const hooks = await import('@retake/hooks');
   const project = await openProjectBySlug(ctx.ws, input.project);
   await checkWorkspaceProtection(ctx.ws, project, input.env);
   const { ctx: hctx, closeSessions } = await createHookContext(project, {
@@ -248,7 +247,7 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
     recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
   });
   try {
-    const outcomes = await hooks.rollbackPendingJournals(project.dir, hctx);
+    const outcomes = await ctx.hooks.journals.rollbackPending(project.dir, hctx);
     const rollbacks = outcomes.map((o) => ({
       journal: o.file.replace(/^.*[\\/]runs[\\/]([^\\/]+)[\\/][^\\/]+$/, '$1').replace(/^.*[\\/]([^\\/]+)\.json$/, '$1'),
       results: o.results.map((r) => hookResultView(r)),
@@ -258,9 +257,9 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
     const resetHooks = project.config.reset ?? [];
     let reset: HookResultView[] | null = null;
     if (resetHooks.length && !ctx.signal.aborted) {
-      const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
-      const res = await hooks.runHooks(resetHooks, hctx, { phase: 'reset', journal });
-      reset = res.results.map((r) => hookResultView(r, resetHooks[r.index], hooks.describeHook));
+      const journal = await ctx.hooks.journals.open(await ctx.hooks.journals.standaloneFile(project.dir, input.journal_id));
+      const res = await ctx.hooks.run(resetHooks, hctx, { phase: 'reset', journal });
+      reset = res.results.map((r) => hookResultView(r, resetHooks[r.index], describeHook));
       ok &&= res.ok;
     }
     return {

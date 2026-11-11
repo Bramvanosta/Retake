@@ -42,11 +42,11 @@ import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
 import type { JobQueueView } from './job-queue.js';
-import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import type { FrameTools } from '../review/reviewer.js';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -310,6 +310,8 @@ export interface InspectionOptions {
   targets?: TargetSpec[];
   limit?: number;
   images: 'marked' | 'none';
+  /** What draws the marks on the screenshot (its composition root's reviewer, review/reviewer.ts). */
+  frames: Pick<FrameTools, 'marks'>;
   /** Who stands behind the replayed scenario (`mcp`: agent trust in the runner). */
   hookTrust?: 'author' | 'mcp';
   signal?: AbortSignal;
@@ -353,9 +355,8 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
   const r = report as InspectReport | null;
   let marked: string | null = null;
   if (r && r.status === 'ok' && r.screenshot && o.images === 'marked') {
-    const rv = await review();
     const out = join(o.runsDir, o.id, 'marked.jpg');
-    await rv.drawMarks(r.screenshot, markBoxes(r), out, { scale: r.scale });
+    await o.frames.marks(r.screenshot, markBoxes(r), out, { scale: r.scale });
     marked = out;
   }
   return { record, report: r, marked, signIn: r ? null : signIn };
@@ -397,7 +398,7 @@ export function inspectResult(id: string, dir: string, run: InspectionRun): Insp
   };
 }
 
-/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+/** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface InspectJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
@@ -429,6 +430,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
     ...(input.targets ? { targets: input.targets } : {}),
     ...(input.limit !== undefined ? { limit: input.limit } : {}),
     images: input.images,
+    frames: ctx.reviewer.frames,
     hookTrust: ENGINE_TRUST,
     signal: ctx.signal,
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,

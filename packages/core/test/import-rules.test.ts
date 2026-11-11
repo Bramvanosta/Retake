@@ -326,6 +326,77 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe('loader-use and port-types: the adapters reached through their port only', () => {
+    const loaders = (rel: string, text: string): string[] => lib.loaderHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+    const ports = (rel: string, text: string): string[] => lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+
+    it('flags an adapter loader imported from lazy.ts outside its home, under its name or an alias; its home and the editor loader are free', () => {
+      expect(loaders('packages/engine/src/jobs/a.ts', "import { review } from '../lazy.js';\nawait review();")).toEqual(['loader-use packages/engine/src/jobs/a.ts → review']);
+      expect(loaders('packages/engine/src/a.ts', "import { hooks as h, thumbs } from './lazy.js';")).toEqual(['loader-use packages/engine/src/a.ts → hooks', 'loader-use packages/engine/src/a.ts → thumbs']);
+      expect(loaders('packages/engine/src/comments/a.ts', "import { review } from '../lazy';")).toEqual(['loader-use packages/engine/src/comments/a.ts → review']);
+      // The homes (LOADER_HOMES), the loader file itself, a type-only import and the editor's loader (R9's) are free.
+      expect(loaders('packages/engine/src/review/review-package.ts', "import { review, thumbs } from '../lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/hook-run/package-hooks.ts', "import { hooks } from '../lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/review/x.ts', "import { hooks } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/x.ts → hooks']);
+      expect(loaders('packages/engine/src/lazy.ts', "export const review = () => import('@retake/review');")).toEqual([]);
+      expect(loaders('packages/engine/src/a.ts', "import type { review } from './lazy.js';\nimport { editor } from './lazy.js';\nimport { type hooks } from './lazy.js';")).toEqual([]);
+      // Another module of the same name is not the loader file.
+      expect(loaders('packages/engine/src/a.ts', "import { review } from './jobs/lazy.js';\nimport { review as r } from './lazy-review.js';")).toEqual([]);
+    });
+
+    it('flags the loader file imported whole or by import(), and a loader re-exported anywhere, its home included', () => {
+      expect(loaders('packages/engine/src/a.ts', "import * as lazy from './lazy.js';\nawait lazy.review();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
+      expect(loaders('packages/engine/src/review/a.ts', "const { review } = await import('../lazy.js');")).toEqual(['loader-use packages/engine/src/review/a.ts → import() of lazy.ts']);
+      expect(loaders('packages/engine/src/jobs/a.ts', "import { editor, review } from '../lazy.js';\nexport { review };")).toEqual(['loader-use packages/engine/src/jobs/a.ts → review', 'loader-use packages/engine/src/jobs/a.ts → review re-exported']);
+      expect(loaders('packages/engine/src/review/a.ts', "import { review as rv } from '../lazy.js';\nexport { rv as loadReview };")).toEqual(['loader-use packages/engine/src/review/a.ts → review re-exported']);
+      expect(loaders('packages/engine/src/review/a.ts', "export { thumbs } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/a.ts → thumbs re-exported']);
+      expect(loaders('packages/engine/src/a.ts', "export * from './lazy.js';")).toEqual(['loader-use packages/engine/src/a.ts → export * from lazy.ts']);
+      expect(loaders('packages/engine/src/a.ts', "export * as lazy from './lazy.js';")).toEqual(['loader-use packages/engine/src/a.ts → export * from lazy.ts']);
+      // TypeScript's import-equals and a require() of the loader file (L7.11 fix pass); a type-only one loads nothing.
+      expect(loaders('packages/engine/src/a.ts', "import lazy = require('./lazy.js');\nawait lazy.review();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
+      expect(loaders('packages/engine/src/review/a.ts', "import type lazy = require('../lazy.js');")).toEqual([]);
+      expect(loaders('packages/engine/src/jobs/a.ts', "const lazy = require('../lazy.js');")).toEqual(['loader-use packages/engine/src/jobs/a.ts → require() of lazy.ts']);
+      // The limits the title names: a computed name, a loader exported under a name of its own.
+      expect(loaders('packages/engine/src/jobs/a.ts', "const p = '../lazy.js';\nawait import(p);")).toEqual([]);
+      expect(loaders('packages/engine/src/review/a.ts', "import { review } from '../lazy.js';\nexport const load = review;")).toEqual([]);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'loader-use')!.title;
+      for (const words of ['import lazy = require', 'computed at run time', 'export const load = review']) expect(title, words).toContain(words);
+      // Outside the engine nothing is read (a shell cannot reach lazy.ts: R13).
+      expect(loaders('packages/cli/src/a.ts', "import { review } from '../../engine/src/lazy.js';")).toEqual([]);
+    });
+
+    it('flags the hooks and review adapters named as values outside their roots', () => {
+      const use = "import { packageHookRunner, packageReviewer } from '@retake/engine';\nconst p = { hooks: packageHookRunner(), reviewer: packageReviewer() };";
+      expect(ports('packages/cli/src/commands/a.ts', use)).toEqual(['loader-use packages/cli/src/commands/a.ts → packageHookRunner outside a root', 'loader-use packages/cli/src/commands/a.ts → packageReviewer outside a root']);
+      expect(ports('packages/engine/src/jobs/a.ts', "import * as p from '../hook-run/package-hooks.js';\nf(p.packageHookRunner);")).toEqual(['loader-use packages/engine/src/jobs/a.ts → packageHookRunner outside a root']);
+      for (const root of lib.PORT_ROOTS.packageHookRunner) expect(ports(root, 'f(packageHookRunner());'), root).toEqual([]);
+      for (const root of lib.PORT_ROOTS.packageReviewer) expect(ports(root, 'f(packageReviewer());'), root).toEqual([]);
+      expect(ports('packages/engine/src/index.ts', "export { packageHookRunner } from './hook-run/package-hooks.js';\nexport { packageReviewer } from './review/review-package.js';")).toEqual([]);
+    });
+
+    it('flags a port file naming an adapter package, a type and typeof import() too, not a domain entry nor core', () => {
+      const at = (fileImports: Record<string, readonly string[]>): string[] => lib.portTypeHits(fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+      const port = 'packages/engine/src/hook-run/runner.ts';
+      expect(at({ [port]: ['@retake/core', '@retake/core/io', '@retake/hooks/describe', '@retake/review/checks', '../errors.js'] })).toEqual([]);
+      expect(at({ [port]: ['@retake/hooks', '@retake/review/thumbs', '@retake/hooks'] })).toEqual([`port-types ${port} → @retake/hooks`, `port-types ${port} → @retake/review/thumbs`]);
+      // Only the port files are read.
+      expect(at({ 'packages/engine/src/hook-run/package-hooks.ts': ['@retake/hooks'] })).toEqual([]);
+      // What the scan lists for a type import and a `typeof import()`: both are names of the package.
+      const ts = lib.loadTs(ROOT) as typeof import('typescript');
+      const specs = lib.specifiersOf(ts, port, "import type { HookResult } from '@retake/hooks';\nlet h: typeof import('@retake/review');") as string[];
+      expect(at({ [port]: specs })).toEqual([`port-types ${port} → @retake/hooks`, `port-types ${port} → @retake/review`]);
+      expect(lib.PORT_FILES).toContain('packages/engine/src/review/reviewer.ts');
+      for (const f of lib.PORT_FILES as string[]) expect(statSync(join(ROOT, f)).isFile(), f).toBe(true);
+    });
+
+    it('holds today: the new ports name no adapter, and the loaders left outside their homes are the review loader\'s, pinned', () => {
+      const entries = lib.ratchetEntries(ROOT) as string[];
+      expect(entries.filter((e) => e.startsWith('port-types ')).filter((e) => !e.startsWith('port-types packages/engine/src/render/renderer.ts '))).toEqual([]);
+      expect(entries.filter((e) => e.startsWith('loader-use ') && e.endsWith('outside a root'))).toEqual([]);
+      for (const e of entries.filter((x) => x.startsWith('loader-use '))) expect(e).toMatch(/ → review( re-exported)?$/);
+    });
+  });
+
   it('flags a submit or a worker\'s write on the job queue outside packages/engine/src, not a read nor a client\'s request', () => {
     const at = (rel: string, text: string) => wiring(rel, text);
     expect(at('packages/ui/src/server/a.ts', 'await engine.queue.enqueue(input);')).toEqual(['queue-call packages/ui/src/server/a.ts → queue.enqueue']);
@@ -524,7 +595,7 @@ describe('the import-rules ratchet', () => {
   });
 
   it('a shell may import a domain entry, not the package behind it', () => {
-    expect(lib.DOMAIN_ENTRIES).toEqual(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks']);
+    expect(lib.DOMAIN_ENTRIES).toEqual(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe']);
     const entries = lib.DOMAIN_ENTRIES as string[];
     for (const shell of ['packages/ui/src/server/a.ts', 'packages/mcp/src/tools/a.ts', 'packages/cli/src/commands/a.ts']) {
       const r4 = (text: string, specs: readonly string[]) => hitsOf({ [shell]: { text, specs } }).filter((h) => h.startsWith('R4 ')).map((h) => h.replace(`R4 ${shell} → `, ''));
@@ -565,7 +636,7 @@ describe('the import-rules ratchet', () => {
     const rule = (lib.RULES as { id: string; typeOnlyCheck?: unknown }[]).find((r) => r.id === 'R4')!;
     expect(typeof rule.typeOnlyCheck).toBe('function');
     const typesFree = rule.typeOnlyCheck as (s: string) => boolean;
-    expect(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/components', '@retake/review/thumbs', '@retake/editor', '@retake/sandbox'].filter((s) => typesFree(s))).toEqual(entries);
+    expect(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/components', '@retake/review/thumbs', '@retake/editor', '@retake/sandbox', '@retake/hooks'].filter((s) => typesFree(s))).toEqual(entries);
     // Every domain entry is a real entry of its package (an exports key with a source), and none is a package root.
     for (const entry of lib.DOMAIN_ENTRIES as string[]) {
       const [, pkg, sub] = /^@retake\/([\w-]+)\/([\w-]+)$/.exec(entry)!;
@@ -578,7 +649,7 @@ describe('the import-rules ratchet', () => {
     // No type-only allowance: the rule reads the specifier, whatever the import's form.
     expect((lib.RULES as { id: string; typeOnlyCheck?: boolean }[]).find((r) => r.id === 'R12')!.typeOnlyCheck).toBeUndefined();
     const pure = lib.REVIEW_PURE as string[];
-    expect(pure).toEqual(['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types']);
+    expect(pure).toEqual(['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types', 'images', 'report-lines']);
     const files = Object.fromEntries([
       ...pure.map((n) => [`packages/review/src/${n}.ts`, { text: "import type { ComponentRegistry } from '@retake/components';\nimport { fitText } from '@retake/components/geometry';\n", specs: ['@retake/components', '@retake/components/geometry', '@retake/core', '@retake/editor/plan'] }] as const),
       ['packages/review/src/a/checks.ts', { text: "import { fitText } from '@retake/components/kit';\n", specs: ['@retake/components/kit'] }] as const,
@@ -681,7 +752,7 @@ describe('the import-rules ratchet', () => {
     // The file is exempt from R9 and R11 whole: a static `export * from '@retake/sandbox'` there would hand every engine
     // file the adapter's values through `./lazy.js`, unseen. What it loads, it loads inside a function.
     expect([...uses.statics]).toEqual([]);
-    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/review']);
+    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs']);
     // What `statics` reads, on the forms: a declaration is static, a call is not, a type loads nothing.
     const staticsOf = (text: string): string[] => [...(lib.moduleUses(ts, loader, text) as { statics: Set<string> }).statics];
     for (const text of ["export * from '@retake/sandbox';", "export * as sb from '@retake/sandbox';", "export { pidAlive } from '@retake/sandbox';", "import { pidAlive } from '@retake/sandbox';", "import '@retake/sandbox';", "import sb = require('@retake/sandbox');", "import { type S, pidAlive } from '@retake/sandbox';"]) expect(staticsOf(text), text).toEqual(['@retake/sandbox']);

@@ -1,8 +1,7 @@
-import { ScenarioError, isAccessError, newRunId, projectPath } from '@retake/core';
-import type { LoadedProject, RunAccess, Scenario, WorkPolicy } from '@retake/core';
-import { HooksSourceError, callerOf, createHookContext, selectHooks } from '@retake/engine';
-import type { HookSelection } from '@retake/engine';
-import type { HookContext, HookResult } from '@retake/hooks';
+import { ScenarioError, isAccessError, newRunId } from '@retake/core';
+import type { HookContext, HookResult, LoadedProject, RunAccess, Scenario, WorkPolicy } from '@retake/core';
+import { HooksSourceError, callerOf, createHookContext, rollbackActionLines, selectHooks } from '@retake/engine';
+import type { HookJournal, HookSelection } from '@retake/engine';
 import { fileFacts } from '@retake/core/io';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -55,7 +54,6 @@ async function hookContext(
   if (opts.replayUnsigned && !opts.dry && !(ui.io.canPrompt && ui.io.confirm)) {
     throw new UsageError('--replay-unsigned asks about each rollback Retake did not sign, in a terminal: run it in an interactive terminal (its input is not one)');
   }
-  const hooks = await import('@retake/hooks');
   let made: Awaited<ReturnType<typeof createHookContext>>;
   try {
     made = await createHookContext(project, {
@@ -74,7 +72,7 @@ async function hookContext(
           ? async (entry, file) => {
               const c = ui.c;
               ui.line(`${c.yellow('not signed by this Retake home')} ${c.dim('journal')} ${ui.path(file)} ${c.dim(`#${entry.seq}${entry.env !== undefined ? ` · env ${entry.env}` : ''}`)}`);
-              if (entry.rollback) for (const l of hooks.rollbackActionLines(entry.rollback)) ui.line(`      ${l}`);
+              if (entry.rollback) for (const l of rollbackActionLines(entry.rollback)) ui.line(`      ${l}`);
               return ui.io.confirm ? ui.io.confirm(`Replay this rollback (#${entry.seq}), exactly as shown?`) : false;
             }
           : false,
@@ -139,16 +137,16 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
     }
     throw e;
   }
-  const hooks = await import('@retake/hooks');
+  const hooks = cliPorts.hooks;
   const runId = newRunId(`hooks-${sel.label}`);
-  const journalFile = hooks.standaloneJournalFile(project.dir, runId);
+  const journalFile = await hooks.journals.standaloneFile(project.dir, runId);
   const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global, ws.policy);
   const c = ui.c;
   ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
   printAccess(ui, access);
   try {
-    const journal = await hooks.Journal.open(journalFile);
-    const res = await hooks.runHooks(sel.hooks, ctx, { phase: sel.phase, journal });
+    const journal = await hooks.journals.open(journalFile);
+    const res = await hooks.run(sel.hooks, ctx, { phase: sel.phase, journal });
     printResults(ui, res.results);
     const pending = journal.pending().length;
     if (pending && !opts.dry) {
@@ -185,14 +183,12 @@ export async function hooksRollbackCommand(
 }
 
 async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, runId: string): Promise<boolean> {
-  const hooks = await import('@retake/hooks');
-  const file = hooks.findJournal(project.dir, runId);
+  const hooks = cliPorts.hooks;
+  const { file, looked } = await hooks.journals.find(project.dir, runId);
   if (!file) {
-    throw new CliError(
-      `"${runId}" has no hooks journal (looked for ${projectPath(project.dir, 'runs', runId, hooks.JOURNAL_FILE)} and ${hooks.standaloneJournalFile(project.dir, runId)})`,
-    );
+    throw new CliError(`"${runId}" has no hooks journal (looked for ${looked[0]} and ${looked[1]})`);
   }
-  const journal = await hooks.Journal.open(file);
+  const journal = await hooks.journals.open(file);
   const pending = journal.pending().length;
   if (!pending) {
     ui.ok(`run ${runId}: nothing to roll back`);
@@ -200,7 +196,7 @@ async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, run
   }
   ui.line(`${ui.c.bold('rollback')} ${runId} ${ui.c.dim(`(${plural(pending, 'entry', 'entries')})`)}`);
   ui.line(`${ui.c.dim('journal')} ${ui.path(file)}`);
-  listPending(ui, journal, ctx, hooks.rollbackActionLines);
+  listPending(ui, journal, ctx);
   const results = await journal.rollbackAll(ctx);
   printResults(ui, results);
   return results.every((r) => r.ok);
@@ -211,7 +207,7 @@ async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, run
  * recorded it in this journal with this home (its entry is signed). An unsigned one is shown in full, every field as it
  * would run (its description is the writer's words), and replayed only on a yes to it with --replay-unsigned.
  */
-function listPending(ui: Ui, journal: import('@retake/hooks').Journal, ctx: HookContext, lines: (a: NonNullable<import('@retake/hooks').JournalEntry['rollback']>) => string[]): void {
+function listPending(ui: Ui, journal: HookJournal, ctx: HookContext): void {
   const c = ui.c;
   const entries = [...journal.pending()].sort((a, b) => b.seq - a.seq);
   for (const e of entries) {
@@ -222,14 +218,14 @@ function listPending(ui: Ui, journal: import('@retake/hooks').Journal, ctx: Hook
     }
     const note = ctx.dryRun ? 'listed only (dry run)' : ctx.replayUnsigned ? 'asked about below' : 'not replayed without --replay-unsigned (in a terminal)';
     ui.line(`  ${c.dim(`#${e.seq}`)}${env} ${c.yellow(`not signed by this Retake home: ${note}`)}`);
-    if (e.rollback) for (const l of lines(e.rollback)) ui.line(`      ${l}`);
+    if (e.rollback) for (const l of rollbackActionLines(e.rollback)) ui.line(`      ${l}`);
   }
 }
 
 /** Roll back every pending journal of a project, most recent run first: listed, then replayed. True when all succeeded. */
 async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookContext): Promise<boolean> {
-  const hooks = await import('@retake/hooks');
-  const list = await hooks.openPendingJournals(project.dir);
+  const hooks = cliPorts.hooks;
+  const list = await hooks.journals.openPending(project.dir);
   if (!list.length) {
     ui.ok('no pending rollbacks');
     return true;
@@ -237,9 +233,9 @@ async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookConte
   ui.line(`${ui.c.bold('pending rollbacks')} ${ui.c.dim(`(${plural(list.length, 'journal')})`)}`);
   for (const p of list) {
     ui.line(`${ui.c.dim('journal')} ${ui.path(p.file)}`);
-    if (p.journal) listPending(ui, p.journal, ctx, hooks.rollbackActionLines);
+    if (p.journal) listPending(ui, p.journal, ctx);
   }
-  const outcomes = await hooks.rollbackJournals(list, ctx);
+  const outcomes = await hooks.journals.rollback(list, ctx);
   let ok = true;
   for (const o of outcomes) {
     ui.line(`${ui.c.bold('rollback')} ${ui.path(o.file)}`);
@@ -260,7 +256,7 @@ async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookConte
 export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const hooks = await import('@retake/hooks');
+  const hooks = cliPorts.hooks;
   const runId = newRunId('env-reset');
   const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global, ws.policy);
   const c = ui.c;
@@ -272,8 +268,8 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
     const reset = project.config.reset ?? [];
     if (reset.length) {
       ui.line(`${c.bold('reset')} ${c.dim(plural(reset.length, 'hook'))}`);
-      const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, runId));
-      const res = await hooks.runHooks(reset, ctx, { phase: 'reset', journal });
+      const journal = await hooks.journals.open(await hooks.journals.standaloneFile(project.dir, runId));
+      const res = await hooks.run(reset, ctx, { phase: 'reset', journal });
       printResults(ui, res.results);
       ok &&= res.ok;
     } else {

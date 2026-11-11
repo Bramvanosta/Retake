@@ -91,7 +91,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     components: componentsApi(ctx),
     inspect: inspectApi(ctx),
     record: recordApi(ctx),
-    thumbnail: (file, maxPx) => thumbnail(ws, file, maxPx),
+    thumbnail: (file, maxPx) => thumbnail(ws, ctx.ports.reviewer.frames, file, maxPx),
     comments: commentsApi(ctx),
     sandbox: sandboxApi(ctx),
   };

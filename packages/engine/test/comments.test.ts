@@ -20,12 +20,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CommentThreadSchema, newCommentEntryId, newCommentId, stepFingerprint, PERSON_POLICY } from '@retake/core';
 import type { CommentAuthor, CommentThread, LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
-import { COMMENT_FILE_MAX_BYTES, EngineError, addComment, commentLockFile, commentStillFile, createEngine, getComment, listComments, reopenComment, replyComment, readJournal, resolveComment } from '../src/index.js';
+import { COMMENT_FILE_MAX_BYTES, EngineError, addComment, commentLockFile, commentStillFile, createEngine, getComment, listComments, reopenComment, replyComment, readJournal, resolveComment, packageReviewer } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
 import { REPO, authorScope } from './helpers.js';
 import { fileFacts } from '@retake/core/io';
+
+/** The product's frames (the review package's): the stills and frames these tests check are real. */
+const FRAMES = packageReviewer().frames;
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 240_000;
@@ -69,7 +72,7 @@ async function engineError(p: Promise<unknown>): Promise<EngineError> {
   throw new Error('expected an EngineError');
 }
 
-const add = (o: Partial<Parameters<typeof addComment>[1]> = {}) => addComment(project, { render: 'quote-v1', frame: 10, text: 'A comment', ...o }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY);
+const add = (o: Partial<Parameters<typeof addComment>[1]> = {}) => addComment(project, { render: 'quote-v1', frame: 10, text: 'A comment', ...o }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY, FRAMES);
 
 beforeAll(async () => {
   ws = await workspace();
@@ -152,11 +155,11 @@ describe('frame comment store', () => {
     const printed = Number((frames / fps).toFixed(2));
     expect((await add({ frame: undefined, at_s: printed })).thread.frame).toBe(frames - 1);
     expect((await engineError(add({ frame: undefined, at_s: printed + 0.01 }))).message).toMatch(/past the end of render quote-v1/);
-    const twiceAt = (at_s: number) => addComment(project, { render: 'twice-v1', at_s, text: 'At the end' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY);
+    const twiceAt = (at_s: number) => addComment(project, { render: 'twice-v1', at_s, text: 'At the end' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY, FRAMES);
     expect((await twiceAt(14.77)).thread).toMatchObject({ frame: 442, render_id: 'twice-v1' });
     expect((await engineError(twiceAt(14.78))).message).toBe('frame 443 is past the end of render twice-v1 (frames 0..442, 14.77 s)');
     // A marker name on several steps: refused, naming the frames (never silently the first).
-    const twice = await engineError(addComment(project, { render: 'twice-v1', marker: 'again', text: 'Which one?' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY));
+    const twice = await engineError(addComment(project, { render: 'twice-v1', marker: 'again', text: 'Which one?' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY, FRAMES));
     expect(twice).toMatchObject({ code: 'invalid', details: { argument: 'frame' } });
     expect(twice.message).toBe('render twice-v1 has 2 markers named "again" (frames 60, 210): name the frame with frame (or at)');
     expect((await add({ frame: frames - 1 })).thread.anchor).toEqual({ segment: 'outro', kind: 'outro', component: expect.any(String) });
@@ -278,7 +281,7 @@ describe('frame comment store', () => {
   }, LONG);
 
   it('lists by status, scenario and render as it is now: a thread on an earlier render of a reused id is not on it', async () => {
-    const tour = await addComment(project, { render: 'tour-v1', frame: 5, text: 'Tour comment' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY);
+    const tour = await addComment(project, { render: 'tour-v1', frame: 5, text: 'Tour comment' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY, FRAMES);
     const onV2 = await add({ render: 'quote-v2' });
     const open = await listComments(project);
     expect(open.threads.every((t) => t.status === 'open')).toBe(true);
@@ -452,7 +455,7 @@ describe('frame comment store', () => {
     const variant = join(project.dir, 'comments', 'Lettercase');
     await mkdir(variant);
     try {
-      const e = await engineError(addComment(project, { render: 'lettercase-v1', frame: 10, text: 'Case' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY));
+      const e = await engineError(addComment(project, { render: 'lettercase-v1', frame: 10, text: 'Case' }, HUMAN, authorScope(project, HUMAN), PERSON_POLICY, FRAMES));
       expect(e.code).toBe('refused');
       expect(e.message).toBe('comments/Lettercase/ differs from lettercase only by case: a case-insensitive disk would write the thread there');
       expect(e.fix).toBe('rename comments/Lettercase/ to comments/lettercase/ (or remove it), then comment again');

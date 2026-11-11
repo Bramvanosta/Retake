@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { canonicalJson, collectSandboxRefs, collectSecretRefs, interpolateDeep, readOnlyHookMessage, rollbackWriteReason, sandboxOf, projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core';
+import { canonicalJson, readOnlyHookMessage, rollbackWriteReason, sandboxOf, projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core';
 import { homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, writeJson } from '@retake/core/io';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
-import { actionLines, fieldLines, shownRollback } from './shown.js';
+import { referencesSecrets } from './shown.js';
 import { executeRollback } from './kinds/index.js';
 import { recordHookRun } from './record.js';
 import { logger, redactText } from './secrets.js';
@@ -211,29 +211,6 @@ export async function pruneDoneRollbacks(keyFile: string = homeKeyFile(), now: n
     const st = await stat(join(dir, name)).catch(() => undefined);
     if (st && now - st.mtimeMs > ROLLBACKS_DONE_KEEP_MS) await rm(join(dir, name), { force: true }).catch(() => undefined);
   }
-}
-
-/** Whether a rollback needs a secret to replay: a reference (the sandbox's too), or an http one sent as a persona. */
-function referencesSecrets(action: RollbackAction): boolean {
-  return collectSecretRefs(action).size > 0 || collectSandboxRefs(action).size > 0 || (action.kind === 'http' && action.request.auth !== undefined);
-}
-
-/**
- * A rollback action in full, as it would run — its templates filled from the data the entry carries (a secret is never
- * resolved: an action that references one is shown as written) — one line per field, every character visible
- * (shown.ts; L5.14: what a person reads before replaying an entry Retake did not sign).
- */
-export function rollbackActionLines(action: RollbackAction): string[] {
-  let a: RollbackAction = action;
-  if (!referencesSecrets(action)) {
-    try {
-      const d = action.data ?? {};
-      a = interpolateDeep(action, { pages: d.pages ?? {}, vars: d.vars ?? {}, hooks: d.hooks ?? {}, run: d.run, extra: d.extra, secrets: () => undefined });
-    } catch {
-      a = action;
-    }
-  }
-  return [...fieldLines('kind', a.kind), ...actionLines(shownRollback(a))];
 }
 
 /**

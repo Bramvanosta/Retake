@@ -17,7 +17,8 @@ import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName } from './refs.js';
 import { renderForWork } from './renders.js';
-import { review } from './jobs/review-job.js';
+import { FINDING_CODES, reviewImages, safeName } from '@retake/review/checks';
+import type { FrameTools } from './review/reviewer.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord } from './jobs/types.js';
@@ -133,7 +134,6 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   }
   if (!report) return view;
 
-  const rv = await review();
   const files = (report.files ?? {}) as Record<string, unknown>;
   const list = (v: unknown, sub?: string): string[] => (Array.isArray(v) ? v.map((p) => rebuilt(dir, p, sub)).filter((p): p is string => p !== undefined) : []);
   const sceneSheets: Record<string, string[]> = {};
@@ -170,7 +170,7 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   const findings = report.findings as Array<Record<string, unknown>>;
   const held: NonNullable<ReviewView['untrusted']['findings']> = {};
   view.findings = findings.map((f, i) => {
-    const code = typeof f.code === 'string' && rv.FINDING_CODES.has(f.code) ? f.code : 'unknown';
+    const code = typeof f.code === 'string' && FINDING_CODES.has(f.code) ? f.code : 'unknown';
     const at = (f.at && typeof f.at === 'object' ? f.at : {}) as Record<string, unknown>;
     const out: ReviewFindingView['at'] = {};
     for (const k of ['frame', 'time', 'step'] as const) if (typeof at[k] === 'number' && Number.isFinite(at[k])) out[k] = at[k];
@@ -223,9 +223,9 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   // The images: the review package's own choice (contact sheet pages, marker key frames; or everything).
   const mode = o.images ?? 'sheets';
   if (mode !== 'none') {
-    const segmentNames = new Set((view.durations?.segments ?? []).flatMap((s) => [`${s.id}-first`, `${s.id}-last`, `${s.id}-hold`].map(rv.safeName)));
+    const segmentNames = new Set((view.durations?.segments ?? []).flatMap((s) => [`${s.id}-first`, `${s.id}-last`, `${s.id}-hold`].map(safeName)));
     const markers = Object.keys(keyframes).filter((k) => !segmentNames.has(k));
-    const pairs = rv.reviewImages(
+    const pairs = reviewImages(
       { dir, sheets: view.files.sheets, scene_sheets: sceneSheets, keyframes, timeline: '', report_json: reportFile, report_md: '', ...(diffSheet ? { diff_sheet: diffSheet } : {}) },
       { fps, markers, mode },
     );
@@ -245,13 +245,13 @@ function imageLabel(name: string, fps: number): string {
 }
 
 /**
- * A JPEG thumbnail (base64, ≤ `maxPx` on its long side) of an image of the workspace, made on read (sharp, from the
- * review package): never stored. Refused outside the workspace and its projects folder.
+ * A JPEG thumbnail (base64, ≤ `maxPx` on its long side, clamped to 64–1280) of an image of the workspace, made on read
+ * by the reviewer's frames (the product's: sharp, from the review package): never stored. Refused outside the
+ * workspace and its projects folder.
  */
-export async function thumbnail(ws: OpenedWorkspace, file: string, maxPx = 1280): Promise<{ base64: string; width: number; height: number; bytes: number }> {
+export async function thumbnail(ws: OpenedWorkspace, frames: Pick<FrameTools, 'thumbnailOf'>, file: string, maxPx = 1280): Promise<{ base64: string; width: number; height: number; bytes: number }> {
   if (!(insideFolder(ws.root, file, nodeFileFacts) || insideFolder(ws.projectsDir, file, nodeFileFacts))) throw new EngineError('refused', `${file} is outside the workspace: no thumbnail`);
-  const rv = await review();
-  return rv.thumbnailOf(file, Math.max(64, Math.min(1280, Math.round(maxPx))));
+  return frames.thumbnailOf(file, Math.max(64, Math.min(1280, Math.round(maxPx))));
 }
 
 // ── One review image for the Studio (L4.5 part E, critique B16) ─────────────
@@ -277,18 +277,17 @@ export interface ReviewImageView {
   height: number;
 }
 
-const thumbs = () => import('@retake/review/thumbs');
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /**
  * One image of a render's review as a base64 JPEG (≤ REVIEW_IMAGE_MAX_PX, ≤ REVIEW_IMAGE_BASE64_MAX characters), made in
- * memory: `image` is a file NAME of review/<render_id>/ (REVIEW_IMAGE_RE: a contact sheet page, a scene sheet, the diff
+ * memory by the reviewer's frames: `image` is a file NAME of review/<render_id>/ (REVIEW_IMAGE_RE: a contact sheet page, a scene sheet, the diff
  * sheet, or `keyframes/<name>.png`, as render_review lists them) — never a path. The folder (and the key frames'
  * folder) must lie in the project once links are resolved; the file is opened without following a link (O_NOFOLLOW),
  * must be a regular file with one name (no hard link: review A N4) within REVIEW_IMAGE_SOURCE_MAX and start like its
  * kind (JPEG FF D8 FF, PNG's signature): a link planted in the folder, a renamed file or a huge file is refused.
  */
-export async function reviewImage(ws: OpenedWorkspace, slug: string, renderId: string, image: string): Promise<ReviewImageView> {
+export async function reviewImage(ws: OpenedWorkspace, frames: Pick<FrameTools, 'load' | 'thumb'>, slug: string, renderId: string, image: string): Promise<ReviewImageView> {
   checkProjectSlug(slug);
   if (!isRenderId(renderId)) throw new EngineError('invalid', `invalid render id "${String(renderId)}": <scenario>-v<N>`);
   if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image)) throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
@@ -310,9 +309,11 @@ export async function reviewImage(ws: OpenedWorkspace, slug: string, renderId: s
   const png = image.endsWith('.png');
   const ok = png ? b.length >= 8 && b.subarray(0, 8).equals(PNG_MAGIC) : b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
   if (!ok) throw new EngineError('refused', `${image} of the review of ${renderId} is not a ${png ? 'PNG' : 'JPEG'}: not shown`);
-  const t = await thumbs();
-  let out = await t.thumbJpeg(b, { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 }).catch(() => undefined);
-  if (out && out.data.toString('base64').length > REVIEW_IMAGE_BASE64_MAX) out = await t.thumbJpeg(b, { maxPx: 1100, quality: 70 }).catch(() => undefined);
+  // Loaded outside the catch below: a reviewer that cannot be loaded fails the call with its own error, not as an image
+  // that cannot be decoded.
+  await frames.load();
+  let out = await frames.thumb(b, { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 }).catch(() => undefined);
+  if (out && out.data.toString('base64').length > REVIEW_IMAGE_BASE64_MAX) out = await frames.thumb(b, { maxPx: 1100, quality: 70 }).catch(() => undefined);
   if (!out) throw new EngineError('refused', `${image} of the review of ${renderId} cannot be decoded`);
   const base64 = out.data.toString('base64');
   if (base64.length > REVIEW_IMAGE_BASE64_MAX) throw new EngineError('refused', `${image} of the review of ${renderId} stays too large once scaled: not shown`);
