@@ -10,6 +10,17 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.4 (2026-11-11, branch `hotfix/v0.2.4` from main after v0.2.3; BL-167 in part, BL-168 — the update):**
+- The download's progress: update_flow `State::Downloading {version, received, total}` (the state line gains
+  `received` / `total`, ui update-ops.ts parses them), `watch_reporting` reports each new byte count; the Studio's
+  sheet (shell/UpdateSheet.tsx, update.ts `installSteps` / `downloadFigure`) lists the steps and shows a kit Progress,
+  the badge the percent; the Dock icon's badge label too (macos.rs `dock_badge`). Left of BL-167: the native progress
+  panel on the alert path and the "Updated to vX" notice.
+- One Dock icon after an update: the restart (update.rs `restart`) hands over to desktop_core `relaunch` — a detached
+  shell that opens the bundle once the old pid is gone from the kernel and LaunchServices — instead of Tauri's
+  `open -n` while the old process runs. Test mode still starts the binary directly. Effective from the update *after*
+  v0.2.4 (the old app performs the restart). Same fix as the reference app's.
+
 **Hotfix v0.2.3 (2026-11-11, branch `hotfix/v0.2.3` from main after v0.2.2; field feedback, point 19 — hooks of a sandbox):**
 - `{{compose_env:NAME}}` and `{{accounts.<persona>.username|password}}` in hooks of a sandbox environment
   (`hooks/src/sandbox-refs.ts`: read from `project.sandboxes[env]`, the compose env file read once per context; values

@@ -419,3 +419,39 @@ dialog.k-sheet[data-testid='update-sheet'] {
 .sh-update .k-btn {
   vertical-align: baseline;
 }
+/* BL-167: Install and Restart's steps (the mark, the step, its state in words). */
+.sh-update-steps {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sh-update-step {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 var(--ui-space-3);
+}
+.sh-update-step-mark {
+  align-self: center;
+}
+.sh-update-step-label {
+  overflow-wrap: anywhere;
+}
+.sh-update-step-state {
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  white-space: nowrap;
+}
+.sh-update-step[data-state='next'] .sh-update-step-label {
+  color: var(--ui-text-2);
+}
+.sh-update-step[aria-current='step'] .sh-update-step-state,
+.sh-update-step[data-state='failed'] .sh-update-step-state {
+  color: var(--ui-text-strong);
+}
+/* BL-167: the download's bar spans the sheet (its label on one line). */
+dialog.k-sheet[data-testid='update-sheet'] .k-progress {
+  width: 100%;
+}

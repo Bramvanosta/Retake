@@ -131,14 +131,31 @@ pub fn summary(location: dc::InstallLocation) -> String {
     }
 }
 
-/// Set the state and tell the owned server (when there is one).
+/// The Dock badge shown now (BL-167: set only when it changes).
+static DOCK: Mutex<Option<String>> = Mutex::new(None);
+
+/// Set the state, tell the owned server (when there is one) and show the download's percent on the Dock icon.
 fn set(app: &AppHandle, state: State) {
     let line = uf::state_line(&current(app), &state);
+    let label = uf::dock_label(&state);
     if let Some(u) = lock(&UPD).as_mut() {
         u.state = state;
     }
     if let Some(l) = line {
         crate::send_to_server(&l);
+    }
+    let changed = {
+        let mut d = lock(&DOCK);
+        let changed = *d != label;
+        d.clone_from(&label);
+        changed
+    };
+    if changed {
+        let _ = app.run_on_main_thread(move || {
+            if let Some(mtm) = objc2::MainThreadMarker::new() {
+                macos::dock_badge(mtm, label.as_deref());
+            }
+        });
     }
 }
 
@@ -445,14 +462,20 @@ fn download(app: &AppHandle, gen: u64) {
         let v = found_version(&f);
         (f, v, u.remembered.checked, u.cache.clone())
     };
-    set(app, State::Downloading { version: version.clone() });
+    set(app, State::Downloading { version: version.clone(), received: 0, total: None });
     log(&format!("updates: downloading {version}"));
     let h = app.clone();
     std::thread::spawn(move || {
         let progress = Arc::new(uf::Progress::default());
         let p = progress.clone();
         let task = tauri::async_runtime::spawn(async move { fetch_archive(&found, &p).await });
-        let stop = uf::watch(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen);
+        // BL-167: each new byte count reaches the page (at most every DOWNLOAD.step_ms) and the Dock's badge.
+        let report = |received, total| {
+            if GEN.load(Ordering::SeqCst) == gen {
+                set(&h, State::Downloading { version: version.clone(), received, total });
+            }
+        };
+        let stop = uf::watch_reporting(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen, report);
         let r = match stop {
             Some(s) => {
                 task.abort();
@@ -625,8 +648,11 @@ pub fn finish(app: &AppHandle) {
 /// Start the app again from its (possibly new) bundle. Test mode: the binary itself, directly (never LaunchServices),
 /// its environment and stdout inherited, the real stderr (never the log filter's pipe: its reader ends with this
 /// process), after which this process waits a moment (so the child's test mode, decided from its parent at launch,
-/// holds) and exits; otherwise Tauri's restart (LaunchServices, `open -n`), the log filter flushed first (the restart
-/// exits the process: RunEvent::Exit's own flush never runs — review d A-L6).
+/// holds) and exits. Otherwise (BL-168) a detached shell opens the bundle once this process is gone
+/// (desktop_core::relaunch), so the app comes back under the Dock icon it had — Tauri's restart (`open -n` while this
+/// process still runs) gave it a second icon beside the pinned one; this process then ends as any quit does
+/// (RunEvent::Exit flushes the log). Tauri's restart stays the fallback when the shell cannot be started (the log
+/// filter flushed first: it exits the process, RunEvent::Exit's own flush never runs — review d A-L6).
 fn restart(app: &AppHandle) {
     if test_mode() {
         let exe = std::env::current_exe().unwrap_or_default();
@@ -642,6 +668,17 @@ fn restart(app: &AppHandle) {
         }
         std::thread::sleep(Duration::from_millis(1500));
         return;
+    }
+    let bundle = std::env::current_exe().ok().and_then(|e| std::fs::canonicalize(e).ok()).as_deref().and_then(dc::app_of_exe).filter(|b| dc::relaunch::is_bundle(b));
+    if let Some(bundle) = bundle {
+        let args = dc::relaunch::relaunch_args(std::env::args_os().skip(1));
+        match dc::relaunch::Relaunch::after_this_process(bundle, args).spawn() {
+            Ok(c) => {
+                log(&format!("updates: the app starts again once this process has ended (pid {})", c.id()));
+                return;
+            }
+            Err(e) => log(&format!("updates: the restart could not be handed over ({e}): restarting through Tauri")),
+        }
     }
     crate::logfilter::finish();
     app.restart();

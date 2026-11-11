@@ -7,16 +7,19 @@
  * failure or "off"). Nothing installs without the click. The badge stays a live button while a step runs (it reopens
  * the sheet: Later). The notes are a named, keyboard-scrollable region. In the app's window only (AppShell renders it
  * when `inApp`); a server that is not the app's own says `available: false` and nothing shows.
- * The status is read on mount, every 60 s (every 2 s while a step is under way or the sheet is open), and at once on
- * the shell's `studio:update` event (Help › Check for Updates… found one: the sheet opens).
+ * The status is read on mount, every 60 s (every 2 s while a step is under way or the sheet is open, every second while
+ * it downloads), and at once on the shell's `studio:update` event (Help › Check for Updates… found one: the sheet opens).
+ * BL-167: after the click the sheet lists the steps (installSteps: the download, the signature, the jobs, the quit that
+ * installs and restarts; the one that failed), the download with its megabytes and percent (a kit Progress; without
+ * an announced size, an indeterminate one), and the badge shows the percent while the sheet is closed.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { call } from '../api.js';
 import { Txt } from '../bits.js';
 import { APP_NAME } from '../brand.js';
-import { Button, Callout, Sheet } from '../ui-kit/index.js';
+import { Button, Callout, Progress, Shape, Sheet } from '../ui-kit/index.js';
 import type { SheetAction } from '../ui-kit/index.js';
-import { UPDATE_EVENT, badgeWords, checkedWords, progressWords, sheetShown } from './update.js';
+import { STEP_MARKS, UPDATE_EVENT, badgeWords, checkedWords, downloadFigure, installSteps, progressWords, sheetShown } from './update.js';
 import type { UpdateStatus } from './update.js';
 
 const BUSY = new Set(['checking', 'downloading', 'waiting', 'installing']);
@@ -34,9 +37,9 @@ export function UpdateControl() {
   useEffect(() => load(), [load]);
   const fast = open || (st?.state !== undefined && BUSY.has(st.state));
   useEffect(() => {
-    const t = window.setInterval(load, fast ? 2000 : 60_000);
+    const t = window.setInterval(load, st?.state === 'downloading' ? 1000 : fast ? 2000 : 60_000);
     return () => window.clearInterval(t);
-  }, [load, fast]);
+  }, [load, fast, st?.state]);
   // Help › Check for Updates… found one: the shell's constant event — read the status, open the sheet.
   useEffect(() => {
     const on = () => {
@@ -50,6 +53,8 @@ export function UpdateControl() {
   if (!st?.available) return null;
   const version = st.version ?? '';
   const progress = progressWords(st);
+  const steps = installSteps(st);
+  const figure = downloadFigure(st);
   const installable = st.installable === true && st.state !== 'downloading' && st.state !== 'installing' && st.state !== 'waiting';
   const onAction = (id: string) => {
     if (id === 'close') {
@@ -118,6 +123,20 @@ export function UpdateControl() {
                   {progress.text}
                 </Callout>
               )
+            )}
+            {figure && <Progress label="Download" value={figure.percent} valueText={figure.text} testId="update-download" />}
+            {steps && (
+              <ol className="sh-update-steps" aria-label="Install and Restart, step by step" data-testid="update-steps">
+                {steps.map((step) => (
+                  <li key={step.id} className="sh-update-step" data-step={step.id} data-state={step.state} aria-current={step.state === 'running' ? 'step' : undefined}>
+                    <span className="sh-update-step-mark" data-state={STEP_MARKS[step.state].mark}>
+                      <Shape state={STEP_MARKS[step.state].mark} />
+                    </span>
+                    <span className="sh-update-step-label">{step.label}</span>
+                    <span className="sh-update-step-state">{STEP_MARKS[step.state].word}</span>
+                  </li>
+                ))}
+              </ol>
             )}
             {sent.failed && (
               <Callout state="fail" role="alert" title="The app did not get the click" testId="update-click-failed">

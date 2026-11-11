@@ -6,6 +6,19 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-11-11
+
+An update now shows how far it has got, and the app comes back under the icon you keep in the Dock.
+
+### Fixed
+- **An update you can watch.** After Install and Restart the sheet lists the steps — the download, the signature
+  check, the jobs it waits for, the quit that installs and restarts — and says the one under way; the download shows
+  its megabytes, its percent and a bar, in the status bar too, and on the app's Dock icon while you work in another
+  app. A step that fails is marked.
+- **One Dock icon after an update.** The updated app started while the old one was still quitting, so macOS gave it a
+  second icon beside the one kept in the Dock. It now starts once the old one is gone, under that same icon. (The
+  update to this version still restarts the old way: the fix takes effect from the next one.)
+
 ## [0.2.3] — 2026-11-11
 
 The hooks of a sandbox use its demo accounts directly: no password to copy into the keychain, and a request can be
