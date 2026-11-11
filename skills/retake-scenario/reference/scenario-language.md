@@ -38,6 +38,8 @@ scenes:
   `frame`, `template`, `pacing`, `tutorial`, `scenes`. `setup` and `teardown` hooks exist, but hooks are the user's:
   never add one the user did not ask for, and they need the user's approval to run. `hooks: {<name>: <hook or list>}`
   names hooks a `hook: <name>` step runs during the take (project.yaml may declare shared ones, under the same rules).
+  An http hook acts as a persona with `auth: {persona: <name>}`: the persona's saved session (its cookies, and the
+  sign-in token of an app on Firebase) goes with the request — the way to call the product as an account.
   A shell hook you write in a scenario is plain words — letters, digits and `. / : = @ % + , - _` — separated by
   single spaces, commands joined by ` && ` (`pnpm run seed --small`, `sh hooks/seed.sh`, the hook's `cwd` instead of
   `cd`): no quotes, `$`, pipes, redirections, globs, `cd` / `eval`, inline code (`node -e`…), `npx`, `{{hooks.…}}`

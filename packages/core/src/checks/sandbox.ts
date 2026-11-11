@@ -501,9 +501,18 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
         ctx.error(['seed', i, 'shell'], `services ${by.join(' and ')} set ${name} differently, and a shell step gets the env of the sandbox's services: set ${name} in the step's own \`env\``);
       }
     });
-    checkHooks(hookList, ['seed'], ctx, { pages: pageKeys, saved, project: { config: allowConfig as never }, destructiveOk: true });
+    checkHooks(hookList, ['seed'], ctx, {
+      pages: pageKeys,
+      saved,
+      project: { config: allowConfig as never },
+      destructiveOk: true,
+      noPersonaAuth:
+        'a seed runs while the data is being built: no persona is signed in yet — sign in with the product\'s own API and {{accounts.<persona>.username}} / {{accounts.<persona>.password}}, or move the request to a setup hook',
+    });
+    // Its hook steps read the sandbox's own accounts and compose env file (`exec` steps are not hooks: they do not).
+    const seedScope: TokenScope = { ...scope, hookRefs: { accounts: isObj(value.accounts) ? Object.keys(value.accounts) : [] } };
     value.seed.forEach((step, i) => {
-      if (!ctx.broken(['seed', i])) checkTokens(step, ['seed', i], scope, ctx);
+      if (!ctx.broken(['seed', i])) checkTokens(step, ['seed', i], isObj(step) && step.exec !== undefined ? scope : seedScope, ctx);
     });
   }
 

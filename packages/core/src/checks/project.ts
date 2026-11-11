@@ -235,7 +235,7 @@ export function checkProject(
   if (value.vars !== undefined && !ctx.broken(['vars'])) checkVarsValues(value.vars, ['vars'], ctx);
   const scope = { pages: [...pageKeys], vars, varsComplete: true, saved };
   for (const key of ['reset', 'databases', 'mailbox'] as const) {
-    if (value[key] !== undefined && !ctx.broken([key])) checkTokens(value[key], [key], scope, ctx);
+    if (value[key] !== undefined && !ctx.broken([key])) checkTokens(value[key], [key], key === 'reset' ? { ...scope, hookRefs: {} } : scope, ctx);
   }
   return ctx.out;
 }

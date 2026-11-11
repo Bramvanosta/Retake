@@ -39,6 +39,8 @@ export interface HookContextLike {
   agentVars?: readonly string[];
   /** Approves the hooks that need a human (RunOptions.confirmHook). */
   confirmDestructive?: ConfirmHook;
+  /** `auth: {persona}` of an http hook (@retake/hooks HookContext.personaAuth). */
+  personaAuth?: (persona: string, url: string) => Promise<{ authorization?: string; cookie?: string }>;
 }
 
 export interface HookResultLike {

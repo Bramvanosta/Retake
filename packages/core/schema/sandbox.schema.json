@@ -483,6 +483,21 @@
                   ],
                   "description": "Expected status code(s). Default: any 2xx."
                 },
+                "auth": {
+                  "type": "object",
+                  "properties": {
+                    "persona": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                      "description": "A persona of the environment (a sandbox account)."
+                    }
+                  },
+                  "required": [
+                    "persona"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Send the request as a persona: the cookies its saved session holds for the URL and, for a product signed in with Firebase Auth, its ID token as `Authorization: Bearer …`. Not in a sandbox seed."
+                },
                 "save_as": {
                   "type": "string",
                   "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
@@ -542,6 +557,21 @@
                         }
                       ],
                       "description": "Expected status code(s). Default: any 2xx."
+                    },
+                    "auth": {
+                      "type": "object",
+                      "properties": {
+                        "persona": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                          "description": "A persona of the environment (a sandbox account)."
+                        }
+                      },
+                      "required": [
+                        "persona"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Send the request as a persona: the cookies its saved session holds for the URL and, for a product signed in with Firebase Auth, its ID token as `Authorization: Bearer …`. Not in a sandbox seed."
                     }
                   },
                   "required": [

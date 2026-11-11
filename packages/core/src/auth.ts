@@ -334,6 +334,8 @@ export interface PersonaPlan {
   hookPages: Map<string, string | null>;
   /** The personas the run signs in (checked by the preflight), in declaration order. */
   used: string[];
+  /** The personas its http hooks act as (`auth: {persona}`): signed in like the filmed ones, each in its own browser. */
+  hookAuth: string[];
   /** Some page or hook tab runs without a persona (the default browser is needed). */
   needsDefault: boolean;
   issues: PersonaIssue[];
@@ -348,6 +350,8 @@ export interface PlanPersonasOptions {
   until?: { sceneIndex: number; stepIndex: number } | null;
   /** Whether the setup / teardown hooks run (their js tabs need a persona too). */
   hooks: boolean;
+  /** project.yaml's named hooks: the ones the scenario's `hook:` steps run may act as a persona (`auth: {persona}`). */
+  projectHooks?: Record<string, unknown>;
 }
 
 /**
@@ -363,7 +367,7 @@ export interface PlanPersonasOptions {
  * (`persona` keys are ignored).
  */
 export function planPersonas(sc: Scenario, opts: PlanPersonasOptions): PersonaPlan {
-  const plan: PersonaPlan = { pages: new Map(), none: new Set(), hookPages: new Map(), used: [], needsDefault: false, issues: [] };
+  const plan: PersonaPlan = { pages: new Map(), none: new Set(), hookPages: new Map(), used: [], hookAuth: [], needsDefault: false, issues: [] };
   const envKeys = Object.keys(opts.envPages);
   const names = new Set(opts.personas.map((p) => p.name));
   const legacy = opts.personas.some((p) => p.legacy) ? LEGACY_PERSONA : null;
@@ -520,7 +524,37 @@ export function planPersonas(sc: Scenario, opts: PlanPersonasOptions): PersonaPl
       }
     }
   }
-  const used = new Set<string>();
+  const hookAuth = new Set<string>();
+  if (opts.hooks) {
+    // http hooks that act as a persona (`auth: {persona}`, their rollback's too): the scenario's, and project.yaml's
+    // named hooks its `hook:` steps run.
+    const scan = (list: unknown, path: IssuePath): void => {
+      (Array.isArray(list) ? list : [list]).forEach((h, i) => {
+        if (!isObject(h) || !isObject(h.http)) return;
+        const at: IssuePath = Array.isArray(list) ? [...path, i, 'http'] : [...path, 'http'];
+        for (const [req, rp] of [[h.http, at], [h.http.rollback, [...at, 'rollback']]] as Array<[unknown, IssuePath]>) {
+          const persona = isObject(req) && isObject(req.auth) ? req.auth.persona : undefined;
+          if (typeof persona !== 'string') continue;
+          if (names.has(persona)) hookAuth.add(persona);
+          else plan.issues.push({ path: [...rp, 'auth', 'persona'], kind: 'unknown', message: `persona "${persona}" is not declared for environment "${opts.env}" (personas: ${[...names].join(', ')})` });
+        }
+      });
+    };
+    scan(sc.setup ?? [], ['setup']);
+    scan(sc.teardown ?? [], ['teardown']);
+    const own = isObject(sc.hooks) ? sc.hooks : {};
+    for (const [name, v] of Object.entries(own)) scan(v, ['hooks', name]);
+    if (opts.projectHooks) {
+      const ran = new Set<string>();
+      for (const entry of sc.scenes) {
+        if (!isCaptureScene(entry) || entry.skip) continue;
+        for (const raw of (entry as Scene).steps ?? []) if (isObject(raw) && typeof raw.hook === 'string') ran.add(raw.hook);
+      }
+      for (const name of ran) if (!Object.hasOwn(own, name) && Object.hasOwn(opts.projectHooks, name)) scan(opts.projectHooks[name], ['hooks', name]);
+    }
+  }
+  plan.hookAuth = opts.personas.map((p) => p.name).filter((n) => hookAuth.has(n));
+  const used = new Set<string>(hookAuth);
   for (const p of [...plan.pages.values(), ...plan.hookPages.values()]) {
     if (p === null) plan.needsDefault = true;
     else used.add(p);

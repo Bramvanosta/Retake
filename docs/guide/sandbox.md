@@ -110,7 +110,11 @@ Validation (`retake validate`, and every command: a broken sandbox.yaml stops th
   too) is the value that name has in the sandbox's compose env file (`compose.env_file`, or the `.env` next to the
   first compose file; docker-compose only) — one source for the product's seed and for the sign-in, no keychain
   item to copy, and it works in the desktop app, which never sees your shell's variables. Read when the project
-  loads and masked like a plain password; a name the file does not set is an error.
+  loads and masked like a plain password; a name the file does not set is an error. The sandbox's hooks — its seed,
+  and the setup, teardown, named and reset hooks of a run on it — read the same file as `{{compose_env:NAME}}` and an
+  account as `{{accounts.<persona>.username|password}}` (masked; a seed checks the account names against its own
+  `accounts`). A setup hook acts as an account with `auth: {persona: <account>}` (its saved session; see
+  [Templating and hooks](scenarios.md#templating-and-hooks)) — not a seed step, which runs before anyone signs in.
 - **One app, several accounts**: two roles of the same app (an owner and an admin on one URL) may both list its page
   (`pages: [admin]` on each account). The first account declared is the page's default; a scene films the other one
   with `persona: <account>` (`{page: admin, persona: staff}`). One video that shows both gives each a page id of its

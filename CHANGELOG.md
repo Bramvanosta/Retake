@@ -6,6 +6,18 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-11-11
+
+The hooks of a sandbox use its demo accounts directly: no password to copy into the keychain, and a request can be
+sent as one of the accounts.
+
+### Added
+- **Sandbox accounts in hooks.** On a sandbox environment a hook reads `{{compose_env:NAME}}` (the sandbox's compose
+  env file) and `{{accounts.<persona>.username}}` / `{{accounts.<persona>.password}}` (its sandbox.yaml), masked like
+  every secret.
+- **`auth: {persona}` on an http hook** sends the request as that persona: the cookies of its saved session and, for
+  an app signed in with Firebase, its ID token as `Authorization: Bearer …`.
+
 ## [0.2.2] — 2026-11-10
 
 Signed-in pages of an app that keeps its session in the browser's database (Firebase sign-in) can be inspected and

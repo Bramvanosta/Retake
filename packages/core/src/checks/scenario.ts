@@ -468,11 +468,15 @@ class ScenarioChecker {
     const project = this.opts.project;
     if (!project || !this.ctx.structurallyValid) return;
     const seen = new Set<string>();
+    // An http hook's `auth: {persona}` (hotfix v0.2.3): a persona of the scenario's environment (the runner checks the
+    // one a run chooses again).
+    const hookAuth: Array<{ path: IssuePath; message: string }> = [];
     for (const env of Object.keys(project.config.environments ?? {})) {
       const personas = resolvePersonas(project, env, { home: '/' });
       if (personas.length === 0) continue;
-      const plan = planPersonas(this.s as unknown as Scenario, { env, envPages: project.config.environments[env], personas, hooks: true });
+      const plan = planPersonas(this.s as unknown as Scenario, { env, envPages: project.config.environments[env], personas, hooks: true, ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
       for (const i of plan.issues) {
+        if (i.kind === 'unknown' && i.path.includes('auth') && env === this.envName) hookAuth.push(i);
         if (i.kind !== 'conflict') continue;
         const key = `${formatPath(i.path)} ${i.message}`;
         if (seen.has(key)) continue;
@@ -480,6 +484,7 @@ class ScenarioChecker {
         this.ctx.error(i.path, `${i.message}${Object.keys(project.config.environments).length > 1 ? ` (environment ${env})` : ''}`);
       }
     }
+    for (const h of hookAuth) if (!this.ctx.broken(h.path)) this.ctx.error(h.path, `auth: ${h.message}`);
   }
 
   /** `card:` — something to show: a component, or the `title` slot of the theme's card component. */
@@ -792,6 +797,8 @@ class ScenarioChecker {
       varsComplete: this.opts.project !== undefined,
       saved,
     };
+    // Hooks run on the environment chosen later: a sandbox one resolves {{compose_env:…}} and {{accounts.…}}.
+    const hookScope = { ...scope, hookRefs: {} };
     // Scenes are templated when they run (R-RUN-16): no token in a literal name, no secret in what the video shows.
     const sceneRules: TokenRules = {
       literal: (p, v) => isLiteralPath(p.slice(2), v),
@@ -801,12 +808,12 @@ class ScenarioChecker {
       const list = this.s[key];
       if (!Array.isArray(list)) continue;
       list.forEach((v, i) => {
-        if (!this.ctx.broken([key, i])) checkTokens(v, [key, i], scope, this.ctx, false, key === 'scenes' ? sceneRules : undefined);
+        if (!this.ctx.broken([key, i])) checkTokens(v, [key, i], key === 'scenes' ? scope : hookScope, this.ctx, false, key === 'scenes' ? sceneRules : undefined);
       });
     }
     if (isObj(this.s.hooks)) {
       for (const [name, v] of Object.entries(this.s.hooks)) {
-        if (!this.ctx.broken(['hooks', name])) checkTokens(v, ['hooks', name], scope, this.ctx, false);
+        if (!this.ctx.broken(['hooks', name])) checkTokens(v, ['hooks', name], hookScope, this.ctx, false);
       }
     }
     if (this.s.vars !== undefined && !this.ctx.broken(['vars'])) checkVarsValues(this.s.vars, ['vars'], this.ctx);

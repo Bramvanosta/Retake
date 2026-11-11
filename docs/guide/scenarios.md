@@ -310,7 +310,34 @@ teardown:
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
 ```
 
-Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `save_as`, `rollback`), `sql` (`file` or
+**Hooks of a sandbox environment** also read the sandbox itself: `{{compose_env:NAME}}` is the value `NAME` has in
+its compose env file, `{{accounts.<persona>.username}}` and `{{accounts.<persona>.password}}` are an account of its
+sandbox.yaml (a `{{compose_env:…}}`, `{{env:…}}` or `{{keychain:…}}` one resolved as its login steps get it). Both are
+masked like any secret and stay in template form in a rollback's journal entry (read again when it replays); on
+another environment they are an error that says so, and in a scene they are refused (they belong to hooks).
+`auth: {persona: <name>}` on an http hook (or its rollback) sends the request as that persona: the cookies its saved
+session holds for the URL (`Cookie`) and, for a product signed in with Firebase Auth, the ID token of its signed-in
+user (`Authorization: Bearer …`, read from the session's IndexedDB or localStorage, refreshed by loading the product's
+page when it is about to expire). The run signs the persona in like a filmed one (checked by the preflight, its own
+browser) even when no scene films it; `retake hooks run` opens a headless browser on a copy of its session. Not with an
+`Authorization` or `Cookie` header of its own, and not in a sandbox seed (nobody is signed in yet: sign in with the
+product's API and `{{accounts.<persona>.password}}`, save the token with `save_as`).
+
+```yaml
+# a sandbox environment: approve the sign-up as the admin, then answer as the owner
+setup:
+  - name: approve
+    http: {method: POST, url: "{{admin}}/api/sign-ups/42/approve", auth: {persona: admin}}
+  - name: owner token                          # without a saved session: the product's own sign-in
+    http:
+      method: POST
+      url: "http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={{compose_env:FIREBASE_API_KEY}}"
+      json: {email: "{{accounts.owner.username}}", password: "{{accounts.owner.password}}", returnSecureToken: true}
+      save_as: owner
+  - http: {method: POST, url: "{{app}}/api/threads/7/replies", headers: {authorization: "Bearer {{hooks.owner.json.idToken}}"}, json: {text: Hello}}
+```
+
+Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `auth`, `save_as`, `rollback`), `sql` (`file` or
 `query`, `db`, `rollback`), `shell` (`run`, `cwd`, `env`, `timeout`, `rollback`), `js` (`code` or `file`, `page`,
 `rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`, and `writes: false` on a shell hook that only reads (it may then run on a read-only environment). Setup stops at the first failure and rolls
 back what it did; teardown hooks always run (even after a failure — of a step or of the setup itself — or Ctrl-C),

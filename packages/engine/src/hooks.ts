@@ -175,6 +175,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
   const personas = resolvePersonas(project, env.name);
   const sessions = new Map<string, Promise<import('@retake/runner-web').BrowserSession>>();
+  const readers = new Map<string, (url: string) => Promise<{ authorization?: string; cookie?: string }>>();
   const command = o.loginCommand;
   const runId = o.runId ?? newRunId('hooks');
   const planned = o.scenario ? planPersonas(o.scenario, { env: env.name, envPages: env.pages, personas, hooks: true }).hookPages : undefined;
@@ -227,6 +228,30 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),
+    // `auth: {persona}` of an http hook (hotfix v0.2.3): read in that persona's headless browser (the js hooks' one).
+    personaAuth: async (name, url) => {
+      const persona = personas.find((p) => p.name === name);
+      if (!persona) throw new Error(`persona "${name}" is not declared for environment "${env.name}" (personas: ${personas.map((p) => p.name).join(', ') || 'none'})`);
+      let read = readers.get(name);
+      if (!read) {
+        const rw = await import('@retake/runner-web');
+        read = rw.personaAuthReader({
+          persona,
+          context: async () => {
+            let session = sessions.get(name);
+            if (!session) {
+              session = open(persona);
+              sessions.set(name, session);
+            }
+            return (await session).contextOf(name);
+          },
+          envPages: env.pages,
+          relogin: command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) }),
+        });
+        readers.set(name, read);
+      }
+      return read(url);
+    },
     evalInPage: async (pageKey, code) => {
       const rw = await import('@retake/runner-web');
       if (!Object.keys(env.pages).length) throw new Error(`environment "${env.name}" declares no pages for the js hook to run in`);

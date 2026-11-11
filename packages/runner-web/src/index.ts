@@ -48,6 +48,8 @@ export type { CaptureStall, MotionCapture } from './timeline.js';
 export { moveDuration, arcPath, easeInOutCubic, isNudge } from './motion.js';
 export { evalInPage } from './actions/misc.js';
 export { evalHookInPage } from './hook-page.js';
+export { personaAuthReader } from './persona-auth.js';
+export type { PersonaAuthSource, PersonaRequestAuth } from './persona-auth.js';
 export type { HookPageOptions } from './hook-page.js';
 export { armWriteGuard, closePage, unloadGuardScript, unloadPages } from './write-guard.js';
 export type { GuardedWrite, PageRole, WriteGuardOptions, WriteVia } from './write-guard.js';
