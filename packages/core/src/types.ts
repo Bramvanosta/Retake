@@ -932,6 +932,11 @@ export interface HttpHookSpec {
   body?: string;
   /** Expected status code(s). Default: any 2xx. */
   expect?: number | number[];
+  /**
+   * Send the request as a persona of the environment: the cookies its saved session holds for the URL (`Cookie`) and,
+   * for a product signed in with Firebase Auth, its ID token (`Authorization: Bearer …`).
+   */
+  auth?: { persona: string };
   /** Store the response as `{{hooks.<save_as>.status|body|json.<path>}}` for later templating. */
   save_as?: string;
   /** Request that undoes this one (templated after the request, so it can use `{{response.json.id}}`). */

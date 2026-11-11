@@ -211,6 +211,6 @@ export async function rollbackSql(action: Extract<RollbackAction, { kind: 'sql' 
   const { ctx, log } = r;
   const db = await openDatabase(ctx, log, action.db, action.data, r.env);
   const where = action.file ?? 'inline rollback SQL';
-  const sql = renderSql(action.query, await snapshotTemplateContext(ctx, action.data, action.query), where);
+  const sql = renderSql(action.query, await snapshotTemplateContext(ctx, action.data, action.query, r.env), where);
   return runSql(db, sql, where, log, r.readOnly === true);
 }

@@ -3,7 +3,8 @@
  * server writes the scenarios it runs (scenario_save), a project's README.md (project_update_readme) and new projects
  * (project_create), and reads what a run returns (error messages, screenshots). So, for that work:
  *
- * - a scenario never names a secret: no `{{env:…}}` / `{{keychain:…}}` anywhere in it (its steps, hooks, vars) nor in a
+ * - a scenario never names a secret: no `{{env:…}}` / `{{keychain:…}}` (nor a sandbox's `{{compose_env:…}}` /
+ *   `{{accounts.<persona>.password}}`; an http hook acts as an account with `auth: {persona}`) anywhere in it (its steps, hooks, vars) nor in a
  *   code file it runs — only what a human wrote in project.yaml resolves them (personas' login steps, databases,
  *   mailbox, reset hooks) and the project's own hooks files;
  * - a file it references (drop_file.path, eval.file, a hook's sql / js file or a file its shell command names) is a
@@ -29,7 +30,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { sqlSource } from './destructive.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
-import { collectSecretRefs } from './templating.js';
+import { collectSandboxRefs, collectSecretRefs } from './templating.js';
 import { canonicalOrigin, scenarioNavigationProblems } from './agent-policy.js';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
@@ -254,7 +255,7 @@ export function agentTrustProblems(project: { dir: string; config?: { template?:
     const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template', o.via);
     if (t) problems.push(t);
   }
-  const secrets = secretRefsProblem(collectSecretRefs(sc), 'the scenario', o.via);
+  const secrets = secretRefsProblem([...collectSecretRefs(sc), ...collectSandboxRefs(sc)], 'the scenario', o.via);
   if (secrets) problems.push(secrets);
   for (const f of scenarioFileRefs(sc)) {
     const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
@@ -302,14 +303,14 @@ export function agentTrustProblemsAt(project: { dir: string; config?: { template
   stringLeaves(parsed.value, [], leaves);
   let placed = 0;
   for (const leaf of leaves) {
-    const p = secretRefsProblem(collectSecretRefs(leaf.text), 'the scenario', o.via);
+    const p = secretRefsProblem([...collectSecretRefs(leaf.text), ...collectSandboxRefs(leaf.text)], 'the scenario', o.via);
     if (!p) continue;
     out.push(at(p, leaf.path));
     placed++;
   }
   if (!placed) {
     // Never fewer refusals than agentTrustProblems: a reference the walk did not see is still reported, unplaced.
-    const p = secretRefsProblem(collectSecretRefs(sc), 'the scenario', o.via);
+    const p = secretRefsProblem([...collectSecretRefs(sc), ...collectSandboxRefs(sc)], 'the scenario', o.via);
     if (p) out.push({ message: p, path: [] });
   }
   for (const f of scenarioFileRefs(sc)) {

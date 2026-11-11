@@ -512,6 +512,31 @@ describe('two personas on one host: one browser each (R-AUTH-01)', () => {
   });
 });
 
+describe('an http hook that acts as a persona (hotfix v0.2.3)', () => {
+  it("sends the persona's saved session (its browser of the run), even for a persona no scene films; without auth it is signed out", async () => {
+    await master('supplier');
+    await master('buyer');
+    const p = await project();
+    const { rec, events } = await run(
+      p,
+      'hook-as',
+      {
+        setup: [{ name: 'as buyer', http: { url: '{{store}}/api/whoami', auth: { persona: 'buyer' }, save_as: 'me' } }],
+        teardown: [{ name: 'anonymous', http: { url: '{{store}}/api/whoami', expect: 401 } }],
+        scenes: [{ id: 'a', page: 'app', open: '/home', steps: [{ assert: { text: `Signed in as ${ACCOUNTS.supplier.name}` } }] }],
+      },
+      { hooks: 'run' },
+    );
+    expect(rec.error?.message).toBeUndefined();
+    expect(rec.status).toBe('succeeded');
+    expect(rec.hooks).toMatchObject({ setup: 'ok', teardown: 'ok' });
+    // The buyer is signed in (and checked) for its hook only.
+    expect(logs(events).filter((l) => l.includes('signed in ('))).toHaveLength(2);
+    const hook = events.find((e) => e.type === 'hook' && e.name === 'as buyer' && e.status !== 'start');
+    expect(JSON.stringify(hook)).toContain('as buyer');
+  });
+});
+
 describe('pages and hook tabs without a persona (R-AUTH-01)', () => {
   it('a js hook on a page filmed `persona: none` runs signed out, in the browser that films it; the unused persona is not checked', async () => {
     await master('buyer');

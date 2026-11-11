@@ -638,6 +638,11 @@ export class BrowserSession {
     return (await this.realm(realm)).context;
   }
 
+  /** Whether the session has a browser for realm (persona) `name`. */
+  hasRealm(name: string): boolean {
+    return this.realms.some((r) => r.name === name);
+  }
+
   /** The context a js hook tab of environment page `key` opens in. */
   hookContext(key: string): Promise<BrowserContext> {
     return this.contextOf(this.options.hookRealmOf?.(key) ?? '');

@@ -10,6 +10,21 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.3 (2026-11-11, branch `hotfix/v0.2.3` from main after v0.2.2; field feedback, point 19 — hooks of a sandbox):**
+- `{{compose_env:NAME}}` and `{{accounts.<persona>.username|password}}` in hooks of a sandbox environment
+  (`hooks/src/sandbox-refs.ts`: read from `project.sandboxes[env]`, the compose env file read once per context; values
+  registered for redaction; in a rollback they stay templates — `template.ts` `capture` skips the accounts root — and
+  are read again from the entry's environment, `snapshotTemplateContext(…, env)`). Core: `collectSandboxRefs`
+  (agent trust refuses them in a scenario, like `{{env:…}}`), `TokenScope.hookRefs` (accepted in hooks, refused in
+  scenes; a seed checks the account names against its own `accounts`);
+- `auth: {persona}` on an http hook or its rollback (`HttpHookSpec.auth`, `HookContext.personaAuth`): the runner reads
+  the persona's browser of the run (`runner-web/src/persona-auth.ts` `personaAuthReader`: cookies for the URL, the
+  Firebase user of its first page's origin — IndexedDB `firebaseLocalStorageDb` or localStorage `firebase:authUser:*` —
+  read on an empty document, refreshed through the product's page within 5 min of expiry); core `planPersonas`
+  `hookAuth` adds those personas to `used` (preflight, own browser), project.yaml named hooks the `hook:` steps run
+  included; `engine/src/hooks.ts` opens the js hooks' headless browser for it. Refused in a seed, beside an
+  `Authorization` / `Cookie` header, for a persona the environment does not declare.
+
 **Hotfix v0.2.2 (2026-11-10, branch `hotfix/v0.2.2` from the v0.2.1 tag; the same field feedback, second part):**
 - sessions kept in IndexedDB (a Firebase sign-in). What was found: the saved *profile* never held the session — an
   automated login closed its tab right after the last step, before the single-page app had signed in. `auth.ts`

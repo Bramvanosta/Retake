@@ -74,6 +74,8 @@ import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopi
 import type { PreparedSession } from './auth.js';
 import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
+import { personaAuthReader } from './persona-auth.js';
+import type { PersonaRequestAuth } from './persona-auth.js';
 import type { ConfirmHook, HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
 import { HOLD_MAX_MS } from './hold.js';
 import { INSPECT_PACING, inspectPage } from './inspect.js';
@@ -594,7 +596,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // every secret is known (the prefetched ones, the sandbox accounts' passwords), so a value written as is in a step
     // is masked here too (review A).
     emit({ type: 'outline', steps: toRun.map((l) => ({ scene: sceneId(l.scene, l.sceneIndex), step: l.step.index, action: l.step.action, desc: describeStep(secrets.redactDeep(l.step)), ...(l.scene.offscreen === true ? { offscreen: true as const } : {}) })) });
-    const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until, hooks: hooksMode === 'run' });
+    const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until, hooks: hooksMode === 'run', ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
     if (plan.issues.length) throw new RunnerError(plan.issues.map((i) => `${formatIssuePath(i.path)}: ${i.message}`).join('\n'));
     planned = plan;
     prepared = await prepareSessions(personas.filter((p) => plan.used.includes(p.name)), { runId, log });
@@ -725,6 +727,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         log,
         record,
         hookLanding: hookLanding(guard, personas, env, session, commandOf, expire),
+        personaAuth: hookPersonaAuth(personas, env, session, commandOf),
         ...(writeGuard ? { writes: { policy: writeGuard.policy, ...(writeGuard.onWrite ? { onWrite: writeGuard.onWrite } : {}) } } : {}),
         signal,
         running: hookGroups,
@@ -1450,6 +1453,8 @@ interface SetupDeps {
   record: RunRecord;
   /** Refuses a js hook tab that landed on its persona's sign-in page (L1.6). */
   hookLanding?: (key: string, url: string) => string | null;
+  /** `auth: {persona}` of an http hook (hotfix v0.2.3): the persona's session, read in its browser of the run. */
+  personaAuth?: HookContextLike['personaAuth'];
   /** The run's cancel (Ctrl-C, SIGTERM, opts.signal): it stops the setup — a running shell command's process group too. */
   signal: AbortSignal;
   /** The process groups of the shell hooks running now (any phase): a second signal kills them before the process quits. */
@@ -1574,6 +1579,30 @@ function signInGuard(
   });
 }
 
+/**
+ * `auth: {persona}` of an http hook: what the persona's browser of this run sends (persona-auth.ts). The plan signs in
+ * every persona an http hook acts as (core planPersonas `hookAuth`), so its browser is there.
+ */
+function hookPersonaAuth(
+  personas: readonly ResolvedPersona[],
+  env: { name: string; pages: Record<string, string> },
+  session: BrowserSession,
+  command: (persona: string) => string,
+): NonNullable<HookContextLike['personaAuth']> {
+  const readers = new Map<string, (url: string) => Promise<PersonaRequestAuth>>();
+  return async (name, url) => {
+    const persona = personas.find((p) => p.name === name);
+    if (!persona) throw new RunnerError(`persona "${name}" is not declared for environment "${env.name}" (personas: ${personas.map((p) => p.name).join(', ') || 'none'})`);
+    if (!session.hasRealm(name)) throw new RunnerError(`persona ${name}: this run has no browser signed in as it (its hook is not one the run planned)`);
+    let read = readers.get(name);
+    if (!read) {
+      read = personaAuthReader({ persona, context: () => session.contextOf(name), envPages: env.pages, relogin: command(name) });
+      readers.set(name, read);
+    }
+    return read(url);
+  };
+}
+
 /** A js hook tab's landing check: its persona's sign-in patterns (the guard's), or null when not guarded. */
 function hookLanding(
   guard: LoginGuard | null,
@@ -1676,6 +1705,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     ...(d.via ? { via: d.via } : {}),
     ...(d.agentVars ? { agentVars: d.agentVars } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
+    ...(d.personaAuth ? { personaAuth: d.personaAuth } : {}),
   };
   return { mod, journal, ctx };
 }
