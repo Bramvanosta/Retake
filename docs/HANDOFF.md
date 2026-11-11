@@ -20,6 +20,11 @@ branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
   move), `caption-contradicts-ui` (info: a negated word of a cue found in the quoted target texts or typed / chosen
   values of the scene), `overlay-lost` / `overlay-cut` (a step overlay with no OverlayUse, or shown < 60 %).
 - Skill retake-scenario: "What good looks like" and the reference's "Rules that hold for every product".
+- The update's restart gap (BL-167, field report: "a crash at the end of the update" — the logs showed a clean quit,
+  ~8 s without a window during the swap, then the new app): update_flow `Remembered.updated` (written after a
+  successful swap) and `State::Updated` (said once at the next launch, which then skips its check), the Dock badge ↻
+  while Installing, the sheet's installing words; ui update-ops `updated` state, UpdateSheet opens on it once
+  (localStorage `retake.update.seen`). app-update-e2e waits for "is the update just installed".
 
 **Hotfix v0.2.5 (2026-11-11, branch `hotfix/v0.2.5` from `hotfix/v0.2.4`; field feedback, points 20–24):**
 - 20: core `installedVersion` / `staleEngine` (the bundle's bundle.json `app`, else the checkout's core package.json,

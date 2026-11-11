@@ -22,6 +22,8 @@ one go.
   captions true to the screen, the app's language and theme first, dates in next month, frame-by-frame look.
 
 ### Fixed
+- **The end of an update.** While the app installs, its window is gone for a few seconds: the sheet now says so
+  beforehand, the Dock icon shows ↻ meanwhile, and the restarted app says "Updated to vX" once.
 - **`project_get` and a hand-written README.** Environment lines written with the name in bold, a note in
   parentheses, several pages on one line or a description after the URLs were reported as gone.
 

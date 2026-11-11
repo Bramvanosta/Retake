@@ -512,7 +512,10 @@ Studio keeps `APP_NAME` (L5.13 renames).
   install and restart Retake — each with its mark and its word (done, running, pending, failed; `aria-current="step"`
   on the one under way), the failed one marked (a download that failed marks the download: the shell says one failure
   for the download and its signature); no list before the click nor on a failure that is no step's (the feed, a
-  folder it cannot write). The status is read every second while it downloads. The
+  folder it cannot write). The status is read every second while it downloads. Hotfix v0.2.6: the state `updated`
+  (the app an install just restarted, said once) shows "Updated to v0.2.1" in the bar and opens the sheet by itself
+  (title "Retake v0.2.1", an ok Callout, Close); Close puts both away, and the version is remembered in the browser's
+  storage so another load does not open it again. The
   sheet stays open on a click's refusal (not writable, off) and while a check runs; it sets `white-space: normal` (it is
   rendered inside the one-line status bar). Actions: Later · Install and Restart ● while an update can be installed
   (available, or a failure the shell may retry: Later then acknowledges it), Close · Later ● while it downloads or
