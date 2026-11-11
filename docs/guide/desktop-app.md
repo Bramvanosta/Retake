@@ -75,7 +75,10 @@ macOS 15 or later, Apple silicon.
    was signed for that very version, never an older one), keeps it in the app's cache folder, waits while a job of
    this workspace runs or waits (Later stops waiting and removes the download), asks the usual quit question if a tab
    holds unsaved text — your answer holds however long the question stays open — stops the Studio server, swaps the
-   app in place and restarts it. A check while an install is under way is refused, with a word why. An update that
+   app in place and restarts it. The sheet lists these steps and says the one under way: the download with its
+   megabytes and percent and a bar (the status bar's button shows the percent too, and so does the app's Dock icon,
+   seen from another app or with the window closed), the signature check, the jobs it waits for, the quit. The app
+   comes back under the icon you keep in the Dock: it starts again only once the old one has quit. A check while an install is under way is refused, with a word why. An update that
    cannot be installed keeps the app you have and says so at its next start, which checks the feed again at once (the
    sheet offers Install and Restart again only when the feed still has it; doctor says it until then). Workspaces,
    the Retake home, the command's link and the Claude registrations stay valid (they point at the same app). An app

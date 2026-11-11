@@ -276,3 +276,18 @@ pub fn ask(title: &str, text: &str, buttons: &[&str], cancel: usize, destructive
     }
     answer
 }
+
+/// BL-167: the Dock icon's badge (the update's percent while it downloads; None clears it). Main thread only.
+pub fn dock_badge(mtm: MainThreadMarker, label: Option<&str>) {
+    let app = NSApplication::sharedApplication(mtm);
+    // NSDockTile through the runtime: its feature of objc2-app-kit is not built in (no new package for one call).
+    let tile: *mut AnyObject = unsafe { msg_send![&*app, dockTile] };
+    if tile.is_null() {
+        return;
+    }
+    let text = label.map(NSString::from_str);
+    let ptr: *const NSString = text.as_deref().map_or(std::ptr::null(), |t| t as *const NSString);
+    unsafe {
+        let _: () = msg_send![tile, setBadgeLabel: ptr];
+    }
+}

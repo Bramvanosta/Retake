@@ -119,7 +119,7 @@ pub fn launch_check_due(last: Option<u64>, now: u64, failed_remembered: bool) ->
 pub fn check_refused(s: &State, app: &str) -> Option<String> {
     match s {
         State::Checking => Some(format!("{app} is checking for updates already.")),
-        State::Downloading { version } => Some(format!("{app} is downloading {version}: Later in the Studio's update sheet stops it.")),
+        State::Downloading { version, .. } => Some(format!("{app} is downloading {version}: Later in the Studio's update sheet stops it.")),
         State::Waiting { version, .. } => Some(format!("{app} waits for its jobs to end to install {version}: Later in the Studio's update sheet stops it.")),
         State::Installing { version } => Some(format!("{app} is quitting to install {version}.")),
         _ => None,
@@ -262,7 +262,8 @@ pub enum State {
     Idle { checked: Option<u64> },
     Checking,
     Available { version: String, notes: String, checked: Option<u64> },
-    Downloading { version: String },
+    /// `received` bytes of the archive so far, of `total` (its Content-Length; None: not announced) — BL-167.
+    Downloading { version: String, received: u64, total: Option<u64> },
     Waiting { version: String, jobs: u32 },
     /// The quit (and its question) is under way.
     Installing { version: String },
@@ -313,7 +314,7 @@ fn state_line_with(current: &str, s: &State, notes: &str) -> Option<String> {
         State::Idle { checked } => format!("{},\"checked\":{}}}", head("idle"), opt_num(*checked)),
         State::Checking => format!("{}}}", head("checking")),
         State::Available { version, checked, .. } => format!("{},\"version\":{},\"notes\":{},\"checked\":{}}}", head("available"), v(version)?, json::quote(notes), opt_num(*checked)),
-        State::Downloading { version } => format!("{},\"version\":{}}}", head("downloading"), v(version)?),
+        State::Downloading { version, received, total } => format!("{},\"version\":{},\"received\":{received},\"total\":{}}}", head("downloading"), v(version)?, opt_num(*total)),
         State::Waiting { version, jobs } => format!("{},\"version\":{},\"jobs\":{}}}", head("waiting"), v(version)?, jobs),
         State::Installing { version } => format!("{},\"version\":{}}}", head("installing"), v(version)?),
         State::Failed { failure, version, checked, retry } => {
@@ -617,6 +618,13 @@ impl Progress {
 /// Watch a download until it ends (`finished`) or a limit stops it (then the caller aborts it): None when it finished
 /// within its limits. Polls every `step_ms`.
 pub fn watch(p: &Progress, l: &Limits, finished: impl Fn() -> bool, cancelled: impl Fn() -> bool) -> Option<Stop> {
+    watch_reporting(p, l, finished, cancelled, |_, _| {})
+}
+
+/// `watch`, with `report(received, announced)` called at each poll whose byte count moved (BL-167: the state line and
+/// the Dock's figure, at most once every `step_ms`).
+pub fn watch_reporting(p: &Progress, l: &Limits, finished: impl Fn() -> bool, cancelled: impl Fn() -> bool, mut report: impl FnMut(u64, Option<u64>)) -> Option<Stop> {
+    let mut said: Option<u64> = None;
     loop {
         let done = finished();
         let elapsed = p.start.elapsed().as_millis() as u64;
@@ -625,13 +633,33 @@ pub fn watch(p: &Progress, l: &Limits, finished: impl Fn() -> bool, cancelled: i
             a => Some(a - 1),
         };
         let idle = elapsed.saturating_sub(p.last.load(Ordering::SeqCst));
-        if let Some(s) = verdict(l, p.bytes(), announced, idle, elapsed, cancelled(), done) {
+        let bytes = p.bytes();
+        if let Some(s) = verdict(l, bytes, announced, idle, elapsed, cancelled(), done) {
             return Some(s);
+        }
+        if said != Some(bytes) {
+            report(bytes, announced);
+            said = Some(bytes);
         }
         if done {
             return None;
         }
         std::thread::sleep(Duration::from_millis(l.step_ms));
+    }
+}
+
+/// The whole percent of a download (`received` of `total`), at most 100; None when no size was announced (BL-167).
+pub fn percent(received: u64, total: Option<u64>) -> Option<u8> {
+    let t = total.filter(|t| *t > 0)?;
+    Some((u128::from(received.min(t)) * 100 / u128::from(t)) as u8)
+}
+
+/// The Dock icon's badge for a state (BL-167: the update moves while the window is closed or another app is in
+/// front): the download's percent ("42%"), "…" while it has no size, nothing otherwise.
+pub fn dock_label(s: &State) -> Option<String> {
+    match s {
+        State::Downloading { received, total, .. } => Some(percent(*received, *total).map_or_else(|| "…".to_string(), |p| format!("{p}%"))),
+        _ => None,
     }
 }
 
@@ -781,7 +809,11 @@ mod tests {
             l(&State::Available { version: "0.2.1".into(), notes: "Better \"renders\"\u{202e}".into(), checked: Some(5) }),
             r#"{"type":"update","state":"available","current":"0.2.0","version":"0.2.1","notes":"Better \"renders\"","checked":5}"#
         );
-        assert_eq!(l(&State::Downloading { version: "0.2.1".into() }), r#"{"type":"update","state":"downloading","current":"0.2.0","version":"0.2.1"}"#);
+        assert_eq!(l(&State::Downloading { version: "0.2.1".into(), received: 0, total: None }), r#"{"type":"update","state":"downloading","current":"0.2.0","version":"0.2.1","received":0,"total":null}"#);
+        assert_eq!(
+            l(&State::Downloading { version: "0.2.1".into(), received: 152_000_000, total: Some(370_000_000) }),
+            r#"{"type":"update","state":"downloading","current":"0.2.0","version":"0.2.1","received":152000000,"total":370000000}"#
+        );
         assert_eq!(l(&State::Waiting { version: "0.2.1".into(), jobs: 2 }), r#"{"type":"update","state":"waiting","current":"0.2.0","version":"0.2.1","jobs":2}"#);
         assert_eq!(l(&State::Installing { version: "0.2.1".into() }), r#"{"type":"update","state":"installing","current":"0.2.0","version":"0.2.1"}"#);
         assert_eq!(
@@ -901,7 +933,7 @@ mod tests {
     #[test]
     fn checks_during_an_install_and_after_a_failed_one() {
         let v = || "0.2.1".to_string();
-        for s in [State::Checking, State::Downloading { version: v() }, State::Waiting { version: v(), jobs: 2 }, State::Installing { version: v() }] {
+        for s in [State::Checking, State::Downloading { version: v(), received: 0, total: None }, State::Waiting { version: v(), jobs: 2 }, State::Installing { version: v() }] {
             assert!(check_refused(&s, "Retake").is_some_and(|w| w.starts_with("Retake ")), "{s:?}");
         }
         assert!(check_refused(&State::Waiting { version: v(), jobs: 2 }, "Retake").unwrap().contains("Later"));
@@ -961,6 +993,49 @@ mod tests {
         assert_eq!((DOWNLOAD.stall_ms, DOWNLOAD.total_ms), (60_000, 7_200_000));
         assert_eq!(CHECK_TIMEOUT, Duration::from_secs(30));
         assert_eq!(Stop::TooBig.words(&DOWNLOAD), "the archive is larger than 1500 MB");
+    }
+
+    /// BL-167: the download's figure.
+    #[test]
+    fn the_percent_and_the_dock_label() {
+        assert_eq!(percent(0, Some(370)), Some(0));
+        assert_eq!(percent(152, Some(370)), Some(41));
+        assert_eq!(percent(370, Some(370)), Some(100));
+        assert_eq!(percent(400, Some(370)), Some(100));
+        assert_eq!(percent(5, None), None);
+        assert_eq!(percent(5, Some(0)), None);
+        assert_eq!(percent(u64::MAX / 2, Some(u64::MAX)), Some(49));
+        let d = |received, total| dock_label(&State::Downloading { version: "0.2.1".into(), received, total });
+        assert_eq!(d(42, Some(100)).as_deref(), Some("42%"));
+        assert_eq!(d(42, None).as_deref(), Some("…"));
+        assert_eq!(dock_label(&State::Waiting { version: "0.2.1".into(), jobs: 1 }), None);
+        assert_eq!(dock_label(&State::Idle { checked: None }), None);
+    }
+
+    /// BL-167: `watch_reporting` says each new byte count once, with the announced size.
+    #[test]
+    fn watch_reports_the_bytes_as_they_move() {
+        use std::sync::atomic::AtomicBool;
+        let l = Limits { max_bytes: 5_000_000, stall_ms: 2_000, total_ms: 5_000, step_ms: 5 };
+        let p = Progress::default();
+        let done = AtomicBool::new(false);
+        let mut seen: Vec<(u64, Option<u64>)> = Vec::new();
+        std::thread::scope(|sc| {
+            sc.spawn(|| {
+                for _ in 0..3 {
+                    std::thread::sleep(Duration::from_millis(30));
+                    p.chunk(100, Some(300));
+                }
+                std::thread::sleep(Duration::from_millis(30));
+                done.store(true, Ordering::SeqCst);
+            });
+            assert_eq!(watch_reporting(&p, &l, || done.load(Ordering::SeqCst), || false, |b, t| seen.push((b, t))), None);
+        });
+        assert_eq!(seen.first(), Some(&(0, None)));
+        assert_eq!(seen.last(), Some(&(300, Some(300))));
+        let mut bytes: Vec<u64> = seen.iter().map(|s| s.0).collect();
+        bytes.dedup();
+        assert_eq!(bytes.len(), seen.len(), "a byte count is said once");
     }
 
     /// Review d A-M2: `watch` against an endless feed, a hanging one, a Later, and one that ends in time.

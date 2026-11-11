@@ -2481,6 +2481,12 @@ accelerators, the page's MENU_COMMANDS). Other desktop apps built on the same sh
 ### BL-167 — An update you can watch: download progress and the restart
 *S–M · founder's request (2026-11-11), from the first in-app updates · builds on: L5.16d · see BL-166*
 
+*Done in hotfix v0.2.4, in part:* `State::Downloading` carries the bytes and the announced size (update_flow
+`watch_reporting`: each new count, at most every 250 ms); the sheet lists the steps (download, signature, jobs, quit;
+the failed one marked) with a kit Progress (megabytes, percent; indeterminate without a size); the badge says the
+percent, then "Checking vX…"; the Dock icon's badge label says the percent (NSDockTile `badgeLabel`, not a progress
+view). *Left:* the native progress panel on the alert path, and the "Updated to vX" notice after the restart.
+
 The update archive is large (about 370 MB in v0.2.2), and once Install and Restart is clicked nothing moves: the sheet
 says "Downloading vX" with no figure, the badge only turns busy, and the native alert path (Help › Check for Updates…
 when the page cannot answer) shows nothing at all until the app quits. The shell already counts the bytes and the
@@ -2502,6 +2508,12 @@ announced size (`update_flow::Progress`, polled every 250 ms by `watch`); `State
 
 ### BL-168 — After an update, the Dock's pinned icon is no longer the running app
 *S–M · founder's report (2026-11-11), from the first in-app updates · builds on: L5.16d*
+
+*Done in hotfix v0.2.4, with another cause than the one guessed below:* Tauri's `AppHandle::restart` runs `open -n` on
+the bundle while the old process still runs, so LaunchServices starts a second instance and the Dock gives it its own
+icon. The restart is now a detached shell (desktop_core `relaunch`) that waits until the old pid is gone from the
+kernel and from LaunchServices (`lsappinfo`), then runs a plain `open` on the bundle (`open -n` after 30 s). The
+plugin's swap is unchanged. The update *to* v0.2.4 still restarts the old way (the old app restarts itself).
 
 With the app kept in the Dock, an update ends with two icons: the pinned one, which looks closed, and a second
 one on the right for the app that restarted, although both are `/Applications/Retake.app`. Likely cause, to confirm:
