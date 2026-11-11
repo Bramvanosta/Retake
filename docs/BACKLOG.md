@@ -2450,6 +2450,34 @@ a Mac shared with other accounts:
   "port busy" answer instead of the rotate-token advice. A challenge (the listener proves it holds the token without
   sending it) would close this; within one account, that program could read the token file anyway.
 
+### BL-166 — The app's native menus, reworked
+*M–L · founder's request (2026-11-11) · builds on: L5.2, L5.9, L5.11a, L5.16c · see BL-126*
+
+The menu bar (`apps/desktop/src/menu.rs`) is a fixed table: every page command is always enabled and answers in the
+status bar when it cannot act, the page has no right-click menu, and the shortcuts live in two places (the menu's
+accelerators, the page's MENU_COMMANDS). Other desktop apps built on the same shell now do it this way:
+- **One command registry** feeding the menu bar, the command palette, the window's shortcuts and a Help › Keyboard
+  Shortcuts list, always with the same chord. The component that owns an action registers it with whether it applies
+  now and a label for the context ("Capture 'quote'", "Render 2 Scenarios"); the menu greys out and relabels as they
+  come and go. This absorbs BL-126's "menu state from the page" (the page's state reaching the shell: the supervised
+  pipe, or a narrow page→shell request).
+- **Native context menus**: a right-click on a scenario, a step, a take, a render, a comment or a library item opens
+  a native menu in the app and an in-window menu in a browser, from the same list of actions; on a selection it acts on
+  all of it and says so first.
+- **A menu audit**: what each menu should hold — File (New Scenario, Open Recent Workspace, Reveal in Finder), the
+  app menu (Settings… ⌘,), Scenario (Validate, Review), Help (the guide, Keyboard Shortcuts, Report an Issue) — with
+  the standard macOS items kept the platform's own, and no chord that collides with a field's editing keys.
+- **Open question: windows and tabs.** File › New Window ⌘N / New Tab ⌘T (system tabs) to open a scenario or a run
+  beside another; today the Studio is one window per workspace, and a second window on the same server needs its
+  state (selection, live recording) per window.
+
+- **Value:** the app feels like a Mac app: what can act now is visible in the menus, right-click works where people
+  expect it, every shortcut is discoverable.
+- **Hard parts:** the page's availability reaching the shell without a page→shell channel that a page script could
+  abuse (the shell trusts nothing the page says today); keeping the browser runtime and the app on one action list;
+  the e2e kit cannot click a native menu (an unattended run cannot post to the menu bar), so menu tests stay on the
+  table and the registry.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
