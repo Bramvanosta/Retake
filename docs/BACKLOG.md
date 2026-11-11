@@ -2471,12 +2471,6 @@ a time stalled after 62 files and ran past two hours. So `ci.yml` runs the build
 - **Why one file at a time stalled**: a test that never ends (a browser or ffprobe left behind, a wait with no
   limit) — every wait in the suite needs a limit, and a file that outlives it fails with what it was waiting for.
 - Then the suite (or its fast tier) goes back into `ci.yml`, and the release can wait for main's green run (BL-144).
-### BL-164 — The project board tells two theme folders of one name apart
-The board compares a scenario's theme with its renders' by the name of the theme's folder, as a render record holds
-it (L7.8). Two folders of the same name named by different paths (`./themes/brand`, `../shared/brand`) are one theme
-to it: the record holds the folder's name and its content hash, not its path. Comparing the content hash too would
-make a render made before the theme was edited outdated, which the board does not say today. *From:* L7.5, L7.8.
-
 ### BL-165 — Runs and takes: what the one rule left
 *From:* L7.6a. Small pieces, any order.
 
@@ -2705,3 +2699,10 @@ Recorded for the founder; nothing here changes the roadmap until they decide.
   file signature (as the board's) would take it back.
 - `retake prune --json`'s `kept.renders` counts every record file that stays, a file that is no render included (the
   text counts them apart).
+
+### BL-170 — The Studio's other screens compare a render's theme by its folder
+The project board compares a scenario's theme with its renders' by the theme's folder (`template_folder`, L7.9). The
+Studio's other screens still compare it by name — `sameVersion` in `packages/ui/src/app/render-words.ts`, used by the
+Render screen (`Renders.tsx`) to say whether a render shows today's file —, so a render made with another folder of the
+same name reads as current there. They should use `template_folder` as the board does (a record of before L7.9 by its
+name). *From:* L7.9.

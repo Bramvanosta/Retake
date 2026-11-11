@@ -73,16 +73,19 @@ function portOf(url: string, database: boolean): number | null {
 
 /**
  * Before the seed rewrites them: the database of every sql step (`db`, default the first) must be served by a service
- * of the sandbox, or marked `external: true`. Throws SandboxError seed.
+ * of the sandbox, or marked `external: true`. `of: 'reset hooks'`: the sql steps of `reset.hooks`, the same rule — they
+ * run at every reset, a snapshot restored or not. Throws SandboxError seed.
  */
-export async function checkSeedDatabases(pctx: ProviderContext, provider: Provider): Promise<void> {
+export async function checkSeedDatabases(pctx: ProviderContext, provider: Provider, of: 'seed' | 'reset hooks' = 'seed'): Promise<void> {
   const dbs = pctx.sandbox.manifest.databases ?? {};
   const keys = new Set<string>();
-  for (const step of pctx.sandbox.manifest.seed ?? []) {
+  const steps = of === 'seed' ? (pctx.sandbox.manifest.seed ?? []) : (pctx.sandbox.manifest.reset?.hooks ?? []);
+  for (const step of steps) {
     if (!('sql' in step)) continue;
     const key = typeof step.sql === 'object' ? step.sql.db : undefined;
     keys.add(key ?? Object.keys(dbs)[0] ?? '');
   }
+  const who = of === 'seed' ? 'the seed rewrites' : 'a reset hook rewrites';
   for (const key of keys) {
     const db = dbs[key];
     if (!db || db.external) continue; // an unknown key fails in the step itself
@@ -91,7 +94,7 @@ export async function checkSeedDatabases(pctx: ProviderContext, provider: Provid
     try {
       await provider.servedBy(pctx, port, {
         what: `database ${key}`,
-        why: `the seed rewrites it at every reset, so it must be the sandbox's own: serve it from the sandbox, or add \`external: true\` to databases.${key} in sandbox.yaml if that database is the sandbox's alone`,
+        why: `${who} it at every reset, so it must be the sandbox's own: serve it from the sandbox, or add \`external: true\` to databases.${key} in sandbox.yaml if that database is the sandbox's alone`,
       });
     } catch (e) {
       if (e instanceof SandboxError) throw new SandboxError(e.message, 'seed');

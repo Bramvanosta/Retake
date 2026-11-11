@@ -410,8 +410,8 @@ a terminal run in their own process and are not held to these rules.
     (a local command is local code, whatever the sandbox is); a reset hook is listed as `reset hook <n>`, numbered
     within `reset.hooks` as the sandbox's own messages number it, and its approval is its own: never a seed step's,
     even one with the same command. Their http and
-    sql steps rebuild the sandbox's own data (checked before the reset changes anything) and an `exec` step runs inside
-    a sandbox container: none of them is asked about. From a terminal (`retake sandbox up`) nothing is asked, as before.
+    sql steps rebuild the sandbox's own data (a sql step's database must be the sandbox's own: checked before the reset
+    changes anything) and an `exec` step runs inside a sandbox container: none of them is asked about. From a terminal (`retake sandbox up`) nothing is asked, as before.
 - **Deleting takes and renders needs a human.** `project_prune {dry_run: false}` first lists what would go, then asks
   the user through the same approval form: how many items of which project, how much they free, the count and size of
   each kind (takes, renders, reviews), what stays (per scenario the last good take, the last one that can still be

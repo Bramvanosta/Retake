@@ -95,6 +95,11 @@ export interface RenderBase<P, O> {
   /** Theme (template name) the plan was made with, and its folder's content hash at render time. */
   template: string;
   template_sha256?: string;
+  /**
+   * The theme's folder as the editor loaded it (core io templateFolderId: `/starter:<name>`, or relative to the
+   * workspace root): what tells two folders of one name apart. Written since L7.9; an older record has none.
+   */
+  template_folder?: string;
   overrides: O;
   edit?: RenderEdit;
   variant: RenderVariant;
@@ -145,6 +150,7 @@ export interface StoredRenderBase {
   run_dir: string;
   template: string;
   template_sha256?: string;
+  template_folder?: string;
   overrides: Readonly<Record<string, unknown>>;
   edit?: Omit<RenderEdit, 'from'> & { from: StoredWord<RenderEdit['from']> };
   variant?: StoredWord<RenderVariant>;

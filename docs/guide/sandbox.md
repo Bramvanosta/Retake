@@ -200,10 +200,11 @@ by `✓ step  time` when the step ends; in a pipe or CI, a time-stamped line as 
   `reset.hooks`: `http`, `sql`, `shell` or `exec` steps (the seed's kinds and checks; never rolled back) run at every
   reset once the data is back — once in sandbox.yaml rather than a setup hook copied into each scenario. `--reseed`
   runs the seed and saves the accounts again.
-- **Only what the sandbox owns.** A reset empties the mailbox and the seed's `sql` steps rewrite their database, so
-  both must be the sandbox's own: served by a service of the sandbox — a port a running container of its compose
-  project publishes (made from its folder, with no other project's container publishing that port too), or a port a
-  process service names (`url`, `pages`, `health: {tcp: …}`) and listens on —, with no other program on it.
+- **Only what the sandbox owns.** A reset empties the mailbox and the `sql` steps of the seed and of `reset.hooks`
+  rewrite their database, so both must be the sandbox's own: served by a service of the sandbox — a port a running
+  container of its compose project publishes (made from its folder, with no other project's container publishing that
+  port too), or a port a process service names (`url`, `pages`, `health: {tcp: …}`) and listens on —, with no other
+  program on it.
   Anything else is refused before the reset changes anything (`port 8025 (the mailbox http://localhost:8025) is not a
   port of a service of this sandbox …`): a `localhost:8025` or `localhost:5432` may be another stack's. A mailbox or a
   database the sandbox does not start but that is its alone (a Mailpit or a Postgres you run for it) says so with

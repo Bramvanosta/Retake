@@ -44,6 +44,7 @@ function renderRecordSchemas(object: ObjectOf, lax: boolean) {
     run_dir: z.string(),
     template: z.string(),
     template_sha256: z.string().optional(),
+    template_folder: z.string().optional(),
     overrides: z.record(z.string(), z.unknown()),
     edit: object({
       from: word(['scenario', 'run']),

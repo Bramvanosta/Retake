@@ -31,7 +31,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, filmedChanges, isRunId, isThemeName, orderRenders, parseRenderId, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
 import type { LoadedProject, RenderEntry, RunStatus, StoredRenderRecord } from '@retake/core';
-import { fileFacts } from '@retake/core/io';
+import { fileFacts, projectTemplateFolderId } from '@retake/core/io';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
 import { jobProject } from './jobs/queue-core.js';
@@ -111,8 +111,9 @@ export interface BoardScenario {
   /** The newest succeeded landscape render (a render the Studio lists, review included). */
   render?: ScenarioRenderView;
   /**
-   * With `render`: whether it shows today's file — the same capture, file bytes and theme (by the theme's identity, a
-   * theme the row cannot name included), no option beyond the files'. The Studio says "Rendered" only then.
+   * With `render`: whether it shows today's file — the same capture, file bytes and theme (by the theme's folder, a
+   * theme the row cannot name included; a record of before L7.9 by its folder's name), no option beyond the files'.
+   * The Studio says "Rendered" only then.
    */
   render_current?: boolean;
   /** The newest render attempt failed (its record or its job), after `render` if any. */
@@ -239,9 +240,10 @@ function themeName(p: LoadedProject, ref: string | undefined): string | undefine
 }
 
 /**
- * The theme's identity as a render record holds it (`template`: the name of the folder the editor loaded, core io
+ * The theme's name as a render record holds it (`template`: the name of the folder the editor loaded, core io
  * template.ts loadTemplateDir), whatever that folder is called and however long its reference: a name as it is, a
- * path its folder's name. The board compares it with each render's record, never shows it (`theme` is themeName).
+ * path its folder's name. The board compares it with a record that holds no `template_folder` (one of before L7.9),
+ * never shows it (`theme` is themeName).
  */
 function themeIdentity(p: LoadedProject, ref: string | undefined): string | undefined {
   if (typeof ref !== 'string' || ref === '') return undefined;
@@ -279,6 +281,14 @@ export class ProjectBoards {
     const runJobs = new Map(jobs.filter((j) => j.input.kind === 'run').map((j) => [j.input.kind === 'run' ? j.input.run_id : '', j]));
     const records = await this.renderRecordsOf(p, new Set(names));
     const shownJobs = new Set<string>();
+    // Today's theme folder of each reference (core io projectTemplateFolderId, the editor's rule), once per board.
+    const folders = new Map<string, Promise<string | undefined>>();
+    const folderIds = (ref: string | undefined): Promise<string | undefined> => {
+      if (typeof ref !== 'string') return Promise.resolve(undefined);
+      let id = folders.get(ref);
+      if (!id) folders.set(ref, (id = projectTemplateFolderId(p, ref).catch(() => undefined)));
+      return id;
+    };
     const out: BoardScenario[] = [];
     for (let i = 0; i < names.length; i++) {
       const name = names[i];
@@ -293,7 +303,9 @@ export class ProjectBoards {
       } else if (p.config.default_env) s.env = p.config.default_env;
       const theme = themeName(p, f.template ?? p.config.template);
       if (theme) s.theme = theme;
-      const themeId = themeIdentity(p, f.template ?? p.config.template);
+      const ref = f.template ?? p.config.template;
+      const themeId = themeIdentity(p, ref);
+      const themeFolder = await folderIds(ref);
       if (f.title) s.untrusted.title = f.title;
       if (f.error) s.untrusted.error = f.error;
       // The running take, its job's state overlaid (a worker that died: interrupted).
@@ -325,9 +337,12 @@ export class ProjectBoards {
       // The newest render that shows today's file (render-words sameVersion's rule, review B-L2), else the newest one.
       const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
       const views = landscape.map((r) => ({ r, v: renderView(p.dir, r, mine, reviewJobs) }));
-      // The theme by its identity (BL-164): the record's folder name against today's, also when it is no theme name.
+      // The theme by its identity (BL-164): the record's folder against today's (two folders of one name are two
+      // themes); a record of before L7.9, which holds no folder, by its folder's name — also when it is no theme name.
+      const sameTheme = (r: StoredRenderRecord): boolean =>
+        typeof r.template_folder === 'string' && themeFolder !== undefined ? r.template_folder === themeFolder : themeId === undefined || r.template === themeId;
       const shows = (x: { r: StoredRenderRecord; v: ScenarioRenderView }) =>
-        !!f.hash && !!g.capture && x.v.edit.sha256 === f.hash && x.v.run_id === g.capture.id && (themeId === undefined || x.r.template === themeId) && x.v.overrides.length === 0;
+        !!f.hash && !!g.capture && x.v.edit.sha256 === f.hash && x.v.run_id === g.capture.id && sameTheme(x.r) && x.v.overrides.length === 0;
       const shown = views.find(shows);
       const pick = shown ?? views[0];
       const best = pick?.r;

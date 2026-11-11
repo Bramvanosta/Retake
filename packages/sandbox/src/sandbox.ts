@@ -227,8 +227,10 @@ export class Sandbox {
   private async resetLocked(ctx: ProviderContext, by: string, opts: { reseed?: boolean } = {}): Promise<ResetResult> {
     const t0 = Date.now();
     const hash = await this.hashOf(ctx);
-    // Before anything changes: what the reset empties must be the sandbox's own.
+    // Before anything changes: what the reset empties must be the sandbox's own — the mailbox, and the databases its
+    // reset hooks rewrite (they run at every reset; the seed's are checked before the seed runs).
     await checkMailbox(ctx, this.provider);
+    await checkSeedDatabases(ctx, this.provider, 'reset hooks');
     const snap = this.strategy === 'snapshot' ? await this.openSnapshot(ctx) : null;
     // Hotfix v0.2.5: a Firebase Auth emulator keeps its accounts in memory — saved after the seed, put back below.
     const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.provider.address?.(ctx, port) ?? Promise.resolve(undefined));

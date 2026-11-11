@@ -126,6 +126,28 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.9)
+- **L7.9 done (2026-11-11; branch `claude/arch-l7`)** — two backlog tickets decided by the person. **BL-164's rest**:
+  a render record holds the theme's folder as the editor loaded it (`template_folder`, after `template_sha256`:
+  `/starter:<name>` for a starter theme wherever it lies, else its path relative to the workspace root; both read as
+  the disk spells them, so a root named through a link gives the same id — core io `templateFolderId`, and one rule
+  for the folder a reference names, `resolveTemplateDir` included), and the project board compares it with the folder
+  today's reference names by that rule (`projectTemplateFolderId`), so two folders of one name at different paths are
+  two themes; a record of before L7.9 is compared by its folder's name, as in L7.8; the theme's content is no part of
+  it. **An export's re-rendered formats** (vertical, square) plan with that folder, named as the project names it (its
+  `template:`, a theme of the workspace, a starter: editor `exportThemeRef`, at the export job's submit and in the
+  export itself); at a terminal a folder it does not name is used itself, through MCP refused in words that quote
+  nothing of the record (before, they planned by the theme's name: a project on `./themes/brand` failed "not found" or
+  took the workspace's `brand`). FORMAT_VERSIONS stays (an optional member every reader keeps); `render_status` gives
+  it under `untrusted.record` only. BL-164 removed; BL-170 added (the Studio's Render screen still compares by name).
+  **Non-shell reset hooks under trust mcp**: they were never refused — http / sql / exec reset hooks already got a seed
+  step's treatment (no approval item, never asked), now pinned by a test; the one difference is fixed: a sql reset
+  hook's database gets the seed's ownership check (served by the sandbox or `external: true`), before the reset changes
+  anything, at every trust. The MCP tool list, input schemas, the op table, the generated schemas and the CLI golden
+  are unchanged. Ratchet 95. **Checked:** `pnpm typecheck`, the ratchet, `test-guard` (no decrease), `--check-cites`
+  on a copy of the edited file, 48 test files alone and 23 again after the fix pass (the real-render export tests
+  included), 26 mutations (all red). **The full suite was not run**; no Docker, Postgres or real-capture test.
+
 ## State (after L7.8)
 - **L7.8 done (2026-11-11; branch `claude/arch-l7`)** — five small items decided by the person. **The hooks journal
   checks a rollback's shape**: each rollback is checked against its kind's shape when a journal is read (the members a

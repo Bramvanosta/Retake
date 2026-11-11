@@ -37,9 +37,14 @@ async function freePort(): Promise<number> {
   });
 }
 
-/** A tiny service: GET /health → 200. */
+/** A tiny service: /health → 200 (any method); GET /deletes → how many DELETE requests it was sent. */
 const SERVICE = `import { createServer } from 'node:http';
-createServer((req, res) => { res.writeHead(req.url === '/health' ? 200 : 404); res.end('ok'); }).listen(Number(process.argv[2]), '127.0.0.1');
+let deletes = 0;
+createServer((req, res) => {
+  if (req.method === 'DELETE') deletes++;
+  if (req.url === '/deletes') { res.writeHead(200); res.end(String(deletes)); return; }
+  res.writeHead(req.url === '/health' ? 200 : 404); res.end('ok');
+}).listen(Number(process.argv[2]), '127.0.0.1');
 `;
 
 let ws: string;
@@ -201,6 +206,35 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
       const r = await agentReset(approved);
       expect(r).toMatch(/^refused: sandbox sandbox: seed step 4\/4/);
       expect(await marker('reset-marker.txt')).toBe(before);
+    } finally {
+      await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest(RESET));
+    }
+  }, 60_000);
+
+  // L7.9: a reset hook of another kind than shell gets exactly what a seed step of its kind gets: an http or sql step
+  // rebuilds the sandbox's own data (its database checked at run time) and an exec step runs inside a sandbox container
+  // — none is an approval item, none is asked about, under trust mcp too. A destructive http step pins it.
+  it('an http reset hook, destructive (DELETE), is treated as an http seed step: no item, and under trust mcp it runs unasked', async () => {
+    const destructive = (m: string) => m.replaceAll('http: {url: "{{app}}/health"}', 'http: {method: DELETE, url: "{{app}}/health"}');
+    await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), destructive(manifest(RESET)));
+    try {
+      const p = await project();
+      expect([p.sandboxes!.sandbox.manifest.seed![0], p.sandboxes!.sandbox.manifest.reset!.hooks![0]]).toEqual([
+        { name: 'ping', http: { method: 'DELETE', url: '{{app}}/health' } },
+        { name: 'health', http: { method: 'DELETE', url: '{{app}}/health' } },
+      ]);
+      const items = await seedApprovalItems(p, 'sandbox');
+      expect(items.map((i) => `${i.phase} ${i.index} ${i.kind}`)).toEqual(['seed 1 shell', 'reset 1 shell']);
+      const deletes = async () => Number(await (await fetch(`http://127.0.0.1:${port}/deletes`)).text());
+      const before = await deletes();
+      const resets = await marker('reset-marker.txt');
+      expect(await agentReset(approvalsOf(items))).toBe('ran');
+      // The seed's DELETE and the reset hook's, both unasked; then the approved shell reset hook.
+      expect([(await deletes()) - before, (await marker('reset-marker.txt')) - resets]).toEqual([2, 1]);
+      // Only the shell steps approved is all it takes: the http steps were never asked about.
+      const none = await agentReset([]);
+      expect(none).toMatch(/^refused: sandbox sandbox: seed step 2\/2 \(mark: /);
+      expect((await deletes()) - before).toBe(3); // the seed's DELETE ran, then its shell step was refused
     } finally {
       await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest(RESET));
     }

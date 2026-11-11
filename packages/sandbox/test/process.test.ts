@@ -424,6 +424,31 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     expect((await count(a)).seeds).toBe(1);
   });
 
+  // L7.9: a sql reset hook gets the seed's rule (before, its database was never checked: the hook tried to connect).
+  it("a sql reset hook's database must be served by the sandbox — or `external: true` — checked before the reset changes anything", async () => {
+    const [a, db] = await freePorts(2);
+    const svcLines = [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`];
+    const steps = ['seed:', '  - http: {method: POST, url: "{{app}}/seed"}', 'reset:', '  hooks:', '    - http: {method: DELETE, url: "{{app}}/api/v1/messages"}', '    - sql: {query: "TRUNCATE quotes"}'];
+    const dbLine = (external: boolean) => ['databases:', `  main: {url: "postgres://demo:sandbox-db-4632@localhost:${db}/app"${external ? ', external: true' : ''}}`];
+    const { sb } = await svcSandbox('resetdbforeign', svc(a), svcLines, [...steps, ...dbLine(false)]);
+    await sb.up({ log: say, seed: 'never' });
+    for (const seedTrust of [undefined, { trust: 'mcp' as const, confirm: () => true }]) {
+      const e = await sb.reset({ log: say, ...(seedTrust ? { seedTrust } : {}) }).catch((x) => x);
+      expect(e).toMatchObject({ code: 'seed' });
+      expect(e.message).toBe(
+        `sandbox sandbox: port ${db} (database main) is not a port of a service of this sandbox (its url, pages or health) — a reset hook rewrites it at every reset, so it must be the sandbox's own: serve it from the sandbox, or add \`external: true\` to databases.main in sandbox.yaml if that database is the sandbox's alone`,
+      );
+      expect(await count(a)).toEqual({ seeds: 0, deletes: 0 }); // refused before the seed and before any reset hook
+    }
+    await sb.down();
+    const ext = (await svcSandbox('resetdbexternal', svc(a), svcLines, [...steps, ...dbLine(true)])).sb;
+    await ext.up({ log: say, seed: 'never' });
+    const e2 = await ext.reset({ log: say }).catch((x) => x);
+    expect(e2).toMatchObject({ code: 'seed' });
+    expect(e2.message).toContain(`reset hook step 2/2 (sql "TRUNCATE quotes" on main (localhost:${db}/app)) failed: cannot connect to database main`);
+    expect(await count(a)).toEqual({ seeds: 1, deletes: 1 });
+  });
+
   it('the pending rollbacks are superseded as soon as the seed ran, even when the reset fails after it (P9)', async () => {
     const [a, mail] = await freePorts(2);
     const { sb, project } = await svcSandbox('supersede', svc(a), [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`], [

@@ -7,16 +7,17 @@
  * `manifest.json` describing each file (format, method, size, duration, codecs, the ffprobe of the file).
  */
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
-import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, missingOrInvalid, printableText, projectPath } from '@retake/core';
-import { ffmpegBin, findNamedRender, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts } from '@retake/core/io';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, isTemplatePath, isThemeName, missingOrInvalid, printableText, projectPath } from '@retake/core';
+import { STARTER_FOLDER_ID_PREFIX, STARTER_TEMPLATES_DIR, ffmpegBin, findNamedRender, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts, projectTemplateFolderId, templateFolderId } from '@retake/core/io';
 import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
 import type { H264Encoder, NamedRenderFound } from '@retake/core/io';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
+import { PlanTrustError } from './plan-run.js';
 import type { PlanTrust } from './plan-run.js';
 import { probeMedia, renderVideo } from './render.js';
 import { handedDriver } from './driver-guard.js';
@@ -134,6 +135,46 @@ export class ExportError extends Error {
 
   get errorDocs(): string {
     return GUIDE.editing;
+  }
+}
+
+/**
+ * The theme a re-render of `record` plans with (an export's vertical or square format): the folder the master was
+ * rendered with (its record's `template_folder`, L7.9), named so that the editor's folder rule (core io
+ * projectTemplateFolderId) finds that very folder — the project's own `template:`, the record's theme name (a theme of
+ * the workspace, or a starter's) or a starter's name, the first whose folder is the record's. At a terminal, else, the
+ * folder itself (`/starter:<name>`: that starter's folder; a path: against the workspace root). Through MCP never a
+ * path the record holds: a folder the project could not name is refused (PlanTrustError), in words that quote nothing
+ * of the record. A record of before L7.9 (no folder) is re-rendered with its theme's name, as before.
+ */
+export async function exportThemeRef(project: LoadedProject, record: Pick<NamedRender, 'template'> & { template_folder?: unknown }, o: { trust?: PlanTrust } = {}): Promise<string> {
+  const folder = record.template_folder;
+  if (typeof folder !== 'string' || folder === '') return record.template;
+  const starter = folder.startsWith(STARTER_FOLDER_ID_PREFIX) ? folder.slice(STARTER_FOLDER_ID_PREFIX.length) : undefined;
+  const names = [record.template, ...(starter !== undefined ? [starter] : [])].filter((n) => typeof n === 'string' && isThemeName(n) && !isTemplatePath(n));
+  const candidates = [...(typeof project.config.template === 'string' ? [project.config.template] : []), ...names];
+  for (const ref of candidates) {
+    const id = await projectTemplateFolderId(project, ref).catch(() => undefined);
+    if (id === folder) return ref;
+  }
+  if (o.trust === 'mcp') {
+    throw new PlanTrustError([
+      "the theme folder this render was made with is not one the project names today (its project.yaml template:, a theme of the workspace or a starter): through MCP a re-render uses only those — re-render it from a terminal, or render the scenario again",
+    ]);
+  }
+  const dir = starter !== undefined ? join(STARTER_TEMPLATES_DIR, starter) : resolve(realpathOf(project.root), ...folder.split('/'));
+  // The folder rule both ways: the folder found is the one the record names (a starter's name that is no name, a path
+  // of another spelling: refused, never another folder).
+  if (templateFolderId(dir, project.root) !== folder) throw new RenderError(`the theme folder this render was made with cannot be found from the workspace (${printableText(folder)}): re-render the scenario`);
+  return dir;
+}
+
+/** A folder's real path, or the path as given when it cannot be read. */
+function realpathOf(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolve(p);
   }
 }
 
@@ -332,6 +373,8 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   // A re-render of the master's run, theme and overrides with another variant / scale; written to `file` (+ .json).
   const rerender = async (format: ExportFormat, file: string, over: { variant: PlanVariant; scale?: number }): Promise<ExportOutput> => {
     const t0 = performance.now();
+    // The master's theme folder, named as the project can name it (exportThemeRef).
+    const theme = await exportThemeRef(project, record, { trust });
     const overrides = { ...record.overrides, variant: over.variant };
     if (over.scale !== undefined) overrides.scale = over.scale;
     else delete overrides.scale;
@@ -341,7 +384,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       root,
       run: record.run_dir,
       scenario: record.scenario,
-      template: record.template,
+      template: theme,
       overrides,
       // The master's edit (L5.5): the same version of the scenario file, or the run as captured (renders before L5.5).
       ...(record.edit?.from === 'scenario' ? { editSha256: record.edit.sha256 ?? null } : { edit: 'run' as const }),

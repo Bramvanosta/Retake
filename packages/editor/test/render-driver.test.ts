@@ -7,12 +7,12 @@
  * package's own driver, and the own driver's options (`cacheDir`, `seams`, a preview `backend`) are refused beside it.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
-import { fileFacts, loadProject, loadTemplate } from '@retake/core/io';
+import { fileFacts, loadProject, loadTemplate, projectTemplateFolderId } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
@@ -279,7 +279,8 @@ describe('a preview session on a driver handed to it', () => {
 // ── The bytes of a record (L7.6b, pinned before the record becomes a union) ──
 
 describe('the record renderVideo writes, and the one a failure carries: their members, in order', () => {
-  const BASE = ['version', 'id', 'project', 'scenario', 'run_id', 'run_dir', 'template', 'template_sha256', 'overrides', 'edit', 'variant', 'status', 'file', 'record', 'render_version', 'created_at', 'finished_at', 'duration_s', 'frames', 'fps', 'width', 'height', 'size_bytes', 'encoding', 'concurrency', 'bundle', 'browser', 'timings', 'warnings'];
+  // L7.9: `template_folder` (the theme's folder, core io templateFolderId) after `template_sha256`.
+  const BASE = ['version', 'id', 'project', 'scenario', 'run_id', 'run_dir', 'template', 'template_sha256', 'template_folder', 'overrides', 'edit', 'variant', 'status', 'file', 'record', 'render_version', 'created_at', 'finished_at', 'duration_s', 'frames', 'fps', 'width', 'height', 'size_bytes', 'encoding', 'concurrency', 'bundle', 'browser', 'timings', 'warnings'];
 
   it('a succeeded record: `policy` and `probe` come after `plan`; the file is the record as JSON, two spaces, a final newline', async () => {
     const probe = { duration_s: 1, frames: 30, width: 1920, height: 1080, fps: 30, audio_streams: 1 };
@@ -289,6 +290,8 @@ describe('the record renderVideo writes, and the one a failure carries: their me
     expect(Object.keys(JSON.parse(text) as object)).toEqual([...BASE, 'plan', 'policy', 'probe']);
     expect(Object.keys(record.encoding)).toEqual(['codec', 'pixel_format', 'faststart', 'audio', 'encoder', 'crf']);
     expect([record.status, 'error' in record]).toEqual(['succeeded', false]);
+    // The theme's folder as the board reads today's (core io projectTemplateFolderId): one rule on both sides.
+    expect([record.template_folder, await projectTemplateFolderId(project, project.config.template)]).toEqual(['/starter:editorial', '/starter:editorial']);
     // Without a probe from the driver: no `probe` member at all.
     const bare = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver() });
     expect(Object.keys(JSON.parse(await readFile(bare.record, 'utf8')) as object)).toEqual([...BASE, 'plan', 'policy']);
@@ -306,5 +309,32 @@ describe('the record renderVideo writes, and the one a failure carries: their me
     const stopped = (cancelled as RenderCancelledError).record as RenderAttempt;
     expect(Object.keys(stopped)).toEqual([...BASE, 'plan', 'error']);
     expect([stopped.status, stopped.error, existsSync(stopped.record)]).toEqual(['cancelled', 'stopped', false]);
+  });
+});
+
+// L7.9 fix pass: an export's re-rendered format plans with the master's theme folder (editor exportThemeRef). Before,
+// with its theme's name: a project on `./themes/brand` failed "not found" (or took the workspace's `brand`).
+describe("an export's re-rendered format uses the master's theme folder", () => {
+  it('a project on a theme folder: the vertical is rendered with that folder, as the master was', async () => {
+    const dir = join(root, 'projects', 'pathy');
+    await mkdir(join(dir, 'runs'), { recursive: true });
+    await cp(join(project.dir, 'runs', RUN_ID), join(dir, 'runs', RUN_ID), { recursive: true });
+    // The take names no theme of its own: a plan of it uses the project's.
+    const tl = syntheticTimeline();
+    if (tl.video) delete tl.video.template;
+    await writeFile(join(dir, 'runs', RUN_ID, 'timeline.json'), JSON.stringify(tl, null, 2));
+    await cp(join(TEMPLATES, 'editorial'), join(dir, 'themes', 'brand'), { recursive: true });
+    await writeFile(join(dir, 'project.yaml'), 'name: Pathy\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: ./themes/brand\n');
+    const pathy = await loadProject('pathy', root);
+    const master = await renderVideo({ workPolicy: PERSON_POLICY, project: pathy, root, run: RUN_ID, renderer: driver() });
+    expect([master.template, master.template_folder]).toEqual(['brand', 'projects/pathy/themes/brand']);
+    for (const trust of ['author', 'mcp'] as const) {
+      const r = await exportRender({ workPolicy: PERSON_POLICY, project: pathy, root, render: master.id, formats: ['vertical_9x16'], renderer: driver(), trust, out: join(root, `out-${trust}`) });
+      expect(r.failures).toEqual([]);
+      const out = r.outputs.find((o) => o.format === 'vertical_9x16');
+      expect(out?.method).toBe('render');
+      const rec = JSON.parse(await readFile(out!.record!, 'utf8')) as { template_folder?: string };
+      expect(rec.template_folder).toBe('projects/pathy/themes/brand');
+    }
   });
 });

@@ -251,6 +251,19 @@ release — for the person about to click Install and Restart.
   folder, as the render record holds it —, also for a theme named by a path whose folder name is no theme name or whose
   reference is over 200 characters. Before, no theme was compared for such a theme and the row could show the newest
   render of another theme as current. The board's row says whether its render shows today's file (`render_current`).
+- The project board tells two theme folders of one name apart. A render record now holds the theme's folder as the
+  render loaded it (`template_folder`: `/starter:<name>` for a starter theme, else its path relative to the
+  workspace), and the board compares that: a render made with `themes/brand` no longer reads as current for a scenario
+  now on `../shared/brand`. Editing a theme still leaves its renders current. A render made before this version holds
+  no folder and is compared by the folder's name, as before.
+- An export's re-rendered formats (vertical, square) use the theme folder the render was made with. Before, they
+  looked the theme up by its name, so a project whose theme is a folder (`./themes/brand`) re-rendered them with the
+  workspace's theme of that name, or failed with "not found". Through MCP such a re-render uses only a folder the
+  project names today (its `template:`, a theme of the workspace or a starter) and refuses another one; at a terminal
+  it uses the folder itself.
+- A sandbox's `sql` reset hooks get the seed's check: the database they rewrite must be served by the sandbox or
+  marked `external: true`, checked before the reset changes anything, at a terminal as through MCP. Before, a sql
+  reset hook's database was not checked (the hook simply connected to it).
 - `project_prune`'s description names everything prune keeps (the capture that can still be edited, the last complete
   one, a run folder that is a link, a take of a newer Retake, the files of `renders/` left alone).
 

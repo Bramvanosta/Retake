@@ -256,7 +256,8 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   Like every loopback server, it can be reached by another account of the same Mac while the render runs.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
-  hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by
-  the sandbox or marked `external: true`, and its shell commands get the sandbox services' `env` (`DATABASE_URL`…), not
-  your shell's. Its plain demo passwords are masked like secrets (see [Sandbox mode](sandbox.md#sandbox-mode)).
+  hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, the database of a seed step or of a
+  reset hook — must be served by the sandbox or marked `external: true`, and its shell commands get the sandbox
+  services' `env` (`DATABASE_URL`…), not your shell's. Its plain demo passwords are masked like secrets (see
+  [Sandbox mode](sandbox.md#sandbox-mode)).
 - **Dry runs** never execute steps marked `irreversible`.

@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, ffmpegBin } from '@retake/core/io';
+import { findWorkspaceRoot, loadProject, ffmpegBin, templateFolderId } from '@retake/core/io';
 import type { GpuInfo, LoadedProject, LoadedTemplate, RenderSettings, Timeline, WorkPolicy } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
@@ -845,6 +845,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     run_dir: run.dir,
     template: template.name,
     template_sha256: templateSha256,
+    template_folder: templateFolderId(template.dir, project.root),
     overrides,
     edit: { from: edit.from, ...(edit.sha256 ? { sha256: edit.sha256 } : {}), ...(edit.changes?.length ? { changes: edit.changes } : {}), ...(edit.from === 'scenario' ? { captions: sceneCaptions(timeline) } : {}) },
     variant: plan.variant,
