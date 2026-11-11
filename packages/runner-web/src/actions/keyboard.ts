@@ -23,7 +23,7 @@ export const LONG_TEXT_FROM = 40;
 export const LONG_TEXT_FULL = 120;
 
 /** Why a `type` step typed at its rate: given (`cps`), a search field, the default rate, or long free text. */
-export type TypingRate = 'set' | 'search' | 'default' | 'long';
+export type TypingRate = 'set' | 'search' | 'default' | 'long' | 'fill';
 
 /**
  * Typing rate of a `type` step without `cps` (R-CHO-14): a search field at most SEARCH_MAX_CPS; other text at `base`
@@ -190,11 +190,12 @@ export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResu
   }
   const chars = [...args.text];
   // Without `cps` the rate adapts to the field (R-CHO-14): search fields slower, long free text faster.
-  const adapted = args.cps === undefined ? typingRate((await rt.kit.fieldState(null).catch(() => null))?.kind ?? null, chars.length, rt.pacing.type_cps) : null;
-  const cps = args.cps ?? adapted!.cps;
-  const rate: TypingRate = adapted?.rate ?? 'set';
+  const adapted = args.fill ? null : args.cps === undefined ? typingRate((await rt.kit.fieldState(null).catch(() => null))?.kind ?? null, chars.length, rt.pacing.type_cps) : null;
+  const cps = args.fill ? 0 : (args.cps ?? adapted!.cps);
+  const rate: TypingRate = args.fill ? 'fill' : (adapted?.rate ?? 'set');
   const t_type = rt.now();
-  await typeText(ctx, args.text, cps);
+  if (args.fill) await fillText(ctx, args.text);
+  else await typeText(ctx, args.text, cps);
   const t_typed = rt.now();
   // Before Enter (a search box or a chat field empties when it sends).
   await checkValue(ctx, field, args.text, wasEmpty, run?.resolved.desc ?? focused?.desc ?? 'the focused field');
@@ -246,6 +247,19 @@ export async function press(ctx: StepContext, args: PressArgs): Promise<ActionRe
 }
 
 /** Type `text` into the focused element at `cps` characters per second (deterministic ±30 % rhythm). */
+/**
+ * Hotfix v0.2.6 (field point 25): the whole value at once, as a browser autofill — one insertText into the focused field
+ * (the framework's input event), then its change event — so the field fills in one frame instead of key by key.
+ */
+export async function fillText(ctx: StepContext, text: string): Promise<void> {
+  await ctx.rt.page.keyboard.insertText(text);
+  await ctx.rt.page.evaluate(() => {
+    const el = document.activeElement;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await ctx.rt.sleep(ctx.jitter.ms(150));
+}
+
 export async function typeText(ctx: StepContext, text: string, cps: number): Promise<void> {
   const kb = ctx.rt.page.keyboard;
   const base = 1000 / Math.max(1, cps);

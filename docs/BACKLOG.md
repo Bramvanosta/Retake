@@ -2485,7 +2485,10 @@ accelerators, the page's MENU_COMMANDS). Other desktop apps built on the same sh
 `watch_reporting`: each new count, at most every 250 ms); the sheet lists the steps (download, signature, jobs, quit;
 the failed one marked) with a kit Progress (megabytes, percent; indeterminate without a size); the badge says the
 percent, then "Checking vX…"; the Dock icon's badge label says the percent (NSDockTile `badgeLabel`, not a progress
-view). *Left:* the native progress panel on the alert path, and the "Updated to vX" notice after the restart.
+view). *Left:* the native progress panel on the alert path. *Done in hotfix v0.2.6:* the restart gap — the
+installing step says the window goes for a few seconds, the Dock badge shows ↻ while the process installs, and the
+restarted app says "Updated to vX" once (desktop-updates.json `updated`, state `updated`; the release notes are not
+shown again).
 
 The update archive is large (about 370 MB in v0.2.2), and once Install and Restart is clicked nothing moves: the sheet
 says "Downloading vX" with no figure, the badge only turns busy, and the native alert path (Help › Check for Updates…

@@ -2239,6 +2239,10 @@
                 "enter": {
                   "type": "boolean",
                   "description": "Press Enter afterwards."
+                },
+                "fill": {
+                  "type": "boolean",
+                  "description": "Fill the field at once, as a browser autofill (its input and change events), instead of typing it."
                 }
               },
               "required": [

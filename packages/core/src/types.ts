@@ -170,6 +170,8 @@ export interface TypeArgs {
   clear?: boolean;
   /** Press Enter afterwards. */
   enter?: boolean;
+  /** Hotfix v0.2.6 (field point 25): the value set at once, as a browser autofill (input and change events). */
+  fill?: boolean;
 }
 
 export interface PressArgs {
@@ -1840,6 +1842,18 @@ export interface TimelineStall {
 }
 
 /** A wait the screen showed after the click at `click` (capture seconds): near-identical frames from `t_start` to `t_end`. */
+/**
+ * Hotfix v0.2.6: a loading indicator the page showed in its viewport while the take recorded — a skeleton, a shimmer, a
+ * spinner, an `aria-busy` region (`what`: their kinds, e.g. "skeleton ×6") — from `t_start` to `t_end` (capture s).
+ */
+export interface TimelineLoadingUi {
+  t_start: number;
+  t_end: number;
+  what: string;
+  /** Page id. */
+  page?: string;
+}
+
 export interface TimelineBusy {
   t_start: number;
   t_end: number;
@@ -2161,6 +2175,8 @@ export interface Timeline {
    * spinner, a blank panel — before the content the click asked for appeared. The edit shortens them.
    */
   busy?: TimelineBusy[];
+  /** Hotfix v0.2.6: loading indicators in the filmed page's viewport (absent when none: the review's `loading-filmed`). */
+  loading_ui?: TimelineLoadingUi[];
   /** Where the take was paused between steps (L4.4; absent when it never was): capture time did not run meanwhile. */
   pauses?: TimelinePause[];
   /**

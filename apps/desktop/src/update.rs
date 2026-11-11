@@ -197,6 +197,9 @@ pub fn start(app: &AppHandle, home: Option<PathBuf>, location: dc::InstallLocati
     let remembered = home.as_deref().map(uf::read_remembered).unwrap_or_default();
     let checked = remembered.checked;
     let failed = remembered.failed.clone();
+    // Hotfix v0.2.6 (BL-167): the install that put this version in place is said once — "Updated to vX".
+    let updated = remembered.updated.as_deref() == Some(current(app).as_str());
+    let said_update = remembered.updated.is_some();
     let cache = app.path().app_cache_dir().ok();
     if let Some(c) = &cache {
         let n = uf::remove_stale_archives(c, std::process::id(), |pid| unsafe { libc::kill(pid as libc::pid_t, 0) } == 0);
@@ -212,8 +215,14 @@ pub fn start(app: &AppHandle, home: Option<PathBuf>, location: dc::InstallLocati
         set(app, State::Failed { failure: *f, version: Some(v.clone()), checked, retry: false });
     } else if let Some(o) = off {
         set(app, State::Off(o));
+    } else if updated {
+        log(&format!("updates: {} {} is the update just installed", app_name(), current(app)));
+        set(app, State::Updated { checked });
     }
-    if off.is_none() && uf::launch_check_due(checked, now_s(), failed.is_some()) {
+    if said_update {
+        remember(|r| r.updated = None);
+    }
+    if off.is_none() && !updated && uf::launch_check_due(checked, now_s(), failed.is_some()) {
         check(app, false);
     }
 }
@@ -625,7 +634,10 @@ pub fn finish(app: &AppHandle) {
             let _ = std::fs::remove_file(&path);
             match r {
                 Ok(()) => {
-                    remember(|r| r.failed = None);
+                    remember(|r| {
+                        r.failed = None;
+                        r.updated = Some(version.clone());
+                    });
                     log(&format!("updates: {version} installed — restarting"));
                 }
                 Err(Swap::NotRestored(kept)) => {

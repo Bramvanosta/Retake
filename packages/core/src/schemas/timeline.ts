@@ -107,6 +107,13 @@ const StallSchema = z
   .strictObject({ t_start: t(), t_end: t(), during: z.enum(['move', 'ripple']) })
   .describe('The capture froze (no new frame from t_start to t_end) while the cursor moved or a click ripple played: the edit cuts the frozen part.');
 
+const LoadingUiSchema = z.strictObject({
+  t_start: z.number(),
+  t_end: z.number(),
+  what: z.string().describe('Their kinds, e.g. "skeleton ×6".'),
+  page: z.string().optional(),
+});
+
 const BusySchema = z
   .strictObject({ t_start: t(), t_end: t(), click: t().describe('Capture time of the click it followed.') })
   .describe('A wait the screen showed after a click (near-identical frames: a skeleton, a spinner, a blank panel): the edit shortens it.');
@@ -349,6 +356,7 @@ export const TimelineSchema = z
     loading: z.array(LoadingSchema).describe('Page loads `capture` did not show (the previous frame held until the new page painted).').optional(),
     stalls: z.array(StallSchema).describe('Where `capture` froze while the cursor moved or a click ripple played.').optional(),
     busy: z.array(BusySchema).describe('Waits the screen showed after a click (skeletons, spinners, blank panels).').optional(),
+    loading_ui: z.array(LoadingUiSchema).describe('Loading indicators (skeleton, shimmer, spinner, aria-busy) in the filmed page\'s viewport, as the take probed it.').optional(),
     pauses: z.array(PauseSchema).describe('Where the take was paused between steps (from the Studio): not filmed.').optional(),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),

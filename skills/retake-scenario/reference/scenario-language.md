@@ -63,7 +63,7 @@ Every step has exactly one action.
 | `click` | `click: {text: Save, in: dialog}` | the cursor travels, hovers, presses |
 | `double_click` | `double_click: {text: Report.pdf}` | a double click |
 | `hover` | `hover: {text: Pricing, ms: 900}` | rest on an element |
-| `type` | `type: {into: {label: Email}, text: buyer@example.com}` | type character by character (`clear`, `enter`, `cps`) |
+| `type` | `type: {into: {label: Email}, text: buyer@example.com}` | type character by character (`clear`, `enter`, `cps`); `fill: true` sets it at once, as a browser autofill |
 | `press` | `press: Enter` | a key (Playwright key names; `{key, times}`) |
 | `select` | `select: {field: Country, option: Sweden}` | a native select or a combobox; a long list with a search field: the option is typed there when it does not show — `search: Swe` types something else; `search_instant: true` fills the search at once (only the final list is filmed), `search_cps: 20` types it faster |
 | `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg}` | a multi-select popover; `search` types in its search field first (without it, the first option's text when it does not show); `search_instant` / `search_cps` as for `select` |
@@ -108,6 +108,30 @@ A plain string is visible text, or a CSS selector when it looks like one (`#id`,
 - `mark: <name>` names a beat: review key frames, comment anchors and `--marker` options use it.
 - `irreversible: true` on a step that sends something for real (an order, an email): dry runs and inspection replays
   show it without executing it.
+
+## Rules that hold for every product
+
+What reviews of client videos kept asking for, written once:
+
+- **Never a load on screen.** Every navigation or reload (an `open`, a submit that changes page) goes in an
+  `offscreen` scene that ends with `wait_for: {network_idle: true}`: no blank screen, no skeleton. The review says
+  `loading-filmed` when a skeleton or a spinner still shows.
+- **Show the state, not the path.** A filter already set (`open: /catalogue?available=true`), an account already
+  approved (a hook off camera), a page already loaded: never the intermediate state.
+- **Overlays never on the last step of a scene**: the scene ends under them (`overlay-lost`, `overlay-cut`). Put
+  them on an earlier step, or hold after them.
+- **Speed you can read.** Forms fill fast (`type: {…, fill: true}`, `select` with `search_instant: true`), but a
+  scene is never faster than ×2.
+- **Camera: one zoom at most**, centred on a point (the middle of a form, not its title), never while the page
+  scrolls, and done before it scrolls back (`zoom-during-scroll`).
+- **A live update shows in two beats**: the message that triggers it, held long enough to read; then the view of
+  what changes, before the change arrives, so it happens on screen.
+- **Captions say only what is true on screen**: never a word the UI contradicts ("Not a quote" over a "Request a
+  quote" button: `caption-contradicts-ui`), never ahead of the product ("Booking confirmed" before the payment).
+- **Inspect the app's language and theme first** (`page_inspect`): captions, demo data and the theme follow them.
+- **Dates**: pick a day in next month's calendar, never today or a day the calendar may not offer.
+- **Look before you send**: besides the review, step through each render at 2–3 frames a second around transitions,
+  submits and navigations; that is where artefacts hide.
 
 ## Cards, interstitials, overlays and tutorials
 

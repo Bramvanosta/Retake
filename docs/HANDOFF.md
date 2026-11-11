@@ -10,6 +10,22 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.6 (2026-11-11, branch `hotfix/v0.2.6` from main after v0.2.5; field feedback points 25–26 and the client demo retro):**
+- 25: `type.fill` (runner `fillText`: one `insertText`, then a `change` event; `data.rate: fill`; refused with `cps`).
+- 26: core `readmeEnvironmentLine` reads a README environment line by environment and pages (bold, code, a note in
+  parentheses, several pages, a trailing description); `gone` lists lines whose environment or a page is unknown.
+- Review: `loading-filmed` (runner `LoadingWatch` probes the filmed page every 250 ms for skeleton / shimmer /
+  spinner / aria-busy in the viewport → `timeline.loading_ui`; the check counts the output frames showing those
+  capture times), `zoom-during-scroll` (another `scroll` step inside a zoom's span: the zoom's own scroll step is one
+  move), `caption-contradicts-ui` (info: a negated word of a cue found in the quoted target texts or typed / chosen
+  values of the scene), `overlay-lost` / `overlay-cut` (a step overlay with no OverlayUse, or shown < 60 %).
+- Skill retake-scenario: "What good looks like" and the reference's "Rules that hold for every product".
+- The update's restart gap (BL-167, field report: "a crash at the end of the update" — the logs showed a clean quit,
+  ~8 s without a window during the swap, then the new app): update_flow `Remembered.updated` (written after a
+  successful swap) and `State::Updated` (said once at the next launch, which then skips its check), the Dock badge ↻
+  while Installing, the sheet's installing words; ui update-ops `updated` state, UpdateSheet opens on it once
+  (localStorage `retake.update.seen`). app-update-e2e waits for "is the update just installed".
+
 **Hotfix v0.2.5 (2026-11-11, branch `hotfix/v0.2.5` from `hotfix/v0.2.4`; field feedback, points 20–24):**
 - 20: core `installedVersion` / `staleEngine` (the bundle's bundle.json `app`, else the checkout's core package.json,
   read at each call); mcp `protocolTool` refuses every call but engine_info when stale (`staleWords`), engine_info

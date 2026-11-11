@@ -229,6 +229,20 @@ function environmentLink(env: string, page: string, url: string, display?: strin
 }
 
 /**
+ * One line of the "Environments & links" section that names an environment and its pages (hotfix v0.2.6, field point
+ * 26): `- env · page: url`, as the skeleton writes it, and the forms a person writes — the name in bold or code
+ * (`**stg**`), a note in parentheses after it (`(default)`), several pages on one line (`· console: <url> · admin:
+ * <url>`), a description after the URLs. Null for any other line (a wrapped line's continuation included).
+ */
+export function readmeEnvironmentLine(line: string): { env: string; pages: string[] } | null {
+  const plain = line.replace(/[*_`]/g, '');
+  const m = /^\s*[-*]\s+([A-Za-z0-9][\w.-]*)\s*(?:\([^)]*\)\s*)?·\s*(.*)$/.exec(plain);
+  if (!m) return null;
+  const pages = [...m[2].matchAll(/(?:^|·)\s*([A-Za-z0-9][\w.-]*)\s*:\s*<?https?:\/\//g)].map((x) => x[1]);
+  return pages.length ? { env: m[1], pages } : null;
+}
+
+/**
  * What a README's "## Environments & links" section no longer says about the project's environments (hotfix v0.2.2: the
  * section is written once, when the project is created, and environments are added to project.yaml later). `missing`:
  * pages whose URL the section does not mention; `gone`: lines in the skeleton's own form (`- env · page: url`) for an
@@ -248,8 +262,10 @@ export function readmeEnvironmentsDrift(
   const missing = pages.filter((p) => !text.includes(p.url.replace(/\/+$/, ''))).map((p) => environmentLink(p.env, p.page, p.url, p.display));
   const gone: string[] = [];
   for (const l of section) {
-    const m = /^- (\S+) · (\S+): \S/.exec(l);
-    if (m && !pages.some((p) => p.env === m[1] && p.page === m[2])) gone.push(l);
+    const line = readmeEnvironmentLine(l);
+    if (!line) continue;
+    const known = pages.filter((p) => p.env === line.env);
+    if (!known.length || line.pages.some((page) => !known.some((p) => p.page === page))) gone.push(l);
   }
   return missing.length || gone.length ? { missing, gone } : null;
 }

@@ -267,6 +267,31 @@ describe('the update in the status bar and its sheet', () => {
     expect(errors).toEqual([]);
   }, 120_000);
 
+  it('hotfix v0.2.6: after the restart, "Updated to vX" opens by itself once; Close puts it away for good', async () => {
+    shell({ type: 'update', state: 'updated', current: '0.2.1', checked: 1762000000 });
+    const p = await open(true);
+    await expect.poll(() => isOpen(p), POLL).toBe(true);
+    expect(await sheet(p).locator('h2').first().innerText()).toBe('Retake v0.2.1');
+    expect(await sheet(p).getByTestId('update-progress').innerText()).toBe('Updated to v0.2.1\n\nRetake installed the update and opened again. Workspaces, projects and sign-ins are as you left them.');
+    expect(await badge(p).innerText()).toBe('Updated to v0.2.1');
+    expect(await sheet(p).locator('.k-sheet-actions button').allInnerTexts()).toEqual(['Close']);
+    await shot(p, 'update-sheet-updated');
+    await sheet(p).getByTestId('update-close').click();
+    await expect.poll(() => isOpen(p), POLL).toBe(false);
+    expect(await badge(p).count()).toBe(0);
+    // Another load of the page: seen, it stays closed.
+    await p.reload();
+    await p.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
+    await p.waitForTimeout(1500);
+    expect(await isOpen(p)).toBe(false);
+    // Installing says the window goes away for a few seconds.
+    shell({ type: 'update', state: 'installing', current: '0.2.0', version: '0.2.1' });
+    await badge(p).click();
+    await expect.poll(() => sheet(p).getByTestId('update-progress').innerText().catch(() => ''), POLL).toContain('its window is gone for a few seconds');
+    await p.close();
+    expect(errors).toEqual([]);
+  });
+
   it('Help › Check for Updates… (the shell\'s studio:update event) opens the sheet', async () => {
     shell(available);
     const p = await open(true);

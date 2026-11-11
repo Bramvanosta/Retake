@@ -154,6 +154,7 @@ const TypeArgsSchema = z.strictObject({
   cps: z.number().gt(0).describe('Characters per second (default pacing.type_cps).').optional(),
   clear: z.boolean().describe('Select-all + delete before typing.').optional(),
   enter: z.boolean().describe('Press Enter afterwards.').optional(),
+  fill: z.boolean().describe('Fill the field at once, as a browser autofill (its input and change events), instead of typing it.').optional(),
 });
 
 const PressArgsSchema = z.union([

@@ -13,7 +13,7 @@ import { join } from 'node:path';
  * repeated here, in every package.json, apps/desktop/tauri.conf.json, skills/.claude-plugin/plugin.json and
  * apps/desktop/Cargo.toml (a test keeps them equal).
  */
-export const RETAKE_VERSION = '0.2.5';
+export const RETAKE_VERSION = '0.2.6';
 
 /** The format version of each file this Retake reads and writes (a file without `version` is version 1). */
 export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 } as const;

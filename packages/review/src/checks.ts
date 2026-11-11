@@ -1165,3 +1165,159 @@ export function checkEnvironment(ctx: CheckContext): Finding[] {
   }
   return out;
 }
+
+// ── Client demo retro (hotfix v0.2.6) ─────────────────────────────────────────
+
+/** A loading indicator shown at least this long is said. */
+export const LOADING_FILMED_MIN_S = 0.3;
+
+/**
+ * `loading-filmed`: a skeleton, a shimmer, a spinner or an `aria-busy` region the take recorded in the filmed page
+ * (`timeline.loading_ui`) that the video shows for LOADING_FILMED_MIN_S or more — beyond the empty screens the pixel
+ * checks see. A navigation or a reload belongs in an `offscreen` scene that waits for `network_idle`.
+ */
+export function checkLoadingFilmed(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const spans = ctx.timeline?.loading_ui ?? [];
+  if (!spans.length) return out;
+  const fps = ctx.plan.source.fps;
+  for (const span of spans) {
+    const a = span.t_start * fps;
+    const b = span.t_end * fps;
+    for (const s of ctx.plan.segments) {
+      if (!isClip(s)) continue;
+      let first: number | undefined;
+      let shown = 0;
+      s.srcFrames.forEach((src, f) => {
+        if (src >= a && src < b) {
+          shown++;
+          first ??= f;
+        }
+      });
+      const seconds = shown / ctx.plan.fps;
+      if (first === undefined || seconds < LOADING_FILMED_MIN_S) continue;
+      out.push(
+        finding(
+          'warning',
+          'loading-filmed',
+          `scene "${s.scene}" shows the page still loading for ${fmtS(seconds)} (${span.what}): film it once loaded — a navigation or a reload goes in an offscreen scene that waits for network_idle`,
+          locate(ctx, s.from + first),
+        ),
+      );
+    }
+  }
+  return out;
+}
+
+/**
+ * `zoom-during-scroll`: a camera zoom whose span (in, hold, out) overlaps another `scroll` step of its clip — the page
+ * moves under a magnified view (the zoom's own scroll step, which brings its target in, is one move). One zoom, centred on a point, done before the page scrolls.
+ */
+export function checkZoomScroll(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  for (const clip of ctx.plan.segments.filter(isClip)) {
+    for (const z of clip.zooms) {
+      const end = z.out_at + z.out_frames;
+      // The zoom's own scroll step brings its target in while the camera eases to it (one move): another scroll is not.
+      const scroll = clip.steps.find((st) => st.action === 'scroll' && !(st.scene === z.scene && st.step === z.step) && st.from < end && st.to > z.from);
+      if (!scroll) continue;
+      out.push(
+        finding(
+          'warning',
+          'zoom-during-scroll',
+          `the ${z.zoom}× zoom of ${z.scene}.${z.step} is still on while step ${scroll.scene}.${scroll.step} scrolls the page: end the zoom before any scroll (or zoom after it)`,
+          locate(ctx, clip.from + Math.max(z.from, scroll.from), { scene: z.scene, step: z.step }),
+        ),
+      );
+    }
+  }
+  return out;
+}
+
+const NEGATION = /\b(?:not|no|never|without|isn['’]t|aren['’]t|don['’]t|doesn['’]t|won['’]t|can['’]t)\s+(?:(?:a|an|the|any|your|their|one)\s+)?([\p{L}][\p{L}'’-]{2,})/giu;
+
+/** The texts a scene's steps found on the page: the quoted parts of their targets' descriptions, and asserted texts. */
+function uiTexts(timeline: Timeline, scene: string): string[] {
+  const out: string[] = [];
+  for (const ev of timeline.events) {
+    if (ev.scene !== scene) continue;
+    const desc = (ev as { target?: { desc?: string } }).target?.desc;
+    if (desc) for (const m of desc.matchAll(/["“]([^"”]{2,120})["”]/g)) out.push(m[1]);
+    const data = ev.data as { text?: unknown; option?: unknown } | undefined;
+    for (const v of [data?.text, data?.option]) if (typeof v === 'string' && v.length <= 120) out.push(v);
+  }
+  return out;
+}
+
+/**
+ * `caption-contradicts-ui` (info): a caption that denies a word the page shows in the same scene ("Not a quote" over a
+ * "Request a quote" button). A caption never says what the screen does not: check the wording against the UI.
+ */
+export function checkCaptionContradictions(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const timeline = ctx.timeline;
+  if (!timeline) return out;
+  const seen = new Set<string>();
+  for (const clip of ctx.plan.segments.filter(isClip)) {
+    const texts = uiTexts(timeline, clip.scene);
+    if (!texts.length) continue;
+    for (const cue of clip.cues) {
+      const text = `${cue.kicker ?? ''} ${cue.text}`;
+      for (const m of text.matchAll(NEGATION)) {
+        const word = m[1].toLowerCase();
+        const shown = texts.find((t) => new RegExp(`(^|[^\\p{L}])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\p{L}]|$)`, 'iu').test(t));
+        const key = `${clip.scene}|${cue.text}|${word}`;
+        if (!shown || seen.has(key)) continue;
+        seen.add(key);
+        out.push(
+          finding(
+            'info',
+            'caption-contradicts-ui',
+            `the caption "${cue.text}" says "${m[0].trim()}" while the page shows "${shown}" in scene "${clip.scene}": a caption never contradicts the UI`,
+            locate(ctx, clip.from + cue.from, { scene: clip.scene }),
+          ),
+        );
+      }
+    }
+  }
+  return out;
+}
+
+/** An overlay shown for less than this share of its own length is cut. */
+export const OVERLAY_CUT_SHARE = 0.6;
+
+/**
+ * `overlay-lost` / `overlay-cut`: a step's `overlay` the edit left out (the step ends after its clip: the last step of a
+ * scene), or cut by the clip's end to less than OVERLAY_CUT_SHARE of its length — the render only warned about it. An
+ * overlay never goes on the last step of a scene (or the scene holds after it).
+ */
+export function checkOverlaysKept(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const timeline = ctx.timeline;
+  if (!timeline) return out;
+  const clips = ctx.plan.segments.filter(isClip);
+  for (const ev of timeline.events) {
+    if (!ev.overlay || ev.step < 0) continue;
+    const mine = clips.filter((c) => c.scene === ev.scene);
+    if (!mine.length) continue;
+    const uses = mine.flatMap((c) => c.overlays.filter((o) => o.scene === ev.scene && o.step === ev.step).map((o) => ({ c, o })));
+    const where = `${ev.scene}.${ev.step}`;
+    const last = mine[mine.length - 1];
+    if (!uses.length) {
+      out.push(finding('warning', 'overlay-lost', `the overlay of step ${where} is not in the video: the step ends after its clip (the last step of a scene) — put it on an earlier step, or hold after it`, locate(ctx, last.from + last.durationInFrames - 1, { scene: ev.scene, step: ev.step })));
+      continue;
+    }
+    for (const { c, o } of uses) {
+      if (o.componentFrames === undefined || o.durationInFrames >= o.componentFrames * OVERLAY_CUT_SHARE) continue;
+      out.push(
+        finding(
+          'warning',
+          'overlay-cut',
+          `the overlay of step ${where} shows ${fmtS(o.durationInFrames / ctx.plan.fps)} of its ${fmtS(o.componentFrames / ctx.plan.fps)}: the scene ends under it — put it on an earlier step, or hold after it`,
+          locate(ctx, c.from + o.from, { scene: ev.scene, step: ev.step }),
+        ),
+      );
+    }
+  }
+  return out;
+}

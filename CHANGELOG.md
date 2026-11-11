@@ -6,6 +6,27 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+## [0.2.6] — 2026-11-11
+
+The review now catches what client demos kept bringing up: a page still loading on screen, a zoom while the page
+scrolls, a caption that says the opposite of the screen, an annotation lost at the end of a scene. Forms can fill in
+one go.
+
+### Added
+- **Review checks:** `loading-filmed` (a skeleton, a spinner or a busy region the video shows; the take now records
+  them), `zoom-during-scroll`, `caption-contradicts-ui` (a note) and `overlay-lost` / `overlay-cut` (an annotation
+  dropped or cut by the end of its scene, until now only a render warning).
+- **`type: {…, fill: true}`** fills a field at once, as a browser autofill.
+- **Claude's scenario skill** gains the editing rules that hold for every product: loads off camera, the state rather
+  than the path, no annotation on a scene's last step, readable speed, one zoom at most, live updates in two beats,
+  captions true to the screen, the app's language and theme first, dates in next month, frame-by-frame look.
+
+### Fixed
+- **The end of an update.** While the app installs, its window is gone for a few seconds: the sheet now says so
+  beforehand, the Dock icon shows ↻ meanwhile, and the restarted app says "Updated to vX" once.
+- **`project_get` and a hand-written README.** Environment lines written with the name in bold, a note in
+  parentheses, several pages on one line or a description after the URLs were reported as gone.
+
 ## [0.2.5] — 2026-11-11
 
 Claude's connection to Retake restarts by itself after an update, a sandbox reset also puts back a Firebase Auth
