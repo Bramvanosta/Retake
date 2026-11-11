@@ -5,13 +5,15 @@
 //! question's flow, page first and the native alert as the fallback (guard_flow); L5.16c: the installed app's first run
 //! and Set-up sheet — where it runs from, the first-run alert, the `studio:setup` event, the lines for the server (setup);
 //! L5.16d: the updater's rules — which build updates itself, when it checks, what an install waits for, the lines for
-//! the server and the remembered checks (update_flow).
+//! the server and the remembered checks (update_flow); BL-168: the restart after an update, once this process is gone
+//! (relaunch).
 
 pub mod config;
 pub mod guard_flow;
 pub mod json;
 pub mod notify;
 pub mod pipe;
+pub mod relaunch;
 pub mod rules;
 pub mod setup;
 pub mod stop;

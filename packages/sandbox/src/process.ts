@@ -246,6 +246,7 @@ export class ProcessProvider implements Provider {
   /** Start one service and wait until it is healthy and owns its ports. */
   private async startOne(ctx: ProviderContext, name: string, svc: SandboxService): Promise<void> {
     await this.checkFree(ctx, name);
+    ctx.progress?.step(`start ${name}`, `healthy within ${Math.round(serviceHealth(name, svc).timeoutMs / 1000)} s`);
     const s = await this.spawnService(ctx, name, svc);
     try {
       const health = serviceHealth(name, svc);

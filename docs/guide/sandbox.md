@@ -61,7 +61,7 @@ Every key of sandbox.yaml (version 1; `retake schema sandbox` prints the JSON Sc
 | `services.<name>` | `url` (health base), `pages` (key → URL or `{url, display}`), `health`; process: `command`, `cwd`, `env`, `stop_timeout_s` |
 | `services.<name>.health` | a path, `false`, or `{path \| url, status, text, timeout_s, interval_ms, tcp}` (`tcp`: process only) |
 | `seed[]` | `http`, `sql`, `shell`, `exec` (`{service, command, env, timeout_s}`, docker-compose) + `name`, `optional` |
-| `reset` | `strategy` (`reseed` \| `snapshot`), `snapshot.database` (a key of `databases`), `restart` (services) |
+| `reset` | `strategy` (`reseed` \| `snapshot`), `snapshot.database` (a key of `databases`), `restart` (services), `firebase_auth` (`url`, `project`: a Firebase Auth emulator put back at every reset), `hooks` (steps run at every reset) |
 | `databases.<key>` | `{url, external}` — sql seeds and the sql hooks of scenarios on this environment (loopback only); `external: true`: see below |
 | `mailbox` | `{provider: mailpit \| http, url, poll_ms, headers, clear, external}` — `clear: false` keeps it at a reset |
 | `login_url` | the sign-in page(s) of every account |
@@ -110,11 +110,16 @@ Validation (`retake validate`, and every command: a broken sandbox.yaml stops th
   too) is the value that name has in the sandbox's compose env file (`compose.env_file`, or the `.env` next to the
   first compose file; docker-compose only) — one source for the product's seed and for the sign-in, no keychain
   item to copy, and it works in the desktop app, which never sees your shell's variables. Read when the project
-  loads and masked like a plain password; a name the file does not set is an error.
-- **One app, several accounts**: an environment page belongs to at most one account. For two roles of the same app
-  (an owner and an admin on one URL), give the service one page key per account on the same URL —
-  `pages: {admin: "http://admin.localhost:4810", backoffice: "http://admin.localhost:4810"}` — and each account its
-  own (`pages: [admin]`, `pages: [backoffice]`); a scene opens the page of the account it films.
+  loads and masked like a plain password; a name the file does not set is an error. The sandbox's hooks — its seed,
+  and the setup, teardown, named and reset hooks of a run on it — read the same file as `{{compose_env:NAME}}` and an
+  account as `{{accounts.<persona>.username|password}}` (masked; a seed checks the account names against its own
+  `accounts`). A setup hook acts as an account with `auth: {persona: <account>}` (its saved session; see
+  [Templating and hooks](scenarios.md#templating-and-hooks)) — not a seed step, which runs before anyone signs in.
+- **One app, several accounts**: two roles of the same app (an owner and an admin on one URL) may both list its page
+  (`pages: [admin]` on each account). The first account declared is the page's default; a scene films the other one
+  with `persona: <account>` (`{page: admin, persona: staff}`). One video that shows both gives each a page id of its
+  own in a multi-page scene — `pages: {theirs: {page: admin}, ours: {page: admin, persona: staff}}` —: a page id keeps
+  one account for the whole run. (A page key per account on the same URL — `admin` and `backoffice` — still works.)
 - Seed steps: `http`, `sql`, `shell`, `exec` — no `js` (there is no browser); they stop at the first failure, are
   never rolled back (a `rollback` is ignored, with a warning) and need no `confirm: true` (a seed rebuilds a local,
   disposable copy). A SQL file that is pg_dump's plain output (`COPY … FROM stdin`, `\connect`) is refused: dump with
@@ -122,7 +127,8 @@ Validation (`retake validate`, and every command: a broken sandbox.yaml stops th
   a variable two services set differently must be set in the step's own `env`.
 - `strategy: snapshot` needs docker-compose and a Postgres database of `databases` (`reset.snapshot.database`,
   default the first) that is not `postgres` / `template0` / `template1`, with a name of at most 50 characters.
-  `reset.restart` names services of the manifest.
+  `reset.restart` names services of the manifest. `reset.hooks` are checked as seed steps; `reset.firebase_auth.url`
+  is on this machine.
 
 ### Starting, resetting and filming a sandbox
 
@@ -137,6 +143,13 @@ retake run northfield-fixture sandbox-quote --sandbox   # up if needed, health, 
 
 `--env <name>` picks the sandbox (default: the first of project.yaml `sandboxes:`). `status` exits with `0` only when
 every service runs and is healthy, `--json` for scripts.
+
+`up` and `reset` say what they are doing while they do it — an image build and the health checks take minutes: on a
+terminal, one live line (the step, its elapsed time, the last line of `docker compose` or of the seed command), replaced
+by `✓ step  time` when the step ends; in a pipe or CI, a time-stamped line as each step starts and ends. The steps:
+`compose` (the compose files, the ports), `build` (with `--build`), `start` (until every service runs and is healthy),
+`health <service>`, `databases`, `seed n/N`, `snapshot`, `restart <service>` — a process sandbox: `start <service>`.
+`--verbose` copies every line of `docker compose` and of the seed; the last line, `steps`, gives the time of each one.
 
 - **`up`** starts the services that are not running (a process sandbox: in the order sandbox.yaml declares them, each
   one healthy before the next starts; a docker-compose one: `docker compose up`, below). It then seeds the sandbox
@@ -175,7 +188,18 @@ every service runs and is healthy, `--json` for scripts.
   environment are marked superseded — `retake env reset` and `retake hooks rollback` never replay them on the
   reseeded data (`DELETE /api/quotes/7` would delete the new quote 7), even when what follows fails —; then the
   mailbox is emptied (Mailpit `DELETE /api/v1/messages`; `mailbox: {clear: false}` keeps it; an `http` mailbox is left
-  to the seed) and the `reset.restart` services restarted.
+  to the seed) and the `reset.restart` services restarted. Then (hotfix v0.2.5) a Firebase Auth emulator named in
+  `reset.firebase_auth` gets back the accounts the seed left, and `reset.hooks` run.
+- **What a snapshot covers: the Postgres database only.** A service that keeps its own state — in memory, in its own
+  files — does not go back with it: a Firebase Auth emulator keeps the account a take created ("you already have an
+  account" at the next take), and restarting it loses the seeded accounts too. For the Auth emulator,
+  `reset.firebase_auth: {url: "http://localhost:9099", project: demo-…}`: its accounts are emptied before each seed,
+  saved after it (the emulator's own export, `accounts:batchGet`, in `.retake/sandbox/<env>/firebase-auth.json`), and
+  at every reset — after `reset.restart` — emptied and imported again (`accounts:batchCreate`, as `firebase emulators:start
+  --import` does); with strategy `snapshot` a save that does not match the seed reseeds. For anything else,
+  `reset.hooks`: `http`, `sql`, `shell` or `exec` steps (the seed's kinds and checks; never rolled back) run at every
+  reset once the data is back — once in sandbox.yaml rather than a setup hook copied into each scenario. `--reseed`
+  runs the seed and saves the accounts again.
 - **Only what the sandbox owns.** A reset empties the mailbox and the seed's `sql` steps rewrite their database, so
   both must be the sandbox's own: served by a service of the sandbox — a port a running container of its compose
   project publishes (made from its folder, with no other project's container publishing that port too), or a port a

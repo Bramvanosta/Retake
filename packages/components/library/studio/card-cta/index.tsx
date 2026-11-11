@@ -5,6 +5,7 @@ import {
   SYSTEM_COLORS,
   backgroundSample,
   biasMotion,
+  buttonColors,
   capTextLayout,
   contrastRatio,
   darkLight,
@@ -137,7 +138,9 @@ export default function CardCta({ theme, slots, params, unit, width, height, fps
 
   // QR colours: the theme's dark on white when they contrast enough, else black on white.
   const qrDark = (contrastRatio(SYSTEM_COLORS.white, c.dark) ?? 0) >= 7 ? c.dark : SYSTEM_COLORS.black;
-  const btnInk = readableOn(c.accent, c.light, SYSTEM_COLORS.white, 3.5);
+  // The button: the accent as it is, its label chosen against that fill (never against the page: a dark accent on a
+  // dark page kept a white label on a white stand-in — field point 22).
+  const btn = buttonColors(theme);
   const quiet = 2;
   const modules = qr ? qr.size + 2 * quiet : 1;
 
@@ -164,13 +167,13 @@ export default function CardCta({ theme, slots, params, unit, width, height, fps
           width: roundTo(btnW, 2),
           height: roundTo(btnH, 2),
           borderRadius: btnH / 2,
-          background: c.accent,
+          background: btn.fill,
           opacity: roundTo(Math.min(1, pop * 1.6), 4),
           transform: `scale(${roundTo((0.85 + 0.15 * pop) * pulseScale, 4)})`,
-          boxShadow: `0 ${8 * u}px ${22 * u}px ${withAlpha(c.accent, 0.28)}`,
+          boxShadow: `0 ${8 * u}px ${22 * u}px ${withAlpha(btn.fill, 0.28)}`,
         }}
       >
-        <CapText layout={btnText} x={btnW / 2} capTop={(btnH - btnText.capHeight) / 2} align="center" color={btnInk} />
+        <CapText layout={btnText} x={btnW / 2} capTop={(btnH - btnText.capHeight) / 2} align="center" color={btn.label} />
       </div>
       {url && urlTop !== undefined ? (
         <div style={{ position: 'absolute', inset: 0, ...urlIn }}>

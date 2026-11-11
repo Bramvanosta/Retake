@@ -1,9 +1,10 @@
 import { interpolate, listTemplateTokens } from '@retake/core';
 import type { TemplateContext } from '@retake/core';
-import { redactDeep, secretResolver } from './secrets.js';
+import { isAccountsRoot, sandboxAccounts } from './sandbox-refs.js';
+import { addSecret, redactDeep, secretResolver } from './secrets.js';
 import type { HookContext, TemplateSnapshot } from './types.js';
 
-const SECRET_TOKEN = /^(env|keychain|secret):/;
+const SECRET_TOKEN = /^(env|keychain|secret|compose_env):/;
 
 const hasOwn = (o: object | undefined, k: string): boolean => o !== undefined && o !== null && Object.hasOwn(o, k);
 
@@ -16,8 +17,20 @@ export function tokensIn(value: unknown, out: string[] = []): string[] {
 }
 
 /**
+ * `{{accounts.<persona>.username|password}}` of the sandbox of environment `env` (sandbox-refs.ts), as a template
+ * root; its secret values are registered for redaction. Undefined: `value` reads none.
+ */
+async function accountsRoot(ctx: HookContext, value: unknown, env?: string): Promise<Record<string, unknown> | undefined> {
+  const accounts = await sandboxAccounts(ctx, value, env);
+  if (!accounts) return undefined;
+  for (const s of accounts.secrets) addSecret(ctx, s);
+  return accounts.root;
+}
+
+/**
  * Template context of a hook: environment pages, vars (ctx.vars over project vars), saved hook
- * results, run id and folder, optional extra roots ({{response…}}), and the secrets used by `value`.
+ * results, run id and folder, optional extra roots ({{response…}}), the secrets used by `value` and, in a sandbox
+ * environment, the accounts it reads (`{{accounts.<persona>.password}}`).
  */
 export async function hookTemplateContext(
   ctx: HookContext,
@@ -25,12 +38,13 @@ export async function hookTemplateContext(
   extra?: Record<string, unknown>,
 ): Promise<TemplateContext> {
   const dry = ctx.dryRun ? drySaved.get(ctx) : undefined;
+  const accounts = await accountsRoot(ctx, value);
   return {
     pages: ctx.env.pages,
     vars: { ...(ctx.project.config.vars ?? {}), ...ctx.vars },
     hooks: dry ? { ...ctx.saved, ...dry } : ctx.saved,
     run: ctx.runId ? { id: ctx.runId, ...(ctx.runDir ? { dir: ctx.runDir } : {}) } : undefined,
-    extra,
+    extra: accounts ? { ...extra, accounts } : extra,
     secrets: await secretResolver(ctx, value),
   };
 }
@@ -92,19 +106,24 @@ export function renderDeep<T>(value: T, tpl: TemplateContext): T {
   return value;
 }
 
-/** Template context of a rollback: the captured snapshot plus freshly resolved secrets. */
+/**
+ * Template context of a rollback: the captured snapshot plus freshly resolved secrets — and sandbox accounts, read
+ * again from the sandbox of the environment the hook ran in (`env`; default: the context's).
+ */
 export async function snapshotTemplateContext(
   ctx: HookContext,
   snapshot: TemplateSnapshot,
   value: unknown,
+  env?: string,
 ): Promise<TemplateContext> {
+  const accounts = await accountsRoot(ctx, value, env);
   return {
     pages: snapshot.pages ?? {},
     vars: snapshot.vars ?? {},
     hooks: snapshot.hooks ?? {},
     run: snapshot.run,
-    extra: snapshot.extra,
-    secrets: await secretResolver(ctx, value),
+    extra: accounts ? { ...snapshot.extra, accounts } : snapshot.extra,
+    secrets: await secretResolver(ctx, value, env),
   };
 }
 
@@ -152,6 +171,8 @@ function capture(expr: string, tpl: TemplateContext, snap: Record<string, unknow
   if (head === 'vars') return copy(tpl.vars, path.slice(1), ['vars']);
   if (head === 'hooks') return copy(tpl.hooks, path.slice(1), ['hooks']);
   if (head === 'run') return copy(tpl.run, path.slice(1), ['run']);
+  // A sandbox account is a secret reference: left in template form, resolved again when the rollback replays.
+  if (head === 'accounts' && isAccountsRoot(tpl.extra?.accounts)) return;
   if (hasOwn(tpl.extra, head)) return copy(tpl.extra![head], path.slice(1), ['extra', head]);
   if (hasOwn(tpl.vars, head)) return copy(tpl.vars, path, ['vars']);
 }

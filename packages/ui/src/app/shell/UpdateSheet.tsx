@@ -7,19 +7,26 @@
  * failure or "off"). Nothing installs without the click. The badge stays a live button while a step runs (it reopens
  * the sheet: Later). The notes are a named, keyboard-scrollable region. In the app's window only (AppShell renders it
  * when `inApp`); a server that is not the app's own says `available: false` and nothing shows.
- * The status is read on mount, every 60 s (every 2 s while a step is under way or the sheet is open), and at once on
- * the shell's `studio:update` event (Help › Check for Updates… found one: the sheet opens).
+ * The status is read on mount, every 60 s (every 2 s while a step is under way or the sheet is open, every second while
+ * it downloads), and at once on the shell's `studio:update` event (Help › Check for Updates… found one: the sheet opens).
+ * After an install (hotfix v0.2.6), the restarted app says "Updated to vX" once: the sheet opens by itself on that state
+ * (once per version: remembered in the browser's storage, a convenience), the badge stays until it is closed.
+ * BL-167: after the click the sheet lists the steps (installSteps: the download, the signature, the jobs, the quit that
+ * installs and restarts; the one that failed), the download with its megabytes and percent (a kit Progress; without
+ * an announced size, an indeterminate one), and the badge shows the percent while the sheet is closed.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { desktopUpdate, desktopUpdateStatus } from '../data/desktop.js';
 import { Txt } from '../bits.js';
 import { APP_NAME } from '../brand.js';
-import { Button, Callout, Sheet } from '../ui-kit/index.js';
+import { Button, Callout, Progress, Shape, Sheet } from '../ui-kit/index.js';
 import type { SheetAction } from '../ui-kit/index.js';
-import { UPDATE_EVENT, badgeWords, checkedWords, progressWords, sheetShown } from './update.js';
+import { STEP_MARKS, UPDATE_EVENT, badgeWords, checkedWords, downloadFigure, installSteps, progressWords, sheetShown } from './update.js';
 import type { UpdateStatus } from './update.js';
 
 const BUSY = new Set(['checking', 'downloading', 'waiting', 'installing']);
+/** The version whose "Updated to vX" was seen (a per-browser convenience). */
+const SEEN_KEY = 'retake.update.seen';
 
 export function UpdateControl() {
   const [st, setSt] = useState<UpdateStatus | null>(null);
@@ -34,9 +41,9 @@ export function UpdateControl() {
   useEffect(() => load(), [load]);
   const fast = open || (st?.state !== undefined && BUSY.has(st.state));
   useEffect(() => {
-    const t = window.setInterval(load, fast ? 2000 : 60_000);
+    const t = window.setInterval(load, st?.state === 'downloading' ? 1000 : fast ? 2000 : 60_000);
     return () => window.clearInterval(t);
-  }, [load, fast]);
+  }, [load, fast, st?.state]);
   // Help › Check for Updates… found one: the shell's constant event — read the status, open the sheet.
   useEffect(() => {
     const on = () => {
@@ -46,14 +53,37 @@ export function UpdateControl() {
     window.addEventListener(UPDATE_EVENT, on);
     return () => window.removeEventListener(UPDATE_EVENT, on);
   }, [load]);
-  const badge = badgeWords(st);
+  // Hotfix v0.2.6: the restarted app says "Updated to vX" once — the sheet opens by itself, Close puts it away.
+  const [dismissed, setDismissed] = useState(false);
+  const updated = st?.state === 'updated' && !dismissed ? st.current : undefined;
+  useEffect(() => {
+    if (!updated) return;
+    let seen: string | null = null;
+    try {
+      seen = window.localStorage.getItem(SEEN_KEY);
+    } catch {
+      /* no storage: the sheet opens on each load of this session */
+    }
+    if (seen !== updated) setOpen(true);
+  }, [updated]);
+  const badge = dismissed && st?.state === 'updated' ? null : badgeWords(st);
   if (!st?.available) return null;
   const version = st.version ?? '';
   const progress = progressWords(st);
+  const steps = installSteps(st);
+  const figure = downloadFigure(st);
   const installable = st.installable === true && st.state !== 'downloading' && st.state !== 'installing' && st.state !== 'waiting';
   const onAction = (id: string) => {
     if (id === 'close') {
       setOpen(false);
+      if (st.state === 'updated') {
+        setDismissed(true);
+        try {
+          window.localStorage.setItem(SEEN_KEY, st.current ?? '');
+        } catch {
+          /* no storage */
+        }
+      }
       return;
     }
     const action = id === 'install' ? 'install' : 'later';
@@ -96,8 +126,8 @@ export function UpdateControl() {
         </span>
       )}
       <Sheet
-        open={open && sheetShown(st)}
-        title={version ? `Update ${APP_NAME} to v${version}?` : `Update ${APP_NAME}`}
+        open={open && sheetShown(st) && !(st.state === 'updated' && dismissed)}
+        title={st.state === 'updated' ? `${APP_NAME} v${st.current ?? ''}` : version ? `Update ${APP_NAME} to v${version}?` : `Update ${APP_NAME}`}
         actions={actions}
         onAction={onAction}
         testId="update-sheet"
@@ -119,6 +149,20 @@ export function UpdateControl() {
                 </Callout>
               )
             )}
+            {figure && <Progress label="Download" value={figure.percent} valueText={figure.text} testId="update-download" />}
+            {steps && (
+              <ol className="sh-update-steps" aria-label="Install and Restart, step by step" data-testid="update-steps">
+                {steps.map((step) => (
+                  <li key={step.id} className="sh-update-step" data-step={step.id} data-state={step.state} aria-current={step.state === 'running' ? 'step' : undefined}>
+                    <span className="sh-update-step-mark" data-state={STEP_MARKS[step.state].mark}>
+                      <Shape state={STEP_MARKS[step.state].mark} />
+                    </span>
+                    <span className="sh-update-step-label">{step.label}</span>
+                    <span className="sh-update-step-state">{STEP_MARKS[step.state].word}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
             {sent.failed && (
               <Callout state="fail" role="alert" title="The app did not get the click" testId="update-click-failed">
                 <Txt text={sent.failed} />
@@ -127,7 +171,7 @@ export function UpdateControl() {
           </>
         }
       >
-        <Txt className="sh-update-text" text={`You have v${st.current ?? '?'}. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts ${APP_NAME}. Workspaces, projects and sign-ins are kept. ${checkedWords(st.checked)}`} />
+        <Txt className="sh-update-text" text={st.state === 'updated' ? `${checkedWords(st.checked)}` : `You have v${st.current ?? '?'}. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts ${APP_NAME}. Workspaces, projects and sign-ins are kept. ${checkedWords(st.checked)}`} />
       </Sheet>
     </>
   );

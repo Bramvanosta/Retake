@@ -27,7 +27,7 @@ export interface FindingAt {
  * show as a code — anything else in a report.json was not written by a check.
  */
 export const FINDING_CODES: ReadonlySet<string> = new Set([
-  'artefact-before-step', 'blank-scene-start', 'blank-screen', 'camera-jump', 'caption-missing', 'caption-not-visible', 'caption-overlap',
+  'artefact-before-step', 'blank-scene-start', 'button-contrast', 'caption-contradicts-ui', 'loading-filmed', 'overlay-cut', 'overlay-lost', 'zoom-during-scroll', 'blank-screen', 'camera-jump', 'caption-missing', 'caption-not-visible', 'caption-overlap',
   'caption-overlaps-brandmark', 'caption-scene-mismatch', 'caption-shrunk', 'caption-too-long', 'caption-truncated',
   'capture-missing', 'capture-unreadable', 'card-too-short', 'component-missing', 'cursor-hidden', 'cursor-offscreen',
   'cursor-outside-reframe', 'cursor-outside-view', 'diff-duration', 'diff-frames', 'diff-segment',

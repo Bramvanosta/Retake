@@ -34,7 +34,7 @@
  {
   "name": "project_get",
   "title": "Read a project",
-  "description": "A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied. Never returns session files or login steps.",
+  "description": "A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied; readme_environments when the README's \"Environments & links\" section no longer matches them. Never returns session files or login steps.",
   "inputSchema": {
    "type": "object",
    "properties": {
@@ -98,12 +98,41 @@
        "maxLength": 100
       },
       "additionalProperties": {
-       "type": "string",
-       "minLength": 1,
-       "maxLength": 2000
+       "anyOf": [
+        {
+         "type": "string",
+         "minLength": 1,
+         "maxLength": 2000
+        },
+        {
+         "type": "object",
+         "properties": {
+          "url": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 2000
+          },
+          "display": {
+           "type": "string",
+           "minLength": 1,
+           "maxLength": 2000
+          }
+         },
+         "required": [
+          "url"
+         ],
+         "additionalProperties": false
+        }
+       ]
       },
-      "description": "Page key → base URL, e.g. {\"app\": \"https://app.staging.example.com\"}."
+      "description": "Page key → base URL, or {url, display} (display: the URL the browser frame shows instead, e.g. the production host for a local page), e.g. {\"app\": \"https://app.staging.example.com\"}."
      }
+    },
+    "default_env": {
+     "description": "The environment used when a scenario does not say (one of `environments`; default: the first one).",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 100
     },
     "template": {
      "description": "Theme name (a workspace theme or a starter theme); default \"default\".",

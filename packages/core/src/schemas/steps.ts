@@ -154,6 +154,7 @@ const TypeArgsSchema = z.strictObject({
   cps: z.number().gt(0).describe('Characters per second (default pacing.type_cps).').optional(),
   clear: z.boolean().describe('Select-all + delete before typing.').optional(),
   enter: z.boolean().describe('Press Enter afterwards.').optional(),
+  fill: z.boolean().describe('Fill the field at once, as a browser autofill (its input and change events), instead of typing it.').optional(),
 });
 
 const PressArgsSchema = z.union([
@@ -164,17 +165,25 @@ const PressArgsSchema = z.union([
   }),
 ]);
 
+/** Hotfix v0.2.5 (field point 24): how the search of a select / pick is filled — its own pace, or at once. */
+const SEARCH_PACE = {
+  search_cps: z.number().gt(0).describe('Characters per second of the search (default: the search pace, at most 10). Also for the search typed by itself.').optional(),
+  search_instant: z.boolean().describe('Fill the search at once, as a paste (one input event): only the final list is filmed.').optional(),
+};
+
 const SelectArgsSchema = z.strictObject({
   combobox: TargetSpecSchema.describe('The select / combobox trigger.').optional(),
   field: nonEmpty().describe('Alternative to combobox: the field label.').optional(),
   option: nonEmpty().describe('Option text to choose.'),
   search: z.string().describe('Text typed into the listbox search input before choosing.').optional(),
+  ...SEARCH_PACE,
 });
 
 const PickArgsSchema = z.strictObject({
   field: z.union([nonEmpty(), TargetObjectSchema]).describe('Field label, or an explicit trigger target.'),
   option: z.union([nonEmpty(), z.array(nonEmpty()).min(1)]).describe('Option(s) to tick.'),
   search: z.string().describe('Text typed into the popover search input first.').optional(),
+  ...SEARCH_PACE,
   close: z.enum(['outside', 'escape', 'none']).describe("How to close the popover afterwards (default 'outside').").optional(),
 });
 

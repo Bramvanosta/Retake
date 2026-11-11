@@ -2472,6 +2472,92 @@ a time stalled after 62 files and ran past two hours. So `ci.yml` runs the build
   limit) — every wait in the suite needs a limit, and a file that outlives it fails with what it was waiting for.
 - Then the suite (or its fast tier) goes back into `ci.yml`, and the release can wait for main's green run (BL-144).
 
+### BL-166 — The app's native menus, reworked
+*M–L · founder's request (2026-11-11) · builds on: L5.2, L5.9, L5.11a, L5.16c · see BL-126*
+
+The menu bar (`apps/desktop/src/menu.rs`) is a fixed table: every page command is always enabled and answers in the
+status bar when it cannot act, the page has no right-click menu, and the shortcuts live in two places (the menu's
+accelerators, the page's MENU_COMMANDS). Other desktop apps built on the same shell now do it this way:
+- **One command registry** feeding the menu bar, the command palette, the window's shortcuts and a Help › Keyboard
+  Shortcuts list, always with the same chord. The component that owns an action registers it with whether it applies
+  now and a label for the context ("Capture 'quote'", "Render 2 Scenarios"); the menu greys out and relabels as they
+  come and go. This absorbs BL-126's "menu state from the page" (the page's state reaching the shell: the supervised
+  pipe, or a narrow page→shell request).
+- **Native context menus**: a right-click on a scenario, a step, a take, a render, a comment or a library item opens
+  a native menu in the app and an in-window menu in a browser, from the same list of actions; on a selection it acts on
+  all of it and says so first.
+- **A menu audit**: what each menu should hold — File (New Scenario, Open Recent Workspace, Reveal in Finder), the
+  app menu (Settings… ⌘,), Scenario (Validate, Review), Help (the guide, Keyboard Shortcuts, Report an Issue) — with
+  the standard macOS items kept the platform's own, and no chord that collides with a field's editing keys.
+- **Open question: windows and tabs.** File › New Window ⌘N / New Tab ⌘T (system tabs) to open a scenario or a run
+  beside another; today the Studio is one window per workspace, and a second window on the same server needs its
+  state (selection, live recording) per window.
+
+- **Value:** the app feels like a Mac app: what can act now is visible in the menus, right-click works where people
+  expect it, every shortcut is discoverable.
+- **Hard parts:** the page's availability reaching the shell without a page→shell channel that a page script could
+  abuse (the shell trusts nothing the page says today); keeping the browser runtime and the app on one action list;
+  the e2e kit cannot click a native menu (an unattended run cannot post to the menu bar), so menu tests stay on the
+  table and the registry.
+
+### BL-167 — An update you can watch: download progress and the restart
+*S–M · founder's request (2026-11-11), from the first in-app updates · builds on: L5.16d · see BL-166*
+
+*Done in hotfix v0.2.4, in part:* `State::Downloading` carries the bytes and the announced size (update_flow
+`watch_reporting`: each new count, at most every 250 ms); the sheet lists the steps (download, signature, jobs, quit;
+the failed one marked) with a kit Progress (megabytes, percent; indeterminate without a size); the badge says the
+percent, then "Checking vX…"; the Dock icon's badge label says the percent (NSDockTile `badgeLabel`, not a progress
+view). *Left:* the native progress panel on the alert path. *Done in hotfix v0.2.6:* the restart gap — the
+installing step says the window goes for a few seconds, the Dock badge shows ↻ while the process installs, and the
+restarted app says "Updated to vX" once (desktop-updates.json `updated`, state `updated`; the release notes are not
+shown again).
+
+The update archive is large (about 370 MB in v0.2.2), and once Install and Restart is clicked nothing moves: the sheet
+says "Downloading vX" with no figure, the badge only turns busy, and the native alert path (Help › Check for Updates…
+when the page cannot answer) shows nothing at all until the app quits. The shell already counts the bytes and the
+announced size (`update_flow::Progress`, polled every 250 ms by `watch`); `State::Downloading` just does not carry them.
+- **The download**: bytes received of the total, a percentage and a bar in the sheet (`progressWords`), the badge
+  showing the percentage while the sheet is closed, and an indeterminate bar when the server announces no size. The
+  state line reaches the page at most a few times a second.
+- **Outside the page**: the Dock icon's progress (NSDockTile with a progress view) so it shows from another app or with
+  the window closed, and a native progress panel on the alert path.
+- **The steps after it**: "Verifying the signature", "Waiting for 2 jobs", "Installing — Retake restarts" said in turn,
+  then, after the restart, a one-time "Updated to vX" notice (the release notes one click away) — today the window just
+  vanishes and comes back.
+
+- **Value:** a person sees that the update is moving and how long is left, and never quits the app thinking it hung
+  (which would abort the download).
+- **Hard parts:** the Dock progress needs a custom NSDockTile content view (objc, as `macos.rs` does already); the
+  restart gap itself (the old app gone, the new one not yet up) has no window to draw in, so the notice after it is
+  what closes the loop.
+
+### BL-168 — After an update, the Dock's pinned icon is no longer the running app
+*S–M · founder's report (2026-11-11), from the first in-app updates · builds on: L5.16d*
+
+*Done in hotfix v0.2.4, with another cause than the one guessed below:* Tauri's `AppHandle::restart` runs `open -n` on
+the bundle while the old process still runs, so LaunchServices starts a second instance and the Dock gives it its own
+icon. The restart is now a detached shell (desktop_core `relaunch`) that waits until the old pid is gone from the
+kernel and from LaunchServices (`lsappinfo`), then runs a plain `open` on the bundle (`open -n` after 30 s). The
+plugin's swap is unchanged. The update *to* v0.2.4 still restarts the old way (the old app restarts itself).
+
+With the app kept in the Dock, an update ends with two icons: the pinned one, which looks closed, and a second
+one on the right for the app that restarted, although both are `/Applications/Retake.app`. Likely cause, to confirm:
+the updater plugin's install (`swap` in `update.rs`) moves the old bundle aside to a temporary folder and renames the
+new one into place, so the bundle at that path is a new directory. The Dock's pinned item is a bookmark that follows
+the old directory (by file id, before the path), so it points at the copy moved aside, then deleted, and the restarted
+app is not the pinned one.
+- **Probe first**: pin the app, update an ad hoc build through the e2e feed (`app-update-e2e.test.ts`), and read the
+  pinned item before and after (`defaults read com.apple.dock persistent-apps`: its bookmark, never written); same with
+  the Finder's sidebar and Login Items, which hold bookmarks too.
+- **Fix candidates**: keep the bundle's top directory and swap only its `Contents` (the code signature seals
+  `Contents`, not the folder that holds it), with `renamex_np(RENAME_SWAP)` so the swap stays atomic and the old
+  `Contents` can be put back on failure; or re-register the bundle with LaunchServices after the swap and relaunch
+  through it. Either way the updater's own signature check stays where it is.
+
+- **Value:** the Dock, the Finder sidebar and Login Items keep pointing at the app after every update.
+- **Hard parts:** the swap is in a dependency today (an own swap means keeping the restore-on-failure path, and its
+  test, ours); a Dock already holding a dangling pin from an earlier update is fixed only by pinning again.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

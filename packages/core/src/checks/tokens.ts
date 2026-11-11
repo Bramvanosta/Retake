@@ -19,6 +19,12 @@ export interface TokenScope {
    * they are substituted), `elsewhere` in the rest of a sandbox.yaml (refused); absent: not a special root.
    */
   account?: 'login' | 'elsewhere';
+  /**
+   * Hooks (hotfix v0.2.3): `{{compose_env:NAME}}` and `{{accounts.<persona>.username|password}}` are accepted — a
+   * sandbox environment resolves them when the hook runs. `accounts`: the sandbox's accounts when they are known (a
+   * seed of sandbox.yaml); absent: any name (a scenario or project hook runs on the environment chosen later).
+   */
+  hookRefs?: { accounts?: readonly string[] };
 }
 
 /** The fields of a sandbox account a login step may use as {{account.<field>}}. */
@@ -36,8 +42,22 @@ export interface TokenRules {
 
 function checkToken(expr: string, path: IssuePath, scope: TokenScope, inRollback: boolean, ctx: CheckContext): void {
   if (SECRET.test(expr)) return;
+  if (expr.startsWith('compose_env:')) {
+    if (!scope.hookRefs) ctx.error(path, `{{${expr}}} reads a sandbox's compose env file: it is available in hooks (run on a sandbox environment) and as an account's username or password in sandbox.yaml`);
+    else if (!/^compose_env:[A-Za-z_][A-Za-z0-9_.-]*$/.test(expr)) ctx.error(path, `{{${expr}}}: write {{compose_env:NAME}}, NAME as the compose env file sets it`);
+    return;
+  }
   const parts = expr.split('.').map((s) => s.trim());
   const [head, second] = parts;
+  if (head === 'accounts' && scope.hookRefs && !scope.vars.has('accounts')) {
+    const known = scope.hookRefs.accounts;
+    if (parts.length !== 3 || !ACCOUNT_TOKEN_FIELDS.includes(parts[2])) {
+      ctx.error(path, `unknown template key {{${expr}}}; a sandbox account is read as {{accounts.<persona>.username}} or {{accounts.<persona>.password}}`);
+    } else if (known && !known.includes(second)) {
+      ctx.error(path, `{{${expr}}}: this sandbox has no account "${second}"${suggestion(second, known)} (accounts: ${known.join(', ') || 'none'})`);
+    }
+    return;
+  }
   if (head === 'account' && parts.length > 1 && scope.account) {
     if (scope.account === 'elsewhere') ctx.error(path, `{{${expr}}} is only available in the login steps of an account (accounts.<name>.login)`);
     else if (parts.length !== 2 || !ACCOUNT_TOKEN_FIELDS.includes(second)) {

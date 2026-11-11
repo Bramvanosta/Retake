@@ -118,7 +118,7 @@
   {
    "name": "project_get",
    "title": "Read a project",
-   "description": "A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied. Never returns session files or login steps.",
+   "description": "A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied; readme_environments when the README's \"Environments & links\" section no longer matches them. Never returns session files or login steps.",
    "annotations": {
     "readOnlyHint": true,
     "destructiveHint": false,

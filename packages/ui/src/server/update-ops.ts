@@ -23,7 +23,7 @@ import { defineTool } from '@retake/engine/contract';
 import type { ToolOutput } from '@retake/engine/contract';
 import type { DesktopPipe } from './desktop.js';
 
-export const UPDATE_STATES = ['off', 'idle', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;
+export const UPDATE_STATES = ['off', 'idle', 'updated', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;
 export type UpdateStateName = (typeof UPDATE_STATES)[number];
 /** Why the app does not update itself (update_flow Off::wire). */
 export const UPDATE_OFF_REASONS = ['build', 'disabled', 'translocated', 'read_only'] as const;
@@ -39,16 +39,18 @@ export const UPDATE_OPS = ['desktop_update_status', 'desktop_update'] as const;
 /** update_flow version_ok: major.minor.patch, an optional pre-release, at most 64 characters. */
 export const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const versionOk = (v: unknown): v is string => typeof v === 'string' && v.length <= 64 && VERSION_RE.test(v);
+const bytesOk = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const checkedOk = (v: unknown): v is number | null => v === null || (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0);
 // eslint-disable-next-line no-control-regex
 const BAD_NOTE_CHARS = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 
 export type UpdateLine =
   | { type: 'update'; state: 'off'; current: string; reason: (typeof UPDATE_OFF_REASONS)[number] }
-  | { type: 'update'; state: 'idle'; current: string; checked: number | null }
+  | { type: 'update'; state: 'idle' | 'updated'; current: string; checked: number | null }
   | { type: 'update'; state: 'checking'; current: string }
   | { type: 'update'; state: 'available'; current: string; version: string; notes: string; checked: number | null }
-  | { type: 'update'; state: 'downloading' | 'installing'; current: string; version: string }
+  | { type: 'update'; state: 'downloading'; current: string; version: string; received: number; total: number | null }
+  | { type: 'update'; state: 'installing'; current: string; version: string }
   | { type: 'update'; state: 'waiting'; current: string; version: string; jobs: number }
   | { type: 'update'; state: 'failed'; current: string; failure: (typeof UPDATE_FAILURES)[number]; version: string | null; checked: number | null; retry: boolean };
 
@@ -56,9 +58,10 @@ export type UpdateLine =
 const KEYS: Record<UpdateStateName, string> = {
   off: 'current,reason,state,type',
   idle: 'checked,current,state,type',
+  updated: 'checked,current,state,type',
   checking: 'current,state,type',
   available: 'checked,current,notes,state,type,version',
-  downloading: 'current,state,type,version',
+  downloading: 'current,received,state,total,type,version',
   installing: 'current,state,type,version',
   waiting: 'current,jobs,state,type,version',
   failed: 'checked,current,failure,retry,state,type,version',
@@ -74,6 +77,7 @@ export function parseUpdateLine(o: Record<string, unknown>): UpdateLine | null {
     case 'off':
       return (UPDATE_OFF_REASONS as readonly unknown[]).includes(o.reason) ? { type: 'update', state, current, reason: o.reason as (typeof UPDATE_OFF_REASONS)[number] } : null;
     case 'idle':
+    case 'updated':
       return checkedOk(o.checked) ? { type: 'update', state, current, checked: o.checked } : null;
     case 'checking':
       return { type: 'update', state, current };
@@ -81,6 +85,8 @@ export function parseUpdateLine(o: Record<string, unknown>): UpdateLine | null {
       if (!versionOk(o.version) || !checkedOk(o.checked) || typeof o.notes !== 'string' || [...o.notes].length > UPDATE_NOTES_MAX + 1 || BAD_NOTE_CHARS.test(o.notes)) return null;
       return { type: 'update', state, current, version: o.version, notes: o.notes, checked: o.checked };
     case 'downloading':
+      // BL-167: the bytes received so far, of the size the server announced (null: none).
+      return versionOk(o.version) && bytesOk(o.received) && (o.total === null || (bytesOk(o.total) && o.total > 0)) ? { type: 'update', state, current, version: o.version, received: o.received, total: o.total as number | null } : null;
     case 'installing':
       return versionOk(o.version) ? { type: 'update', state, current, version: o.version } : null;
     case 'waiting':
@@ -133,6 +139,9 @@ export interface UpdateStatus {
   current?: string;
   version?: string | null;
   jobs?: number;
+  /** BL-167: while downloading, the bytes received and the announced size (null: none). */
+  received?: number;
+  total?: number | null;
   failure?: UpdateFailure;
   checked?: number | null;
   /** A failure the shell may try again (Install and Restart stays live). */

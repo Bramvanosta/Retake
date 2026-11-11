@@ -2,7 +2,7 @@ import { destructiveReason, hookKind, sqlSource } from '../destructive.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
 import type { IssuePath } from '../issues.js';
 import { shellHostRefs } from '../shell-hosts.js';
-import type { HookStep, JsHookSpec, LoadedProject, ShellHookSpec, SqlHookSpec } from '../types.js';
+import type { HookStep, HttpHookSpec, JsHookSpec, LoadedProject, ShellHookSpec, SqlHookSpec } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
@@ -19,6 +19,8 @@ export interface HookCheckOptions {
    * are read from the check context's directory (the sandbox folder) either way.
    */
   destructiveOk?: boolean;
+  /** Why an http hook cannot take `auth: {persona}` here (a sandbox seed: no session exists yet); absent: it can. */
+  noPersonaAuth?: string;
 }
 
 /**
@@ -95,10 +97,17 @@ function checkHook(raw: unknown, p: IssuePath, ctx: CheckContext, opts: HookChec
       break;
     }
     case 'http': {
-      const name = (hook as { http: { save_as?: string } }).http.save_as;
+      const http = (hook as { http: HttpHookSpec }).http;
+      const name = http.save_as;
       if (name !== undefined) {
         if (opts.saved.has(name)) ctx.error([...kp, 'save_as'], `save_as "${name}" is already used by another hook`);
         opts.saved.add(name);
+      }
+      for (const [req, rp] of [[http, kp], [http.rollback, [...kp, 'rollback']]] as Array<[HttpHookSpec['rollback'], IssuePath]>) {
+        if (!isObj(req) || req.auth === undefined) continue;
+        if (opts.noPersonaAuth) ctx.error([...rp, 'auth'], opts.noPersonaAuth, { path: [...rp, 'auth'], key: true });
+        const header = Object.keys(req.headers ?? {}).find((h) => ['authorization', 'cookie'].includes(h.toLowerCase()));
+        if (header) ctx.error([...rp, 'headers', header], `\`auth: {persona}\` sets the ${header} header from the persona's session: remove one of the two`);
       }
       break;
     }

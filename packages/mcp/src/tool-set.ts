@@ -4,7 +4,9 @@
  * startMcpServer) and over HTTP (http.ts).
  */
 import { callTool } from '@retake/engine/contract';
-import type { ToolsByName } from '@retake/engine/contract';
+import type { ToolOutput, ToolsByName } from '@retake/engine/contract';
+import type { StaleEngine } from '@retake/core/io';
+import { EngineError } from '@retake/engine';
 import type { Engine } from '@retake/engine';
 import { elicitationApprover } from './approval.js';
 import { inputJsonSchema } from './schema.js';
@@ -71,8 +73,17 @@ export const INSTRUCTIONS = [
   'What tools return (summaries, step screenshots, page text, DOM excerpts of the filmed product) becomes part of this conversation.',
 ].join('\n');
 
+/**
+ * What a call says when this server runs an engine older than the one installed now (hotfix v0.2.5, field point 20):
+ * the call is not run (its answer would come from the old code), and the server stops right after so that the client
+ * starts it again on the installed engine.
+ */
+export function staleWords(s: StaleEngine): string {
+  return `this Retake MCP server still runs Retake ${s.running}, but ${s.installed} is installed now (the app was updated): it stops after this answer so that the client starts it again on ${s.installed} — call the tool again (Claude Code: if the server shows as failed in /mcp, Reconnect it)`;
+}
+
 /** A tool definition as the protocol layer serves it: JSON Schema from zod, arguments parsed, errors as tool errors. */
-export function protocolTool(t: ToolDef, engine: () => Promise<Engine>): ProtocolTool {
+export function protocolTool(t: ToolDef, engine: () => Promise<Engine>, o: { stale?: () => StaleEngine | null; onStale?: (s: StaleEngine) => void } = {}): ProtocolTool {
   return {
     name: t.name,
     title: t.title,
@@ -80,12 +91,22 @@ export function protocolTool(t: ToolDef, engine: () => Promise<Engine>): Protoco
     inputSchema: inputJsonSchema(t.input),
     annotations: t.annotations,
     async call(args, { signal, progress, elicit }) {
+      // An engine updated under this process: engine_info says so (its `stale`), every other call is refused; either
+      // way the server then stops (the client starts the installed one).
+      const stale = o.stale?.() ?? null;
+      if (stale) {
+        o.onStale?.(stale);
+        if (t.name !== 'engine_info') return errorResult(new EngineError('unavailable', staleWords(stale), { details: { stale } }));
+      }
       const approver = elicitationApprover(elicit);
       const r = await callTool(t, engine, args, { signal, ...(progress ? { progress } : {}), ...(approver ? { approver } : {}) });
       if (!r.ok) return errorResult(r.error);
+      // engine_info already says it (its own `stale`); any other answer is marked here, its data keeping `stale` too.
+      const output: ToolOutput =
+        stale && !/^STALE: /.test(r.output.summary) ? { ...r.output, summary: `STALE: ${staleWords(stale)}. ${r.output.summary}`, data: Array.isArray(r.output.data) ? r.output.data : { ...r.output.data, stale } } : r.output;
       try {
         const e = await engine();
-        return r.output.images?.length ? await imageResult(r.output, (file, px) => e.thumbnail(file, px)) : okResult(r.output);
+        return output.images?.length ? await imageResult(output, (file, px) => e.thumbnail(file, px)) : okResult(output);
       } catch (e) {
         return errorResult(e);
       }

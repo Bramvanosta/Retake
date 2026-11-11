@@ -6,7 +6,7 @@ export { Sandbox, openSandbox, providerFor, LOG_CAP_BYTES } from './sandbox.js';
 export type { ResetResult, SandboxCallOptions, SandboxLogs, SandboxStatus, SandboxUpResult, Take } from './sandbox.js';
 export { SandboxError } from './errors.js';
 export type { SandboxErrorCode } from './errors.js';
-export type { DownOptions, DownResult, OwnerUse, Provider, ProviderContext, ProviderLogs, SandboxLog, SandboxLogLevel, SeedTrust, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
+export type { DownOptions, DownResult, OwnerUse, Provider, ProviderContext, ProviderLogs, SandboxLog, SandboxLogLevel, SandboxProgress, SeedTrust, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
 export {
   COMPOSE_HEALTH_TIMEOUT_S,
   ComposeProvider,

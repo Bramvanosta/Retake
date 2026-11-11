@@ -12,6 +12,7 @@ import { kitSource } from './kit/source.js';
 import { launchOptions, launchTarget, refuseUnsandboxed } from './launch.js';
 import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
+import { restoreIndexedDb } from './idb-state.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
 import type { ProductClockConfig } from './product-clock.js';
 import type { PageRole, WriteGuardOptions } from './write-guard.js';
@@ -77,10 +78,10 @@ export interface SessionOptions {
   httpCredentials?: PageHttpCredentials;
 }
 
-/** Playwright storage state: cookies + localStorage per origin. */
+/** Playwright storage state: cookies, and per origin its localStorage and (when saved with it) its IndexedDB. */
 export interface StorageStateFile {
   cookies?: Parameters<BrowserContext['addCookies']>[0];
-  origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }> }>;
+  origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }>; indexedDB?: unknown[] }>;
 }
 
 /** One persona's browser (L1.6): a persistent context of its own. */
@@ -639,6 +640,11 @@ export class BrowserSession {
     return (await this.realm(realm)).context;
   }
 
+  /** Whether the session has a browser for realm (persona) `name`. */
+  hasRealm(name: string): boolean {
+    return this.realms.some((r) => r.name === name);
+  }
+
   /** The context a js hook tab of environment page `key` opens in. */
   hookContext(key: string): Promise<BrowserContext> {
     return this.contextOf(this.options.hookRealmOf?.(key) ?? '');
@@ -1043,7 +1049,10 @@ export function mobileUserAgent(ua: string): string {
   return out;
 }
 
-/** Apply a storage state to a context: its cookies, and its localStorage by an init script (keys the app set are kept). */
+/**
+ * Apply a storage state to a context: its cookies, its localStorage by an init script (keys the app set are kept) and
+ * its IndexedDB databases (idb-state.ts: written now, before any page of the product loads).
+ */
 export async function applyStorageState(context: BrowserContext, from: StorageStateFile | string): Promise<void> {
   let state: StorageStateFile;
   if (typeof from === 'string') {
@@ -1054,13 +1063,18 @@ export async function applyStorageState(context: BrowserContext, from: StorageSt
     }
   } else state = from;
   if (state.cookies?.length) await context.addCookies(state.cookies);
-  const origins = (state.origins ?? []).filter((o) => o.localStorage?.length);
+  const origins = (state.origins ?? []).filter((o) => o.localStorage?.length).map((o) => ({ origin: o.origin, localStorage: o.localStorage }));
   if (origins.length) {
     // Applied before page scripts; keys already present (set by the app since) are kept.
     await context.addInitScript({
       content: `(() => { const o = ${JSON.stringify(origins)}.find((x) => x.origin === location.origin);
         if (!o) return; try { for (const kv of o.localStorage) if (localStorage.getItem(kv.name) === null) localStorage.setItem(kv.name, kv.value); } catch {} })();`,
     });
+  }
+  try {
+    await restoreIndexedDb(context, state.origins ?? []);
+  } catch (e) {
+    throw new RunnerError(`the saved session's IndexedDB could not be restored: ${(e as Error).message.split('\n')[0]}`, { cause: e });
   }
 }
 

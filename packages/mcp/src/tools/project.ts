@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { z } from 'zod';
 import { pathInside, sandboxAdvice, sandboxAdviceText } from '@retake/core';
-import { engineLocation } from '@retake/core/io';
+import { engineLocation, staleEngine } from '@retake/core/io';
 import { README_MAX_CHARS, formatBytes, heldWork, heldWorkWords, otherCopy } from '@retake/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
@@ -42,9 +42,11 @@ export const engineInfo = defineTool({
     const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
     const startedIn = process.cwd();
     const elsewhere = !pathInside(startedIn, info.root, { real: realOrSame, dotDotPrefix: true });
+    // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
+    const stale = staleEngine(info.version);
     return {
-      summary: `Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
-      data: { ...info, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage, held: held ?? null, ...(other ? { untrusted: { worker_other_copy: other } } : {}) },
+      summary: `${stale ? `STALE: this server runs Retake ${stale.running}, but ${stale.installed} is installed now — it stops after this answer so that the client starts it again on ${stale.installed}. ` : ''}Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
+      data: { ...info, stale, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage, held: held ?? null, ...(other ? { untrusted: { worker_other_copy: other } } : {}) },
     };
   },
 });
@@ -69,7 +71,7 @@ export const projectGet = defineTool({
   name: 'project_get',
   title: 'Read a project',
   description:
-    'A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied. Never returns session files or login steps.',
+    'A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied; readme_environments when the README\'s "Environments & links" section no longer matches them. Never returns session files or login steps.',
   input: z.strictObject({ project: projectSlug }),
   annotations: READ,
   async run({ project }, { engine }) {
@@ -83,6 +85,16 @@ export const projectGet = defineTool({
         `scenarios: ${p.scenarios.join(', ') || 'none yet'}`,
         `environments:${envs.length ? `\n${envs.map((l) => `- ${l}`).join('\n')}` : ' none'}`,
         p.readme_error ? `README.md: ${p.readme_error}` : p.readme === null ? 'README.md: missing (project_update_readme writes it)' : `README.md: ${p.readme.length} characters (readme_hash ${p.readme_hash})`,
+        ...(p.readme_environments
+          ? [
+              `README.md › "Environments & links" is out of date (it was written when the project was created): ${[
+                p.readme_environments.missing.length ? `it does not mention ${p.readme_environments.missing.map((l) => l.replace(/^- /, '')).join('; ')}` : '',
+                p.readme_environments.gone.length ? `it still lists ${p.readme_environments.gone.map((l) => l.replace(/^- /, '')).join('; ')}` : '',
+              ]
+                .filter(Boolean)
+                .join(' — ')}. Offer to update that section (project_update_readme).`,
+            ]
+          : []),
         ...(p.warnings.length ? [`project.yaml: ${plural(p.warnings.length, 'warning')}`] : []),
         // L5.8 (R-FLD-30): a local environment holding state and no sandbox — never reset it by hand between takes.
         ...(advice
@@ -96,7 +108,10 @@ export const projectGet = defineTool({
   },
 });
 
-const pageMap = z.record(z.string().min(1).max(100), z.string().min(1).max(2000)).describe('Page key → base URL, e.g. {"app": "https://app.staging.example.com"}.');
+const pageUrl = z.string().min(1).max(2000);
+const pageMap = z
+  .record(z.string().min(1).max(100), z.union([pageUrl, z.strictObject({ url: pageUrl, display: z.string().min(1).max(2000).optional() })]))
+  .describe('Page key → base URL, or {url, display} (display: the URL the browser frame shows instead, e.g. the production host for a local page), e.g. {"app": "https://app.staging.example.com"}.');
 
 export const projectCreate = defineTool({
   name: 'project_create',
@@ -108,6 +123,7 @@ export const projectCreate = defineTool({
     slug: projectSlug.optional().describe('Folder name (default: from the name).'),
     readme: z.string().max(README_MAX_CHARS).optional().describe('Full README.md content (default: a skeleton).'),
     environments: z.record(envName, pageMap).optional().describe('Environment name → its pages, e.g. {"staging": {"app": "https://app.staging.example.com"}}.'),
+    default_env: envName.optional().describe('The environment used when a scenario does not say (one of `environments`; default: the first one).'),
     template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a theme name of the workspace or a starter theme (never a path)').optional().describe('Theme name (a workspace theme or a starter theme); default "default".'),
   }),
   annotations: WRITE_FILES,

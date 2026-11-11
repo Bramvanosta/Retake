@@ -28,6 +28,11 @@ export interface ActionFacts {
   artefact?: { kind: 'email' | 'document' | 'text'; name: string; path: IssuePath };
 }
 
+/** `search_cps` and `search_instant` (hotfix v0.2.5) are two ways to fill the search: one at a time. */
+function searchPace(a: Record<string, unknown>, ap: IssuePath, ctx: CheckContext): void {
+  if (a.search_instant === true && a.search_cps !== undefined) ctx.error([...ap, 'search_cps'], '`search_instant` fills the search at once: `search_cps` (its typing pace) does not apply — keep one');
+}
+
 /** Rules the schema cannot express (required-one-of, conflicting keys, empty targets, files). */
 export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckContext): ActionFacts {
   const ap: IssuePath = [...sp, step.action];
@@ -50,6 +55,7 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
       break;
     case 'type':
       target(a.into, 'into');
+      if (a.fill === true && a.cps !== undefined) ctx.error([...ap, 'cps'], '`fill` sets the value at once: `cps` (the typing pace) does not apply — keep one');
       break;
     case 'select':
       if (a.combobox === undefined && a.field === undefined) {
@@ -58,9 +64,11 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
         ctx.error(ap, 'select takes `combobox` or `field`, not both');
       }
       target(a.combobox, 'combobox');
+      searchPace(a, ap, ctx);
       break;
     case 'pick':
       target(a.field, 'field');
+      searchPace(a, ap, ctx);
       break;
     case 'menu':
       if (a.row === undefined && a.trigger === undefined) ctx.error(ap, 'menu needs `row` (text in the row) or `trigger`');

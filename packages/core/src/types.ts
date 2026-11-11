@@ -170,6 +170,8 @@ export interface TypeArgs {
   clear?: boolean;
   /** Press Enter afterwards. */
   enter?: boolean;
+  /** Hotfix v0.2.6 (field point 25): the value set at once, as a browser autofill (input and change events). */
+  fill?: boolean;
 }
 
 export interface PressArgs {
@@ -185,6 +187,10 @@ export interface SelectArgs {
   option: string;
   /** Text typed into the listbox search input before choosing. */
   search?: string;
+  /** How fast the search is typed, characters per second (default: the search pace, at most 10). */
+  search_cps?: number;
+  /** The search is filled at once, as a paste (one input event): only the final list is filmed. */
+  search_instant?: boolean;
 }
 
 export interface PickArgs {
@@ -192,6 +198,10 @@ export interface PickArgs {
   field: string | TargetObject;
   option: string | string[];
   search?: string;
+  /** How fast the search is typed, characters per second (default: the search pace, at most 10). */
+  search_cps?: number;
+  /** The search is filled at once, as a paste (one input event): only the final list is filmed. */
+  search_instant?: boolean;
   /** How to close the popover afterwards. Default 'outside'. */
   close?: 'outside' | 'escape' | 'none';
 }
@@ -932,6 +942,11 @@ export interface HttpHookSpec {
   body?: string;
   /** Expected status code(s). Default: any 2xx. */
   expect?: number | number[];
+  /**
+   * Send the request as a persona of the environment: the cookies its saved session holds for the URL (`Cookie`) and,
+   * for a product signed in with Firebase Auth, its ID token (`Authorization: Bearer …`).
+   */
+  auth?: { persona: string };
   /** Store the response as `{{hooks.<save_as>.status|body|json.<path>}}` for later templating. */
   save_as?: string;
   /** Request that undoes this one (templated after the request, so it can use `{{response.json.id}}`). */
@@ -1451,6 +1466,13 @@ export interface SandboxManifest {
     snapshot?: { database?: string };
     /** Services restarted after each reset (apps that do not survive a database swap). */
     restart?: string[];
+    /**
+     * Hotfix v0.2.5 (field point 21): a Firebase Auth emulator of the sandbox — emptied before each seed, its accounts
+     * saved after it, put back at every reset (after `restart`).
+     */
+    firebase_auth?: { url: string; project: string };
+    /** Hotfix v0.2.5: steps run at every reset once the data is back (after `restart` and `firebase_auth`). */
+    hooks?: SeedStep[];
   };
   databases?: Record<string, SandboxDatabase>;
   mailbox?: SandboxMailbox;
@@ -1819,6 +1841,18 @@ export interface TimelineStall {
   during: 'move' | 'ripple';
 }
 
+/**
+ * Hotfix v0.2.6: a loading indicator the page showed in its viewport while the take recorded — a skeleton, a shimmer, a
+ * spinner, an `aria-busy` region (`what`: their kinds, e.g. "skeleton ×6") — from `t_start` to `t_end` (capture s).
+ */
+export interface TimelineLoadingUi {
+  t_start: number;
+  t_end: number;
+  what: string;
+  /** Page id. */
+  page?: string;
+}
+
 /** A wait the screen showed after the click at `click` (capture seconds): near-identical frames from `t_start` to `t_end`. */
 export interface TimelineBusy {
   t_start: number;
@@ -2141,6 +2175,8 @@ export interface Timeline {
    * spinner, a blank panel — before the content the click asked for appeared. The edit shortens them.
    */
   busy?: TimelineBusy[];
+  /** Hotfix v0.2.6: loading indicators in the filmed page's viewport (absent when none: the review's `loading-filmed`). */
+  loading_ui?: TimelineLoadingUi[];
   /** Where the take was paused between steps (L4.4; absent when it never was): capture time did not run meanwhile. */
   pauses?: TimelinePause[];
   /**

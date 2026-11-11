@@ -8,12 +8,13 @@
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
-import { ScenarioError, compileWritePolicy, guardsWrites, hasErrors, loginMatchers, matchLoginUrl, newRunId, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, resolveRunAccess, runAccess, urlOriginPath, pathInside, GUIDE } from '@retake/core';
+import { ScenarioError, compileWritePolicy, guardsWrites, hasErrors, loginMatchers, matchLoginUrl, newRunId, personaPageOrigins, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, resolveRunAccess, runAccess, urlOriginPath, pathInside, GUIDE } from '@retake/core';
 import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
 import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
 import type { HookContext, HookPhase } from '@retake/hooks';
 import type { LoginCommandOf } from './auth.js';
 import type { Caller } from './caller.js';
+import { EngineError } from './errors.js';
 import { hookRunRecorder } from './store/journal.js';
 
 /**
@@ -172,6 +173,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
   const personas = resolvePersonas(project, env.name, { home: retakeHome() });
   const sessions = new Map<string, Promise<import('@retake/runner-web').BrowserSession>>();
+  const readers = new Map<string, (url: string) => Promise<{ authorization?: string; cookie?: string }>>();
   const command = o.loginCommand;
   const runId = o.runId ?? newRunId('hooks');
   const planned = o.scenario ? planPersonas(o.scenario, { env: env.name, envPages: env.pages, personas, hooks: true }).hookPages : undefined;
@@ -227,9 +229,35 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),
     ...(o.recordAs ? { recordRun: hookRunRecorder(project.root, o.recordAs, { project: project.slug, run: runId }) } : {}),
+    // `auth: {persona}` of an http hook (hotfix v0.2.3): read in that persona's headless browser (the js hooks' one).
+    personaAuth: async (name, url) => {
+      const persona = personas.find((p) => p.name === name);
+      if (!persona) throw new EngineError('invalid', `persona "${name}" is not declared for environment "${env.name}" (personas: ${personas.map((p) => p.name).join(', ') || 'none'})`);
+      let read = readers.get(name);
+      if (!read) {
+        const rw = await import('@retake/runner-web');
+        read = rw.personaAuthReader({
+          persona,
+          context: async () => {
+            let session = sessions.get(name);
+            if (!session) {
+              session = open(persona);
+              sessions.set(name, session);
+            }
+            return (await session).contextOf(name);
+          },
+          envPages: env.pages,
+          relogin: command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) }),
+          // Trust `mcp`: the session is read only for the persona's own pages' origins.
+          ...(o.trust === 'mcp' ? { origins: personaPageOrigins(persona.pages, env.pages) } : {}),
+        });
+        readers.set(name, read);
+      }
+      return read(url);
+    },
     evalInPage: async (pageKey, code) => {
       const rw = await import('@retake/runner-web');
-      if (!Object.keys(env.pages).length) throw new Error(`environment "${env.name}" declares no pages for the js hook to run in`);
+      if (!Object.keys(env.pages).length) throw new EngineError('invalid', `environment "${env.name}" declares no pages for the js hook to run in`);
       const persona = personaOf(pageKey ?? Object.keys(env.pages)[0]);
       let session = sessions.get(persona?.name ?? '');
       if (!session) {

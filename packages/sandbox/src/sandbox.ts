@@ -27,12 +27,13 @@ import { sandboxPaths, shownPath } from './paths.js';
 import type { SandboxPaths } from './paths.js';
 import { ComposeProvider } from './compose.js';
 import { ProcessProvider, tailLines } from './process.js';
-import type { DownResult, Provider, ProviderContext, SandboxLog, SeedRecorder, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type { DownResult, Provider, ProviderContext, SandboxLog, SandboxProgress, SeedRecorder, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
 import type { SnapshotState } from './snapshot-postgres.js';
 import { readState, writeState } from './state.js';
+import { FirebaseAuthSnapshot } from './firebase-auth.js';
 import type { SandboxState } from './state.js';
 
 /** Logs above this size are cut (kept as `<log>.1`) before a take: a sandbox may stay up for days. */
@@ -41,6 +42,8 @@ export const LOG_CAP_BYTES = 20 * 1024 * 1024;
 export interface SandboxCallOptions {
   signal?: AbortSignal;
   log?: SandboxLog;
+  /** The steps of the call as they start, and what each is doing (SandboxProgress). */
+  progress?: SandboxProgress;
   /** Trust `mcp` for the seed steps this call may run (L3.1: a shell step then needs an approval). */
   seedTrust?: SeedTrust;
   /** Each seed step run (hooks HookContext.recordRun): the engine journals it as its caller's. */
@@ -62,6 +65,10 @@ export interface ResetResult {
   restarted: string[];
   /** Pending rollbacks of the environment that will not be replayed any more. */
   superseded: number;
+  /** Hotfix v0.2.5: the Firebase Auth emulator's accounts put back (`reset.firebase_auth`). */
+  firebase_auth?: { accounts: number };
+  /** Hotfix v0.2.5: `reset.hooks` run once the data was back. */
+  hooks: { steps: number; ms: number };
 }
 
 export interface SandboxUpResult extends UpResult {
@@ -165,6 +172,7 @@ export class Sandbox {
       save: () => writeState(this.paths.state, ctx.state),
       log,
       signal: opts.signal,
+      ...(opts.progress ? { progress: opts.progress } : {}),
       ...(opts.seedTrust ? { seedTrust: opts.seedTrust } : {}),
       ...(opts.recordSeedRun ? { recordSeedRun: opts.recordSeedRun } : {}),
     };
@@ -222,6 +230,8 @@ export class Sandbox {
     // Before anything changes: what the reset empties must be the sandbox's own.
     await checkMailbox(ctx, this.provider);
     const snap = this.strategy === 'snapshot' ? await this.openSnapshot(ctx) : null;
+    // Hotfix v0.2.5: a Firebase Auth emulator keeps its accounts in memory — saved after the seed, put back below.
+    const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.provider.address?.(ctx, port) ?? Promise.resolve(undefined));
     let seed = { steps: 0, ms: 0 };
     let snapshot: ResetResult['snapshot'];
     let superseded = 0;
@@ -229,8 +239,9 @@ export class Sandbox {
       const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
       if (snap) {
         if (await snap.repair()) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} accepted no connections (an interrupted reset): repaired`);
-        const valid = !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (await snap.valid(hash));
+        const valid = !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
         if (valid) {
+          ctx.progress?.step('snapshot', `restoring ${describeDatabase(snap.target)}`);
           const r = await snap.restore(recorded.owner);
           snapshot = { action: 'restored', ms: r.ms, database: snap.target.database };
           ctx.log('info', `sandbox ${this.env}: snapshot of ${describeDatabase(snap.target)} restored in ${r.ms} ms`);
@@ -246,10 +257,21 @@ export class Sandbox {
           ctx.save();
         }
         if (snap && (await snap.ensureDatabase(recorded?.owner))) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} was missing (an interrupted restore): created empty before the seed`);
+        if (fa) {
+          // The seed creates its accounts on an empty emulator (an account of an earlier take would collide).
+          fa.forget();
+          ctx.progress?.step('firebase auth', 'emptying the emulator before the seed');
+          await fa.clear();
+        }
         seed = await runSeed(ctx, this.provider, { by, log: ctx.log, signal: ctx.signal, running: this.running });
+        if (fa) {
+          const n = await fa.save(hash);
+          ctx.log('info', `sandbox ${this.env}: ${n} account(s) of the Firebase Auth emulator saved after the seed`);
+        }
         superseded = await supersede(this.project.dir, this.env, by, ctx.log);
         if (snap) {
           if (ctx.signal?.aborted) throw interrupted(`sandbox ${this.env} seed`);
+          ctx.progress?.step('snapshot', `taking a snapshot of ${describeDatabase(snap.target)}`);
           const r = await snap.take(hash);
           const state: SnapshotState = { key: snap.target.key, database: snap.target.database, template: snap.target.template, hash, owner: r.owner, taken_at: new Date().toISOString(), ms: r.ms };
           ctx.state.provider_state = { ...(ctx.state.provider_state ?? {}), snapshot: state };
@@ -266,15 +288,28 @@ export class Sandbox {
     if (mailbox === 'not-mailpit') ctx.log('info', `sandbox ${this.env}: an http mailbox has no generic way to be emptied — empty it in a seed step`);
     const restarted: string[] = [];
     for (const name of this.sandbox.manifest.reset?.restart ?? []) {
+      ctx.progress?.step(`restart ${name}`);
       await this.provider.restart(ctx, name);
       restarted.push(name);
     }
+    // After the restarts (a restarted emulator starts empty): its accounts as the seed left them.
+    let firebaseAuth: ResetResult['firebase_auth'];
+    if (fa) {
+      ctx.progress?.step('firebase auth', 'putting back the accounts saved after the seed');
+      firebaseAuth = { accounts: await fa.restore() };
+      ctx.log('info', `sandbox ${this.env}: ${firebaseAuth.accounts} account(s) of the Firebase Auth emulator put back`);
+    }
+    // reset.hooks: what each take needs undone that the snapshot does not cover.
+    const resetHooks = this.sandbox.manifest.reset?.hooks ?? [];
+    const hooks = resetHooks.length
+      ? await runSeed(ctx, this.provider, { by, log: ctx.log, signal: ctx.signal, running: this.running, steps: resetHooks, what: 'reset hook', indexBase: (this.sandbox.manifest.seed ?? []).length })
+      : { steps: 0, ms: 0 };
     const at = new Date().toISOString();
     const ms = Date.now() - t0;
     const restored = snapshot?.action === 'restored';
     ctx.state.last_reset = { strategy: this.strategy, at, ms, restored, by };
     ctx.save();
-    return { strategy: this.strategy, restored, ms, hash, at, seed, mailbox, ...(snapshot ? { snapshot } : {}), restarted, superseded };
+    return { strategy: this.strategy, restored, ms, hash, at, seed, mailbox, ...(snapshot ? { snapshot } : {}), restarted, superseded, ...(firebaseAuth ? { firebase_auth: firebaseAuth } : {}), hooks };
   }
 
   /**

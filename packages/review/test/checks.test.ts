@@ -29,6 +29,11 @@ import {
   checkSlowTransitions,
   checkLongScenes,
   checkTextSlots,
+  checkLoadingFilmed,
+  checkZoomScroll,
+  checkCaptionContradictions,
+  checkOverlaysKept,
+  checkButtonContrast,
   checkTransitionsOnClicks,
   diffRecords,
   environmentLine,
@@ -45,6 +50,7 @@ import {
   sampleFrames,
   segmentDurations,
   segmentSpans,
+  isClip,
   timecode,
   transitionSpans,
 } from '../src/index.js';
@@ -552,3 +558,82 @@ describe('L5.5 review rules: target length, cards too short for their text, a ma
     expect(found[0].message).toMatch(new RegExp(`^${click.scene}\\.${click.step}: the screen settled 1\\.9 s after the click on link "October 2026" — the product is slow there`));
   });
 });
+
+describe('button contrast (hotfix v0.2.5, field point 22)', () => {
+  it("a button's label is checked against the fill it is painted on, once per component", () => {
+    const base = ctxOf('catalogue');
+    const card = base.plan.segments.find((s) => s.kind !== 'clip')!;
+    const cta = { ...card, id: 'cta', component: { ...(card as { component: object }).component, id: 'studio/card-cta' } };
+    const plan = { ...base.plan, segments: [...base.plan.segments, cta, { ...cta, id: 'cta2' }] } as typeof base.plan;
+    const ctx = { ...base, plan };
+    // The theme's button colours: the label reads on the accent.
+    expect(checkButtonContrast(ctx)).toEqual([]);
+    // A label painted white on a white stand-in (the old rule on a dark accent and a dark page): said, once.
+    const found = checkButtonContrast(ctx, () => ({ fill: '#ffffff', label: '#f4f1ea', ratio: 1.1 }));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ severity: 'warning', code: 'button-contrast' });
+    expect(found[0].message).toMatch(/studio\/card-cta's button \(#f4f1ea on #ffffff\) contrasts 1\.1:1, under 4\.5:1/);
+    // A component without a button slot is not checked.
+    expect(checkButtonContrast(base, () => ({ fill: '#ffffff', label: '#ffffff', ratio: 1 }))).toEqual([]);
+  });
+});
+
+describe('client demo retro checks (hotfix v0.2.6)', () => {
+  const firstClip = (ctx: CheckContext) => ctx.plan.segments.find(isClip)!;
+  const clean = (ctx: CheckContext) => ({ ...ctx, timeline: JSON.parse(JSON.stringify(ctx.timeline)) as Timeline, plan: JSON.parse(JSON.stringify(ctx.plan)) as EditPlan });
+
+  it('loading-filmed: a skeleton the take recorded that the video shows; none when the capture time is not shown', () => {
+    const ctx = clean(ctxOf('catalogue'));
+    expect(checkLoadingFilmed(ctx)).toEqual([]);
+    const clip = firstClip(ctx);
+    const fps = ctx.plan.source.fps;
+    const src = clip.srcFrames[Math.floor(clip.srcFrames.length / 2)];
+    ctx.timeline.loading_ui = [{ t_start: src / fps, t_end: src / fps + 1.2, what: 'skeleton ×4' }];
+    const found = checkLoadingFilmed(ctx);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ severity: 'warning', code: 'loading-filmed' });
+    expect(found[0].message).toContain('(skeleton ×4)');
+    ctx.timeline.loading_ui = [{ t_start: 99_999, t_end: 100_000, what: 'spinner' }];
+    expect(checkLoadingFilmed(ctx)).toEqual([]);
+  });
+
+  it('zoom-during-scroll: a zoom still on while a scroll step runs', () => {
+    const ctx = clean(ctxOf('catalogue'));
+    expect(checkZoomScroll(ctx)).toEqual([]);
+    const clip = firstClip(ctx);
+    clip.zooms = [{ scene: clip.scene, step: 0, from: 10, in_frames: 20, out_at: 90, out_frames: 20, zoom: 1.4, focus: { x: 100, y: 100 }, view: { x: 100, y: 100 } }];
+    clip.steps = [...clip.steps, { scene: clip.scene, step: 9, action: 'scroll', from: 60, to: 80 }];
+    const found = checkZoomScroll(ctx);
+    expect(found.map((f) => f.code)).toEqual(['zoom-during-scroll']);
+    clip.steps = clip.steps.map((st) => (st.step === 9 ? { ...st, from: 120, to: 140 } : st));
+    expect(checkZoomScroll(ctx)).toEqual([]);
+  });
+
+  it("caption-contradicts-ui: a caption that denies a word the page shows (a note)", () => {
+    const ctx = clean(ctxOf('catalogue'));
+    const clip = firstClip(ctx);
+    expect(checkCaptionContradictions(ctx)).toEqual([]);
+    const ev = ctx.timeline.events.find((e) => e.scene === clip.scene && e.step >= 0)!;
+    (ev as { target?: { desc: string } }).target = { desc: 'button "Request a quote"' };
+    clip.cues = [{ from: 0, to: 30, text: 'Not a quote: an order', scene: clip.scene }];
+    const found = checkCaptionContradictions(ctx);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ severity: 'info', code: 'caption-contradicts-ui' });
+    expect(found[0].message).toContain('"Request a quote"');
+    clip.cues = [{ from: 0, to: 30, text: 'No card needed', scene: clip.scene }];
+    expect(checkCaptionContradictions(ctx)).toEqual([]);
+  });
+
+  it('overlay-lost / overlay-cut: a step overlay left out of the video, or cut by the end of its scene', () => {
+    const ctx = clean(ctxOf('catalogue'));
+    expect(checkOverlaysKept(ctx)).toEqual([]);
+    const clip = firstClip(ctx);
+    const ev = [...ctx.timeline.events].reverse().find((e) => e.scene === clip.scene && e.step >= 0 && !e.overlay)!;
+    ev.overlay = { component: 'studio/overlay-lower-third', slots: { title: 'x' }, params: {} };
+    clip.overlays = clip.overlays.filter((o) => !(o.scene === ev.scene && o.step === ev.step));
+    expect(checkOverlaysKept(ctx).map((f) => f.code)).toEqual(['overlay-lost']);
+    clip.overlays.push({ component: { id: 'studio/overlay-lower-third', version: '1.0.0', kind: 'overlay', params: {}, slots: {}, source: 'scenario' }, from: clip.durationInFrames - 20, durationInFrames: 20, componentFrames: 100, scene: ev.scene, step: ev.step } as never);
+    expect(checkOverlaysKept(ctx).map((f) => f.code)).toEqual(['overlay-cut']);
+  });
+});
+

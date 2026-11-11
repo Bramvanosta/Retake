@@ -492,29 +492,40 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
     else if (weak) ctx.warning(dp, weak);
   }
 
-  // ── Seed ──
-  if (Array.isArray(value.seed)) {
+  // ── Seed (and, hotfix v0.2.5, reset.hooks: the same steps, run at every reset) ──
+  const checkSteps = (list: unknown[], base: IssuePath) => {
     const allowConfig = {
       environments: { ...(config?.environments ?? {}), [opts.env ?? 'sandbox']: Object.fromEntries([...pages].map(([k, p]) => [k, p.url])) },
       allow_hosts: config?.allow_hosts,
     };
-    const hookList = value.seed.map((step, i) => checkSeedStep(step, ['seed', i], { compose, composeNames, profiled, serviceNames, allowConfig }, ctx));
+    const hookList = list.map((step, i) => checkSeedStep(step, [...base, i], { compose, composeNames, profiled, serviceNames, allowConfig }, ctx));
     // A shell step gets the `env` of the process services (a seed's `npm run db:reset` reaches the sandbox's database):
     // a variable two of them set differently is the step's to set.
     const conflicts = provider === 'process' ? conflictingServiceEnv(services) : new Map<string, string[]>();
-    value.seed.forEach((step, i) => {
-      if (!conflicts.size || !isObj(step) || step.shell === undefined || ctx.broken(['seed', i])) return;
+    list.forEach((step, i) => {
+      if (!conflicts.size || !isObj(step) || step.shell === undefined || ctx.broken([...base, i])) return;
       const own = isObj(step.shell) && isObj(step.shell.env) ? step.shell.env : {};
       for (const [name, by] of conflicts) {
         if (Object.hasOwn(own, name)) continue;
-        ctx.error(['seed', i, 'shell'], `services ${by.join(' and ')} set ${name} differently, and a shell step gets the env of the sandbox's services: set ${name} in the step's own \`env\``);
+        ctx.error([...base, i, 'shell'], `services ${by.join(' and ')} set ${name} differently, and a shell step gets the env of the sandbox's services: set ${name} in the step's own \`env\``);
       }
     });
-    checkHooks(hookList, ['seed'], ctx, { pages: pageKeys, saved, project: { config: allowConfig as never }, destructiveOk: true });
-    value.seed.forEach((step, i) => {
-      if (!ctx.broken(['seed', i])) checkTokens(step, ['seed', i], scope, ctx);
+    checkHooks(hookList, base, ctx, {
+      pages: pageKeys,
+      saved,
+      project: { config: allowConfig as never },
+      destructiveOk: true,
+      noPersonaAuth:
+        'a seed runs while the data is being built: no persona is signed in yet — sign in with the product\'s own API and {{accounts.<persona>.username}} / {{accounts.<persona>.password}}, or move the request to a setup hook',
     });
-  }
+    // Its hook steps read the sandbox's own accounts and compose env file (`exec` steps are not hooks: they do not).
+    const seedScope: TokenScope = { ...scope, hookRefs: { accounts: isObj(value.accounts) ? Object.keys(value.accounts) : [] } };
+    list.forEach((step, i) => {
+      if (!ctx.broken([...base, i])) checkTokens(step, [...base, i], isObj(step) && step.exec !== undefined ? scope : seedScope, ctx);
+    });
+  };
+  if (Array.isArray(value.seed)) checkSteps(value.seed, ['seed']);
+  if (isObj(value.reset) && Array.isArray(value.reset.hooks) && !ctx.broken(['reset'])) checkSteps(value.reset.hooks, ['reset', 'hooks']);
 
   // ── Reset ──
   if (isObj(value.reset) && !ctx.broken(['reset'])) {
@@ -524,6 +535,7 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
     else if (r.snapshot !== undefined) {
       ctx.warning(['reset', 'snapshot'], '`snapshot` is only used with `strategy: snapshot` (this sandbox reseeds)', { path: ['reset', 'snapshot'], key: true });
     }
+    if (isObj(r.firebase_auth)) checkLoopback(r.firebase_auth.url, ['reset', 'firebase_auth', 'url'], 'the Firebase Auth emulator', ctx);
     if (Array.isArray(r.restart)) {
       r.restart.forEach((s, i) => {
         if (typeof s === 'string' && !Object.hasOwn(services, s)) {

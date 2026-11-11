@@ -13,7 +13,7 @@ export { AUTO_COVER_MIN_SHARE, autoFit, insetPhoneEdge } from './kit/frame-geome
 export type { MediaFitMode } from './kit/frame-geometry.js';
 export { captionBandBox } from './kit/devices.js';
 export type { CaptionBandInput } from './kit/devices.js';
-export { safeAreaRect } from './kit/style.js';
+export { BUTTON_LABEL_MIN, buttonColors, inkOn, safeAreaRect } from './kit/style.js';
 export { loupeLens, stepBadgeBox } from './kit/place.js';
 export type { LoupePlacement } from './kit/place.js';
 export { shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics } from './kit/keys.js';

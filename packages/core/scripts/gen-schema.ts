@@ -1,7 +1,7 @@
 /** Writes packages/core/schema/{scenario,project,template,timeline,sandbox}.schema.json. */
 import { fileURLToPath } from 'node:url';
 import { relative } from 'node:path';
-import { writeJsonSchemas } from '../src/schemas/json.js';
+import { writeJsonSchemas } from '../src/io/json-schemas.js';
 
 const outDir = fileURLToPath(new URL('../schema/', import.meta.url));
 const files = await writeJsonSchemas(outDir);
