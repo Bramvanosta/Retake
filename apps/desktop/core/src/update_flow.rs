@@ -267,6 +267,8 @@ pub enum State {
     Waiting { version: String, jobs: u32 },
     /// The quit (and its question) is under way.
     Installing { version: String },
+    /// Hotfix v0.2.6 (BL-167): this app is the version an install just put in place (said once, after the restart).
+    Updated { checked: Option<u64> },
     /// `retry`: Install and Restart may be clicked again (`Failure::retry`).
     Failed { failure: Failure, version: Option<String>, checked: Option<u64>, retry: bool },
 }
@@ -312,6 +314,7 @@ fn state_line_with(current: &str, s: &State, notes: &str) -> Option<String> {
     Some(match s {
         State::Off(o) => format!("{},\"reason\":\"{}\"}}", head("off"), o.wire()),
         State::Idle { checked } => format!("{},\"checked\":{}}}", head("idle"), opt_num(*checked)),
+        State::Updated { checked } => format!("{},\"checked\":{}}}", head("updated"), opt_num(*checked)),
         State::Checking => format!("{}}}", head("checking")),
         State::Available { version, checked, .. } => format!("{},\"version\":{},\"notes\":{},\"checked\":{}}}", head("available"), v(version)?, json::quote(notes), opt_num(*checked)),
         State::Downloading { version, received, total } => format!("{},\"version\":{},\"received\":{received},\"total\":{}}}", head("downloading"), v(version)?, opt_num(*total)),
@@ -343,6 +346,11 @@ pub struct Remembered {
     /// An install that failed (the old app restarted): said by the next launch, and kept (doctor says it too) until
     /// `failed_after_check` drops it, an install succeeds, or the person's Later acknowledges it (review d B-L2).
     pub failed: Option<(Failure, String)>,
+    /**
+     * Hotfix v0.2.6 (BL-167): the version an install just put in place — the restarted app says "Updated to vX" once
+     * (State::Updated) and forgets it.
+     */
+    pub updated: Option<String>,
 }
 
 /// The remembered failure after a successful check that found `found` (None: up to date): kept while the feed still
@@ -367,7 +375,8 @@ pub fn read_remembered(home: &Path) -> Remembered {
         }
         _ => None,
     };
-    Remembered { checked, failed }
+    let updated = v.get("updated").and_then(Json::as_str).filter(|s| version_ok(s)).map(str::to_string);
+    Remembered { checked, failed, updated }
 }
 
 /// Write the remembered checks: mode 0600, a temporary file renamed (the home made 0700 when missing).
@@ -378,7 +387,11 @@ pub fn write_remembered(home: &Path, r: &Remembered) -> io::Result<()> {
         Some((f, v)) if version_ok(v) => format!("{{\"failure\":\"{}\",\"version\":{}}}", f.wire(), json::quote(v)),
         _ => "null".into(),
     };
-    let body = format!("{{\"version\":1,\"checked\":{},\"failed\":{failed}}}\n", opt_num(r.checked));
+    let updated = match &r.updated {
+        Some(v) if version_ok(v) => json::quote(v),
+        _ => "null".into(),
+    };
+    let body = format!("{{\"version\":1,\"checked\":{},\"failed\":{failed},\"updated\":{updated}}}\n", opt_num(r.checked));
     let tmp = home.join(format!(".{UPDATES_FILE}.{}.tmp", std::process::id()));
     let result = (|| {
         let mut f = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
@@ -659,6 +672,8 @@ pub fn percent(received: u64, total: Option<u64>) -> Option<u8> {
 pub fn dock_label(s: &State) -> Option<String> {
     match s {
         State::Downloading { received, total, .. } => Some(percent(*received, *total).map_or_else(|| "…".to_string(), |p| format!("{p}%"))),
+        // The window is gone while the app installs and restarts: the Dock icon says it is still at work.
+        State::Installing { .. } => Some("↻".to_string()),
         _ => None,
     }
 }
@@ -816,6 +831,7 @@ mod tests {
         );
         assert_eq!(l(&State::Waiting { version: "0.2.1".into(), jobs: 2 }), r#"{"type":"update","state":"waiting","current":"0.2.0","version":"0.2.1","jobs":2}"#);
         assert_eq!(l(&State::Installing { version: "0.2.1".into() }), r#"{"type":"update","state":"installing","current":"0.2.0","version":"0.2.1"}"#);
+        assert_eq!(l(&State::Updated { checked: Some(5) }), r#"{"type":"update","state":"updated","current":"0.2.0","checked":5}"#);
         assert_eq!(
             l(&State::Failed { failure: Failure::Install, version: Some("0.2.1".into()), checked: None, retry: false }),
             r#"{"type":"update","state":"failed","current":"0.2.0","failure":"install","version":"0.2.1","checked":null,"retry":false}"#
@@ -839,16 +855,19 @@ mod tests {
     fn the_remembered_checks() {
         let home = crate::test_dir("updates");
         assert_eq!(read_remembered(&home), Remembered::default());
-        let r = Remembered { checked: Some(1_762_000_000), failed: Some((Failure::Install, "0.2.1".into())) };
+        let r = Remembered { checked: Some(1_762_000_000), failed: Some((Failure::Install, "0.2.1".into())), updated: Some("0.2.6".into()) };
         write_remembered(&home, &r).unwrap();
         assert_eq!(read_remembered(&home), r);
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(fs::metadata(home.join(UPDATES_FILE)).unwrap().permissions().mode() & 0o777, 0o600);
         // A bad failed entry is dropped, the date kept; a foreign file is the default.
         fs::write(home.join(UPDATES_FILE), r#"{"version":1,"checked":7,"failed":{"failure":"format_disk","version":"0.2.1"}}"#).unwrap();
-        assert_eq!(read_remembered(&home), Remembered { checked: Some(7), failed: None });
-        fs::write(home.join(UPDATES_FILE), r#"{"version":1,"checked":7,"failed":{"failure":"install","version":"0.2.1\nOK"}}"#).unwrap();
-        assert_eq!(read_remembered(&home), Remembered { checked: Some(7), failed: None });
+        assert_eq!(read_remembered(&home), Remembered { checked: Some(7), failed: None, updated: None });
+        fs::write(home.join(UPDATES_FILE), r#"{"version":1,"checked":7,"failed":{"failure":"install","version":"0.2.1\nOK"},"updated":"v0.2.6"}"#).unwrap();
+        assert_eq!(read_remembered(&home), Remembered { checked: Some(7), failed: None, updated: None });
+        // A file of an older app (no `updated`) reads as nothing to say.
+        fs::write(home.join(UPDATES_FILE), r#"{"version":1,"checked":7,"failed":null}"#).unwrap();
+        assert_eq!(read_remembered(&home), Remembered { checked: Some(7), failed: None, updated: None });
         fs::write(home.join(UPDATES_FILE), r#"{"version":2,"checked":7}"#).unwrap();
         assert_eq!(read_remembered(&home), Remembered::default());
         fs::write(home.join(UPDATES_FILE), "not json").unwrap();
@@ -1010,6 +1029,8 @@ mod tests {
         assert_eq!(d(42, None).as_deref(), Some("…"));
         assert_eq!(dock_label(&State::Waiting { version: "0.2.1".into(), jobs: 1 }), None);
         assert_eq!(dock_label(&State::Idle { checked: None }), None);
+        assert_eq!(dock_label(&State::Installing { version: "0.2.1".into() }).as_deref(), Some("↻"));
+        assert_eq!(dock_label(&State::Updated { checked: None }), None);
     }
 
     /// BL-167: `watch_reporting` says each new byte count once, with the announced size.

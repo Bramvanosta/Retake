@@ -243,6 +243,8 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
     await run.wait(/updates: 0\.2\.1 installed — restarting/, 300_000);
     await run.wait(/restarted the app directly \(pid \d+\)/, 30_000);
     await run.wait(/version 0\.2\.1 \(updates on\)/, 60_000);
+    // Hotfix v0.2.6 (BL-167): the restarted app knows it is the update just installed ("Updated to v0.2.1", said once).
+    await run.wait(/updates: Retake 0\.2\.1 is the update just installed/, 30_000);
     report.update_ms = Date.now() - t0;
     // L5.16f: the check and the download each followed the redirect to the other host, as with GitHub's releases.
     expect(hits).toEqual(expect.arrayContaining(['feed /retake/latest.json', 'storage /storage/latest.json?signed=1', 'feed /releases/download/v0.2.1/Retake.app.tar.gz', 'storage /storage/Retake.app.tar.gz?signed=1']));

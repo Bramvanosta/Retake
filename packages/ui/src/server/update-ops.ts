@@ -22,7 +22,7 @@ import { EngineError } from '@retake/engine';
 import type { ToolDef } from '@retake/mcp';
 import type { DesktopPipe } from './desktop.js';
 
-export const UPDATE_STATES = ['off', 'idle', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;
+export const UPDATE_STATES = ['off', 'idle', 'updated', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;
 export type UpdateStateName = (typeof UPDATE_STATES)[number];
 /** Why the app does not update itself (update_flow Off::wire). */
 export const UPDATE_OFF_REASONS = ['build', 'disabled', 'translocated', 'read_only'] as const;
@@ -45,7 +45,7 @@ const BAD_NOTE_CHARS = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u2
 
 export type UpdateLine =
   | { type: 'update'; state: 'off'; current: string; reason: (typeof UPDATE_OFF_REASONS)[number] }
-  | { type: 'update'; state: 'idle'; current: string; checked: number | null }
+  | { type: 'update'; state: 'idle' | 'updated'; current: string; checked: number | null }
   | { type: 'update'; state: 'checking'; current: string }
   | { type: 'update'; state: 'available'; current: string; version: string; notes: string; checked: number | null }
   | { type: 'update'; state: 'downloading'; current: string; version: string; received: number; total: number | null }
@@ -57,6 +57,7 @@ export type UpdateLine =
 const KEYS: Record<UpdateStateName, string> = {
   off: 'current,reason,state,type',
   idle: 'checked,current,state,type',
+  updated: 'checked,current,state,type',
   checking: 'current,state,type',
   available: 'checked,current,notes,state,type,version',
   downloading: 'current,received,state,total,type,version',
@@ -75,6 +76,7 @@ export function parseUpdateLine(o: Record<string, unknown>): UpdateLine | null {
     case 'off':
       return (UPDATE_OFF_REASONS as readonly unknown[]).includes(o.reason) ? { type: 'update', state, current, reason: o.reason as (typeof UPDATE_OFF_REASONS)[number] } : null;
     case 'idle':
+    case 'updated':
       return checkedOk(o.checked) ? { type: 'update', state, current, checked: o.checked } : null;
     case 'checking':
       return { type: 'update', state, current };

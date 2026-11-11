@@ -44,6 +44,7 @@ const L = {
   off: { type: 'update', state: 'off', current: '0.2.0', reason: 'build' },
   idle: { type: 'update', state: 'idle', current: '0.2.0', checked: 1762000000 },
   checking: { type: 'update', state: 'checking', current: '0.2.0' },
+  updated: { type: 'update', state: 'updated', current: '0.2.0', checked: null },
   available: { type: 'update', state: 'available', current: '0.2.0', version: '0.2.1', notes: 'Faster renders.\n<b>bold?</b>', checked: null },
   downloading: { type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1', received: 152_000_000, total: 370_000_000 },
   waiting: { type: 'update', state: 'waiting', current: '0.2.0', version: '0.2.1', jobs: 2 },
@@ -76,6 +77,7 @@ describe('the shell\'s update lines', () => {
       { ...L.off, reason: 'because' },
       { ...L.failed, failure: 'format_disk' },
       { ...L.waiting, jobs: 0 },
+      { ...L.updated, version: '0.2.0' },
       // BL-167: the download's bytes — whole, never negative, a size above zero, both keys always there.
       { ...L.downloading, received: -1 },
       { ...L.downloading, received: 1.5 },

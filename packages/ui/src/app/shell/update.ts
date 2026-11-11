@@ -16,7 +16,7 @@ export type UpdateOffReason = 'build' | 'disabled' | 'translocated' | 'read_only
 export interface UpdateStatus {
   available: boolean;
   reason?: 'not_supervised' | UpdateOffReason;
-  state?: 'unknown' | 'off' | 'idle' | 'checking' | 'available' | 'downloading' | 'waiting' | 'installing' | 'failed';
+  state?: 'unknown' | 'off' | 'idle' | 'updated' | 'checking' | 'available' | 'downloading' | 'waiting' | 'installing' | 'failed';
   current?: string;
   version?: string | null;
   jobs?: number;
@@ -77,6 +77,7 @@ export function verifying(s: UpdateStatus): boolean {
 /** The status bar's button: shown while an update is known, under way, or failed for a version (review d A-M3: a
  * refusal such as "not writable" keeps its words in the bar and the sheet); null otherwise (nothing in the bar). */
 export function badgeWords(s: UpdateStatus | null): string | null {
+  if (s?.available && s.state === 'updated' && s.current) return `Updated to v${s.current}`;
   if (!s?.available || !s.version) return null;
   switch (s.state) {
     case 'available':
@@ -113,7 +114,13 @@ export function progressWords(s: UpdateStatus): { state: MarkState; title: strin
     case 'waiting':
       return { state: 'running', title: `Waiting for ${s.jobs === 1 ? 'a job' : `${s.jobs} jobs`}`, text: `${APP_NAME} restarts once ${s.jobs === 1 ? 'the job' : `the ${s.jobs} jobs`} of this workspace end. Later stops waiting.` };
     case 'installing':
-      return { state: 'running', title: `Installing v${s.version}`, text: `${APP_NAME} is quitting to install it: answer its question if it asks one.` };
+      return {
+        state: 'running',
+        title: `Installing v${s.version}`,
+        text: `${APP_NAME} quits, installs it and opens again by itself: its window is gone for a few seconds (its Dock icon shows ↻ meanwhile). Answer its question if it asks one.`,
+      };
+    case 'updated':
+      return { state: 'ok', title: `Updated to v${s.current}`, text: `${APP_NAME} installed the update and opened again. Workspaces, projects and sign-ins are as you left them.` };
     case 'checking':
       return { state: 'running', title: 'Checking for updates', text: `${APP_NAME} asks its update feed again.` };
     case 'off':
