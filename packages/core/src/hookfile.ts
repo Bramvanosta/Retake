@@ -32,7 +32,7 @@ export function parseHookFile(
       const saved = new Set<string>();
       checkHooks(v, [], ctx, { pages, saved, project: opts.project });
       if (Array.isArray(v) && opts.project) {
-        const scope = { pages, vars: new Set(Object.keys(opts.project.config.vars ?? {})), varsComplete: true, saved };
+        const scope = { pages, vars: new Set(Object.keys(opts.project.config.vars ?? {})), varsComplete: true, saved, hookRefs: {} };
         v.forEach((h, i) => {
           if (!ctx.broken([i])) checkTokens(h, [i], scope, ctx);
         });

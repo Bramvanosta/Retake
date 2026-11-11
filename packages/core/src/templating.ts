@@ -74,13 +74,15 @@ export function defaultSecrets(ref: string): string | undefined {
 }
 
 function lookup(expr: string, ctx: TemplateContext): unknown {
-  if (/^(env|keychain|secret):/.test(expr)) {
+  if (/^(env|keychain|secret|compose_env):/.test(expr)) {
     const ref = expr.startsWith('secret:') ? expr.slice(7) : expr;
     const v = (ctx.secrets ?? defaultSecrets)(ref);
     if (v === undefined) {
       throw new TemplateError(
         ref.startsWith('env:')
           ? `environment variable ${ref.slice(4)} is not set (referenced as {{${expr}}})`
+          : ref.startsWith('compose_env:')
+            ? `{{${expr}}} is read from a sandbox's compose env file: only the hooks of a sandbox environment and the accounts of its sandbox.yaml resolve it`
           : `secret {{${expr}}} could not be resolved (keychain refs must be prefetched with resolveSecretRef)`,
       );
     }
@@ -179,6 +181,28 @@ export function collectSecretRefs(value: unknown, out = new Set<string>()): Set<
     value.forEach((v) => collectSecretRefs(v, out));
   } else if (value && typeof value === 'object') {
     for (const [k, v] of Object.entries(value)) if (k !== 'note') collectSecretRefs(v, out);
+  }
+  return out;
+}
+
+/** `accounts.<persona>.password` (a sandbox account's password in a hook): the persona, else undefined. */
+const ACCOUNT_PASSWORD = /^accounts\.([^.\s]+)\.password$/;
+
+/**
+ * The references a hook resolves from its sandbox (hotfix v0.2.3): `compose_env:NAME` (the compose env file) and
+ * `accounts.<persona>.password` (an account's password) — secrets like `env:` / `keychain:` ones (masked; never in a
+ * scenario submitted by an agent), kept apart because only the hooks resolve them. `note` fields are skipped.
+ */
+export function collectSandboxRefs(value: unknown, out = new Set<string>()): Set<string> {
+  if (typeof value === 'string') {
+    for (const m of value.matchAll(TOKEN)) {
+      const expr = m[1].trim().replace(/\s*\.\s*/g, '.');
+      if (expr.startsWith('compose_env:') || ACCOUNT_PASSWORD.test(expr)) out.add(expr);
+    }
+  } else if (Array.isArray(value)) {
+    value.forEach((v) => collectSandboxRefs(v, out));
+  } else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) if (k !== 'note') collectSandboxRefs(v, out);
   }
   return out;
 }

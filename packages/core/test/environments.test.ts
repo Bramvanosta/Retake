@@ -39,6 +39,8 @@ import {
   protectedBy,
   protectedHostMessage,
   rawEnvironmentPages,
+  readmeEnvironmentsDrift,
+  readmeEnvironmentLine,
   readmeSkeleton,
   requestPatternError,
   resolveClock,
@@ -187,6 +189,44 @@ auth:
     const { config, issues } = parseProjectYaml(text);
     expect(issues, formatIssues(issues)).toEqual([]);
     expect(config!.environments.prod.console).toBe('https://console.example.com');
+  });
+
+  it('readmeEnvironmentsDrift: pages the section does not mention, skeleton lines that are gone; a hand-written section that names every URL is fine', () => {
+    const pages = [
+      { env: 'local', page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' },
+      { env: 'stg', page: 'shop', url: 'https://shop.stg.example.com/' },
+    ];
+    const made = readmeSkeleton('N', { local: { shop: 'http://localhost:4402' }, old: { shop: 'https://old.example.com' } });
+    expect(readmeEnvironmentsDrift(made, pages)).toEqual({ missing: ['- stg · shop: https://shop.stg.example.com/'], gone: ['- old · shop: https://old.example.com'] });
+    const byHand = '# N\n\n## Environments & links\n\nLocal is http://localhost:4402, staging https://shop.stg.example.com (ask for access).\n\n## Accounts\n\n- old · shop: x\n';
+    expect(readmeEnvironmentsDrift(byHand, pages)).toBeNull();
+    expect(readmeEnvironmentsDrift('# N\n\nNo such section.\n', pages)).toBeNull();
+  });
+
+  it('hotfix v0.2.6 (field point 26): lines a person writes — the name in bold or code, a note in parentheses, several pages on a line, a description after the URLs — are read by environment and page', () => {
+    const pages = [
+      { env: 'local', page: 'shop', url: 'http://localhost:4402' },
+      { env: 'local', page: 'console', url: 'http://localhost:4401' },
+      { env: 'stg', page: 'shop', url: 'https://shop.stg.example.com' },
+      { env: 'stg', page: 'console', url: 'https://console.stg.example.com' },
+      { env: 'sandbox', page: 'shop', url: 'http://localhost:4602' },
+    ];
+    const readme = [
+      '# N',
+      '',
+      '## Environments & links',
+      '',
+      '- **local** (default) · shop: http://localhost:4402 · console: http://localhost:4401 : the dev servers',
+      '- **stg** · shop: <https://shop.stg.example.com> · console: https://console.stg.example.com : staging,',
+      '  refreshed every night',
+      '- `sandbox` · shop: http://localhost:4602',
+      '- **old** · shop: https://old.example.com : retired',
+      '- **stg** · admin: https://admin.stg.example.com',
+      '',
+    ].join('\n');
+    expect(readmeEnvironmentsDrift(readme, pages)).toEqual({ missing: [], gone: ['- **old** · shop: https://old.example.com : retired', '- **stg** · admin: https://admin.stg.example.com'] });
+    expect(readmeEnvironmentLine('- **local** (default) · shop: http://localhost:4402 · console: http://localhost:4401')).toEqual({ env: 'local', pages: ['shop', 'console'] });
+    expect(readmeEnvironmentLine('  refreshed every night')).toBeNull();
   });
 
   it('readmeSkeleton lists the display URL a page is shown as', () => {

@@ -86,6 +86,6 @@ export async function prepareJs(spec: string | JsHookSpec, k: KindEnv): Promise<
 }
 
 export async function rollbackJs(action: Extract<RollbackAction, { kind: 'js' }>, r: RollbackEnv): Promise<string> {
-  const code = render(action.code, await snapshotTemplateContext(r.ctx, action.data, action.code));
+  const code = render(action.code, await snapshotTemplateContext(r.ctx, action.data, action.code, r.env));
   return evaluate(r.ctx, action.page, code);
 }

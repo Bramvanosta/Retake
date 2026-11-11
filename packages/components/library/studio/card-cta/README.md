@@ -17,8 +17,8 @@ Final call to action — kicker, title, text, an accent button with the URL unde
 | `kicker` | text |  | 40 | Small uppercase line above the title. |
 | `text` | text |  | 140 | Optional supporting line. |
 | `button` | text |  | 32 | Button text (default "Get started"). |
-| `url` | url | theme.brand.url | 60 | The address shown under the button (default — the theme's brand url). |
-| `qr` | url |  | 300 | What the QR code opens (default — the url; "https://" is added when it has no scheme). |
+| `url` | url | theme.brand.url | 60 | The address shown under the button (default — the theme's brand url) — shown only (never loaded). |
+| `qr` | url |  | 300 | What the QR code opens (default — the url; "https://" is added when it has no scheme) — encoded locally (never loaded). |
 | `qr_label` | text |  | 40 | Line under the QR code (default "Scan to open"). |
 
 ## Params

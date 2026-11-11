@@ -1217,6 +1217,34 @@
       },
       "description": "Waits the screen showed after a click (skeletons, spinners, blank panels)."
     },
+    "loading_ui": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t_start": {
+            "type": "number"
+          },
+          "t_end": {
+            "type": "number"
+          },
+          "what": {
+            "type": "string",
+            "description": "Their kinds, e.g. \"skeleton ×6\"."
+          },
+          "page": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end",
+          "what"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Loading indicators (skeleton, shimmer, spinner, aria-busy) in the filmed page's viewport, as the take probed it."
+    },
     "pauses": {
       "type": "array",
       "items": {

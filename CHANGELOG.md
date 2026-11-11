@@ -232,6 +232,9 @@ release — for the person about to click Install and Restart.
     apart: `kept: 1 take, 3 renders and 1 other file of renders/` (`retake prune --json`'s `kept.renders` counts every
     record file that stays). A record whose variant is no text (`5`, `null`) is kept and counted in no scenario's
     window. Prune lists nothing it kept before.
+- Through MCP (and the Studio's agent path), an http hook with `auth: {persona}` sends that persona's session only to
+  the persona's own pages — the origins of the pages it signs in to; a hook aimed at another origin is refused before
+  it runs, naming the persona and the rule. A run you start yourself is unchanged.
 
 ### Fixed
 - `retake prune`, `retake review latest`, `retake export latest`, the comment list and MCP's `latest` no longer stop
@@ -256,6 +259,103 @@ release — for the person about to click Install and Restart.
 - A dangling link in `runs/` no longer makes `latest` answer that there is no capture run.
 - The Studio's Set-up sheet: after Install or Uninstall of the `retake` command, the keyboard focus lands on the
   command's next action once the sheet shows the new status, instead of being lost when the status came back late.
+
+## [0.2.6] — 2026-11-11
+
+The review now catches what client demos kept bringing up: a page still loading on screen, a zoom while the page
+scrolls, a caption that says the opposite of the screen, an annotation lost at the end of a scene. Forms can fill in
+one go.
+
+### Added
+- **Review checks:** `loading-filmed` (a skeleton, a spinner or a busy region the video shows; the take now records
+  them), `zoom-during-scroll`, `caption-contradicts-ui` (a note) and `overlay-lost` / `overlay-cut` (an annotation
+  dropped or cut by the end of its scene, until now only a render warning).
+- **`type: {…, fill: true}`** fills a field at once, as a browser autofill.
+- **Claude's scenario skill** gains the editing rules that hold for every product: loads off camera, the state rather
+  than the path, no annotation on a scene's last step, readable speed, one zoom at most, live updates in two beats,
+  captions true to the screen, the app's language and theme first, dates in next month, frame-by-frame look.
+
+### Fixed
+- **The end of an update.** While the app installs, its window is gone for a few seconds: the sheet now says so
+  beforehand, the Dock icon shows ↻ meanwhile, and the restarted app says "Updated to vX" once.
+- **`project_get` and a hand-written README.** Environment lines written with the name in bold, a note in
+  parentheses, several pages on one line or a description after the URLs were reported as gone.
+
+## [0.2.5] — 2026-11-11
+
+Claude's connection to Retake restarts by itself after an update, a sandbox reset also puts back a Firebase Auth
+emulator, a call-to-action button always reads, and a list's search can be filled at once.
+
+### Fixed
+- **The MCP server after an update.** A server Claude started before the update kept running the old engine. It now
+  notices the new version at its next call, says so (`engine_info.stale`, and in the call's error) and stops, so that
+  Claude starts it again on the new one.
+- **Call-to-action button.** With a dark accent on a dark page the button's label was invisible. The button keeps the
+  accent and its label is chosen against it; the review warns about a button label that does not read
+  (`button-contrast`).
+- **An address in a call to action through Claude.** The CTA's `url` and `qr` are shown or encoded, never loaded: an
+  https address there is no longer refused as a remote file (images and media still are).
+
+### Added
+- **Sandbox resets beyond Postgres.** `reset.firebase_auth` puts a Firebase Auth emulator's accounts back as the seed
+  left them at every reset; `reset.hooks` (http, sql, shell, exec) run at every reset once the data is back. The guide
+  says what a snapshot covers: the Postgres database only.
+- **`search_instant` and `search_cps` on `select` / `pick`:** the search filled at once (only the final list is
+  filmed), or typed at its own pace.
+
+## [0.2.4] — 2026-11-11
+
+An update now shows how far it has got, and the app comes back under the icon you keep in the Dock.
+
+### Fixed
+- **An update you can watch.** After Install and Restart the sheet lists the steps — the download, the signature
+  check, the jobs it waits for, the quit that installs and restarts — and says the one under way; the download shows
+  its megabytes, its percent and a bar, in the status bar too, and on the app's Dock icon while you work in another
+  app. A step that fails is marked.
+- **One Dock icon after an update.** The updated app started while the old one was still quitting, so macOS gave it a
+  second icon beside the one kept in the Dock. It now starts once the old one is gone, under that same icon. (The
+  update to this version still restarts the old way: the fix takes effect from the next one.)
+
+## [0.2.3] — 2026-11-11
+
+The hooks of a sandbox use its demo accounts directly: no password to copy into the keychain, and a request can be
+sent as one of the accounts.
+
+### Added
+- **Sandbox accounts in hooks.** On a sandbox environment a hook reads `{{compose_env:NAME}}` (the sandbox's compose
+  env file) and `{{accounts.<persona>.username}}` / `{{accounts.<persona>.password}}` (its sandbox.yaml), masked like
+  every secret.
+- **`auth: {persona}` on an http hook** sends the request as that persona: the cookies of its saved session and, for
+  an app signed in with Firebase, its ID token as `Authorization: Bearer …`.
+
+## [0.2.2] — 2026-11-10
+
+Signed-in pages of an app that keeps its session in the browser's database (Firebase sign-in) can be inspected and
+filmed, a sandbox says what it is doing while it starts, and a long list with a search field is chosen from without
+extra settings.
+
+### Fixed
+- **An automated sign-in that ended too early.** A single-page app signs in with a request, then stores its session
+  (the Firebase SDK: in IndexedDB) and routes away; the sign-in browser closed right after the last step and saved a
+  signed-out profile, so every signed-in page landed on the sign-in page ("the session expired during the run"). The
+  steps' requests now end first, and the page gets a moment to leave the sign-in page.
+- **An automated sign-in that did not hold said "signed in".** A persona without a `check` is now opened once more
+  the way a run will see it: landing on a sign-in page fails the login, saying so, and nothing is saved.
+- **IndexedDB in saved sessions.** A `storage_state` persona's snapshot holds its IndexedDB and a run restores it;
+  a profile persona's travels in its profile, as before.
+- **The skills' workspace check** compared the workspace with the session's working directory only: a session with
+  the product's repository added no longer stops.
+
+### Added
+- **`retake sandbox up` and `reset` show their steps** as they happen — the compose files, the build, the start, each
+  health check, the seed, the snapshot — on one live line in a terminal, as time-stamped lines otherwise; `--verbose`
+  copies every line of `docker compose`, and the last line gives the time of each step.
+- **`select` and `pick` search by themselves.** An option a long list has not rendered is typed in the list's search
+  field; `search:` still types something else, and the error says when a list has a search field.
+- **One page, several accounts.** Several personas (or sandbox accounts) may list the same page; the first one is its
+  default and a scene films another with `persona:`.
+- **`project_create`** (MCP) takes `{url, display}` pages and `default_env`; `project_get` says when the README's
+  "Environments & links" section no longer matches the project's environments.
 
 ## [0.2.1] — 2026-11-10
 

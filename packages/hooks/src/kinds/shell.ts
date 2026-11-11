@@ -389,7 +389,7 @@ export async function rollbackShell(action: Extract<RollbackAction, { kind: 'she
     const before = [...agentShellEnvProblems(action.env), ...agentShellTokenProblems([action.run, action.cwd])];
     if (before.length) throw new HookSecurityError(`refusing shell rollback: it uses ${before.join('; ')} — ${agentShellFix(r.ctx)}`, 'mcp');
   }
-  const cmd = renderDeep(template, await snapshotTemplateContext(r.ctx, action.data, template));
+  const cmd = renderDeep(template, await snapshotTemplateContext(r.ctx, action.data, template, r.env));
   if (action.agent) {
     const problems = agentShellTextProblems(r.ctx, cmd);
     if (problems.length) throw new HookSecurityError(`refusing shell rollback: it uses ${problems.join('; ')} — ${agentShellFix(r.ctx)}`, 'mcp');

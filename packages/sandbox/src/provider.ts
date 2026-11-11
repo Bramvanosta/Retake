@@ -40,6 +40,16 @@ export interface SeedRunResult {
 /** What reports each seed step run (hooks HookContext.recordRun, and each exec step). */
 export type SeedRecorder = (result: SeedRunResult, run?: string) => Promise<void>;
 
+/**
+ * What a sandbox call is doing, for whoever shows it (the CLI's live line and its summary — hotfix v0.2.2): `step`
+ * starts a named step (the one before is over), `note` is one line of what the current step is doing (a line of
+ * `docker compose`, of a seed command — already masked).
+ */
+export interface SandboxProgress {
+  step(name: string, detail?: string): void;
+  note(text: string): void;
+}
+
 export interface ProviderContext {
   project: LoadedProject;
   /** What the work runs under (core WorkPolicy): the programs, the environment of the services and the seed's hooks. */
@@ -50,6 +60,7 @@ export interface ProviderContext {
   /** Write `state` (synchronously, atomically). */
   save(): void;
   log: SandboxLog;
+  progress?: SandboxProgress;
   signal?: AbortSignal;
   seedTrust?: SeedTrust;
   recordSeedRun?: SeedRecorder;

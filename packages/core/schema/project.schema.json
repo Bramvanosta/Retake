@@ -565,7 +565,7 @@
             "type": "string",
             "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
           },
-          "description": "Environment pages this persona is signed into by default (a page belongs to at most one persona)."
+          "description": "Environment pages this persona is signed into. Several personas may list one page (one app, several roles): the first one declared is its default, a scene names another with `persona:`."
         },
         "session": {
           "type": "string",
@@ -1354,6 +1354,21 @@
                   ],
                   "description": "Expected status code(s). Default: any 2xx."
                 },
+                "auth": {
+                  "type": "object",
+                  "properties": {
+                    "persona": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                      "description": "A persona of the environment (a sandbox account)."
+                    }
+                  },
+                  "required": [
+                    "persona"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Send the request as a persona: the cookies its saved session holds for the URL and, for a product signed in with Firebase Auth, its ID token as `Authorization: Bearer …`. Not in a sandbox seed."
+                },
                 "save_as": {
                   "type": "string",
                   "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
@@ -1413,6 +1428,21 @@
                         }
                       ],
                       "description": "Expected status code(s). Default: any 2xx."
+                    },
+                    "auth": {
+                      "type": "object",
+                      "properties": {
+                        "persona": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                          "description": "A persona of the environment (a sandbox account)."
+                        }
+                      },
+                      "required": [
+                        "persona"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Send the request as a persona: the cookies its saved session holds for the URL and, for a product signed in with Firebase Auth, its ID token as `Authorization: Bearer …`. Not in a sandbox seed."
                     }
                   },
                   "required": [

@@ -18,7 +18,7 @@ export { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines } from './kit/devic
 export type { CaptionBandInput } from './kit/devices.js';
 export { estimateTextWidth, fitText } from './kit/fit-text.js';
 export type { TextFont, TextMeasurer } from './kit/fit-text.js';
-export { safeAreaRect } from './kit/style.js';
+export { BUTTON_LABEL_MIN, buttonColors, inkOn, safeAreaRect } from './kit/style.js';
 export { loupeLens, stepBadgeBox } from './kit/place.js';
 export type { LoupePlacement } from './kit/place.js';
 export { shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics } from './kit/keys.js';

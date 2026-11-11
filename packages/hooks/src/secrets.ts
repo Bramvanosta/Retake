@@ -2,6 +2,7 @@ import { collectSecretRefs, redact, secretForms } from '@retake/core';
 import { resolveSecretRef } from '@retake/core/io';
 import type { SecretResolver } from '@retake/core';
 import type { HookContext, HookLogLevel } from './types.js';
+import { composeEnvValues } from './sandbox-refs.js';
 import { isRecord } from './util.js';
 
 /** Secret values resolved for a context (shared by setup, teardown and rollbacks run with the same ctx). */
@@ -51,13 +52,20 @@ const resolved = new WeakMap<HookContext, Map<string, string>>();
 
 /**
  * A synchronous resolver for every secret reference used in `value`. Real runs resolve them
- * (env / keychain, cached per context) and register the values for redaction; dry runs only check
+ * (env / keychain, cached per context; `compose_env:NAME` from the compose env file of sandbox `env`) and register the values for redaction; dry runs only check
  * that env variables exist and substitute "***" (no keychain access).
  */
-export async function secretResolver(ctx: HookContext, value: unknown): Promise<SecretResolver> {
+export async function secretResolver(ctx: HookContext, value: unknown, env: string = ctx.env.name): Promise<SecretResolver> {
+  // A sandbox's compose env file (hotfix v0.2.3): read (and each name checked) in a dry run too, never printed.
+  const compose = await composeEnvValues(ctx, value, env);
+  const fromCompose = (ref: string): string | undefined => compose.get(ref.slice('compose_env:'.length));
   if (ctx.dryRun) {
-    return (ref) => (ref.startsWith('env:') && process.env[ref.slice(4)] === undefined ? undefined : '***');
+    return (ref) => {
+      if (ref.startsWith('compose_env:')) return fromCompose(ref) === undefined ? undefined : '***';
+      return ref.startsWith('env:') && process.env[ref.slice(4)] === undefined ? undefined : '***';
+    };
   }
+  for (const v of compose.values()) addSecret(ctx, v);
   let known = resolved.get(ctx);
   if (!known) {
     known = new Map();
@@ -71,6 +79,7 @@ export async function secretResolver(ctx: HookContext, value: unknown): Promise<
   }
   const cache = known;
   return (ref) => {
+    if (ref.startsWith('compose_env:')) return fromCompose(ref);
     const v = cache.get(ref) ?? (ref.startsWith('env:') ? process.env[ref.slice(4)] : undefined);
     if (v !== undefined) addSecret(ctx, v);
     return v;

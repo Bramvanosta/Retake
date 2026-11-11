@@ -153,6 +153,9 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   it('up starts and seeds it; status --json and logs show it', async () => {
     const up = await retake(['sandbox', 'up', PROJECT]);
+    // Hotfix v0.2.2: the steps as they happen (not a terminal: time-stamped lines), and their times at the end.
+    expect(up.err).toMatch(/^ {2}\d\d:\d\d:\d\d {2}start fixture — healthy within \d+ s$/m);
+    expect(up.err).toMatch(/^ {2}steps {5}start fixture [\d.]+ m?s · seed 1\/1 [\d.]+ m?s$/m);
     expect(up.code).toBe(EXIT.ok);
     expect(up.err).toMatch(/services {2}started fixture · healthy 1\/1/);
     expect(up.err).toMatch(/seed {6}reseed \d+ ms · seed 1 step \(\d+ ms\) · mailbox emptied/);

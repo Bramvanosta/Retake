@@ -248,6 +248,34 @@
             "minLength": 1
           },
           "description": "Services restarted after each reset (apps that do not survive a database swap)."
+        },
+        "firebase_auth": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The Auth emulator on this machine, e.g. http://localhost:9099."
+            },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The emulator's project id (demo-…)."
+            }
+          },
+          "required": [
+            "url",
+            "project"
+          ],
+          "additionalProperties": false,
+          "description": "A Firebase Auth emulator of the sandbox: its accounts are emptied before each seed, saved after it, and put back at every reset (after `restart`) — the database snapshot does not cover it."
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SeedStep"
+          },
+          "description": "Steps (http, sql, shell, exec) run at every reset once the data is back — after `restart` and `firebase_auth` —, before the take: what each take needs undone that the snapshot does not cover."
         }
       },
       "additionalProperties": false
@@ -371,7 +399,7 @@
               "type": "string",
               "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
             },
-            "description": "Environment pages this persona is signed into by default (a page belongs to at most one persona)."
+            "description": "Environment pages this persona is signed into. Several personas may list one page (one app, several roles): the first one declared is its default, a scene names another with `persona:`."
           },
           "session": {
             "type": "string",
@@ -483,6 +511,21 @@
                   ],
                   "description": "Expected status code(s). Default: any 2xx."
                 },
+                "auth": {
+                  "type": "object",
+                  "properties": {
+                    "persona": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                      "description": "A persona of the environment (a sandbox account)."
+                    }
+                  },
+                  "required": [
+                    "persona"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Send the request as a persona: the cookies its saved session holds for the URL and, for a product signed in with Firebase Auth, its ID token as `Authorization: Bearer …`. Not in a sandbox seed."
+                },
                 "save_as": {
                   "type": "string",
                   "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
@@ -542,6 +585,21 @@
                         }
                       ],
                       "description": "Expected status code(s). Default: any 2xx."
+                    },
+                    "auth": {
+                      "type": "object",
+                      "properties": {
+                        "persona": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                          "description": "A persona of the environment (a sandbox account)."
+                        }
+                      },
+                      "required": [
+                        "persona"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Send the request as a persona: the cookies its saved session holds for the URL and, for a product signed in with Firebase Auth, its ID token as `Authorization: Bearer …`. Not in a sandbox seed."
                     }
                   },
                   "required": [

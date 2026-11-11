@@ -163,7 +163,7 @@ describe("the step's form", () => {
     const folds = () => form().getByTestId('form-more').locator('summary').allInnerTexts();
     const visible = () => form().locator('[data-field]:visible').evaluateAll((els) => els.map((e) => e.getAttribute('data-field')));
     // L5.10b: the modifiers are switches (on: their fields; off: emptied) — no "More:" fold for them.
-    expect(await folds()).toEqual(['Other ways to find it (10)', 'More: clear, enter']);
+    expect(await folds()).toEqual(['Other ways to find it (10)', 'More: clear, enter, fill']);
     expect(await visible()).toEqual(['type.into.label', 'type.text', 'type.cps', 'caption.text', 'caption.kicker']);
     expect(await form().locator('[data-switch]').evaluateAll((els) => els.map((e) => `${e.getAttribute('data-switch')}:${(e as HTMLInputElement).checked}`))).toEqual(['caption:true', 'hold:false', 'speed:false', 'mark:false']);
     await shot('form-0-folded');
@@ -174,7 +174,7 @@ describe("the step's form", () => {
     await expect.poll(() => live(), POLL).toMatch(/^Changed .* of step 2 of a\. Saved\./);
     const t1 = await settled('forms');
     expect(value(t1).scenes[0].steps![1]).toEqual({ ...value(t0).scenes[0].steps![1], hold: 0.5 });
-    await expect.poll(() => folds(), POLL).toEqual(['Other ways to find it (10)', 'More: clear, enter']);
+    await expect.poll(() => folds(), POLL).toEqual(['Other ways to find it (10)', 'More: clear, enter, fill']);
     expect(await visible()).toContain('hold');
     expect(await form().locator('[data-switch="hold"]').isChecked()).toBe(true);
     // A modifier switched off empties its fields: Save sends their removal — the same set_step changes as before.

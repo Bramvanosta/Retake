@@ -45,6 +45,8 @@ export interface HookContextLike {
   confirmDestructive?: ConfirmHook;
   /** Reports each hook and rollback run (RunOptions.recordHookRun, with this run's id, or a rollback's journal's). */
   recordRun?: (result: HookResultLike, run?: string) => Promise<void>;
+  /** `auth: {persona}` of an http hook (@retake/hooks HookContext.personaAuth). */
+  personaAuth?: (persona: string, url: string) => Promise<{ authorization?: string; cookie?: string }>;
 }
 
 export interface HookResultLike {

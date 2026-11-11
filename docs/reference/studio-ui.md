@@ -514,19 +514,31 @@ Studio keeps `APP_NAME` (L5.13 renames).
 
 - **The update (L5.16d)** — in the desktop app only (`__studioShell`), and only while the app's own server says an
   update is known, under way or failed for a version: a ghost kit Button in the status bar's state area ("Update
-  available · v0.2.1", "Downloading v0.2.1…", "Update waits for 2 jobs", "Installing v0.2.1…", "Update v0.2.1 failed",
+  available · v0.2.1", "Downloading v0.2.1…" (BL-167: "Downloading v0.2.1 · 41 %" once its size is known, "Checking
+  v0.2.1…" once every byte is in), "Update waits for 2 jobs", "Installing v0.2.1…", "Update v0.2.1 failed",
   "Update v0.2.1 not installed", "Update v0.2.1: install it from its disk image"; a live button with `aria-busy` while a
   step runs — it reopens the sheet, where Later is), nothing when up to date or off. It opens a kit Sheet: "Update
   Retake to v0.2.1?", one sentence in the future tense (what Install and Restart will do, what is kept, when the feed was
   last checked), the release notes (the feed's text through `Txt`, line breaks kept, in a focusable region named
   "Release notes, from the update feed" that scrolls past 12 rem from the keyboard — markup shown, never rendered),
-  then the step under way, the failure or "off" as a Callout (title and sentence; `role="alert"` for a failure). The
+  then the step under way, the failure or "off" as a Callout (title and sentence; `role="alert"` for a failure). BL-167:
+  while it downloads, a kit Progress across the sheet ("Download 152 MB of 370 MB · 41 %"; indeterminate, "4.2 MB so
+  far", while the server announced no size); after the click, an ordered list named "Install and Restart, step by
+  step" — Download the update · Check its signature · Wait for this workspace's jobs (its count when known) · Quit,
+  install and restart Retake — each with its mark and its word (done, running, pending, failed; `aria-current="step"`
+  on the one under way), the failed one marked (a download that failed marks the download: the shell says one failure
+  for the download and its signature); no list before the click nor on a failure that is no step's (the feed, a
+  folder it cannot write). The status is read every second while it downloads. Hotfix v0.2.6: the state `updated`
+  (the app an install just restarted, said once) shows "Updated to v0.2.1" in the bar and opens the sheet by itself
+  (title "Retake v0.2.1", an ok Callout, Close); Close puts both away, and the version is remembered in the browser's
+  storage so another load does not open it again. The
   sheet stays open on a click's refusal (not writable, off) and while a check runs; it sets `white-space: normal` (it is
   rendered inside the one-line status bar). Actions: Later · Install and Restart ● while an update can be installed
   (available, or a failure the shell may retry: Later then acknowledges it), Close · Later ● while it downloads or
   waits for jobs (Later stops it), Close otherwise. The click goes to the shell through `desktop_update`; a click that
   did not arrive is said in the sheet. It opens on the button and on the shell's `studio:update` event (Help › Check
-  for Updates… found one). Its a11y tour: dark at 1280 / 900 and light (`test/studio-e2e-update.test.ts`).
+  for Updates… found one). Its a11y tours, before the click and while it downloads: dark at 1280 / 900 and light
+  (`test/studio-e2e-update.test.ts`).
 
 **The legacy layer is gone (L5.12d).** Every screen is on the kit: `app.css` (the cascade layer `legacy`) is deleted, the
 ratchet table `test/legacy-controls.json` is `{}` (every file holds zero findings), bits.tsx keeps only `Txt`, `shown`

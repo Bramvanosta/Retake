@@ -35,6 +35,12 @@ const httpRequestShape = {
     .union([statusSchema, z.array(statusSchema).min(1)])
     .describe('Expected status code(s). Default: any 2xx.')
     .optional(),
+  auth: z
+    .strictObject({ persona: slugString('persona').describe('A persona of the environment (a sandbox account).') })
+    .describe(
+      'Send the request as a persona: the cookies its saved session holds for the URL and, for a product signed in with Firebase Auth, its ID token as `Authorization: Bearer …`. Not in a sandbox seed.',
+    )
+    .optional(),
 };
 
 export const HttpHookSchema = z.strictObject({

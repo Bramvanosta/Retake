@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { canonicalJson, collectSecretRefs, interpolateDeep, readOnlyHookMessage, rollbackWriteReason, sandboxOf, projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core';
+import { canonicalJson, collectSandboxRefs, collectSecretRefs, interpolateDeep, readOnlyHookMessage, rollbackWriteReason, sandboxOf, projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core';
 import { homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, writeJson } from '@retake/core/io';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { actionLines, fieldLines, shownRollback } from './shown.js';
@@ -164,6 +164,11 @@ export async function pruneDoneRollbacks(keyFile: string = homeKeyFile(), now: n
   }
 }
 
+/** Whether a rollback needs a secret to replay: a reference (the sandbox's too), or an http one sent as a persona. */
+function referencesSecrets(action: RollbackAction): boolean {
+  return collectSecretRefs(action).size > 0 || collectSandboxRefs(action).size > 0 || (action.kind === 'http' && action.request.auth !== undefined);
+}
+
 /**
  * A rollback action in full, as it would run — its templates filled from the data the entry carries (a secret is never
  * resolved: an action that references one is shown as written) — one line per field, every character visible
@@ -171,7 +176,7 @@ export async function pruneDoneRollbacks(keyFile: string = homeKeyFile(), now: n
  */
 export function rollbackActionLines(action: RollbackAction): string[] {
   let a: RollbackAction = action;
-  if (!collectSecretRefs(action).size) {
+  if (!referencesSecrets(action)) {
     try {
       const d = action.data ?? {};
       a = interpolateDeep(action, { pages: d.pages ?? {}, vars: d.vars ?? {}, hooks: d.hooks ?? {}, run: d.run, extra: d.extra, secrets: () => undefined });
@@ -191,7 +196,7 @@ function unsignedNever(action: RollbackAction, env: string, ctx: HookContext): s
   const byHand = 'if it is right, run it by hand';
   if (action.kind === 'sql') return `an unsigned sql rollback is never replayed (it would connect with the environment's database): ${byHand}`;
   if (action.kind === 'js') return `an unsigned js rollback is never replayed (it would run in the environment's signed-in page): ${byHand}`;
-  if (collectSecretRefs(action).size) return `it references secrets — an unsigned entry is never given secrets: ${byHand}`;
+  if (referencesSecrets(action)) return `it references secrets — an unsigned entry is never given secrets: ${byHand}`;
   if (action.kind === 'shell' && sandboxOf(ctx.project, env)) return `it would run with the variables of sandbox ${env} — an unsigned entry is never given them: ${byHand}`;
   return null;
 }

@@ -9,7 +9,7 @@ import { stringify } from 'yaml';
 import { FORMAT_VERSIONS } from '../formats.js';
 import { ConfigError, hasErrors, issuesMessage } from '../issues.js';
 import { projectPath, projectRef } from '../layout.js';
-import { DEFAULT_FRAME, DEFAULT_TEMPLATE_NAME, PROJECT_FILE, PROJECT_GITIGNORE, PROJECT_SLUG_RE, README_FILE, parseProjectYaml, readmeSkeleton } from '../project.js';
+import { DEFAULT_FRAME, createdPages, DEFAULT_TEMPLATE_NAME, PROJECT_FILE, PROJECT_GITIGNORE, PROJECT_SLUG_RE, README_FILE, parseProjectYaml, readmeSkeleton } from '../project.js';
 import type { CreateProjectInput, NewProjectPlan } from '../project.js';
 import { mergeSandboxes } from '../sandbox.js';
 import { DEFAULT_CAPTURE } from '../types.js';
@@ -131,6 +131,7 @@ function projectYamlText(input: CreateProjectInput, slug: string): string {
     version: FORMAT_VERSIONS.project,
     name: input.name,
     environments: input.environments ?? {},
+    ...(input.default_env !== undefined ? { default_env: input.default_env } : {}),
     ...(input.auth ? { auth: input.auth } : {}),
     capture: { width, height, scale, fps, ...input.capture },
     frame: input.frame ?? DEFAULT_FRAME,
@@ -181,7 +182,7 @@ export async function checkNewProject(root: string, input: CreateProjectInput): 
  */
 export async function planNewProject(root: string, input: CreateProjectInput): Promise<NewProjectPlan> {
   const { wsRoot, slug, dir, yamlText } = await newProjectPlan(root, input);
-  const readme = input.readme ?? readmeSkeleton(input.name, input.environments);
+  const readme = input.readme ?? readmeSkeleton(input.name, ...createdPages(input.environments));
   return {
     wsRoot,
     slug,

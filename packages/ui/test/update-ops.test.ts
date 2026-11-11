@@ -44,8 +44,9 @@ const L = {
   off: { type: 'update', state: 'off', current: '0.2.0', reason: 'build' },
   idle: { type: 'update', state: 'idle', current: '0.2.0', checked: 1762000000 },
   checking: { type: 'update', state: 'checking', current: '0.2.0' },
+  updated: { type: 'update', state: 'updated', current: '0.2.0', checked: null },
   available: { type: 'update', state: 'available', current: '0.2.0', version: '0.2.1', notes: 'Faster renders.\n<b>bold?</b>', checked: null },
-  downloading: { type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1' },
+  downloading: { type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1', received: 152_000_000, total: 370_000_000 },
   waiting: { type: 'update', state: 'waiting', current: '0.2.0', version: '0.2.1', jobs: 2 },
   installing: { type: 'update', state: 'installing', current: '0.2.0', version: '0.2.1' },
   failed: { type: 'update', state: 'failed', current: '0.2.0', failure: 'download', version: '0.2.1', checked: 5, retry: true },
@@ -55,6 +56,8 @@ describe('the shell\'s update lines', () => {
   it('each state\'s exact shape is taken; an extra or missing key, a bad version, enum, count or note is dropped', () => {
     for (const l of Object.values(L)) expect(parseShellLine(JSON.stringify(l)), l.state).toEqual(l);
     expect(parseShellLine(JSON.stringify({ ...L.failed, failure: 'check', version: null, retry: false }))).not.toBeNull();
+    // BL-167: a download without an announced size.
+    expect(parseShellLine(JSON.stringify({ ...L.downloading, received: 0, total: null }))).not.toBeNull();
     const bad: Array<Record<string, unknown>> = [
       { ...L.available, url: 'https://downloads.example.test/x.tar.gz' },
       { type: 'update', state: 'available', current: '0.2.0', version: '0.2.1', checked: null },
@@ -74,6 +77,16 @@ describe('the shell\'s update lines', () => {
       { ...L.off, reason: 'because' },
       { ...L.failed, failure: 'format_disk' },
       { ...L.waiting, jobs: 0 },
+      { ...L.updated, version: '0.2.0' },
+      // BL-167: the download's bytes — whole, never negative, a size above zero, both keys always there.
+      { ...L.downloading, received: -1 },
+      { ...L.downloading, received: 1.5 },
+      { ...L.downloading, received: '12' },
+      { ...L.downloading, total: 0 },
+      { ...L.downloading, total: '370' },
+      (({ total: _t, ...rest }) => rest)(L.downloading),
+      { type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1' },
+      { ...L.installing, received: 1 },
       { ...L.waiting, jobs: '2' },
       { type: 'update', state: 'rebooting', current: '0.2.0' },
       { type: 'update', state: 'checking', current: '0.2.0', notes: 'x' },

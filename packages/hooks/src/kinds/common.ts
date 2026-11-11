@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { collectSecretRefs, projectFileProblem, secretRefsProblem } from '@retake/core';
+import { collectSandboxRefs, collectSecretRefs, projectFileProblem, secretRefsProblem } from '@retake/core';
 import { nodeFileFacts } from '@retake/core/io';
 import { HookError, HookSecurityError } from '../errors.js';
 import { journalsRollback } from '../types.js';
@@ -96,7 +96,7 @@ export async function readHookFile(ctx: HookContext, baseDir: string, rel: strin
   }
   const text = await readProjectFile(baseDir, rel, what);
   if (ctx.trust === 'mcp') {
-    const secrets = secretRefsProblem(collectSecretRefs(text), `${what} ${rel}`);
+    const secrets = secretRefsProblem([...collectSecretRefs(text), ...collectSandboxRefs(text)], `${what} ${rel}`);
     if (secrets) throw new HookSecurityError(secrets, 'mcp');
   }
   return text;

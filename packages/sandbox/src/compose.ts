@@ -44,6 +44,8 @@ import type { Listener, SandboxPort } from './ports.js';
 import type { DownOptions, DownResult, OwnerUse, Provider, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
 import { pgAnswers, pgEndpoint, resolveDatabaseUrl } from './snapshot-postgres.js';
 
+/** A line of `docker compose up --build` that says the build is over: it creates or starts something. */
+export const STARTING_LINE = /^\s*(?:[✔⠀-⣿]\s*)?(?:Network|Volume|Container)\s+\S+\s+(?:Creat|Recreat|Start|Running|Waiting|Healthy)/;
 /** Default seconds a compose service has to become healthy (`--wait-timeout`, then the manifest's checks). */
 export const COMPOSE_HEALTH_TIMEOUT_S = 120;
 /** Default seconds of an `exec` seed step. */
@@ -700,6 +702,7 @@ export class ComposeProvider implements Provider {
 
   async up(ctx: ProviderContext, opts: UpOptions = {}): Promise<UpResult> {
     const t0 = Date.now();
+    ctx.progress?.step('compose', 'reading the compose files, checking the ports');
     await this.docker(ctx);
     const ref = this.ref(ctx);
     const cfg = await this.config(ctx, ref);
@@ -733,11 +736,21 @@ export class ComposeProvider implements Provider {
     const upLog = join(ctx.paths.logs, 'compose-up.log');
     const args = ['up', '-d', '--wait', '--wait-timeout', String(timeoutS), '--remove-orphans', ...(opts.build ? ['--build'] : [])];
     writeFileSync(upLog, `── ${new Date().toISOString()} · retake sandbox ${ctx.sandbox.env} · docker ${composeArgs(ref).join(' ')} ${args.join(' ')}\n`);
+    // One docker command builds, then starts and waits: its output says which it is doing (an image line, then the
+    // first network / volume / container line).
+    const waiting = `every service running and healthy, up to ${timeoutS} s`;
+    let building = opts.build === true;
+    ctx.progress?.step(building ? 'build' : 'start', building ? 'docker compose build' : waiting);
     const r = await this.compose(ref, args, {
       signal: ctx.signal,
       onLine: (line) => {
         appendFileSync(upLog, `${line}\n`);
         ctx.log('debug', line);
+        if (building && STARTING_LINE.test(line)) {
+          building = false;
+          ctx.progress?.step('start', waiting);
+        }
+        if (line.trim()) ctx.progress?.note(line.trim());
       },
     });
     if (r.aborted || ctx.signal?.aborted) throw interrupted(this.where(ctx));
@@ -758,12 +771,15 @@ export class ComposeProvider implements Provider {
     this.remember(after);
     for (const [name, svc] of Object.entries(ctx.sandbox.manifest.services)) {
       try {
-        await waitHealthy(pinHealth(serviceHealth(name, svc, COMPOSE_HEALTH_TIMEOUT_S), this.addresses), { signal: ctx.signal });
+        const health = pinHealth(serviceHealth(name, svc, COMPOSE_HEALTH_TIMEOUT_S), this.addresses);
+        ctx.progress?.step(`health ${name}`, `up to ${Math.round(health.timeoutMs / 1000)} s`);
+        await waitHealthy(health, { signal: ctx.signal });
       } catch (e) {
         if (e instanceof SandboxError && e.code === 'unhealthy') throw new SandboxError(await this.withTail(ctx, ref, `${this.where(ctx)}: ${e.message}`, name), 'unhealthy');
         throw e;
       }
     }
+    if (Object.keys(ctx.sandbox.manifest.databases ?? {}).length) ctx.progress?.step('databases', `each one answering, up to ${timeoutS} s`);
     await this.waitDatabases(ctx, timeoutS);
     return { started, kept: cfg.services.filter((s) => !started.includes(s)), changed: [], ms: Date.now() - t0 };
   }
@@ -950,6 +966,7 @@ export class ComposeProvider implements Provider {
         onLine: (l) => {
           appendFileSync(seedLog, `${mask(l)}\n`);
           ctx.log('debug', `${step.service}: ${mask(l)}`);
+          if (l.trim()) ctx.progress?.note(mask(l).trim());
         },
       });
       if (r.aborted || r.timedOut) {

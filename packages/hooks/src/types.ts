@@ -46,6 +46,13 @@ export interface HookContext {
    * core `HostRefusedError` when the tab's page or the hook's code reached such a host.
    */
   evalInPage?: (pageKey: string | undefined, code: string) => Promise<unknown>;
+  /**
+   * `auth: {persona}` of an http hook (hotfix v0.2.3): what the saved session of a persona of the environment sends
+   * with a request to `url` — provided by the runner (the run's own browser of that persona) and by the commands that
+   * run hooks outside a capture (a headless browser on a copy of its session). Absent (a sandbox seed): such a hook
+   * fails. Throws when the persona is unknown or not signed in.
+   */
+  personaAuth?: (persona: string, url: string) => Promise<PersonaRequestAuth>;
   /** `save_as` results, exposed to templating as `{{hooks.<name>.status|headers|body|json…}}`. Mutated in place. */
   saved: Record<string, unknown>;
   /**
@@ -110,6 +117,14 @@ export interface HookContext {
    * container publishing the same port on ::1. Undefined: the URL's host.
    */
   connectAddress?: (host: string, port: number) => string | undefined;
+}
+
+/** What a persona's session sends with a request: the cookies it holds for the URL, a bearer token when it has one. */
+export interface PersonaRequestAuth {
+  /** The `Authorization` header (`Bearer <ID token>`: a product signed in with Firebase Auth). */
+  authorization?: string;
+  /** The `Cookie` header: the session's cookies for the request URL. */
+  cookie?: string;
 }
 
 /** What `save_as` stores in `ctx.saved[name]`, and `{{response…}}` in an http rollback. */

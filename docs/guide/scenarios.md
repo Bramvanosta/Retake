@@ -108,10 +108,10 @@ Every step has exactly one action; shorthand forms are shown first.
 | `click` (outside) | `click: {outside: true}` | Close the open popover by clicking the dialog title or a blank area; with a listbox open over a floating popover, the listbox closes first (a click on the popover's title), the popover on the next one |
 | `double_click` | `double_click: {text: Report.pdf}` | Double click |
 | `hover` | `hover: {text: Pricing, ms: 900}` | Move onto an element and rest |
-| `type` | `type: {into: {label: Email}, text: hi@example.com, cps: 12, clear: true, enter: true}` | Type character by character; without `cps` the rate adapts to the field (search ≤ 10, long text up to 24; `data.rate`); `clear` selects all + deletes, and when the field still holds text (select-all blocked, a React input that restored its value) uses the native value setter + an `input` event (`data.clear`); an editor the runner cannot read (in a frame from another origin, or typing into a hidden input: CodeMirror 5, Monaco) gets the keys only, unchecked. With `into`, the field is brought into view inside its own scrolling containers (a scrolling dialog included) and clicked once its box stopped moving; the step fails before typing anything when the focus did not land in the field (the error names what got it), and warns when the field's value does not hold the text typed afterwards |
+| `type` | `type: {into: {label: Email}, text: hi@example.com, cps: 12, clear: true, enter: true}` | Type character by character (`fill: true`: the whole value at once, as a browser autofill — one input event and a change event, `data.rate: fill`; not with `cps`); without `cps` the rate adapts to the field (search ≤ 10, long text up to 24; `data.rate`); `clear` selects all + deletes, and when the field still holds text (select-all blocked, a React input that restored its value) uses the native value setter + an `input` event (`data.clear`); an editor the runner cannot read (in a frame from another origin, or typing into a hidden input: CodeMirror 5, Monaco) gets the keys only, unchecked. With `into`, the field is brought into view inside its own scrolling containers (a scrolling dialog included) and clicked once its box stopped moving; the step fails before typing anything when the focus did not land in the field (the error names what got it), and warns when the field's value does not hold the text typed afterwards |
 | `press` | `press: Enter` · `{key: ArrowDown, times: 3}` | Press a key (Playwright key names) |
-| `select` | `select: {field: Country, option: Sweden, search: Swe}` · `{combobox: "#country", option: …}` | Native select or combobox listbox |
-| `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg, close: outside}` | Multi-select popover, closed without Escape; only what the step opened is closed (a popover holding the field stays open) |
+| `select` | `select: {field: Country, option: Sweden, search: Swe}` · `{combobox: "#country", option: …}` | Native select or combobox listbox. `search` is typed in the list's search field before the option is looked for; without it, an option the open list does not show (a long list that renders its first entries only) is typed there by itself after 0.8 s (`data.searched`). The search is typed at the search pace (at most 10 characters a second); `search_cps` sets its own, `search_instant: true` fills it at once, as a paste (one input event: the list filters once, only its final state is filmed) — not both |
+| `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg, close: outside}` | Multi-select popover, closed without Escape; `search` as for `select` (without it, the first option's text is typed when it does not show); only what the step opened is closed (a popover holding the field stays open) |
 | `menu` | `menu: {row: Iceland, item: Pause, confirm: Pause}` · `{trigger: …, item: …}` | Row action menu, optional confirmation. The trigger: an `aria-haspopup` element, a button named like a menu, else the row's last button; actions shown on hover are revealed by hovering the row's right end; a row without any button: the clickable element at its right end, else its top-right corner (warned: give `trigger:`) |
 | `date` | `date: {field: Delivery window, day: [10 January 2027, 24 January 2027]}` · `date: 14 March 2027` · `{next, previous, close}` | Date picker: waits for a previous date popover to close, opens the field, pages months with the calendar's **last visible** month button — a button or an element classed next / prev above or beside the days, never one below them nor a form's submit (a wizard's Next) — (the first click ordinary, the next ones quick presses ~110 ms apart, each with its ripple; runs of 5+ play at up to 3× in the edit), clicks each day by its aria-label or date attribute (ISO or English dates with a year, compared as dates: "1 January 2027" never picks "11 January 2027"; a day without a year or written another way — `10/01/2027`, another language — is matched as words of the labels, so `1 January` does not match "January 1st", and is warned at validation), then closes what it opened (`close: auto` waits for it to close by itself, else clicks outside). A native `<input type=date>` is filled in place (a day outside its `min` / `max` fails the step) |
 | `scroll` | `scroll: 560` · `{to: {text: Awards}, offset: -140, duration: 2.2, in: …}` · `{by: 400}` | Animated scroll of the page or a container (a target ends 140 px below the top by default) |
@@ -153,7 +153,8 @@ then the hold runs. A park never leaves an open menu or listbox the step opened 
 
 When a select, pick or menu trigger opened nothing (no popup, not `aria-expanded`), the runner clicks it once more
 after 3 s; a popup that opened but is still filling is left alone, and a search is typed once, as soon as there is a
-field to type into.
+field to type into. An option that is not found in a list that has a search field fails saying so (`add search: …`, or that
+the search typed matched nothing).
 
 **Click options:** `strategy` (`auto` · `real` · `dom` · `pointer`), `expect_popup`, `outside`, `hover_ms`,
 `after_ms` (also replaces the `after_navigation_ms` minimum), `move_ms`, `button`, `modifiers` (`[Shift]`), `offset`
@@ -309,7 +310,36 @@ teardown:
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
 ```
 
-Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `save_as`, `rollback`), `sql` (`file` or
+**Hooks of a sandbox environment** also read the sandbox itself: `{{compose_env:NAME}}` is the value `NAME` has in
+its compose env file, `{{accounts.<persona>.username}}` and `{{accounts.<persona>.password}}` are an account of its
+sandbox.yaml (a `{{compose_env:…}}`, `{{env:…}}` or `{{keychain:…}}` one resolved as its login steps get it). Both are
+masked like any secret and stay in template form in a rollback's journal entry (read again when it replays); on
+another environment they are an error that says so, and in a scene they are refused (they belong to hooks).
+`auth: {persona: <name>}` on an http hook (or its rollback) sends the request as that persona: the cookies its saved
+session holds for the URL (`Cookie`) and, for a product signed in with Firebase Auth, the ID token of its signed-in
+user (`Authorization: Bearer …`, read from the session's IndexedDB or localStorage, refreshed by loading the product's
+page when it is about to expire). The run signs the persona in like a filmed one (checked by the preflight, its own
+browser) even when no scene films it; `retake hooks run` opens a headless browser on a copy of its session. Not with an
+`Authorization` or `Cookie` header of its own, and not in a sandbox seed (nobody is signed in yet: sign in with the
+product's API and `{{accounts.<persona>.password}}`, save the token with `save_as`). Work submitted through MCP or the Studio's
+agent path sends a persona's session only to that persona's own pages: the hook's URL must have the origin of a page
+the persona signs in to (`{{<its page>}}/…`), else the hook is refused before it runs.
+
+```yaml
+# a sandbox environment: approve the sign-up as the admin, then answer as the owner
+setup:
+  - name: approve
+    http: {method: POST, url: "{{admin}}/api/sign-ups/42/approve", auth: {persona: admin}}
+  - name: owner token                          # without a saved session: the product's own sign-in
+    http:
+      method: POST
+      url: "http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={{compose_env:FIREBASE_API_KEY}}"
+      json: {email: "{{accounts.owner.username}}", password: "{{accounts.owner.password}}", returnSecureToken: true}
+      save_as: owner
+  - http: {method: POST, url: "{{app}}/api/threads/7/replies", headers: {authorization: "Bearer {{hooks.owner.json.idToken}}"}, json: {text: Hello}}
+```
+
+Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `auth`, `save_as`, `rollback`), `sql` (`file` or
 `query`, `db`, `rollback`), `shell` (`run`, `cwd`, `env`, `timeout`, `rollback`), `js` (`code` or `file`, `page`,
 `rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`, and `writes: false` on a shell hook that only reads (it may then run on a read-only environment). Setup stops at the first failure and rolls
 back what it did; teardown hooks always run (even after a failure — of a step or of the setup itself — or Ctrl-C),

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
 # The final call to action (R-STO-05) in the family of the outro: kicker, display title, an optional line of text, a
-# button in the theme accent and the URL under it; beside them (under them in vertical) a QR code of the URL — or of
+# button in the theme accent (its label chosen against that fill: the kit's buttonColors) and the URL under it; beside them (under them in vertical) a QR code of the URL — or of
 # `qr` when it differs, e.g. a link with tracking — generated locally by the kit's encoder (no network), dark modules
 # on a light card so phones read it whatever the theme. The button pops in and pulses once; paper or night tone.
 id: studio/card-cta
@@ -14,8 +14,8 @@ slots:
   kicker: {type: text, max_chars: 40, description: Small uppercase line above the title.}
   text: {type: text, max_chars: 140, description: Optional supporting line.}
   button: {type: text, max_chars: 32, description: 'Button text (default "Get started").'}
-  url: {type: url, max_chars: 60, default_from: theme.brand.url, description: The address shown under the button (default — the theme's brand url).}
-  qr: {type: url, max_chars: 300, description: What the QR code opens (default — the url; "https://" is added when it has no scheme).}
+  url: {type: url, max_chars: 60, default_from: theme.brand.url, description: The address shown under the button (default — the theme's brand url) — shown only (never loaded).}
+  qr: {type: url, max_chars: 300, description: What the QR code opens (default — the url; "https://" is added when it has no scheme) — encoded locally (never loaded).}
   qr_label: {type: text, max_chars: 40, description: 'Line under the QR code (default "Scan to open").'}
 params:
   type: object

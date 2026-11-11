@@ -144,7 +144,7 @@ export async function scenarioPersonaStates(
 ): Promise<{ env: string; personas: ScenarioPersona[]; issues: string[] }> {
   const env = resolveEnvironment(project, opts.env ?? sc.env);
   const personas = resolvePersonas(project, env.name, { home: retakeHome() });
-  const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until: null, hooks: opts.hooks });
+  const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until: null, hooks: opts.hooks, ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
   const workerEnv = opts.workerEnv ?? process.env;
   const out: ScenarioPersona[] = [];
   const issues = plan.issues.map((i) => i.message);

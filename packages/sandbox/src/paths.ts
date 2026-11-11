@@ -10,12 +10,14 @@ export interface SandboxPaths {
   state: string;
   lock: string;
   seedJournal: string;
+  /** The journal of `reset.hooks` (hotfix v0.2.5), started afresh at each reset. */
+  resetJournal: string;
   logs: string;
 }
 
 export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
   const dir = join(projectDir, SANDBOX_STATE_DIR, env);
-  return { dir, state: join(dir, 'state.json'), lock: join(dir, 'take.lock'), seedJournal: join(dir, 'seed-journal.json'), logs: join(dir, 'logs') };
+  return { dir, state: join(dir, 'state.json'), lock: join(dir, 'take.lock'), seedJournal: join(dir, 'seed-journal.json'), resetJournal: join(dir, 'reset-journal.json'), logs: join(dir, 'logs') };
 }
 
 /** A service's log file (the previous one is `<file>.1`). */

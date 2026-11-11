@@ -10,6 +10,9 @@
  *   install offers Install again only when the shell says it may (`retry`), Later acknowledges a failure; the badge
  *   stays a live button while downloading (it reopens the sheet: Later); the notes are a named region the keyboard
  *   scrolls; the words before the click are in the future tense;
+ * - BL-167: after the click the sheet lists the steps and says the one under way (the download with its megabytes and
+ *   percent, a bar — indeterminate without a size —, the signature, the jobs, the quit) and the one that failed; the
+ *   badge shows the percent;
  * - Help › Check for Updates… (the shell's `studio:update` event) opens the sheet;
  * - up to date or off: nothing in the status bar; a browser tab (no flag) has no update control.
  * Screenshots go to RETAKE_UI_SHOTS when set.
@@ -188,7 +191,7 @@ describe('the update in the status bar and its sheet', () => {
     await expect.poll(() => sheet(p).getByTestId('update-progress').innerText().catch(() => ''), POLL).toBe('Updates are off\n\nRetake runs from a temporary copy macOS made: move it to Applications, then open it again.');
     await sheet(p).getByTestId('update-close').click();
     // Downloading: the badge is a live button (not disabled, aria-busy) that reopens the sheet with Later.
-    shell({ type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1' });
+    shell({ type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1', received: 0, total: null });
     await p.reload();
     await expect.poll(() => badge(p).innerText().catch(() => ''), POLL).toBe('Downloading v0.2.1…');
     expect(await badge(p).evaluate((b: HTMLButtonElement) => [b.disabled, b.getAttribute('aria-busy')])).toEqual([false, 'true']);
@@ -210,6 +213,84 @@ describe('the update in the status bar and its sheet', () => {
     await p.close();
     expect(errors).toEqual([]);
   }, 120_000);
+
+  it('BL-167: the download moves in the badge and the sheet — megabytes, percent, a bar — then each step in turn, and the one that failed', async () => {
+    shell(available);
+    const p = await open(true);
+    const steps = () => sheet(p).locator('.sh-update-step').evaluateAll((li) => li.map((l) => `${(l as HTMLElement).dataset.step}:${(l as HTMLElement).dataset.state}`));
+    const bar = () => sheet(p).getByTestId('update-download').getByRole('progressbar');
+    // Before the click: no steps, no bar.
+    await badge(p).click();
+    await expect.poll(() => isOpen(p), POLL).toBe(true);
+    expect(await sheet(p).getByTestId('update-steps').count()).toBe(0);
+    expect(await sheet(p).getByTestId('update-download').count()).toBe(0);
+    // No size announced yet: an indeterminate bar.
+    shell({ type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1', received: 4_200_000, total: null });
+    await expect.poll(() => sheet(p).getByTestId('update-download').innerText().catch(() => ''), POLL).toBe('Download 4.2 MB so far');
+    expect(await bar().getAttribute('aria-valuenow')).toBeNull();
+    expect(await badge(p).innerText()).toBe('Downloading v0.2.1…');
+    // The size known: megabytes of megabytes, the percent, in the bar and the badge.
+    shell({ type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1', received: 152_000_000, total: 370_000_000 });
+    await expect.poll(() => sheet(p).getByTestId('update-download').innerText().catch(() => ''), POLL).toBe('Download 152 MB of 370 MB · 41 %');
+    expect(await bar().evaluate((b) => [b.getAttribute('aria-valuenow'), b.getAttribute('aria-valuemax'), b.getAttribute('aria-valuetext')])).toEqual(['41', '100', '152 MB of 370 MB · 41 %']);
+    expect(await badge(p).innerText()).toBe('Downloading v0.2.1 · 41 %');
+    expect(await steps()).toEqual(['download:running', 'signature:next', 'jobs:next', 'install:next']);
+    expect(await sheet(p).locator('.sh-update-step[aria-current="step"]').innerText()).toBe('Download the update\nrunning');
+    expect(await sheet(p).locator('.k-sheet-actions button').allInnerTexts()).toEqual(['Close', 'Later']);
+    await shot(p, 'update-sheet-downloading');
+    const r = await station(tour(p), 'update-sheet-downloading', async () => {
+      await sheet(p).getByTestId('update-steps').waitFor(POLL);
+    }, { busy: '[data-testid="update-badge"]', schemes: [{ scheme: 'dark', widths: [1280, 900] }, { scheme: 'light', widths: [1280] }], walkMax: 20 });
+    expect(r.findings, r.report).toEqual([]);
+    await p.emulateMedia({ colorScheme: 'dark' });
+    // Every byte in: the signature.
+    shell({ type: 'update', state: 'downloading', current: '0.2.0', version: '0.2.1', received: 370_000_000, total: 370_000_000 });
+    await expect.poll(() => sheet(p).getByTestId('update-progress').innerText().catch(() => ''), POLL).toBe('Checking the signature\n\nRetake checks the update against the key it was built with.');
+    expect(await steps()).toEqual(['download:done', 'signature:running', 'jobs:next', 'install:next']);
+    expect(await badge(p).innerText()).toBe('Checking v0.2.1…');
+    // The jobs, then the quit.
+    shell({ type: 'update', state: 'waiting', current: '0.2.0', version: '0.2.1', jobs: 1 });
+    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'jobs:running', 'install:next']);
+    expect(await sheet(p).locator('[data-step="jobs"] .sh-update-step-label').innerText()).toBe('Wait for a job of this workspace');
+    expect(await sheet(p).getByTestId('update-download').count()).toBe(0);
+    shell({ type: 'update', state: 'installing', current: '0.2.0', version: '0.2.1' });
+    await expect.poll(steps, POLL).toEqual(['download:done', 'signature:done', 'jobs:done', 'install:running']);
+    // A failed download marks its step.
+    shell({ type: 'update', state: 'failed', current: '0.2.0', failure: 'download', version: '0.2.1', checked: 1762000000, retry: true });
+    await expect.poll(steps, POLL).toEqual(['download:failed', 'signature:next', 'jobs:next', 'install:next']);
+    expect(await sheet(p).locator('[data-step="download"] .sh-update-step-state').innerText()).toBe('failed');
+    await shot(p, 'update-sheet-download-failed');
+    // A failure that is no step's (the feed): no steps.
+    shell({ type: 'update', state: 'failed', current: '0.2.0', failure: 'check', version: null, checked: 1762000000, retry: false });
+    await expect.poll(() => sheet(p).getByTestId('update-steps').count(), POLL).toBe(0);
+    await p.close();
+    expect(errors).toEqual([]);
+  }, 120_000);
+
+  it('hotfix v0.2.6: after the restart, "Updated to vX" opens by itself once; Close puts it away for good', async () => {
+    shell({ type: 'update', state: 'updated', current: '0.2.1', checked: 1762000000 });
+    const p = await open(true);
+    await expect.poll(() => isOpen(p), POLL).toBe(true);
+    expect(await sheet(p).locator('h2').first().innerText()).toBe('Retake v0.2.1');
+    expect(await sheet(p).getByTestId('update-progress').innerText()).toBe('Updated to v0.2.1\n\nRetake installed the update and opened again. Workspaces, projects and sign-ins are as you left them.');
+    expect(await badge(p).innerText()).toBe('Updated to v0.2.1');
+    expect(await sheet(p).locator('.k-sheet-actions button').allInnerTexts()).toEqual(['Close']);
+    await shot(p, 'update-sheet-updated');
+    await sheet(p).getByTestId('update-close').click();
+    await expect.poll(() => isOpen(p), POLL).toBe(false);
+    expect(await badge(p).count()).toBe(0);
+    // Another load of the page: seen, it stays closed.
+    await p.reload();
+    await p.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
+    await p.waitForTimeout(1500);
+    expect(await isOpen(p)).toBe(false);
+    // Installing says the window goes away for a few seconds.
+    shell({ type: 'update', state: 'installing', current: '0.2.0', version: '0.2.1' });
+    await badge(p).click();
+    await expect.poll(() => sheet(p).getByTestId('update-progress').innerText().catch(() => ''), POLL).toContain('its window is gone for a few seconds');
+    await p.close();
+    expect(errors).toEqual([]);
+  });
 
   it('Help › Check for Updates… (the shell\'s studio:update event) opens the sheet', async () => {
     shell(available);

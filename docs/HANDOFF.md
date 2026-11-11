@@ -10,6 +10,83 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.6 (2026-11-11, branch `hotfix/v0.2.6` from main after v0.2.5; field feedback points 25–26 and the client demo retro):**
+- 25: `type.fill` (runner `fillText`: one `insertText`, then a `change` event; `data.rate: fill`; refused with `cps`).
+- 26: core `readmeEnvironmentLine` reads a README environment line by environment and pages (bold, code, a note in
+  parentheses, several pages, a trailing description); `gone` lists lines whose environment or a page is unknown.
+- Review: `loading-filmed` (runner `LoadingWatch` probes the filmed page every 250 ms for skeleton / shimmer /
+  spinner / aria-busy in the viewport → `timeline.loading_ui`; the check counts the output frames showing those
+  capture times), `zoom-during-scroll` (another `scroll` step inside a zoom's span: the zoom's own scroll step is one
+  move), `caption-contradicts-ui` (info: a negated word of a cue found in the quoted target texts or typed / chosen
+  values of the scene), `overlay-lost` / `overlay-cut` (a step overlay with no OverlayUse, or shown < 60 %).
+- Skill retake-scenario: "What good looks like" and the reference's "Rules that hold for every product".
+- The update's restart gap (BL-167, field report: "a crash at the end of the update" — the logs showed a clean quit,
+  ~8 s without a window during the swap, then the new app): update_flow `Remembered.updated` (written after a
+  successful swap) and `State::Updated` (said once at the next launch, which then skips its check), the Dock badge ↻
+  while Installing, the sheet's installing words; ui update-ops `updated` state, UpdateSheet opens on it once
+  (localStorage `retake.update.seen`). app-update-e2e waits for "is the update just installed".
+
+**Hotfix v0.2.5 (2026-11-11, branch `hotfix/v0.2.5` from `hotfix/v0.2.4`; field feedback, points 20–24):**
+- 20: core `installedVersion` / `staleEngine` (the bundle's bundle.json `app`, else the checkout's core package.json,
+  read at each call); mcp `protocolTool` refuses every call but engine_info when stale (`staleWords`), engine_info
+  carries `stale`, and `startMcpServer` stops the stdio server once that answer is written (`serveStdio` `stop`).
+  HTTP mode and the Studio's /v1/call only report it (`engine_info.stale`).
+- 21: sandbox.yaml `reset.firebase_auth` (sandbox `firebase-auth.ts`: DELETE /emulator/v1/projects/<p>/accounts before
+  the seed, `accounts:batchGet?maxResults=-1` saved after it in `.retake/sandbox/<env>/firebase-auth.json`, emptied
+  and `accounts:batchCreate` at every reset, after `restart`; a save of another seed hash invalidates a Postgres
+  snapshot) and `reset.hooks` (seed steps: same checks, `runSeed` with `what: 'reset hook'`, journal
+  `reset-journal.json`, approvals indexed after the seed's). Routes taken from firebase-tools' emulator source.
+- 22: kit `inkOn` / `buttonColors` (the fill is the accent as it is, the label chosen against it — one of white /
+  black always reaches 4.5); card-cta uses them; review `checkButtonContrast` (`button-contrast`, components
+  with a `button` slot).
+- 23: editor `remoteSlotUses(timeline, slotType)` skips slots of type text / url / color; plan-run loads the registry
+  before gate 1 (manifests only). A card without `component` still counts as loading.
+- 24: `search_cps` / `search_instant` on select / pick (`keyboard.insertText` for instant; both refused together).
+
+**Hotfix v0.2.4 (2026-11-11, branch `hotfix/v0.2.4` from main after v0.2.3; BL-167 in part, BL-168 — the update):**
+- The download's progress: update_flow `State::Downloading {version, received, total}` (the state line gains
+  `received` / `total`, ui update-ops.ts parses them), `watch_reporting` reports each new byte count; the Studio's
+  sheet (shell/UpdateSheet.tsx, update.ts `installSteps` / `downloadFigure`) lists the steps and shows a kit Progress,
+  the badge the percent; the Dock icon's badge label too (macos.rs `dock_badge`). Left of BL-167: the native progress
+  panel on the alert path and the "Updated to vX" notice.
+- One Dock icon after an update: the restart (update.rs `restart`) hands over to desktop_core `relaunch` — a detached
+  shell that opens the bundle once the old pid is gone from the kernel and LaunchServices — instead of Tauri's
+  `open -n` while the old process runs. Test mode still starts the binary directly. Effective from the update *after*
+  v0.2.4 (the old app performs the restart). Same fix as the reference app's.
+
+**Hotfix v0.2.3 (2026-11-11, branch `hotfix/v0.2.3` from main after v0.2.2; field feedback, point 19 — hooks of a sandbox):**
+- `{{compose_env:NAME}}` and `{{accounts.<persona>.username|password}}` in hooks of a sandbox environment
+  (`hooks/src/sandbox-refs.ts`: read from `project.sandboxes[env]`, the compose env file read once per context; values
+  registered for redaction; in a rollback they stay templates — `template.ts` `capture` skips the accounts root — and
+  are read again from the entry's environment, `snapshotTemplateContext(…, env)`). Core: `collectSandboxRefs`
+  (agent trust refuses them in a scenario, like `{{env:…}}`), `TokenScope.hookRefs` (accepted in hooks, refused in
+  scenes; a seed checks the account names against its own `accounts`);
+- `auth: {persona}` on an http hook or its rollback (`HttpHookSpec.auth`, `HookContext.personaAuth`): the runner reads
+  the persona's browser of the run (`runner-web/src/persona-auth.ts` `personaAuthReader`: cookies for the URL, the
+  Firebase user of its first page's origin — IndexedDB `firebaseLocalStorageDb` or localStorage `firebase:authUser:*` —
+  read on an empty document, refreshed through the product's page within 5 min of expiry); core `planPersonas`
+  `hookAuth` adds those personas to `used` (preflight, own browser), project.yaml named hooks the `hook:` steps run
+  included; `engine/src/hooks.ts` opens the js hooks' headless browser for it. Refused in a seed, beside an
+  `Authorization` / `Cookie` header, for a persona the environment does not declare.
+
+**Hotfix v0.2.2 (2026-11-10, branch `hotfix/v0.2.2` from the v0.2.1 tag; the same field feedback, second part):**
+- sessions kept in IndexedDB (a Firebase sign-in). What was found: the saved *profile* never held the session — an
+  automated login closed its tab right after the last step, before the single-page app had signed in. `auth.ts`
+  `autoLogin` now waits for the steps' requests, then up to 2 s for the page to leave the sign-in page; `login.ts`
+  `refuseSessionThatDidNotHold` fails an `--auto` login of a persona without a `check` whose saved session lands on a
+  sign-in page (the earlier snapshot put back). A `storage_state` persona's snapshot holds IndexedDB
+  (`storageState({indexedDB: true})`; the headed window: `idb-state.ts` `collectIndexedDb`) and `applyStorageState`
+  restores it (`restoreIndexedDb`: Playwright restores it only into contexts it creates, ours are persistent);
+- `select` / `pick` type the option in the list's search field when the open list does not show it
+  (`actions/widgets.ts` `openAndFind`, `AUTO_SEARCH_AFTER_MS`); errors name the search field;
+- `retake sandbox up | reset`: `SandboxProgress` (providers, seed) and the CLI's `steps.ts` `StepDisplay`. `up --build`
+  stays one docker command: the `start` step begins at its first network / volume / container line;
+- several personas may list one page (first declared = default; `persona:` in the scene); a page id still keeps one
+  persona per run (two accounts in one video: a multi-page scene);
+- the skills compare the workspace with every folder of the session; `project_create` takes `{url, display}` and
+  `default_env`; `project_get` reports a stale "Environments & links" section (`readmeEnvironmentsDrift`).
+Not done here: Playwright is still 1.56.1 (RELEASING step 1 skipped for both hotfixes — do it for the next version).
+
 **Hotfix v0.2.1 (2026-11-10, branch `hotfix/v0.2.1` from the v0.2.0 tag; field feedback of a first real project):**
 - docker under the agent policy (the app, MCP) is started by its checked real path *under the name it was found as*
   (`argv0`): OrbStack's `docker` is a link to a multi-call binary that refused its own name (`compose.ts`

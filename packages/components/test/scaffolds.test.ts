@@ -213,7 +213,7 @@ function moduleSpecifiers(src: string): string[] {
 
 /** Every name `@retake/components/kit` exports (sorted): the public surface a workspace component may import. */
 const KIT_PUBLIC_NAMES = [
-  'AUTO_COVER_MIN_SHARE', 'AbsoluteFill', 'AppIcon', 'Background', 'CAMERA_EASINGS', 'CAPTION_BAND_INSET',
+  'AUTO_COVER_MIN_SHARE', 'AbsoluteFill', 'AppIcon', 'BUTTON_LABEL_MIN', 'Background', 'CAMERA_EASINGS', 'CAPTION_BAND_INSET',
   'CAPTION_BAND_MIN_SCREEN', 'CAPTION_BAND_PAD_X', 'CapText', 'DEFAULT_ZOOM_EASE', 'EASINGS', 'EASING_CURVES',
   'ESTIMATED_METRICS', 'FORMAT_SCALE', 'FitText', 'ICON_NAMES', 'ICON_SHAPES', 'Icon', 'ImageFile', 'Img',
   'InsetCard', 'InsetPhone', 'KEY_GLYPHS', 'LOUPE_MIN_SCALE', 'LOUPE_ORDER', 'Logo', 'LottieFile',
@@ -221,10 +221,10 @@ const KIT_PUBLIC_NAMES = [
   'PANE_LABEL_ROW', 'PHONE_DISPLAY_ASPECT', 'PIP_BAR', 'PaneLabel', 'PhoneDevice', 'Picture', 'STEP_BADGE_ORDER',
   'SYSTEM_COLORS', 'SafeArea', 'Sequence', 'StatusGlyphs', 'VideoFile', 'WORDMARK_TEXT_SCALE', 'WindowBar',
   'Wordmark', 'activeIndex', 'addressParts', 'autoFit', 'backgroundCss', 'backgroundSample', 'balanceLines',
-  'barTones', 'biasMotion', 'capOffset', 'capTextLayout', 'captionBandBox', 'captionMaxLines', 'cardShadow',
+  'barTones', 'biasMotion', 'buttonColors', 'capOffset', 'capTextLayout', 'captionBandBox', 'captionMaxLines', 'cardShadow',
   'clamp', 'clearOf', 'contrastRatio', 'cssFontFamily', 'cubicBezier', 'darkLight', 'deviceTones', 'easing',
   'estimateTextWidth', 'fade', 'fadeIn', 'fadeOut', 'figureAt', 'filePartGain', 'fitText', 'fontMetrics',
-  'formatClock', 'formatFigure', 'formatMetrics', 'insetPhoneEdge', 'isDarkBackground', 'isDarkColor',
+  'formatClock', 'formatFigure', 'formatMetrics', 'inkOn', 'insetPhoneEdge', 'isDarkBackground', 'isDarkColor',
   'layoutNotification', 'lerp', 'liftToContrast', 'lottieFrames', 'loupeLens', 'luminance', 'measureText',
   'mediaBackground', 'mediaLength', 'mixColors', 'nightTone', 'notificationArea', 'notificationBox',
   'notificationMotion', 'notificationTones', 'parseColor01', 'parseFigure', 'parseNumber', 'parseShortcut',
