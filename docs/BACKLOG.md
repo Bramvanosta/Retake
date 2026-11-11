@@ -2478,6 +2478,49 @@ accelerators, the page's MENU_COMMANDS). Other desktop apps built on the same sh
   the e2e kit cannot click a native menu (an unattended run cannot post to the menu bar), so menu tests stay on the
   table and the registry.
 
+### BL-167 — An update you can watch: download progress and the restart
+*S–M · founder's request (2026-11-11), from the first in-app updates · builds on: L5.16d · see BL-166*
+
+The update archive is large (about 370 MB in v0.2.2), and once Install and Restart is clicked nothing moves: the sheet
+says "Downloading vX" with no figure, the badge only turns busy, and the native alert path (Help › Check for Updates…
+when the page cannot answer) shows nothing at all until the app quits. The shell already counts the bytes and the
+announced size (`update_flow::Progress`, polled every 250 ms by `watch`); `State::Downloading` just does not carry them.
+- **The download**: bytes received of the total, a percentage and a bar in the sheet (`progressWords`), the badge
+  showing the percentage while the sheet is closed, and an indeterminate bar when the server announces no size. The
+  state line reaches the page at most a few times a second.
+- **Outside the page**: the Dock icon's progress (NSDockTile with a progress view) so it shows from another app or with
+  the window closed, and a native progress panel on the alert path.
+- **The steps after it**: "Verifying the signature", "Waiting for 2 jobs", "Installing — Retake restarts" said in turn,
+  then, after the restart, a one-time "Updated to vX" notice (the release notes one click away) — today the window just
+  vanishes and comes back.
+
+- **Value:** a person sees that the update is moving and how long is left, and never quits the app thinking it hung
+  (which would abort the download).
+- **Hard parts:** the Dock progress needs a custom NSDockTile content view (objc, as `macos.rs` does already); the
+  restart gap itself (the old app gone, the new one not yet up) has no window to draw in, so the notice after it is
+  what closes the loop.
+
+### BL-168 — After an update, the Dock's pinned icon is no longer the running app
+*S–M · founder's report (2026-11-11), from the first in-app updates · builds on: L5.16d*
+
+With the app kept in the Dock, an update ends with two icons: the pinned one, which looks closed, and a second
+one on the right for the app that restarted, although both are `/Applications/Retake.app`. Likely cause, to confirm:
+the updater plugin's install (`swap` in `update.rs`) moves the old bundle aside to a temporary folder and renames the
+new one into place, so the bundle at that path is a new directory. The Dock's pinned item is a bookmark that follows
+the old directory (by file id, before the path), so it points at the copy moved aside, then deleted, and the restarted
+app is not the pinned one.
+- **Probe first**: pin the app, update an ad hoc build through the e2e feed (`app-update-e2e.test.ts`), and read the
+  pinned item before and after (`defaults read com.apple.dock persistent-apps`: its bookmark, never written); same with
+  the Finder's sidebar and Login Items, which hold bookmarks too.
+- **Fix candidates**: keep the bundle's top directory and swap only its `Contents` (the code signature seals
+  `Contents`, not the folder that holds it), with `renamex_np(RENAME_SWAP)` so the swap stays atomic and the old
+  `Contents` can be put back on failure; or re-register the bundle with LaunchServices after the swap and relaunch
+  through it. Either way the updater's own signature check stays where it is.
+
+- **Value:** the Dock, the Finder sidebar and Login Items keep pointing at the app after every update.
+- **Hard parts:** the swap is in a dependency today (an own swap means keeping the restore-on-failure path, and its
+  test, ours); a Dock already holding a dangling pin from an earlier update is fixed only by pinning again.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
