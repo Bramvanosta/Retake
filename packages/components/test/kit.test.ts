@@ -16,6 +16,8 @@ import {
   balanceLines,
   contrastRatio,
   readableOn,
+  buttonColors,
+  inkOn,
   roundTo,
   clamp,
   cssFontFamily,
@@ -225,6 +227,19 @@ describe('kit style helpers', () => {
     expect(contrastRatio('red', '#000')).toBeUndefined();
     expect(readableOn(LIGHT.colors.text, LIGHT.colors.accent, 'white')).toBe('white'); // wine on ink: too dark
     expect(readableOn(DARK.colors.paper, DARK.colors.accent, 'white')).toBe(DARK.colors.accent); // coral on night: fine
+    // Hotfix v0.2.5 (field point 22): a dark accent on a dark page keeps its fill; the label is chosen against it.
+    const wine = { colors: { ...DARK.colors, accent: '#9a1e25', paper: '#1c1c1c', text: '#f4f1ea' } };
+    const b = buttonColors(wine);
+    expect(b.fill).toBe('#9a1e25');
+    expect(b.label).toBe('#f4f1ea');
+    expect(b.ratio!).toBeGreaterThanOrEqual(4.5);
+    // A pale accent: the light ink fails, the dark one reads.
+    const pale = buttonColors({ colors: { ...LIGHT.colors, accent: '#f2d27a' } });
+    expect(pale.ratio!).toBeGreaterThanOrEqual(4.5);
+    expect(pale.label).not.toBe(LIGHT.colors.paper);
+    // Neither theme ink reads: white or black, whichever contrasts most.
+    expect(inkOn('#777777', ['#888888', '#666666'])).toBe('#000000');
+    expect(inkOn('#1a1a40', ['#202020'])).toBe('#ffffff');
     expect(darkLight(LIGHT)).toEqual({ dark: LIGHT.colors.text, light: LIGHT.colors.paper });
     expect(darkLight(DARK)).toEqual({ dark: DARK.colors.paper, light: DARK.colors.text });
     expect(textStyleCss(LIGHT.captions!.kicker, 2)).toEqual({

@@ -18,7 +18,8 @@
  * separate process, runs them. L4.1: the same tools over Streamable HTTP too (`retake mcp --http`, http.ts: 127.0.0.1,
  * the engine's gate refusing any request a browser could send, a stable token in the Retake home).
  */
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION, staleEngine } from '@retake/core';
+import type { StaleEngine } from '@retake/core';
 import { EngineError, createEngine, toEngineError } from '@retake/engine';
 import type { Engine } from '@retake/engine';
 import type { Readable, Writable } from 'node:stream';
@@ -105,8 +106,17 @@ export async function callTool(t: ToolDef, engine: () => Promise<Engine>, args: 
   }
 }
 
+/**
+ * What a call says when this server runs an engine older than the one installed now (hotfix v0.2.5, field point 20):
+ * the call is not run (its answer would come from the old code), and the server stops right after so that the client
+ * starts it again on the installed engine.
+ */
+export function staleWords(s: StaleEngine): string {
+  return `this Retake MCP server still runs Retake ${s.running}, but ${s.installed} is installed now (the app was updated): it stops after this answer so that the client starts it again on ${s.installed} — call the tool again (Claude Code: if the server shows as failed in /mcp, Reconnect it)`;
+}
+
 /** A tool definition as the protocol layer serves it: JSON Schema from zod, arguments parsed, errors as tool errors. */
-export function protocolTool(t: ToolDef, engine: () => Promise<Engine>): ProtocolTool {
+export function protocolTool(t: ToolDef, engine: () => Promise<Engine>, o: { stale?: () => StaleEngine | null; onStale?: (s: StaleEngine) => void } = {}): ProtocolTool {
   return {
     name: t.name,
     title: t.title,
@@ -114,9 +124,20 @@ export function protocolTool(t: ToolDef, engine: () => Promise<Engine>): Protoco
     inputSchema: inputJsonSchema(t.input),
     annotations: t.annotations,
     async call(args, { signal, progress, elicit }) {
+      // An engine updated under this process: engine_info says so (its `stale`), every other call is refused; either
+      // way the server then stops (the client starts the installed one).
+      const stale = o.stale?.() ?? null;
+      if (stale) {
+        o.onStale?.(stale);
+        if (t.name !== 'engine_info') return errorResult(new EngineError('unavailable', staleWords(stale), { details: { stale } }));
+      }
       const approver = elicitationApprover(elicit);
       const r = await callTool(t, engine, args, { signal, ...(progress ? { progress } : {}), ...(approver ? { approver } : {}) });
       if (!r.ok) return errorResult(r.error);
+      if (stale && !/^STALE: /.test(r.output.summary)) {
+        r.output.summary = `STALE: ${staleWords(stale)}. ${r.output.summary}`;
+        if (r.output.data && typeof r.output.data === 'object') (r.output.data as Record<string, unknown>).stale = stale;
+      }
       try {
         const e = await engine();
         return r.output.images?.length ? await imageResult(r.output, (file, px) => e.thumbnail(file, px)) : okResult(r.output);
@@ -134,6 +155,8 @@ export interface McpServerOptions {
   stdout?: Writable;
   /** Diagnostics (stderr by default): never the protocol stream. */
   log?: (message: string) => void;
+  /** Whether the installed engine is newer than this process's (default: core `staleEngine`; tests set it). */
+  stale?: () => StaleEngine | null;
 }
 
 /**
@@ -151,11 +174,21 @@ export async function startMcpServer(o: McpServerOptions): Promise<void> {
   let engine: Promise<Engine> | undefined;
   const getEngine = () => (engine ??= createEngine({ root: o.root, client: 'mcp' }));
   await getEngine();
+  // Hotfix v0.2.5: the installed engine is read again at each call; an update under this process stops it once the
+  // call that saw it is answered.
+  let stopNow: () => void = () => undefined;
+  const stop = new Promise<void>((r) => (stopNow = r));
+  const stale = o.stale ?? (() => staleEngine(RETAKE_VERSION));
+  const onStale = (s: StaleEngine) => {
+    log(`retake mcp: ${staleWords(s)}`);
+    stopNow();
+  };
   await serveStdio({
     name: 'retake',
     version: RETAKE_VERSION,
     instructions: INSTRUCTIONS,
-    tools: TOOLS.map((t) => protocolTool(t, getEngine)),
+    tools: TOOLS.map((t) => protocolTool(t, getEngine, { stale, onStale })),
+    stop,
     ...(o.stdin ? { stdin: o.stdin } : {}),
     ...(o.stdout ? { stdout: o.stdout } : {}),
     onError: (e) => log(`retake mcp: ${e.message}`),

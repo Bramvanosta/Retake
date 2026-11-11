@@ -94,6 +94,8 @@ function resetView(r: ResetResult): NonNullable<SandboxJobResult['reset']> {
     ...(r.snapshot ? { snapshot: r.snapshot } : {}),
     restarted: r.restarted,
     superseded: r.superseded,
+    ...(r.firebase_auth ? { firebase_auth: r.firebase_auth } : {}),
+    ...(r.hooks.steps ? { hooks: r.hooks } : {}),
   };
 }
 

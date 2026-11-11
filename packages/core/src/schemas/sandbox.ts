@@ -131,6 +131,19 @@ export const SandboxFileSchema = z
           .strictObject({ database: keyString('database').describe('Key of `databases` (default the first one): dropped and recreated at every reset.').optional() })
           .optional(),
         restart: z.array(nonEmpty()).describe('Services restarted after each reset (apps that do not survive a database swap).').optional(),
+        firebase_auth: z
+          .strictObject({
+            url: nonEmpty().describe('The Auth emulator on this machine, e.g. http://localhost:9099.'),
+            project: nonEmpty().describe("The emulator's project id (demo-…)."),
+          })
+          .describe(
+            "A Firebase Auth emulator of the sandbox: its accounts are emptied before each seed, saved after it, and put back at every reset (after `restart`) — the database snapshot does not cover it.",
+          )
+          .optional(),
+        hooks: z
+          .array(SeedStepSchema)
+          .describe('Steps (http, sql, shell, exec) run at every reset once the data is back — after `restart` and `firebase_auth` —, before the take: what each take needs undone that the snapshot does not cover.')
+          .optional(),
       })
       .optional(),
     databases: SandboxDatabasesSchema.describe('Databases of the sandbox (sql seeds, and the sql hooks of scenarios on this environment); local only.').optional(),

@@ -76,7 +76,7 @@ export function environmentJobSummary(job: JobRecord): string {
     if (r.services) lines.push(`services: ${[r.services.started.length ? `started ${r.services.started.join(', ')}` : '', r.services.kept.length ? `already running ${r.services.kept.join(', ')}` : ''].filter(Boolean).join(' · ') || 'none'}${r.services.changed.length ? ` (changed in sandbox.yaml since they started: ${r.services.changed.join(', ')} — down, then up)` : ''}`);
     if (r.reset) {
       const seed = r.reset.restored ? `snapshot${r.reset.snapshot ? ` of ${r.reset.snapshot.database}` : ''} restored` : `seed ${plural(r.reset.seed.steps, 'step')}`;
-      lines.push(`reset (${r.reset.strategy}): ${seed}${r.reset.mailbox === 'cleared' ? ' · mailbox emptied' : ''}${r.reset.restarted.length ? ` · restarted ${r.reset.restarted.join(', ')}` : ''}${r.reset.superseded ? ` · ${plural(r.reset.superseded, 'pending rollback')} superseded` : ''}`);
+      lines.push(`reset (${r.reset.strategy}): ${seed}${r.reset.mailbox === 'cleared' ? ' · mailbox emptied' : ''}${r.reset.restarted.length ? ` · restarted ${r.reset.restarted.join(', ')}` : ''}${r.reset.firebase_auth ? ` · ${plural(r.reset.firebase_auth.accounts, 'Firebase Auth account')} put back` : ''}${r.reset.hooks?.steps ? ` · ${plural(r.reset.hooks.steps, 'reset hook')}` : ''}${r.reset.superseded ? ` · ${plural(r.reset.superseded, 'pending rollback')} superseded` : ''}`);
     } else lines.push('no seed needed (already seeded with the current seed)');
     lines.push(`pages: ${Object.entries(r.pages).map(([k, u]) => `${k} ${u}`).join(' · ')}`);
   }

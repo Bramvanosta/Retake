@@ -60,10 +60,18 @@ seed:
 reset:
   strategy: snapshot                          # a Postgres snapshot taken after the seed, restored in ≈ 0.3 s
   restart: [app]
+  # firebase_auth: {url: "http://localhost:9099", project: demo-app}   # an Auth emulator: its accounts put back too
+  # hooks: [{http: {method: POST, url: "{{app}}/api/test/reset-cache"}}]  # run at every reset, after the data is back
 databases:
   main: {url: "postgres://demo:sandbox-db-4832@localhost:4832/app"}
 mailbox: {provider: mailpit, url: "http://localhost:4825"}
 ```
+
+**The snapshot covers the Postgres database only.** A service that keeps its own state (a Firebase Auth emulator
+holds its accounts in memory) does not go back with it: the account a take created is still there at the next take,
+and restarting the service loses the seeded ones too. For the Auth emulator, `reset.firebase_auth` puts its accounts
+back as the seed left them; for anything else, `reset.hooks` run at every reset, once the data is back. Rather than a
+setup hook that deletes the account in each scenario, propose these to the person (sandbox.yaml is theirs).
 
 The `.env` next to compose.yaml (or another file named in sandbox.yaml's `compose:`) holds the image versions and
 settings, such as `APP_VERSION=2.14.0` for the tag of the compose file's `image:` line. A value the shell sets for the

@@ -69,14 +69,27 @@ export function planFileRefs(timeline: PlanTimeline): string[] {
   return [...new Set(planFileUses(timeline).map((u) => u.ref))].sort();
 }
 
-/** Slot values of cards and step overlays that are remote URLs (http: / https:), where they are named. */
-export function remoteSlotUses(timeline: PlanTimeline): PlanFileUse[] {
+/** Slot types whose value is shown or encoded, never loaded: an address there is text (hotfix v0.2.5, field point 23). */
+export const SHOWN_SLOT_TYPES: readonly string[] = ['text', 'url', 'color'];
+
+/**
+ * Slot values of cards and step overlays that are remote URLs (http: / https:), where they are named — those of a slot
+ * the component loads (an image, a medium…). `slotType(component, slot)` says a slot's type (its manifest); a slot only
+ * shown or encoded (`text`, `url` — a call to action's address, its QR code —, `color`) is not a remote file. A slot
+ * whose type is unknown (no resolver, a card whose component the theme picks, an unknown component) counts as loaded.
+ */
+export function remoteSlotUses(timeline: PlanTimeline, slotType?: (component: string | undefined, slot: string) => string | undefined): PlanFileUse[] {
   const out: PlanFileUse[] = [];
-  const add = (slots: Record<string, string> | undefined, where: string) => {
-    for (const [name, v] of Object.entries(slots ?? {})) if (/^https?:/i.test(String(v).trim())) out.push({ ref: String(v).trim(), where: `${where} slot ${name}` });
+  const add = (component: string | undefined, slots: Record<string, string> | undefined, where: string) => {
+    for (const [name, v] of Object.entries(slots ?? {})) {
+      if (!/^https?:/i.test(String(v).trim())) continue;
+      const type = slotType?.(component, name);
+      if (type !== undefined && SHOWN_SLOT_TYPES.includes(type)) continue;
+      out.push({ ref: String(v).trim(), where: `${where} slot ${name}` });
+    }
   };
-  for (const s of timeline.scenes) add(s.card?.slots, `scene ${s.id}, card`);
-  for (const e of timeline.events) add(e.overlay?.slots, `step ${e.scene}.${e.step}${e.id ? ` (${e.id})` : ''} overlay`);
+  for (const s of timeline.scenes) add(s.card?.component, s.card?.slots, `scene ${s.id}, card`);
+  for (const e of timeline.events) add(e.overlay?.component, e.overlay?.slots, `step ${e.scene}.${e.step}${e.id ? ` (${e.id})` : ''} overlay`);
   return out;
 }
 

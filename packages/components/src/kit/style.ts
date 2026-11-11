@@ -112,6 +112,34 @@ export function readableOn(background: string, preferred: string, fallback: stri
   return r === undefined || r >= min ? preferred : fallback;
 }
 
+/** The contrast a button's label needs with its fill (WCAG AA for text). */
+export const BUTTON_LABEL_MIN = 4.5;
+
+/**
+ * The ink that reads on `fill`: the first of `candidates` with contrast ≥ `min`, else, of the candidates and pure
+ * white / black, the one that contrasts most (one of white or black always reaches 4.5). Unknown notations keep the
+ * first candidate.
+ */
+export function inkOn(fill: string, candidates: readonly string[], min = BUTTON_LABEL_MIN): string {
+  if (contrastRatio(fill, '#000000') === undefined) return candidates[0] ?? '#ffffff';
+  for (const c of candidates) if ((contrastRatio(fill, c) ?? 0) >= min) return c;
+  let best = '#ffffff';
+  for (const c of [...candidates, '#ffffff', '#000000']) if ((contrastRatio(fill, c) ?? 0) > (contrastRatio(fill, best) ?? 0)) best = c;
+  return best;
+}
+
+/**
+ * A filled button in the theme (hotfix v0.2.5): the accent as it is — a filled button needs contrast with its label,
+ * not with the page — and its label chosen against that very fill: the theme's light colour, else its dark one, else
+ * white or black. `ratio`: the label's contrast on the fill (the review checks it: `button-contrast`).
+ */
+export function buttonColors(theme: Pick<ThemeTokens, 'colors'>): { fill: string; label: string; ratio: number | undefined } {
+  const { dark, light } = darkLight(theme);
+  const fill = theme.colors.accent;
+  const label = inkOn(fill, [light, dark]);
+  return { fill, label, ratio: contrastRatio(fill, label) };
+}
+
 /**
  * The theme's dark and light colours: `colors.text` and `colors.paper` ordered by luminance (a dark theme has light
  * text on a dark paper). Use them for veils and type that must contrast whatever the theme.

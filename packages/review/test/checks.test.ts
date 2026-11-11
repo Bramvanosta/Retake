@@ -29,6 +29,7 @@ import {
   checkSlowTransitions,
   checkLongScenes,
   checkTextSlots,
+  checkButtonContrast,
   checkTransitionsOnClicks,
   diffRecords,
   environmentLine,
@@ -549,5 +550,24 @@ describe('L5.5 review rules: target length, cards too short for their text, a ma
       expect.objectContaining({ severity: 'info', code: 'slow-transition', message: expect.stringContaining('gone.0: the screen settled 0.9 s after the click (not in the video)') }),
     ]);
     expect(found[0].message).toMatch(new RegExp(`^${click.scene}\\.${click.step}: the screen settled 1\\.9 s after the click on link "October 2026" — the product is slow there`));
+  });
+});
+
+describe('button contrast (hotfix v0.2.5, field point 22)', () => {
+  it("a button's label is checked against the fill it is painted on, once per component", () => {
+    const base = ctxOf('catalogue');
+    const card = base.plan.segments.find((s) => s.kind !== 'clip')!;
+    const cta = { ...card, id: 'cta', component: { ...(card as { component: object }).component, id: 'studio/card-cta' } };
+    const plan = { ...base.plan, segments: [...base.plan.segments, cta, { ...cta, id: 'cta2' }] } as typeof base.plan;
+    const ctx = { ...base, plan };
+    // The theme's button colours: the label reads on the accent.
+    expect(checkButtonContrast(ctx)).toEqual([]);
+    // A label painted white on a white stand-in (the old rule on a dark accent and a dark page): said, once.
+    const found = checkButtonContrast(ctx, () => ({ fill: '#ffffff', label: '#f4f1ea', ratio: 1.1 }));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ severity: 'warning', code: 'button-contrast' });
+    expect(found[0].message).toMatch(/studio\/card-cta's button \(#f4f1ea on #ffffff\) contrasts 1\.1:1, under 4\.5:1/);
+    // A component without a button slot is not checked.
+    expect(checkButtonContrast(base, () => ({ fill: '#ffffff', label: '#ffffff', ratio: 1 }))).toEqual([]);
   });
 });

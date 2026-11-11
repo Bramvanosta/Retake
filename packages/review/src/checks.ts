@@ -8,7 +8,7 @@ import type { DisplayEntry, RunRecord, Timeline, TimelineWrite } from '@retake/c
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText } from '@retake/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@retake/components';
 import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@retake/editor';
-import { insetPhoneEdge } from '@retake/components/kit';
+import { BUTTON_LABEL_MIN, buttonColors, insetPhoneEdge } from '@retake/components/kit';
 import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@retake/editor';
 import type { OutputClick } from './timeline.js';
 import { cursorAt } from './timeline.js';
@@ -445,6 +445,33 @@ export function checkTextSlots(ctx: CheckContext): Finding[] {
     } else {
       check(s.component, `${s.kind} ${s.id}`, s.from, s.component.slots);
     }
+  }
+  return out;
+}
+
+// ── Button contrast ──────────────────────────────────────────────────────────
+
+/**
+ * Hotfix v0.2.5 (field point 22): the label of a filled button against the fill it is painted on — for a component with
+ * a `button` slot (studio/card-cta), with the theme's button colours (kit `buttonColors`: the accent, the label chosen
+ * against it). Below BUTTON_LABEL_MIN (4.5): a warning, once per component and theme.
+ */
+export function checkButtonContrast(ctx: CheckContext, colors: typeof buttonColors = buttonColors): Finding[] {
+  const out: Finding[] = [];
+  const tokens = ctx.plan.brand?.tokens;
+  if (!tokens) return out;
+  const seen = new Set<string>();
+  const check = (c: ResolvedComponent, where: string, frame: number) => {
+    if (seen.has(c.id) || !manifestOf(ctx.registry, c.id)?.slots.button) return;
+    seen.add(c.id);
+    const b = colors(tokens);
+    if (b.ratio !== undefined && b.ratio < BUTTON_LABEL_MIN) {
+      out.push(finding('warning', 'button-contrast', `${where}: the label of ${c.id}'s button (${b.label} on ${b.fill}) contrasts ${b.ratio.toFixed(1)}:1, under ${BUTTON_LABEL_MIN}:1 — change the theme's accent or its text / paper colours`, locate(ctx, frame)));
+    }
+  };
+  for (const s of ctx.plan.segments) {
+    if (isClip(s)) for (const o of s.overlays) check(o.component, `overlay of ${s.id}`, s.from + o.from);
+    else check(s.component, `${s.kind} ${s.id}`, s.from);
   }
   return out;
 }

@@ -19,6 +19,7 @@ export {
   checkLongScenes,
   checkRender,
   checkTextSlots,
+  checkButtonContrast,
   checkTransitionsOnClicks,
   checkTutorial,
   checkOverlayCover,

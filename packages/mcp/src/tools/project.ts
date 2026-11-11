@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 import { z } from 'zod';
-import { engineLocation, sandboxAdvice, sandboxAdviceText } from '@retake/core';
+import { engineLocation, sandboxAdvice, sandboxAdviceText, staleEngine } from '@retake/core';
 import { README_MAX_CHARS, formatBytes, heldWork, heldWorkWords, otherCopy } from '@retake/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
@@ -41,9 +41,11 @@ export const engineInfo = defineTool({
     const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
     const startedIn = process.cwd();
     const elsewhere = !isInside(startedIn, info.root);
+    // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
+    const stale = staleEngine(info.version);
     return {
-      summary: `Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
-      data: { ...info, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage, held: held ?? null, ...(other ? { untrusted: { worker_other_copy: other } } : {}) },
+      summary: `${stale ? `STALE: this server runs Retake ${stale.running}, but ${stale.installed} is installed now — it stops after this answer so that the client starts it again on ${stale.installed}. ` : ''}Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
+      data: { ...info, stale, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage, held: held ?? null, ...(other ? { untrusted: { worker_other_copy: other } } : {}) },
     };
   },
 });

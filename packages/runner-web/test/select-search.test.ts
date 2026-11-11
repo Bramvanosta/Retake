@@ -16,6 +16,7 @@ const LIST_PAGE = `<!doctype html><html><head><title>Sign up</title><style>body{
 <h1>Sign up</h1>
 <p><span id="c-label">Country</span> <button id="c" role="combobox" aria-labelledby="c-label" aria-haspopup="listbox" aria-expanded="false">Choose…</button></p>
 <p id="status"></p>
+<p id="inputs"></p>
 <script>
 const ALL = ['Albania', 'Belgium', 'Chile', 'Denmark', 'Estonia', 'France', 'Germany', 'Hungary', 'Iceland', 'Japan'].concat(Array.from({ length: 50 }, (_, i) => 'Land ' + (i + 1)));
 const withSearch = new URLSearchParams(location.search).get('search') !== '0';
@@ -33,7 +34,8 @@ c.addEventListener('click', () => {
   draw('');
   document.body.appendChild(lb);
   c.setAttribute('aria-expanded', 'true');
-  lb.querySelector('#q')?.addEventListener('input', (e) => draw(e.target.value));
+  const typed = [];
+  lb.querySelector('#q')?.addEventListener('input', (e) => { draw(e.target.value); typed.push(e.target.value); document.getElementById('inputs').textContent = 'inputs=' + typed.join('|') + ';'; });
   lb.addEventListener('click', (e) => { const o = e.target.closest('[role=option]'); if (!o) return; c.textContent = o.textContent; document.getElementById('status').textContent = 'country=' + o.textContent; close(); });
 });
 </script></body></html>`;
@@ -87,5 +89,21 @@ describe('select and pick on a list with a search field (hotfix v0.2.2)', () => 
     const plain = await run('no-search-field', '/list.html?search=0', [{ select: { field: 'Country', option: 'Japan' } }], 3);
     expect(plain.rec.error?.message).toMatch(/select: "Japan" not found in the open popover after \d+\.\d s; /);
     expect(plain.rec.error?.message).not.toContain('search');
+  });
+
+  it('hotfix v0.2.5: `search_instant` fills the search at once (one input: only the final list is filmed); `search_cps` types it at its own pace', async () => {
+    const { rec, events } = await run('search-pace', '/list.html', [
+      { select: { field: 'Country', option: 'Japan', search: 'Japan', search_instant: true } },
+      { assert: { text: 'inputs=Japan;' } },
+      { assert: { text: 'country=Japan' } },
+      { pick: { field: 'Country', option: 'Iceland', search: 'Ice', search_cps: 40, close: 'none' } },
+      { assert: { text: 'inputs=I|Ic|Ice;' } },
+      { assert: { text: 'country=Iceland' } },
+      // Without `search`, the search the runner types by itself fills at once too.
+      { select: { field: 'Country', option: 'Hungary', search_instant: true } },
+      { assert: { text: 'inputs=Hungary;' } },
+    ]);
+    expect(rec.error?.message).toBeUndefined();
+    expect(roles(events[0])).toEqual(['trigger', 'search', 'option']);
   });
 });

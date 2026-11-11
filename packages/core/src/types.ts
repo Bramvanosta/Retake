@@ -185,6 +185,10 @@ export interface SelectArgs {
   option: string;
   /** Text typed into the listbox search input before choosing. */
   search?: string;
+  /** How fast the search is typed, characters per second (default: the search pace, at most 10). */
+  search_cps?: number;
+  /** The search is filled at once, as a paste (one input event): only the final list is filmed. */
+  search_instant?: boolean;
 }
 
 export interface PickArgs {
@@ -192,6 +196,10 @@ export interface PickArgs {
   field: string | TargetObject;
   option: string | string[];
   search?: string;
+  /** How fast the search is typed, characters per second (default: the search pace, at most 10). */
+  search_cps?: number;
+  /** The search is filled at once, as a paste (one input event): only the final list is filmed. */
+  search_instant?: boolean;
   /** How to close the popover afterwards. Default 'outside'. */
   close?: 'outside' | 'escape' | 'none';
 }
@@ -1456,6 +1464,13 @@ export interface SandboxManifest {
     snapshot?: { database?: string };
     /** Services restarted after each reset (apps that do not survive a database swap). */
     restart?: string[];
+    /**
+     * Hotfix v0.2.5 (field point 21): a Firebase Auth emulator of the sandbox — emptied before each seed, its accounts
+     * saved after it, put back at every reset (after `restart`).
+     */
+    firebase_auth?: { url: string; project: string };
+    /** Hotfix v0.2.5: steps run at every reset once the data is back (after `restart` and `firebase_auth`). */
+    hooks?: SeedStep[];
   };
   databases?: Record<string, SandboxDatabase>;
   mailbox?: SandboxMailbox;
