@@ -56,6 +56,7 @@ import type {
   TargetSpec,
   WorkFileFacts,
 } from '@retake/core';
+import { stampOf } from './clock.js';
 import { callerOf, guardsStudioRecordings, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { isAlive } from './jobs/proc.js';
@@ -68,7 +69,7 @@ import { RECORD_META_FILE, RECORD_STUDIO_FILE, readRecordAnnotations, readRecord
 import type { RecordMeta } from './record-files.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
-import type { StoreScope } from './store/project-store.js';
+import type { StoreScope } from './store/store.js';
 import { sha256Hex } from './storage.js';
 
 /** The largest events.jsonl read (bytes): a 30-minute recording is far below it. */
@@ -220,7 +221,7 @@ export interface RecordStopped {
 export interface RecordStudioContext {
   queue: JobQueueView;
   client: JobClient;
-  /** Where a saved draft is written and journaled (the engine's caller). */
+  /** Where a saved draft is written and journaled (the engine's caller); its clock stamps a Save and a Discard. */
   scope: StoreScope;
   /** How a draft's files are looked at (core FileFacts): the engine's, under its workspace's policy. */
   files: WorkFileFacts;
@@ -669,6 +670,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
     page: meta?.page ?? (s.job?.input.kind === 'record' ? s.job.input.source.page : null),
     path: meta?.path ?? (s.job?.input.kind === 'record' ? s.job.input.source.path : null),
     started_at: meta?.started_at ?? null,
+    // started_at is the engine clock's own stamp (record.ts), not the runner's timer base: under a test's clock they differ.
     ends_at: meta ? new Date(Date.parse(meta.started_at) + (meta.max_ms ?? RECORD_DEFAULT_MAX_MS)).toISOString() : null,
     rev: ann?.rev ?? 0,
     draft_sha256: null,
@@ -919,7 +921,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
       throw new EngineError('invalid', 'not saved: the draft has errors — they are listed by scene and step', { details: { issues: errors } });
     }
     const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope, ctx.files);
-    const next: RecordAnnotations = { ...a, rev: a.rev + 1, saved: { name: req.name, file: w.file, hash: w.hash, at: new Date().toISOString() } };
+    const next: RecordAnnotations = { ...a, rev: a.rev + 1, saved: { name: req.name, file: w.file, hash: w.hash, at: stampOf(ctx.scope.clock) } };
     await writeAnnotations(dir, next);
     return { name: req.name, file: w.file, hash: w.hash, rev: next.rev, warnings: w.warnings, untrusted: { issues: d.issues } };
   } finally {
@@ -944,7 +946,7 @@ export async function recordDiscard(ctx: RecordStudioContext, project: LoadedPro
       if (marked) {
         const dir = await checkedFolder(project, id);
         const a = annotationsOrRefuse(s, 'discard');
-        await writeAnnotations(dir, { ...a, discard: { at: new Date().toISOString() } });
+        await writeAnnotations(dir, { ...a, discard: { at: stampOf(ctx.scope.clock) } });
       }
       await ctx.queue.cancel(job.id, ctx.client, marked ? undefined : 'discard');
       return { rec_id: id, state: 'discarding' };

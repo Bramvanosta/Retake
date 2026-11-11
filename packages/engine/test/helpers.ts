@@ -2,6 +2,8 @@
 import { cp, mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { callerOf, enginePorts } from '../src/index.js';
+import type { StoreScope } from '../src/index.js';
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const FIXTURE = join(REPO, 'projects', 'northfield-fixture');
@@ -49,4 +51,12 @@ export async function fixtureWorkspace(dir: string): Promise<void> {
     }),
   );
   await mkdir(join(runs, 'no-record'), { recursive: true });
+}
+
+/**
+ * The scope a comment of `author` was written under before L7.10 made the scope required (the caller its channel
+ * stands for, the product's ports): what a test that writes a thread directly hands.
+ */
+export function authorScope(project: { root: string }, author: { via: string; name?: string }): StoreScope {
+  return { workspace: project.root, caller: callerOf(author.via === 'cli' ? 'cli' : author.via === 'studio' ? 'ui' : 'mcp'), ...enginePorts() };
 }

@@ -23,6 +23,7 @@ import type { RenderVariant } from '@retake/core';
 import type { EditOverridesInput, LoadedProject, NotUsable, RenderJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
+import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
@@ -40,6 +41,7 @@ import { editor } from '../lazy.js';
 import { planWork, renderWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface RenderRequest {
   project: string;
@@ -343,7 +345,8 @@ export async function killRecordedBrowser(files: JobFiles, job: JobRecord, log: 
   if (browser?.user_data_dir && isTempProfile(browser.user_data_dir)) await rm(browser.user_data_dir, { recursive: true, force: true }).catch(() => undefined);
 }
 
-export interface RenderJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface RenderJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: RenderJobInput;
@@ -387,7 +390,7 @@ export type InlineReview = { review: NonNullable<RenderJobResult['review']>; err
  * as untrusted text) and never fails the render. `exec` is the review job's execution (replaced in tests).
  */
 export async function reviewInline(
-  ctx: Pick<RenderJobContext, 'ws' | 'cli' | 'signal' | 'event' | 'progress'> & { input: Pick<RenderJobInput, 'project' | 'submitted_by'> },
+  ctx: Pick<RenderJobContext, 'ws' | 'cli' | 'signal' | 'event' | 'progress' | 'clock' | 'stores'> & { input: Pick<RenderJobInput, 'project' | 'submitted_by'> },
   renderId: string,
   fps: 1 | 2,
   exec?: (c: import('./review-job.js').ReviewJobContext) => Promise<import('./types.js').ReviewJobResult>,
@@ -397,6 +400,8 @@ export async function reviewInline(
     const r = await run({
       ws: ctx.ws,
       cli: ctx.cli,
+      clock: ctx.clock,
+      stores: ctx.stores,
       input: { version: JOB_INPUT_VERSION, kind: 'review', project: ctx.input.project, render_id: renderId, fps, submitted_by: ctx.input.submitted_by },
       signal: ctx.signal,
       event: ctx.event,
@@ -464,7 +469,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
         phase: p.stage,
         fraction: Math.round(p.overall * 1000) / 1000,
         ...(p.eta_s !== undefined ? { eta_s: p.eta_s } : {}),
-        updated_at: new Date().toISOString(),
+        updated_at: stampOf(ctx.clock),
       });
     },
   });

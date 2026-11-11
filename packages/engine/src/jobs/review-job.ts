@@ -11,6 +11,7 @@
 import { JOB_INPUT_VERSION, isRenderId, projectPath } from '@retake/core';
 import type { ReviewJobInput } from '@retake/core';
 import type { ReviewProgress } from '@retake/review';
+import { stampOf } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
@@ -22,6 +23,7 @@ import { reviewWork } from '../pipeline.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 // The lazy @retake/review (lazy.ts), re-exported for the modules that import it from here.
 export { review };
@@ -101,7 +103,8 @@ const STAGE_SPAN: Record<ReviewProgress['stage'], [number, number]> = {
   done: [1, 1],
 };
 
-export interface ReviewJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface ReviewJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: ReviewJobInput;
@@ -145,7 +148,7 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
       const key = `${p.stage}:${fraction}`;
       if (key === last) return;
       last = key;
-      ctx.progress({ steps_done: 0, steps_total: 0, phase: p.stage, fraction, updated_at: new Date().toISOString() });
+      ctx.progress({ steps_done: 0, steps_total: 0, phase: p.stage, fraction, updated_at: stampOf(ctx.clock) });
     },
   });
   return {

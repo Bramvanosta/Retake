@@ -5,6 +5,7 @@
 import { execFile } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { hostname } from 'node:os';
+import { stampOf } from '../clock.js';
 import { isAlive, processStart } from './proc.js';
 import { interrupted } from './interrupted.js';
 import { FINISHED_JOB_STATES } from './types.js';
@@ -57,7 +58,7 @@ async function recoverOrphans(w: Worker): Promise<void> {
     if (!(await isAlive(stored.worker))) continue; // dead too: persisted as interrupted by the first scan
     if (!(await provenJobProcess(id, w.root, stored.worker))) {
       w.log(`job ${id}: the process its record names (pid ${String(stored.worker.pid).slice(0, 12)}) is not provably its job process: left alone, the job ends interrupted`);
-      await closeJob(w, { ...interrupted(stored, w.cli, 'its jobs worker stopped while the job ran, and the process its record names could not be confirmed as its job process (left alone)'), finished_at: new Date().toISOString() });
+      await closeJob(w, { ...interrupted(stored, w.cli, 'its jobs worker stopped while the job ran, and the process its record names could not be confirmed as its job process (left alone)'), finished_at: stampOf(w.clock) });
       continue;
     }
     const pid = stored.worker.pid;
@@ -78,6 +79,6 @@ async function recoverOrphans(w: Worker): Promise<void> {
 /** What earlier workers left, before this worker's first claim: their orphaned job processes, then the approvals and rollbacks done with. */
 export async function recoverLeftovers(w: Worker): Promise<void> {
   await recoverOrphans(w);
-  await pruneUsedApprovals().catch(() => undefined);
+  await pruneUsedApprovals(process.env, w.clock.now()).catch(() => undefined);
   await import('@retake/hooks').then((h) => h.pruneDoneRollbacks()).catch(() => undefined);
 }

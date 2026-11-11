@@ -49,11 +49,12 @@ vi.mock('@retake/review', async (importOriginal) => {
   };
 });
 
-import { createEngine, executeExportJob, executeRenderJob, executeReviewJob, exportInProcess, historyFile, openProject, renderInProcess } from '../src/index.js';
+import { createEngine, executeExportJob, executeRenderJob, executeReviewJob, exportInProcess, historyFile, openProject, renderInProcess, enginePorts } from '../src/index.js';
 import { exportWork, renderWork } from '../src/pipeline.js';
 import { loopsWork, previewsWork, stillWork } from '../src/render/work.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 import { PERSON_POLICY } from '@retake/core';
@@ -69,7 +70,7 @@ const savedHome = process.env.RETAKE_HOME;
 const historyLines = async (): Promise<string[]> => (await readFile(historyFile(root), 'utf8').catch(() => '')).split('\n').filter(Boolean);
 /** The renderer every caller here hands: the editor's use cases are replaced above, so nothing is asked of it. */
 const renderer = new MemoryRenderer();
-const ctx = <I>(input: I) => ({ ws: engine.workspace, cli: 'retake', input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined, browser: () => undefined, renderer });
+const ctx = <I>(input: I) => ({ ...enginePorts(), ws: engine.workspace, cli: 'retake', input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined, browser: () => undefined, renderer });
 
 function recordOf(id: string) {
   return {
@@ -178,9 +179,10 @@ describe('the in-process functions write one history line each; the pipeline non
     const before = await historyLines();
     await renderWork({ renderer, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO });
     expect(await historyLines()).toEqual(before);
-    await renderInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO });
+    // The line is stamped with the clock the caller hands (the CLI's cliPorts), never the system's.
+    await renderInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: new ManualClock('2026-02-03T04:05:06.789Z') });
     const added = (await historyLines()).slice(before.length).map((l) => JSON.parse(l) as Record<string, unknown>);
-    expect(added).toEqual([{ v: 1, at: expect.any(String), kind: 'render', project: 'demo', submitted_by: 'cli', state: 'succeeded', ms: 4321, counted: { captures: 0, dry_runs: 0, renders: 1 } }]);
+    expect(added).toEqual([{ v: 1, at: '2026-02-03T04:05:06.789Z', kind: 'render', project: 'demo', submitted_by: 'cli', state: 'succeeded', ms: 4321, counted: { captures: 0, dry_runs: 0, renders: 1 } }]);
     // The CLI passes its own options through, untouched (no trust, no guard: a person's render).
     expect(seen.calls[1].options).not.toHaveProperty('trust');
     expect(seen.calls[1].options).not.toHaveProperty('network');
@@ -222,11 +224,12 @@ describe('the in-process functions write one history line each; the pipeline non
     const before = await historyLines();
     await exportWork({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16'] });
     expect(await historyLines()).toEqual(before);
-    await exportInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16', 'square_1x1'] });
+    const clock = new ManualClock('2026-02-03T04:05:06.789Z');
+    await exportInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16', 'square_1x1'], clock });
     seen.exportMethod = 'transcode';
-    await exportInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'] });
+    await exportInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'], clock });
     const added = (await historyLines()).slice(before.length).map((l) => JSON.parse(l) as Record<string, unknown>);
-    expect(added).toEqual([{ v: 1, at: expect.any(String), kind: 'export', project: 'demo', submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 2 } }]);
+    expect(added).toEqual([{ v: 1, at: '2026-02-03T04:05:06.789Z', kind: 'export', project: 'demo', submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 2 } }]);
   });
 });
 

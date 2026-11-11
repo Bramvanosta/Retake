@@ -22,6 +22,9 @@ import type { JobFiles } from './queue.js';
 import type { Workspace } from './run-job-record.js';
 import type { JobRecord, JobWorkerInfo } from './types.js';
 import type { KillFn } from './signal.js';
+import type { Clock } from '../clock.js';
+import type { EnginePorts } from '../ports.js';
+import type { ProjectStores } from '../store/store.js';
 import type { QosDeps, QosYield } from './yield.js';
 
 export interface WorkerOptions {
@@ -48,10 +51,12 @@ export interface WorkerOptions {
    */
   previewTest?: PreviewJobTestHooks;
   /**
-   * In-process tests only (never set by worker-main): what render, export and preview jobs render with, instead of the
-   * editor's driver. An object cannot reach a job process: with it, heavy jobs run in this process, as with previewTest.
+   * In-process tests only (never set by worker-main): the ports this worker runs with instead of the product's (ports.ts
+   * enginePorts: the system's clock, the disk's stores; and what render, export and preview jobs render with, instead of
+   * the editor's driver). An object cannot reach a job process: with any of them, heavy jobs run in this process, as
+   * with previewTest.
    */
-  rendererTest?: Renderer;
+  ports?: Partial<EnginePorts & { renderer: Renderer }>;
   /** The client that started this worker (`ui`, `mcp`, …): recorded in the worker lock (`started_by`). */
   startedBy?: string;
   /** How long a cancelled heavy job's process may take to end before its tree is killed (ms, default 30 000). */
@@ -100,6 +105,10 @@ export interface Worker {
   readonly cancelGraceMs: number;
   readonly orphanGraceMs: number;
   readonly kill: KillFn | undefined;
+  /** What this worker stamps with (its root's clock, ports.ts). */
+  readonly clock: Clock;
+  /** What its jobs' authored writes go through. */
+  readonly stores: ProjectStores;
   readonly ws: Workspace;
   readonly cli: string;
   readonly queue: JobQueue;
@@ -112,7 +121,7 @@ export interface Worker {
   readonly worker: JobWorkerInfo;
   readonly rw: typeof import('@retake/runner-web');
   readonly sb: typeof import('@retake/sandbox');
-  /** previewTest or rendererTest (in-process tests): heavy jobs run in this process, one job at a time, as before L5.14. */
+  /** previewTest or ports (in-process tests): heavy jobs run in this process, one job at a time, as before L5.14. */
   readonly inlineHeavy: boolean;
   /** `filming`: the take films now (runner onFilming: not during its setup / teardown hooks, not while paused — review B M3). */
   capture?: { id: string; filming: boolean; promise: Promise<void> };
@@ -147,6 +156,8 @@ export interface WorkerParts {
   o: WorkerOptions;
   log: (message: string) => void;
   root: string;
+  clock: Clock;
+  stores: ProjectStores;
   ws: Workspace;
   cli: string;
   queue: JobQueue;
@@ -172,6 +183,8 @@ export function newWorker(p: WorkerParts): Worker {
     cancelGraceMs: o.cancelGraceMs ?? 30_000,
     orphanGraceMs: o.orphanGraceMs ?? 15_000,
     kill: o.jobProcessTest?.kill,
+    clock: p.clock,
+    stores: p.stores,
     ws: p.ws,
     cli: p.cli,
     queue: p.queue,
@@ -183,7 +196,7 @@ export function newWorker(p: WorkerParts): Worker {
     worker: { ...p.self, host: hostname() },
     rw: p.rw,
     sb: p.sb,
-    inlineHeavy: o.previewTest !== undefined || o.rendererTest !== undefined,
+    inlineHeavy: o.previewTest !== undefined || o.ports !== undefined,
     slot: {},
     quitSync: new Set(),
     wake: {},

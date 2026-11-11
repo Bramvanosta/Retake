@@ -3,10 +3,11 @@ import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome } from '@retake/core';
 import { assertOutsideBundle } from '@retake/core/io';
-import { ProjectStore, personScope } from '@retake/engine';
+import { personScope } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
+import { cliPorts } from '../workspace.js';
 
 /** The retake.yaml `retake init` writes: every key commented, the defaults working as they are. */
 export const INIT_WORKSPACE_YAML = `# Retake workspace (docs/guide/workspace.md). Every key is optional.
@@ -40,7 +41,7 @@ export async function initWorkspace(dir: string): Promise<InitResult> {
   }
   await mkdir(join(root, 'projects'), { recursive: true });
   // Through the project store (each file created, never over one; journaled in the new workspace's journal).
-  const store = new ProjectStore(root, personScope(root));
+  const store = cliPorts.stores.at(root, personScope(root, cliPorts));
   await store.writeText(WORKSPACE_FILE, INIT_WORKSPACE_YAML, { ifMatch: null, what: 'workspace' });
   if (!existsSync(join(root, '.gitignore'))) await store.writeText('.gitignore', `${WORKSPACE_GITIGNORE.join('\n')}\n`, { ifMatch: null, what: 'workspace' });
   return { root, created: true };

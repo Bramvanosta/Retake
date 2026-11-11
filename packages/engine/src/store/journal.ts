@@ -19,6 +19,8 @@ import { constants, mkdir, open, readFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { STATE_DIR, WORKSPACE_JOURNAL_FILE, relativeInside, statePath } from '@retake/core';
 import type { Caller } from '../caller.js';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 
 export const JOURNAL_VERSION = 1;
 
@@ -160,12 +162,17 @@ function warnLost(e: unknown): void {
 /** Appending only, created owner-only, never through a symbolic link; read too, for its last byte. */
 const APPEND_FLAGS = constants.O_RDWR | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW;
 
+/** One journal line, its version and stamp first (the shape every store adapter journals). */
+export function journalLine(entry: Omit<JournalWrite, 'v' | 'at'> | Omit<JournalHook, 'v' | 'at'>, clock: Clock): string {
+  return `${JSON.stringify({ v: JOURNAL_VERSION, at: stampOf(clock), ...entry })}\n`;
+}
+
 /**
  * Append one line and sync it to disk before returning (the operation replies after this). The state folder is
  * created when missing; a torn last line (no line break) is closed first. Never throws: a failure is said on stderr.
  */
-export async function appendJournal(root: string, entry: Omit<JournalWrite, 'v' | 'at'> | Omit<JournalHook, 'v' | 'at'>): Promise<void> {
-  const line = `${JSON.stringify({ v: JOURNAL_VERSION, at: new Date().toISOString(), ...entry })}\n`;
+export async function appendJournal(root: string, entry: Omit<JournalWrite, 'v' | 'at'> | Omit<JournalHook, 'v' | 'at'>, clock: Clock): Promise<void> {
+  const line = journalLine(entry, clock);
   try {
     await mkdir(statePath(root), { recursive: true });
     // O_APPEND: lines of concurrent writers never interleave; the file is opened to append (and read its last byte),
@@ -187,6 +194,12 @@ export async function appendJournal(root: string, entry: Omit<JournalWrite, 'v' 
   } catch (e) {
     warnLost(e);
   }
+}
+
+/** Who a run of hooks is journaled as (its caller) and what its lines are stamped with (the composition root's clock). */
+export interface JournalAs {
+  caller: Pick<Caller, 'client' | 'channel' | 'trust'>;
+  clock: Clock;
 }
 
 /** The fields of a hook result the journal keeps (hooks HookResult, or the runner's view of one). */
@@ -218,9 +231,10 @@ export function hookEntry(result: HookRunResult): Omit<JournalHook, 'v' | 'at' |
  * The HookContext.recordRun of a caller's hooks: each hook or rollback run is a journal line of the workspace `root`,
  * with the project and the run (or hooks journal) id it ran for (`run`, or the one given with the result).
  */
-export function hookRunRecorder(root: string, caller: Pick<Caller, 'client' | 'channel' | 'trust'>, o: { project?: string; run?: string } = {}): (result: HookRunResult, run?: string) => Promise<void> {
+export function hookRunRecorder(root: string, as: JournalAs, o: { project?: string; run?: string } = {}): (result: HookRunResult, run?: string) => Promise<void> {
+  const { caller, clock } = as;
   const by = { client: caller.client, channel: caller.channel, trust: caller.trust };
-  return (result, run = o.run) => appendJournal(root, { by, ...(o.project !== undefined ? { project: o.project } : {}), ...hookEntry(result), ...(run !== undefined ? { run } : {}) });
+  return (result, run = o.run) => appendJournal(root, { by, ...(o.project !== undefined ? { project: o.project } : {}), ...hookEntry(result), ...(run !== undefined ? { run } : {}) }, clock);
 }
 
 export interface JournalQuery {

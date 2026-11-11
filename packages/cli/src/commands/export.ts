@@ -6,7 +6,7 @@ import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes } from './render.js';
 import { renderNotes } from './render-notes.js';
@@ -84,6 +84,7 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
       workPolicy: ws.policy,
       project,
       root: ws.root,
+      clock: cliPorts.clock,
       render,
       scenario: opts.scenario,
       formats,

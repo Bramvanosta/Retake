@@ -10,6 +10,8 @@ import { HISTORY_FILE } from '@retake/core';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobClient } from '@retake/core';
+import { stampOf } from './clock.js';
+import type { Clock } from './clock.js';
 import { stateDir } from './workspace-state.js';
 
 export const HISTORY_VERSION = 1;
@@ -61,11 +63,11 @@ export function historyFile(root: string): string {
   return join(stateDir(root), HISTORY_FILE);
 }
 
-/** Append one line (O_APPEND: lines of concurrent writers never interleave). Never throws. */
-export async function appendHistory(root: string, entry: Omit<HistoryEntry, 'v' | 'at'> & { at?: string }): Promise<void> {
+/** Append one line (O_APPEND: lines of concurrent writers never interleave), at the entry's own `at` or else the time of `clock`. Never throws. */
+export async function appendHistory(root: string, entry: Omit<HistoryEntry, 'v' | 'at'> & { at?: string }, clock: Clock): Promise<void> {
   try {
     await mkdir(stateDir(root), { recursive: true });
-    await appendFile(historyFile(root), `${JSON.stringify({ v: HISTORY_VERSION, at: entry.at ?? new Date().toISOString(), ...entry })}\n`, { flag: 'a' });
+    await appendFile(historyFile(root), `${JSON.stringify({ v: HISTORY_VERSION, at: entry.at ?? stampOf(clock), ...entry })}\n`, { flag: 'a' });
   } catch {
     // best effort: the work it records is done
   }

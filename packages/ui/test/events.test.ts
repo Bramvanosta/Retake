@@ -144,7 +144,7 @@ describe('/v1/events', () => {
       expect(Date.now() - t).toBeLessThan(2000);
       const jobs = s.next('jobs');
       const q = new FileJobQueue(ws);
-      const id = newJobId();
+      const id = newJobId(Date.now());
       await mkdir(join(q.files.dir, id), { recursive: true });
       await writeFile(join(q.files.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state: 'queued', created_at: new Date().toISOString() }));
       // L5.10a fixes (review A-L7): the event names the changed jobs' projects. L5.14b: and what a take holds (nothing).

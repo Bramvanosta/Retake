@@ -15,7 +15,7 @@ import { loadScenario, fileFacts } from '@retake/core/io';
 import type { HookStep, HooksJobInput, EnvResetJobInput, RunJobInput } from '@retake/core';
 import { hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, EngineError, approvalFormText, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals } from '../src/index.js';
+import { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, EngineError, approvalFormText, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals, enginePorts, ManualClock } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
@@ -56,7 +56,7 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 async function execHooks(input: HooksJobInput, signal = new AbortController().signal) {
   const events: JobEventBody[] = [];
-  const result = await executeHooksJob({ ws: await openWorkspace({ root: ws, agent: false }), cli: `retake -C ${ws}`, input, signal, event: (e) => events.push(e) });
+  const result = await executeHooksJob({ ...enginePorts(), ws: await openWorkspace({ root: ws, agent: false }), cli: `retake -C ${ws}`, input, signal, event: (e) => events.push(e) });
   return { result, events };
 }
 
@@ -194,7 +194,7 @@ describe('hooks executed by the worker (trust mcp)', () => {
     expect(result.journal).toEqual({ id: sub.journal_id, pending: 1 });
 
     const reset = await engine.env.reset({ project: 'northfield-fixture', dry: false }, { approver: accept() });
-    const r = await executeEnvResetJob({ ws: await openWorkspace({ root: ws, agent: false }), cli: 'retake', input: reset.job.input as EnvResetJobInput, signal: new AbortController().signal, event: () => undefined });
+    const r = await executeEnvResetJob({ ...enginePorts(), ws: await openWorkspace({ root: ws, agent: false }), cli: 'retake', input: reset.job.input as EnvResetJobInput, signal: new AbortController().signal, event: () => undefined });
     expect(r.ok).toBe(true);
     expect(r.rollbacks.find((j) => j.journal === sub.journal_id)?.results.map((x) => x.status)).toEqual(['ok']);
     expect(r.reset?.map((x) => [x.name, x.status])).toEqual([['reset-fixture', 'ok']]);
@@ -390,28 +390,30 @@ describe('what a person is asked shows every hook in full', () => {
     const head = '1. setup hook 1 "h0" (shell) — a shell command (runs local code)\n'.length + '   run: '.length;
     // Exactly at the limit: asked.
     const ok = accept();
-    expect(await takeApprovals(req([item(0, APPROVAL_HOOK_MAX_CHARS - head)]), ok)).toHaveLength(1);
+    // Each approval is stamped with the clock handed (the engine's), never the system's.
+    const clock = new ManualClock('2026-03-04T05:06:07.890Z');
+    expect(await takeApprovals(req([item(0, APPROVAL_HOOK_MAX_CHARS - head)]), ok, undefined, clock)).toEqual([{ fingerprint: '0'.repeat(64), by: 'human-elicitation', at: '2026-03-04T05:06:07.890Z' }]);
     expect(ok.asked).toHaveLength(1);
     const one = accept();
-    const long = await refusal(takeApprovals(req([item(0, APPROVAL_HOOK_MAX_CHARS - head + 1)]), one));
+    const long = await refusal(takeApprovals(req([item(0, APPROVAL_HOOK_MAX_CHARS - head + 1)]), one, undefined, clock));
     expect(long.code).toBe('refused');
     expect(long.message).toBe('hooks x:setup was not started: setup hook 1 "h0" (shell) is 4,001 characters long (a form shows at most 4,000 per hook) — too long to approve in a form: run it in a terminal');
     expect(long.fix).toBe('retake hooks run p x:setup');
     expect(one.asked).toEqual([]);
     // Without an approver too: the same refusal, not needs_approval.
-    expect((await refusal(takeApprovals(req([item(0, 5_000)]), undefined))).code).toBe('refused');
+    expect((await refusal(takeApprovals(req([item(0, 5_000)]), undefined, undefined, clock))).code).toBe('refused');
     // Five hooks of 3,500 characters each: every one under its limit, the form over 16,000.
     const many = accept();
-    const form = await refusal(takeApprovals(req([0, 1, 2, 3, 4].map((i) => item(i, 3_500))), many));
+    const form = await refusal(takeApprovals(req([0, 1, 2, 3, 4].map((i) => item(i, 3_500))), many, undefined, clock));
     expect(form.message).toMatch(/^hooks x:setup was not started: its 5 hooks make a form of 18,\d{3} characters \(at most 16,000\) — too long to approve in a form: run it in a terminal$/);
     expect(many.asked).toEqual([]);
     const four = accept();
-    expect(await takeApprovals(req([0, 1, 2, 3].map((i) => item(i, 3_500))), four)).toHaveLength(4);
+    expect(await takeApprovals(req([0, 1, 2, 3].map((i) => item(i, 3_500))), four, undefined, clock)).toHaveLength(4);
     // The whole form counts — its opening and closing lines too: four hooks at their limit make a form over 16,000.
     const full = req([0, 1, 2, 3].map((i) => item(i, APPROVAL_HOOK_MAX_CHARS - head)));
     expect(approvalFormText(full).length).toBeGreaterThan(APPROVAL_FORM_MAX_CHARS);
     const atLimit = accept();
-    expect((await refusal(takeApprovals(full, atLimit))).message).toContain(`its 4 hooks make a form of ${approvalFormText(full).length.toLocaleString('en-US')} characters (at most 16,000)`);
+    expect((await refusal(takeApprovals(full, atLimit, undefined, clock))).message).toContain(`its 4 hooks make a form of ${approvalFormText(full).length.toLocaleString('en-US')} characters (at most 16,000)`);
     expect(atLimit.asked).toEqual([]);
   });
 });

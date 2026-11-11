@@ -11,7 +11,7 @@ import type { ExitCode } from '../errors.js';
 import { ProgressPrinter, runStatusText } from '../progress.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { printIssues } from './validate.js';
 import { loginCommandFor } from './auth.js';
@@ -134,7 +134,9 @@ export async function runCommand(
         ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
         ...(opts.dry ? {} : { onFilming }),
         // Each hook run is a line of the workspace journal, as the person's.
-        recordAs: callerOf('cli'),
+        recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
+        // What its history line is stamped with when the run has no end of its own.
+        clock: cliPorts.clock,
       },
       {
         issues: (issues, file) => {

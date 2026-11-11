@@ -24,15 +24,18 @@ import { RenderFrames } from '../render-frames.js';
 import { RunDataCache } from '../run-data.js';
 import { RunThumbs } from '../run-thumbs.js';
 import { ScenarioViews } from '../scenario-view.js';
-import type { StoreScope } from '../store/project-store.js';
+import type { StoreScope } from '../store/store.js';
 import { openWorkspace } from '../workspace.js';
 import { scenarioSessions } from './sessions.js';
 import type { EngineOptions, RunStatusWithJob, ScenarioSessions } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** What every sub-API of the façade is built from: made once per engine, shared by its builders. */
 export interface EngineContext {
   readonly opts: EngineOptions;
+  /** The ports this engine runs with (its composition root's choice, ports.ts). */
+  readonly ports: EnginePorts;
   /** The caller of the client and every decision taken from it (caller.ts). */
   readonly caller: Caller;
   /** The agent's checks apply to this caller. */
@@ -78,7 +81,7 @@ function shellQuote(s: string): string {
  * shared parts. `queueOf` builds the workspace's job queue and names its files (createEngine, the composition root,
  * builds the file queue): the context holds the queue as its port.
  */
-export async function engineContext(opts: EngineOptions, queueOf: (root: string, cli: string) => { queue: JobQueue; files: JobFiles }): Promise<EngineContext> {
+export async function engineContext(opts: EngineOptions, ports: EnginePorts, queueOf: (root: string, cli: string) => { queue: JobQueue; files: JobFiles }): Promise<EngineContext> {
   const caller = callerOf(opts.client);
   // The agent's checks and wording of this caller (caller.ts).
   const agent = agentChecks(caller);
@@ -86,7 +89,7 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   // Every caller but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
   const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller) });
   // Every authored write of this engine goes through the project store, journaled as this caller's.
-  const scope: StoreScope = { workspace: ws.root, caller };
+  const scope: StoreScope = { workspace: ws.root, caller, clock: ports.clock, stores: ports.stores };
   const project = (slug: string) => openProjectBySlug(ws, slug);
   /** The commands a human runs name this workspace explicitly (they may be typed in any folder). */
   const studio = `retake -C ${shellQuote(ws.root)}`;
@@ -94,7 +97,7 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
 
   const { queue, files: jobFiles } = queueOf(ws.root, studio);
   const commentIndex = new CommentIndex();
-  const submitCtx = { ws, queue, cli: studio, client: opts.client };
+  const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, clock: ports.clock, stores: ports.stores };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
   const runThumbs = new RunThumbs({ policy: ws.policy }, runData);
@@ -152,5 +155,5 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const admitted = admits(caller)
     ? admission({ queue, channel: via, sessions: (t) => sessionsOf(t.project, t.scenario.name, t.scenario.scenario, { ...(t.env !== undefined ? { env: t.env } : {}), mode: 'capture' }) })
     : undefined;
-  return { opts, caller, agent, via, ws, files: fileFacts(ws.policy), scope, project, studio, loginCommand, queue, jobFiles, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
+  return { opts, ports, caller, agent, via, ws, files: fileFacts(ws.policy), scope, project, studio, loginCommand, queue, jobFiles, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
 }

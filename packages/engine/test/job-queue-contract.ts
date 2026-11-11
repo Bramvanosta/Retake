@@ -9,8 +9,8 @@ import { spawnSync } from 'node:child_process';
 import { hostname } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import type { RunJobInput } from '@retake/core';
-import { EngineError, newJobId, selfIdentity, verifiedApprovals } from '../src/index.js';
-import type { JobQueue, JobRecord, YieldMark } from '../src/index.js';
+import { EngineError, ManualClock, newJobId, selfIdentity, stampOf, verifiedApprovals } from '../src/index.js';
+import type { Clock, JobQueue, JobRecord, YieldMark } from '../src/index.js';
 
 export const RUN_INPUT: RunJobInput = {
   version: 1,
@@ -34,8 +34,8 @@ export interface ContractQueue {
   root: string;
 }
 
-/** `make(name, cli)`: a new, empty queue of its own each call. */
-export function jobQueueContract(adapter: string, make: (name: string, cli?: string) => Promise<ContractQueue>): void {
+/** `make(name, cli, clock)`: a new, empty queue of its own each call (stamped by `clock` when one is given). */
+export function jobQueueContract(adapter: string, make: (name: string, cli?: string, clock?: Clock) => Promise<ContractQueue>): void {
   const review = (q: JobQueue, n: number) => q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: `quote-v${n}`, fps: 1, submitted_by: 'test' } as never);
   const running = async (q: JobQueue, rec: JobRecord, extra: Partial<JobRecord> = {}): Promise<JobRecord> => {
     const me = { ...(await selfIdentity()), host: hostname() };
@@ -92,7 +92,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
         // The events of a job that cannot be read are none.
         expect(await q.events(bad), bad).toEqual([]);
       }
-      const unknown = newJobId();
+      const unknown = newJobId(Date.now());
       expect(await q.get(unknown)).toBeUndefined();
       expect(await q.stored(unknown)).toBeUndefined();
       expect(await q.claimOf(unknown)).toBeUndefined();
@@ -339,10 +339,37 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       const signed = (rec.input as { approvals?: Array<{ sig?: string }> }).approvals!;
       expect(signed[0]!.sig).toMatch(/^[0-9a-f]{64}$/);
       expect((await verifiedApprovals(rec.input, { jobId: rec.id, root })).approvals).toHaveLength(1);
-      expect((await verifiedApprovals(rec.input, { jobId: newJobId(), root })).rejected).toBe(1);
+      expect((await verifiedApprovals(rec.input, { jobId: newJobId(Date.now()), root })).rejected).toBe(1);
       expect((await q.stored(rec.id))?.input).toEqual(rec.input);
       // A job without approvals carries none.
       expect('approvals' in (await q.enqueue(RUN_INPUT)).input).toBe(false);
+    });
+
+    it('stamps its records, markers, claims and events with the clock it is handed (the composition root\'s)', async () => {
+      const clock = new ManualClock('2026-03-04T05:06:07.008Z');
+      const { queue: q } = await make('clock', undefined, clock);
+      const a = await q.enqueue(RUN_INPUT);
+      expect(a.created_at).toBe('2026-03-04T05:06:07.008Z');
+      // The id is made at the clock's time too (a ULID: its first 10 characters are the milliseconds).
+      expect(a.id.slice(2, 12)).toBe(newJobId(clock.now()).slice(2, 12));
+      clock.advance(1_000);
+      expect(await q.claim(a.id, await selfIdentity())).toBe(true);
+      expect((await q.claimOf(a.id))?.at).toBe(stampOf(clock));
+      clock.advance(1_000);
+      await q.requestPause(a.id, true, 'test');
+      expect((await q.pauseOf(a.id))?.at).toBe('2026-03-04T05:06:09.008Z');
+      clock.advance(1_000);
+      await q.requestStop(a.id, 'test');
+      expect((await q.stopOf(a.id))?.at).toBe('2026-03-04T05:06:10.008Z');
+      clock.advance(1_000);
+      expect((await q.cancel(a.id, 'test')).cancel_requested_at).toBe('2026-03-04T05:06:11.008Z');
+      clock.advance(1_000);
+      await q.append(a.id, 0, [{ type: 'log', level: 'info', message: 'one' }]);
+      expect((await q.events(a.id)).map((e) => e.t)).toEqual(['2026-03-04T05:06:12.008Z']);
+      // A queue with its own memory keeps the clock.
+      const own = q.withOwnMemory('retake -C x');
+      clock.set('2027-01-01T00:00:00.000Z');
+      expect((await own.enqueue(RUN_INPUT)).created_at).toBe('2027-01-01T00:00:00.000Z');
     });
   });
 }

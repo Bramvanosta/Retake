@@ -28,7 +28,9 @@
  */
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { stampOf } from '../clock.js';
 import { EngineError } from '../errors.js';
+import { enginePorts } from '../ports.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
 import { heldFile } from './captures.js';
@@ -61,20 +63,22 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
 
 /** Run a worker until it is idle, stopped or replaced; resolves with the process exit code. */
 export async function runWorker(o: WorkerOptions): Promise<number> {
-  const log = o.log ?? ((m: string) => void process.stderr.write(`${new Date().toISOString()} worker ${process.pid}: ${m}\n`));
+  // The worker process's composition root: the ports its jobs run with (a test's, else the product's).
+  const { clock, stores } = enginePorts(o.ports);
+  const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   // Two test stand-ins for the same thing: which one would draw a preview is not left to an order of precedence.
-  if (o.rendererTest !== undefined && o.previewTest?.backend !== undefined) {
-    throw new EngineError('internal', 'a worker is handed a renderer (rendererTest) or a preview backend (previewTest.backend), not both');
+  if (o.ports?.renderer !== undefined && o.previewTest?.backend !== undefined) {
+    throw new EngineError('internal', 'a worker is handed a renderer (ports.renderer) or a preview backend (previewTest.backend), not both');
   }
   const ws = await openForWorker(root, log);
   if (!ws) return 1;
   const cli = `retake -C ${shellQuote(root)}`;
   // The worker process's composition root: the one queue this worker reads and writes.
-  const queue = new FileJobQueue(root, cli);
+  const queue = new FileJobQueue(root, cli, clock);
   const dirs = buildDirs();
   const build = buildStamp(dirs);
-  const lock = await WorkerLock.acquire(root, build, log, o.startedBy);
+  const lock = await WorkerLock.acquire(root, build, clock, log, o.startedBy);
   if (!lock) {
     log('another worker serves this workspace: exiting');
     return 0;
@@ -84,7 +88,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const sb = await import('@retake/sandbox');
   log(`serving ${root} (build ${build})`);
 
-  const w = newWorker({ o, log, root, ws, cli, queue, files: queue.files, dirs, build, lock, self, rw, sb });
+  const w = newWorker({ o, log, root, clock, stores, ws, cli, queue, files: queue.files, dirs, build, lock, self, rw, sb });
   const stopListening = handleSignals(w);
   w.runJob = captureJobRunner(w);
   let handover = false;

@@ -31,6 +31,8 @@ import {
   sha256Hex,
   signalInterrupts,
   toEngineError,
+  systemClock,
+  enginePorts,
 } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
@@ -71,7 +73,7 @@ afterAll(async () => {
 
 describe('job ids', () => {
   it('are "j_" + a ULID, sortable in creation order', () => {
-    const ids = Array.from({ length: 50 }, () => newJobId());
+    const ids = Array.from({ length: 50 }, () => newJobId(Date.now()));
     for (const id of ids) expect(id).toMatch(JOB_ID_RE);
     expect([...ids].sort()).toEqual(ids);
     expect(new Set(ids).size).toBe(50);
@@ -205,15 +207,15 @@ describe('FileJobQueue', () => {
 describe('the worker lock', () => {
   it('one holder; a stale lock (its process gone) is taken over', async () => {
     const root = join(ws, 'lock');
-    const a = await WorkerLock.acquire(root, 'b1');
+    const a = await WorkerLock.acquire(root, 'b1', systemClock);
     expect(a).not.toBeNull();
-    expect(await WorkerLock.acquire(root, 'b1')).toBeNull();
+    expect(await WorkerLock.acquire(root, 'b1', systemClock)).toBeNull();
     expect(readWorkerLock(root)).toMatchObject({ pid: process.pid, build: 'b1' });
     a!.release();
     expect(readWorkerLock(root)).toBeNull();
     await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid: deadPid(), host: 'h', version: '0', build: 'old', since: '2026-01-01T00:00:00.000Z' }));
     const notes: string[] = [];
-    const b = await WorkerLock.acquire(root, 'b2', (m) => notes.push(m));
+    const b = await WorkerLock.acquire(root, 'b2', systemClock, (m) => notes.push(m));
     expect(b).not.toBeNull();
     expect(notes[0]).toContain('took over a stale worker lock');
     b!.release();
@@ -221,10 +223,10 @@ describe('the worker lock', () => {
 
   it('started_by (L4.2): the client that started it, a client name only — anything else is dropped, written or read', async () => {
     const root = join(ws, 'lock-started-by');
-    const a = await WorkerLock.acquire(root, 'b1', undefined, 'ui');
+    const a = await WorkerLock.acquire(root, 'b1', systemClock, undefined, 'ui');
     expect(readWorkerLock(root)).toMatchObject({ pid: process.pid, started_by: 'ui' });
     a!.release();
-    const odd = await WorkerLock.acquire(root, 'b1', undefined, 'ui <b>x</b>');
+    const odd = await WorkerLock.acquire(root, 'b1', systemClock, undefined, 'ui <b>x</b>');
     expect(readWorkerLock(root)?.started_by).toBeUndefined();
     expect(await readFile(join(root, '.retake', 'workers', 'worker.lock'), 'utf8')).not.toContain('started_by');
     odd!.release();
@@ -247,7 +249,7 @@ describe('the worker lock', () => {
         expect(await liveWorker(root), String(pid)).toBeNull();
       }
       // The forged lock is taken over by a real worker, whose own lock (with its start time) is alive.
-      const lock = await WorkerLock.acquire(root, 'b1', undefined, 'ui');
+      const lock = await WorkerLock.acquire(root, 'b1', systemClock, undefined, 'ui');
       expect(lock).not.toBeNull();
       expect(await liveWorker(root)).toMatchObject({ pid: process.pid, started_by: 'ui' });
       lock!.release();
@@ -363,7 +365,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
     await writeFile(file(), `${text}\n# changed\n`);
     try {
       const events: unknown[] = [];
-      const e = await executeRunJob({
+      const e = await executeRunJob({ ...enginePorts(),
         ws: await openWorkspace({ root: ws, agent: false }),
         cli: 'retake',
         input: sub.job.input as RunJobInput,

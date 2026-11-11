@@ -21,6 +21,7 @@ import { checkEnvName } from './hooks-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { AuthLoginJobResult, JobEventBody, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** The environment variable that changes how long a headed sign-in window of a job may stay open (minutes). */
 export const AUTH_HEADED_MAX_ENV = 'RETAKE_SIGNIN_MAX_MIN';
@@ -138,7 +139,8 @@ export async function submitAuthLoginJob(ctx: SubmitContext, req: AuthLoginSubmi
   return { job: await ctx.queue.enqueue(input), persona: target.persona.name, env: target.env.name };
 }
 
-export interface AuthLoginJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface AuthLoginJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: AuthLoginJobInput;

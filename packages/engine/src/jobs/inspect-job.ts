@@ -32,6 +32,7 @@ import {
 import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkPolicy } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
 import { fileFacts } from '@retake/core/io';
+import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
@@ -45,6 +46,7 @@ import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -395,7 +397,8 @@ export function inspectResult(id: string, dir: string, run: InspectionRun): Insp
   };
 }
 
-export interface InspectJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface InspectJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: InspectJobInput;
@@ -412,9 +415,9 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
   const prepared = await prepareInspect(ctx.ws, project, input.source, input.env);
   await checkWorkspaceProtection(ctx.ws, project, prepared.env);
   await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
-  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: new Date().toISOString() };
+  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {
-    Object.assign(progress, patch, { updated_at: new Date().toISOString() });
+    Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
     ctx.progress({ ...progress });
   };
   const run = await runInspection({

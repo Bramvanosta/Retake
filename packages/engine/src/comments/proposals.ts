@@ -15,18 +15,19 @@ import type {
 } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from '../errors.js';
-import type { StoreScope } from '../store/project-store.js';
+import type { StoreScope } from '../store/store.js';
 import { checkRunId } from '../refs.js';
 import { PROPOSAL_CONTEXT_LINES, checkProposedText, diffRows, rebuildProposal } from '../comment-proposals.js';
 import type { ProposalRow } from '../comment-proposals.js';
 import { editScenario, getScenario } from '../scenarios.js';
 import type { ScenarioText } from '../scenarios.js';
 import { sha256Hex } from '../storage.js';
-import { appendedThread, applyEntryOf, argError, checkIfMatch, locateThread, lockThread, readThread, threadStore } from './store.js';
+import { appendedThread, FIT_STAMP, applyEntryOf, argError, checkIfMatch, locateThread, lockThread, readThread } from './store.js';
 import { renderIndex, threadView } from './views.js';
 import type { CommentView } from './views.js';
 import { writeAppended } from './threads.js';
 import type { CommentWritten } from './threads.js';
+import { stampOf } from '../clock.js';
 
 // ── Proposals: apply, the diff shown, the preview (L4.6, R-UI-28) ─────────────
 
@@ -108,10 +109,10 @@ export async function applyProposal(
   id: string,
   req: CommentApplyRequest,
   author: CommentAuthor,
-  o: { registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: WorkFileFacts },
+  o: { registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts },
 ): Promise<CommentApplied> {
-  // The scenario is written as the caller's (the Studio's by default: a person applies there).
-  const scope = o.scope ?? threadStore(project, author).scope;
+  // The scenario is written as the caller's (the Studio's: a person applies there).
+  const { scope } = o;
   if (req.ifMatch !== undefined && (typeof req.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(req.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   if (typeof req.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(req.entry_id)) throw argError('entry_id', `invalid entry id "${String(req.entry_id).slice(0, 80)}": r_ + 26 characters`);
   const f = await locateThread(project.dir, id);
@@ -130,7 +131,7 @@ export async function applyProposal(
     // The apply entry must fit the thread (entries, size) before the scenario is written (review A L5 / B M3): a full
     // thread refuses with nothing changed. The entry written after names the hash editScenario returns (= this one).
     try {
-      appendedThread(id, r, applyEntryOf(author, entry.id, entry.proposal.result_sha256));
+      appendedThread(id, r, applyEntryOf(author, entry.id, entry.proposal.result_sha256, FIT_STAMP));
     } catch (e) {
       if (e instanceof EngineError) throw new EngineError(e.code, `not applied: ${e.message} — nothing was written`, e.details !== undefined ? { details: e.details } : {});
       throw e;
@@ -145,7 +146,7 @@ export async function applyProposal(
     const problems: string[] = [];
     let written: CommentWritten | undefined;
     try {
-      written = await writeAppended(project, f, r, applyEntryOf(author, entry.id, edited.hash), scope);
+      written = await writeAppended(project, f, r, applyEntryOf(author, entry.id, edited.hash, stampOf(scope.clock)), scope);
     } catch (e) {
       problems.push(`the apply was written to ${edited.file} but not recorded in the thread (${(e as Error).message.split('\n')[0]}): the thread reads the proposal as applied from the file`);
     }
@@ -262,7 +263,7 @@ export async function getProposal(project: LoadedProject, id: string, entryId: s
     try {
       const text = rebuildProposal(today, p, 'applied');
       await checkProposedText(project, r.thread.scenario, today, text, 'applied', o);
-      appendedThread(r.thread.id, r, applyEntryOf({ via: 'studio', name: 'x'.repeat(COMMENT_AUTHOR_MAX) }, entry.id, p.result_sha256)); // the longest name: never offered when Apply would not fit
+      appendedThread(r.thread.id, r, applyEntryOf({ via: 'studio', name: 'x'.repeat(COMMENT_AUTHOR_MAX) }, entry.id, p.result_sha256, FIT_STAMP)); // the longest name: never offered when Apply would not fit
     } catch (e) {
       if (!(e instanceof Error)) throw e;
       const words = e.message.split(`${project.dir}/`).join('').split(project.dir).join('.');

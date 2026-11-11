@@ -167,6 +167,22 @@ const coreIoImport = (s, f) => {
 export const ENGINE_LOADER = 'packages/engine/src/lazy.ts';
 /** Where the engine's renderer port, its adapters and the work on them live: the only engine folder that names the editor's render functions. */
 export const RENDER_HOME = 'packages/engine/src/render/';
+/** The engine's Clock port (clock-read): the one file of the engine that reads the wall clock for a stamp. */
+export const CLOCK_HOME = 'packages/engine/src/clock.ts';
+/** The project store's folder and the media storage (store-new): where a store or a storage of a folder is built. */
+export const STORE_HOME = 'packages/engine/src/store/';
+export const STORAGE_FILE = 'packages/engine/src/storage.ts';
+/**
+ * Where each product adapter of a port may be named as a value (clock-read, store-new): its own file, the ports bag
+ * (packages/engine/src/ports.ts enginePorts: the one place the defaults are written) and the composition roots that
+ * call it — createEngine, the jobs worker, the job process, the CLI's cliPorts — and the job queues' defaults (for
+ * tests: the roots pass their clock, the queue check holds them to it).
+ */
+export const PORT_ROOTS = {
+  systemClock: [CLOCK_HOME, 'packages/engine/src/ports.ts', 'packages/engine/src/jobs/queue.ts', 'packages/engine/src/jobs/memory-queue.ts'],
+  enginePorts: ['packages/engine/src/ports.ts', 'packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/cli/src/workspace.ts'],
+  diskProjectStores: ['packages/engine/src/store/project-store.ts', 'packages/engine/src/ports.ts'],
+};
 /**
  * The editor's render entries: its functions that render (a video, stills, an export's formats, component previews)
  * and what makes its renderer or a part of one (the driver, the plan's part, the previews' part and their backend).
@@ -193,7 +209,9 @@ export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
   { id: 'R10', title: 'the rendering library (`remotion`, `@remotion/*`) is named in its seam files only (LIBRARY_SEAMS: each with the packages it may load or resolve; the built-in components and the scaffolds name it nowhere): a static, type or dynamic import, a re-export, a require, a `resolve()` of its path, a seam file re-exported wholesale by another file, or a seam file that hands the library on imported from outside its folder (LIBRARY_SEAM_IMPORTERS). Not seen: a specifier computed at run time (LIBRARY_COMPUTED_READS), a require reached under another name, the library\'s name inside a data string, what a seam file itself exports, and tests, scripts, fixtures and apps' },
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
-  { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
+  { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter\'s own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)' },
+  { id: 'clock-read', title: `the engine stamps what it writes with its Clock port (${CLOCK_HOME}): in packages/engine/src outside it, every wall-clock read is counted per file — \`new Date()\` with no argument, \`Date.now\` (called or passed on as a value, \`Date['now']\` too) and \`Date()\` called as a function — and the pinned files are elapsed time, deadlines, memo lifetimes and file times, never a stamp (entries: each file and its count); and the product's ports are named at the composition roots only: \`systemClock\` and \`enginePorts\` as values anywhere in packages/*/src outside PORT_ROOTS (a default parameter included; import and export declarations are not uses). Also read: a name imported under another (\`{ systemClock as sc }\`), a member of a namespace import (\`k.systemClock\`, \`k['enginePorts']\`) and \`now\` taken out of \`Date\` by a pattern (\`const { now } = Date\`). Not seen: \`globalThis.Date\`, \`Date\` or a port under another name made in the file (\`const D = Date\`, \`const c = systemClock\` then \`c\`: the first is counted, not the uses), a name reached through \`Reflect\`, \`Function.prototype.call\` or a computed key, a namespace from \`await import()\`, and \`performance.now()\`, which is allowed (elapsed time)` },
+  { id: 'store-new', title: `only the project store builds a store or a storage of a folder: in packages/*/src outside ${STORE_HOME} and ${STORAGE_FILE}, \`new LocalStorage(…)\`, \`new DiskProjectStore(…)\`, a class extending either, or either class passed on as a value is a hit, and so is the disk adapter \`diskProjectStores\` named as a value outside PORT_ROOTS (entries: the file and the form; a type position, an import and an export are not uses), under its own name, an import alias (\`{ LocalStorage as LS }\`) or off a namespace import (\`new st.LocalStorage()\`, \`ps.diskProjectStores\`): every authored write is handed a ProjectStores port in its StoreScope. Not seen: \`Reflect.construct(LocalStorage, …)\` counted only as the class used as a value, a class reached through another variable, a namespace from \`await import()\`` },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
   { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
@@ -397,6 +415,8 @@ const QUEUE_CLASS = 'FileJobQueue';
  * and the adapter's own file (its withOwnMemory() makes one).
  */
 const QUEUE_ROOTS = ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts', 'packages/cli/src/workspace.ts'];
+/** The file queue's own file: its withOwnMemory() hands its clock on through `this.clock`, its constructor has the default. */
+const QUEUE_ADAPTER = 'packages/engine/src/jobs/queue.ts';
 const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
 /** The queue's submit and the worker's writes (JobQueue minus JobQueueView): called inside packages/engine/src only. */
 const QUEUE_WRITES = new Set(['enqueue', 'write', 'claim', 'unclaim', 'setYield', 'append']);
@@ -473,13 +493,15 @@ export function wiringHits(root, files) {
   const hits = [];
   for (const { rel, text } of files) {
     const queue = !queueRoot(rel) && text.includes(QUEUE_CLASS);
+    // Every construction but the adapter's own hands the queue its clock (the roots included).
+    const queueClock = rel !== QUEUE_ADAPTER && text.includes(QUEUE_CLASS);
     const calls = !queueCallsAllowed(rel) && text.includes('queue');
     const state = POLICY_VALUE_PACKAGES.includes(pkgOf(rel)) && /\b(?:let|var)\b/.test(text);
     const render = renderCallsChecked(rel) && RENDER_CALL_TEXT.test(text);
-    if (!queue && !calls && !state && !render) continue;
+    if (!queue && !queueClock && !calls && !state && !render) continue;
     const sf = parse(ts, rel, text);
     if (state) for (const name of policyStateNames(ts, sf)) hits.push({ rule: 'policy-state', file: rel, spec: `let ${name}` });
-    if (!queue && !calls && !render) continue;
+    if (!queue && !queueClock && !calls && !render) continue;
     const names = new Map([[QUEUE_CLASS, QUEUE_CLASS]]); // local name → original
     const found = new Set();
     sf.forEachChild(function imports(n) {
@@ -516,6 +538,12 @@ export function wiringHits(root, files) {
       // Type positions (annotations, `typeof`, generics, `implements`, type declarations) never use the class as a value.
       const typeHere = inType || (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
       if (queue && !typeHere && ts.isNewExpression(n) && nameOf(n.expression) === QUEUE_CLASS) found.add(`queue:new ${QUEUE_CLASS}`);
+      if (queueClock && !typeHere && ts.isNewExpression(n) && nameOf(n.expression) === QUEUE_CLASS) {
+        // Fewer than three arguments, or a third that says none: `undefined`, `void 0` (the adapter's default would apply).
+        const c = n.arguments?.[2];
+        const none = !c || (ts.isIdentifier(c) && c.text === 'undefined') || ts.isVoidExpression(c);
+        if (none) found.add(`queue:new ${QUEUE_CLASS} without a clock`);
+      }
       if (queue && !typeHere && ts.isHeritageClause(n) && n.types.some((t) => nameOf(t.expression) === QUEUE_CLASS)) found.add(`queue:extends ${QUEUE_CLASS}`);
       if (queue && !typeHere) {
         const ref = (ts.isIdentifier(n) || ts.isPropertyAccessExpression(n)) && nameOf(n) === QUEUE_CLASS && !notAValue(n);
@@ -569,6 +597,101 @@ function policyStateNames(ts, sf) {
     }
   }
   return out;
+}
+
+/** The classes of a folder's store or storage (store-new). */
+const STORE_CLASSES = new Set(['LocalStorage', 'DiskProjectStore']);
+
+/**
+ * The ports' wiring, read from the syntax tree (clock-read, store-new). In packages/engine/src outside CLOCK_HOME, the
+ * wall-clock reads of each file, counted: `new Date` with no argument, `Date.now` taken off `Date` in any way (a
+ * property, `Date['now']`, called or not) and `Date()` called; in packages/*\/src, `systemClock`, `enginePorts` and
+ * `diskProjectStores` used as values outside their PORT_ROOTS, and outside STORE_HOME and STORAGE_FILE a store or a
+ * storage built (`new LocalStorage`, `new DiskProjectStore`), extended or passed on as a value. Import and export
+ * declarations, a declaration's own name, a property name and type positions are not uses. `{ clock: [{ file, count,
+ * lines }], hits: [{ rule, file, spec }] }`.
+ */
+export function portHits(root, files) {
+  const ts = loadTs(root);
+  const clock = [];
+  const hits = [];
+  const NAMED = Object.keys(PORT_ROOTS);
+  for (const { rel, text } of files) {
+    const reads = rel.startsWith('packages/engine/src/') && rel !== CLOCK_HOME && /\bDate\b/.test(text);
+    const named = NAMED.filter((n) => !PORT_ROOTS[n].includes(rel) && text.includes(n));
+    const stores = !rel.startsWith(STORE_HOME) && rel !== STORAGE_FILE && [...STORE_CLASSES].some((c) => text.includes(c));
+    if (!reads && !named.length && !stores) continue;
+    const sf = parse(ts, rel, text);
+    const lines = [];
+    const found = new Set();
+    const watched = new Set([...named, ...(stores ? STORE_CLASSES : [])]);
+    // The import map (as wiringHits keeps one): a watched name imported under another (`{ systemClock as sc }`), and
+    // the namespaces imported whole (`import * as k`), whose `k.systemClock` / `k['systemClock']` is the name too.
+    const local = new Map();
+    const spaces = new Set();
+    sf.forEachChild((d) => {
+      if (!ts.isImportDeclaration(d) || !d.importClause || d.importClause.isTypeOnly) return;
+      const b = d.importClause.namedBindings;
+      if (b && ts.isNamespaceImport(b)) spaces.add(b.name.text);
+      if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly && watched.has((e.propertyName ?? e.name).text)) local.set(e.name.text, (e.propertyName ?? e.name).text);
+    });
+    /** The watched name an expression stands for: a name (its own or an import alias), or a member of a namespace import. */
+    const origOf = (e) => {
+      if (ts.isIdentifier(e)) return local.get(e.text) ?? (watched.has(e.text) ? e.text : undefined);
+      if (ts.isPropertyAccessExpression(e) && ts.isIdentifier(e.expression) && spaces.has(e.expression.text)) return watched.has(e.name.text) ? e.name.text : undefined;
+      if (ts.isElementAccessExpression(e) && ts.isIdentifier(e.expression) && spaces.has(e.expression.text)) {
+        const k = constText(ts, e.argumentExpression);
+        return k !== undefined && watched.has(k) ? k : undefined;
+      }
+      return undefined;
+    };
+    const isDate = (e) => ts.isIdentifier(e) && e.text === 'Date';
+    // A name in a place that is not a use of a value: its declaration, a property name or key, a type.
+    const notAValue = (n) => {
+      const p = n.parent;
+      if (!p) return true;
+      if ((ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n) || (ts.isMethodDeclaration(p) && p.name === n) || (ts.isPropertySignature(p) && p.name === n)) return true;
+      if ((ts.isClassDeclaration(p) || ts.isFunctionDeclaration(p) || ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isPropertyDeclaration(p) || ts.isBindingElement(p)) && p.name === n) return true;
+      return false;
+    };
+    // `now` taken out of Date by a pattern: `const { now } = Date`, `const { now: t } = Date`, `({ now } = Date)`.
+    const patternNow = (pattern) =>
+      (ts.isObjectBindingPattern(pattern) && pattern.elements.some((e) => (e.propertyName ? keyText(ts, e.propertyName) : ts.isIdentifier(e.name) ? e.name.text : undefined) === 'now')) ||
+      (ts.isObjectLiteralExpression(pattern) && pattern.properties.some((p) => (ts.isShorthandPropertyAssignment(p) ? p.name.text : ts.isPropertyAssignment(p) ? keyText(ts, p.name) : undefined) === 'now'));
+    const portHit = (name) => found.add(name === 'diskProjectStores' ? `store-new:${name} outside a root` : `clock-read:${name} outside a root`);
+    (function visit(n, inType = false) {
+      if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) return;
+      const typeHere = inType || (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
+      if (!typeHere) {
+        if (reads) {
+          const read =
+            (ts.isNewExpression(n) && isDate(n.expression) && (n.arguments?.length ?? 0) === 0) ||
+            (ts.isPropertyAccessExpression(n) && isDate(n.expression) && n.name.text === 'now') ||
+            (ts.isElementAccessExpression(n) && isDate(n.expression) && constText(ts, n.argumentExpression) === 'now') ||
+            (ts.isCallExpression(n) && isDate(n.expression)) ||
+            (ts.isVariableDeclaration(n) && n.initializer && isDate(n.initializer) && patternNow(n.name)) ||
+            (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && isDate(n.right) && patternNow(ts.isParenthesizedExpression(n.left) ? n.left.expression : n.left));
+          if (read) lines.push(sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1);
+        }
+        // A watched name used as a value: under its name, an alias, or off a namespace import.
+        const name = ts.isIdentifier(n) ? (notAValue(n) ? undefined : origOf(n)) : ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n) ? origOf(n) : ts.isShorthandPropertyAssignment(n) ? origOf(n.name) : undefined;
+        if (name !== undefined && named.includes(name)) portHit(name);
+        if (stores) {
+          if (ts.isNewExpression(n) && STORE_CLASSES.has(origOf(n.expression) ?? '')) found.add(`store-new:new ${origOf(n.expression)}`);
+          if (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ExtendsKeyword) {
+            for (const t of n.types) if (STORE_CLASSES.has(origOf(t.expression) ?? '')) found.add(`store-new:extends ${origOf(t.expression)}`);
+          }
+          // Any other value use of the class (`const K = LocalStorage`, `f(st.LocalStorage)`): not its construction, not its base class.
+          const built = (p) => (ts.isNewExpression(p) && p.expression === n) || (ts.isExpressionWithTypeArguments(p) && p.expression === n);
+          if (name !== undefined && STORE_CLASSES.has(name) && !built(n.parent)) found.add(`store-new:${name} as a value`);
+        }
+      }
+      n.forEachChild((c) => visit(c, typeHere));
+    })(sf);
+    if (lines.length) clock.push({ file: rel, count: lines.length, lines });
+    for (const k of found) { const i = k.indexOf(':'); hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) }); }
+  }
+  return { clock, hits };
 }
 
 /** The folder names of the layout (packages/core/src/layout.ts PROJECT_DIRS and STATE_DIR; the import-rules test checks they agree). */
@@ -946,6 +1069,9 @@ export function seamHits(root, files) {
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
   for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)])]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
+  const ports = portHits(root, scanned.files);
+  for (const h of ports.hits) set.add(`${h.rule} ${h.file} → ${h.spec}`);
+  for (const h of ports.clock) set.add(`clock-read ${h.file} → ${h.count} wall-clock read${h.count === 1 ? '' : 's'}`);
   for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   for (const h of recordReadHits(root, scanned.files)) {

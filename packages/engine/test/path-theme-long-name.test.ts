@@ -21,6 +21,7 @@ import type { Engine } from '../src/index.js';
 import { checkRenderRequest } from '../src/jobs/render-job.js';
 import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
+import { authorScope } from './helpers.js';
 
 const LONG = 't'.repeat(120);
 const SCENARIO_YAML = 'video: quote\nscenes:\n  - id: one\n    open: /\n    steps:\n      - click: First\n';
@@ -144,7 +145,7 @@ describe('a theme named by a path whose folder name is longer than a theme\'s na
   });
 
   it('a comment is made on its render, listed, and keeps that render from prune', async () => {
-    expect(await outcome(addComment(project, { render: 'quote-v1', frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, undefined, PERSON_POLICY))).toBe('ok');
+    expect(await outcome(addComment(project, { render: 'quote-v1', frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, authorScope(project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY))).toBe('ok');
     const list = await listComments(project, { status: 'all' });
     expect([list.threads.map((t) => [t.render_id, t.render_present]), list.problems]).toEqual([[['quote-v1', true]], []]);
     expect((await pruneProject(project, { keep_renders: 1 })).items).toEqual([]);

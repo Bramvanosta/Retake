@@ -4,7 +4,7 @@ import type { SiteJobResult, ThemeCreated } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
-import { openWorkspace, workspaceQueue } from '../workspace.js';
+import { cliPorts, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ThemeCreateOptions {
@@ -73,7 +73,7 @@ export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: st
   };
   let created: ThemeCreated;
   try {
-    created = await createThemeFromBrand(ws, input, { trust: 'author', cwd: process.cwd(), scope: personScope(ws.root) });
+    created = await createThemeFromBrand(ws, input, { trust: 'author', cwd: process.cwd(), scope: personScope(ws.root, cliPorts) });
   } catch (e) {
     if (e instanceof EngineError) throw new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`);
     throw e;
@@ -124,7 +124,7 @@ export async function themeFromSiteCommand(ui: Ui, global: GlobalOptions, url: s
   const ws = await openWorkspace(global);
   let r: SiteJobResult;
   try {
-    r = await extractSiteForAuthor(ws, url, { queue: workspaceQueue(ws) });
+    r = await extractSiteForAuthor(ws, url, { queue: workspaceQueue(ws), clock: cliPorts.clock });
   } catch (e) {
     if (e instanceof EngineError) throw new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`);
     throw e;

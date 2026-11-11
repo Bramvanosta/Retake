@@ -14,6 +14,8 @@ import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Sce
 import type { HookPhase, HookResult } from '@retake/hooks';
 import { nodeFileFacts } from '@retake/core/io';
 import { ENGINE_TRUST, submitterChannel } from './caller.js';
+import { stampOf } from './clock.js';
+import type { Clock } from './clock.js';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
@@ -310,9 +312,9 @@ function listItems(items: readonly ApprovalItem[]): string {
  * Ask the client's human to approve `req.items` (none: nothing to ask). Returns the approvals to write with the job;
  * throws `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time
  * or the question failed — each with the `retake` command a human runs in a terminal instead. `client` words the
- * refusal for its channel (agentChannel).
+ * refusal for its channel (agentChannel); `clock` stamps the approvals (`at`).
  */
-export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
+export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client: JobClient | undefined, clock: Clock): Promise<JobApproval[]> {
   if (!req.items.length) return [];
   const details = { hooks: req.items.map(({ fingerprint: _f, ...rest }) => rest), env: req.env };
   const long = tooLongForAForm(req);
@@ -346,7 +348,7 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
       details: { ...details, outcome: outcome.reason },
     });
   }
-  const at = new Date().toISOString();
+  const at = stampOf(clock);
   return req.items.map((i) => ({ fingerprint: i.fingerprint, by: 'human-elicitation' as const, at }));
 }
 
@@ -365,7 +367,7 @@ function outcomeText(outcome: Exclude<ApprovalOutcome, { approved: true }>): str
  * `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time or the
  * question failed — each with the `retake theme from-site` command a human runs in a terminal instead.
  */
-export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
+export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined, client: JobClient | undefined, clock: Clock): Promise<JobApproval[]> {
   const details = { url: req.href, host: req.host };
   if (!approver?.approveSite) {
     throw new EngineError(
@@ -386,7 +388,7 @@ export async function takeSiteApproval(req: SiteApprovalRequest, approver: Appro
       details: { ...details, outcome: outcome.reason },
     });
   }
-  return [{ fingerprint: req.fingerprint, by: 'human-elicitation', at: new Date().toISOString() }];
+  return [{ fingerprint: req.fingerprint, by: 'human-elicitation', at: stampOf(clock) }];
 }
 
 /** The worker's approver: a hook runs only when its fingerprint was approved at submit. */

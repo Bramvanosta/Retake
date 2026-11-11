@@ -101,6 +101,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.8 | Five small items: the hooks journal checks a rollback's shape; `project_prune`'s description; the board compares a theme by its identity (BL-164); `render_status` by its id holds only checked values outside `untrusted`; shell reset hooks are approval items | S | **done** (2026-11-11, branch `claude/arch-l7`; 72 mutations red; the MCP tool list changes in two descriptions) |
 | L7.9 | Two backlog tickets: the board compares a theme by its folder (render records hold template_folder; BL-164's rest), and an export's re-render plans with that folder; non-shell reset hooks get the seed steps' treatment, a sql reset hook's database checked as a seed's | S | **done** (2026-11-11, claude/arch-l7) |
 | L7.6c | Action plan U5, end: the search index, the timeline's version matcher and the frame service on the one reader of `renders/` and core's rules (`renderOfFile`, `quotableRender`, new `sameRender`); the ratchet back to 93 | M | **done** (2026-11-11; a copied record no longer stops the Studio's updates, a deeply nested plan no longer breaks the render list) |
+| L7.10 | U6 slices Clock and ProjectStore: the engine's clock and the project store are ports chosen at the composition roots (`EnginePorts`; `createEngine` / worker / job process / CLI), two adapters and a contract suite each, every stamp through the clock, the ratchet's `clock-read`, `store-new` and clock-less `queue` checks | M | **done** (2026-11-11; differential vs 019e5e9 equal; baseline 93 → 116; full suite not run) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1076,6 +1077,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.6c — The last readers of renders/ (M; decided 2026-11-10)
 - **Goal:** the search index, the timeline's version matcher and the frame service read renders/ through the one reader of L7.6b (the rest of U5).
 - **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.6c)". Requirements R-ARCH-21 and R-ARCH-19 updated; U5 done.
+
+### L7.10 — Clock and ProjectStore ports (M; decided 2026-11-11)
+- **Goal:** the engine's wall clock and its project store become ports with memory fakes, handed by the composition roots (U6, after the Renderer slice).
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.10)". Requirement R-ARCH-24; BL-171 opened.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

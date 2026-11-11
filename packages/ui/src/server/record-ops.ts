@@ -290,7 +290,8 @@ async function recordOptions(engine: Engine, slug: string): Promise<RecordOption
     project: slug,
     default_env: view.default_env ?? view.environments[0]?.name ?? null,
     environments,
-    default_name: defaultRecordName(loaded),
+    // The Studio server's own time: the name it offers is a suggestion the person can change (no engine stamp).
+    default_name: defaultRecordName(loaded, new Date()),
     max_minutes: maxMinutes,
     display: !(process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY),
     notes: RECORD_NOTES,

@@ -2706,3 +2706,12 @@ Studio's other screens still compare it by name — `sameVersion` in `packages/u
 Render screen (`Renders.tsx`) to say whether a render shows today's file —, so a render made with another folder of the
 same name reads as current there. They should use `template_folder` as the board does (a record of before L7.9 by its
 name). *From:* L7.9.
+
+### BL-171 — Elapsed time on the monotonic clock
+The engine's stamps go through its Clock port (L7.10); its elapsed time does not, on purpose: the jobs worker's idle and
+build-check timers, its cancel and orphan grace periods, the waits and deadlines (`jobs.wait`, the project lock, the
+frame probes), the memos' lifetimes (the board, the scenario view, the bootstrap codes), a history line's `ms`. They
+read `Date.now()` and are pinned file by file by the import-rules ratchet's `clock-read` check (19 files). Measured on
+`performance.now()` (monotonic: a clock set back or forward moves none of them) most of these pins would go, about 8
+left (the file times and the app set-up). It touches the worker's scheduler and the tests that set `idleSince` by
+`Date.now()`, so it is a lot of its own. *From:* L7.10.

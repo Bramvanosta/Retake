@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import type { HooksJobInput, RunJobInput } from '@retake/core';
-import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, setProtectedHostResolver, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals } from '../src/index.js';
+import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, setProtectedHostResolver, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals, enginePorts } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 let ws: string;
@@ -92,7 +92,7 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
     try {
       const input = sub.job.input as HooksJobInput;
       const wsc = await openWorkspace({ root: ws, agent: false });
-      const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
+      const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ...enginePorts(), ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
       // Other bytes than submitted: a conflict before they are parsed.
       expect((await exec(input)).code).toBe('conflict');
       // A job pinned to the changed bytes (queued without a submit): their agent trust is checked again here.
@@ -166,7 +166,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     await writeFile(join(ws, 'projects', 'w', 'scenarios', 'nav.yaml'), swapped);
     try {
       const input = { ...(sub.job.input as RunJobInput), scenario_sha256: sha256Hex(swapped) };
-      const out = await executeRunJob({
+      const out = await executeRunJob({ ...enginePorts(),
         ws: await openWorkspace({ root: ws, agent: false }),
         cli: 'retake',
         input,
@@ -390,19 +390,22 @@ describe('a claim takes its job\'s approvals once (L5.14, review B M1)', () => {
   it('once per id; none without approvals; an id older than the record kept is refused; restore gives them back; a record that cannot be written throws', async () => {
     const env = { ...process.env, RETAKE_HOME: join(ws, 'consume-home') };
     const id = `j_${ulid()}`;
-    expect(await consumeApprovals(rec(`j_${ulid()}`, false), env)).toBe(true);
+    expect(await consumeApprovals(rec(`j_${ulid()}`, false), env, Date.now())).toBe(true);
     await expect(stat(join(ws, 'consume-home', APPROVALS_USED_DIR))).rejects.toThrow(); // nothing taken, nothing written
-    expect(await consumeApprovals(rec(id), env)).toBe(true);
-    expect(await consumeApprovals(rec(id), env)).toBe(false);
+    // The record is stamped with the time the worker hands (its clock), not read here.
+    const now = Date.now() + 1234;
+    expect(await consumeApprovals(rec(id), env, now)).toBe(true);
+    expect(JSON.parse(await readFile(join(ws, 'consume-home', APPROVALS_USED_DIR, id), 'utf8')).at).toBe(new Date(now).toISOString());
+    expect(await consumeApprovals(rec(id), env, Date.now())).toBe(false);
     await restoreApprovals(id, env);
-    expect(await consumeApprovals(rec(id), env)).toBe(true);
+    expect(await consumeApprovals(rec(id), env, Date.now())).toBe(true);
     // A job id older than a year: its record may be pruned — refused.
     expect(await consumeApprovals(rec(`j_${ulid()}`), env, Date.now() + 366 * 24 * 3600_000)).toBe(false);
-    expect(await consumeApprovals(rec('not-a-job-id'), env)).toBe(false);
+    expect(await consumeApprovals(rec('not-a-job-id'), env, Date.now())).toBe(false);
     // The record's folder not writable: an error, never "taken before".
     await chmod(join(ws, 'consume-home', APPROVALS_USED_DIR), 0o500);
     try {
-      await expect(consumeApprovals(rec(`j_${ulid()}`), env)).rejects.toThrow(/EACCES|permission/i);
+      await expect(consumeApprovals(rec(`j_${ulid()}`), env, Date.now())).rejects.toThrow(/EACCES|permission/i);
     } finally {
       await chmod(join(ws, 'consume-home', APPROVALS_USED_DIR), 0o700);
     }
@@ -412,14 +415,14 @@ describe('a claim takes its job\'s approvals once (L5.14, review B M1)', () => {
     const env = { ...process.env, RETAKE_HOME: join(ws, 'prune-home') };
     const fresh = `j_${ulid()}`;
     const old = `j_${ulid()}`;
-    await consumeApprovals(rec(fresh), env);
-    await consumeApprovals(rec(old), env);
+    await consumeApprovals(rec(fresh), env, Date.now());
+    await consumeApprovals(rec(old), env, Date.now());
     const dir = join(ws, 'prune-home', APPROVALS_USED_DIR);
     await writeFile(join(dir, 'notes.txt'), '');
     const then = new Date(Date.now() - 366 * 24 * 3600_000);
     await utimes(join(dir, old), then, then);
     await utimes(join(dir, 'notes.txt'), then, then);
-    await pruneUsedApprovals(env);
+    await pruneUsedApprovals(env, Date.now());
     expect((await readdir(dir)).sort()).toEqual([fresh, 'notes.txt'].sort());
   });
 });

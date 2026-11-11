@@ -20,10 +20,7 @@ import {
 } from '@retake/core';
 import type { CommentAuthor, CommentEntry, CommentThread, LoadedProject } from '@retake/core';
 import type { TakeLock } from '@retake/sandbox';
-import { callerOf } from '../caller.js';
 import { EngineError } from '../errors.js';
-import { ProjectStore } from '../store/project-store.js';
-import type { StoreScope } from '../store/project-store.js';
 import { lockHolder, takeProjectLock, toolDir } from '../project-lock.js';
 import { sha256Hex } from '../storage.js';
 
@@ -243,10 +240,13 @@ export function appendedThread(id: string, r: { thread: CommentThread }, entry: 
   return { thread: next.data, text };
 }
 
-/** The apply entry of a proposal (L4.6): the reply it applies and the sha256 of the file written. */
-export function applyEntryOf(author: CommentAuthor, applies: string, scenarioSha256: string): CommentEntry {
-  return { id: newCommentEntryId(), kind: 'apply', author, text: '', created_at: new Date().toISOString(), applies, scenario_sha256: scenarioSha256 };
+/** The apply entry of a proposal (L4.6): the reply it applies and the sha256 of the file written, made at `at`. */
+export function applyEntryOf(author: CommentAuthor, applies: string, scenarioSha256: string, at: string): CommentEntry {
+  return { id: newCommentEntryId(), kind: 'apply', author, text: '', created_at: at, applies, scenario_sha256: scenarioSha256 };
 }
+
+/** A stamp of the length every `created_at` has: what an entry not written (a fit check) is made at. */
+export const FIT_STAMP = '1970-01-01T00:00:00.000Z';
 
 /** `ifMatch` (the thread's hash as the caller read it) against the hash read under the lock: a conflict naming it. */
 export function checkIfMatch(f: ThreadFile, hash: string, ifMatch: string | undefined): void {
@@ -258,10 +258,3 @@ export function checkIfMatch(f: ThreadFile, hash: string, ifMatch: string | unde
   }
 }
 
-/**
- * The project store a thread is written through, journaled as `scope`'s caller — by default the caller its author's
- * channel stands for (`cli`, the Studio's `ui`, else `mcp`): the engine and the CLI pass their own.
- */
-export function threadStore(project: LoadedProject, author: CommentAuthor, scope?: StoreScope): ProjectStore {
-  return ProjectStore.of(project, scope ?? { workspace: project.root, caller: callerOf(author.via === 'cli' ? 'cli' : author.via === 'studio' ? 'ui' : 'mcp') });
-}

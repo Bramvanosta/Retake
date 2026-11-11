@@ -17,8 +17,8 @@ import { loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
-import { ProjectStore } from '../store/project-store.js';
-import type { StoreScope } from '../store/project-store.js';
+import type { StoreScope } from '../store/store.js';
+import { dateOf } from '../clock.js';
 import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
 import { PACKAGE_ROOT, THEME_PROVENANCE_FILE, checkNewName, removeStale } from './create.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -74,10 +74,11 @@ function renamedText(text: string, name: string, from: string): string {
 }
 
 /** Copy a listed theme into a new workspace theme `name` (see the header). */
-export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { now?: Date; scope: StoreScope }): Promise<ThemeCopied> {
+export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { scope: StoreScope }): Promise<ThemeCopied> {
   const from = checkTemplateName(req?.from);
   const name = checkNewThemeName(req?.name);
-  const now = o.now ?? new Date();
+  // Stamped by the scope's clock (its provenance), which also dates the stale stages swept.
+  const now = dateOf(o.scope.clock);
   const templatesDir = ws.templatesDir;
   if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
     throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a copy would land among its starter themes`, {
@@ -101,7 +102,7 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
   const hashes: Record<string, string> = {};
   for (const f of files) hashes[f] = f === TEMPLATE_FILE ? sha256Hex(text) : sha256Hex(await readFile(join(source.dir, ...f.split('/'))));
   try {
-    await new ProjectStore(templatesDir, o.scope, undefined, '<templates_dir>').createFolder(templatesDir, name, {
+    await o.scope.stores.at(templatesDir, o.scope, { label: '<templates_dir>' }).createFolder(templatesDir, name, {
       what: 'theme',
       build: async (stage) => {
         // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).

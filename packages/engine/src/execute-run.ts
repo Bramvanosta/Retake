@@ -9,11 +9,11 @@ import { loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core
 import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
 import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import type { SandboxLog, Take } from '@retake/sandbox';
-import type { Caller } from './caller.js';
 import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
 import type { OpenedWorkspace } from './workspace.js';
+import type { JournalAs } from './store/journal.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
@@ -162,7 +162,7 @@ export interface ExecuteRunOptions {
   /** Who stands behind the scenario's hook flags (default `author`; `mcp` for a job submitted through MCP). */
   hookTrust?: HookTrust;
   /** Who runs it: each hook, rollback and sandbox seed step run is a line of the workspace journal as this caller's. */
-  recordAs?: Caller;
+  recordAs?: JournalAs;
   /** The channel a trust-`mcp` job came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
   hookVia?: AgentChannel;
   /** Approves a hook that needs a human (the worker: the job's approvals). */

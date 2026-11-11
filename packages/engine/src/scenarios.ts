@@ -11,8 +11,8 @@ import { EngineError } from './errors.js';
 import { fieldFitProblem } from './field-options.js';
 import { checkScenarioName } from './refs.js';
 import { LocalStorage, sha256Hex } from './storage.js';
-import { ProjectStore } from './store/project-store.js';
-import type { StoreScope } from './store/project-store.js';
+import { storeOf } from './store/store.js';
+import type { StoreScope } from './store/store.js';
 
 export interface ScenarioText {
   name: string;
@@ -192,7 +192,7 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
   if (twin) {
     throw new EngineError('conflict', `${projectRef('scenarios', twin)} exists: on this disk ${ref} is the same file under another spelling — save it as "${twin.replace(/\.ya?ml$/, '')}"`);
   }
-  const store = ProjectStore.of(project, opts.scope);
+  const store = storeOf(project, opts.scope);
   const path = store.resolve(ref);
   if (opts.agent) {
     const linked = await realpath(path).then(
@@ -321,7 +321,7 @@ export async function editScenario(
   o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts },
 ): Promise<ScenarioEditResult> {
   const p = await prepareScenarioEdit(project, name, req, o);
-  const res = await ProjectStore.of(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
+  const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
   rememberVersion(p.base.path, res.sha256);
   return { name, file: p.base.file, path: res.path, hash: res.sha256, label: p.label, select: p.select, warnings: p.warnings, notices: p.notices, ...(p.change ? { change: p.change } : {}) };
 }

@@ -1946,7 +1946,9 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   that is a symbolic link out of the project is refused, real paths compared). Producers (runner, editor, review)
   keep writing absolute paths into their records: refs inside run.json / render.json are a format change (L3.6 /
   BL-70); the engine converts at its boundary (a run's paths are re-rooted on its current folder).
-- **Project store and workspace journal** (L6.6, engine `store/`): every authored write goes through `ProjectStore`
+- **Project store and workspace journal** (L6.6, engine `store/`; a port since L7.10: `store/store.ts`
+  `ProjectStores`, carried with the engine's clock in each `StoreScope`, its disk adapter `diskProjectStores` chosen at
+  the composition roots, the journal lines stamped by the scope's clock): every authored write goes through `ProjectStore`
   (`writeText(ref, text, {ifMatch, what})` over `LocalStorage.writeText`, `ifMatch` always stated; `createFolder(parent,
   name, {build, recheck})` for a folder made whole — staged as `.tmp-<name>-<random>`, renamed into place under
   `<workspace>/.retake/locks/create-<hash of its real path>.lock` after the last check of its name): scenarios (the
@@ -6476,9 +6478,9 @@ previews and site extractions are background work, a take is not (BL-116). Built
   start time its record names, with a job process's command line for that job id and this workspace (review A M1);
   any other recorded pid is left alone and the job persisted `interrupted` without its clean-ups. A record whose kind is
   not its input's kind (what a job process refuses) ends `failed` on its first claim, never claimed and given back in a
-  loop (review A M2). With `previewTest` or `rendererTest` (in-process tests only: a stand-in preview backend, a whole
-  stand-in renderer — one or the other, both together are refused) heavy jobs run in the worker, one job at a time, as
-  before.
+  loop (review A M2). With `previewTest` or `ports` (in-process tests only: a stand-in preview backend; the worker's ports —
+  a whole stand-in renderer, a clock, stores; a renderer and a preview backend together are refused; L7.10 replaced
+  `rendererTest` with `ports.renderer`) heavy jobs run in the worker, one job at a time, as before.
 - **Signals** (jobs/signal.ts, review B L1): every signal to a job process or its tree, and the root of every QoS hold,
   goes through one guard — never a pid that is not an integer above 1 (a failed spawn's -1: `kill(-1)` reaches every
   process of the user; 0: this process's own group; 1: launchd), the worker itself or its own group. A spawn that failed

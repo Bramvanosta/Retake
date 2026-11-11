@@ -13,6 +13,8 @@ import { engineLocation } from '@retake/core/io';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import { stateDir } from '../workspace-state.js';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 
 export interface WorkerLockRecord extends ProcessIdentity {
   host: string;
@@ -129,7 +131,7 @@ export class WorkerLock {
   }
 
   /** Take the lock, or null when a live worker holds it (`note` reports a stale lock taken over). */
-  static async acquire(root: string, build: string, note?: (msg: string) => void, startedBy?: string): Promise<WorkerLock | null> {
+  static async acquire(root: string, build: string, clock: Clock, note?: (msg: string) => void, startedBy?: string): Promise<WorkerLock | null> {
     const { createExclusive, breakStale } = await import('@retake/sandbox');
     await mkdir(workersDir(root), { recursive: true });
     const file = workerLockFile(root);
@@ -139,7 +141,7 @@ export class WorkerLock {
       version: RETAKE_VERSION,
       build,
       engine: engineLocation(),
-      since: new Date().toISOString(),
+      since: stampOf(clock),
       ...(startedBy !== undefined && WORKER_CLIENT_RE.test(startedBy) ? { started_by: startedBy } : {}),
     };
     const text = JSON.stringify(record, null, 2);

@@ -5,9 +5,10 @@
  * operation replies. Generated outputs (runs, renders, reviews, exports) and machine state (`.retake/`) are not authored
  * and do not come here.
  *
- * A file is written by storage.ts `LocalStorage.writeText` (atomic, `if_match` checked under the file's write lock, a
- * link of the project written through, the mode kept): `ifMatch` a hash replaces the version read, `null` creates a file
- * that must not exist. A folder made whole (a theme, a copy of one) is staged beside its final place and renamed into
+ * The port is store.ts (`ProjectStore`, `ProjectStores`, `StoreScope`); this file is its disk adapter,
+ * `diskProjectStores`, chosen at the composition roots (ports.ts). A file is written by storage.ts
+ * `LocalStorage.writeText` (atomic, `if_match` checked under the file's write lock, a link of the project written
+ * through, the mode kept): `ifMatch` a hash replaces the version read, `null` creates a file that must not exist. A folder made whole (a theme, a copy of one) is staged beside its final place and renamed into
  * it, under a lock of its name, once its files are written and checked (`createFolder`).
  *
  * A store is rooted at a folder (a project's, the workspace's, its templates or components folder): its refs are
@@ -21,44 +22,22 @@ import { dirname, join } from 'node:path';
 import { errorKindOf } from '@retake/core';
 import type { TakeLock } from '@retake/sandbox';
 import { callerOf } from '../caller.js';
-import type { Caller } from '../caller.js';
+import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { LocalStorage, sha256Hex, WRITE_LOCK_WAIT_MS } from '../storage.js';
 import type { WriteResult } from '../storage.js';
 import { JOURNAL_FILES_MAX, appendJournal, journalPath } from './journal.js';
 import type { JournalPlace, JournalWhat, JournalWrite } from './journal.js';
+import { FOLDER_NOUNS } from './store.js';
+import type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreLabel, StoreScope, StoreWriteOptions } from './store.js';
 
-/** Who writes, and the workspace whose journal records it. */
-export interface StoreScope {
-  workspace: string;
-  caller: Caller;
-}
-
-export interface StoreWriteOptions {
-  /** A hash: the version read must still be there; null: the file must not exist. Every authored write states one. */
-  ifMatch: string | null;
-  /** The caller holds a lock that serialises every write of this file (a comment thread's). */
-  locked?: boolean;
-  what: JournalWhat;
-}
-
-/** The staged copy of a folder being created (createFolder): its files are written into `dir`, never over one. */
-export interface FolderStage {
-  /** The staging folder (beside the final one, a hidden name). */
-  readonly dir: string;
-  /** Write a new file (folder-relative POSIX path; its folders are created). */
-  write(rel: string, data: string | Buffer): Promise<void>;
-  /** Copy a file into the stage, never over one. */
-  copy(rel: string, from: string): Promise<void>;
-}
-
-/** How a refusal names the folder of a store with a label of its own (default: the project folder, LocalStorage). */
-const FOLDER_NOUNS: Readonly<Record<string, string>> = { '<components_dir>': 'the components folder', '<templates_dir>': 'the themes folder' };
+export type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreScope, StoreWriteOptions } from './store.js';
 
 const outcomeOf = (e: unknown): string => errorKindOf(e) ?? (e instanceof EngineError ? e.code : 'internal');
 
-export class ProjectStore {
+/** The disk adapter of the ProjectStore port (built by `diskProjectStores` only: the import-rules ratchet's `store-new`). */
+class DiskProjectStore implements ProjectStore {
   readonly #storage: LocalStorage;
   /** How the journal names this store's folder when it is outside the workspace. */
   readonly #place: JournalPlace;
@@ -69,15 +48,11 @@ export class ProjectStore {
     /** The project's slug, journaled with each write (absent for the workspace's files). */
     readonly project?: string,
     /** The journal's name of the folder when it is outside the workspace (default `<project>`, else `<store>`). */
-    label?: string,
+    label?: StoreLabel,
   ) {
-    this.#place = { label: label ?? (project !== undefined ? '<project>' : '<store>'), base: root };
-    this.#storage = new LocalStorage(root, FOLDER_NOUNS[this.#place.label]);
-  }
-
-  /** The store of a project's folder. */
-  static of(project: { dir: string; slug: string }, scope: StoreScope): ProjectStore {
-    return new ProjectStore(project.dir, scope, project.slug);
+    const place: StoreLabel = label ?? (project !== undefined ? '<project>' : '<store>');
+    this.#place = { label: place, base: root };
+    this.#storage = new LocalStorage(root, FOLDER_NOUNS[place]);
   }
 
   resolve(ref: string): string {
@@ -114,8 +89,8 @@ export class ProjectStore {
     return res;
   }
 
-  /** writeText of a file given by its absolute path inside the store's folder (the writer an adapter is handed). */
-  writeFileAt(path: string, text: string, opts: StoreWriteOptions): Promise<WriteResult> {
+  /** writeText of a file given by its absolute path inside the store's folder (the writer an adapter is handed); a path outside it rejects. */
+  async writeFileAt(path: string, text: string, opts: StoreWriteOptions): Promise<WriteResult> {
     return this.writeText(this.#storage.refOf(path), text, opts);
   }
 
@@ -212,13 +187,20 @@ export class ProjectStore {
 
   private journal(entry: Omit<JournalWrite, 'v' | 'at' | 'by' | 'project'>): Promise<void> {
     const { client, channel, trust } = this.scope.caller;
-    return appendJournal(this.scope.workspace, { by: { client, channel, trust }, ...(this.project !== undefined ? { project: this.project } : {}), ...entry });
+    return appendJournal(this.scope.workspace, { by: { client, channel, trust }, ...(this.project !== undefined ? { project: this.project } : {}), ...entry }, this.scope.clock);
   }
 }
 
+/** The ProjectStore port on the disk: the product's adapter (chosen at the composition roots, ports.ts). */
+export const diskProjectStores: ProjectStores = {
+  of: (project, scope) => new DiskProjectStore(project.dir, scope, project.slug),
+  at: (root, scope, o = {}) => new DiskProjectStore(root, scope, o.project, o.label),
+  folder: (root): ProjectFolder => new LocalStorage(root),
+};
+
 /** The scope of a person's own `retake` command: its writes are journaled as the CLI's (`cli`, trust `author`). */
-export function personScope(workspace: string): StoreScope {
-  return { workspace, caller: callerOf('cli') };
+export function personScope(workspace: string, ports: { clock: Clock; stores: ProjectStores }): StoreScope {
+  return { workspace, caller: callerOf('cli'), clock: ports.clock, stores: ports.stores };
 }
 
 /**

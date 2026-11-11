@@ -65,7 +65,7 @@ export async function serve(w: Worker): Promise<boolean> {
         // Idle: release the lock, then look once more — a job queued while a client saw this worker alive must not wait.
         w.lock.release();
         if (!(await hasQueued(w))) break;
-        const again = await WorkerLock.acquire(root, build, log, o.startedBy);
+        const again = await WorkerLock.acquire(root, build, w.clock, log, o.startedBy);
         if (!again) break; // another worker took over
         w.lock = again;
         w.idleSince = Date.now();

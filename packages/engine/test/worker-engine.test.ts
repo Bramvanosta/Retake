@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
 import { engineLocation } from '@retake/core/io';
-import { WorkerLock, createEngine, otherCopy, otherCopyWarning, readWorkerLock, workerLockFile, workersDir } from '../src/index.js';
+import { WorkerLock, createEngine, otherCopy, otherCopyWarning, readWorkerLock, workerLockFile, workersDir, systemClock } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES } from '../../editor/test/render-helpers.js';
@@ -31,7 +31,7 @@ const scratch = async () => {
 describe('the worker lock records which copy of Retake runs it', () => {
   it('engine: this checkout (or app), kept when it is an absolute one-line path, dropped otherwise', async () => {
     const root = await scratch();
-    const lock = await WorkerLock.acquire(root, 'b1');
+    const lock = await WorkerLock.acquire(root, 'b1', systemClock);
     expect(lock).not.toBeNull();
     expect(lock!.record.engine).toBe(engineLocation());
     expect(readWorkerLock(root)?.engine).toBe(engineLocation());

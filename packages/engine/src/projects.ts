@@ -6,10 +6,11 @@ import { loadProject, planNewProject, listProjects, retakeHome } from '@retake/c
 import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
-import { LocalStorage, READ_TEXT_MAX_BYTES } from './storage.js';
+import { READ_TEXT_MAX_BYTES } from './storage.js';
 import { openProject } from './workspace.js';
-import { ProjectStore } from './store/project-store.js';
-import type { StoreScope } from './store/project-store.js';
+import { storeOf } from './store/store.js';
+import type { ProjectFolder } from './store/store.js';
+import type { StoreScope } from './store/store.js';
 import { checkNewProjectHosts } from './protected-hosts.js';
 import type { OpenedWorkspace } from './workspace.js';
 
@@ -143,10 +144,10 @@ export function maskUrlCredentials<T>(value: T): T {
 }
 
 /** README.md as project_get shows it: the text, or why it cannot be edited (review B M1, M3). */
-async function readmeOf(storage: LocalStorage): Promise<{ text: string; sha256: string; error?: string } | { text: null; sha256: null; error: string } | undefined> {
+async function readmeOf(folder: ProjectFolder): Promise<{ text: string; sha256: string; error?: string } | { text: null; sha256: null; error: string } | undefined> {
   let r;
   try {
-    r = await storage.readText(README_FILE);
+    r = await folder.readText(README_FILE);
   } catch (e) {
     if (e instanceof EngineError) {
       const reason = e.details?.reason;
@@ -161,9 +162,9 @@ async function readmeOf(storage: LocalStorage): Promise<{ text: string; sha256: 
   return { text: r.text, sha256: r.sha256 };
 }
 
-export async function projectView(project: LoadedProject): Promise<ProjectView> {
-  const storage = new LocalStorage(project.dir);
-  const readme = await readmeOf(storage);
+/** A project as project_get shows it; its README and file refs read through `folder` (its folder, as its store reads it). */
+export async function projectView(project: LoadedProject, folder: ProjectFolder): Promise<ProjectView> {
+  const readme = await readmeOf(folder);
   const environments: EnvironmentView[] = Object.keys(project.config.environments ?? {}).map((name) => {
     const env = resolveEnvironment(project, name);
     return {
@@ -192,7 +193,7 @@ export async function projectView(project: LoadedProject): Promise<ProjectView> 
     slug: project.slug,
     name: project.config.name,
     dir: project.dir,
-    file: storage.refOf(project.file),
+    file: folder.refOf(project.file),
     readme: readme?.text ?? null,
     readme_hash: readme?.sha256 ?? null,
     ...(readme?.error ? { readme_error: readme.error } : {}),
@@ -215,7 +216,7 @@ export type CreateProjectRequest = Pick<CreateProjectInput, 'name' | 'slug' | 'r
  */
 export async function writeNewProject(root: string, input: CreateProjectInput, scope: StoreScope): Promise<LoadedProject> {
   const plan = await planNewProject(root, input);
-  const store = new ProjectStore(plan.dir, scope, plan.slug);
+  const store = scope.stores.at(plan.dir, scope, { project: plan.slug });
   for (const f of plan.files) await store.writeText(f.ref, f.text, { ifMatch: null, what: 'project' });
   return loadProject(plan.dir, plan.wsRoot);
 }
@@ -245,7 +246,7 @@ export async function createProjectFromRequest(ws: OpenedWorkspace, input: Creat
  * a README.md linked to another file of the project is written through the link.
  */
 export async function updateProjectReadme(project: LoadedProject, markdown: string, ifMatch: string | null | undefined, scope: StoreScope): Promise<{ file: string; path: string; hash: string }> {
-  const store = ProjectStore.of(project, scope);
+  const store = storeOf(project, scope);
   const current = await store.readText(README_FILE);
   if (current && (ifMatch === undefined || ifMatch === null)) {
     throw new EngineError('conflict', `${README_FILE} of ${project.slug} exists: pass if_match with the readme_hash you read (project_get), so a change made meanwhile is not lost`, {

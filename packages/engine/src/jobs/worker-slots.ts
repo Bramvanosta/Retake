@@ -1,7 +1,7 @@
 /**
  * The two slots of a jobs worker (worker.ts, L5.14) and the claims of one turn of its loop: the capture slot first — it
  * runs one capture-class job at a time in this process (createJobRunner, run-job-record.ts) — then the heavy slot
- * (worker-heavy.ts: a job process of its own). With previewTest or rendererTest the capture slot runs heavy jobs too,
+ * (worker-heavy.ts: a job process of its own). With previewTest or ports the capture slot runs heavy jobs too,
  * one at a time.
  */
 import { jobClass } from '@retake/core';
@@ -28,6 +28,8 @@ export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void
     worker: w.worker,
     self: w.self,
     log: w.log,
+    clock: w.clock,
+    stores: w.stores,
     rw: w.rw,
     interrupts: interruptPort(w),
     slot: w.slot,
@@ -37,7 +39,7 @@ export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void
     ...(o.previewTest ? { previewTest: o.previewTest } : {}),
     // The worker is a composition root: a heavy job it runs in this process (in-process tests) renders with the
     // test's renderer, or with the editor's driver.
-    renderer: o.rendererTest ?? editorRenderer(),
+    renderer: o.ports?.renderer ?? editorRenderer(),
     // A take of this worker started, paused, resumed or stopped filming: its hold follows now, not at the next poll.
     onFilming: (on) => {
       if (w.capture) w.capture.filming = on;
@@ -65,7 +67,7 @@ function startCapture(w: Worker, stored: JobRecord): void {
 }
 
 /**
- * The claims of one turn of the loop: the capture slot first (with previewTest or rendererTest, heavy jobs too), then the heavy slot.
+ * The claims of one turn of the loop: the capture slot first (with previewTest or ports, heavy jobs too), then the heavy slot.
  * Not while a take of this worker films and the heavy slot has nothing to take (critique M6: the take's event loop is
  * this process's), nor after a build change (critique L4: captures included), nor past `once`. True when one started.
  */

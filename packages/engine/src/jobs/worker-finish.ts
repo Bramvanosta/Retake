@@ -4,6 +4,7 @@
  * one runs), and what a job killed mid-way leaves (cleanupDead). A job whose state cannot be written makes the worker
  * exit non-zero (writeOrExit): readers then see its pid gone and derive `interrupted`.
  */
+import { stampOf } from '../clock.js';
 import { appendHistory } from '../history.js';
 import { historyOf } from './run-job-record.js';
 import type { JobRecord } from './types.js';
@@ -30,7 +31,7 @@ export async function closeJob(w: Worker, final: JobRecord, opts: { cleanup?: bo
   }
   w.done.add(final.id);
   try {
-    await appendHistory(w.root, historyOf(final));
+    await appendHistory(w.root, historyOf(final), w.clock);
   } catch (e) {
     w.log(`job ${final.id}: no history line (${(e as Error).message})`);
   }
@@ -62,10 +63,10 @@ export async function cleanupDead(w: Worker, final: JobRecord): Promise<void> {
 export async function persistDerived(w: Worker, stored: JobRecord): Promise<void> {
   const rec = await w.queue.derive(stored);
   if (rec.state === 'interrupted') {
-    const final = { ...rec, finished_at: rec.finished_at ?? new Date().toISOString() };
+    const final = { ...rec, finished_at: rec.finished_at ?? stampOf(w.clock) };
     await w.queue.write(final);
     w.done.add(rec.id);
-    await appendHistory(w.root, historyOf(final));
+    await appendHistory(w.root, historyOf(final), w.clock);
     await cleanupDead(w, final);
   }
 }

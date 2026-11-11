@@ -21,7 +21,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { WorkerLock, buildStamp, historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@retake/engine';
+import { WorkerLock, buildStamp, historyFile, jobsDir, readWorkerLock, runWorker, workersDir, systemClock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { testChildEnv } from '../../core/test/child-env.js';
 
@@ -152,7 +152,7 @@ describe('retake mcp: scenario_record', () => {
 
   it('returns at once with the job id and what to ask the user; job_cancel before the window opens cancels it, no draft', async () => {
     // This process holds the worker lock: the server spawns no worker and the job stays queued.
-    const lock = await WorkerLock.acquire(root, buildStamp(), () => undefined);
+    const lock = await WorkerLock.acquire(root, buildStamp(), systemClock, () => undefined);
     expect(lock).not.toBeNull();
     try {
       const r = await call('scenario_record', { project: PROJECT, page: 'shop', scenario: 'never-recorded' });

@@ -15,8 +15,7 @@ import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core';
 import type { ComponentKind, ValidationIssue } from '@retake/core';
 import type { ComponentInfo, ComponentManifest, ComponentRegistry } from '@retake/components';
 import { EngineError, toEngineError } from './errors.js';
-import { ProjectStore } from './store/project-store.js';
-import type { StoreScope } from './store/project-store.js';
+import type { StoreScope } from './store/store.js';
 import type { OpenedWorkspace } from './workspace.js';
 
 /** Lazy: @retake/components pulls in esbuild (compile checks). */
@@ -232,7 +231,7 @@ export async function componentCreate(ws: OpenedWorkspace, req: ComponentCreateR
  * rooted at the workspace's components folder (`if_match` null: never over a file), journaled as the caller's.
  */
 export function componentWriter(ws: Pick<OpenedWorkspace, 'componentsDir'>, scope: StoreScope): (file: string, text: string) => Promise<void> {
-  const store = new ProjectStore(ws.componentsDir, scope, undefined, '<components_dir>');
+  const store = scope.stores.at(ws.componentsDir, scope, { label: '<components_dir>' });
   return async (file, text) => {
     await store.writeFileAt(file, text, { ifMatch: null, what: 'component' });
   };

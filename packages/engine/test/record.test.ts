@@ -12,15 +12,16 @@
 import { existsSync, statSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseScenario, PERSON_POLICY } from '@retake/core';
 import { loadScenario, fileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
-import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot } from '../src/index.js';
+import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot, enginePorts } from '../src/index.js';
 import type { OpenedWorkspace, RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
+import { ManualClock } from '../src/clock.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
 type Page = Parameters<NonNullable<RecordPorts['drive']>>[0];
@@ -82,7 +83,7 @@ async function reset(): Promise<void> {
 /** Record with `drive` playing the person; the window closes after it. */
 async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, ports: Partial<RecordPorts> = {}): Promise<{ o: RecordOutcome; logs: string[] }> {
   const logs: string[] = [];
-  const o = await recordScenario(ws, await project(), req, {
+  const o = await recordScenario(ws, await project(), req, { ...enginePorts(),
     queue: new FileJobQueue(ws.root),
     headless: true,
     windowSize: { width: 1400, height: 1000 },
@@ -285,15 +286,23 @@ describe('recordScenario: names, stop, cancel, limits', () => {
 
   it('stop keeps what was recorded; cancel discards it (the folder removed); nothing done = nothing recorded', async () => {
     const stop = new AbortController();
+    // The recording's stamps come from the clock of its ports (the engine's), never the system's.
+    const at = '2030-06-15T10:20:30.000Z';
     const { o } = await record({ page: 'shop', check: false }, async (page) => {
       await oneClick(page);
       await page.waitForTimeout(300);
       stop.abort();
       await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
-    }, { stop: stop.signal });
+    }, { stop: stop.signal, clock: new ManualClock(at) });
     expect(o.stop).toBe('stopped');
     expect(o.saved).not.toBeNull();
     expect(o.check).toMatchObject({ status: 'skipped', reason: 'disabled' });
+    expect((JSON.parse(await readFile(join(o.dir!, 'meta.json'), 'utf8')) as { started_at: string }).started_at).toBe(at);
+    const local = new Date(at);
+    const two = (n: number) => String(n).padStart(2, '0');
+    expect(o.name).toMatch(new RegExp(`^recorded-${local.getFullYear()}${two(local.getMonth() + 1)}${two(local.getDate())}-${two(local.getHours())}${two(local.getMinutes())}(-\\d+)?$`));
+    const line = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
+    expect(line).toMatchObject({ kind: 'record', at, record: { id: basename(o.dir!) } });
 
     const p = await project();
     const folders = await readdir(recordsRoot(p));
@@ -326,7 +335,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
       expect(o.counts.actions).toBe(1);
       expect(o.issues.map((i) => i.code)).toContain('max_duration');
       process.env.RETAKE_RECORD_MAX_MIN = 'soon';
-      const e = await recordScenario(ws, await project(), { page: 'shop' }, { queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
+      const e = await recordScenario(ws, await project(), { page: 'shop' }, { ...enginePorts(), queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );
@@ -356,7 +365,7 @@ describe('recordScenario: access, sign-in, secrets', () => {
     const p = await project();
     const folders = existsSync(recordsRoot(p)) ? await readdir(recordsRoot(p)) : [];
     const refusal = (req: RecordRequest) =>
-      recordScenario(ws, p, req, { queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
+      recordScenario(ws, p, req, { ...enginePorts(), queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );

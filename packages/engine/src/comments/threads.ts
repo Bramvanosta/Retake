@@ -43,8 +43,10 @@ import { latestRenderMembers, renderEntries } from '../render-records.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
 import type { RenderForWork } from '../renders.js';
-import type { StoreScope } from '../store/project-store.js';
-import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread, threadStore } from './store.js';
+import { storeOf } from '../store/store.js';
+import type { StoreScope } from '../store/store.js';
+import { stampOf } from '../clock.js';
+import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread } from './store.js';
 import { review } from '../lazy.js';
 import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
@@ -264,7 +266,7 @@ export async function anchorAt(project: LoadedProject, req: CommentAnchorRequest
  * over an existing file), then its still (critique B12: the thread exists whatever the still costs; a still that fails
  * is a warning).
  */
-export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope: StoreScope | undefined, policy: WorkPolicy): Promise<CommentAdded> {
+export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope: StoreScope, policy: WorkPolicy): Promise<CommentAdded> {
   const text = cleanText(req.text, 'the comment', 'text');
   const { record, frame, anchor, warnings } = await prepareComment(project, req);
   const clash = await caseVariantFolder(project.dir, record.scenario);
@@ -274,7 +276,7 @@ export async function addComment(project: LoadedProject, req: CommentAddRequest,
     });
   }
   const id = newCommentId();
-  const now = new Date().toISOString();
+  const now = stampOf(scope.clock);
   const draft = {
     version: COMMENT_THREAD_VERSION,
     id,
@@ -303,7 +305,7 @@ export async function addComment(project: LoadedProject, req: CommentAddRequest,
   if (!parsed.success) {
     throw new EngineError('invalid', `the comment does not make a valid thread: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
-  const written = await threadStore(project, author, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
+  const written = await storeOf(project, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
   await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy);
   return { thread: await threadView(project.dir, parsed.data, written.sha256, await renderIndex(project.dir)), warnings };
 }
@@ -327,10 +329,10 @@ export interface CommentWritten {
  * Write `entry` appended to thread `r` (read under its lock, which the caller holds): appendedThread, written atomically
  * with the hash just read.
  */
-export async function writeAppended(project: LoadedProject, f: ThreadFile, r: { thread: CommentThread; hash: string }, entry: CommentEntry, scope?: StoreScope): Promise<CommentWritten> {
+export async function writeAppended(project: LoadedProject, f: ThreadFile, r: { thread: CommentThread; hash: string }, entry: CommentEntry, scope: StoreScope): Promise<CommentWritten> {
   const next = appendedThread(f.id, r, entry);
   // The thread's lock already serialises every write of its file: no second (write) lock inside it.
-  const written = await threadStore(project, entry.author, scope).writeText(f.ref, next.text, { ifMatch: r.hash, locked: true, what: 'thread' });
+  const written = await storeOf(project, scope).writeText(f.ref, next.text, { ifMatch: r.hash, locked: true, what: 'thread' });
   return { thread: await threadView(project.dir, next.thread, written.sha256, await renderIndex(project.dir)), entry: entry.id, hash: written.sha256 };
 }
 
@@ -343,7 +345,7 @@ export async function appendEntry(
   id: string,
   op: string,
   make: (thread: CommentThread, hash: string) => Promise<CommentEntry> | CommentEntry,
-  o: { ifMatch?: string; scope?: StoreScope } = {},
+  o: { ifMatch?: string; scope: StoreScope },
 ): Promise<CommentWritten> {
   const f = await locateThread(project.dir, id);
   const lock = await lockThread(project.dir, id, op);
@@ -368,12 +370,12 @@ export async function replyComment(
   id: string,
   rawText: string,
   author: CommentAuthor,
-  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: WorkFileFacts },
+  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts },
 ): Promise<CommentWritten> {
   const text = cleanText(rawText, 'the reply', 'text');
-  const write = o.scope ? { scope: o.scope } : {};
+  const write = { scope: o.scope };
   if (o.proposal === undefined) {
-    return appendEntry(project, id, 'reply', () => ({ id: newCommentEntryId(), kind: 'reply', author, text, created_at: new Date().toISOString() }), write);
+    return appendEntry(project, id, 'reply', () => ({ id: newCommentEntryId(), kind: 'reply', author, text, created_at: stampOf(o.scope.clock) }), write);
   }
   // The target is the thread's own scenario (its folder, checked against the file by readThread): never an argument.
   const f = await locateThread(project.dir, id);
@@ -381,7 +383,7 @@ export async function replyComment(
   const w = await appendEntry(project, id, 'reply', (thread) => {
     const { status } = deriveStatus(thread.entries);
     if (status !== 'open') throw new EngineError('conflict', `not proposed: comment ${id} is resolved — a proposal answers an open thread (a person reopens it)`, { details: { status } });
-    return { id: newCommentEntryId(), kind: 'reply', author, text, created_at: new Date().toISOString(), proposal: built.proposal };
+    return { id: newCommentEntryId(), kind: 'reply', author, text, created_at: stampOf(o.scope.clock), proposal: built.proposal };
   }, write);
   return { ...w, proposal_warnings: built.warnings };
 }
@@ -396,7 +398,7 @@ export interface CommentResolveRequest {
 }
 
 /** Resolve an open thread, optionally naming the render that answers it (stored with its `created_at`). */
-export async function resolveComment(project: LoadedProject, id: string, req: CommentResolveRequest, author: CommentAuthor, o: { scope?: StoreScope } = {}): Promise<CommentWritten> {
+export async function resolveComment(project: LoadedProject, id: string, req: CommentResolveRequest, author: CommentAuthor, o: { scope: StoreScope }): Promise<CommentWritten> {
   const note = cleanText(req.note, 'the note', 'note');
   if (req.ifMatch !== undefined && (typeof req.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(req.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   const f = await locateThread(project.dir, id);
@@ -442,11 +444,11 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
         kind: 'resolve',
         author,
         text: note,
-        created_at: new Date().toISOString(),
+        created_at: stampOf(o.scope.clock),
         ...(answer ? { render_id: answer.id, render_created_at: answer.created_at } : {}),
       };
     },
-    { ...(req.ifMatch !== undefined ? { ifMatch: req.ifMatch } : {}), ...(o.scope ? { scope: o.scope } : {}) },
+    { ...(req.ifMatch !== undefined ? { ifMatch: req.ifMatch } : {}), scope: o.scope },
   );
   // What `latest` passed over on the way to the render that answers (none for a render named by its id).
   return { ...written, ...latestRenderMembers(latest) };
@@ -456,7 +458,7 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
  * Reopen a resolved thread (a person disagreeing with its resolution); the note may be empty. `ifMatch`: the thread's
  * hash as last read (the Studio reopens the version it showed; refused as a conflict when it changed since).
  */
-export async function reopenComment(project: LoadedProject, id: string, rawNote: string | undefined, author: CommentAuthor, o: { ifMatch?: string; scope?: StoreScope } = {}): Promise<CommentWritten> {
+export async function reopenComment(project: LoadedProject, id: string, rawNote: string | undefined, author: CommentAuthor, o: { ifMatch?: string; scope: StoreScope }): Promise<CommentWritten> {
   const note = cleanText(rawNote ?? '', 'the note', 'note', false);
   if (o.ifMatch !== undefined && (typeof o.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(o.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   return appendEntry(
@@ -465,8 +467,8 @@ export async function reopenComment(project: LoadedProject, id: string, rawNote:
     'reopen',
     (thread) => {
       if (deriveStatus(thread.entries).status !== 'resolved') throw new EngineError('conflict', `comment ${id} is open: only a resolved thread is reopened`, { details: { status: 'open' } });
-      return { id: newCommentEntryId(), kind: 'reopen', author, text: note, created_at: new Date().toISOString() };
+      return { id: newCommentEntryId(), kind: 'reopen', author, text: note, created_at: stampOf(o.scope.clock) };
     },
-    { ...(o.ifMatch !== undefined ? { ifMatch: o.ifMatch } : {}), ...(o.scope ? { scope: o.scope } : {}) },
+    { ...(o.ifMatch !== undefined ? { ifMatch: o.ifMatch } : {}), scope: o.scope },
   );
 }

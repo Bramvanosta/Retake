@@ -1,6 +1,6 @@
 /**
  * The engine renders through its port (src/render/renderer.ts): render jobs run by the worker in this process on the
- * in-memory renderer (WorkerOptions.rendererTest), a still and a render asked in process on the same one. No bundle, no
+ * in-memory renderer (WorkerOptions.ports.renderer), a still and a render asked in process on the same one. No bundle, no
  * browser, and no ffmpeg / ffprobe: both tools are pointed at a path that does not exist for the whole file, so a call
  * to either would fail the job. What still runs around the renderer is the product's: the submit, the claim, the plan
  * (the editor's planner), the version reserved, the render record, the job's state and the history line.
@@ -23,6 +23,7 @@ import { PERSON_POLICY } from '@retake/core';
 import type { RenderJobInput } from '@retake/core';
 import { JobFiles, createEngine, editorErrorOf, historyFile, jobsDir, openProject, planWork, renderInProcess, runWorker, stillInProcess } from '../src/index.js';
 import type { Engine, JobRecord, RenderRecord } from '../src/index.js';
+import { ManualClock, systemClock } from '../src/clock.js';
 import { MEMORY_PNG, MEMORY_VIDEO, MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { MemoryRendererOptions } from '../src/render/memory-renderer.js';
 import type { RenderVideoRequest } from '../src/render/renderer.js';
@@ -73,7 +74,7 @@ afterAll(async () => {
 async function renderJob(o: MemoryRendererOptions | ((job: JobRecord) => MemoryRendererOptions) = {}): Promise<{ job: JobRecord; input: RenderJobInput; fake: MemoryRenderer }> {
   const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
   const fake = new MemoryRenderer(typeof o === 'function' ? o(sub.job) : o);
-  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, rendererTest: fake });
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { renderer: fake } });
   return { job: await engine.jobs.get(sub.job.id), input: sub.job.input as RenderJobInput, fake };
 }
 
@@ -119,6 +120,20 @@ describe('render jobs on the renderer the worker was handed', () => {
     expect(added[0]).toMatchObject({ kind: 'render', project: 'demo', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 1 } });
   });
 
+  it('the worker stamps a job with the clock it was handed: started_at, finished_at, the progress and the history line', async () => {
+    const at = '2030-01-02T03:04:05.006Z';
+    const before = await historyLines();
+    const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
+    await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { renderer: new MemoryRenderer(), clock: new ManualClock(at) } });
+    const job = await engine.jobs.get(sub.job.id);
+    expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
+    expect([job.started_at, job.finished_at, job.progress?.updated_at]).toEqual([at, at, at]);
+    // created_at is the submitting engine's (its own clock, the system's here).
+    expect(job.created_at).not.toBe(at);
+    const added = (await historyLines()).slice(before.length);
+    expect(added).toEqual([expect.objectContaining({ kind: 'render', job: sub.job.id, at })]);
+  });
+
   it('a job cancelled while the renderer draws ends cancelled, not failed: no file and no record are left', async () => {
     const { job, input, fake } = await renderJob((submitted) => ({
       duringVideo: async (req) => {
@@ -150,8 +165,8 @@ describe('one renderer, and nothing beside it', () => {
   it('a worker handed both a renderer and a preview backend is refused before it claims a job', async () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
     const fake = new MemoryRenderer();
-    const both = { root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, rendererTest: fake, previewTest: { backend: { bundle: async () => ({}), open: async () => ({}) } } };
-    await expect(runWorker(both as never)).rejects.toThrow('a worker is handed a renderer (rendererTest) or a preview backend (previewTest.backend), not both');
+    const both = { root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { renderer: fake }, previewTest: { backend: { bundle: async () => ({}), open: async () => ({}) } } };
+    await expect(runWorker(both as never)).rejects.toThrow('a worker is handed a renderer (ports.renderer) or a preview backend (previewTest.backend), not both');
     expect((await engine.jobs.get(sub.job.id)).state).toBe('queued');
     expect(fake.calls).toEqual([]);
     await engine.jobs.cancel(sub.job.id);
@@ -177,9 +192,9 @@ describe('work in process on the renderer its caller hands', () => {
     const before = await historyLines();
     const planned = await planWork({ workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
     const out = join(root, 'stills', 'frame.png');
-    expect(await stillInProcess({ renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 3, out, root, project })).toBe(out);
+    expect(await stillInProcess({ renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 3, out, root, project, clock: systemClock })).toBe(out);
     expect(await readFile(out)).toEqual(MEMORY_PNG);
-    const record = await renderInProcess({ renderer: fake, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO });
+    const record = await renderInProcess({ renderer: fake, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: systemClock });
     expect(record.status).toBe('succeeded');
     expect(await readFile(record.file)).toEqual(MEMORY_VIDEO);
     expect(fake.calls.map((c) => c.op)).toEqual(['stills', 'video']);
@@ -201,14 +216,14 @@ describe('work in process on the renderer its caller hands', () => {
         throw Object.assign(new Error('the renderer lost its GPU'), { renderPath: path, renderWarnings: ['seen before it failed'] });
       },
     });
-    const failed = (await renderInProcess({ renderer: failing, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
+    const failed = (await renderInProcess({ renderer: failing, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: systemClock }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
     expect(await editorErrorOf(failed)).toBe('render');
     expect(failed.message).toBe('the renderer lost its GPU');
     expect(failed.record).toMatchObject({ status: 'failed', error: 'the renderer lost its GPU', policy: path });
     expect(failed.record.warnings).toContain('seen before it failed');
     const stop = new AbortController();
     const stopped = new MemoryRenderer({ duringVideo: () => stop.abort() });
-    const cancelled = (await renderInProcess({ renderer: stopped, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, signal: stop.signal }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
+    const cancelled = (await renderInProcess({ renderer: stopped, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, signal: stop.signal, clock: systemClock }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
     expect(await editorErrorOf(cancelled)).toBe('render_cancelled');
     expect(cancelled.record.status).toBe('cancelled');
     expect(existsSync(cancelled.record.file)).toBe(false);

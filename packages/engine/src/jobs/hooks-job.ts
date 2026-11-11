@@ -24,6 +24,7 @@ import type { SubmitContext } from './run-job.js';
 import { preflightJournal } from './run-job.js';
 import type { EnvResetJobResult, HookResultView, HooksJobResult, JobEventBody, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface HooksSubmitRequest {
   project: string;
@@ -91,7 +92,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
         journalFile: preflightJournal(project),
       });
       if (pre.refused.length) throw refusedError(pre, fix);
-      approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client);
+      approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
     }
   } catch (e) {
     throw toEngineError(e);
@@ -127,7 +128,7 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
       const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project) });
       if (pre.refused.length) throw refusedError(pre, fix);
-      approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client);
+      approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
     }
   } catch (e) {
     throw toEngineError(e);
@@ -163,7 +164,8 @@ export function hookResultView(r: HookResult, declared?: HookStep, describe?: (h
   };
 }
 
-export interface HooksJobContext<I> {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface HooksJobContext<I> extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: I;
@@ -205,7 +207,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
-    recordAs: callerOf(input.submitted_by),
+    recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
   });
   try {
     const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
@@ -243,7 +245,7 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
-    recordAs: callerOf(input.submitted_by),
+    recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
   });
   try {
     const outcomes = await hooks.rollbackPendingJournals(project.dir, hctx);

@@ -123,6 +123,59 @@
    ]
   },
   {
+   "rule": "clock-read",
+   "reason": "Elapsed time and deadlines (a scheduler, not a stamp): the worker's idle and build-check timers, waits, grace periods (a cancel's before the kill, an orphan's before recovery), a history line's `ms` (a recording's too), the journal's warn rate limit, the in-memory renderer's render time. Never written as a time; `performance.now()` would do (BACKLOG).",
+   "entries": [
+    "packages/engine/src/facade/jobs-api.ts → 3 wall-clock reads",
+    "packages/engine/src/in-process.ts → 2 wall-clock reads",
+    "packages/engine/src/jobs/worker-heavy.ts → 2 wall-clock reads",
+    "packages/engine/src/jobs/worker-loop.ts → 7 wall-clock reads",
+    "packages/engine/src/jobs/worker-record.ts → 1 wall-clock read",
+    "packages/engine/src/jobs/worker-recovery.ts → 4 wall-clock reads",
+    "packages/engine/src/jobs/worker-slots.ts → 1 wall-clock read",
+    "packages/engine/src/jobs/yield.ts → 1 wall-clock read",
+    "packages/engine/src/project-lock.ts → 2 wall-clock reads",
+    "packages/engine/src/record.ts → 2 wall-clock reads",
+    "packages/engine/src/render-frames.ts → 4 wall-clock reads",
+    "packages/engine/src/render/memory-renderer.ts → 2 wall-clock reads",
+    "packages/engine/src/store/journal.ts → 1 wall-clock read"
+   ]
+  },
+  {
+   "rule": "clock-read",
+   "reason": "Memo lifetimes kept in memory only (the board's and the scenario view's caches, the Studio's one-time bootstrap codes): compared with the time they were made, never written.",
+   "entries": [
+    "packages/engine/src/http/token.ts → 1 wall-clock read",
+    "packages/engine/src/project-board.ts → 2 wall-clock reads",
+    "packages/engine/src/scenario-view.ts → 4 wall-clock reads"
+   ]
+  },
+  {
+   "rule": "clock-read",
+   "reason": "File times: a filming marker's heartbeat and the library cache's recency are compared with the mtimes other processes leave, so they follow the machine's own time.",
+   "entries": [
+    "packages/engine/src/jobs/captures.ts → 2 wall-clock reads",
+    "packages/engine/src/library.ts → 2 wall-clock reads"
+   ]
+  },
+  {
+   "rule": "clock-read",
+   "reason": "Outside the engine's contexts: the app set-up (`retake app`, the desktop app) has no composition root of the engine; its backup name takes an injectable `now` already.",
+   "entries": [
+    "packages/engine/src/integrations/app-setup.ts → 5 wall-clock reads"
+   ]
+  },
+  {
+   "rule": "store-new",
+   "reason": "Reads of a project folder through the media storage (R-ARC-03), not authored writes: a run's status, a scenario's text (14 callers), a thread view's scenario text, the search index's small files. They move when project reads get a port.",
+   "entries": [
+    "packages/engine/src/comments/views.ts → new LocalStorage",
+    "packages/engine/src/index-db/index-db.ts → new LocalStorage",
+    "packages/engine/src/runs.ts → new LocalStorage",
+    "packages/engine/src/scenarios.ts → new LocalStorage"
+   ]
+  },
+  {
    "rule": "layout",
    "reason": "Paths spelt as text on purpose: the trust lists (agent-writable paths, a person's files), a new project's .gitignore lines, help texts and the Studio's browser code (no node:path there).",
    "entries": [

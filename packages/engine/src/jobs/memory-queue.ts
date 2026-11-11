@@ -6,6 +6,8 @@
  * behaviour, so nothing of the port may need a path. Approvals are still signed with the Retake home's key for `root`
  * (signing.ts), and the derived states still look at the recorded processes (proc.ts), as the file queue does.
  */
+import { stampOf, systemClock } from '../clock.js';
+import type { Clock } from '../clock.js';
 import type { JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
@@ -15,6 +17,9 @@ function gone(id: string): Error {
 }
 
 class MemoryEntries implements JobEntries {
+  /** `clock`: an entry's time (the file queue's mtime). */
+  constructor(private readonly clock: Clock) {}
+
   private readonly jobs = new Map<string, Map<string, { text: string; at: string }>>();
 
   private job(id: string): Map<string, { text: string; at: string }> | undefined {
@@ -24,7 +29,7 @@ class MemoryEntries implements JobEntries {
   private set(id: string, name: string, text: string): void {
     const job = this.job(id);
     if (!job) throw gone(id);
-    job.set(name, { text, at: new Date().toISOString() });
+    job.set(name, { text, at: stampOf(this.clock) });
   }
 
   async ids(): Promise<string[]> {
@@ -89,6 +94,8 @@ export interface MemoryJobQueueOptions {
    * withOwnMemory() queues — each its own memory of the takes, as each file queue has its own marker watch.
    */
   filming?: () => () => Promise<TakeHold>;
+  /** What the queue stamps its records, markers and entries with (default the system's clock: tests). */
+  clock?: Clock;
 }
 
 export class MemoryJobQueue extends StoredJobQueue {
@@ -98,9 +105,9 @@ export class MemoryJobQueue extends StoredJobQueue {
   constructor(
     root: string,
     private readonly o: MemoryJobQueueOptions = {},
-    entries: JobEntries = new MemoryEntries(),
+    entries: JobEntries = new MemoryEntries(o.clock ?? systemClock),
   ) {
-    super(root, o.cli ?? 'retake', entries);
+    super(root, o.cli ?? 'retake', entries, o.clock ?? systemClock);
     this.hold = o.filming?.();
   }
 

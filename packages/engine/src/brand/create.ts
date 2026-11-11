@@ -24,8 +24,8 @@ import type { Palette } from '@retake/components';
 import { components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
-import { ProjectStore } from '../store/project-store.js';
-import type { StoreScope } from '../store/project-store.js';
+import type { StoreScope } from '../store/store.js';
+import { dateOf } from '../clock.js';
 import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
 import { BRAND_TOTAL_MAX_BYTES, checkImage, fontCopyName, readBrandFile, sniffFont, standardWeight } from './files.js';
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
@@ -79,7 +79,6 @@ export interface ThemeCreateOptions {
   scope: StoreScope;
   /** trust `author`: relative file paths resolve against it (default process.cwd()). */
   cwd?: string;
-  now?: Date;
 }
 
 interface Provenance {
@@ -368,7 +367,8 @@ function fontFace(info: FontInfo, ref: BrandFontRef): { weight: number; italic: 
 /** Create a theme from brand inputs (see the module comment). Throws EngineError: invalid, refused, conflict, not_found. */
 export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o: ThemeCreateOptions): Promise<ThemeCreated> {
   const input = parseInput(raw, o.trust);
-  const now = o.now ?? new Date();
+  // Stamped by the scope's clock (its date and provenance), which also dates the stale stages swept.
+  const now = dateOf(o.scope.clock);
   const date = now.toISOString().slice(0, 10);
   // The input schema holds the same rule: the check gives the name its type.
   const name = checkNewThemeName(input.name);
@@ -524,7 +524,7 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
 
   let made: { dir: string; replaced: boolean };
   try {
-    made = await new ProjectStore(templatesDir, o.scope, undefined, '<templates_dir>').createFolder(templatesDir, name, {
+    made = await o.scope.stores.at(templatesDir, o.scope, { label: '<templates_dir>' }).createFolder(templatesDir, name, {
       what: 'theme',
       build: async (stage) => {
         // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).

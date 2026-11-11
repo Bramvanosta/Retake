@@ -7,7 +7,7 @@ import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural } from '../ui.js';
-import { openProject, openWorkspace, workspaceQueue } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor } from './auth.js';
 
@@ -74,6 +74,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
     run = await inspectInProcess({
       policy: ws.policy,
       root: ws.root,
+      clock: cliPorts.clock,
       ...(opts.out === undefined ? { pruneUnlessOpenIn: workspaceQueue(ws) } : {}),
       prepared,
       runsDir,

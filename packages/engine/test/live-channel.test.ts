@@ -34,7 +34,7 @@ afterAll(async () => {
 
 /** A job folder claimed by this process (as the worker running it). */
 async function claimedJob(): Promise<string> {
-  const id = newJobId();
+  const id = newJobId(Date.now());
   await mkdir(queue.files.job(id), { recursive: true });
   expect(await queue.claim(id, await selfIdentity())).toBe(true);
   return id;
@@ -272,7 +272,7 @@ describe('the live channel of a run job', () => {
       expect(await readLiveChannel(queue, queue.files, forged)).toBeNull();
       // The claim's worker is gone (a pid that exited): a stale file of a killed worker.
       const dead = spawnSync(process.execPath, ['-e', ''], { stdio: 'ignore' }).pid!;
-      const stale = newJobId();
+      const stale = newJobId(Date.now());
       await mkdir(queue.files.job(stale), { recursive: true });
       await writeFile(join(queue.files.job(stale), 'claim'), JSON.stringify({ pid: dead, at: new Date().toISOString() }));
       await writeFile(queue.files.live(stale), JSON.stringify({ ...JSON.parse(good), job: stale, pid: dead, started_at: undefined }), { mode: 0o600 });

@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { stampOf } from '../clock.js';
 import { capMinutes, heldFile } from './captures.js';
 import { JOB_EXIT } from './job-child.js';
 import { workersDir } from './lock.js';
@@ -80,7 +81,7 @@ export async function onHeavyExit(w: Worker, h: HeavyChild): Promise<void> {
     w.log(`job ${h.id}: its job process runs another build: given back to the queue, handing over once idle`);
     return;
   }
-  const now = new Date().toISOString();
+  const now = stampOf(w.clock);
   const final: JobRecord =
     h.killed === 'cancel'
       ? { ...stored, state: 'cancelled', finished_at: now, error: { code: 'cancelled', message: `cancelled: its job process did not stop within ${Math.round(w.cancelGraceMs / 1000)} s and was killed` } }
@@ -116,7 +117,7 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
     if (!h.qos.held) {
       const cause = own ? 'here' : (w.filmingCause ?? 'elsewhere');
       w.log(`job ${h.id}: background priority while a take films (${cause === 'here' ? 'in this workspace' : 'elsewhere on this Mac'})`);
-      await w.queue.setYield(h.id, { state: 'background', since: new Date().toISOString(), cause }).catch(() => undefined);
+      await w.queue.setYield(h.id, { state: 'background', since: stampOf(w.clock), cause }).catch(() => undefined);
       h.pastCap = false;
     }
     await h.qos.hold();
@@ -130,7 +131,7 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
     // The cap reached (a take still films, but has held heavy work for over the cap): said on the job, not only logged.
     if (w.filmingCapped && !h.pastCap) {
       h.pastCap = true;
-      await w.queue.setYield(h.id, { state: 'past_cap', since: new Date().toISOString(), cause: w.filmingCapped, cap_min: capMinutes() }).catch(() => undefined);
+      await w.queue.setYield(h.id, { state: 'past_cap', since: stampOf(w.clock), cause: w.filmingCapped, cap_min: capMinutes() }).catch(() => undefined);
       w.log(`job ${h.id}: a take has held heavy work for over ${capMinutes()} min: this job goes on at normal priority`);
     } else if (!w.filmingCapped && h.pastCap) {
       h.pastCap = false;
@@ -152,6 +153,6 @@ export async function syncHeld(w: Worker): Promise<void> {
   const on = w.heavy?.qos.held === true && !w.heavy.exited;
   if (on === w.heldWritten) return;
   w.heldWritten = on;
-  if (on) await writeFile(heldFile(w.root), `${JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString() })}\n`).catch(() => undefined);
+  if (on) await writeFile(heldFile(w.root), `${JSON.stringify({ v: 1, state: 'background', since: stampOf(w.clock) })}\n`).catch(() => undefined);
   else await rm(heldFile(w.root), { force: true }).catch(() => undefined);
 }

@@ -203,19 +203,127 @@ describe('the import-rules ratchet', () => {
   });
 
   it('flags the file job queue built outside the composition roots, under its name, an alias or as a base class', () => {
-    expect(wiring('packages/ui/src/server/a.ts', "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(root);")).toEqual(['queue packages/ui/src/server/a.ts → new FileJobQueue']);
-    expect(wiring('packages/ui/src/server/c.ts', "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root);")).toEqual(['queue packages/ui/src/server/c.ts → new FileJobQueue']);
-    expect(wiring('packages/mcp/src/a.ts', "import * as e from '@retake/engine';\nconst q = new e.FileJobQueue(root);\nclass Mine extends e.FileJobQueue {}")).toEqual(['queue packages/mcp/src/a.ts → new FileJobQueue', 'queue packages/mcp/src/a.ts → extends FileJobQueue']);
+    expect(wiring('packages/ui/src/server/a.ts', "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(root, cli, clock);")).toEqual(['queue packages/ui/src/server/a.ts → new FileJobQueue']);
+    expect(wiring('packages/ui/src/server/c.ts', "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root, cli, clock);")).toEqual(['queue packages/ui/src/server/c.ts → new FileJobQueue']);
+    expect(wiring('packages/mcp/src/a.ts', "import * as e from '@retake/engine';\nconst q = new e.FileJobQueue(root, cli, clock);\nclass Mine extends e.FileJobQueue {}")).toEqual(['queue packages/mcp/src/a.ts → new FileJobQueue', 'queue packages/mcp/src/a.ts → extends FileJobQueue']);
     // Inside the engine too: a module is handed the queue (the JobQueue port), it does not build one.
-    expect(wiring('packages/engine/src/jobs/a.ts', 'const q = new FileJobQueue(root);')).toEqual(['queue packages/engine/src/jobs/a.ts → new FileJobQueue']);
-    expect(wiring('packages/engine/src/index-db/index-db.ts', 'const q = new FileJobQueue(ws.root);')).toEqual(['queue packages/engine/src/index-db/index-db.ts → new FileJobQueue']);
+    expect(wiring('packages/engine/src/jobs/a.ts', 'const q = new FileJobQueue(root, cli, clock);')).toEqual(['queue packages/engine/src/jobs/a.ts → new FileJobQueue']);
+    expect(wiring('packages/engine/src/index-db/index-db.ts', 'const q = new FileJobQueue(ws.root, cli, clock);')).toEqual(['queue packages/engine/src/index-db/index-db.ts → new FileJobQueue']);
     // The composition roots: the engine, the worker, the job process, the CLI's workspaceQueue, and the adapter's own withOwnMemory().
     for (const root of ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts', 'packages/cli/src/workspace.ts']) {
-      expect(wiring(root, "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root);"), root).toEqual([]);
+      expect(wiring(root, "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root, cli, clock);"), root).toEqual([]);
     }
     // A CLI command is handed the CLI's one queue (workspaceQueue), it does not build its own.
-    expect(wiring('packages/cli/src/commands/a.ts', "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(ws.root);")).toEqual(['queue packages/cli/src/commands/a.ts → new FileJobQueue']);
+    expect(wiring('packages/cli/src/commands/a.ts', "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(ws.root, cli, clock);")).toEqual(['queue packages/cli/src/commands/a.ts → new FileJobQueue']);
     expect(wiring('packages/ui/src/server/b.ts', "import type { FileJobQueue } from '@retake/engine';\nlet q: FileJobQueue;")).toEqual([]);
+  });
+
+  it('flags a file job queue built without a clock anywhere but in the adapter itself, the composition roots included', () => {
+    const bare = "import { FileJobQueue as Q } from '@retake/engine';\nconst a = new Q(root);\nconst b = new Q(root, cli);";
+    for (const root of ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/cli/src/workspace.ts']) {
+      expect(wiring(root, bare), root).toEqual([`queue ${root} → new FileJobQueue without a clock`]);
+      expect(wiring(root, "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(root, cli, ports.clock);"), root).toEqual([]);
+    }
+    // Outside the roots both: built at all, and without a clock.
+    expect(wiring('packages/engine/src/jobs/a.ts', 'const q = new FileJobQueue(root);')).toEqual(['queue packages/engine/src/jobs/a.ts → new FileJobQueue', 'queue packages/engine/src/jobs/a.ts → new FileJobQueue without a clock']);
+    // The adapter's own file keeps its default (for tests) and hands its clock on in withOwnMemory().
+    expect(wiring('packages/engine/src/jobs/queue.ts', 'class FileJobQueue {}\nconst q = new FileJobQueue(this.root, cli);')).toEqual([]);
+    // A third argument that says none is no clock: the adapter's default would apply.
+    expect(wiring('packages/engine/src/engine.ts', "import { FileJobQueue } from './jobs/queue.js';\nconst a = new FileJobQueue(root, cli, undefined);\nconst b = new FileJobQueue(root, cli, void 0);")).toEqual(['queue packages/engine/src/engine.ts → new FileJobQueue without a clock']);
+    // A type position is not a construction.
+    expect(wiring('packages/engine/src/engine.ts', "import type { FileJobQueue } from './jobs/queue.js';\nlet q: FileJobQueue;")).toEqual([]);
+  });
+
+  describe('clock-read and store-new: the ports named at the composition roots only', () => {
+    const ports = (rel: string, text: string) => {
+      const { clock, hits } = lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]);
+      return [...clock.map((h: { file: string; count: number }) => `clock-read ${h.file} → ${h.count}`), ...hits.map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`)];
+    };
+
+    it('counts the wall-clock reads of an engine file: new Date(), Date.now (called or as a value, by key too) and Date() called', () => {
+      const text = [
+        'const a = new Date();', // 1
+        'const b = new Date;', // 2
+        'const c = Date.now();', // 3
+        'const d = o.now ?? Date.now;', // 4
+        "const e = Date['now']();", // 5
+        'const f = Date();', // 6
+        'function g(now = Date.now()) { return now; }', // 7
+        // Not reads: a Date of a given time, a parse, the monotonic clock, a property named now, a type.
+        'const h = new Date(t); const i = Date.parse(s); const j = performance.now(); const k = clock.now(); let l: Date; const m = new Date(Date.UTC(2026, 0, 1));',
+      ].join('\n');
+      expect(ports('packages/engine/src/jobs/a.ts', text)).toEqual(['clock-read packages/engine/src/jobs/a.ts → 7']);
+      // The port's own file reads the clock; the other packages are not counted (core may read it: its ids).
+      expect(ports('packages/engine/src/clock.ts', text)).toEqual([]);
+      expect(ports('packages/core/src/ids.ts', text)).toEqual([]);
+      expect(ports('packages/engine/src/b.ts', 'const x = new Date(stamp).toISOString();')).toEqual([]);
+    });
+
+    it('flags the product adapters named as values outside their roots: systemClock, enginePorts, diskProjectStores', () => {
+      const use = "import { systemClock, enginePorts, diskProjectStores } from '@retake/engine';\nf(systemClock);\nconst p = enginePorts();\nconst s = { diskProjectStores };";
+      expect(ports('packages/engine/src/jobs/a.ts', use)).toEqual([
+        'clock-read packages/engine/src/jobs/a.ts → systemClock outside a root',
+        'clock-read packages/engine/src/jobs/a.ts → enginePorts outside a root',
+        'store-new packages/engine/src/jobs/a.ts → diskProjectStores outside a root',
+      ]);
+      // A default parameter is a use too: the hidden default the port replaces.
+      expect(ports('packages/engine/src/history.ts', "import { systemClock } from './clock.js';\nexport function f(clock = systemClock) {}")).toEqual(['clock-read packages/engine/src/history.ts → systemClock outside a root']);
+      expect(ports('packages/cli/src/commands/a.ts', "import { enginePorts } from '@retake/engine';\nconst p = enginePorts();")).toEqual(['clock-read packages/cli/src/commands/a.ts → enginePorts outside a root']);
+      // The roots: the ports bag, createEngine, the worker, the job process, the CLI's cliPorts; each adapter's own file.
+      for (const root of lib.PORT_ROOTS.enginePorts) expect(ports(root, "const p = enginePorts();"), root).toEqual([]);
+      for (const root of lib.PORT_ROOTS.systemClock) expect(ports(root, 'f(systemClock);'), root).toEqual([]);
+      for (const root of lib.PORT_ROOTS.diskProjectStores) expect(ports(root, 'f(diskProjectStores);'), root).toEqual([]);
+      // Imports, re-exports, a declaration's own name, a property name and a type are not uses.
+      expect(ports('packages/engine/src/index.ts', "export { systemClock } from './clock.js';\nexport { enginePorts } from './ports.js';")).toEqual([]);
+      expect(ports('packages/engine/src/jobs/b.ts', 'const o = { systemClock: 1 }; o.enginePorts; let t: typeof diskProjectStores;')).toEqual([]);
+    });
+
+    it('flags a store or a storage of a folder built outside the store, extended or passed on as a value', () => {
+      expect(ports('packages/engine/src/runs.ts', "import { LocalStorage } from './storage.js';\nconst s = new LocalStorage(dir);")).toEqual(['store-new packages/engine/src/runs.ts → new LocalStorage']);
+      expect(ports('packages/engine/src/a.ts', 'const s = new DiskProjectStore(dir, scope);\nclass Mine extends LocalStorage {}\nconst K = LocalStorage;')).toEqual([
+        'store-new packages/engine/src/a.ts → new DiskProjectStore',
+        'store-new packages/engine/src/a.ts → extends LocalStorage',
+        'store-new packages/engine/src/a.ts → LocalStorage as a value',
+      ]);
+      expect(ports('packages/cli/src/commands/a.ts', "import { LocalStorage } from '@retake/engine';\nnew LocalStorage(root).readText('x');")).toEqual(['store-new packages/cli/src/commands/a.ts → new LocalStorage']);
+      // The store's folder and the storage module build them; a type position is not a use.
+      expect(ports('packages/engine/src/store/project-store.ts', 'new LocalStorage(root); new DiskProjectStore(root, scope);')).toEqual([]);
+      expect(ports('packages/engine/src/storage.ts', 'class LocalStorage {}\nnew LocalStorage(root);')).toEqual([]);
+      expect(ports('packages/engine/src/b.ts', "import type { LocalStorage } from './storage.js';\nlet s: LocalStorage; class X implements LocalStorage {}")).toEqual([]);
+    });
+
+    it('sees through an import alias, a namespace import and a pattern taking now out of Date', () => {
+      // Aliases and namespaces of the ports.
+      expect(ports('packages/engine/src/jobs/a.ts', "import { systemClock as sc } from '../clock.js';\nf(sc);")).toEqual(['clock-read packages/engine/src/jobs/a.ts → systemClock outside a root']);
+      expect(ports('packages/engine/src/jobs/a.ts', "import * as k from '../clock.js';\nf(k.systemClock);")).toEqual(['clock-read packages/engine/src/jobs/a.ts → systemClock outside a root']);
+      expect(ports('packages/engine/src/jobs/a.ts', "import * as p from '../ports.js';\nconst x = p.enginePorts();\nconst y = p['enginePorts']();")).toEqual(['clock-read packages/engine/src/jobs/a.ts → enginePorts outside a root']);
+      expect(ports('packages/cli/src/commands/a.ts', "import * as ps from '@retake/engine';\nf(ps.diskProjectStores);")).toEqual(['store-new packages/cli/src/commands/a.ts → diskProjectStores outside a root']);
+      // Aliases and namespaces of the store classes.
+      expect(ports('packages/engine/src/a.ts', "import { LocalStorage as LS } from './storage.js';\nconst s = new LS(dir);")).toEqual(['store-new packages/engine/src/a.ts → new LocalStorage']);
+      expect(ports('packages/engine/src/a.ts', "import * as st from './storage.js';\nconst s = new st.LocalStorage(dir);\nclass M extends st.LocalStorage {}\nconst K = st.LocalStorage;")).toEqual([
+        'store-new packages/engine/src/a.ts → new LocalStorage',
+        'store-new packages/engine/src/a.ts → extends LocalStorage',
+        'store-new packages/engine/src/a.ts → LocalStorage as a value',
+      ]);
+      // A member of an object that is not a namespace import is not the name (a context's own clock).
+      expect(ports('packages/engine/src/jobs/a.ts', 'const s = stampOf(w.clock); const o = ports.systemClock; new ns.LocalStorage(dir);')).toEqual([]);
+      // now taken out of Date by a pattern, in a declaration or an assignment, under its name or another.
+      const text = 'const { now } = Date;\nconst { now: t } = Date;\n({ now } = Date);\nconst { parse } = Date;';
+      expect(ports('packages/engine/src/jobs/b.ts', text)).toEqual(['clock-read packages/engine/src/jobs/b.ts → 3']);
+      // The check's titles name what stays unseen.
+      const title = (id: string) => lib.CHECKS.find((c: { id: string }) => c.id === id)?.title ?? '';
+      for (const word of ['Not seen', 'Reflect', 'another name', 'await import()']) expect(title('clock-read'), word).toContain(word);
+      for (const word of ['Not seen', 'Reflect.construct', 'await import()', 'import alias']) expect(title('store-new'), word).toContain(word);
+      expect(title('queue')).toContain('`undefined` or `void 0`');
+    });
+
+    it('holds today: no product adapter named outside its roots, and the files that read the clock or build a storage each pinned', () => {
+      const entries = lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('clock-read ') || e.startsWith('store-new '));
+      expect(entries.filter((e: string) => e.endsWith('outside a root'))).toEqual([]);
+      for (const e of entries) expect(e).toMatch(/^(clock-read packages\/engine\/src\/\S+ → \d+ wall-clock reads?|store-new packages\/engine\/src\/\S+ → new LocalStorage)$/);
+      // No authored write builds its own store: the project store's disk adapter is built in its own file only.
+      expect(entries.filter((e: string) => e.includes('DiskProjectStore'))).toEqual([]);
+    });
   });
 
   it('flags a submit or a worker\'s write on the job queue outside packages/engine/src, not a read nor a client\'s request', () => {
@@ -1055,7 +1163,7 @@ describe('the import-rules ratchet', () => {
       const entries = today.filter((e: string) => e.startsWith('id-grammar '));
       expect(entries).toEqual(hits.map((h) => `id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`).sort());
       // One more pattern in a file is a new entry (and its old count a stale one).
-      const more = lib.compareBaseline([...today.filter((e: string) => !e.includes('engine/src/brand/create.ts')), 'id-grammar packages/engine/src/brand/create.ts → 2 hand-written id patterns', 'id-grammar packages/engine/src/jobs/signing.ts → 1 hand-written id pattern'], lib.readBaseline(ROOT));
+      const more = lib.compareBaseline([...today.filter((e: string) => !e.startsWith('id-grammar packages/engine/src/brand/create.ts')), 'id-grammar packages/engine/src/brand/create.ts → 2 hand-written id patterns', 'id-grammar packages/engine/src/jobs/signing.ts → 1 hand-written id pattern'], lib.readBaseline(ROOT));
       expect(more.added).toEqual(['id-grammar packages/engine/src/brand/create.ts → 2 hand-written id patterns', 'id-grammar packages/engine/src/jobs/signing.ts → 1 hand-written id pattern']);
       expect(more.stale).toEqual(['id-grammar packages/engine/src/brand/create.ts → 1 hand-written id pattern']);
       // The check's title says what it reads and what it does not.

@@ -14,6 +14,7 @@ import type { EngineClient } from './caller.js';
 import { thumbnail } from './reviews.js';
 import { usageCounts } from './history.js';
 import { FileJobQueue } from './jobs/queue.js';
+import { enginePorts } from './ports.js';
 import { authApi } from './facade/auth-api.js';
 import { commentsApi } from './facade/comments-api.js';
 import { engineContext } from './facade/context.js';
@@ -60,8 +61,10 @@ export function agentTrust(client: EngineClient): boolean {
 }
 
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
-  const ctx = await engineContext(opts, (root, cli) => {
-    const queue = new FileJobQueue(root, cli);
+  // The façade's composition root: the ports a test hands, else the product's (the MCP server and the Studio hand none).
+  const ports = enginePorts(opts.ports);
+  const ctx = await engineContext(opts, ports, (root, cli) => {
+    const queue = new FileJobQueue(root, cli, ports.clock);
     return { queue, files: queue.files };
   });
   const { ws, queue, jobFiles, studio } = ctx;

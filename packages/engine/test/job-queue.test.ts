@@ -12,6 +12,7 @@ import { ulid } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { FileJobQueue, INSPECT_KEEP, MemoryJobQueue, RECORD_KEEP, inspectRoot, newInspectId, newRecordId, pruneInspections, pruneRecords, recordsRoot, selfIdentity } from '../src/index.js';
 import type { JobQueueView, TakeHold } from '../src/index.js';
+import { systemClock } from '../src/clock.js';
 import { RUN_INPUT, jobQueueContract } from './job-queue-contract.js';
 
 let ws: string;
@@ -29,17 +30,17 @@ afterAll(async () => {
 });
 
 let n = 0;
-jobQueueContract('file', async (name, cli) => {
+jobQueueContract('file', async (name, cli, clock) => {
   // A workspace folder exists before its queue does (as every real one): approvals are signed over its real path.
   const root = join(ws, `file-${name}-${n++}`);
   await mkdir(root, { recursive: true });
-  return { queue: new FileJobQueue(root, cli), root };
+  return { queue: new FileJobQueue(root, cli, clock), root };
 });
 
-jobQueueContract('memory', async (name, cli) => {
+jobQueueContract('memory', async (name, cli, clock) => {
   const root = join(ws, `memory-${name}-${n++}`);
   await mkdir(root, { recursive: true });
-  return { queue: new MemoryJobQueue(root, cli ? { cli } : {}), root };
+  return { queue: new MemoryJobQueue(root, { ...(cli ? { cli } : {}), ...(clock ? { clock } : {}) }), root };
 });
 
 describe('the file queue (its files)', () => {
@@ -176,10 +177,10 @@ describe('the in-memory queue serves the code that is handed a queue', () => {
     await mkdir(join(recordsRoot(p), active), { recursive: true });
     for (let i = 0; i < RECORD_KEEP + 2; i++) await mkdir(join(recordsRoot(p), newRecordId()), { recursive: true });
     const job = await q.enqueue({ version: 1, kind: 'record', project: p.slug, rec_id: active, source: { page: 'shop', path: '/' }, check: true, submitted_by: 'mcp' });
-    expect(await pruneRecords(p, RECORD_KEEP, [], q)).not.toContain(active);
+    expect(await pruneRecords(p, systemClock, RECORD_KEEP, [], q)).not.toContain(active);
     expect(existsSync(join(recordsRoot(p), active))).toBe(true);
     await q.cancel(job.id, 'test');
-    expect(await pruneRecords(p, RECORD_KEEP, [], q)).toContain(active);
+    expect(await pruneRecords(p, systemClock, RECORD_KEEP, [], q)).toContain(active);
   });
 
   it('pruning keeps the folder of an inspection whose job is queued, even the oldest; once cancelled it goes', async () => {

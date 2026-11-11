@@ -20,6 +20,7 @@ import { checkEnvName } from './hooks-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobRecord, SandboxJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export type SandboxJobKind = 'sandbox_up' | 'sandbox_reset';
 
@@ -71,6 +72,7 @@ export async function submitSandboxJob(
     },
     approver,
     ctx.client,
+    ctx.clock,
   );
   const base = { project: project.slug, ...(req.env !== undefined ? { env: req.env } : {}), submitted_by: ctx.client, ...(approvals.length ? { approvals } : {}) };
   const input: SandboxUpJobInput | SandboxResetJobInput =
@@ -78,7 +80,8 @@ export async function submitSandboxJob(
   return { job: await ctx.queue.enqueue(input), env: sb.env };
 }
 
-export interface SandboxJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface SandboxJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: SandboxUpJobInput | SandboxResetJobInput;
@@ -114,7 +117,7 @@ export async function executeSandboxJob(ctx: SandboxJobContext): Promise<Sandbox
     if (level !== 'debug') ctx.event({ type: 'log', level, message });
   };
   const seedTrust = { trust: ENGINE_TRUST, confirm: approvalChecker(input.approvals) };
-  const recordSeedRun = hookRunRecorder(project.root, callerOf(input.submitted_by), { project: project.slug });
+  const recordSeedRun = hookRunRecorder(project.root, { caller: callerOf(input.submitted_by), clock: ctx.clock }, { project: project.slug });
   const stop = await ctx.interrupts.open({ message: 'interrupted: stopping what this command started…', onQuitSync: () => sb.killStartedSync() });
   const pages = resolveEnvironment(project, sb.env).pages;
   try {

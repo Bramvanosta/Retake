@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { initSandbox } from '@retake/sandbox';
-import { componentCreate, copyTheme, createEngine, createThemeFromBrand, fileWriter, openProjectBySlug, openWorkspace, personScope, ProjectStore } from '../src/index.js';
+import { componentCreate, copyTheme, createEngine, createThemeFromBrand, fileWriter, openProjectBySlug, openWorkspace, personScope, ProjectStore, enginePorts, diskProjectStores, ManualClock } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 const sha = (b: string | Buffer) => createHash('sha256').update(b).digest('hex');
@@ -88,7 +88,7 @@ describe('the bytes of the authored writers', () => {
 
   it('a theme copied: the starter\'s files verbatim, its name spliced, the provenance file', async () => {
     const ws = await openWorkspace({ root, agent: false });
-    await copyTheme(ws, { from: 'default', name: 'mine' }, { now: NOW, scope: personScope(root) });
+    await copyTheme(ws, { from: 'default', name: 'mine' }, { scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) });
     expect(await tree(join(root, 'templates', 'mine'), noToolVersion)).toEqual({
       '.retake-theme.json': '7b275d8e5d2e3d99354224699037aea782a421a28bdeeb6c351de13450f05936',
       'LICENSES.md': '106843797aea0fff6c2a3b296b964c54039743211bd3585fe0f3f5e4ac40a166',
@@ -104,7 +104,7 @@ describe('the bytes of the authored writers', () => {
 
   it('a theme made from brand inputs: template.yaml, the logo, LICENSES.md, the provenance file', async () => {
     const ws = await openWorkspace({ root, agent: false });
-    await createThemeFromBrand(ws, { name: 'acme', colors: { accent: '#0e7c66' }, logo: 'brand/logo.svg' }, { trust: 'author', cwd: root, now: NOW, scope: personScope(root) });
+    await createThemeFromBrand(ws, { name: 'acme', colors: { accent: '#0e7c66' }, logo: 'brand/logo.svg' }, { trust: 'author', cwd: root, scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) });
     expect(await tree(join(root, 'templates', 'acme'), noToolVersion)).toEqual({
       '.retake-theme.json': '050793c9021eb9a558611cb3c1187e32b9f22ece37a194bfb3064bd7168ee9b4',
       'LICENSES.md': '1364d5cf15028b623067fdf8ce19410352d273fc429b1de54707f005e3aef87d',
@@ -119,7 +119,7 @@ describe('the bytes of the authored writers', () => {
 
   it('a component scaffold: component.yaml, the entry, README.md', async () => {
     const ws = await openWorkspace({ root, agent: false });
-    await componentCreate(ws, { id: 'acme/intro-split', kind: 'intro', description: 'A split title card.' }, personScope(root));
+    await componentCreate(ws, { id: 'acme/intro-split', kind: 'intro', description: 'A split title card.' }, personScope(root, enginePorts()));
     expect(await tree(join(root, 'components', 'acme', 'intro-split'), noSchemaLine)).toEqual({
       'README.md': 'e8ecf52b5ad81b5ba5f49f31e2f22a394ad55c251df1b9bed8262c17df562f99',
       'component.yaml': '2e7b35c2d82c4280f71e578d759fc1c70633873342681b51f5476ee207aef292',
@@ -130,7 +130,7 @@ describe('the bytes of the authored writers', () => {
   it('a sandbox scaffold: its files and the line project.yaml gains', async () => {
     const project = await openProjectBySlug(await openWorkspace({ root, agent: false }), 'acme');
     const before = await readFile(project.file, 'utf8');
-    await initSandbox(project, { isFree: async () => true, write: fileWriter(ProjectStore.of(project, personScope(root)), 'sandbox') });
+    await initSandbox(project, { isFree: async () => true, write: fileWriter(diskProjectStores.of(project, personScope(root, enginePorts())), 'sandbox') });
     const after = await readFile(project.file, 'utf8');
     expect(after.slice(0, before.length)).toBe(before);
     expect(after.slice(before.length)).toBe('sandboxes:\n  sandbox: sandbox/sandbox.yaml\n');

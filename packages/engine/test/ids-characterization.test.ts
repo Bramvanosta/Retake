@@ -24,6 +24,7 @@ import { checkRenderRequest, renderVersionOf } from '../src/jobs/render-job.js';
 import { readListedRecord, renderView } from '../src/renders.js';
 import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
+import { authorScope } from './helpers.js';
 import { capture, writeRun } from './synthetic-runs.js';
 
 const a = (n: number, ch = 'a') => ch.repeat(n);
@@ -591,7 +592,7 @@ describe('a render\'s review, comments and frames', () => {
     const mixed = { ...demo.record, id: 'quote-v2-v1', file: join(ws.project.dir, 'renders', 'quote-v2-v1.mp4'), record: join(ws.project.dir, 'renders', 'quote-v2-v1.json') };
     await writeFile(mixed.file, '');
     await writeFile(mixed.record, JSON.stringify(mixed));
-    const add = (render: string) => outcome(addComment(ws.project, { render, frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, undefined, PERSON_POLICY));
+    const add = (render: string) => outcome(addComment(ws.project, { render, frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, authorScope(ws.project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY));
     const frame = (render: string) => outcome(engine.renders.frame('demo', { render_id: render, created_at: demo.record.created_at, frame: 0 }));
     // L7.5 D-5: the id is the scenario's exactly, not by its start.
     expect(await add('quote-v2-v1')).toBe('invalid: render quote-v2-v1 has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments'); // D-5

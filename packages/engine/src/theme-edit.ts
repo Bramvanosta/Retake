@@ -33,8 +33,7 @@ import type { EngineClient } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { listProjectSummaries, openProjectBySlug } from './projects.js';
 import { sha256Hex } from './storage.js';
-import { ProjectStore } from './store/project-store.js';
-import type { StoreScope } from './store/project-store.js';
+import type { StoreScope } from './store/store.js';
 import { checkTemplateName } from './templates.js';
 import type { OpenedWorkspace } from './workspace.js';
 
@@ -522,7 +521,7 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
   }
   const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
   const ref = relative(realRoot, loc.realFile).split(sep).join('/');
-  const res = await new ProjectStore(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
+  const res = await o.scope.stores.at(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
   rememberVersion(loc.realFile, base.sha256);
   rememberVersion(loc.realFile, res.sha256);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);

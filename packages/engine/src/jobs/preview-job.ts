@@ -24,6 +24,7 @@ import type { ComponentKind, LoadedTemplate, PreviewJobInput } from '@retake/cor
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
 import { fileFacts } from '@retake/core/io';
+import { stampOf } from '../clock.js';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import {
@@ -55,6 +56,7 @@ import type { Renderer } from '../render/renderer.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** The kinds a theme preview shows, in order (R-MCP-11). */
 export const THEME_PREVIEW_KINDS: readonly ComponentKind[] = ['intro', 'layout', 'card', 'interstitial', 'outro'];
@@ -206,7 +208,8 @@ export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest):
   return { job: await ctx.queue.enqueue(input), preview_id: previewId, theme: prepared.template.name, targets: prepared.targets.map((t) => t.id), skipped: prepared.skipped };
 }
 
-export interface PreviewJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface PreviewJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: PreviewJobInput;
@@ -224,7 +227,7 @@ export interface PreviewJobContext {
 /**
  * In-process tests of library jobs: a stand-in for Remotion, and the free space the disk gate sees. `backend` draws a
  * library job's posters and loops in place of the worker's renderer's previews (render/editor-renderer.ts
- * withPreviewBackend). A worker is handed this or a whole renderer (WorkerOptions.rendererTest), never both: runWorker
+ * withPreviewBackend). A worker is handed this or a whole renderer (WorkerOptions.ports.renderer), never both: runWorker
  * refuses the two together.
  */
 export interface PreviewJobTestHooks {
@@ -239,7 +242,7 @@ export async function executePreviewJob(ctx: PreviewJobContext): Promise<Preview
   const prepared = await preparePreview(ctx.ws, input);
   const dir = previewDir(ctx.ws, input.preview_id);
   const total = prepared.targets.length;
-  ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: new Date().toISOString() });
+  ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: stampOf(ctx.clock) });
   let warnings: string[] = [];
   const done = await previewsWork({
     renderer: ctx.renderer,
@@ -254,7 +257,7 @@ export async function executePreviewJob(ctx: PreviewJobContext): Promise<Preview
     onBrowser: (b) => ctx.browser(b),
     onWarnings: (w) => (warnings = w),
     onProgress: (n, of) =>
-      ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: new Date().toISOString() }),
+      ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: stampOf(ctx.clock) }),
   });
   return {
     kind: 'preview',
@@ -318,7 +321,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     else if (have.state === 'failed') await dropLibraryEntry(cacheDir, w.key);
   }
   const todo = wants.filter((w) => w.state === undefined);
-  const at = () => new Date().toISOString();
+  const at = () => stampOf(ctx.clock);
   let bundle: { hash: string; cached: boolean } | null = null;
   let warnings: string[] = [];
   const cleanup = async () => {

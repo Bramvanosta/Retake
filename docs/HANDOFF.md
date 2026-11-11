@@ -126,6 +126,56 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.10)
+- **L7.10 done (2026-11-11; branch `claude/arch-l7`)** — two more slices of U6 ([2026-11-10 action plan](audit/2026-11-10/action-plan.md)): the engine's clock and the project store are ports, chosen at the composition roots; no behaviour change for the product.
+  - **Ports.**
+    - `Clock` (`packages/engine/src/clock.ts`: `systemClock`, `stampOf`, `dateOf`, and `ManualClock` for tests).
+    - `ProjectStores` (`packages/engine/src/store/store.ts`: `of` a project, `at` a folder, `folder` to read one),
+      carried with the clock in each `StoreScope` (who writes, when, through which stores).
+    - One ports bag, `EnginePorts` / `enginePorts` (`packages/engine/src/ports.ts`), the only place the defaults are
+      written. Its roots are `createEngine`'s `ports` (the MCP server and the Studio pass none), `WorkerOptions.ports`
+      (which also carries a test's renderer, replacing `rendererTest`; any port handed runs heavy jobs in-process), the
+      job process, and the CLI's `cliPorts` (`cli/src/workspace.ts`).
+  - **Two adapters each, one contract suite each.**
+    - The clock: the system's, and a manual one.
+    - The store: `diskProjectStores` (its class not exported) and `MemoryProjectStores`.
+    - `engine/test/project-store-contract.ts` (9 cases) runs on both stores. The refusals' words are shared through
+      `storage.ts` (`resolveIn`, `refOfIn`, `conflictError`), and the journal lines are built by `journalLine`.
+    - The job-queue contract gains a case: every stamp comes from the queue's clock.
+  - **What reads the clock now.** Every stamp the engine writes: job records and their markers, progress, events,
+    journal and history lines, thread entries, approvals and their use, the reserved run, a recording's start and
+    annotations, the site theme's date, the worker lock. Elapsed time, deadlines, memo lifetimes and file times stay on
+    the system's time, pinned file by file (BACKLOG BL-171: `performance.now()`).
+  - **Store call sites.** Every authored write's store comes from its scope. `threadStore`'s default scope is gone (the
+    CLI's comment commands pass their own, and the journal lines are the same). `projectView` and `sandboxStatus` read
+    through `stores.folder()`.
+  - **The ratchet** (`scripts/audit/lib.mjs`).
+    - `clock-read`: wall-clock reads per engine file (19 pinned files, 4 reasons), and `systemClock` / `enginePorts`
+      outside a root.
+    - `store-new`: `new LocalStorage` / `new DiskProjectStore` outside the store (4 pinned reads), and
+      `diskProjectStores` outside a root.
+    - `queue`: a file queue built without a clock.
+    - All three read import aliases and namespace imports; `clock-read` also reads `const { now } = Date`.
+    - Baseline 93 → 116. R11 stays 27.
+  - **Checked.**
+    - A differential against `019e5e9`: every written file, the journal and the history are equal once stamps and ids
+      are normalised. It drove the CLI's init, new, sandbox init, components, themes, comments (also through a linked
+      workspace), hooks, a dry run, a still, a render and an export, and the engine's project, README, scenario,
+      thread, theme and component writes.
+    - The CLI golden, the MCP tool list and the op table are unchanged.
+    - `tsc -b`, `pnpm typecheck`, `rules.mjs --check`, `test-guard`, `--check-cites`.
+    - The lot's test files, one by one.
+    - About 55 mutations, all red.
+  - **Not done.**
+    - **The full suite was not run.**
+    - A recording (`retake record`, a headed window) is not in the differential; record.test.ts holds its stamps under
+      a ManualClock.
+    - Not mutation-tested: the progress stamps of the preview, inspect, export, review, record and site jobs, a few
+      worker stamps, and a recording's Save / Discard `at` (the ratchet holds them).
+    - Scenario and thread writes still read the disk outside the store, so their tests stay on the disk.
+    - The memory store compares paths byte for byte (APFS does not), has no links, modes, cross-process locks or
+      `busy`, and cannot run a `build` that reads its stage from the disk.
+
 ## State (after L7.6c)
 - **L7.6c done (2026-11-11; branch `claude/arch-l7`)** — the last three readers of `renders/` on the one reader (the
   rest of U5 of the 2026-11-10 action plan). The search index has a row for each record of its own file (core
@@ -1396,7 +1446,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: U6 (L7.10 Clock and ProjectStore, L7.11 HookRunner and Reviewer, L7.12 CaptureRunner), then U7 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: U6 (L7.11 HookRunner and Reviewer, L7.12 CaptureRunner), then U7 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

@@ -12,6 +12,7 @@
 import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION, projectPath } from '@retake/core';
 import type { ExportFormatName, ExportJobInput } from '@retake/core';
 import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
+import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
@@ -27,6 +28,7 @@ import type { JobFiles } from './queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 /** Formats exported when none are named (derived from the master: no re-render): core's one list. */
 export const DEFAULT_JOB_EXPORT_FORMATS: readonly ExportFormatName[] = DEFAULT_EXPORT_FORMAT_NAMES;
@@ -125,7 +127,8 @@ export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFi
   }
 }
 
-export interface ExportJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface ExportJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: ExportJobInput;
@@ -166,7 +169,7 @@ export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJob
       const key = `${p.format}:${p.stage}:${fraction}`;
       if (key === last) return;
       last = key;
-      ctx.progress({ steps_done: done, steps_total: total, phase: p.format, fraction, updated_at: new Date().toISOString() });
+      ctx.progress({ steps_done: done, steps_total: total, phase: p.format, fraction, updated_at: stampOf(ctx.clock) });
     },
   });
   // The manifest also keeps formats exported earlier: this export's files are the formats asked that did not fail.

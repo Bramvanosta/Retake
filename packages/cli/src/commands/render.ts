@@ -9,7 +9,7 @@ import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import { printReview, runReview } from './review.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
@@ -258,6 +258,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
       workPolicy: ws.policy,
       project,
       root: ws.root,
+      clock: cliPorts.clock,
       run: runId,
       scenario,
       template: opts.theme,
@@ -329,7 +330,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   ui.setStatus(ui.c.dim(`  … rendering frame ${frame} of ${scenario}`));
   try {
     // The still, then its line of the workspace's history (a still is a render too).
-    await stillInProcess({ renderer: editorRenderer(), workPolicy: ws.policy, plan, frame, out, root: ws.root, registry, project });
+    await stillInProcess({ renderer: editorRenderer(), workPolicy: ws.policy, plan, frame, out, root: ws.root, clock: cliPorts.clock, registry, project });
   } finally {
     ui.clearStatus();
     await gate.dispose();

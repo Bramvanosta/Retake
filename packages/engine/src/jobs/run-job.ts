@@ -14,6 +14,8 @@ import { FORMAT_VERSIONS, JOB_INPUT_VERSION, closeReservedRun, listSteps, loginC
 import { reserveRunId, writeJson } from '@retake/core/io';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunStatus } from '@retake/core';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
 import type { RunAdmit } from '../admission.js';
@@ -31,6 +33,7 @@ import { sha256Hex } from '../storage.js';
 import type { JobQueue } from './job-queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RunJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface RunSubmitRequest {
   project: string;
@@ -52,7 +55,8 @@ export interface RunSubmitRequest {
   sessions_ack?: readonly string[];
 }
 
-export interface SubmitContext {
+/** What a job submission is handed; its ports (`clock`, `stores`) are the engine's (createEngine, ports.ts). */
+export interface SubmitContext extends EnginePorts {
   ws: OpenedWorkspace;
   queue: JobQueue;
   /** "retake -C <root>": how the commands a human is asked to run start. */
@@ -106,10 +110,10 @@ async function runRecordOf(dir: string): Promise<Record<string, unknown> | undef
  * Close a reserved run whose run.json an early exit left `queued` (or a runner that threw left `running`): it gets its
  * final status and the reason. A run the runner finished is never touched.
  */
-export async function finaliseReservedRun(dir: string, status: Extract<RunStatus, 'failed' | 'cancelled'>, message: string): Promise<void> {
+export async function finaliseReservedRun(dir: string, status: Extract<RunStatus, 'failed' | 'cancelled'>, message: string, clock: Clock): Promise<void> {
   const rec = await runRecordOf(dir);
   if (!rec || (rec.status !== 'queued' && rec.status !== 'running')) return;
-  await writeJson(join(dir, 'run.json'), closeReservedRun({ ...rec, status: rec.status }, { status, at: new Date().toISOString(), message }));
+  await writeJson(join(dir, 'run.json'), closeReservedRun({ ...rec, status: rec.status }, { status, at: stampOf(clock), message }));
 }
 
 /** A run request opened and prepared once (its project, its scenario loaded and checked against its environment). */
@@ -176,8 +180,8 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
       // `sandbox`: the reset before the take may run the seed — its shell steps need a human too.
       const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv) : [];
       const p = await preflight();
-      if (p) return takeApprovals({ what, project: project.slug, env: p.env, items: [...seedItems, ...p.items], fix }, approver, ctx.client);
-      if (seedItems.length) return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client);
+      if (p) return takeApprovals({ what, project: project.slug, env: p.env, items: [...seedItems, ...p.items], fix }, approver, ctx.client, ctx.clock);
+      if (seedItems.length) return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client, ctx.clock);
       return [];
     },
   ];
@@ -313,7 +317,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
     project: project.slug,
     scenario: prepared.scenario.name,
     mode: req.mode,
-    started_at: new Date().toISOString(),
+    started_at: stampOf(ctx.clock),
     dir,
     env: env.name,
     options: { hooks: hooksMode, headed: false, ...(req.until !== undefined ? { until: req.until } : {}) },
@@ -343,7 +347,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   try {
     job = await ctx.queue.enqueue(input);
   } catch (e) {
-    await finaliseReservedRun(dir, 'failed', `not queued: ${(e as Error).message}`);
+    await finaliseReservedRun(dir, 'failed', `not queued: ${(e as Error).message}`, ctx.clock);
     throw e;
   }
   const warnings = [...prepared.scenario.issues.map((i) => i.message), ...(prepared.templateWarning ? [prepared.templateWarning] : [])];
@@ -353,7 +357,8 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   return { job, run_id: runId, dir, warnings };
 }
 
-export interface RunJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface RunJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   input: RunJobInput;
@@ -394,9 +399,9 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       throw scenarioChangedConflict(e, `${projectRef('scenarios', input.scenario)} changed since the run was submitted: submit it again (what was checked is what runs)`);
     });
     await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
-    const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: new Date().toISOString() };
+    const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: stampOf(ctx.clock) };
     const update = (patch: Partial<JobProgress>) => {
-      Object.assign(progress, patch, { updated_at: new Date().toISOString() });
+      Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
       if (patch.paused === undefined && 'paused' in patch) delete progress.paused;
       ctx.progress({ ...progress });
     };
@@ -427,7 +432,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
             if (e.status === 'start') update({ phase: 'encode' });
             break;
           case 'pause':
-            if (e.state === 'paused') update({ paused: { scene: e.scene, step: e.step, since: new Date().toISOString() } });
+            if (e.state === 'paused') update({ paused: { scene: e.scene, step: e.step, since: stampOf(ctx.clock) } });
             else if (e.state === 'resumed') update({ paused: undefined });
             break;
           case 'run_end':
@@ -449,7 +454,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
         hookTrust: ENGINE_TRUST,
         hookVia: agentChannel(input.submitted_by),
         confirmHook: approvalChecker(input.approvals),
-        recordAs: callerOf(input.submitted_by),
+        recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
         ...(ctx.live ? { live: ctx.live } : {}),
         ...(ctx.pause ? { pause: ctx.pause } : {}),
         ...(ctx.onFilming ? { onFilming: ctx.onFilming } : {}),
@@ -472,7 +477,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
     };
   } catch (e) {
     const cancelled = ctx.signal.aborted || toEngineError(e).code === 'cancelled';
-    await finaliseReservedRun(runDir, cancelled ? 'cancelled' : 'failed', (e as Error)?.message ?? String(e));
+    await finaliseReservedRun(runDir, cancelled ? 'cancelled' : 'failed', (e as Error)?.message ?? String(e), ctx.clock);
     throw e;
   }
 }

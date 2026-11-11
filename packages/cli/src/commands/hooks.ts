@@ -9,7 +9,7 @@ import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural, truncate } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor } from './auth.js';
 
@@ -68,7 +68,7 @@ async function hookContext(
       ...(opts.scenario ? { scenario: opts.scenario } : {}),
       loginCommand: loginCommandFor(global),
       // Each hook and rollback run is a line of the workspace journal, as the person's.
-      recordAs: callerOf('cli'),
+      recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
       replayUnsigned:
         opts.replayUnsigned === true
           ? async (entry, file) => {

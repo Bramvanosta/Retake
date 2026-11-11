@@ -10,8 +10,14 @@ export function projectsApi(ctx: EngineContext): Engine['projects'] {
   const { opts, agent, ws, scope, project, studio, queue, boards } = ctx;
   return {
     list: () => listProjectSummaries(ws),
-    get: async (slug) => projectView(await project(slug)),
-    create: async (input) => projectView(await createProjectFromRequest(ws, input, scope)),
+    get: async (slug) => {
+      const p = await project(slug);
+      return projectView(p, scope.stores.folder(p.dir));
+    },
+    create: async (input) => {
+      const p = await createProjectFromRequest(ws, input, scope);
+      return projectView(p, scope.stores.folder(p.dir));
+    },
     updateReadme: async (slug, markdown, ifMatch) => updateProjectReadme(await project(slug), markdown, ifMatch, scope),
     prune: async (slug, req = {}, o = {}) => {
       const p = await project(slug);

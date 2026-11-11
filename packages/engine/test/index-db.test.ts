@@ -40,7 +40,7 @@ beforeAll(async () => {
   await writeFile(
     historyFile(ws),
     line({ at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' } }) +
-      line({ at: '2026-10-16T08:00:00.000Z', kind: 'render', project: P, job: newJobId(), submitted_by: 'mcp', render: { id: 'quote-v1', scenario: 'quote' } }),
+      line({ at: '2026-10-16T08:00:00.000Z', kind: 'render', project: P, job: newJobId(Date.now()), submitted_by: 'mcp', render: { id: 'quote-v1', scenario: 'quote' } }),
   );
   cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY };
 });
@@ -412,7 +412,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
     try {
       await ix.reconcile();
       const started = await processStart(child.pid!);
-      const id = newJobId();
+      const id = newJobId(Date.now());
       await mkdir(join(queue.files.dir, id), { recursive: true });
       const job = {
         version: 1,
@@ -476,7 +476,7 @@ describe('the activity feed reads a finished job once (review B L1)', () => {
       await fixtureWorkspace(dir);
       const queue = new FileJobQueue(dir);
       const write = async (state: string) => {
-        const id = newJobId();
+        const id = newJobId(Date.now());
         await mkdir(join(queue.files.dir, id), { recursive: true });
         await writeFile(join(queue.files.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state, created_at: new Date().toISOString(), ...(state === 'queued' ? {} : { finished_at: new Date().toISOString() }) }));
         return id;

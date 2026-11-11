@@ -13,9 +13,9 @@ import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
 import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
 import type { HookContext, HookPhase } from '@retake/hooks';
 import type { LoginCommandOf } from './auth.js';
-import type { Caller } from './caller.js';
 import { EngineError } from './errors.js';
 import { hookRunRecorder } from './store/journal.js';
+import type { JournalAs } from './store/journal.js';
 
 /**
  * A hooks source that cannot be used: `usage` — not a hooks source at all (the CLI: a usage error, exit 2); otherwise
@@ -158,7 +158,7 @@ export interface HookContextOptions {
   /** L5.14, CLI only: asks about each rollback whose journal entry Retake did not sign for its journal (hooks journal.ts). */
   replayUnsigned?: HookContext['replayUnsigned'];
   /** Who runs these hooks: each hook and rollback run is a line of the workspace journal, as this caller's (absent: none). */
-  recordAs?: Caller;
+  recordAs?: JournalAs;
 }
 
 /**

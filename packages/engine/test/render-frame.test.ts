@@ -19,6 +19,7 @@ import type { RenderRecord } from '@retake/editor';
 import { EngineError, RenderFrames, Semaphore, addComment, createEngine } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
+import { authorScope } from './helpers.js';
 import { bitsVideo, readBits } from '../../ui/test/timeline-take.js';
 import { PERSON_POLICY } from '@retake/core';
 
@@ -120,7 +121,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
     }
     // The thread's still (the store's exact frame-number select) shows the frame the viewer showed.
     for (const f of [GOP - 1, GOP + 1]) {
-      const { thread, warnings } = await addComment(project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: f, text: 'This frame' }, { via: 'cli', name: 'Reviewer' }, undefined, PERSON_POLICY);
+      const { thread, warnings } = await addComment(project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: f, text: 'This frame' }, { via: 'cli', name: 'Reviewer' }, authorScope(project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY);
       expect(warnings).toEqual([]);
       expect(thread.frame).toBe(f);
       expect(readBits(await readFile(thread.still!))).toBe(f);

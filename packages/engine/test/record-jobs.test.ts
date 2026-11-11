@@ -30,6 +30,7 @@ import {
   runWorker,
 } from '../src/index.js';
 import type { Engine, EngineError, JobRecord, RecordJobResult, RecordJobTestHooks } from '../src/index.js';
+import { systemClock } from '../src/clock.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
 type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
@@ -241,12 +242,12 @@ describe('record jobs: folders and interruptions', () => {
     const mine = join(recordsRoot(p), sub.rec_id);
     await mkdir(mine, { recursive: true });
     for (let i = 0; i < RECORD_KEEP + 2; i++) await mkdir(join(recordsRoot(p), newRecordId()), { recursive: true });
-    const removed = await pruneRecords(p, RECORD_KEEP, [], new FileJobQueue(root));
+    const removed = await pruneRecords(p, systemClock, RECORD_KEEP, [], new FileJobQueue(root));
     expect(removed).not.toContain(sub.rec_id);
     expect(existsSync(mine)).toBe(true);
     // Once its job is cancelled, it is the oldest folder: pruned.
     await engine.jobs.cancel(sub.job.id);
-    expect(await pruneRecords(p, RECORD_KEEP, [], new FileJobQueue(root))).toContain(sub.rec_id);
+    expect(await pruneRecords(p, systemClock, RECORD_KEEP, [], new FileJobQueue(root))).toContain(sub.rec_id);
   });
 
   it('an interrupted record job says the window closed with it and names `retake record`', async () => {

@@ -15,7 +15,9 @@
 import { hostname } from 'node:os';
 import { resolve } from 'node:path';
 import { jobClass } from '@retake/core';
+import { stampOf } from '../clock.js';
 import type { InterruptPort } from '../interrupts.js';
+import { enginePorts } from '../ports.js';
 import { editorRenderer } from '../render/editor-renderer.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
@@ -58,7 +60,9 @@ export function passedBuildDirs(raw: string | undefined): string[] | undefined {
 
 /** Run the job; resolves with the exit code. */
 export async function runJobChild(o: JobChildOptions): Promise<number> {
-  const log = o.log ?? ((m: string) => void process.stderr.write(`${new Date().toISOString()} job process ${process.pid}: ${m}\n`));
+  // A job process is a composition root: the product's ports (a test's cannot reach a process).
+  const { clock, stores } = enginePorts();
+  const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} job process ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   const stamp = buildStamp(o.dirs ?? buildDirs());
   if (stamp !== o.build) {
@@ -74,7 +78,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     return 1;
   }
   const cli = `retake -C ${shellQuote(root)}`;
-  const queue = new FileJobQueue(root, cli);
+  const queue = new FileJobQueue(root, cli, clock);
   const stored = await queue.stored(o.id).catch(() => undefined);
   const claim = await queue.claimOf(o.id).catch(() => undefined);
   if (
@@ -171,6 +175,8 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     self,
     supervisor: { pid: claim.pid, ...(claim.started_at ? { started_at: claim.started_at } : {}), host },
     log,
+    clock,
+    stores,
     rw,
     interrupts,
     slot,

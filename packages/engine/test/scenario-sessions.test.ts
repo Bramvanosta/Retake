@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_INPUT_VERSION, personaPaths } from '@retake/core';
 import { writeStatus } from '@retake/runner-web';
-import { AUTH_HEADED_MAX_MS, FileJobQueue, createEngine, executeAuthLoginJob, headedSignInMaxMs, signInStoppedText, signalInterrupts, withTimeLimit } from '../src/index.js';
+import { AUTH_HEADED_MAX_MS, FileJobQueue, createEngine, executeAuthLoginJob, headedSignInMaxMs, signInStoppedText, signalInterrupts, withTimeLimit, enginePorts } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
@@ -108,7 +108,7 @@ describe('the headed sign-in of a job', () => {
     const stopped = new AbortController();
     stopped.abort();
     const job = () =>
-      executeAuthLoginJob({
+      executeAuthLoginJob({ ...enginePorts(),
         ws: engine.workspace,
         cli: 'retake',
         input: { version: JOB_INPUT_VERSION, kind: 'auth_login', project: PROJECT, env: 'signed-in', persona: 'supplier', mode: 'auto', submitted_by: 'ui' },

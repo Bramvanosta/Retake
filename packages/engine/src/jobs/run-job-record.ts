@@ -9,6 +9,7 @@ import type { RenderJobInput, RunJobInput } from '@retake/core';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web';
 import type { RecordJobTestHooks } from './record-job.js';
 import type { PreviewJobTestHooks } from './preview-job.js';
+import { stampOf } from '../clock.js';
 import { toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import type { Renderer } from '../render/renderer.js';
@@ -28,12 +29,14 @@ import type { LiveChannel } from './live-channel.js';
 import { executeAuthLoginJob, signInStoppedText } from './auth-job.js';
 import { executeSandboxJob } from './sandbox-job.js';
 import { appendHistory, runCounted } from '../history.js';
+import type { EnginePorts } from '../ports.js';
 import { approvalsOf, verifiedApprovals } from './signing.js';
 import type { JobErrorView, JobEventBody, JobProgress, JobRecord, JobWorkerInfo } from './types.js';
 
 export type Workspace = Awaited<ReturnType<typeof openWorkspace>>;
 
-export interface JobRunnerContext {
+/** What a job runner runs with; its ports (`clock`, `stores`) are its composition root's (the worker, the job process). */
+export interface JobRunnerContext extends EnginePorts {
   root: string;
   ws: Workspace;
   queue: JobQueue;
@@ -129,7 +132,7 @@ export function unknownInput(input: unknown): string | null {
 
 /** Running claimed jobs with `c` (a worker, or a job process). */
 export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobRecord) => Promise<void> } {
-  const { root, ws, queue, files, cli, build, worker, self, log, rw, interrupts, slot, done, writeOrExit } = c;
+  const { root, ws, queue, files, cli, build, worker, self, log, rw, interrupts, slot, done, writeOrExit, clock, stores } = c;
 
   /** The filming marker of a capture take (L5.14): written at capture time 0, paused with the take, removed at its end. */
   const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => void | FilmingReport; close: () => void } => {
@@ -189,12 +192,12 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     };
     const finish = async (rec: JobRecord, error?: JobErrorView) => {
       await chain;
-      const final: JobRecord = { ...rec, finished_at: new Date().toISOString(), ...(error ? { error } : {}) };
+      const final: JobRecord = { ...rec, finished_at: stampOf(clock), ...(error ? { error } : {}) };
       await writeOrExit(final);
       append([{ type: 'state', state: final.state }, { type: 'result', ...(final.result ? { result: final.result } : {}), ...(error ? { error } : {}) }]);
       await chain;
       done.add(id);
-      await appendHistory(root, historyOf(final));
+      await appendHistory(root, historyOf(final), clock);
       log(`job ${id}: ${final.state}${error ? ` (${error.message.split('\n')[0]})` : ''}`);
     };
 
@@ -223,7 +226,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     }
     const controller = new AbortController();
     slot.current = controller;
-    let rec: JobRecord = { ...stored, state: 'running', started_at: new Date().toISOString(), worker, ...(c.supervisor ? { supervisor: c.supervisor } : {}) };
+    let rec: JobRecord = { ...stored, state: 'running', started_at: stampOf(clock), worker, ...(c.supervisor ? { supervisor: c.supervisor } : {}) };
     await writeOrExit(rec);
     append([{ type: 'state', state: 'running' }]);
     log(`job ${id}: running (${stored.kind} ${jobProject(stored.input) ?? 'workspace'})`);
@@ -282,7 +285,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
       const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
       // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
-      const base = { ws, cli, queue, signal: controller.signal, event };
+      const base = { ws, cli, queue, signal: controller.signal, event, clock, stores };
       const onProgress = (p: JobProgress) => {
         latest = p;
         if (!progressTimer) progressTimer = setTimeout(flushProgress, 500);
@@ -462,7 +465,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
   async function finaliseRun(input: RunJobInput, status: 'cancelled' | 'failed', message: string): Promise<void> {
     try {
       const project = await openProjectBySlug(ws, input.project);
-      await finaliseReservedRun(projectPath(project.dir, 'runs', input.run_id), status, message);
+      await finaliseReservedRun(projectPath(project.dir, 'runs', input.run_id), status, message, clock);
     } catch (e) {
       log(`run ${input.run_id}: not finalised (${(e as Error).message})`);
     }

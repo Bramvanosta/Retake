@@ -97,9 +97,10 @@ function idTime(id: string): number {
  * The worker takes a job's approvals as it claims it: `<RETAKE_HOME>/approvals-used/<id>` is created once (with the
  * claimed record's digest). False when this job id's approvals were taken before (a job folder made again under the
  * same id) or the job's id is older than APPROVALS_USED_KEEP_MS (its record may be gone): the job is then refused.
- * A job without approvals consumes nothing (true). Throws when the record cannot be written.
+ * A job without approvals consumes nothing (true). Throws when the record cannot be written. `now`: the
+ * time of the worker's clock (epoch milliseconds), what the record is stamped with.
  */
-export async function consumeApprovals(rec: { id: string; input: JobInput }, env: NodeJS.ProcessEnv = process.env, now: number = Date.now()): Promise<boolean> {
+export async function consumeApprovals(rec: { id: string; input: JobInput }, env: NodeJS.ProcessEnv, now: number): Promise<boolean> {
   if (!approvalsOf(rec.input)?.length) return true;
   const t = idTime(rec.id);
   if (!Number.isFinite(t) || now - t > APPROVALS_USED_KEEP_MS) return false;
@@ -120,8 +121,8 @@ export async function restoreApprovals(id: string, env: NodeJS.ProcessEnv = proc
   await rm(join(usedDir(env), id), { force: true });
 }
 
-/** Remove the records of approvals taken longer ago than APPROVALS_USED_KEEP_MS (a worker's start). */
-export async function pruneUsedApprovals(env: NodeJS.ProcessEnv = process.env, now: number = Date.now()): Promise<void> {
+/** Remove the records of approvals taken longer ago than APPROVALS_USED_KEEP_MS before `now` (a worker's start, on its clock). */
+export async function pruneUsedApprovals(env: NodeJS.ProcessEnv, now: number): Promise<void> {
   const dir = usedDir(env);
   let names: string[];
   try {

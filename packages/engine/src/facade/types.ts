@@ -50,6 +50,7 @@ import type { WorkerSpawnFn } from '../jobs/spawn.js';
 import type { PruneRequest, PruneResult } from '../prune.js';
 import type { JobEvent, JobRecord, SiteJobResult } from '../jobs/types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface EngineOptions {
   /** Workspace root; default $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
@@ -64,6 +65,11 @@ export interface EngineOptions {
   workerEnv?: NodeJS.ProcessEnv;
   /** Tests: starts the worker process (default node's spawn). */
   workerSpawn?: WorkerSpawnFn;
+  /**
+   * Tests: the ports this engine runs with instead of the product's (ports.ts enginePorts: the system's clock, the
+   * disk's stores). The MCP server and the Studio pass none. A worker this engine starts runs its own.
+   */
+  ports?: Partial<EnginePorts>;
 }
 
 /** A run's job as run_status shows it. */

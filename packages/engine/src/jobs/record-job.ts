@@ -23,6 +23,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@retake/core';
 import type { RecordJobInput, RecordedEvent } from '@retake/core';
+import { stampOf } from '../clock.js';
 import { ENGINE_TRUST, submittedInStudio } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { checkSandboxEnv } from '../execute-run.js';
@@ -37,6 +38,7 @@ import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, RecordJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import type { EnginePorts } from '../ports.js';
 
 export interface RecordSubmitRequest {
   project: string;
@@ -123,7 +125,8 @@ export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitReque
 /** Test hooks of the worker (in-process tests only): Playwright plays the person in a headless "headed" window. */
 export type RecordJobTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windowSize'>;
 
-export interface RecordJobContext {
+/** What the job runs with; its ports (`clock`, `stores`) are its composition root's, handed on by the job runner. */
+export interface RecordJobContext extends EnginePorts {
   ws: OpenedWorkspace;
   cli: string;
   /** The workspace's job queue (a recording whose job is queued or running is never pruned). */
@@ -187,9 +190,9 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
   const start = recordStart(project, { env: input.env, persona: input.persona, page: input.source.page, path: input.source.path });
   await checkWorkspaceProtection(ctx.ws, project, start.env.name);
   await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
-  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: new Date().toISOString() };
+  const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {
-    Object.assign(progress, patch, { updated_at: new Date().toISOString() });
+    Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
     ctx.progress({ ...progress });
   };
   let actions = 0;
@@ -220,6 +223,8 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
       },
       {
         queue: ctx.queue,
+        clock: ctx.clock,
+        stores: ctx.stores,
         // Messages of the engine and the runner: counts and enums, never page text or a typed value.
         log: (level, message) => {
           if (level !== 'debug') ctx.event({ type: 'log', level, message });

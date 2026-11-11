@@ -12,6 +12,8 @@
  */
 import { JobInputSchema, isFilming, jobClass, parseJobId } from '@retake/core';
 import type { JobId, JobInput } from '@retake/core';
+import { stampOf } from '../clock.js';
+import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { newJobId } from './ids.js';
 import { isAlive } from './proc.js';
@@ -77,6 +79,8 @@ export abstract class StoredJobQueue implements JobQueue {
     readonly root: string,
     readonly cli: string,
     protected readonly entries: JobEntries,
+    /** What the queue stamps its records and markers with (the composition root's clock). */
+    protected readonly clock: Clock,
   ) {}
 
   /** A filming marker of this user that holds heavy work (`here`: its workspace is this one), else undefined. */
@@ -99,12 +103,12 @@ export abstract class StoredJobQueue implements JobQueue {
     if (!parsed.success) {
       throw new EngineError('invalid', `invalid job input: ${parsed.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ')}`);
     }
-    const id = newJobId();
+    const id = newJobId(this.clock.now());
     // Its approvals are signed for this job (signing.ts): the worker honours no approval a submit did not write for it.
     const signed = await signApprovals(parsed.data, { jobId: id, root: this.root });
     await this.entries.make(id);
     for (const [name, text] of Object.entries(opts.files ?? {})) await this.entries.add(id, checkJobFile(name), text);
-    const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: new Date().toISOString() };
+    const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: stampOf(this.clock) };
     await this.entries.replace(id, 'job.json', JSON.stringify(rec, null, 2) + '\n');
     return rec;
   }
@@ -239,7 +243,7 @@ export abstract class StoredJobQueue implements JobQueue {
     const rec = await this.get(id);
     if (!rec) throw new EngineError('not_found', `job ${id} not found (job_list names the jobs)`);
     if (FINISHED_JOB_STATES.has(rec.state)) return rec;
-    await this.entries.create(id, 'cancel', JSON.stringify({ at: new Date().toISOString(), by, ...(reason ? { reason } : {}) }) + '\n');
+    await this.entries.create(id, 'cancel', JSON.stringify({ at: stampOf(this.clock), by, ...(reason ? { reason } : {}) }) + '\n');
     return (await this.get(id)) ?? rec;
   }
 
@@ -249,7 +253,7 @@ export abstract class StoredJobQueue implements JobQueue {
    */
   async requestPause(id: string, on: boolean, by: string): Promise<void> {
     checkJobId(id);
-    if (on) await this.entries.create(id, 'pause', JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+    if (on) await this.entries.create(id, 'pause', JSON.stringify({ at: stampOf(this.clock), by }) + '\n');
     else await this.entries.remove(id, 'pause');
   }
 
@@ -270,7 +274,7 @@ export abstract class StoredJobQueue implements JobQueue {
    * by a finished job is inert.
    */
   async requestStop(id: string, by: string): Promise<void> {
-    await this.entries.create(checkJobId(id), 'stop', JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+    await this.entries.create(checkJobId(id), 'stop', JSON.stringify({ at: stampOf(this.clock), by }) + '\n');
   }
 
   async stopOf(id: string): Promise<JobMark | undefined> {
@@ -278,7 +282,7 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   async claim(id: string, who: ProcessIdentity): Promise<boolean> {
-    const claim: ClaimRecord = { ...who, at: new Date().toISOString() };
+    const claim: ClaimRecord = { ...who, at: stampOf(this.clock) };
     try {
       return await this.entries.create(checkJobId(id), 'claim', JSON.stringify(claim) + '\n');
     } catch (e) {
@@ -308,7 +312,7 @@ export abstract class StoredJobQueue implements JobQueue {
   async append(id: string, seq: number, events: readonly JobEventBody[]): Promise<number> {
     if (!events.length) return seq;
     checkJobId(id);
-    const t = new Date().toISOString();
+    const t = stampOf(this.clock);
     const lines = events.map((e) => JSON.stringify({ seq: ++seq, t, ...e })).join('\n') + '\n';
     await this.entries.append(id, 'events.jsonl', lines);
     return seq;

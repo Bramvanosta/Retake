@@ -33,6 +33,8 @@ import { join } from 'node:path';
 import { JOB_ID_RE } from '@retake/core';
 import type { JobId } from '@retake/core';
 import { readPlainFile } from '@retake/core/io';
+import { systemClock } from '../clock.js';
+import type { Clock } from '../clock.js';
 import { jobsDir } from '../workspace-state.js';
 import type { JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
@@ -172,16 +174,20 @@ export class FileJobQueue extends StoredJobQueue {
   /** This queue's own reader of the filming markers (its memory: first sight and holding time of each take). */
   private watch?: import('./captures.js').FilmingWatch;
 
-  /** `cli`: how the commands a human is asked to run start ("retake -C <root>"). */
-  constructor(root: string, cli = 'retake') {
+  /**
+   * `cli`: how the commands a human is asked to run start ("retake -C <root>"); `clock`: what its records and markers
+   * are stamped with — the composition roots always pass theirs (the import-rules ratchet's `queue` check), the
+   * default is for tests.
+   */
+  constructor(root: string, cli = 'retake', clock: Clock = systemClock) {
     const files = new JobFiles(jobsDir(root));
-    super(root, cli, new FileEntries(files));
+    super(root, cli, new FileEntries(files), clock);
     this.files = files;
   }
 
-  /** A new file queue on the same folder: no finished job seen yet, a marker watch of its own. */
+  /** A new file queue on the same folder and clock: no finished job seen yet, a marker watch of its own. */
   withOwnMemory(cli = 'retake'): FileJobQueue {
-    return new FileJobQueue(this.root, cli);
+    return new FileJobQueue(this.root, cli, this.clock);
   }
 
   /** A filming marker of this user (captures.ts: `here` when its workspace is this one). */

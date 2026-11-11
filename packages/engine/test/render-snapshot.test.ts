@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RenderJobInput } from '@retake/core';
-import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, reviewInline } from '../src/index.js';
+import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, reviewInline, enginePorts } from '../src/index.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
@@ -87,7 +87,7 @@ afterAll(async () => {
 /** Run the job's render up to the render stage (an aborted signal stops it there: no bundle, no browser). */
 async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Error> {
   const events: unknown[] = [];
-  const e = await executeRenderJob({
+  const e = await executeRenderJob({ ...enginePorts(),
     ws: engine.workspace,
     cli: 'retake',
     input: job.input as RenderJobInput,
@@ -156,6 +156,7 @@ describe('render job snapshot (critique B5)', () => {
 
 describe('the inline review of a render (critique B12)', () => {
   const ctx = (signal: AbortSignal, log: unknown[]) => ({
+    ...enginePorts(),
     ws: engine.workspace,
     cli: 'retake',
     signal,

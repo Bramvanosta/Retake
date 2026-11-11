@@ -22,8 +22,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_INPUT_VERSION, siteApprovalFingerprint, PERSON_POLICY } from '@retake/core';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import type { SiteJobInput } from '@retake/core';
-import { FileJobQueue, MemoryJobQueue, SITE_KEEP, THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, executeSiteJob, historyFile, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readBrandFile, readSite, runWorker, signApprovals, siteDir, personScope } from '../src/index.js';
+import { FileJobQueue, MemoryJobQueue, SITE_KEEP, THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, executeSiteJob, historyFile, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readBrandFile, readSite, runWorker, signApprovals, siteDir, personScope, enginePorts } from '../src/index.js';
 import type { ApprovalOutcome, Approver, Engine, EngineError, JobRecord, OpenedWorkspace, SiteApprovalRequest, SiteJobResult } from '../src/index.js';
+import { ManualClock, systemClock } from '../src/clock.js';
 import { BRAND_SITE_COLORS, drawPng, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
 
@@ -123,7 +124,7 @@ describe('site jobs without any network', () => {
   }, 60_000);
 
   it('the job checks for itself, whatever the worker in front of it does: verified approval, URL, environment host', async () => {
-    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', queue: new FileJobQueue(ws.root), jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
+    const ctx = (input: SiteJobInput) => ({ ...enginePorts(), ws, cli: 'retake', queue: new FileJobQueue(ws.root), jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
     // An approval of the right URL, not signed: the job verifies it itself.
     const unsigned: SiteJobInput = { version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url: 'https://brand.test/', submitted_by: 'mcp', approvals: approval('https://brand.test/') };
     await expect(executeSiteJob(ctx(unsigned))).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/refused without running/) });
@@ -139,7 +140,7 @@ describe('site jobs without any network', () => {
   });
 
   it('the extraction folder is made new by the worker: a planted folder or a linked parent is refused before any page opens', async () => {
-    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', queue: new FileJobQueue(ws.root), jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
+    const ctx = (input: SiteJobInput) => ({ ...enginePorts(), ws, cli: 'retake', queue: new FileJobQueue(ws.root), jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
     // A folder planted under the id of a signed job: refused (never reused, nothing written into it).
     const id = newSiteId();
     await mkdir(siteDir(ws, id), { recursive: true });
@@ -184,7 +185,7 @@ describe('site jobs without any network', () => {
         untrusted: { title: 'kept as data' },
       }),
     );
-    const { view } = await readSite(ws, id, 'https://brand.test/');
+    const { view } = await readSite(ws, id, 'https://brand.test/', systemClock);
     expect(view!.palette).toBeNull();
     expect(view!.candidates).toEqual([{ ref: `site:${id}/logo-1`, file: join(dir, 'logo-1.png'), source: 'page-img', width: 8192, height: 0 }]);
     expect(view!.screenshot).toBeNull();
@@ -215,7 +216,7 @@ describe('site jobs without any network', () => {
           candidates: ['logo-1.png', 'logo-2.png', 'logo-3.png', 'logo-4.png', 'logo-5.png'].map((file) => ({ file, source: 'header-img', width: 10, height: 10 })),
         }),
       );
-      const { view } = await readSite(ws, id, 'https://brand.test/');
+      const { view } = await readSite(ws, id, 'https://brand.test/', systemClock);
       expect(view!.palette!.swatches.map((s) => s.hex)).toEqual(['#000000']);
       expect(view!.screenshot).toBeNull();
       expect(view!.candidates.map((c) => c.ref)).toEqual([`site:${id}/logo-1`]);
@@ -225,7 +226,7 @@ describe('site jobs without any network', () => {
       await writeFile(join(outside, 'logo-1.png'), drawPng(128, 128, () => [1, 2, 3, 255]));
       await writeFile(join(outside, 'site.json'), JSON.stringify({ status: 'ok', screenshot: 'screenshot.jpg', candidates: [{ file: 'logo-1.png', source: 'header-img' }] }));
       await symlink(outside, siteDir(ws, linkedId));
-      const linked = (await readSite(ws, linkedId, 'https://brand.test/')).view!;
+      const linked = (await readSite(ws, linkedId, 'https://brand.test/', systemClock)).view!;
       expect(linked.screenshot).toBeNull();
       expect(linked.candidates).toEqual([]);
       await rm(siteDir(ws, linkedId));
@@ -249,7 +250,7 @@ describe('site jobs without any network', () => {
   it('site: references in a create: the PNG resolves; links, linked folders, non-PNGs, other ids and fonts are refused', async () => {
     const id = newSiteId();
     const dir = await fakeExtraction(id, { 'logo-5.png': '<svg xmlns="http://www.w3.org/2000/svg"><script>x</script></svg>' });
-    const created = await createThemeFromBrand(ws, { name: 'quill', colors: { accent: '#0e7c66' }, logo: `site:${id}/logo-1` }, { trust: 'mcp', scope: personScope(ws.root) });
+    const created = await createThemeFromBrand(ws, { name: 'quill', colors: { accent: '#0e7c66' }, logo: `site:${id}/logo-1` }, { trust: 'mcp', scope: personScope(ws.root, enginePorts()) });
     expect(created.logo).toMatchObject({ file: 'logo.png', format: 'png' });
     const prov = JSON.parse(await readFile(join(created.dir, THEME_PROVENANCE_FILE), 'utf8')) as { site_id?: string; inputs: { logo: string } };
     expect(prov).toMatchObject({ site_id: id, inputs: { logo: `site:${id}/logo-1` } });
@@ -369,6 +370,9 @@ describe.skipIf(!can)('site jobs on the brand-site fixture', () => {
     expect(back.view?.palette).toEqual(result.palette);
     expect(back.view?.candidates).toEqual(result.candidates);
     expect(back.view?.draft?.brand_input).toEqual(result.draft!.brand_input);
+    // The draft theme is dated by the clock handed (the engine's), never the system's.
+    const dated = (await readSite(ws, sub.site_id, 'https://brand.test/', new ManualClock('2025-04-05T23:59:59.000Z'))).view!;
+    expect(dated.draft!.template_yaml).toContain(`made from brand inputs on 2025-04-05 over the "editorial" theme`);
     // The candidate the extraction made resolves as a create's logo.
     expect((await readBrandFile(ws, result.candidates[0].ref, 'logo', { trust: 'mcp' })).ext).toBe('.png');
   }, 120_000);
