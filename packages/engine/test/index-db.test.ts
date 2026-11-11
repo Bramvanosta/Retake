@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import type { OpenedWorkspace } from '../src/index.js';
+import { readRenders } from '../src/index-db/index-db.js';
 import { FileJobQueue, JobsWatch, WorkspaceIndex, ftsQuery, historyFile, indexFile, isCorruptionError, newJobId, processStart, scanSources, diffSources, workspaceChanges } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
@@ -280,6 +281,73 @@ describe('the workspace index', () => {
         expect(ix!.counts().renders).toBe(1);
       } finally {
         ix!.close();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a render is the record of its own file (D-10, L7.6c): a copy, a renamed record, a link, a record of a newer Retake or without a status is no row; an unknown status is `unknown`; renders/ outside the project is not read', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-index-own-'));
+    try {
+      await fixtureWorkspace(dir);
+      const proj = join(dir, 'projects', P);
+      const renders = join(proj, 'renders');
+      await mkdir(renders, { recursive: true });
+      const rec = (id: string, o: Record<string, unknown> = {}) => JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261016-090000-catalogue', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z', plan: {}, ...o });
+      await writeFile(join(renders, 'quote-v1.json'), rec('quote-v1'));
+      // A copy beside its original (before L7.6c: two rows of one id — the transaction failed, the whole index stayed behind).
+      await writeFile(join(renders, 'quote-v1 copy.json'), rec('quote-v1'));
+      // A record renamed by hand (before: a row under the id it says).
+      await writeFile(join(renders, 'quote-final.json'), rec('quote-v7', { template: 'renamedtheme' }));
+      // A link to another file of the project (before: followed and listed under the id the target says).
+      await writeFile(join(proj, 'kept.json'), rec('quote-v8', { template: 'linkedtheme' }));
+      await symlink(join(proj, 'kept.json'), join(renders, 'quote-v8.json'));
+      await writeFile(join(renders, 'quote-v2.json'), rec('quote-v2', { status: 'paused' }));
+      // A record of a status Retake never writes renamed by hand: no row either.
+      await writeFile(join(renders, 'quote-v6.json'), rec('quote-v9', { status: 'paused', template: 'pausedrenamedtheme' }));
+      await writeFile(join(renders, 'quote-v3.json'), rec('quote-v3', { version: 2, template: 'newertheme' }));
+      const { status: _s, ...noStatus } = JSON.parse(rec('quote-v4', { template: 'nostatustheme' })) as Record<string, unknown>;
+      await writeFile(join(renders, 'quote-v4.json'), JSON.stringify(noStatus));
+      // A record bigger than the index's old cap (1 MB) and within the reader's: a row (before: skipped).
+      await writeFile(join(renders, 'quote-v5.json'), rec('quote-v5', { warnings: ['x'.repeat(1_100_000)] }));
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY }, { queue: new FileJobQueue(dir) });
+      try {
+        await ix!.reconcile();
+        expect(ix!.counts().renders).toBe(3);
+        expect(ix!.search('quote').filter((h) => h.kind === 'render').map((h) => `${h.ref}|${h.title}`).sort()).toEqual(['quote-v1|quote · editorial · succeeded', 'quote-v2|quote · editorial · unknown', 'quote-v5|quote · editorial · succeeded']);
+        for (const word of ['renamedtheme', 'pausedrenamedtheme', 'linkedtheme', 'newertheme', 'nostatustheme', 'paused']) expect(ix!.search(word), word).toEqual([]);
+      } finally {
+        ix!.close();
+      }
+      // A member a record lacks is no column (as before: the file's own value when it is a text, else none).
+      const { scenario: _sc, ...noScenario } = JSON.parse(rec('quote-v1')) as Record<string, unknown>;
+      await writeFile(join(renders, 'quote-v1.json'), JSON.stringify(noScenario));
+      expect((await readRenders(proj)).find((r) => r.id === 'quote-v1')).toEqual({ id: 'quote-v1', run_id: '20261016-090000-catalogue', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z' });
+      await writeFile(join(renders, 'quote-v1.json'), rec('quote-v1'));
+      // renders/ itself a link out of the project: nothing of it is indexed (a link inside the project is read).
+      const outside = join(dir, 'outside-renders');
+      await rename(renders, outside);
+      await symlink(outside, renders);
+      // (A folder renamed keeps its inode and mtime: a fresh index, so that renders/ is read again.)
+      await rm(indexFile(dir), { force: true });
+      const ix2 = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY }, { queue: new FileJobQueue(dir) });
+      try {
+        await ix2!.reconcile();
+        expect(ix2!.counts().renders).toBe(0);
+      } finally {
+        ix2!.close();
+      }
+      await rm(renders);
+      await rename(outside, join(proj, 'renders-real'));
+      await symlink(join(proj, 'renders-real'), renders);
+      await rm(indexFile(dir), { force: true });
+      const ix3 = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY }, { queue: new FileJobQueue(dir) });
+      try {
+        await ix3!.reconcile();
+        expect(ix3!.counts().renders).toBe(3);
+      } finally {
+        ix3!.close();
       }
     } finally {
       await rm(dir, { recursive: true, force: true });

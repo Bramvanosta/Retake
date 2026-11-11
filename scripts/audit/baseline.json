@@ -183,20 +183,6 @@
    "entries": [
     "packages/engine/src/jobs/run-job.ts → 1 own read of a run folder's or renders/'s file"
    ]
-  },
-  {
-   "rule": "record-read",
-   "reason": "The search index reads renders/*.json into a row of its own (version 1, a text id), with its own cap and link rule: its one read of a render record (its two other parses are history lines — history.jsonl and the index's history rows —, which RECORD_READ_NOT_RECORD names). Not on the one reader of renders/ until L7.6c: it lists a renamed or copied record under its inner id.",
-   "entries": [
-    "packages/engine/src/index-db/index-db.ts → 1 own read of a run folder's or renders/'s file"
-   ]
-  },
-  {
-   "rule": "record-read",
-   "reason": "The timeline's version matcher reads renders/<id>.json synchronously without the reader (no version, status or id test) to compare a creation time, a theme hash and a plan signature: its one read of a render record (its other parse is ffprobe's output, which RECORD_READ_NOT_RECORD names). Not on the one reader of renders/ until L7.6c: the reader is async.",
-   "entries": [
-    "packages/engine/src/timeline-view.ts → 1 own read of a run folder's or renders/'s file"
-   ]
   }
  ]
 }

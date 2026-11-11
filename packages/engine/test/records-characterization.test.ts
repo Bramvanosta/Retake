@@ -15,7 +15,9 @@ import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { EngineError, RunDataCache, createEngine, renderForWork } from '../src/index.js';
+import { EngineError, RunDataCache, createEngine, planSignature, renderForWork } from '../src/index.js';
+import { readRenders } from '../src/index-db/index-db.js';
+import { versionMatches } from '../src/timeline-view.js';
 import { renderIndex } from '../src/comments/views.js';
 import { loadProject } from '@retake/core/io';
 import { finaliseReservedRun } from '../src/jobs/run-job.js';
@@ -23,7 +25,7 @@ import { runInputs } from '../src/comments/threads.js';
 import type { Engine } from '../src/index.js';
 import { STATES, buildState, recordFixture, stateIds, writeRunFolder, writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import type { BuiltState } from '../../core/test/fixtures/records/build.js';
-import { buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
+import { RENDER_STATES, buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
 import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
 
 let root: string;
@@ -891,6 +893,16 @@ describe('the render records, state by state and site by site', () => {
     }),
     index: (b: BuiltRenders) => answer(b, async () => (await renderIndex(b.dir)).map((r) => r.id).join(' ') || '-'),
     commentsLatest: (b: BuiltRenders) => answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: 'latest', scenario: 'quote' })).total}`),
+    // L7.6c: the search index's rows of the project (id:status), in the order of ids.
+    search: (b: BuiltRenders) => answer(b, async () => (await readRenders(b.dir)).map((r) => `${r.id}:${r.status ?? '-'}`).sort().join(' ') || '-'),
+    // L7.6c: the timeline's version matcher on the id asked, at the creation times of quote-v1 (09:01) and quote-v2
+    // (09:02), against the plan of NEW and the fixture's theme hash: the times it says are this version.
+    matcher: (b: BuiltRenders) => answer(b, async () => {
+      const plan = JSON.parse(JSON.stringify(RENDER_STATES.record.plan).replaceAll('$RUN', b.new).replaceAll('$PROJECT', b.slug)) as unknown;
+      const at = ['2026-10-02T09:01:00.000Z', '2026-10-02T09:02:00.000Z'];
+      const got = await versionMatches(b.dir, planSignature(plan)!, '0123456789abcdef', at.map((created_at) => ({ id: ask(b.state), created_at })));
+      return at.filter((_a, i) => got[i]).map((a) => a.slice(11, 16)).join(' ') || 'none';
+    }),
     prune: (b: BuiltRenders) => answer(b, async () => {
       const r = await engine.projects.prune(b.slug, { dry_run: true });
       return `${r.items.map((i) => `${i.kind} ${who(b, i.id)} (${i.reason}): ${i.paths.map((p) => p.slice(b.dir.length + 1).replaceAll(b.old, 'OLD').replaceAll(b.new, 'NEW')).join(' ') || 'no file'}`).join('; ') || 'nothing'} | kept ${r.kept.runs} runs, ${r.kept.renders} renders`;
@@ -907,6 +919,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: '09:01',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 1 renders',
     },
     v2: {
@@ -918,6 +932,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v2:succeeded',
       index: 'quote-v1 quote-v2',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 1 — latest, workLatest, index, commentsLatest and prune answer (each a raw TypeError before): the record without its creation time is in no list; row 20: prune's first list, which keeps it
@@ -930,6 +946,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 1 — the same five cells (each a raw TypeError before); row 18: the record render_status hands on reads `created_at` as its empty value
@@ -942,9 +960,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 7 — latest and workLatest take quote-v1 and say what they passed over; row 6: index lists quote-v1 only
+    // moved: L7.6c — search lists quote-v1 only (before: also the id quote-final.json says, a row of no file)
     'renamed-newest': {
       latest: 'quote-v1:succeeded',
       byId: 'not_found: render "quote-v2" not found in r-renamed-newest (no job, no renders/quote-v2.json): render starts one',
@@ -954,9 +975,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 7 — latest and workLatest take quote-v1 and say what they passed over; row 6: index lists quote-v1 only
+    // moved: L7.6c — search lists quote-v1 only (before: also the id quote-final.json says)
     'renamed-fixed': {
       latest: 'quote-v1:succeeded',
       byId: 'not_found: render "quote-v2" not found in r-renamed-fixed (no job, no renders/quote-v2.json): render starts one',
@@ -966,9 +990,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 2 — prune lists nothing (OLD stays, no line without a file); row 6: index without quote-v0; row 19: prune counts the four record files
+    // moved: L7.6c — search without quote-v0 (the id quote-final.json says)
     'renamed-old': {
       latest: 'quote-v3:succeeded',
       byId: 'not_found: render "quote-v0" not found in r-renamed-old (no job, no renders/quote-v0.json): render starts one',
@@ -978,9 +1005,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v3:succeeded',
       index: 'quote-v1 quote-v2 quote-v3',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded quote-v3:succeeded',
+      matcher: 'none',
       prune: 'nothing | kept 2 runs, 4 renders',
     },
     // moved: row 3 — prune lists nothing (the renamed file says quote-v1: the real quote-v1 stays while it is there); row 6: index names quote-v1 once; row 19: five record files
+    // moved: L7.6c — search names quote-v1 once (before: twice — two rows of one id, the index's transaction failed and the whole index stayed behind)
     'renamed-reused': {
       latest: 'quote-v4:succeeded',
       byId: 'quote-v1:succeeded',
@@ -990,9 +1020,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v4:succeeded',
       index: 'quote-v1 quote-v2 quote-v3 quote-v4',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded quote-v3:succeeded quote-v4:succeeded',
+      matcher: '09:01',
       prune: 'nothing | kept 2 runs, 5 renders',
     },
     // moved: row 6 — index names quote-v1 once; row 19: prune counts two record files
+    // moved: L7.6c — search names quote-v1 once (before: twice — the index's transaction failed)
     copy: {
       latest: 'quote-v1:succeeded',
       byId: 'quote-v1:succeeded',
@@ -1002,9 +1035,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: '09:01',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 6 — index names quote-v1 once; row 19: prune counts two record files
+    // moved: L7.6c — search names quote-v1 once (before: twice — the index's transaction failed)
     'copy-backup': {
       latest: 'quote-v1:succeeded',
       byId: 'quote-v1:succeeded',
@@ -1014,6 +1050,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: '09:01',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     'video-gone': {
@@ -1025,6 +1063,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v2:succeeded',
       index: 'quote-v1 quote-v2',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 11 — studio and board do not show quote-v2 (counted), index without it
@@ -1037,6 +1077,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 11 — studio and board do not show quote-v2 (counted); row 18: render_status's record
@@ -1049,6 +1091,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 11 — studio and board do not show quote-v2 (counted); row 18: render_status's record
@@ -1061,6 +1105,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     'no-variant': {
@@ -1072,6 +1118,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v2:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     'lock-only': {
@@ -1083,6 +1131,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 1 renders',
     },
     'video-only': {
@@ -1094,9 +1144,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 1 renders',
     },
     // moved: row 12 — studio and board do not show it as succeeded (counted: `not_shown`), prune leaves it alone, index without it; row 27: `latest` of render_status still names it and says its status as `unknown` (by id: as the file says it, N5)
+    // moved: L7.6c — search says its status as unknown (before: the file's word); matcher: a status Retake never writes is no version of the take (before: 09:02)
     paused: {
       latest: 'quote-v2:unknown',
       byId: 'quote-v2:unknown', // moved: L7.8, decision ii (before: the file's word, `paused`)
@@ -1106,6 +1159,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:unknown',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     failed: {
@@ -1117,6 +1172,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded failed quote-v2',
       index: 'quote-v1 quote-v2',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:failed',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD; render quote-v2 (failed render): renders/quote-v2.json | kept 1 runs, 1 renders',
     },
     // (the board passes a variant it does not know: it shows quote-v1; the Studio's list shows quote-v2 as landscape)
@@ -1129,6 +1186,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 10 — byId and work answer the newer-Retake sentence, prune keeps OLD (the take the file names) and counts the file
@@ -1141,6 +1200,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'nothing | kept 2 runs, 2 renders',
     },
     // moved: row 14 — byId and work are refused, latest and workLatest take quote-v1 and say what they passed over, index without it
@@ -1153,6 +1214,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     'out-name': {
@@ -1164,6 +1227,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-final:succeeded quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 13 — studio and board do not show it (counted), work refuses naming the plan, prune keeps it and OLD (its take)
@@ -1176,6 +1241,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: 'none',
       prune: 'nothing | kept 2 runs, 2 renders',
     },
     // moved: row 15 — byId and work say the file does not read as a render record; row 19: prune counts the file left alone
@@ -1188,6 +1255,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 15 — byId and work say the file does not read as a render record; row 19: prune counts the file left alone
@@ -1200,6 +1269,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 15 — byId and work say the file does not read as a render record; row 19: prune counts the file left alone
@@ -1212,10 +1283,13 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // before the lot a record without a status was `failed` for render_status, `undefined` in a sentence, a succeeded render in the Studio, and prune offered it as an `undefined render`
     // moved: rows 15 and 28 — byId, work: the file does not read as a render record (status); latest passes it over; studio, board, index without it; prune leaves it alone (keeps more)
+    // moved: L7.6c — search lists no row for a file without a status (before: a row without one); matcher: none (before: 09:02)
     'no-status': {
       latest: 'quote-v1:succeeded',
       byId: 'invalid: render "quote-v2": renders/quote-v2.json does not read as a render record (status)',
@@ -1225,6 +1299,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     'no-run-id': {
@@ -1236,8 +1312,11 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v2:succeeded',
       index: 'quote-v1 quote-v2',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
+    // moved: L7.6c — search lists no row for x.json, which says an empty id (before: a row of id "")
     'empty-id': {
       latest: 'quote-v1:succeeded',
       byId: 'invalid: invalid render id "x": <scenario>-v<N> (render returns it), or "latest"',
@@ -1247,6 +1326,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v1:succeeded',
       index: 'quote-v1',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     'file-outside': {
@@ -1258,9 +1339,12 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v2:succeeded',
       index: 'quote-v1 quote-v2',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded',
+      matcher: '09:02',
       prune: 'run OLD (older capture nothing uses): runs/OLD | kept 1 runs, 2 renders',
     },
     // moved: row 4 — the same keeps, now said (`renders_alone`, `render-file`); row 19: prune counts the five record files; row 6: index names quote-v1 once
+    // moved: L7.6c — search names quote-v1 once (before: twice — the index's transaction failed)
     'keep-json': {
       latest: 'quote-v4:succeeded',
       byId: 'quote-v1:succeeded',
@@ -1270,6 +1354,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v4:succeeded',
       index: 'quote-v1 quote-v2 quote-v3 quote-v4',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded quote-v3:succeeded quote-v4:succeeded',
+      matcher: 'none',
       prune: 'nothing | kept 2 runs, 5 renders',
     },
     'keep-json-without': {
@@ -1281,6 +1367,8 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v4:succeeded',
       index: 'quote-v1 quote-v2 quote-v3 quote-v4',
       commentsLatest: 'listed 0',
+      search: 'quote-v1:succeeded quote-v2:succeeded quote-v3:succeeded quote-v4:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD; render quote-v1 (older render): renders/quote-v1.json renders/quote-v1.mp4 | kept 1 runs, 3 renders',
     },
     // moved: row 5 — quote-v1.final.json and .mp4 are no paths of quote-v1's item
@@ -1293,94 +1381,120 @@ describe('the render records, state by state and site by site', () => {
       board: 'quote-v4:succeeded',
       index: 'quote-v1 quote-v2 quote-v3 quote-v4',
       commentsLatest: 'listed 0',
+      search: 'quote-v1.final:succeeded quote-v1:succeeded quote-v2:succeeded quote-v3:succeeded quote-v4:succeeded',
+      matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD; render quote-v1 (older render): renders/quote-v1.json renders/quote-v1.mp4 | kept 1 runs, 4 renders',
     },
 
   };
 
-  const CTABLE: Record<string, { list: string; anchor: string; outline: string }> = {
+  const CTABLE: Record<string, { list: string; anchor: string; outline: string; asRead: string }> = {
     v2: {
       list: 'listed 0',
       anchor: 'frame 0',
       outline: 'frames 30',
+      asRead: 'frames 30',
     },
     // moved: row 1 — list answers (a raw TypeError before): refused, the record lacks a member (a file that is there is never "not found")
     'no-created': {
       list: 'refused: renders/quote-v2.json is not used: its record lacks its scenario, its creation time or its plan',
       anchor: 'refused: renders/quote-v2.json has a scenario, created_at or variant the tool never writes: not used',
       outline: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
+      asRead: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
     },
     'renamed-reused': {
       list: 'listed 0',
       anchor: 'conflict: render quote-v1 was replaced since it was read (another render now has its id): read the renders again',
       outline: 'frames 30',
+      asRead: 'conflict: render quote-v1 was replaced since it was read (another render now has its id): read the renders again',
     },
     // moved: row 11 — list: refused, in fixed words (the id is not one of the scenario the record says)
     'scenario-other': {
       list: 'refused: renders/quote-v2.json is not used: its record says another scenario',
       anchor: 'invalid: render quote-v2 has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments',
       outline: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
+      asRead: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
     },
     // moved: row 15 (by id, the comment list: a file that is there is never "not found") — list: refused, in fixed words
     'scenario-7': {
       list: 'refused: renders/quote-v2.json is not used: its record lacks its scenario, its creation time or its plan',
       anchor: 'invalid: render quote-v2 has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments',
       outline: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
+      asRead: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
     },
     // moved: row 15 (the same) — list: refused, in fixed words
     'no-variant': {
       list: 'refused: renders/quote-v2.json is not used: its record has no variant (or one that is no text)', // moved: fix pass (before: "has a … variant the tool never writes" of a record with none)
       anchor: 'refused: renders/quote-v2.json has a scenario, created_at or variant the tool never writes: not used',
       outline: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
+      asRead: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
     },
     // moved: row 12 — list: refused, in fixed words (its status is not one Retake writes)
     paused: {
       list: 'refused: renders/quote-v2.json is not used: its status is not one Retake writes',
       anchor: 'invalid: render quote-v2: its status is not one Retake writes: nothing to read', // moved: fix pass, ruling 27 (before: `render quote-v2 paused`)
       outline: 'invalid: render quote-v2: its status is not one Retake writes: nothing to read', // moved: fix pass (the same)
+      asRead: 'invalid: render quote-v2: its status is not one Retake writes: nothing to read',
     },
     // moved: row 15 (the same) — list: refused, in fixed words
     'variant-cube': {
       list: 'refused: renders/quote-v2.json has a scenario, created_at or variant the tool never writes: not used',
       anchor: 'refused: renders/quote-v2.json has a scenario, created_at or variant the tool never writes: not used',
       outline: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
+      asRead: 'refused: renders/quote-v2.json has an id, scenario, created_at or variant the tool never writes: not used',
     },
     // moved: row 10 — list, anchor and outline answer the newer-Retake sentence (the by-id sentence)
     'version-2': {
       list: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
       anchor: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
       outline: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      asRead: 'invalid: render "quote-v2": this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
     },
     // moved: row 14 — list, anchor and outline: refused (the by-id sentence for a link)
     link: {
       list: 'refused: render "quote-v2": renders/quote-v2.json is a link: through MCP a render is read from its own file',
       anchor: 'refused: render "quote-v2": renders/quote-v2.json is a link: through MCP a render is read from its own file',
       outline: 'refused: render "quote-v2": renders/quote-v2.json is a link: through MCP a render is read from its own file',
+      asRead: 'refused: render "quote-v2": renders/quote-v2.json is a link: through MCP a render is read from its own file',
     },
     'out-name': {
       list: 'invalid: invalid render id "quote-final": <scenario>-v<N>, or "latest"',
       anchor: 'invalid: invalid render id "quote-final": <scenario>-v<N> (render returns it), or "latest"',
       outline: 'invalid: invalid render id "quote-final": <scenario>-v<N> (the renders list names them)',
+      asRead: 'invalid: invalid render id "quote-final": <scenario>-v<N> (the renders list names them)',
     },
     // moved: row 13 — anchor and outline refuse naming the plan (a raw TypeError and a sentence about fps before); row 15: list is refused in fixed words ("not found" before)
     'no-plan': {
       list: 'refused: renders/quote-v2.json is not used: its record lacks its scenario, its creation time or its plan',
       anchor: 'invalid: render quote-v2 has no plan (renders/quote-v2.json): nothing to read',
       outline: 'invalid: render quote-v2 has no plan (renders/quote-v2.json): nothing to read',
+      asRead: 'invalid: render quote-v2 has no plan (renders/quote-v2.json): nothing to read',
     },
     // moved: row 15 — list, anchor and outline say the file does not read as a render record
     'cut-short': {
       list: 'invalid: render "quote-v2": renders/quote-v2.json does not read as a render record (it is not JSON)',
       anchor: 'invalid: render "quote-v2": renders/quote-v2.json does not read as a render record (it is not JSON)',
       outline: 'invalid: render "quote-v2": renders/quote-v2.json does not read as a render record (it is not JSON)',
+      asRead: 'invalid: render "quote-v2": renders/quote-v2.json does not read as a render record (it is not JSON)',
     },
     'file-outside': {
       list: 'listed 0',
       anchor: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
       outline: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
+      asRead: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
     },
 
   };
+
+  it('a record whose plan is nested deeper than a signature can be written is listed without its plan\'s signature, never a failed list (L7.6c fix pass; before: the Studio\'s list of the scenario threw)', async () => {
+    const b = buildRenderState(root, 'v2', { film, runFilm: film, slug: 'r-deep-plan' });
+    const file = join(b.renders, 'quote-v2.json');
+    const rec = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    const deep = `${'{"a":'.repeat(20_000)}1${'}'.repeat(20_000)}`;
+    writeFileSync(file, JSON.stringify({ ...rec, plan: '@@PLAN@@' }).replace('"@@PLAN@@"', deep));
+    const list = await engine.renders.ofScenario(b.slug, 'quote');
+    expect(list.renders.map((r) => [r.render_id, r.plan_sha256 === undefined ? 'no signature' : 'signed'])).toEqual([['quote-v2', 'no signature'], ['quote-v1', 'signed']]);
+  });
 
   it('every state of the renders table at every site', async () => {
     const got: Record<string, RRow> = {};
@@ -1399,13 +1513,15 @@ describe('the render records, state by state and site by site', () => {
       list: (b: BuiltRenders) => answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: ask(b.state) })).total}`),
       // What a new comment is prepared from (renderForWork, then the comment's own tests).
       anchor: (b: BuiltRenders) => answer(b, async () => `frame ${(await engine.comments.anchorAt(b.slug, { render: ask(b.state), render_created_at: '2026-10-02T09:02:00.000Z', frame: 0 })).frame}`),
-      // The frame service's open (staged to the next lot: pinned, never marked).
+      // The frame service's open (L7.6c: on core's rules — renderForWork, quotableRender, sameRender; no row moved).
       outline: (b: BuiltRenders) => answer(b, async () => `frames ${(await engine.renders.outline(b.slug, { render_id: ask(b.state) })).frames}`),
+      // L7.6c: the viewer's outline of the render as the page read it (quote-v2's creation time): its identity.
+      asRead: (b: BuiltRenders) => answer(b, async () => `frames ${(await engine.renders.outline(b.slug, { render_id: ask(b.state), created_at: '2026-10-02T09:02:00.000Z' })).frames}`),
     };
     const got: Record<string, Record<keyof typeof sites, string>> = {};
     for (const id of ['v2', 'no-created', 'renamed-reused', 'scenario-other', 'scenario-7', 'no-variant', 'paused', 'variant-cube', 'version-2', 'link', 'out-name', 'no-plan', 'cut-short', 'file-outside']) {
       const b = rstate(id);
-      got[id] = { list: await sites.list(b), anchor: await sites.anchor(b), outline: await sites.outline(b) };
+      got[id] = { list: await sites.list(b), anchor: await sites.anchor(b), outline: await sites.outline(b), asRead: await sites.asRead(b) };
     }
     expect(got).toEqual(CTABLE);
   }, 240_000);

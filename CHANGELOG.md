@@ -232,6 +232,23 @@ release — for the person about to click Install and Restart.
     apart: `kept: 1 take, 3 renders and 1 other file of renders/` (`retake prune --json`'s `kept.renders` counts every
     record file that stays). A record whose variant is no text (`5`, `null`) is kept and counted in no scenario's
     window. Prune lists nothing it kept before.
+- The Studio's search, its timeline and its frame viewer read `renders/` through the same reader, and a render is
+  the record of its own file there too. Only projects with a hand-made, renamed, copied, linked, damaged or newer
+  file in `renders/` see a difference:
+  - A copy of a record (`quote-v1 copy.json`) or a record renamed by hand that says the id of another file of
+    `renders/` no longer stops the Studio's updates: before, the search index failed on two renders of one id at each
+    poll, and the Studio stopped refreshing the whole workspace on its own (runs, jobs, the activity, the search)
+    while the file was there.
+  - The search finds a render under its own file's name only: a record renamed or copied by hand, a record file that
+    is a link, a record of a newer Retake, one without a status and one that says an empty id are no longer found; a
+    record of a status Retake never writes is found with the status `unknown` (before: the file's word). A record of
+    1 to 16 MB is found (before: left out).
+  - The timeline pins a comment at its own frame (instead of at its step) only on a render that succeeded, read from
+    its own file and made at the time the comment says: a record without a status, of a status Retake never writes,
+    failed, of a newer Retake, or that says another id than its file's name no longer counts as the version shown.
+  - A record whose plan is nested deeper than Retake can write it back no longer makes the Studio's list of the
+    scenario's renders fail: it is listed, and it is no version the timeline shows.
+  - The frame viewer answers as before.
 - Through MCP (and the Studio's agent path), an http hook with `auth: {persona}` sends that persona's session only to
   the persona's own pages — the origins of the pages it signs in to; a hook aimed at another origin is refused before
   it runs, naming the persona and the rule. A run you start yourself is unchanged.

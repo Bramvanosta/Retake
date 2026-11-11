@@ -130,6 +130,13 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
     expect(outline.pins.map((p) => p.frame)).toEqual([GOP - 1, GOP + 1]);
     expect(outline.pins.every((p) => p.status === 'open' && /^c_/.test(p.id))).toBe(true);
     expect(outline.markers.length).toBe(outline.untrusted.markers.length);
+    // The same id made at another time is another render (core sameRender, L7.6c): the threads made on the render as it
+    // was are none of its pins, and the page that read it then is told it was replaced.
+    const later = '2026-12-01T10:00:00.000Z';
+    await withRecord((r) => ({ ...r, created_at: later }), async () => {
+      expect((await rf.outline(project, { render_id: 'quote-v1' })).pins).toEqual([]);
+      await expect(rf.outline(project, { render_id: 'quote-v1', created_at: v1.record.created_at })).rejects.toMatchObject({ code: 'conflict', details: { current: later } });
+    });
   }, LONG);
 
   it('a record whose fps is not its video\'s is refused (the frames would be other frames)', async () => {

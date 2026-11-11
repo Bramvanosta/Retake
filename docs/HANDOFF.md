@@ -126,6 +126,32 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.6c)
+- **L7.6c done (2026-11-11; branch `claude/arch-l7`)** — the last three readers of `renders/` on the one reader (the
+  rest of U5 of the 2026-11-10 action plan). The search index has a row for each record of its own file (core
+  `renderOfFile`; a status Retake never writes is `unknown`), reads the records one at a time under the listing's
+  rules (no link, 16 MiB) and keeps a row, never a record; `renders/` is read only when its real path lies inside the
+  project. The timeline's version matcher is async and reads each thread's render under the listing's rules: a
+  succeeded record of its own file that is the same render (core `sameRender`, new: a render's identity is its id and
+  its creation time) with this plan and these theme files. The frame service keeps `renderForWork` and
+  `recordShapeOk` (core `quotableRender`) and takes its conflict and its pins from `sameRender`. `planSignature`
+  answers no signature — never a throw — for a plan nested too deep to write. **Bugs fixed on the way:** two records
+  of one id (a Finder copy, a record renamed by hand to another file's id) made the index's transaction fail at every
+  poll, which stopped the Studio's updates for the whole workspace while the file was there; a record whose plan is
+  nested ~20 000 levels made the Studio's list of the scenario's renders throw. Only projects with a renamed, copied,
+  linked, damaged or newer file in `renders/` see a difference (CHANGELOG): the search finds a render under
+  its own file's name only, the timeline pins a comment at its frame only on such a render. No own reader of
+  `renders/` is left but prune's read of a linked record. **Proved:** against a build of the commit before the lot,
+  crafted workspaces of normal records (3 × 40, 200, 2 000) answer byte for byte the same index rows, search hits,
+  matcher answers and frame outlines. **Cost:** the index's reconcile of `renders/` the same at 200 records, 34 % less
+  at 2 000 small records and 20 % less at 2 000 records of real size (~60 kB), its peak memory as before (129 MB
+  against 128); the timeline view the same. Ratchet `record-read`: the two staged entries and `RECORD_READ_NOT_RECORD`
+  gone — **93 entries**. **Checked:** `pnpm typecheck`, the ratchet, `test-guard` (one item explained: the import-rules
+  test 10 lost its frame-service expects to a new test), `--check-cites`, the touched test files and the snapshots
+  alone, 30 mutations (26 red, one that does not compile, three equivalent). **Left:** a swap of `renders/` between
+  the index's real-path check and its listing (a folder descriptor for every listing belongs with U6). **The full
+  suite was not run.**
+
 ## State (after L7.9)
 - **L7.9 done (2026-11-11; branch `claude/arch-l7`)** — two backlog tickets decided by the person. **BL-164's rest**:
   a render record holds the theme's folder as the editor loaded it (`template_folder`, after `template_sha256`:
@@ -1370,7 +1396,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: L7.6c (the three readers of renders/ left), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: U6 (L7.10 Clock and ProjectStore, L7.11 HookRunner and Reviewer, L7.12 CaptureRunner), then U7 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

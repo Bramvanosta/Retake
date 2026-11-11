@@ -18,16 +18,17 @@
  *   music bed is measured once per file (size, mtime).
  * - `plan_sha256` and `theme_sha256`: the plan's signature and the theme folder's content hash, the ones a render
  *   record carries (renders.ts): a render shows "this version" only when both match (Studio "from this version",
- *   findings that seek the preview, comment pins at their own frame).
+ *   findings that seek the preview, comment pins at their own frame); the record is read by the one reader of
+ *   renders/ (versionMatches).
  * - A trust refusal (a file outside the project, a remote slot) is the view's `blocked`, with the `retake render`
  *   command a person types — never an exception the screen cannot show.
  */
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, canonicalJson, isRenderId, isTemplatePath, locateAnchorStep, parseScenario, parseYaml, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
-import { listTemplates, readPlainFile, ffprobeBin, fileFacts } from '@retake/core/io';
-import type { FieldAt, FieldValue, LoadedProject, WorkPolicy } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, canonicalJson, isRenderId, isTemplatePath, locateAnchorStep, parseScenario, parseYaml, renderOfFile, sameRender, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
+import { listTemplates, readListedRender, readPlainFile, ffprobeBin, fileFacts } from '@retake/core/io';
+import type { FieldAt, FieldValue, LoadedProject, RenderEntry, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
 import { listComments, proposalForPreview } from './comments.js';
@@ -400,30 +401,26 @@ function themeHash(ed: Awaited<ReturnType<typeof editor>>, dir: string): string 
 }
 
 /**
- * Whether a render (by id, as it was when a comment was made on it) shows this version: its record — read without
- * following a link — has this plan's signature and theme hash.
+ * Which of the renders `asked` (by id, as each was when a comment was made on it) show this version — `true` at the
+ * same index: renders/<id>.json read through the one reader of renders/ under a listing's rules — a background read,
+ * not a render someone named: its own file, never through a link, within the listing's cap (core/io
+ * readListedRender) —, a record of its own file (D-10, core renderOfFile) that succeeded, the same render as the one asked
+ * (core sameRender: its id and its creation time), with its plan, this plan's signature and this theme's hash.
  */
-function renderMatcher(projectDir: string, planSha: string, themeSha: string): (renderId: string, createdAt: string) => boolean {
-  const seen = new Map<string, boolean>();
-  return (renderId, createdAt) => {
-    if (!isRenderId(renderId)) return false;
-    const key = `${renderId}|${createdAt}`;
-    let same = seen.get(key);
-    if (same === undefined) {
-      same = false;
-      const r = readPlainFile(projectPath(projectDir, 'renders', `${renderId}.json`), 16 * 1024 * 1024);
-      if (r.ok) {
-        try {
-          const rec = JSON.parse(r.bytes.toString('utf8')) as { created_at?: unknown; template_sha256?: unknown; plan?: unknown };
-          same = rec.created_at === createdAt && rec.template_sha256 === themeSha && rec.plan !== undefined && planSignature(rec.plan) === planSha;
-        } catch {
-          same = false;
-        }
-      }
-      seen.set(key, same);
+export async function versionMatches(projectDir: string, planSha: string, themeSha: string, asked: ReadonlyArray<{ id: string; created_at: string }>): Promise<boolean[]> {
+  const read = new Map<string, Promise<RenderEntry>>();
+  const out: boolean[] = [];
+  for (const a of asked) {
+    if (!isRenderId(a.id)) {
+      out.push(false);
+      continue;
     }
-    return same;
-  };
+    let entry = read.get(a.id);
+    if (!entry) read.set(a.id, (entry = readListedRender(projectPath(projectDir, 'renders'), a.id)));
+    const record = renderOfFile(await entry);
+    out.push(record !== null && record.status === 'succeeded' && sameRender(record, a) && record.template_sha256 === themeSha && record.plan !== undefined && planSignature(record.plan) === planSha);
+  }
+  return out;
 }
 
 /** Step labels ("click Request a quote") of a scenario text, by "<scene>.<index>". */
@@ -477,11 +474,14 @@ async function buildView(
   const model = ed.timelineOf(plan, { labels: stepLabels(labelText), timeline: planned.timeline });
   // Comment pins (read-only, L3.6 threads): the scenario's last 50.
   const threads = await listComments(project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
-  const planSha = planSignature(plan);
+  // (A plan this version made always has a signature; '' would match no record.)
+  const planSha = planSignature(plan) ?? '';
   const themeSha = themeHash(ed, planned.template.dir);
   // A thread made on a render of this very version (the same plan and theme files) is pinned at its own frame (review
   // B M5); any other only at the step, marker or segment it pointed at.
-  const sameRender = renderMatcher(project.dir, planSha, themeSha);
+  const onTake = (threads?.threads ?? []).filter((t) => t.run_id === planned.run.id);
+  const matched = await versionMatches(project.dir, planSha, themeSha, onTake.map((t) => ({ id: t.render_id, created_at: t.render_created_at })));
+  const thisVersion = new Set(onTake.filter((_t, i) => matched[i]).map((t) => t.id));
   const pinThreads = (threads?.threads ?? []).map((t) => ({
     id: t.id,
     status: t.status,
@@ -494,7 +494,7 @@ async function buildView(
       : t.step_now !== undefined
         ? { step_now: t.step_now }
         : {}),
-    ...(t.run_id === planned.run.id && sameRender(t.render_id, t.render_created_at) ? { frame: t.frame } : {}),
+    ...(thisVersion.has(t.id) ? { frame: t.frame } : {}),
   }));
   const pins = ed.placePins(model, pinThreads, { run_id: planned.run.id, edit: planned.edit.from });
   let editable: true | { why: string } = true;

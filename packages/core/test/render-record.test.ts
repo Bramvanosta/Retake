@@ -23,6 +23,7 @@ import {
   renderNot,
   renderNotWords,
   renderOfFile,
+  sameRender,
 } from '../src/index.js';
 import type { RenderEntry, RenderFields, RenderNot, RenderPolicy, RenderRead, StoredRenderRecord } from '../src/index.js';
 import { recordFixture } from './fixtures/records/build.js';
@@ -395,6 +396,18 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
     expect(named([good(1), good(2, { set: { scenario: 'other' } })]).pick).toBe('quote-v1.json');
     expect(named([good(1), good(2, { set: { scenario: 'other' } })], null).pick).toBe('quote-v2.json');
     expect(named([]).pick).toBe('-');
+  });
+});
+
+describe('a render\'s identity (sameRender, L7.6c)', () => {
+  it('its id and its creation time: the same id made at another time is another render; a record without its creation time is none a caller read', () => {
+    const now = { id: 'quote-v2', created_at: '2026-10-02T09:02:00.000Z' };
+    expect(sameRender(now, { id: 'quote-v2', created_at: '2026-10-02T09:02:00.000Z' })).toBe(true);
+    expect(sameRender(now, { id: 'quote-v2', created_at: '2026-10-02T09:03:00.000Z' })).toBe(false);
+    expect(sameRender(now, { id: 'quote-v3', created_at: '2026-10-02T09:02:00.000Z' })).toBe(false);
+    // Compared as the texts the files hold (no date parsing: another spelling of the same instant is another text).
+    expect(sameRender(now, { id: 'quote-v2', created_at: '2026-10-02T09:02:00Z' })).toBe(false);
+    expect(sameRender({ id: 'quote-v2', created_at: '' }, { id: 'quote-v2', created_at: '' })).toBe(false);
   });
 });
 

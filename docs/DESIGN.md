@@ -261,10 +261,16 @@ listing without following a link and within 16 MiB (`readRendersFolder`, `readLi
 named record that lacks its scenario or its creation time works, one without its plan is refused naming it, a record
 renamed by hand works and is said — refused only when the video it names is now another render's —; only `latest`
 and the lists take complete records of their own file, and they say what they passed over. The editor's
-`render-record.ts` gives the stored plan the type of an edit plan in one place (`withPlan`). Three readers still read
-`renders/` on their own until L7.6c (the search index and the timeline's version matcher, each one read counted by the
-ratchet's `record-read` check; the frame service, which reads no record file itself — its record comes from
-`renderForWork` — and holds its own identity test).
+`render-record.ts` gives the stored plan the type of an edit plan in one place (`withPlan`). Every reader of
+`renders/` goes through the reader, the search index, the timeline's version matcher and the frame service included
+(L7.6c) — the one exception is prune's own read of a record file that is a link, for what it says, never taken as a
+record: the index has a row for each record of its own file (a status Retake never writes is `unknown`), reads the
+records one at a time under the listing's rules and reads `renders/` only when its real path lies inside the project;
+the timeline pins a thread at its own frame only on a succeeded record of its own file, read under the listing's rules
+(no link, its cap), that is the same render (core `sameRender`: its id and its creation time) with this plan and these
+theme files — a plan that has no signature (`planSignature` answers none for a plan nested too deep to write, never a
+throw) is no version of the take; the frame service takes its record from `renderForWork`, what a message
+may quote from `quotableRender`, and the render the page read from `sameRender`.
 
 Validation rules beyond the schema (semantic): exactly one action key per step; unknown keys are
 errors (typo protection) with a "did you mean" suggestion; scene ids unique and slug-like; step ids

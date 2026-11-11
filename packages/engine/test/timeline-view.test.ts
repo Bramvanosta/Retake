@@ -62,14 +62,14 @@ const view = async (r: Promise<TimelineViewResult>) => {
 };
 
 /** A comment thread of the scenario (engine comments' file), made on render `render` at `frame`. */
-async function writeThread(id: string, o: { render: string; created: string; frame: number; anchor: Record<string, unknown> }): Promise<void> {
+async function writeThread(id: string, o: { render: string; created: string; frame: number; anchor: Record<string, unknown>; run?: string }): Promise<void> {
   const d = join(dir, 'comments', SCENARIO);
   await mkdir(d, { recursive: true });
   await writeFile(
     join(d, `${id}.json`),
     JSON.stringify({
       version: 1, id, scenario: SCENARIO,
-      render: { id: o.render, created_at: o.created, run_id: RUN, variant: 'landscape', fps: 30, frames: 300, width: 1920, height: 1080 },
+      render: { id: o.render, created_at: o.created, run_id: o.run ?? RUN, variant: 'landscape', fps: 30, frames: 300, width: 1920, height: 1080 },
       frame: o.frame, time_s: o.frame / 30, text: 'Look here', author: { via: 'cli', name: 'Reviewer' }, created_at: '2026-01-01T13:05:00.000Z', anchor: o.anchor, entries: [],
     }),
   );
@@ -253,9 +253,11 @@ describe('timeline view (L4.5)', () => {
     expect(planSignature({ ...JSON.parse(JSON.stringify(r.plan)), notes: ['another'], warnings: [] })).toBe(r.view.plan_sha256);
     const step = r.view.model.steps.find((x) => x.key === 'a.0')!;
     const frame = step.from + 5;
-    const record = async (plan: unknown, theme: string) => {
+    // (L7.6c: a record as the writer writes its deciding members — the version, the status, the id —; before, a
+    // hand-made file of the version, the id, the creation time, the theme hash and the plan was taken.)
+    const record = async (plan: unknown, theme: string, o: Record<string, unknown> = {}, file = 'tl-v1') => {
       await mkdir(join(dir, 'renders'), { recursive: true });
-      await writeFile(join(dir, 'renders', 'tl-v1.json'), JSON.stringify({ version: 1, id: 'tl-v1', created_at: '2026-01-01T13:00:00.000Z', template_sha256: theme, plan }));
+      await writeFile(join(dir, 'renders', `${file}.json`), JSON.stringify({ version: 1, id: 'tl-v1', scenario: SCENARIO, status: 'succeeded', created_at: '2026-01-01T13:00:00.000Z', template_sha256: theme, plan, ...o }));
     };
     await record(JSON.parse(JSON.stringify(r.plan)), r.view.theme_sha256);
     await writeThread('c_01JBBBBBBBBBBBBBBBBBBBBBBB', { render: 'tl-v1', created: '2026-01-01T13:00:00.000Z', frame, anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0 } });
@@ -268,6 +270,55 @@ describe('timeline view (L4.5)', () => {
       const other = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
       expect(other.view.pins.placed).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame: step.from, by: 'step' }]);
     }
+    // L7.6c: the record is read by the one reader of renders/ — a record without a status, of a status Retake never
+    // writes, a failed one, one of a newer Retake, one that says another id (renders/tl-v1.json renamed from another
+    // render) are no render of this version (moved: the first five were pinned at their frame before); a link to the
+    // record and the same id made at another time are not either (as before): the step's first frame.
+    const plan = JSON.parse(JSON.stringify(r.plan)) as unknown;
+    const theme = r.view.theme_sha256;
+    const cases: Array<[string, () => Promise<void>]> = [
+      ['no status', async () => record(plan, theme, { status: undefined })],
+      ['unknown status', async () => record(plan, theme, { status: 'paused' })],
+      ['failed', async () => record(plan, theme, { status: 'failed', error: 'stopped' })],
+      ['newer Retake', async () => record(plan, theme, { version: 2 })],
+      ['another id', async () => record(plan, theme, { id: 'tl-v9' })],
+      ['another time', async () => record(plan, theme, { created_at: '2026-01-01T14:00:00.000Z' })],
+      // A background read takes a listing's cap (16 MiB), as before the lot: the record of this very plan, its notes
+      // (which the signature leaves out) over the cap.
+      ['over the cap', async () => record({ ...(plan as Record<string, unknown>), notes: ['x'.repeat(17 * 1024 * 1024)] }, theme)],
+      // A plan nested deeper than a signature can be written: no signature, no match — the view is answered, never a failed view.
+      ['a plan nested 20 000 deep', async () => {
+        await mkdir(join(dir, 'renders'), { recursive: true });
+        const deep = `${'{"a":'.repeat(20_000)}1${'}'.repeat(20_000)}`;
+        await writeFile(join(dir, 'renders', 'tl-v1.json'), `{"version":1,"id":"tl-v1","scenario":"${SCENARIO}","status":"succeeded","created_at":"2026-01-01T13:00:00.000Z","template_sha256":"${theme}","plan":${deep}}`);
+      }],
+      [
+        'a link',
+        async () => {
+          await record(plan, theme, {}, 'tl-v1-target');
+          await rm(join(dir, 'renders', 'tl-v1.json'), { force: true });
+          await symlink(join(dir, 'renders', 'tl-v1-target.json'), join(dir, 'renders', 'tl-v1.json'));
+        },
+      ],
+    ];
+    for (const [name, write] of cases) {
+      clearTimelineViewMemo();
+      await rm(join(dir, 'renders'), { recursive: true, force: true });
+      await write();
+      const other = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
+      expect(other.view.pins.placed, name).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame: step.from, by: 'step' }]);
+    }
+    // The control: the same record of its own file, succeeded, at the comment's creation time — at its frame again.
+    clearTimelineViewMemo();
+    await rm(join(dir, 'renders'), { recursive: true, force: true });
+    await record(plan, theme);
+    expect((await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).view.pins.placed).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame, by: 'frame' }]);
+    // A thread made on that very render but said to be of another take is never pinned at its frame on this one.
+    await writeThread('c_01JCCCCCCCCCCCCCCCCCCCCCCC', { render: 'tl-v1', created: '2026-01-01T13:00:00.000Z', frame, anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0 }, run: '20260101-120000-other' });
+    clearTimelineViewMemo();
+    const both = (await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).view.pins;
+    expect(both.placed.filter((p) => p.by === 'frame').map((p) => p.id)).toEqual(['c_01JBBBBBBBBBBBBBBBBBBBBBBB']);
+    expect(both.placed.find((p) => p.id === 'c_01JCCCCCCCCCCCCCCCCCCCCCCC')?.by).not.toBe('frame');
     await rm(join(dir, 'comments'), { recursive: true, force: true });
     await rm(join(dir, 'renders'), { recursive: true, force: true });
   });

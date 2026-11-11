@@ -10,15 +10,16 @@
  * - Missing → built; corrupt (SQLITE_CORRUPT / SQLITE_NOTADB by errcode, or `pragma quick_check` not ok), of another
  *   schema, or not a regular file (a symbolic link: SQLite would create the db, -wal and -shm at its target) → deleted
  *   with its -wal / -shm (links removed, never followed) and rebuilt: a cache, nothing to keep.
- * - Files are read only when they are regular files of the project, within a size cap (review A L3): a render record
- *   or README linked out of the project is never indexed, a FIFO never read.
+ * - Files are read only when they are regular files of the project, within a size cap (review A L3): a README linked
+ *   out of the project is never indexed, a FIFO never read. renders/ is read by the one reader of renders/ (L7.6c): a
+ *   render is the record of its own file, and a record file that is a link is never read.
  * - No jobs table (critique B2): an unfinished job's state is derived from process liveness, which no file records —
  *   `activity()` reads unfinished jobs live from the queue; finished ones are history lines.
  * - One writer: the Studio server holding the discovery file (ui.json). The worker and the CLI never open it.
  * - Text in it is shown by the Studio as text (never HTML); a search query becomes quoted prefix terms bound as a
  *   parameter — no FTS syntax from the user reaches SQLite.
  */
-import { lstat, mkdir, open as openFile, readdir, rm, stat } from 'node:fs/promises';
+import { lstat, mkdir, open as openFile, realpath, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { LoadedProject } from '@retake/core';
@@ -38,7 +39,9 @@ import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
-import { projectPath, projectRef } from '@retake/core';
+import { pathInside, projectPath, renderOfFile } from '@retake/core';
+import { readListedRender } from '@retake/core/io';
+import { renderEntries } from '../render-records.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
 /** Bumped when the tables change: an index of another schema is rebuilt. */
@@ -49,8 +52,6 @@ const README_INDEX_MAX = 200_000;
 export const RUNS_INDEX_MAX = 5000;
 /** Bytes read of a README for the index, at most (a bigger one is indexed without its text). */
 const README_BYTES_MAX = 4 * 1024 * 1024;
-/** A render record bigger than this is not one (skipped). */
-const RENDER_RECORD_MAX = 1024 * 1024;
 
 export function indexFile(root: string): string {
   return join(stateDir(root), 'index.sqlite');
@@ -135,7 +136,7 @@ export function ftsQuery(q: string): string | null {
   return words.length ? words.map((w) => `"${w.replace(/"/g, '""')}"*`).join(' ') : null;
 }
 
-interface RenderRow {
+export interface RenderRow {
   id: string;
   scenario?: string;
   run_id?: string;
@@ -159,26 +160,34 @@ async function readSmall(dir: string, ref: string, max: number): Promise<string 
   }
 }
 
-/** renders/*.json of a project, read as data (no editor package: the index never loads Remotion). */
-async function readRenders(dir: string): Promise<RenderRow[]> {
-  let files: string[];
+/**
+ * The rows of renders/ of a project (no editor package: the index never loads Remotion): one per record of its own
+ * file (D-10: core renderOfFile — a copy, a record renamed by hand, a link, a record of a newer Retake or one that does
+ * not read is none), read by the one reader of renders/ as a listing reads it (no link followed, its cap; engine
+ * renderEntries for the names, core/io readListedRender for each file), one record at a time: a row is kept, never the
+ * record (its plan) it was taken from. A record of a status Retake never writes is a row whose status is `unknown`, never the file's word.
+ * A member a record lacks is no column (null). renders/ is read only when its real path lies inside the project's (a
+ * folder linked out of the project is never indexed).
+ */
+export async function readRenders(dir: string): Promise<RenderRow[]> {
   try {
-    files = (await readdir(projectPath(dir, 'renders'))).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
+    const [project, renders] = await Promise.all([realpath(dir), realpath(projectPath(dir, 'renders'))]);
+    if (!pathInside(renders, project, { dotDotPrefix: true })) return [];
   } catch {
     return [];
   }
   const out: RenderRow[] = [];
-  for (const f of files) {
-    try {
-      const text = await readSmall(dir, projectRef('renders', f), RENDER_RECORD_MAX);
-      if (text === undefined) continue;
-      const r = JSON.parse(text) as Record<string, unknown>;
-      if (r?.version !== 1 || typeof r.id !== 'string') continue;
-      const s = (k: string) => (typeof r[k] === 'string' ? (r[k] as string) : undefined);
-      out.push({ id: r.id, scenario: s('scenario'), run_id: s('run_id'), status: s('status'), template: s('template'), created_at: s('created_at') });
-    } catch {
-      // not a render record
-    }
+  // One record at a time (a record holds its whole plan): the names as the reader lists them, nothing read for that …
+  const names: string[] = [];
+  await renderEntries(dir, (name) => (names.push(name), false));
+  // … then each file under the listing's rules, its row taken and the record let go.
+  for (const name of names) {
+    const entry = await readListedRender(projectPath(dir, 'renders'), name);
+    const r = entry.read;
+    const record = renderOfFile(entry) ?? (!r.ok && r.problem === 'unknown-status' && r.record.id === entry.name ? r.record : null);
+    if (!record) continue;
+    const s = (v: string) => (v === '' ? undefined : v);
+    out.push({ id: record.id, scenario: s(record.scenario), run_id: s(record.run_id), status: r.ok ? record.status : 'unknown', template: s(record.template), created_at: s(record.created_at) });
   }
   return out;
 }

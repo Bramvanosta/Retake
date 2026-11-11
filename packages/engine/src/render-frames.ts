@@ -26,7 +26,7 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } f
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { isRenderId, projectPath, PROJECT_DIRS, projectRef, renderIdOf } from '@retake/core';
+import { isRenderId, projectPath, PROJECT_DIRS, projectRef, sameRender } from '@retake/core';
 import { ffprobeBin } from '@retake/core/io';
 import type { LoadedProject, RenderVariant, WorkPolicy } from '@retake/core';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
@@ -251,11 +251,14 @@ export class RenderFrames {
     if (!isRenderId(renderId)) {
       throw new EngineError('invalid', `invalid render id "${String(renderId).slice(0, 80)}": <scenario>-v<N> (the renders list names them)`, { details: { argument: 'render_id' } });
     }
+    // The one reader of renders/, by its id (renderForWork: its own file, no link, succeeded, its plan, its files in the
+    // project), then what a message may quote: a render of its scenario (core renderIdOf) that core quotableRender takes.
     const record = await renderForWork(project, renderId);
-    if (!recordShapeOk(record) || renderIdOf(record.id, record.scenario) === null) {
+    if (!recordShapeOk(record)) {
       throw new EngineError('refused', `${projectRef('renders', `${renderId}.json`)} has an id, scenario, created_at or variant the tool never writes: not used`);
     }
-    if (createdAt !== undefined && createdAt !== record.created_at) {
+    // The render the page read, still (core sameRender: its id and its creation time).
+    if (createdAt !== undefined && !sameRender(record, { id: renderId, created_at: createdAt })) {
       throw new EngineError('conflict', `render ${renderId} was replaced since it was read (another render now has its id): read the renders again`, {
         details: { current: record.created_at },
       });
@@ -470,7 +473,7 @@ export class RenderFrames {
       }
       const { threads } = await this.comments.ofScenario(project.dir, record.scenario);
       const pins = threads
-        .filter((t) => t.render_id === record.id && t.render_created_at === record.created_at && t.frame < frames)
+        .filter((t) => sameRender(record, { id: t.render_id, created_at: t.render_created_at }) && t.frame < frames)
         .map((t) => ({ id: t.id, status: t.status, frame: t.frame }))
         .sort((a, b) => a.frame - b.frame || a.id.localeCompare(b.id));
       const duration_s = Math.round((frames / probe.fps) * 1000) / 1000;

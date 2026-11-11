@@ -35,7 +35,14 @@ export const NODE_RECORD_FS: RecordFs = {
   async text(file, o) {
     if (!o.follow) {
       const r = readPlainFile(file, o.max);
-      if (r.ok) return { ok: true, text: r.bytes.toString('utf8'), link: false };
+      if (r.ok) {
+        try {
+          return { ok: true, text: r.bytes.toString('utf8'), link: false };
+        } catch {
+          // (A text the runtime cannot hold: never a throw.)
+          return { ok: false, problem: 'unreadable', link: false };
+        }
+      }
       if (r.reason === 'link') return { ok: false, problem: 'not-a-file', link: true };
       return { ok: false, problem: r.reason === 'missing' ? 'missing' : r.reason === 'not_file' ? 'not-a-file' : r.reason === 'too_large' ? 'too-big' : 'unreadable', link: false };
     }

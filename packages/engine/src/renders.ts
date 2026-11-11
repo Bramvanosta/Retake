@@ -603,10 +603,20 @@ export interface ScenarioRendersView {
   untrusted: { error?: string };
 }
 
-/** The signature of an edit plan (24 hex): the plan without its notes and warnings, canonical JSON, sha256. */
-export function planSignature(plan: unknown): string {
+/**
+ * The signature of an edit plan (24 hex): the plan without its notes and warnings, canonical JSON, sha256. Null — no
+ * signature, so the same as no plan's — when the plan cannot be written as canonical JSON (a plan of a record, which
+ * anyone can write, nested deeper than the writer's stack): never a throw.
+ */
+export function planSignature(plan: unknown): string | null {
   const p = plan && typeof plan === 'object' ? { ...(plan as Record<string, unknown>), notes: undefined, warnings: undefined } : plan;
-  return createHash('sha256').update(canonicalJson(p)).digest('hex').slice(0, 24);
+  let text: string;
+  try {
+    text = canonicalJson(p);
+  } catch {
+    return null;
+  }
+  return createHash('sha256').update(text).digest('hex').slice(0, 24);
 }
 
 /** Absolute paths in a message, each cut to its last part ("…/capture.mp4"); `file://` URLs too. */
@@ -729,7 +739,7 @@ export function renderView(projectDir: string, r: StoredRenderRecord, renderJobs
     edit: { from: r.edit?.from === 'scenario' ? 'scenario' : 'run', ...(r.edit?.from === 'scenario' && typeof r.edit.sha256 === 'string' && /^[0-9a-f]{64}$/.test(r.edit.sha256) ? { sha256: r.edit.sha256 } : {}) },
     fps: n0(r.fps),
     overrides: r.overrides && typeof r.overrides === 'object' ? Object.keys(r.overrides).filter((k) => k !== 'theme' && OVERRIDE_KEY.test(k) && (r.overrides as Record<string, unknown>)[k] !== undefined).sort() : [],
-    ...(r.plan && typeof r.plan === 'object' ? { plan_sha256: memoPlanSignature(r) } : {}),
+    ...(r.plan && typeof r.plan === 'object' && memoPlanSignature(r) !== null ? { plan_sha256: memoPlanSignature(r)! } : {}),
     ...(typeof r.template_sha256 === 'string' && /^[0-9a-f]{16}$/.test(r.template_sha256) ? { theme_sha256: r.template_sha256 } : {}),
     review,
   };
@@ -827,8 +837,9 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
 }
 
 /** Plan signatures of render records (a record never changes once written: keyed by its id and times). */
-const planSigMemo = new Map<string, string>();
-function memoPlanSignature(r: StoredRenderRecord): string {
+const planSigMemo = new Map<string, string | null>();
+/** Null: the record's plan has no signature (planSignature). */
+function memoPlanSignature(r: StoredRenderRecord): string | null {
   const key = `${r.id}|${r.created_at}|${r.finished_at}`;
   let sig = planSigMemo.get(key);
   if (sig === undefined) {

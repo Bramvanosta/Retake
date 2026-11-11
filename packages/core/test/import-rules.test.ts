@@ -1193,40 +1193,61 @@ describe('the import-rules ratchet', () => {
     });
 
     it('10. a file that reads a run folder on its own, on purpose: each JSON.parse there is an entry of its own kind', () => {
-      // (L7.6b: the three readers of renders/ staged to the next lot are listed too, so that their parses are in sight.)
-      expect(lib.RECORD_READ_OWN).toEqual(['packages/engine/src/prune.ts', 'packages/engine/src/jobs/run-job.ts', 'packages/engine/src/index-db/index-db.ts', 'packages/engine/src/timeline-view.ts']);
-      // (L7.6b fix pass) Their functions that parse no record are named, and only those: history lines, ffprobe's output.
-      expect(lib.RECORD_READ_NOT_RECORD).toEqual({ 'packages/engine/src/index-db/index-db.ts': ['readHistory', 'history'], 'packages/engine/src/timeline-view.ts': ['captureInfo'] });
-      // A fourth parse in the search index is a new entry (its reads are counted, not escaped).
-      expect(kinds(['const a = JSON.parse(x);', 'const b = JSON.parse(y);', 'const c = JSON.parse(z);', 'const d = JSON.parse(w);'], 'packages/engine/src/index-db/index-db.ts')).toEqual([10, 10, 10, 10]);
+      // (L7.6c: the readers of renders/ staged by L7.6b are on the one reader — no own reader of renders/ is left but prune's
+      // read through a link, and no function of an own reader is said to parse no record.)
+      expect(lib.RECORD_READ_OWN).toEqual(['packages/engine/src/prune.ts', 'packages/engine/src/jobs/run-job.ts']);
+      expect(lib.RECORD_READ_NOT_RECORD).toBeUndefined();
       const own = ["const r = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as Mine | null;", "const again = JSON.parse(text);"];
       for (const rel of lib.RECORD_READ_OWN) {
         expect(statSync(join(ROOT, rel)).isFile(), rel).toBe(true);
         expect(kinds(own, rel), rel).toEqual([10, 10]);
+        // Every parse of an own reader is counted, whatever function holds it.
+        expect(kinds(['async function captureInfo(f: string) { const j = JSON.parse(out); }', 'class I { private async readHistory() { return JSON.parse(line); } }'], rel), rel).toEqual([10, 10]);
       }
       // Anywhere else a parse into a shape of one's own is not seen (said in the title).
       expect(kinds(own, 'packages/engine/src/runs.ts')).toEqual([0, 0]);
-      // A parse inside a function named as parsing no record is not counted; the same parse in any other function of the
-      // file, an arrow given to a variable, a method or a function of another name, is (L7.6b fix pass: the entries count
-      // reads of a record, not every JSON.parse).
-      expect(kinds([
-        'async function captureInfo(f: string) { const j = JSON.parse(out); }',
-        'async function captureInfo2(f: string) { const j = JSON.parse(out); }',
-        'const captureInfo3 = () => JSON.parse(out);',
-        'function renderMatcher() { return (id: string) => JSON.parse(text); }',
-      ], 'packages/engine/src/timeline-view.ts')).toEqual([0, 10, 10, 10]);
-      expect(kinds(['class I { private async readHistory() { return JSON.parse(line); } history() { return [1].map(() => JSON.parse(r)); } readRenders() { return JSON.parse(t); } }'], 'packages/engine/src/index-db/index-db.ts')).toEqual([10]);
-      // The frame service is no own reader: it reads no file of renders/ itself (its record comes from renderForWork) and
-      // its one parse is ffprobe's output, in probeFd.
-      const frames = readFileSync(join(ROOT, 'packages/engine/src/render-frames.ts'), 'utf8');
-      expect(frames.match(/JSON\.parse\(/g)).toHaveLength(1);
-      const probeAt = frames.indexOf('function probeFd(');
-      const nextAt = frames.slice(probeAt + 1).search(/\n(?:export |async )?function /) + probeAt + 1;
-      expect([probeAt > 0, frames.indexOf('JSON.parse(out)') > probeAt, frames.indexOf('JSON.parse(out)') < nextAt]).toEqual([true, true, true]);
-      expect(frames).not.toMatch(/readFile|readPlainFile|readJson|readRenders?Folder|readListedRender|readNamedRender|readRenderById/);
-      expect(frames).toMatch(/await renderForWork\(project, renderId\)/);
+      expect(kinds(own, 'packages/engine/src/index-db/index-db.ts')).toEqual([0, 0]);
       // A record type named there is still the other kind.
       expect(kinds(["const r = JSON.parse(text) as RunRecord;"], lib.RECORD_READ_OWN[0])).toEqual([1]);
+    });
+
+    it('the search index, the timeline\'s version matcher and the frame service read renders/ through the one reader only (L7.6c)', () => {
+      const src = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+      /** The names of the functions (declared, methods, or an arrow given to a variable) that hold each JSON.parse of `text`. */
+      const parsesIn = (text: string): string[] => {
+        const out: string[] = [];
+        const re = /JSON\.parse\(/g;
+        for (let m = re.exec(text); m; m = re.exec(text)) {
+          const before = text.slice(0, m.index);
+          const fns = [...before.matchAll(/\n(?:export )?(?:async )?function (\w+)\(|\n  (?:private |static )*(?:async )?(\w+)\([^)]*\)[^\n]*\{\n/g)];
+          const last = fns[fns.length - 1];
+          out.push(last ? (last[1] ?? last[2]) : '(top)');
+        }
+        return out;
+      };
+      // The search index: its parses are history.jsonl's lines and the index's history rows; renders/ comes from the reader
+      // (the names as renderEntries lists them, each file read under the listing's rules).
+      const index = src('packages/engine/src/index-db/index-db.ts');
+      expect(parsesIn(index)).toEqual(['readHistory', 'history']);
+      expect(index).toMatch(/await renderEntries\(dir, \(name\) => \(names\.push\(name\), false\)\)/);
+      expect(index).toMatch(/const entry = await readListedRender\(projectPath\(dir, 'renders'\), name\)/);
+      expect(index).toMatch(/renderOfFile\(entry\)/);
+      expect(index).not.toMatch(/readSmall\(dir, projectRef\('renders'|readdir\(projectPath\(dir, 'renders'\)\)/);
+      // The timeline: its one parse is ffprobe's output; the record of a pin is read under a listing's rules (readListedRender:
+      // no link, the listing's cap) and judged by core's rules; renders/ is named in that one call only.
+      const timeline = src('packages/engine/src/timeline-view.ts');
+      expect(parsesIn(timeline)).toEqual(['captureInfo']);
+      expect(timeline).toMatch(/readListedRender\(projectPath\(projectDir, 'renders'\), a\.id\)/);
+      expect(timeline.match(/'renders'/g)).toHaveLength(1);
+      expect(timeline).toMatch(/renderOfFile\(await entry\)/);
+      expect(timeline).toMatch(/sameRender\(record, a\)/);
+      // The frame service: its one parse is ffprobe's output (probeFd); its record comes from renderForWork; core's identity rule.
+      const frames = src('packages/engine/src/render-frames.ts');
+      expect(parsesIn(frames)).toEqual(['probeFd']);
+      expect(frames).not.toMatch(/readFile|readPlainFile|readJson|readRenders?Folder|readListedRender|readNamedRender|readRenderById/);
+      expect(frames).toMatch(/await renderForWork\(project, renderId\)/);
+      expect(frames.match(/sameRender\(record, \{/g)).toHaveLength(2);
+      expect(frames).not.toMatch(/[!=]== record\.created_at|record\.created_at [!=]==|render_created_at [!=]==/);
     });
 
     it('says what it does not see: an alias, an own interface, an untyped value that reaches a record without a cast', () => {
@@ -1246,19 +1267,15 @@ describe('the import-rules ratchet', () => {
       const today: string[] = lib.ratchetEntries(ROOT, scanned);
       // No record or timeline is typed outside the reader. The own reads — prune's two (a run.json the reader does not
       // take; a linked record file of renders/, L7.6b) and the job's lenient close, each into a shape of its own, as
-      // their comments say — are in sight: one entry per file, with its reason in the baseline. So are, until L7.6c,
-      // the three readers of renders/ that are not on the one reader yet (every JSON.parse of their files is counted).
+      // their comments say — are in sight: one entry per file, with its reason in the baseline (L7.6c: the readers of
+      // renders/ L7.6b staged are on the one reader, and no entry).
       expect(lib.recordReadHits(ROOT, scanned.files).map((h: ReadHit) => [h.file, h.kinds])).toEqual([
-        ['packages/engine/src/index-db/index-db.ts', [10]],
         ['packages/engine/src/jobs/run-job.ts', [10]],
         ['packages/engine/src/prune.ts', [10, 10]],
-        ['packages/engine/src/timeline-view.ts', [10]],
       ]);
       const OWN = [
-        "record-read packages/engine/src/index-db/index-db.ts → 1 own read of a run folder's or renders/'s file",
         "record-read packages/engine/src/jobs/run-job.ts → 1 own read of a run folder's or renders/'s file",
         "record-read packages/engine/src/prune.ts → 2 own reads of a run folder's or renders/'s file",
-        "record-read packages/engine/src/timeline-view.ts → 1 own read of a run folder's or renders/'s file",
       ];
       expect(today.filter((e: string) => e.startsWith('record-read ')).sort()).toEqual(OWN);
       const groups = (JSON.parse(readFileSync(join(ROOT, 'scripts/audit/baseline.json'), 'utf8')) as { groups: Array<{ rule: string; reason: string; entries: string[] }> }).groups.filter((g) => g.rule === 'record-read');
@@ -1271,7 +1288,7 @@ describe('the import-rules ratchet', () => {
       expect(more.added).toEqual(['record-read packages/engine/src/runs.ts → 1 record typed without the reader']);
       expect(more.stale).toEqual([]);
       const title = lib.CHECKS.find((c: { id: string }) => c.id === 'record-read')?.title ?? '';
-      for (const word of ['RECORD_READ_HOME', 'RECORD_READ_TYPES', 'RECORD_READ_SCHEMAS', 'RECORD_READ_OWN', 'RECORD_READ_NOT_RECORD', 'RenderBase', 'StoredRenderBase', 'RenderFields', 'type guard', 'generic cast helper', 'Not seen', 'alias', 'handed to the reader', 'without a cast', 'outside packages/*/src', 'render record', 'parseRenderRecord', "a member\'s type"]) expect(title, word).toContain(word);
+      for (const word of ['RECORD_READ_HOME', 'RECORD_READ_TYPES', 'RECORD_READ_SCHEMAS', 'RECORD_READ_OWN', 'RenderBase', 'StoredRenderBase', 'RenderFields', 'type guard', 'generic cast helper', 'Not seen', 'alias', 'handed to the reader', 'without a cast', 'outside packages/*/src', 'render record', 'parseRenderRecord', "a member\'s type"]) expect(title, word).toContain(word);
     });
 
     it('the shared lenient read and the file seam of the readers are in no index: imported by path by the parse boundaries and the reader of renders/ only (L7.6b)', () => {

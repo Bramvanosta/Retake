@@ -692,6 +692,16 @@ export function latestNamedRender(entries: readonly RenderEntry[], o: { scenario
 }
 
 /**
+ * A render's identity (L7.6c): its id and its creation time — a render id is reused after a render is deleted or
+ * replaced, so the same id made at another time is another render. `a` is the render as it is now (a record of its own
+ * file), `b` the render as someone read it then (a comment's `render_id` and `render_created_at`, the page's
+ * `created_at`). A record without its creation time (`''`) is the same render as nothing a caller read.
+ */
+export function sameRender(a: { id: string; created_at: string }, b: { id: string; created_at: string }): boolean {
+  return a.created_at !== '' && a.id === b.id && a.created_at === b.created_at;
+}
+
+/**
  * Decision iv — a record named at a terminal whose id is not its file's name (renamed, copied) works, but for one
  * case: the video it names is now ANOTHER render's. `beside`: the entry of the record beside that video
  * (`<video without its extension>.json`), when there is one. Refused when that one is a record of its own file, is not

@@ -199,7 +199,7 @@ export const CHECKS = [
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
   { id: 'layout', title: 'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)' },
   { id: 'id-grammar', title: 'the grammars of the run id, the render id, the ULID ids and the theme names are written in their two homes only (ID_HOMES; the Studio front end has one mirror, ID_MIRRORS), in packages/*/src (entries: each file and how many id patterns it writes by hand — (1) a regular expression, string or template holding the date stamp `\\d{8}-\\d{6}`, the version suffix `-v\\d` / `-v(\\d` (whatever follows the digit: `+`, `{1,6}`; a named or a non-capturing group) or the ULID character class; (2) a string holding the ULID alphabet; (3) a regular expression, or a string (what `new RegExp` is given), that is the run-folder grammar or a theme-name grammar, a final `{0,N}` read as `*`; (4) a template with a text part ending in `-v`, or starting with a ULID prefix before a substitution; (5) a string or template part starting with `-vertical` or `-square`; (6) a capped grammar used without its cap: `.test()` / `.exec()` on RUN_ID_RE, RENDER_ID_RE, ANY_THEME_NAME_RE or NEW_THEME_NAME_RE, or one of them handed to `.match()` / `.matchAll()` / `.search()` / `.replace()` / `.split()`, or to the `.regex()` of a schema — with or without a `.max()` beside it: the `z…` helpers of ids.ts hold the cap). Not seen: a grammar spelt another way (`[0-9]{8}`, a character class in another order), a pattern put together from pieces or by `+` (`s + \'-v\' + n`), a capped grammar reached under another name or handed to a helper, a parser made of `.startsWith(\'j_\')` / `.slice(2)` / `.split(\'-\')`, the mirror\'s patterns used without their caps, and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell, docs)' },
-  { id: 'record-read', title: 'a run.json, a timeline.json or a render record (renders/*.json) is read in one place (RECORD_READ_HOME: the readers answer a record or a typed problem), in packages/*/src (entries: each file and how many times it gives a value the type of a run record, a timeline or a render record without the reader (RECORD_READ_TYPES; also inside `Partial<…>`, a union, a list or a `Promise<…>`; a member\'s type such as `RunRecord[\'status\']` is not one) — the result of `JSON.parse(…)` or of a `readJson(…)` call typed (1) by a cast (`as T`, `as unknown as T`, `<T>…`, through `await`, parentheses and `!`), (2) by a type argument (`readJson<T>(…)`), (3) by the annotation of the variable it initialises, (4) by the declared return type of the function that returns it; (5) any other value cast to one of those types, wherever it came from; (6) a type guard or an assertion function that says a value is one (`v is T`, `asserts v is T`); (7) a call that names one as its type argument (`cast<T>(…)`: a generic cast helper); (8) a parse through a record\'s or a timeline\'s schema itself (RECORD_READ_SCHEMAS: `.parse(…)`, `.safeParse(…)` — typed, and past the reader\'s link, size and version rules); (9) an interface that extends one; and, for each file of RECORD_READ_OWN — the files that read a run folder\'s or renders/\'s file on their own, on purpose, into a shape of their own — every `JSON.parse(…)` it holds but those of its functions RECORD_READ_NOT_RECORD names as parsing no record (ffprobe\'s output, history lines), so that such a read is an entry with its reason and one more is a new entry). The types counted include the render record\'s base types under their own names (RenderBase, StoredRenderBase, RenderFields) and the answers that hold a record (NamedRenderFound, FoundRender, FoundReviewRender). Not seen: a type under an alias or an own interface of the same members (outside RECORD_READ_OWN, that is how a file would read a record out of sight — a render record\'s members copied into a view of the engine\'s are such an interface, on purpose); a `JSON.parse(…)` of a record inside a function RECORD_READ_NOT_RECORD lists, or in a file that reads a record on its own and is not in RECORD_READ_OWN, into an untyped value or a shape of its own; a file\'s own bytes handed to the reader\'s parsers (parseRunRecord, parseTimeline, parseRenderRecord: the type is the reader\'s, the link, size and version rules are the caller\'s); a stored record\'s plan typed as an edit plan by a member\'s type (`StoredRender[\'plan\']` is a member\'s type, not a record); an untyped (`any`) parse result that reaches a record without a cast — behind a helper of another name, or assigned, returned or passed in a later statement; a property or a parameter typed so; and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell)' },
+  { id: 'record-read', title: 'a run.json, a timeline.json or a render record (renders/*.json) is read in one place (RECORD_READ_HOME: the readers answer a record or a typed problem), in packages/*/src (entries: each file and how many times it gives a value the type of a run record, a timeline or a render record without the reader (RECORD_READ_TYPES; also inside `Partial<…>`, a union, a list or a `Promise<…>`; a member\'s type such as `RunRecord[\'status\']` is not one) — the result of `JSON.parse(…)` or of a `readJson(…)` call typed (1) by a cast (`as T`, `as unknown as T`, `<T>…`, through `await`, parentheses and `!`), (2) by a type argument (`readJson<T>(…)`), (3) by the annotation of the variable it initialises, (4) by the declared return type of the function that returns it; (5) any other value cast to one of those types, wherever it came from; (6) a type guard or an assertion function that says a value is one (`v is T`, `asserts v is T`); (7) a call that names one as its type argument (`cast<T>(…)`: a generic cast helper); (8) a parse through a record\'s or a timeline\'s schema itself (RECORD_READ_SCHEMAS: `.parse(…)`, `.safeParse(…)` — typed, and past the reader\'s link, size and version rules); (9) an interface that extends one; and, for each file of RECORD_READ_OWN — the files that read a run folder\'s or renders/\'s file on their own, on purpose, into a shape of their own — every `JSON.parse(…)` it holds, so that such a read is an entry with its reason and one more is a new entry). The types counted include the render record\'s base types under their own names (RenderBase, StoredRenderBase, RenderFields) and the answers that hold a record (NamedRenderFound, FoundRender, FoundReviewRender). Not seen: a type under an alias or an own interface of the same members (outside RECORD_READ_OWN, that is how a file would read a record out of sight — a render record\'s members copied into a view of the engine\'s are such an interface, on purpose); a `JSON.parse(…)` of a record in a file that reads a record on its own and is not in RECORD_READ_OWN, into an untyped value or a shape of its own; a file\'s own bytes handed to the reader\'s parsers (parseRunRecord, parseTimeline, parseRenderRecord: the type is the reader\'s, the link, size and version rules are the caller\'s); a stored record\'s plan typed as an edit plan by a member\'s type (`StoredRender[\'plan\']` is a member\'s type, not a record); an untyped (`any`) parse result that reaches a record without a cast — behind a helper of another name, or assigned, returned or passed in a later statement; a property or a parameter typed so; and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell)' },
 ];
 
 function parse(ts, rel, text) {
@@ -720,24 +720,7 @@ export const RECORD_READ_HOME = [
 export const RECORD_READ_OWN = [
   'packages/engine/src/prune.ts',
   'packages/engine/src/jobs/run-job.ts',
-  // Two of the three readers of renders/ staged to L7.6c (not on the one reader yet): counted so that they are in
-  // sight. The third, the frame service (render-frames.ts), reads no file of renders/ (its record comes from
-  // renderForWork; its one parse is ffprobe's): it is no own reader, and core/test/import-rules.test.ts holds that it
-  // parses nothing but ffprobe's output.
-  'packages/engine/src/index-db/index-db.ts',
-  'packages/engine/src/timeline-view.ts',
 ];
-/**
- * In a file of RECORD_READ_OWN, the functions (by name: a function, a method, or the variable an arrow function is
- * given to — the nearest named one around the parse) whose `JSON.parse(…)` reads no run folder's or renders/'s file,
- * each with what it parses: not counted as an own read. Widening this list is a decision: import-rules.test.ts pins it.
- */
-export const RECORD_READ_NOT_RECORD = {
-  // history.jsonl's lines (the search index's own file of finished jobs) and the index's history rows.
-  'packages/engine/src/index-db/index-db.ts': ['readHistory', 'history'],
-  // ffprobe's output for the capture's codec and keyframes.
-  'packages/engine/src/timeline-view.ts': ['captureInfo'],
-};
 /** The schemas of a run record, of a timeline and of a render record: a parse through one outside the reader is typed without it. */
 export const RECORD_READ_SCHEMAS = ['RunRecordSchema', 'StoredRunRecordSchema', 'UnknownStatusRunSchema', 'TimelineSchema', 'RenderRecordSchema', 'RenderAttemptSchema', 'StoredRenderRecordSchema', 'UnknownStatusRenderSchema'];
 /**
@@ -792,20 +775,10 @@ export function recordReadHits(root, files) {
     for (let p = n.parent; p; p = p.parent) if (ts.isFunctionLike(p)) return p;
     return undefined;
   };
-  // The name of the nearest named function around `n`: a function or a method, or the variable an arrow function or a
-  // function expression is given to.
-  const namedFunctionOf = (n) => {
-    for (let p = n.parent; p; p = p.parent) {
-      if ((ts.isFunctionDeclaration(p) || ts.isMethodDeclaration(p)) && p.name && ts.isIdentifier(p.name)) return p.name.text;
-      if ((ts.isArrowFunction(p) || ts.isFunctionExpression(p)) && ts.isVariableDeclaration(p.parent) && ts.isIdentifier(p.parent.name)) return p.parent.name.text;
-    }
-    return undefined;
-  };
   for (const { rel, text } of files) {
     if (RECORD_READ_HOME.includes(rel)) continue;
     const sf = parse(ts, rel, text);
     const own = RECORD_READ_OWN.includes(rel);
-    const notRecord = RECORD_READ_NOT_RECORD[rel] ?? [];
     const schemaName = (e) => (ts.isIdentifier(e) ? RECORD_READ_SCHEMAS.includes(e.text) : ts.isPropertyAccessExpression(e) && RECORD_READ_SCHEMAS.includes(e.name.text));
     const hit = new Map(); // the parse call, or the cast → kind (the first that matched)
     const add = (n, kind) => { if (!hit.has(n)) hit.set(n, kind); };
@@ -822,7 +795,7 @@ export function recordReadHits(root, files) {
       else if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ['parse', 'safeParse', 'parseAsync', 'safeParseAsync'].includes(n.expression.name.text) && schemaName(n.expression.expression)) add(n, 8);
       else if (ts.isTypePredicateNode(n) && n.type && named(n.type)) add(n, 6);
       else if (ts.isHeritageClause(n) && n.types.some((t) => ts.isIdentifier(t.expression) && RECORD_READ_TYPES.includes(t.expression.text))) add(n, 9);
-      else if (own && ts.isCallExpression(n) && parser(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'parse' && !notRecord.includes(namedFunctionOf(n))) add(n, 10);
+      else if (own && ts.isCallExpression(n) && parser(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'parse') add(n, 10);
       else if (ts.isVariableDeclaration(n) && n.type && n.initializer && named(n.type)) {
         const inner = bare(n.initializer);
         if (parser(inner)) add(inner, 3);
