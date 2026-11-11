@@ -60,6 +60,12 @@ cd <workspace> && claude plugin install retake@retake --scope local --config nod
   still finds those tools. Secrets the `{{env:…}}` references of project.yaml need go in `env` too (or in the
   keychain): a GUI client does not read your shell profile; the plugin carries none. `RETAKE_HOME` is carried
   over when set (the plugin: its `home` value, which replaces an inherited `RETAKE_HOME`; empty: `~/.retake`).
+- **After an update** (the app updated in place, a checkout pulled and built) a server the client started before still
+  runs the old engine. It reads the installed version again at every call (the app's bundle.json, the checkout's
+  packages/core/package.json): when they differ, `engine_info` answers with `stale: {running, installed}` (its summary
+  starts with `STALE:`), any other call is refused with the same words, and the server stops once that answer is
+  written, so that the client starts it again on the installed engine (Claude Code: Reconnect in `/mcp` if it shows
+  as failed).
 - The plugin loads in place from `skills/`: `git pull` + a new session (or `/reload-plugins`) updates the skills; run
   the install line again to change a value. `claude --plugin-dir skills` is for editing the skills: that session loads
   the plugin as `retake@inline`, which hides an installed one and has none of its values, so **its MCP server is
@@ -108,7 +114,7 @@ same advice if it is not yours. This is checked at start only, the client does n
 
 | Tool | Does | Writes |
 |---|---|---|
-| `engine_info` | version, workspace root, features; `started_in` (the folder the client started the server in) and whether it is outside the workspace | — |
+| `engine_info` | version, workspace root, features; `started_in` (the folder the client started the server in) and whether it is outside the workspace; `stale` when the installed engine is newer than the server's (it then stops) | — |
 | `project_list` | projects: slug, name, folder, scenarios, environments (a broken one with its error) | — |
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults; `readme_environments` when the README's "Environments & links" section no longer matches them | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); `environments` pages are a URL or `{url, display}`, `default_env` names the default one; refuses an existing slug | new files only |
@@ -396,7 +402,9 @@ hooks: submit it again —, a sandbox that would not start…).
   video / image / Lottie files, the music bed (the scenario's or `overrides.music`) — is a file of the project folder
   (no absolute path, `..` or symbolic link out of it; a refusal never says whether a file exists); a Lottie file counts
   as code (its expressions run in the render) and is never taken from a folder Claude writes (`scenarios/`…); a slot
-  value that is a remote URL is refused (put the file in `assets/`); a theme is named (`template`, a scenario's
+  value that is a remote URL is refused (put the file in `assets/`) when the component loads it — an image, a medium;
+  a slot it only shows or encodes (`text`, `url`, `color` in its manifest: a call to action's address, its QR code) is
+  not a file, and a card whose component the theme picks counts as loading it; a theme is named (`template`, a scenario's
   `template:`), never a folder — except the project's own `template:` of project.yaml. After planning, every file the
   plan serves must lie in the project, the run or the theme folder (a theme whose logo or font leaves its folder is
   refused). The worker checks it all again. The refusal names each file and where it is used, with the `retake render`

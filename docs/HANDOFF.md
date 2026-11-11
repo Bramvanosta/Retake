@@ -10,6 +10,23 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.5 (2026-11-11, branch `hotfix/v0.2.5` from `hotfix/v0.2.4`; field feedback, points 20–24):**
+- 20: core `installedVersion` / `staleEngine` (the bundle's bundle.json `app`, else the checkout's core package.json,
+  read at each call); mcp `protocolTool` refuses every call but engine_info when stale (`staleWords`), engine_info
+  carries `stale`, and `startMcpServer` stops the stdio server once that answer is written (`serveStdio` `stop`).
+  HTTP mode and the Studio's /v1/call only report it (`engine_info.stale`).
+- 21: sandbox.yaml `reset.firebase_auth` (sandbox `firebase-auth.ts`: DELETE /emulator/v1/projects/<p>/accounts before
+  the seed, `accounts:batchGet?maxResults=-1` saved after it in `.retake/sandbox/<env>/firebase-auth.json`, emptied
+  and `accounts:batchCreate` at every reset, after `restart`; a save of another seed hash invalidates a Postgres
+  snapshot) and `reset.hooks` (seed steps: same checks, `runSeed` with `what: 'reset hook'`, journal
+  `reset-journal.json`, approvals indexed after the seed's). Routes taken from firebase-tools' emulator source.
+- 22: kit `inkOn` / `buttonColors` (the fill is the accent as it is, the label chosen against it — one of white /
+  black always reaches 4.5); card-cta uses them; review `checkButtonContrast` (`button-contrast`, components
+  with a `button` slot).
+- 23: editor `remoteSlotUses(timeline, slotType)` skips slots of type text / url / color; plan-run loads the registry
+  before gate 1 (manifests only). A card without `component` still counts as loading.
+- 24: `search_cps` / `search_instant` on select / pick (`keyboard.insertText` for instant; both refused together).
+
 **Hotfix v0.2.4 (2026-11-11, branch `hotfix/v0.2.4` from main after v0.2.3; BL-167 in part, BL-168 — the update):**
 - The download's progress: update_flow `State::Downloading {version, received, total}` (the state line gains
   `received` / `total`, ui update-ops.ts parses them), `watch_reporting` reports each new byte count; the Studio's

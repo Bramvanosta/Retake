@@ -76,7 +76,11 @@ const SEARCH_FIELD: TargetObject = {
   in: 'popover',
 };
 
-/** Type into the popover's search field (the focused input, else the first input of the popover). */
+/**
+ * Type into the popover's search field (the focused input, else the first input of the popover): at the step's
+ * `search_cps` (else the search pace, at most SEARCH_MAX_CPS), or, with `search_instant`, at once — one insertText, as a
+ * paste: the list filters once, to the final text (hotfix v0.2.5, field point 24).
+ */
 async function typeSearch(ctx: StepContext, text: string): Promise<void> {
   const { rt } = ctx;
   if (!(await rt.kit.isTextInput(null))) {
@@ -84,7 +88,9 @@ async function typeSearch(ctx: StepContext, text: string): Promise<void> {
     if (!input) throw new StepError(`${ctx.step.action}: no search field in the open popover to type "${text}"`);
     await clickResolved(ctx, input, { expect_popup: false, after_ms: 200, click_role: 'search' });
   }
-  await typeText(ctx, text, Math.min(ctx.rt.pacing.type_cps, SEARCH_MAX_CPS));
+  const a = ctx.step.args as { search_cps?: number; search_instant?: boolean };
+  if (a.search_instant) await rt.page.keyboard.insertText(text);
+  else await typeText(ctx, text, a.search_cps ?? Math.min(ctx.rt.pacing.type_cps, SEARCH_MAX_CPS));
   await rt.sleep(ctx.jitter.ms(300));
 }
 

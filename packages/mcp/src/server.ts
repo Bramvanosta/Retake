@@ -106,6 +106,8 @@ export interface WireOptions {
 export interface ServeOptions extends WireOptions {
   stdin?: Readable;
   stdout?: Writable;
+  /** Resolves when the server must stop (an engine updated under it): the calls under way are answered, then it ends. */
+  stop?: Promise<void>;
 }
 
 /**
@@ -187,6 +189,8 @@ export async function serveStdio(o: ServeOptions): Promise<void> {
     close();
   };
   stdin.once('end', () => void drainThenClose());
+  // After the answer that said why is written (drainThenClose waits for the calls under way).
+  void o.stop?.then(() => setTimeout(() => void drainThenClose(), 50));
   stdin.once('close', () => void drainThenClose());
   stdout.once('error', close);
   await closed;

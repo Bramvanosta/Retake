@@ -133,8 +133,8 @@ export interface SeedResult {
   ms: number;
 }
 
-function failure(r: HookResult, total: number): string {
-  return `seed step ${r.index + 1}/${total} (${r.description}) ${r.status === 'refused' ? 'was refused' : 'failed'}: ${r.error ?? r.status}`;
+function failure(r: HookResult, total: number, what = 'seed step'): string {
+  return `${what} ${r.index + 1}/${total} (${r.description}) ${r.status === 'refused' ? 'was refused' : 'failed'}: ${r.error ?? r.status}`;
 }
 
 /**
@@ -144,10 +144,24 @@ function failure(r: HookResult, total: number): string {
 export async function runSeed(
   pctx: ProviderContext,
   provider: Provider,
-  opts: { by: string; log: SandboxLog; signal?: AbortSignal; running?: Set<number> },
+  opts: {
+    by: string;
+    log: SandboxLog;
+    signal?: AbortSignal;
+    running?: Set<number>;
+    /**
+     * Hotfix v0.2.5: other steps than the seed — `reset.hooks`, run at every reset (`what`: how messages name them; their
+     * approvals are bound after the seed's positions, `indexBase`).
+     */
+    steps?: SeedStep[];
+    what?: 'reset hook';
+    indexBase?: number;
+  },
 ): Promise<SeedResult> {
   const { project, sandbox, paths } = pctx;
-  const steps: SeedStep[] = sandbox.manifest.seed ?? [];
+  const steps: SeedStep[] = opts.steps ?? sandbox.manifest.seed ?? [];
+  const word = opts.what ?? 'seed';
+  const base = opts.indexBase ?? 0;
   const t0 = Date.now();
   if (!steps.length) return { steps: 0, ms: 0 };
   const env = resolveEnvironment(project, sandbox.env);
@@ -177,7 +191,7 @@ export async function runSeed(
     const confirm = trust.confirm;
     ctx.confirmDestructive = async (description, reason, request) => {
       if (!confirm) return false;
-      const index = offset + request.index;
+      const index = base + offset + request.index;
       return confirm(description, reason, { ...request, index, fingerprint: hookFingerprint(request.hook, { phase: 'seed', index, env: request.env, ...(request.files ? { files: request.files } : {}) }) });
     };
   }
@@ -185,20 +199,21 @@ export async function runSeed(
   // container may publish the same port on ::1); `external: true` ones as their URL says.
   const addresses = await databaseAddresses(pctx, provider);
   if (addresses.size) ctx.connectAddress = (host, port) => (isIP(host.replace(/^\[|\]$/g, '')) ? undefined : addresses.get(port));
-  rmSync(paths.seedJournal, { force: true });
-  const journal = await Journal.open(paths.seedJournal);
+  const journalFile = opts.what ? paths.seedJournal.replace(/seed-journal\.json$/, 'reset-journal.json') : paths.seedJournal;
+  rmSync(journalFile, { force: true });
+  const journal = await Journal.open(journalFile);
   let batch: HookStep[] = [];
   let done = 0;
   const flush = async () => {
     if (!batch.length) return;
     offset = done;
     const kinds = [...new Set(batch.map((b) => (b as { name?: string }).name ?? Object.keys(b as object).find((k) => k !== 'name') ?? 'step'))].join(', ');
-    pctx.progress?.step(`seed ${done + 1}${batch.length > 1 ? `–${done + batch.length}` : ''}/${steps.length}`, kinds);
+    pctx.progress?.step(`${word} ${done + 1}${batch.length > 1 ? `–${done + batch.length}` : ''}/${steps.length}`, kinds);
     const res = await runHooks(batch, ctx, { phase: 'seed', journal });
     if (!res.ok && opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if (!res.ok) {
       const bad = res.results.find((r) => !r.ok) ?? res.results[res.results.length - 1];
-      throw new SandboxError(`sandbox ${sandbox.env}: ${failure({ ...bad, index: done + (bad?.index ?? 0) }, steps.length)}`, 'seed');
+      throw new SandboxError(`sandbox ${sandbox.env}: ${failure({ ...bad, index: done + (bad?.index ?? 0) }, steps.length, `${word} step`)}`, 'seed');
     }
     done += batch.length;
     batch = [];
@@ -207,14 +222,14 @@ export async function runSeed(
     if (opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if ('exec' in step) {
       await flush();
-      if (!provider.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec seed steps need provider docker-compose`, 'seed');
-      pctx.progress?.step(`seed ${done + 1}/${steps.length}`, `exec in ${step.exec.service}`);
+      if (!provider.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
+      pctx.progress?.step(`${word} ${done + 1}/${steps.length}`, `exec in ${step.exec.service}`);
       try {
         await provider.exec(pctx, step.exec);
       } catch (e) {
         // Ctrl-C stays an interrupt (exit 130), not a failed seed.
         if (e instanceof SandboxError && e.code === 'interrupted') throw e;
-        throw new SandboxError(`sandbox ${sandbox.env}: seed step ${done + 1}/${steps.length} (exec in ${step.exec.service}) ${e instanceof SandboxError && e.code === 'seed' ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
+        throw new SandboxError(`sandbox ${sandbox.env}: ${word} step ${done + 1}/${steps.length} (exec in ${step.exec.service}) ${e instanceof SandboxError && e.code === 'seed' ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
       }
       done++;
       continue;

@@ -2462,6 +2462,15 @@
                 "search": {
                   "type": "string",
                   "description": "Text typed into the listbox search input before choosing."
+                },
+                "search_cps": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Characters per second of the search (default: the search pace, at most 10). Also for the search typed by itself."
+                },
+                "search_instant": {
+                  "type": "boolean",
+                  "description": "Fill the search at once, as a paste (one input event): only the final list is filmed."
                 }
               },
               "required": [
@@ -2589,6 +2598,15 @@
                 "search": {
                   "type": "string",
                   "description": "Text typed into the popover search input first."
+                },
+                "search_cps": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Characters per second of the search (default: the search pace, at most 10). Also for the search typed by itself."
+                },
+                "search_instant": {
+                  "type": "boolean",
+                  "description": "Fill the search at once, as a paste (one input event): only the final list is filmed."
                 },
                 "close": {
                   "type": "string",

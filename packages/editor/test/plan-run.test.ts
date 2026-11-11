@@ -154,6 +154,13 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect((await refusal(mcp(p))).problems).toEqual([expect.stringMatching(/^scene quote, card slot avatar: https:\/\/example\.com\/a\.png is a remote URL/)]);
   });
 
+  it('gate 1 (hotfix v0.2.5): an address a component only shows or encodes is no remote file — a CTA\'s url and QR code', async () => {
+    const p = await project(timeline({ component: 'studio/card-cta', slots: { title: 'Open an account', url: 'https://shop.example.test/sign-up', qr: 'https://shop.example.test/sign-up?src=video' } }));
+    await expect(mcp(p)).resolves.toMatchObject({ plan: expect.anything() });
+    // Without the manifests (no registry), or a card whose component the theme picks: counted as loaded, as before.
+    expect(preReadProblems(p, timeline({ component: 'studio/card-cta', slots: { title: 'x', qr: 'https://shop.example.test/q' } }), undefined, { project: p })).toEqual([expect.stringMatching(/card slot qr: .* is a remote URL/)]);
+  });
+
   it('gate 2: an image slot without an extension, outside, is caught where the plan serves it', async () => {
     const p = await project(timeline({ component: 'studio/card-testimonial', slots: { quote: 'Fast.', name: 'A. Buyer', logo: '../../outside/logo' } }));
     expect(preReadProblems(p, timeline({ component: 'studio/card-testimonial', slots: { logo: '../../outside/logo' } }), undefined, { project: p })).toEqual([]);

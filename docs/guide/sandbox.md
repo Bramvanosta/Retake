@@ -61,7 +61,7 @@ Every key of sandbox.yaml (version 1; `retake schema sandbox` prints the JSON Sc
 | `services.<name>` | `url` (health base), `pages` (key → URL or `{url, display}`), `health`; process: `command`, `cwd`, `env`, `stop_timeout_s` |
 | `services.<name>.health` | a path, `false`, or `{path \| url, status, text, timeout_s, interval_ms, tcp}` (`tcp`: process only) |
 | `seed[]` | `http`, `sql`, `shell`, `exec` (`{service, command, env, timeout_s}`, docker-compose) + `name`, `optional` |
-| `reset` | `strategy` (`reseed` \| `snapshot`), `snapshot.database` (a key of `databases`), `restart` (services) |
+| `reset` | `strategy` (`reseed` \| `snapshot`), `snapshot.database` (a key of `databases`), `restart` (services), `firebase_auth` (`url`, `project`: a Firebase Auth emulator put back at every reset), `hooks` (steps run at every reset) |
 | `databases.<key>` | `{url, external}` — sql seeds and the sql hooks of scenarios on this environment (loopback only); `external: true`: see below |
 | `mailbox` | `{provider: mailpit \| http, url, poll_ms, headers, clear, external}` — `clear: false` keeps it at a reset |
 | `login_url` | the sign-in page(s) of every account |
@@ -127,7 +127,8 @@ Validation (`retake validate`, and every command: a broken sandbox.yaml stops th
   a variable two services set differently must be set in the step's own `env`.
 - `strategy: snapshot` needs docker-compose and a Postgres database of `databases` (`reset.snapshot.database`,
   default the first) that is not `postgres` / `template0` / `template1`, with a name of at most 50 characters.
-  `reset.restart` names services of the manifest.
+  `reset.restart` names services of the manifest. `reset.hooks` are checked as seed steps; `reset.firebase_auth.url`
+  is on this machine.
 
 ### Starting, resetting and filming a sandbox
 
@@ -187,7 +188,18 @@ by `✓ step  time` when the step ends; in a pipe or CI, a time-stamped line as 
   environment are marked superseded — `retake env reset` and `retake hooks rollback` never replay them on the
   reseeded data (`DELETE /api/quotes/7` would delete the new quote 7), even when what follows fails —; then the
   mailbox is emptied (Mailpit `DELETE /api/v1/messages`; `mailbox: {clear: false}` keeps it; an `http` mailbox is left
-  to the seed) and the `reset.restart` services restarted.
+  to the seed) and the `reset.restart` services restarted. Then (hotfix v0.2.5) a Firebase Auth emulator named in
+  `reset.firebase_auth` gets back the accounts the seed left, and `reset.hooks` run.
+- **What a snapshot covers: the Postgres database only.** A service that keeps its own state — in memory, in its own
+  files — does not go back with it: a Firebase Auth emulator keeps the account a take created ("you already have an
+  account" at the next take), and restarting it loses the seeded accounts too. For the Auth emulator,
+  `reset.firebase_auth: {url: "http://localhost:9099", project: demo-…}`: its accounts are emptied before each seed,
+  saved after it (the emulator's own export, `accounts:batchGet`, in `.retake/sandbox/<env>/firebase-auth.json`), and
+  at every reset — after `reset.restart` — emptied and imported again (`accounts:batchCreate`, as `firebase emulators:start
+  --import` does); with strategy `snapshot` a save that does not match the seed reseeds. For anything else,
+  `reset.hooks`: `http`, `sql`, `shell` or `exec` steps (the seed's kinds and checks; never rolled back) run at every
+  reset once the data is back — once in sandbox.yaml rather than a setup hook copied into each scenario. `--reseed`
+  runs the seed and saves the accounts again.
 - **Only what the sandbox owns.** A reset empties the mailbox and the seed's `sql` steps rewrite their database, so
   both must be the sandbox's own: served by a service of the sandbox — a port a running container of its compose
   project publishes (made from its folder, with no other project's container publishing that port too), or a port a

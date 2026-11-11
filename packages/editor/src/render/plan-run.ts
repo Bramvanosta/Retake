@@ -132,7 +132,7 @@ function themeRef(o: PlanRunOptions, timeline: Timeline): string | LoadedTemplat
 }
 
 /** Gate 1 (trust `mcp`): what the plan will read, checked before anything is read. Empty: nothing refused. */
-export function preReadProblems(project: LoadedProject, timeline: Timeline, video: Timeline['video'], o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'>): string[] {
+export function preReadProblems(project: LoadedProject, timeline: Timeline, video: Timeline['video'], o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'> & { registry?: ComponentRegistry }): string[] {
   const problems: string[] = [];
   const theme = themeRef(o as PlanRunOptions, timeline);
   if (typeof theme === 'string') {
@@ -144,7 +144,16 @@ export function preReadProblems(project: LoadedProject, timeline: Timeline, vide
   const music = musicSpecOf(video, o.overrides ?? {});
   if (music) uses.push({ ref: music.file, where: typeof o.overrides?.music === 'string' ? 'the music of the overrides' : 'the music bed (music.file)' });
   problems.push(...renderFileProblems(project.dir, uses));
-  for (const r of remoteSlotUses(timeline)) {
+  // A slot the component only shows or encodes (a CTA's url, its QR code) is not a file to load: its manifest says.
+  const slotType = (component: string | undefined, slot: string): string | undefined => {
+    if (!component || !o.registry) return undefined;
+    try {
+      return o.registry.get(component).manifest.slots[slot]?.type;
+    } catch {
+      return undefined;
+    }
+  };
+  for (const r of remoteSlotUses(timeline, slotType)) {
     problems.push(`${r.where}: ${r.ref} is a remote URL: through MCP a render loads no remote file — put the file in the project (assets/) and name it there`);
   }
   return problems;
@@ -192,14 +201,15 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const envName = await runEnv(run.dir);
   const { timeline, edit, warnings: editWarnings, text: editText } = editOfToday(project, run, captured, envName, o.edit ?? 'auto', o.editText);
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
+  // The registry first (the components' own files, not the run's): gate 1 reads slot types from the manifests.
+  const registry = o.registry ?? (await loadComponentRegistry({ root }));
   if (trust === 'mcp') {
-    const problems = preReadProblems(project, timeline, video, o);
+    const problems = preReadProblems(project, timeline, video, { ...o, registry });
     if (problems.length) throw new PlanTrustError(problems);
   }
   const theme = themeRef(o, timeline);
   const template = theme && typeof theme === 'object' ? theme : await loadProjectTemplate(project, theme);
   if (o.template || overrides.theme) overrides.theme = template.name;
-  const registry = o.registry ?? (await loadComponentRegistry({ root }));
   const captureFile = join(run.dir, timeline.capture.file || 'capture.mp4');
   if (!existsSync(captureFile)) throw new RenderError(`run ${run.id} has no capture video (${captureFile})`);
   // The planner is pure: the music track's length is measured here so it can plan the loops (or the trim).

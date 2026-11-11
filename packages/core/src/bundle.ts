@@ -398,3 +398,35 @@ export function ffprobeBin(explicit?: string): string {
 export function starterTemplatesDir(bundle: BundleInfo | null = bundleInfoOrNull()): string {
   return bundle ? bundle.paths.templates : resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates');
 }
+
+/** This process's engine against what is installed now where it runs from (hotfix v0.2.5, field point 20). */
+export interface StaleEngine {
+  /** The version this process loaded (RETAKE_VERSION of its modules). */
+  running: string;
+  /** The version on disk now: the app's bundle.json, or the checkout's core package.json. */
+  installed: string;
+}
+
+/**
+ * The version installed now where this engine runs from, read from disk on every call: the `app` of the bundle's
+ * bundle.json (an app updated in place swaps it), else the `version` of the checkout's packages/core/package.json (a
+ * pull and a build change it); undefined when it cannot be read.
+ */
+export function installedVersion(bundle: BundleInfo | null = bundleInfoOrNull(), location: string = engineLocation(bundle)): string | undefined {
+  const file = bundle ? join(bundle.root, BUNDLE_FILE) : join(location, 'packages', 'core', 'package.json');
+  try {
+    const v = (JSON.parse(readFileSync(file, 'utf8')) as { app?: unknown; version?: unknown })[bundle ? 'app' : 'version'];
+    return typeof v === 'string' && v.trim() ? v.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The engine this process runs is older (or other) than the one installed now — the app was updated, the checkout
+ * pulled and built, while a long-lived process (the MCP server a client started) kept the modules it loaded. Null when
+ * they match or the installed version cannot be read.
+ */
+export function staleEngine(running: string, installed: string | undefined = installedVersion()): StaleEngine | null {
+  return installed !== undefined && installed !== running ? { running, installed } : null;
+}

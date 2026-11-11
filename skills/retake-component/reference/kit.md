@@ -94,7 +94,7 @@ The rules `component_validate` checks (it compiles the code; nothing runs):
 | Motion | `progress`, `fadeIn`, `fadeOut`, `fade`, `rise`, `stagger`, `activeIndex`, `easing`, `EASINGS`, `cubicBezier`, `themeEasing`, `biasMotion` |
 | Text that fits | `FitText`, `fitText`, `wrapText`, `balanceLines`, `measureText`, `CapText`, `capTextLayout`, `fontMetrics`, `capOffset` |
 | Theme elements | `Background`, `Logo`, `Wordmark`, `SafeArea`, `Icon`, `ICON_NAMES`, `Picture` |
-| CSS and colours | `backgroundCss`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `mixColors`, `darkLight`, `nightTone`, `contrastRatio`, `readableOn`, `isDarkBackground` |
+| CSS and colours | `backgroundCss`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `mixColors`, `darkLight`, `nightTone`, `contrastRatio`, `readableOn`, `inkOn` (the ink that reads on a fill), `buttonColors` (a filled button: the accent, its label chosen against it), `isDarkBackground` |
 | Layout helpers | `safeAreaRect`, `scaleRect`, `roundTo`, `placeBeside`, `cardShadow`, `deviceTones`, `addressParts`, `captionBandBox`, `formatMetrics`, `captionMaxLines` |
 | Figures, keys, codes | `parseFigure`, `formatFigure`, `figureAt`, `parseShortcut`, `shortcutText`, `qrEncode`, `qrPath` |
 

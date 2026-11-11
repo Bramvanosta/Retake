@@ -82,6 +82,8 @@ function resetText(r: ResetResult): string {
   }
   if (r.mailbox === 'cleared') parts.push('mailbox emptied');
   if (r.restarted.length) parts.push(`restarted ${r.restarted.join(', ')}`);
+  if (r.firebase_auth) parts.push(`${plural(r.firebase_auth.accounts, 'Firebase Auth account')} put back`);
+  if (r.hooks.steps) parts.push(`${plural(r.hooks.steps, 'reset hook')} (${formatMs(r.hooks.ms)})`);
   if (r.superseded) parts.push(`${plural(r.superseded, 'pending rollback')} superseded`);
   return parts.join(' · ');
 }

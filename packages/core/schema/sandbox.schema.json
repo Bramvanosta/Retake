@@ -248,6 +248,34 @@
             "minLength": 1
           },
           "description": "Services restarted after each reset (apps that do not survive a database swap)."
+        },
+        "firebase_auth": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The Auth emulator on this machine, e.g. http://localhost:9099."
+            },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The emulator's project id (demo-…)."
+            }
+          },
+          "required": [
+            "url",
+            "project"
+          ],
+          "additionalProperties": false,
+          "description": "A Firebase Auth emulator of the sandbox: its accounts are emptied before each seed, saved after it, and put back at every reset (after `restart`) — the database snapshot does not cover it."
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SeedStep"
+          },
+          "description": "Steps (http, sql, shell, exec) run at every reset once the data is back — after `restart` and `firebase_auth` —, before the take: what each take needs undone that the snapshot does not cover."
         }
       },
       "additionalProperties": false

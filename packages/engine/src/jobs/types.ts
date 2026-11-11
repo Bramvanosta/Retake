@@ -136,6 +136,10 @@ export interface SandboxJobResult {
     snapshot?: { action: 'restored' | 'taken'; ms: number; database: string };
     restarted: string[];
     superseded: number;
+    /** Hotfix v0.2.5: the Firebase Auth emulator's accounts put back. */
+    firebase_auth?: { accounts: number };
+    /** Hotfix v0.2.5: reset.hooks run. */
+    hooks?: { steps: number; ms: number };
   } | null;
   /** Page key → URL of the sandbox. */
   pages: Record<string, string>;

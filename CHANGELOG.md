@@ -6,6 +6,28 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+## [0.2.5] — 2026-11-11
+
+Claude's connection to Retake restarts by itself after an update, a sandbox reset also puts back a Firebase Auth
+emulator, a call-to-action button always reads, and a list's search can be filled at once.
+
+### Fixed
+- **The MCP server after an update.** A server Claude started before the update kept running the old engine. It now
+  notices the new version at its next call, says so (`engine_info.stale`, and in the call's error) and stops, so that
+  Claude starts it again on the new one.
+- **Call-to-action button.** With a dark accent on a dark page the button's label was invisible. The button keeps the
+  accent and its label is chosen against it; the review warns about a button label that does not read
+  (`button-contrast`).
+- **An address in a call to action through Claude.** The CTA's `url` and `qr` are shown or encoded, never loaded: an
+  https address there is no longer refused as a remote file (images and media still are).
+
+### Added
+- **Sandbox resets beyond Postgres.** `reset.firebase_auth` puts a Firebase Auth emulator's accounts back as the seed
+  left them at every reset; `reset.hooks` (http, sql, shell, exec) run at every reset once the data is back. The guide
+  says what a snapshot covers: the Postgres database only.
+- **`search_instant` and `search_cps` on `select` / `pick`:** the search filled at once (only the final list is
+  filmed), or typed at its own pace.
+
 ## [0.2.4] — 2026-11-11
 
 An update now shows how far it has got, and the app comes back under the icon you keep in the Dock.
