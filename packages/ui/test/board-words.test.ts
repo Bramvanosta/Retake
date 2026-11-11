@@ -60,6 +60,9 @@ const ROWS: Array<[string, BoardScenario, string, string, string | null]> = [
   // L5.10a fixes (review B-L2): the theme a render would use today counts, as on the scenario screen.
   ['render with the theme of today', base({ theme: 'default', capture: capture(true), render: render(CLEAN) }), 'ok', 'Rendered · clean', null],
   ['render with another theme than today\'s', base({ theme: 'editorial', capture: capture(true), render: render(CLEAN) }), 'warn', 'Render outdated', 'ready'],
+  // L7.8 (BL-164): the board's own verdict, which compares a theme it cannot name (no `theme`) by its identity.
+  ['the board says the render does not show today\'s file (a theme it cannot name)', base({ capture: capture(true), render: render(CLEAN), render_current: false }), 'warn', 'Render outdated', 'ready'],
+  ['the board says the render shows today\'s file (a theme it cannot name)', base({ capture: capture(true), render: render(CLEAN), render_current: true }), 'ok', 'Rendered · clean', null],
   ['shot, not rendered', base({ capture: capture(true), last_run: run(CAP) }), 'waiting', 'Shot · ready to render', 'ready'],
   ['shot, cannot tell', base({ capture: capture(null) }), 'idle', 'Ready to render · cannot tell if current', 'ready'],
   ['cancelled after the capture: the take stands', base({ capture: capture(true), last_run: run('20261022-100000-quote', { status: 'cancelled', partial: 'cancelled' }) }), 'waiting', 'Shot · ready to render', 'ready'],

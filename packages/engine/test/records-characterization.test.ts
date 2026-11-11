@@ -1099,7 +1099,7 @@ describe('the render records, state by state and site by site', () => {
     // moved: row 12 — studio and board do not show it as succeeded (counted: `not_shown`), prune leaves it alone, index without it; row 27: `latest` of render_status still names it and says its status as `unknown` (by id: as the file says it, N5)
     paused: {
       latest: 'quote-v2:unknown',
-      byId: 'quote-v2:paused',
+      byId: 'quote-v2:unknown', // moved: L7.8, decision ii (before: the file's word, `paused`)
       work: 'invalid: render quote-v2: its status is not one Retake writes: nothing to read', // moved: fix pass, ruling 27 (before: the file's word, `paused`)
       workLatest: 'taken quote-v1',
       studio: 'quote-v1:succeeded:landscape:NEW',
@@ -1480,15 +1480,19 @@ describe('the render records, state by state and site by site', () => {
       const value = recordFixture(`past/${f}`) as { id: string; plan: unknown };
       writeFileSync(join(b.renders, `${value.id}.json`), `${JSON.stringify(value, null, 2)}\n`);
       const v = await engine.renders.status(b.slug, value.id);
-      // render_status hands the record on as the file holds it, without its plan and its warnings.
+      // render_status hands the record on as the file holds it, without its plan and its warnings — under `untrusted`
+      // (L7.8, decision ii; before: as `record`); `record` holds its checked members: what is left out is text of the file.
       const { plan: _plan, warnings: _warnings, ...rest } = value as Record<string, unknown>;
-      got[f] = `${v.status} ${JSON.stringify(v.record) === JSON.stringify(rest) ? 'the record as written' : 'ANOTHER RECORD'}`;
+      const out = (a: Record<string, unknown>, b: Record<string, unknown> | undefined, at = ''): string[] =>
+        Object.keys(a).flatMap((k) => (b === undefined || !(k in b) ? [`${at}${k}`] : a[k] && typeof a[k] === 'object' && !Array.isArray(a[k]) && k !== 'overrides' ? out(a[k] as Record<string, unknown>, b[k] as Record<string, unknown>, `${at}${k}.`) : []));
+      got[f] = `${v.status} ${JSON.stringify(v.untrusted.record) === JSON.stringify(rest) ? 'the record as written' : 'ANOTHER RECORD'}; not trusted: ${out(rest, v.record as unknown as Record<string, unknown>).join(' ')}`;
     }
     expect(got).toEqual({
-      'render-l24.json': 'succeeded the record as written',
-      'render-l55.json': 'succeeded the record as written',
-      'render-l515.json': 'succeeded the record as written',
-      'render-l73.json': 'succeeded the record as written',
+      // `project`: the fixtures name another project than the one asked; the rest: paths and sentences (L7.8).
+      'render-l24.json': 'succeeded the record as written; not trusted: project run_dir file record browser.path',
+      'render-l55.json': 'succeeded the record as written; not trusted: project run_dir edit.changes edit.captions file record browser.path',
+      'render-l515.json': 'succeeded the record as written; not trusted: project run_dir file record browser.path policy.gl.renderer',
+      'render-l73.json': 'succeeded the record as written; not trusted: project run_dir file record browser.path policy.ffmpeg.note',
     });
     const list = (await engine.renders.ofScenario(b.slug, 'quote')).renders;
     expect(list.map((r) => `${r.render_id} ${r.status} ${r.theme} ${r.variant} ${r.edit.from} ${r.theme_sha256 ?? '-'} ${r.plan_sha256 ? 'plan' : '-'}`)).toEqual([

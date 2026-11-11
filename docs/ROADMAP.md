@@ -98,6 +98,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.6a | Action plan U5, first half: the run record as a union with a tolerant reader, one "usable capture" rule and one "latest run" rule in the domain, ratchet check `record-read` | M–L | **done** (2026-11-10, branch `claude/arch-l7`; 200 crafted projects compared with the code before; prune unchanged) |
 | L7.6b | Action plan U5, second half: the render record as a union with one tolerant reader, a render is the record of its own file, prune leaves every other file of `renders/` alone with what it names | M–L | **done** (2026-11-11, branch `claude/arch-l7`; prune only keeps more, shown on two generators of 3 000 layouts against the code before; three readers left to L7.6c) |
 | L7.7 | Prune keeps the capture that can be edited: the newest succeeded take, the newest usable one and the newest complete one; linked folders and newer records left alone | S | **done** (2026-11-11, branch `claude/arch-l7`; it only keeps more, shown on 3 000 generated layouts against the code before and held by the suite) |
+| L7.8 | Five small items: the hooks journal checks a rollback's shape; `project_prune`'s description; the board compares a theme by its identity (BL-164); `render_status` by its id holds only checked values outside `untrusted`; shell reset hooks are approval items | S | **done** (2026-11-11, branch `claude/arch-l7`; 72 mutations red; the MCP tool list changes in two descriptions) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1061,6 +1062,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.7 — Prune keeps the capture that can be edited (S; decided 2026-11-10)
 - **Goal:** prune never offers the only capture that can still be edited for deletion; it never lists anything it kept before.
 - **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.7)". Requirement R-FLD-28 updated. Renders renamed by hand wait for L7.6b.
+
+### L7.8 — Five small items after L7.6b (S; decided 2026-11-11)
+- **Goal:** what the earlier lots left and the person asked to fix here: the journal's rollback shape, prune's MCP description, BL-164, the render status's trusted part, approvals for shell reset hooks.
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.8)". Requirement R-ARCH-22; R-HOOK-02, R-MCP-35, R-FLD-28, R-ARCH-18 and R-ARCH-21 updated.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

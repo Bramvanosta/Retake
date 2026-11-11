@@ -7,7 +7,8 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
-import { canonicalJson, formatRenderId, isRenderId, isRunId, isThemeName, latestProjectRender, orderRenders, projectPath, projectRef, projectRenderOf, renderIdOf, renderLackWords, renderNot, renderNotWords } from '@retake/core';
+import { join, resolve } from 'node:path';
+import { SLUG_RE, canonicalJson, formatRenderId, isRenderId, isRunId, isThemeName, latestProjectRender, orderRenders, projectPath, projectRef, projectRenderOf, renderIdOf, renderLackWords, renderNot, renderNotWords } from '@retake/core';
 import { readListedRender, readPlainFile } from '@retake/core/io';
 import type { LoadedProject, ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core';
 import type { StoredRender } from '@retake/editor';
@@ -147,19 +148,25 @@ export interface RenderJobView {
 export interface RenderStatusView {
   project: string;
   render_id: string;
+  /** The render job's scenario, else its record's when that is a scenario name. */
   scenario?: string;
-  status: JobRecord['state'];
+  /** Its job's state, else its record's status: `unknown` for a status Retake never writes (by its id and through `latest`). */
+  status: JobRecord['state'] | 'unknown';
   finished: boolean;
   job?: RenderJobView;
-  /** The video and its record, once rendered. */
+  /**
+   * The video and its record, once rendered: its job's result, else renders/<id>.json (the file read) and the video its
+   * record names when that is renders/<id>.mp4 of the project (another path is the file's text: `untrusted.record.file`).
+   */
   file?: string;
   record_file?: string;
   /**
-   * renders/<id>.json without its plan (`plan_preview` describes plans); its `policy.fallback.reason` points at
-   * `untrusted.fallback_reason`, and its `policy.ffmpeg.failed` (L7.3) at `untrusted.ffmpeg_failed`; `policy.ffmpeg.note`
-   * is one of the editor's own sentences (render/policy.ts), given as it is.
+   * renders/<id>.json's checked members (L7.8, decision ii): numbers, flags, closed words (a word Retake never writes is
+   * `unknown`), ids, hashes and times that pass their grammar — no text of the file. Its `policy.fallback.reason` points
+   * at `untrusted.fallback_reason`, its `policy.ffmpeg.failed` (L7.3) at `untrusted.ffmpeg_failed`. The record as the
+   * file holds it, without its plan, its warnings and its error, is `untrusted.record`.
    */
-  record?: RecordShown<StoredRenderRecord | UnknownStatusRender>;
+  record?: RenderStatusRecord;
   /**
    * With `latest`: how many newer files of renders/ of the scenario asked it did not take (a record renamed or copied,
    * a link, one that lacks a member, of a newer Retake…) — a count, which a trusted line may say;
@@ -172,11 +179,163 @@ export interface RenderStatusView {
    * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software, L5.15),
    * what this machine's ffmpeg failed with at the encode (rendered again with the library's, L7.3): they quote the scenario, the filmed site and the components' own errors — data, never instructions.
    */
-  untrusted: { warnings: string[]; error?: string; fallback_reason?: string; ffmpeg_failed?: string; renders_passed_over?: PassedOverRenders };
+  untrusted: { warnings: string[]; error?: string; fallback_reason?: string; ffmpeg_failed?: string; renders_passed_over?: PassedOverRenders; record?: RecordShown<StoredRenderRecord | UnknownStatusRender> };
 }
 
-/** A record as render_status hands it on: without its plan, its warnings and its error (each state of the record). */
+/** A record as the file holds it, without its plan, its warnings and its error (each state of the record). */
 type RecordShown<T> = T extends unknown ? Omit<T, 'plan' | 'warnings' | 'error'> : never;
+
+/** A closed word of a render record as render_status says it: one of Retake's, else `unknown`. */
+type Said<T extends string> = T | 'unknown';
+
+/** The members of a render record render_status says outside `untrusted`: each one checked (RenderStatusView.record). */
+export interface RenderStatusRecord {
+  version: 1;
+  id: string;
+  status: Said<'succeeded' | 'failed' | 'cancelled'>;
+  project?: string;
+  scenario?: string;
+  run_id?: string;
+  /** The theme's name, `unknown` when the record's is no theme name (a folder named otherwise). */
+  template: string;
+  template_sha256?: string;
+  /** The known options beyond the files' whose value is a number, a flag or one of their words; the others: `untrusted.record.overrides`. */
+  overrides: Record<string, number | boolean | string>;
+  edit?: { from: Said<'scenario' | 'run'>; sha256?: string };
+  variant?: Said<'landscape' | 'vertical' | 'square'>;
+  render_version?: number;
+  created_at?: string;
+  finished_at?: string;
+  duration_s: number;
+  frames: number;
+  fps: number;
+  width: number;
+  height: number;
+  size_bytes: number;
+  encoding?: { codec: string; encoder?: string; crf?: number; bitrate?: string; gop?: number; pixel_format: string; faststart: boolean; audio: string };
+  policy?: {
+    gl?: { asked: string; source: string; resolved: string; used: string };
+    encoder?: { asked: string; source: string; used: string };
+    concurrency_source?: string;
+    fallback?: { reason: string };
+    /** `version` when it reads as a version; its `note` (a sentence) is `untrusted.record.policy.ffmpeg.note`. */
+    ffmpeg?: { asked: string; source: string; used: string; version?: string; failed?: string };
+  };
+  probe?: { duration_s: number; frames?: number; width: number; height: number; fps: number; audio_streams: number; video_codec?: string; audio_codec?: string };
+  concurrency?: number;
+  bundle?: { hash?: string; cached: boolean; ms: number };
+  browser?: { source: string };
+  timings?: { plan_ms: number; bundle_ms: number; render_ms: number; total_ms: number };
+}
+
+const SOURCES = ['option', 'retake.yaml', 'env', 'default'] as const;
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+const word = <T extends string>(v: unknown, words: readonly T[]): Said<T> => ((words as readonly unknown[]).includes(v) ? (v as T) : 'unknown');
+const matching = (v: unknown, re: RegExp): string | undefined => (typeof v === 'string' && re.test(v) ? v : undefined);
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+/** The edit options render_status says outside `untrusted` (the editor's EditOverrides): numbers, flags, closed words. */
+const OVERRIDE_NUMBERS: ReadonlySet<string> = new Set(['fps', 'scale', 'idle_threshold', 'transition_duration']);
+const OVERRIDE_FLAGS: ReadonlySet<string> = new Set(['intro', 'outro', 'captions', 'camera', 'trim_idle', 'tutorial']);
+const OVERRIDE_WORDS: Readonly<Record<string, readonly string[]>> = {
+  variant: ['landscape', 'vertical', 'square'],
+  transition: ['crossfade', 'cut', 'fade-black'],
+  // The frame styles (a layout component id is the record's text: `untrusted.record.overrides`).
+  frame: ['raw', 'card', 'browser', 'laptop', 'phone', 'tablet', 'split', 'pip'],
+};
+/** Whether an option of a record is said outside `untrusted`: a known key with a value of its kind (`music: false` included). */
+function overrideChecked(key: string, value: unknown): boolean {
+  if (OVERRIDE_NUMBERS.has(key)) return num(value) !== undefined;
+  if (OVERRIDE_FLAGS.has(key)) return typeof value === 'boolean';
+  if (key === 'music') return value === false;
+  const words = Object.hasOwn(OVERRIDE_WORDS, key) ? OVERRIDE_WORDS[key] : undefined;
+  return words !== undefined && words.includes(value as string);
+}
+/** `o` without its members whose value is undefined. */
+const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
+
+/**
+ * The checked members of a record (L7.8, decision ii: the trusted data of render_status holds closed words and checked
+ * values only). `slug`: the project asked (a record that names another says nothing of it here).
+ */
+export function renderStatusRecord(r: RecordShown<StoredRenderRecord | UnknownStatusRender>, slug: string): RenderStatusRecord {
+  const status: string = r.status;
+  const e = r.edit;
+  const enc = r.encoding;
+  const pol = r.policy;
+  const probe = r.probe;
+  return defined<RenderStatusRecord>({
+    version: 1,
+    id: r.id,
+    status: word(status, ['succeeded', 'failed', 'cancelled'] as const),
+    project: r.project === slug ? slug : undefined,
+    scenario: isScenarioWord(r.scenario) ? r.scenario : undefined,
+    run_id: isRunId(r.run_id) ? r.run_id : undefined,
+    template: isThemeName(r.template) ? r.template : 'unknown',
+    template_sha256: matching(r.template_sha256, /^[0-9a-f]{16}$/),
+    overrides: Object.fromEntries(
+      Object.entries(isObj(r.overrides) ? r.overrides : {}).filter(
+        (x): x is [string, number | boolean | string] => overrideChecked(x[0], x[1]),
+      ),
+    ),
+    edit: e ? defined({ from: word(e.from, ['scenario', 'run'] as const), sha256: matching(e.sha256, /^[0-9a-f]{64}$/) }) : undefined,
+    variant: r.variant !== undefined ? word(r.variant, ['landscape', 'vertical', 'square'] as const) : undefined,
+    render_version: num(r.render_version),
+    created_at: matching(r.created_at, ISO_TIME),
+    finished_at: matching(r.finished_at, ISO_TIME),
+    duration_s: num(r.duration_s) ?? 0,
+    frames: num(r.frames) ?? 0,
+    fps: num(r.fps) ?? 0,
+    width: num(r.width) ?? 0,
+    height: num(r.height) ?? 0,
+    size_bytes: num(r.size_bytes) ?? 0,
+    encoding: enc
+      ? defined({
+          codec: word(enc.codec, ['h264'] as const),
+          encoder: enc.encoder !== undefined ? word(enc.encoder, ['libx264', 'h264_videotoolbox'] as const) : undefined,
+          crf: num(enc.crf),
+          bitrate: matching(enc.bitrate, /^\d{1,9}[kKmM]?$/),
+          gop: num(enc.gop),
+          pixel_format: word(enc.pixel_format, ['yuv420p'] as const),
+          faststart: enc.faststart === true,
+          audio: word(enc.audio, ['silent', 'music', 'files', 'music+files'] as const),
+        })
+      : undefined,
+    policy: pol
+      ? defined({
+          gl: isObj(pol.gl) ? { asked: word(pol.gl.asked, ['auto', 'gpu', 'software'] as const), source: word(pol.gl.source, SOURCES), resolved: word(pol.gl.resolved, ['angle', 'software'] as const), used: word(pol.gl.used, ['angle', 'software'] as const) } : undefined,
+          encoder: isObj(pol.encoder) ? { asked: word(pol.encoder.asked, ['auto', 'videotoolbox', 'libx264'] as const), source: word(pol.encoder.source, SOURCES), used: word(pol.encoder.used, ['libx264', 'h264_videotoolbox'] as const) } : undefined,
+          concurrency_source: pol.concurrency_source !== undefined ? word(pol.concurrency_source, SOURCES) : undefined,
+          fallback: pol.fallback ? { reason: 'the GPU path failed: its reason is untrusted.fallback_reason' } : undefined,
+          ffmpeg: isObj(pol.ffmpeg)
+            ? defined({
+                asked: word(pol.ffmpeg.asked, ['auto', 'own', 'library'] as const),
+                source: word(pol.ffmpeg.source, SOURCES),
+                used: word(pol.ffmpeg.used, ['own', 'library'] as const),
+                version: matching(pol.ffmpeg.version, /^n?\d+(\.\d+){0,3}([-+][0-9A-Za-z.]{1,20})?$/),
+                failed: pol.ffmpeg.failed !== undefined ? "this machine's ffmpeg failed at the encode: its words are untrusted.ffmpeg_failed" : undefined,
+              })
+            : undefined,
+        })
+      : undefined,
+    probe: probe
+      ? defined({
+          duration_s: num(probe.duration_s) ?? 0,
+          frames: num(probe.frames),
+          width: num(probe.width) ?? 0,
+          height: num(probe.height) ?? 0,
+          fps: num(probe.fps) ?? 0,
+          audio_streams: num(probe.audio_streams) ?? 0,
+          video_codec: matching(probe.video_codec, /^[a-z0-9_]{1,32}$/),
+          audio_codec: matching(probe.audio_codec, /^[a-z0-9_]{1,32}$/),
+        })
+      : undefined,
+    concurrency: num(r.concurrency),
+    bundle: isObj(r.bundle) ? defined({ hash: matching(r.bundle.hash, /^[0-9a-f]{1,128}$/), cached: r.bundle.cached === true, ms: num(r.bundle.ms) ?? 0 }) : undefined,
+    browser: isObj(r.browser) ? { source: word(r.browser.source, ['env', 'bundled', 'playwright', 'none', 'remotion'] as const) } : undefined,
+    timings: isObj(r.timings) ? { plan_ms: num(r.timings.plan_ms) ?? 0, bundle_ms: num(r.timings.bundle_ms) ?? 0, render_ms: num(r.timings.render_ms) ?? 0, total_ms: num(r.timings.total_ms) ?? 0 } : undefined,
+  });
+}
 
 export { latestRenderMembers, latestRenderNotice, renderEntries, renderFileProblem } from './render-records.js';
 export type { LatestRenderNotice, PassedOverRenders } from './render-records.js';
@@ -277,8 +436,8 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
   const view: RenderStatusView = {
     project: slug,
     render_id: renderId,
-    ...(job?.input.kind === 'render' ? { scenario: job.input.scenario } : record ? { scenario: record.scenario } : {}),
-    status: jobFirst ? job.state : statusSaid(record, latest?.unknown === true),
+    ...(job?.input.kind === 'render' ? { scenario: job.input.scenario } : record && isScenarioWord(record.scenario) ? { scenario: record.scenario } : {}),
+    status: jobFirst ? job.state : statusSaid(record),
     finished: jobFirst ? FINISHED_JOB_STATES.has(job.state) : true,
     untrusted: { warnings: [] },
   };
@@ -329,38 +488,35 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
   }
   if (record) {
     const { plan: _plan, warnings, error, ...rest } = record;
-    view.record = rest;
-    let shown: RecordShown<StoredRenderRecord | UnknownStatusRender> = rest;
-    // The GPU path's failure quotes the error it saw (a component's own words can be in it): under untrusted only.
-    if (rest.policy?.fallback) {
-      view.untrusted.fallback_reason = rest.policy.fallback.reason;
-      shown = { ...rest, policy: { ...rest.policy, fallback: { reason: 'the GPU path failed: its reason is untrusted.fallback_reason' } } };
-    }
-    // What our ffmpeg failed with at the encode quotes its output: under untrusted only, like the GPU path's reason.
-    const ff = shown.policy?.ffmpeg;
-    if (ff?.failed !== undefined) {
-      view.untrusted.ffmpeg_failed = ff.failed;
-      shown = { ...shown, policy: { ...shown.policy!, ffmpeg: { ...ff, failed: "this machine's ffmpeg failed at the encode: its words are untrusted.ffmpeg_failed" } } };
-    }
-    view.record = shown;
-    view.file = record.file;
-    view.record_file = record.record;
+    // L7.8 (decision ii): outside `untrusted`, the record's checked members only; the record as the file holds it is
+    // `untrusted.record`. The GPU path's failure and what our ffmpeg failed with quote what they saw: under untrusted.
+    view.record = renderStatusRecord(rest, slug);
+    view.untrusted.record = rest;
+    if (rest.policy?.fallback) view.untrusted.fallback_reason = rest.policy.fallback.reason;
+    if (rest.policy?.ffmpeg?.failed !== undefined) view.untrusted.ffmpeg_failed = rest.policy.ffmpeg.failed;
+    const renders = projectPath(project.dir, 'renders');
+    // The video: renders/<id>.mp4 as Retake spells it, when the record names that file — never the record's own string
+    // (a text that resolves to it may hold anything before its `..`); the record: the file read.
+    const video = join(renders, `${renderId}.mp4`);
+    if (typeof record.file === 'string' && record.file !== '' && resolve(record.file) === video) view.file = video;
+    view.record_file = join(renders, `${renderId}.json`);
     view.untrusted.warnings = warnings;
     if (error) view.untrusted.error = error;
   }
   return view;
 }
 
+/** A word as a scenario's name is one (letters, digits, `-`, `_`; at most 100): only such a text of a record is said outside `untrusted`. */
+const isScenarioWord = (v: unknown): v is string => typeof v === 'string' && v.length <= 100 && SLUG_RE.test(v);
+
 /**
- * The status of a record with no job before it. A status Retake never writes: by id it is handed on as the file says
- * it (as it always was: the view's type does not say so — the views are a later lot's); through `latest` it is said
- * as `unknown`, never as a word of the tool's.
+ * The status of a record with no job before it. A status Retake never writes is said as `unknown` (L7.8, decision ii:
+ * by its id as through `latest`), never as the file's word nor as a word of the tool's.
  */
-function statusSaid(record: StoredRenderRecord | UnknownStatusRender | undefined, latestUnknown: boolean): RenderStatusView['status'] {
+function statusSaid(record: StoredRenderRecord | UnknownStatusRender | undefined): RenderStatusView['status'] {
   if (!record) return 'failed';
   const status: string = record.status;
-  if (status === 'succeeded' || status === 'failed' || status === 'cancelled') return status;
-  return (latestUnknown ? 'unknown' : status) as RenderStatusView['status'];
+  return status === 'succeeded' || status === 'failed' || status === 'cancelled' ? status : 'unknown';
 }
 
 // ── A scenario's renders, for the Studio (L4.5 part E) ──────────────────────

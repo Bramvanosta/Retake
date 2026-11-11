@@ -236,7 +236,29 @@ release — for the person about to click Install and Restart.
   the persona's own pages — the origins of the pages it signs in to; a hook aimed at another origin is refused before
   it runs, naming the persona and the rule. A run you start yourself is unchanged.
 
+- Through MCP, `render_status` of a render named by its id — and the `render` tool's answer, which reads the same —
+  holds outside "untrusted" only closed words and checked values, as `render_status latest` already did: a status Retake never writes is `unknown`; `record` holds the record's
+  numbers, flags, words of Retake's (another word is `unknown`), ids, hashes and times that pass their grammar, the
+  known options with a value of their kind; the record as its file holds it (without its plan, its warnings and its error) is `untrusted.record`. `record_file` is
+  the file read, and `file` is `renders/<id>.mp4` as Retake spells it, only when the record names that file — another
+  path is said to be in `untrusted.record.file`.
+- Through MCP and the Studio's agent path, a sandbox's shell `reset.hooks` steps are asked about with its shell seed
+  steps (listed as `reset hook <n>`, numbered within `reset.hooks` as the sandbox's messages are, each bound to its own
+  phase and position: never shared with a seed step's approval) and run once approved. Before, they were never asked
+  about, so a sandbox reset that had one was always refused there. An unapproved reset hook, or one changed since its
+  approval, is still refused; a reset at a terminal is unchanged.
+- The project board compares a scenario's theme with its renders' by the theme's identity — the name of the theme's
+  folder, as the render record holds it —, also for a theme named by a path whose folder name is no theme name or whose
+  reference is over 200 characters. Before, no theme was compared for such a theme and the row could show the newest
+  render of another theme as current. The board's row says whether its render shows today's file (`render_current`).
+- `project_prune`'s description names everything prune keeps (the capture that can still be edited, the last complete
+  one, a run folder that is a link, a take of a newer Retake, the files of `renders/` left alone).
+
 ### Fixed
+- A hooks journal whose rollback does not have its kind's shape (an http rollback without `request.url`, a shell one
+  without `run`, a sql one without `db` or `query`, a js one without `code`, a member of the wrong type) is refused
+  when it is read, naming the entry (`entries[1] (#2) has a malformed http rollback: …`), and nothing of it is
+  replayed. Before, it was read, and listing it for `--replay-unsigned` stopped on a raw `TypeError`.
 - `retake prune`, `retake review latest`, `retake export latest`, the comment list and MCP's `latest` no longer stop
   on `Cannot read properties of undefined (reading 'localeCompare')` when a file of `renders/` has no creation time;
   a review of such a record named at a terminal starts (with no render to compare with).

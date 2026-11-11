@@ -99,11 +99,41 @@ describe('a theme named by a path whose folder name is longer than a theme\'s na
     expect(list.sort()).toEqual([['quote-v1', 'unknown'], ['quote-v2', 'editorial']]);
   });
 
-  it('the board names no theme for it, on the row and on the render alike: the row holds the newest render of today\'s file and take', async () => {
+  // L7.8 (changed, BL-164): the board compares the theme by its identity. Before, it named no theme and compared none:
+  // the row held quote-v2, the newer render made with another theme, as if it showed today's file.
+  it('the board names no theme for it, but compares it by its identity: the row holds the render of today\'s file, take and theme', async () => {
     const s = (await engine.projects.board('demo')).scenarios.find((x) => x.name === 'quote');
     expect(s?.capture?.id).toBe(demo.run.id);
     expect(s?.hash).toBe(sha(SCENARIO_YAML));
-    expect([s?.render?.render_id, short(s?.theme ?? '(none)'), short(s?.render?.theme ?? '')]).toEqual(['quote-v2', '(none)', 'editorial']);
+    expect([s?.render?.render_id, s?.render_current, short(s?.theme ?? '(none)'), short(s?.render?.theme ?? '')]).toEqual(['quote-v1', true, '(none)', 'unknown']);
+  });
+
+  it('with no render of today\'s theme, the row holds the newest render and says it does not show today\'s file (BL-164)', async () => {
+    const dir = join(project.dir, 'renders');
+    const v1 = await readFile(join(dir, 'quote-v1.json'), 'utf8');
+    await rm(join(dir, 'quote-v1.json'));
+    await rm(join(dir, 'quote-v1.mp4'));
+    try {
+      const s = (await engine.projects.board('demo')).scenarios.find((x) => x.name === 'quote');
+      expect([s?.render?.render_id, s?.render_current, short(s?.render?.theme ?? '')]).toEqual(['quote-v2', false, 'editorial']);
+    } finally {
+      await writeFile(join(dir, 'quote-v1.json'), v1);
+      await writeFile(join(dir, 'quote-v1.mp4'), '');
+    }
+  });
+
+  it('a reference over 200 characters is compared by its identity too (BL-164)', async () => {
+    const yaml = join(project.dir, 'project.yaml');
+    const before = await readFile(yaml, 'utf8');
+    const ref = `./${'themes/../'.repeat(20)}themes/${LONG}`;
+    expect(ref.length).toBeGreaterThan(200);
+    await writeFile(yaml, before.replace(`template: ./themes/${LONG}`, `template: ${ref}`));
+    try {
+      const s = (await engine.projects.board('demo')).scenarios.find((x) => x.name === 'quote');
+      expect([s?.render?.render_id, s?.render_current, s?.theme]).toEqual(['quote-v1', true, undefined]);
+    } finally {
+      await writeFile(yaml, before);
+    }
   });
 
   it('prune counts its renders as any other\'s: the older one beyond what is kept can go, with its files only', async () => {

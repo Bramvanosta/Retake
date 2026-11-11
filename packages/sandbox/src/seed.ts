@@ -151,8 +151,9 @@ export async function runSeed(
     signal?: AbortSignal;
     running?: Set<number>;
     /**
-     * Hotfix v0.2.5: other steps than the seed — `reset.hooks`, run at every reset (`what`: how messages name them; their
-     * approvals are bound after the seed's positions, `indexBase`).
+     * Hotfix v0.2.5: other steps than the seed — `reset.hooks`, run at every reset (`what`: how messages name them and
+     * their approvals' phase, `reset`, bound to their position among the reset hooks; `indexBase`: where their runs are
+     * journaled, after the seed's positions).
      */
     steps?: SeedStep[];
     what?: 'reset hook';
@@ -185,7 +186,8 @@ export async function runSeed(
     ...(opts.running ? { running: opts.running } : {}),
   };
   // Trust `mcp` (L3.1): a shell step needs a human approval, bound to its position among ALL the seed steps (runHooks
-  // sees a batch between exec steps: its index is moved to the seed's).
+  // sees a batch between exec steps: its index is moved to the seed's); a reset hook's to its position among the reset
+  // hooks, under phase `reset` (L7.8).
   let offset = 0;
   const trust = pctx.seedTrust;
   const record = pctx.recordSeedRun;
@@ -208,8 +210,12 @@ export async function runSeed(
     const confirm = trust.confirm;
     ctx.confirmDestructive = async (description, reason, request) => {
       if (!confirm) return false;
-      const index = base + offset + request.index;
-      return confirm(description, reason, { ...request, index, fingerprint: hookFingerprint(request.hook, { phase: 'seed', index, env: request.env, ...(request.files ? { files: request.files } : {}) }) });
+      const at = offset + request.index;
+      const index = base + at;
+      // A reset hook (L7.8) is bound to its own phase and its position within reset.hooks: its approval is never a seed
+      // step's, nor a seed step's its.
+      const place = opts.what ? { phase: 'reset' as const, index: at } : { phase: 'seed' as const, index };
+      return confirm(description, reason, { ...request, index, fingerprint: hookFingerprint(request.hook, { ...place, env: request.env, ...(request.files ? { files: request.files } : {}) }) });
     };
   }
   // sql steps reach the sandbox's own databases on the address Docker publishes them on (never `localhost`: another

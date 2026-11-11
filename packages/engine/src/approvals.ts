@@ -235,37 +235,45 @@ export async function preflightHooks(
 export const SHELL_SEED_REASON = 'a shell command (runs local code)';
 
 /**
- * The seed steps of a sandbox that need a human before a job may run them (trust `mcp`): its shell steps, each bound
- * to its fingerprint (phase `seed`, its position among all the seed steps, the sandbox's environment). A seed's http and
- * sql steps rebuild the sandbox's own data (checked at run time) and an `exec` step runs inside a sandbox container:
- * none of them is asked about.
+ * The seed steps and reset hooks of a sandbox that need a human before a job may run them (trust `mcp`): their shell
+ * steps, each bound to its fingerprint exactly as the sandbox checks it when it runs (sandbox seed.ts runSeed: phase
+ * `seed` and its position among the seed steps, or phase `reset` and its position among `reset.hooks` — an approval of
+ * one is never the other's —, the sandbox's environment, its files relative to sandbox.yaml; `exec` steps keep their
+ * positions). A seed's http and sql steps rebuild the sandbox's own data (checked at run time) and an `exec` step runs
+ * inside a sandbox container: none of them is asked about.
  */
 export async function seedApprovalItems(project: LoadedProject, env: string): Promise<ApprovalItem[]> {
   const { hookFingerprint, hookFiles, describeHook, declaredHookLines } = await import('@retake/hooks');
   const sandbox = project.sandboxes?.[env];
-  const steps = sandbox?.manifest.seed ?? [];
+  const seed = sandbox?.manifest.seed ?? [];
+  const lists: Array<{ phase: 'seed' | 'reset'; steps: typeof seed }> = [
+    { phase: 'seed', steps: seed },
+    { phase: 'reset', steps: sandbox?.manifest.reset?.hooks ?? [] },
+  ];
   const items: ApprovalItem[] = [];
-  steps.forEach((step, index) => {
-    if ('exec' in step) return;
-    let kind: string;
-    try {
-      kind = hookKind(step);
-    } catch {
-      return; // malformed: the seed itself fails on it
-    }
-    if (kind !== 'shell') return;
-    items.push({
-      fingerprint: hookFingerprint(step, { phase: 'seed', index, env, files: hookFiles(step, { projectDir: project.dir, ...(sandbox?.dir ? { baseDir: sandbox.dir } : {}) }).files }),
-      phase: 'seed',
-      index,
-      ...(step.name ? { name: step.name } : {}),
-      kind,
-      description: describeHook(step),
-      reason: SHELL_SEED_REASON,
-      // As sandbox.yaml declares it (a seed step journals no rollback).
-      lines: declaredHookLines(step),
+  for (const { phase, steps } of lists) {
+    steps.forEach((step, index) => {
+      if ('exec' in step) return;
+      let kind: string;
+      try {
+        kind = hookKind(step);
+      } catch {
+        return; // malformed: the seed itself fails on it
+      }
+      if (kind !== 'shell') return;
+      items.push({
+        fingerprint: hookFingerprint(step, { phase, index, env, files: hookFiles(step, { projectDir: project.dir, ...(sandbox?.dir ? { baseDir: sandbox.dir } : {}) }).files }),
+        phase,
+        index,
+        ...(step.name ? { name: step.name } : {}),
+        kind,
+        description: describeHook(step),
+        reason: SHELL_SEED_REASON,
+        // As sandbox.yaml declares it (a seed step or a reset hook journals no rollback).
+        lines: declaredHookLines(step),
+      });
     });
-  });
+  }
   return items;
 }
 

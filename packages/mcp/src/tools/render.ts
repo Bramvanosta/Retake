@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { JOB_STATES, SLUG_RE, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { SLUG_RE, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
 import { yieldWords } from '@retake/engine';
 import type { Engine, RenderStatusView } from '@retake/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
@@ -36,6 +36,8 @@ export function renderStatusSummary(r: RenderStatusView): string {
     ...(job ? [`job ${job.id}: ${job.state}${job.cancel_requested_at && !r.finished ? ' (cancel requested)' : ''}`] : []),
     ...(rec ? [`${rec.duration_s} s, ${rec.width}×${rec.height} @ ${rec.fps} fps, theme ${rec.template}, ${rec.variant}, ${(rec.size_bytes / 1048576).toFixed(1)} MB`] : []),
     ...(r.file && r.status === 'succeeded' ? [`video: ${r.file}`, ...(r.record_file ? [`record: ${r.record_file}`] : [])] : []),
+    // The video a record names elsewhere than renders/<id>.mp4 is the file's text: never in this line.
+    ...(!r.file && rec && r.status === 'succeeded' ? [`video: its record names a file other than renders/${r.render_id}.mp4 ("untrusted.record.file")`, ...(r.record_file ? [`record: ${r.record_file}`] : [])] : []),
     ...(r.status === 'interrupted' && job?.error ? [`${job.error.message}${job.error.fix ? ` — a human runs: ${job.error.fix}` : ''}`] : []),
     ...(r.status === 'cancelled' ? ['cancelled: nothing was written under this id (the next render of the scenario may reuse it)'] : []),
     ...(r.status === 'failed' ? ['failed: nothing was written under this id (the next render of the scenario may reuse it); the message is in "untrusted.error"'] : []),
@@ -45,16 +47,14 @@ export function renderStatusSummary(r: RenderStatusView): string {
   return lines.join('\n');
 }
 
-async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}, extraUntrusted: Record<string, unknown> = {}, o: { unknown?: boolean } = {}) {
-  const read = await engine.renders.status(project, id);
-  // `latest` answered a record whose status Retake never writes as `unknown` (the lead's ruling 27): the second read,
-  // by its id, says it so too — never the file's word.
-  const r = o.unknown && !KNOWN_STATUS.has(read.status) ? { ...read, status: 'unknown' as RenderStatusView['status'] } : read;
+/**
+ * The answer of a render's status: the engine's view, whose trusted members are closed words and checked values (a
+ * status Retake never writes is `unknown`, by its id as through `latest`; the record's text is under `untrusted`).
+ */
+async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}, extraUntrusted: Record<string, unknown> = {}) {
+  const r = await engine.renders.status(project, id);
   return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...r, ...extraData, untrusted: { ...r.untrusted, ...extraUntrusted } } };
 }
-
-/** The statuses of the tool's own (a job's states and a record's): any other word is the file's. */
-const KNOWN_STATUS: ReadonlySet<string> = new Set(JOB_STATES);
 
 /** A scene id as a scenario writes one (a slug of at most 100 characters): only such a text is said in a trusted line — run.json is a file anyone may write. */
 const isSceneId = (v: unknown): v is string => typeof v === 'string' && v.length <= 100 && SLUG_RE.test(v);
@@ -182,7 +182,7 @@ export const renderStatus = defineTool({
   name: 'render_status',
   title: 'Status of a render',
   description:
-    'A render by its id: its job first (queued — with the job it waits behind —, running with its stage, percent and time left, succeeded, failed, cancelled, interrupted), then its record renders/<id>.json once rendered: video and record paths, duration, size, fps, theme, variant, overrides, timings, the probe of the file. render_id "latest" (with scenario: of that scenario) names the newest render. wait_s long-polls until it finishes. Warnings and a failure\'s message are under "untrusted": they quote the scenario and the filmed site.',
+    'A render by its id: its job first (queued — with the job it waits behind —, running with its stage, percent and time left, succeeded, failed, cancelled, interrupted), then its record renders/<id>.json once rendered: video and record paths, duration, size, fps, theme, variant, overrides, timings, the probe of the file. render_id "latest" (with scenario: of that scenario) names the newest render. wait_s long-polls until it finishes. Outside "untrusted" the answer holds only closed words and checked values (a status Retake never writes is unknown); warnings, a failure\'s message and the record as its file holds it (untrusted.record) are under "untrusted": they quote the scenario and the filmed site.',
   input: z.strictObject({
     project: projectSlug,
     render_id: z.union([renderId, z.literal('latest')]).describe('Render id (what render returned), or "latest".'),
@@ -196,7 +196,7 @@ export const renderStatus = defineTool({
     if (wait_s > 0 && first.job && !first.finished) await waitJob(engine, await engine.jobs.get(first.job.id), wait_s, ctx);
     // What `latest` passed over is said by the first read (the second names the render by its id).
     const passed = renderLatestData(first);
-    return statusOutput(engine, project, first.render_id, renderLatestLines(first), passed.data, passed.untrusted, { unknown: render_id === 'latest' && first.status === ('unknown' as RenderStatusView['status']) });
+    return statusOutput(engine, project, first.render_id, renderLatestLines(first), passed.data, passed.untrusted);
   },
 });
 

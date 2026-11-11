@@ -82,6 +82,6 @@ describe('the render `latest` picked, and what it passed over', () => {
     expect(r.summary.split('\n')[0]).toBe('render quote-v2 of quote: unknown');
     expect(r.data.status).toBe('unknown');
     expect(r.summary).not.toMatch(/IGNORE|\u001b/);
-    // (`render_status` by its id is L7.8's.)
+    // By its id too since L7.8: render-status-by-id.test.ts.
   });
 });

@@ -362,10 +362,11 @@ describe('the project board', () => {
     expect(s?.capture?.id).toBe(cap);
     expect(s?.hash).toBe(sha(yaml));
     // One rule for a theme that exists (at most 100 characters): a folder named by a path whose name is longer still
-    // loads and renders, and its name is read on neither side — the row holds no theme, the render's says unknown, and
-    // the newest render of today's file and take is the one in the row.
-    expect(s?.render?.render_id).toBe('quote-v2'); // D-2: 101 characters
-    expect([short(s?.theme ?? '(none)'), short(s?.render?.theme ?? '')]).toEqual(['(none)', 'editorial']); // D-2: 101 characters
+    // loads and renders, and its name is shown on neither side — the row holds no theme, the render's says unknown —;
+    // the board compares it by its identity (the folder's name the record holds), so the render of today's theme is
+    // the one in the row.
+    expect([s?.render?.render_id, s?.render_current]).toEqual(['quote-v1', true]); // L7.8 (BL-164): was quote-v2, the newest render of today's file and take, of another theme
+    expect([short(s?.theme ?? '(none)'), short(s?.render?.theme ?? '')]).toEqual(['(none)', 'unknown']); // D-2: 101 characters; L7.8 (BL-164): the render in the row is quote-v1, whose theme says unknown (was quote-v2's editorial)
     expect(((await engine.renders.ofScenario('board-theme', 'quote')).renders.map((r) => [r.render_id, r.theme]))).toEqual([['quote-v2', 'editorial'], ['quote-v1', 'unknown']]); // D-2: 101 characters
     // With a theme folder of 100 characters: its name on both sides, and the older render — the one of today's theme —
     // is shown, not the newest.

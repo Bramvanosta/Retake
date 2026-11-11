@@ -51,9 +51,12 @@ export function runningWords(r: Pick<BoardRun, 'mode' | 'status' | 'steps_done' 
   return `${MODE[r.mode]} running · starting`;
 }
 
-/** The render that shows today's file on the capture with today's theme (sameVersion; review B-L2), or undefined. */
+/**
+ * The render that shows today's file on the capture with today's theme (sameVersion; review B-L2), or undefined. The
+ * board's own verdict too (`render_current`): it compares a theme it cannot name by its identity (BL-164).
+ */
 function currentRender(s: BoardScenario) {
-  return s.render && s.capture && s.hash && sameVersion(s.render, { run: s.capture.id, hash: s.hash, ...(s.theme ? { theme: s.theme } : {}) }) ? s.render : undefined;
+  return s.render && s.render_current !== false && s.capture && s.hash && sameVersion(s.render, { run: s.capture.id, hash: s.hash, ...(s.theme ? { theme: s.theme } : {}) }) ? s.render : undefined;
 }
 
 /** The production's state, word and smart group (first match wins). */

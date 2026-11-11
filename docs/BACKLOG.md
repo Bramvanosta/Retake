@@ -2471,11 +2471,11 @@ a time stalled after 62 files and ran past two hours. So `ci.yml` runs the build
 - **Why one file at a time stalled**: a test that never ends (a browser or ffprobe left behind, a wait with no
   limit) — every wait in the suite needs a limit, and a file that outlives it fails with what it was waiting for.
 - Then the suite (or its fast tier) goes back into `ci.yml`, and the release can wait for main's green run (BL-144).
-### BL-164 — The project board compares a path theme by its identity
-The board compares a scenario's theme with its renders' by name. When the theme is a folder named by a path whose
-name is not a theme name (another character than letters, digits, `_` and `-`, or more than 100 characters), or whose
-reference is longer than 200 characters, no theme is compared and the row shows the newest render of today's file
-and take. The row and the render need the theme's identity, not its name. *From:* L7.5.
+### BL-164 — The project board tells two theme folders of one name apart
+The board compares a scenario's theme with its renders' by the name of the theme's folder, as a render record holds
+it (L7.8). Two folders of the same name named by different paths (`./themes/brand`, `../shared/brand`) are one theme
+to it: the record holds the folder's name and its content hash, not its path. Comparing the content hash too would
+make a render made before the theme was edited outdated, which the board does not say today. *From:* L7.5, L7.8.
 
 ### BL-165 — Runs and takes: what the one rule left
 *From:* L7.6a. Small pieces, any order.

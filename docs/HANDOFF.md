@@ -126,6 +126,32 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.8)
+- **L7.8 done (2026-11-11; branch `claude/arch-l7`)** — five small items decided by the person. **The hooks journal
+  checks a rollback's shape**: each rollback is checked against its kind's shape when a journal is read (the members a
+  replay, a listing and a description read, each of its type), and a journal with one that does not fit is refused in
+  the journal's words (`entries[1] (#2) has a malformed http rollback: …`) — nothing of it is replayed, as for an
+  unknown kind; an older journal whose rollbacks fit still reads (before, such an entry opened and the
+  `--replay-unsigned` listing stopped on a `TypeError`). **`project_prune`'s description** names every keep of L7.7
+  and L7.6b. **BL-164**: the project board compares a scenario's theme with its renders' by the theme's identity —
+  the folder name the render record holds — also for a path theme whose folder name is no theme name or whose
+  reference is over 200 characters; the row says whether its render shows today's file (`render_current`), and the
+  Studio says "Rendered" only then; left in the BACKLOG: two folders of one name are one theme. **`render_status` by
+  its id**: outside `untrusted` only closed words and checked values (`record` is `RenderStatusRecord`:
+  the known options with a value of their kind, a word option only with one of its words; a status Retake never writes
+  is `unknown` by id as through `latest`; `record_file` the file read; `file` is `renders/<id>.mp4` as Retake spells
+  it, given only when the record names that file); the record as its file holds it is `untrusted.record`; the
+  `render` tool's answer reads the same. **Reset hooks are asked about**: a
+  sandbox's shell `reset.hooks` steps are approval items beside its shell seed steps, bound to their own phase
+  `reset` and position within `reset.hooks` on both sides (the sandbox's check and the items: an approval is never
+  shared with a seed step's), listed as `reset hook <n>` numbered as the sandbox's messages are — under MCP and the Studio's
+  agent path a reset with one now runs once approved, and is still refused unapproved or changed since its approval;
+  a reset at a terminal is unchanged. The MCP tool list changes in two descriptions (`project_prune`,
+  `render_status`); no input schema, the op table, the generated schemas and the CLI golden are unchanged. Ratchet 95.
+  **Checked:** `pnpm typecheck`, the ratchet, `test-guard` (one renamed test, explained), `--check-cites` on the
+  edited copy, 52 test files alone (39 again after the fix pass), 72 mutations (all red). **The full suite was not run**; no Docker, Postgres,
+  real-render or real-capture test.
+
 ## State (after L7.6b)
 - **L7.6b done (2026-11-11; branch `claude/arch-l7`)**— the render record as a union, one tolerant reader, D-10 and
   R-1 (second half of U5 of the 2026-11-10 action plan, finding D2). A render record is a union of two states — a
@@ -1322,7 +1348,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: L7.8 (the hooks journal, prune's MCP description, BL-164, the render status), L7.6c (the three readers of renders/ left), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: L7.6c (the three readers of renders/ left), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

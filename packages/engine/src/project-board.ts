@@ -110,6 +110,11 @@ export interface BoardScenario {
   dry?: { id: string; finished_at?: string };
   /** The newest succeeded landscape render (a render the Studio lists, review included). */
   render?: ScenarioRenderView;
+  /**
+   * With `render`: whether it shows today's file — the same capture, file bytes and theme (by the theme's identity, a
+   * theme the row cannot name included), no option beyond the files'. The Studio says "Rendered" only then.
+   */
+  render_current?: boolean;
   /** The newest render attempt failed (its record or its job), after `render` if any. */
   render_failed?: { render_id: string; at: string };
   /** A render of the scenario queued or running. */
@@ -228,9 +233,19 @@ const overlaid = (status: string, job: JobRecord): ViewRunStatus | undefined =>
  * current.
  */
 function themeName(p: LoadedProject, ref: string | undefined): string | undefined {
-  if (typeof ref !== 'string' || ref === '' || ref.length > 200) return undefined;
-  const name = SLUG_RE.test(ref) ? ref : basename(resolve(p.dir, ref));
-  return isThemeName(name) ? name : undefined;
+  if (typeof ref !== 'string' || ref.length > 200) return undefined;
+  const name = themeIdentity(p, ref);
+  return name !== undefined && isThemeName(name) ? name : undefined;
+}
+
+/**
+ * The theme's identity as a render record holds it (`template`: the name of the folder the editor loaded, core io
+ * template.ts loadTemplateDir), whatever that folder is called and however long its reference: a name as it is, a
+ * path its folder's name. The board compares it with each render's record, never shows it (`theme` is themeName).
+ */
+function themeIdentity(p: LoadedProject, ref: string | undefined): string | undefined {
+  if (typeof ref !== 'string' || ref === '') return undefined;
+  return SLUG_RE.test(ref) ? ref : basename(resolve(p.dir, ref));
 }
 
 /** The project boards of one engine (memos apart from the scenario views'). */
@@ -278,6 +293,7 @@ export class ProjectBoards {
       } else if (p.config.default_env) s.env = p.config.default_env;
       const theme = themeName(p, f.template ?? p.config.template);
       if (theme) s.theme = theme;
+      const themeId = themeIdentity(p, f.template ?? p.config.template);
       if (f.title) s.untrusted.title = f.title;
       if (f.error) s.untrusted.error = f.error;
       // The running take, its job's state overlaid (a worker that died: interrupted).
@@ -309,10 +325,16 @@ export class ProjectBoards {
       // The newest render that shows today's file (render-words sameVersion's rule, review B-L2), else the newest one.
       const landscape = recs.filter((r) => r.status !== 'failed' && r.status !== 'cancelled' && (r.variant ?? 'landscape') === 'landscape');
       const views = landscape.map((r) => ({ r, v: renderView(p.dir, r, mine, reviewJobs) }));
-      const shows = (v: ScenarioRenderView) => !!f.hash && !!g.capture && v.edit.sha256 === f.hash && v.run_id === g.capture.id && (!s.theme || v.theme === s.theme) && v.overrides.length === 0;
-      const pick = views.find((x) => shows(x.v)) ?? views[0];
+      // The theme by its identity (BL-164): the record's folder name against today's, also when it is no theme name.
+      const shows = (x: { r: StoredRenderRecord; v: ScenarioRenderView }) =>
+        !!f.hash && !!g.capture && x.v.edit.sha256 === f.hash && x.v.run_id === g.capture.id && (themeId === undefined || x.r.template === themeId) && x.v.overrides.length === 0;
+      const shown = views.find(shows);
+      const pick = shown ?? views[0];
       const best = pick?.r;
-      if (pick) s.render = pick.v;
+      if (pick) {
+        s.render = pick.v;
+        s.render_current = shown !== undefined;
+      }
       const newestRec = recs[0];
       if (newestRec && newestRec.status === 'failed' && newestRec !== best) s.render_failed = { render_id: newestRec.id, at: newestRec.created_at };
       const newestJob = mine[0];

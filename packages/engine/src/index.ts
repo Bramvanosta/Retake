@@ -280,7 +280,7 @@ export type { BrandFileList } from './brand/file-list.js';
 export { siteList } from './site-list.js';
 export type { SiteList, SiteListEntry } from './site-list.js';
 export type { ReviewFindingView, ReviewImageRef, ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
-export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueView, RenderReviewSummary, RenderStatusView, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from './renders.js';
+export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueView, RenderReviewSummary, RenderStatusRecord, RenderStatusView, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from './renders.js';
 export type { SandboxJobKind, SandboxSubmitRequest } from './jobs/sandbox-job.js';
 export { HISTORY_VERSION, appendHistory, historyFile, runCounted, usageCounts } from './history.js';
 export type { HistoryEntry, UsageCounts } from './history.js';
