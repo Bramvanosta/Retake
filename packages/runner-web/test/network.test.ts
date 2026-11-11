@@ -12,6 +12,7 @@ import type { BrowserSession } from '../src/index.js';
 import { UNREAD_BODY_MS, networkIdle } from '../src/network.js';
 import { startServer } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const html = (body: string) => `<!doctype html><html><head><meta charset="utf-8"><title>Network</title></head><body>${body}</body></html>`;
 /**
@@ -38,7 +39,7 @@ beforeAll(async () => {
     '/login': html('<h1>Sign in</h1>'),
     '/next': html('<h1>Next</h1>'),
   });
-  session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+  session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
 });
 
 afterAll(async () => {

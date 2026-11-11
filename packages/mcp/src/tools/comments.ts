@@ -16,7 +16,7 @@ import type { CommentEntryView, CommentProposalView, CommentView, Engine } from 
 import { EngineError } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolImage, ToolOutput } from '../result.js';
+import type { ToolImage } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 import { issueLine } from './scenario.js';
@@ -233,12 +233,12 @@ export const commentsList = defineTool({
     if (v.problems.length) lines.push(`${plural(v.problems.length, 'file')} skipped: see "problems".`);
     const images = threads.map(stillImage).filter((i): i is ToolImage => i !== null);
     const data = { ...v, threads, ...(cut > 0 ? { left_out_for_size: cut } : {}) };
-    return { summary: lines.join('\n'), data: data as unknown as Record<string, unknown>, ...(images.length ? { images } : {}) };
+    return { summary: lines.join('\n'), data, ...(images.length ? { images } : {}) };
   },
 });
 
 /** comments_list {comment_id} (L4.6, critique B15): one thread, and the diff of its newest proposal read back. */
-async function oneThread(project: string, id: string, engine: Engine): Promise<ToolOutput> {
+async function oneThread(project: string, id: string, engine: Engine) {
   const full = await engine.comments.get(project, id);
   const t = compact(full);
   const proposal = full.entries.some((e) => e.proposal) ? budgetedProposal(await engine.comments.proposal(project, id)) : undefined;
@@ -247,7 +247,7 @@ async function oneThread(project: string, id: string, engine: Engine): Promise<T
   lines.push(t.via === 'studio' && t.status === 'open' ? `${DIRECT_HINT}\n${STUDIO_HINT}` : DIRECT_HINT);
   const image = stillImage(t);
   const data = { project, threads: [t], total: 1, problems: [], ...(proposal ? { proposal } : {}) };
-  return { summary: lines.join('\n'), data: data as unknown as Record<string, unknown>, ...(image ? { images: [image] } : {}) };
+  return { summary: lines.join('\n'), data, ...(image ? { images: [image] } : {}) };
 }
 
 export const commentReply = defineTool({
@@ -274,7 +274,7 @@ export const commentReply = defineTool({
   annotations: WRITE_FILES,
   async run({ project, comment_id, text, proposal }, { engine }) {
     const w = await engine.comments.reply(project, comment_id, text, proposal ? { proposal } : {});
-    const thread = compact(w.thread) as unknown as Record<string, unknown>;
+    const thread = compact(w.thread);
     if (!proposal) {
       return {
         summary: `Replied to ${comment_id} (entry ${w.entry}, as mcp); the thread is ${w.thread.status}, its hash is now ${w.hash} (the if_match of comment_resolve).`,
@@ -316,9 +316,9 @@ export const commentResolve = defineTool({
     const res = w.thread.resolution;
     return {
       summary: `Resolved ${comment_id} (entry ${w.entry}, as mcp)${res?.render_id ? ` with render ${res.render_id}` : ''}; its hash is now ${w.hash}. A person reopens it if they disagree (in the Studio, or retake comment reopen).`,
-      data: { project, comment_id, entry: w.entry, hash: w.hash, thread: compact(w.thread) as unknown as Record<string, unknown> },
+      data: { project, comment_id, entry: w.entry, hash: w.hash, thread: compact(w.thread) },
     };
   },
 });
 
-export const COMMENT_TOOLS: ToolDef[] = [commentsList, commentReply, commentResolve];
+export const COMMENT_TOOLS = [commentsList, commentReply, commentResolve] as const satisfies readonly ToolDef[];

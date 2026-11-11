@@ -12,7 +12,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RunRecordSchema, loadProject, loadScenario, reserveRunId } from '@retake/core';
+import { RunRecordSchema, PERSON_POLICY } from '@retake/core';
+import { loadProject, loadScenario, reserveRunId, fileFacts } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import type { RunRecord } from '@retake/core';
 import { FileJobQueue, createEngine, sha256Hex } from '../src/index.js';
@@ -270,7 +271,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     const file = join(ws, 'projects', 'w', 'scenarios', 'slow-teardown.yaml');
     await writeFile(file, yaml);
     const { id: runId } = await reserveRunId(join(ws, 'projects', 'w', 'runs'), 'slow-teardown');
-    const loaded = await loadScenario(await loadProject('w', ws), 'slow-teardown');
+    const loaded = await loadScenario(await loadProject('w', ws), 'slow-teardown', { files: fileFacts(PERSON_POLICY) });
     const fingerprint = hookFingerprint(loaded.scenario.teardown![0], { phase: 'teardown', index: 0, env: 'local' });
     // Its setup's rollback DELETE needs one too.
     const armed = hookFingerprint(loaded.scenario.setup![1], { phase: 'setup', index: 1, env: 'local' });
@@ -322,7 +323,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     const yaml = SHORT.replace('video: short', 'video: forged').replace('scenes:', 'setup:\n  - name: wipe\n    http: {method: DELETE, url: "{{console}}/api/quotes/auto-proposal"}\n    confirm: true\nscenes:');
     const file = join(ws, 'projects', 'w', 'scenarios', 'forged.yaml');
     await writeFile(file, yaml);
-    const loaded = await loadScenario(await loadProject('w', ws), 'forged');
+    const loaded = await loadScenario(await loadProject('w', ws), 'forged', { files: fileFacts(PERSON_POLICY) });
     const fingerprint = hookFingerprint(loaded.scenario.setup![0], { phase: 'setup', index: 0, env: 'local' });
     const { id: runId } = await reserveRunId(join(ws, 'projects', 'w', 'runs'), 'forged');
     const job = await queue.enqueue({

@@ -32,17 +32,16 @@
  * Nothing here logs a token, a body, a frame or a line of the files it reads.
  */
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { JOB_STATES, PROJECT_SLUG_RE } from '@retake/core';
-import type { JobState, WorkspaceConfig } from '@retake/core';
+import type { JobState } from '@retake/core';
 import {
   ERROR_STATUS,
   EngineError,
   FINISHED_JOB_STATES,
-  FileJobQueue,
   RUN_ID_RE,
   RunFolder,
   openLiveFeed,
@@ -52,7 +51,7 @@ import {
   securityHeaders,
   toEngineError,
 } from '@retake/engine';
-import type { Engine, LiveFeedFrame, RangeRead } from '@retake/engine';
+import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
 import { sseText } from './live.js';
 
 /** Run streams served at once, at most. */
@@ -648,7 +647,7 @@ class FrameFeed {
         return;
       }
       if (job.state === 'running') {
-        const info = await readLiveChannel(this.live.queue, this.jobId);
+        const info = await readLiveChannel(this.live.queue, this.live.files, this.jobId);
         if (info && !signal.aborted) {
           this.connected = true;
           this.live.upstreams++;
@@ -673,7 +672,7 @@ class FrameFeed {
 
 export interface RunLiveOptions {
   engine: Engine;
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   pollMs?: number;
   log?: (message: string) => void;
 }
@@ -681,7 +680,13 @@ export interface RunLiveOptions {
 /** The run streams of one Studio server. */
 export class RunLive {
   readonly engine: Engine;
-  readonly queue: FileJobQueue;
+  /**
+   * The engine's job queue itself, not one with its own memory: it is asked only who claimed a job (claimOf keeps no
+   * memory), never what holds heavy work.
+   */
+  readonly queue: Pick<JobQueueView, 'claimOf'>;
+  /** The queue's paths (Engine.jobFiles): a job's live.json, and its events read here by byte range. */
+  readonly files: Pick<JobFiles, 'live' | 'events'>;
   readonly pollMs: number;
   readonly feeds = new Map<string, FrameFeed>();
   private readonly streams = new Set<RunStream>();
@@ -695,7 +700,8 @@ export class RunLive {
 
   constructor(private readonly o: RunLiveOptions) {
     this.engine = o.engine;
-    this.queue = new FileJobQueue(o.ws.root);
+    this.queue = o.engine.queue;
+    this.files = o.engine.jobFiles;
     this.pollMs = o.pollMs ?? RUN_LIVE_POLL_MS;
   }
 
@@ -760,7 +766,7 @@ export class RunLive {
       const log = new JsonlTail((o, m) => folder.readRange('log.jsonl', o, m), logStart, truncated);
       let jobLog: JsonlTail | null = null;
       if (jobId) {
-        const file = join(this.queue.jobDir(jobId), 'events.jsonl');
+        const file = this.files.events(jobId);
         const jobSize = size(readPlainRange(file, 0, 0));
         let jobStart = from === 'after' ? (a.after?.job ?? 0) : 0;
         if (jobStart > jobSize) jobStart = 0;

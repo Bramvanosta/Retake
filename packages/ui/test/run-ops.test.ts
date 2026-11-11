@@ -115,7 +115,7 @@ describe('the Sessions panel: auth_status, auth_login (headed only, no wait), si
     const refused = await call('sign_in_cancel', { job: run.job });
     expect(refused.status).toBe(403);
     expect(refused.json<Fail>().error.message).toContain('not a sign-in');
-    expect(await queue.cancelRequested(run.job)).toBe(false);
+    expect(await queue.cancelOf(run.job)).toBeUndefined();
     expect((await call('sign_in_cancel', { job: '../j' })).status).toBe(400);
     await call('run_cancel', { project: P, run_id: run.run_id });
   });
@@ -142,29 +142,29 @@ describe('run_pause', () => {
     }
     const queued = await call('run_pause', { project: P, run_id: q.run_id, paused: true });
     expect(queued.status).toBe(409);
-    expect(existsSync(join(queue.jobDir(q.job), 'pause'))).toBe(false);
+    expect(existsSync(join(queue.files.job(q.job), 'pause'))).toBe(false);
     await take(q.job);
     const p = await call('run_pause', { project: P, run_id: q.run_id, paused: true });
     expect(p.status, p.body).toBe(200);
     expect(p.json<{ data: { job: { pause_requested_at?: string } } }>().data.job.pause_requested_at).toBeTruthy();
     expect(p.json<{ summary: string }>().summary).toContain('pausing before its next step');
-    expect(existsSync(join(queue.jobDir(q.job), 'pause'))).toBe(true);
+    expect(existsSync(join(queue.files.job(q.job), 'pause'))).toBe(true);
     const r = await call('run_pause', { project: P, run_id: q.run_id, paused: false });
     expect(r.status).toBe(200);
-    expect(existsSync(join(queue.jobDir(q.job), 'pause'))).toBe(false);
+    expect(existsSync(join(queue.files.job(q.job), 'pause'))).toBe(false);
     // A capture pauses too (part D: the capture does not film the pause).
     const cap = (await call('scenario_run', { project: P, name: 'pause-b', mode: 'capture' })).json<{ data: { run_id: string; job: string } }>().data;
     await take(cap.job);
     const c = await call('run_pause', { project: P, run_id: cap.run_id, paused: true });
     expect(c.status, c.body).toBe(200);
-    expect(existsSync(join(queue.jobDir(cap.job), 'pause'))).toBe(true);
+    expect(existsSync(join(queue.files.job(cap.job), 'pause'))).toBe(true);
     expect((await call('run_pause', { project: P, run_id: cap.run_id, paused: false })).status).toBe(200);
-    expect(existsSync(join(queue.jobDir(cap.job), 'pause'))).toBe(false);
+    expect(existsSync(join(queue.files.job(cap.job), 'pause'))).toBe(false);
     // A finished run: nothing to pause.
     const rec = (await queue.get(q.job)) as JobRecord;
     await queue.write({ ...rec, state: 'succeeded', finished_at: new Date().toISOString() });
     expect((await call('run_pause', { project: P, run_id: q.run_id, paused: true })).status).toBe(409);
-    expect(existsSync(join(queue.jobDir(q.job), 'pause'))).toBe(false);
+    expect(existsSync(join(queue.files.job(q.job), 'pause'))).toBe(false);
   });
 });
 

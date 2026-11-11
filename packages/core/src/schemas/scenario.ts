@@ -222,7 +222,7 @@ export const ScenarioSchema = z
     frame: FrameSpecSchema.describe(
       'Frame of every scene (default: the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
     ).optional(),
-    template: nonEmpty().describe('Template name (default: the project template).').optional(),
+    template: nonEmpty().describe('Theme name (default: the project theme).').optional(),
     pacing: PacingPartialSchema.optional(),
     defaults: RunDefaultsSchema.describe("Step defaults (win over the project's), e.g. {timeout_s: 30} for a product whose actions take long.").optional(),
     music: z

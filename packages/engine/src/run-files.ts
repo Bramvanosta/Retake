@@ -17,9 +17,10 @@
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
-import { join, sep } from 'node:path';
-import { readPlainFile } from '@retake/core';
-import type { PlainFileProblem, PlainFileRead } from '@retake/core';
+import { join } from 'node:path';
+import { pathInside, projectPath } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
+import type { PlainFileProblem, PlainFileRead } from '@retake/core/io';
 import { RUN_ID_RE } from './refs.js';
 
 /** A frame's file name in a frame index (the recorder writes `NNNNNN.jpg` / `.png`). */
@@ -44,8 +45,12 @@ export async function lsig(path: string): Promise<string> {
   }
 }
 
+/**
+ * Whether the real path `real` is `root` or inside it (pathInside, as spelt: both are real paths). A root spelt with a
+ * trailing separator — only the filesystem root, for a real path — holds nothing but itself, as this check always had it.
+ */
 function inside(real: string, root: string): boolean {
-  return real === root || real.startsWith(root + sep);
+  return pathInside(real, root, { compare: 'spelling', trailingSepHoldsNothing: true });
 }
 
 /** A folder as resolved: its real path and inode. */
@@ -122,11 +127,11 @@ export class RunFolder {
   /** `runs/<id>` of the project when it is a real folder inside the project; null otherwise (missing, a link, outside). */
   static async open(projectDir: string, id: string): Promise<RunFolder | null> {
     if (!RUN_ID_RE.test(id) || id.length > 200) return null;
-    const path = join(projectDir, 'runs', id);
+    const path = projectPath(projectDir, 'runs', id);
     try {
       const st = await lstat(path);
       if (!st.isDirectory()) return null;
-      const [root, real] = await Promise.all([realpath(join(projectDir, 'runs')), realpath(path)]);
+      const [root, real] = await Promise.all([realpath(projectPath(projectDir, 'runs')), realpath(path)]);
       const project = await realpath(projectDir);
       if (!inside(root, project) || !inside(real, root) || real === root) return null;
       const [rs, ds] = await Promise.all([lstat(root), lstat(real)]);

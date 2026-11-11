@@ -7,6 +7,7 @@ import { commentAuthorName, printableText, regionProblem } from '@retake/core';
 import type { CommentAuthor, CommentRegion } from '@retake/core';
 import { EngineError, addComment, defaultAuthorName, listComments, reopenComment, replyComment, resolveComment } from '@retake/engine';
 import type { CommentListView, CommentView, CommentWritten } from '@retake/engine';
+import { fileFacts } from '@retake/core/io';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -155,6 +156,8 @@ export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectAr
         text,
       },
       by,
+      undefined,
+      ws.policy,
     ),
   );
   if (opts.json) {
@@ -209,8 +212,9 @@ function printWritten(ui: Ui, what: string, w: CommentWritten, json?: boolean): 
 /** `retake comment reply <project> <id> "text"`. */
 export async function commentReplyCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, text: string, opts: CommentWriteOptions): Promise<ExitCode> {
   const by = author(opts.author);
-  const project = await openProject(await openWorkspace(global), projectArg);
-  return printWritten(ui, 'replied to', await engineCall(() => replyComment(project, id, text, by)), opts.json);
+  const ws = await openWorkspace(global);
+  const project = await openProject(ws, projectArg);
+  return printWritten(ui, 'replied to', await engineCall(() => replyComment(project, id, text, by, { files: fileFacts(ws.policy) })), opts.json);
 }
 
 /** `retake comment resolve <project> <id> --note "…" [--render <id>]`. */

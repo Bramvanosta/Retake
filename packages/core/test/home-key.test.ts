@@ -9,9 +9,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { homeKey } from '../src/index.js';
+import { homeKey } from '../src/io/index.js';
 
-const DIST = fileURLToPath(new URL('../dist/index.js', import.meta.url));
+const DIST = fileURLToPath(new URL('../dist/io/index.js', import.meta.url));
 let base: string;
 
 beforeAll(async () => {

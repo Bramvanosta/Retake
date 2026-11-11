@@ -1,7 +1,7 @@
 import { createWriteStream } from 'node:fs';
 import type { WriteStream } from 'node:fs';
 import { join } from 'node:path';
-import { writeJson } from '@retake/core';
+import { writeJson } from '@retake/core/io';
 import type { RunProgress, RunRecord } from '@retake/core';
 
 /**

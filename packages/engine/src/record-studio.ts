@@ -36,30 +36,9 @@
  */
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative } from 'node:path';
-import {
-  DEFAULT_TEMPLATE,
-  JOB_ID_RE,
-  PERSONA_NONE,
-  RECORD_ID_RE,
-  RecordAnnotationChangeSchema,
-  RecordedEventSchema,
-  applyRecordChange,
-  draftFromRecording,
-  draftInvalidIssue,
-  emptyRecordAnnotations,
-  firstHiddenChar,
-  hiddenCharName,
-  isEmptyRecordAnnotations,
-  loadProjectTemplate,
-  parseScenario,
-  plainTarget,
-  readPlainFile,
-  recordZoomOptions,
-  recordedAlternatives,
-  scenarioBlocks,
-  shownStep,
-} from '@retake/core';
+import { join } from 'node:path';
+import { DEFAULT_TEMPLATE, JOB_ID_RE, PERSONA_NONE, RECORD_ID_RE, RecordAnnotationChangeSchema, RecordedEventSchema, applyRecordChange, draftFromRecording, draftInvalidIssue, emptyRecordAnnotations, firstHiddenChar, hiddenCharName, isEmptyRecordAnnotations, parseScenario, plainTarget, recordZoomOptions, recordedAlternatives, scenarioBlocks, shownStep, pathInside, statePath, PROJECT_DIRS } from '@retake/core';
+import { loadProjectTemplate, readPlainFile } from '@retake/core/io';
 import type {
   DraftIssue,
   DraftPlaceholder,
@@ -75,10 +54,12 @@ import type {
   RecordingDraft,
   ScenarioBlocks,
   TargetSpec,
+  WorkFileFacts,
 } from '@retake/core';
+import { callerOf, guardsStudioRecordings, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { isAlive } from './jobs/proc.js';
-import type { FileJobQueue } from './jobs/queue.js';
+import type { JobQueueView } from './jobs/job-queue.js';
 import type { JobErrorView, JobRecord } from './jobs/types.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import { lockHolder, takeProjectLock } from './project-lock.js';
@@ -87,6 +68,7 @@ import { RECORD_META_FILE, RECORD_STUDIO_FILE, readRecordAnnotations, readRecord
 import type { RecordMeta } from './record-files.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
+import type { StoreScope } from './store/project-store.js';
 import { sha256Hex } from './storage.js';
 
 /** The largest events.jsonl read (bytes): a 30-minute recording is far below it. */
@@ -236,16 +218,15 @@ export interface RecordStopped {
 }
 
 export interface RecordStudioContext {
-  queue: FileJobQueue;
+  queue: JobQueueView;
   client: JobClient;
+  /** Where a saved draft is written and journaled (the engine's caller). */
+  scope: StoreScope;
+  /** How a draft's files are looked at (core FileFacts): the engine's, under its workspace's policy. */
+  files: WorkFileFacts;
 }
 
 // ── Reading the folder ─────────────────────────────────────────────────────
-
-function isInside(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
 
 type EventsRead = { ok: true; events: RecordedEvent[]; bytes: Buffer; dropped: number } | { ok: false; problem: string };
 
@@ -316,7 +297,7 @@ function readRecordJson(dir: string): RecordJson | null {
 const count = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
 
 /** The recording's job (meta.json's job_id, else the caller's hint), only when it is that recording's `record` job. */
-async function jobOf(queue: FileJobQueue, slug: string, id: string, meta: RecordMeta | null, hint?: string): Promise<JobRecord | null> {
+async function jobOf(queue: JobQueueView, slug: string, id: string, meta: RecordMeta | null, hint?: string): Promise<JobRecord | null> {
   const jid = meta ? meta.job_id : (hint ?? null);
   if (!jid || !JOB_ID_RE.test(jid)) return null;
   const job = await queue.get(jid);
@@ -342,7 +323,7 @@ async function folderState(project: LoadedProject, id: string): Promise<'folder'
   if (!dirSt.isDirectory() || dirSt.isSymbolicLink()) return 'link';
   try {
     const [rootSt, realProject, realRoot, realDir] = await Promise.all([lstat(root), realpath(project.dir), realpath(root), realpath(dir)]);
-    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== join(realProject, '.retake', 'records') || realDir !== join(realRoot, id) || !isInside(realProject, realDir)) return 'link';
+    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== statePath(realProject, 'records') || realDir !== join(realRoot, id) || !pathInside(realDir, realProject, { dotDotPrefix: true })) return 'link';
   } catch {
     return 'link';
   }
@@ -354,7 +335,7 @@ async function realRecordsRoot(project: LoadedProject): Promise<string | null> {
   const root = recordsRoot(project);
   try {
     const [st, realProject, realRoot] = await Promise.all([lstat(root), realpath(project.dir), realpath(root)]);
-    return st.isDirectory() && !st.isSymbolicLink() && realRoot === join(realProject, '.retake', 'records') ? root : null;
+    return st.isDirectory() && !st.isSymbolicLink() && realRoot === statePath(realProject, 'records') ? root : null;
   } catch {
     return null;
   }
@@ -413,22 +394,23 @@ async function situation(ctx: RecordStudioContext, project: LoadedProject, id: s
   const job = await jobOf(ctx.queue, project.slug, id, meta, hint);
   const record = folder ? readRecordJson(dir) : null;
   const ann = folder ? readRecordAnnotations(dir) : { annotations: null };
-  const [stopAsked, cancelAsked, reason] = job ? await Promise.all([ctx.queue.stopRequested(job.id), ctx.queue.cancelRequested(job.id), ctx.queue.cancelReason(job.id)]) : [false, false, undefined];
+  const [stop, cancel] = job ? await Promise.all([ctx.queue.stopOf(job.id), ctx.queue.cancelOf(job.id)]) : [undefined, undefined];
+  const [stopAsked, cancelAsked, reason] = [stop !== undefined, cancel !== undefined, cancel?.reason];
   const discardAsked = reason === 'discard';
   // Who started it (A-L1): a Studio recording only when its job — the one meta.json names — says so too.
   const byJob = job?.input.kind === 'record' ? job.input.submitted_by : undefined;
   let studio: boolean;
   let startedBy: JobClient | null;
   let unverified = false;
-  if (meta && meta.submitted_by === 'ui') {
-    studio = !!job && meta.job_id === job.id && byJob === 'ui';
+  if (meta && submittedInStudio(meta)) {
+    studio = !!job && meta.job_id === job.id && submittedInStudio({ submitted_by: byJob });
     unverified = !studio;
     startedBy = studio ? 'ui' : (byJob ?? null);
   } else if (meta) {
     studio = false;
     startedBy = meta.submitted_by;
   } else {
-    studio = byJob === 'ui';
+    studio = submittedInStudio({ submitted_by: byJob });
     startedBy = byJob ?? null;
   }
   let state: RecordState;
@@ -519,7 +501,7 @@ const ACTION_EVENT_KINDS = new Set(['pointer', 'dblclick', 'type', 'select_nativ
  * recording's draft holds no YAML anchor or alias (B-M2: the block editor edits it after Save); the others' is exactly
  * their job's.
  */
-function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: RecordAnnotations | null): { draft: RecordingDraft } | { problem: string } {
+function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: RecordAnnotations | null, files: WorkFileFacts): { draft: RecordingDraft } | { problem: string } {
   const meta = s.meta!;
   let start: ReturnType<typeof recordStart>;
   try {
@@ -547,7 +529,7 @@ function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: Re
   if (!draft.issues.some((i) => i.severity === 'error')) {
     const ids = (draft.scenario.scenes as Array<{ id: string }>).map((x) => x.id);
     const file = join(s.dir, 'draft.yaml');
-    for (const x of parseScenario(draft.yaml, { project: s.project, file, env: start.env.name }).issues) {
+    for (const x of parseScenario(draft.yaml, { files, project: s.project, file, env: start.env.name }).issues) {
       if (x.severity === 'error') draft.issues.push(draftInvalidIssue(x, ids, 'the draft does not validate in the project'));
     }
   }
@@ -642,10 +624,10 @@ const studioWords = (by: JobClient | null) =>
   by === 'mcp' ? 'Claude started this recording (its job saved the draft): it is read-only here' : by === 'cli' ? 'this recording was made in a terminal: it is read-only here' : 'this recording was not started from the Studio: it is read-only here';
 
 /** The camera insert's factors under the project theme's max_zoom (B-M3). */
-async function zoomOf(project: LoadedProject): Promise<RecordZoomView | null> {
+async function zoomOf(project: LoadedProject, files: WorkFileFacts): Promise<RecordZoomView | null> {
   let max = DEFAULT_TEMPLATE.motion.max_zoom;
   try {
-    max = (await loadProjectTemplate(project)).template.motion.max_zoom;
+    max = (await loadProjectTemplate(project, undefined, { files })).template.motion.max_zoom;
   } catch {
     max = DEFAULT_TEMPLATE.motion.max_zoom;
   }
@@ -695,7 +677,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
     stats: null,
     issues: { error: 0, warning: 0, info: 0 },
     check: null,
-    saved: ann?.saved ? { name: ann.saved.name, file: ann.saved.file, hash: ann.saved.hash } : s.record?.saved ? { name: s.record.saved.slice('scenarios/'.length, -'.yaml'.length), file: s.record.saved } : null,
+    saved: ann?.saved ? { name: ann.saved.name, file: ann.saved.file, hash: ann.saved.hash } : s.record?.saved ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved } : null,
     warnings: s.record?.warnings ?? [],
     writes: { total: 0, by_steps: 0, ambient: 0 },
     untrusted: null,
@@ -725,7 +707,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
   // The events as drafted and checked (B8, fail closed: a record.json without the checksum never matches).
   const eventsChanged = !!s.record && s.record.events_sha256 !== sha256Hex(read.bytes);
   const shownAnn = studio ? ann : null;
-  const made = draftOf(s, read.events, shownAnn);
+  const made = draftOf(s, read.events, shownAnn, ctx.files);
   base.counts = { events: read.events.length, actions: read.events.filter((e) => ACTION_EVENT_KINDS.has(e.kind)).length, dropped_lines: read.dropped };
   const check = checkOf(s.record, eventsChanged);
   base.check = check.view;
@@ -741,14 +723,14 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
   const annotatable = open && ANNOTATE_STATES.has(s.state) && 'annotations' in annRead;
   base.can.annotate = annotatable;
   base.can.save = annotatable && FINAL_STATES.has(s.state) && !eventsChanged && read.events.length > 0;
-  if (annotatable) base.zoom = await zoomOf(project);
+  if (annotatable) base.zoom = await zoomOf(project, ctx.files);
   // The check replayed the recorder's own draft (no picks, no inserts): its failing step, found on screen (B-M4).
   let checkUntrusted = check.untrusted;
   const failedAt = checkUntrusted?.failed_at;
   if (failedAt) {
     let row: { scene: string; step: number } | null = { scene: failedAt.scene, step: failedAt.step };
     if (!isEmptyRecordAnnotations(shownAnn)) {
-      const bare = draftOf(s, read.events, null);
+      const bare = draftOf(s, read.events, null, ctx.files);
       row = 'draft' in bare ? shownStep(bare.draft.sources, d.sources, failedAt) : null;
     }
     checkUntrusted = { ...checkUntrusted, failed_row: row };
@@ -801,7 +783,7 @@ export async function recordAnnotate(ctx: RecordStudioContext, project: LoadedPr
   const change = parsed.data;
   if (change.op === 'insert' && change.insert.kind === 'camera') {
     // A factor above the project theme's max_zoom is clamped by the editor and warned by the validator (B-M3).
-    const zoom = await zoomOf(project);
+    const zoom = await zoomOf(project, ctx.files);
     if (!zoom || change.insert.zoom > zoom.max) {
       throw new EngineError('invalid', `annotate: zoom ${change.insert.zoom} is above the project theme's max_zoom (${zoom ? zoom.max : 'no zoom'}): choose ${zoom ? zoom.options.join(', ') : 'no zoom'}`);
     }
@@ -877,14 +859,14 @@ function hiddenProblem(yaml: string): string | null {
  * (the Studio never writes one), agent trust (`via: 'studio'`), never over an existing file (a taken name is a
  * conflict), errors without a path — the validator's text located by scene and step and kept under `details.untrusted`.
  */
-export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[]): Promise<{ file: string; hash: string; warnings: number }> {
+export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[], scope: StoreScope, files: WorkFileFacts): Promise<{ file: string; hash: string; warnings: number }> {
   checkScenarioName(name);
   const hid = hiddenProblem(yaml);
   if (hid !== null) throw new EngineError('invalid', `not saved: ${hid} — a hidden character (a direction control, a zero-width or line-separator character) reads as something else than it is, and the Studio never writes one`);
   const taken = () => new EngineError('conflict', `scenario ${name} exists: choose another name (a recording never replaces a scenario)`, { fix: 'choose another name' });
   if (project.scenarios.includes(name)) throw taken();
   try {
-    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio' });
+    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio', scope, files });
     return { file: r.file, hash: r.hash, warnings: r.warnings.length };
   } catch (e) {
     if (e instanceof Error && e.name === 'ScenarioError') {
@@ -924,7 +906,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
       throw new EngineError('conflict', 'save: the recording\'s events changed after it was drafted and checked — the draft would not be the one checked; record again');
     }
     if (!read.events.length) throw new EngineError('conflict', 'save: nothing was recorded');
-    const made = draftOf(s, read.events, a);
+    const made = draftOf(s, read.events, a, ctx.files);
     if ('problem' in made) throw new EngineError('refused', `save: ${made.problem}`);
     const d = made.draft;
     // The draft the person saw, or nothing (A-M1): its events, project.yaml (pages, vars) and annotations as they were.
@@ -936,7 +918,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     if (errors.length) {
       throw new EngineError('invalid', 'not saved: the draft has errors — they are listed by scene and step', { details: { issues: errors } });
     }
-    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds);
+    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope, ctx.files);
     const next: RecordAnnotations = { ...a, rev: a.rev + 1, saved: { name: req.name, file: w.file, hash: w.hash, at: new Date().toISOString() } };
     await writeAnnotations(dir, next);
     return { name: req.name, file: w.file, hash: w.hash, rev: next.rev, warnings: w.warnings, untrusted: { issues: d.issues } };
@@ -1073,7 +1055,7 @@ export async function recordList(ctx: RecordStudioContext, project: LoadedProjec
     if (await settleDiscard(s).catch(() => false)) continue;
     if (s.state === 'missing') continue;
     const ann = 'annotations' in s.ann ? s.ann.annotations : null;
-    const saved = ann?.saved ? { name: ann.saved.name, file: ann.saved.file } : s.record?.saved ? { name: s.record.saved.slice('scenarios/'.length, -'.yaml'.length), file: s.record.saved } : null;
+    const saved = ann?.saved ? { name: ann.saved.name, file: ann.saved.file } : s.record?.saved ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved } : null;
     const input = s.job?.input.kind === 'record' ? s.job.input : null;
     out.push({
       rec_id: w.id,
@@ -1096,12 +1078,12 @@ export async function recordList(ctx: RecordStudioContext, project: LoadedProjec
 }
 
 /**
- * B16: an agent (the MCP client) never cancels a recording the person started in the Studio while it is open — a
- * cancel then would discard their recording. Throws EngineError refused; anything else passes.
+ * An agent (the MCP client) never cancels a recording the person started in the Studio while it is open — a cancel
+ * then would discard their recording (caller.ts guardsStudioRecordings). Throws EngineError refused; anything else passes.
  */
 export function checkAgentCancel(job: JobRecord, client: JobClient): void {
-  if (client !== 'mcp') return;
-  if (job.input.kind !== 'record' || job.input.submitted_by !== 'ui' || FINISHED_JOB_STATES.has(job.state)) return;
+  if (!guardsStudioRecordings(callerOf(client))) return;
+  if (job.input.kind !== 'record' || !submittedInStudio(job) || FINISHED_JOB_STATES.has(job.state)) return;
   throw new EngineError('refused', `job ${job.id} is a recording the person started in the Studio: only the Studio stops or discards it (job_cancel would discard their recording)`);
 }
 

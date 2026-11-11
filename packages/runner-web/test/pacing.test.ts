@@ -6,6 +6,7 @@ import type { RunOptions } from '../src/index.js';
 import { LATE_DIALOG_PAGE, NAV2_PAGE, NAV_PAGE, STRATEGY_PAGE, localePage } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;
 let dir: string;
@@ -30,7 +31,7 @@ const stepEvents = (events: TimelineEvent[]) => events.filter((e) => e.step >= 0
 
 async function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> & { project?: LoadedProject } = {}) {
   const project = opts.project ?? makeProject(dir, { app: server.url });
-  const rec = await runScenario({ project, scenario: makeScenario(name, scenario), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts });
+  const rec = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, scenario), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts });
   expect(rec.error?.message).toBeUndefined();
   expect(rec.status).toBe('succeeded');
   return stepEvents((await readTimeline(rec.timeline!)).events);

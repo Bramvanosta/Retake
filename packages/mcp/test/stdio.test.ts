@@ -12,7 +12,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { TOOLS, clientPath, stableNodePath } from '../src/index.js';
+import { clientPath } from '@retake/core/io';
+import { stableNodePath } from '@retake/engine/integrations';
+import { TOOLS } from '../src/index.js';
 import { progressReporter } from '../src/server.js';
 import { testChildEnv } from '../../core/test/child-env.js';
 
@@ -123,7 +125,7 @@ describe('retake mcp over stdio', () => {
         !['project_create', 'project_update_readme', 'project_prune', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'comment_reply', 'comment_resolve', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
       );
       expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site'].includes(t.name));
-      expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'project_prune'].includes(t.name));
+      expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'project_prune', 'job_cancel'].includes(t.name));
       // No tool takes a credential.
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/password|secret|token|cookie/i);
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/allow_writes/);

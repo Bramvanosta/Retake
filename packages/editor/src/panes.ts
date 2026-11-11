@@ -4,7 +4,7 @@
  * px at one frame. Pure — shared by the planner, the composition and the review.
  */
 import type { BBox, TimelineEvent } from '@retake/core';
-import type { LayoutPaneRects } from '@retake/components';
+import type { LayoutPaneRects } from '@retake/components/geometry';
 import type { ClipSegment, EditPlan, InsetCorner, PlanInset, PlanPane, PlanPaneLayout, PlanSource, PlanVariant, Rect } from './plan-types.js';
 import { REFRAME_MIN_SCALE } from './layout.js';
 import { clamp, round, stepEnd } from './util.js';

@@ -21,6 +21,8 @@ import { renderComponentPreviews, loadPreviewTheme } from '@retake/editor';
 import { createEngine, historyFile, runWorker } from '../src/index.js';
 import type { Engine, JobRecord, PreviewJobResult } from '../src/index.js';
 import { TEMPLATES, hasTool, linkSharedCache, pixelAt } from '../../editor/test/render-helpers.js';
+import { fileFacts } from '@retake/core/io';
+import { PERSON_POLICY } from '@retake/core';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -243,7 +245,7 @@ describe.skipIf(!canRender)('preview jobs', () => {
     const reg = await import('@retake/components').then((c) => c.loadComponentRegistry({ root }));
     const info = reg.get('studio/card-title');
     await expect(
-      renderComponentPreviews({ root, registry: reg, template: await loadPreviewTheme('editorial', root), targets: [{ id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }], outDir: out, signal: ac.signal }),
+      renderComponentPreviews({ workPolicy: PERSON_POLICY, root, registry: reg, template: await loadPreviewTheme('editorial', root, fileFacts(PERSON_POLICY)), targets: [{ id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }], outDir: out, signal: ac.signal }),
     ).rejects.toMatchObject({ name: 'CancelledError' });
     expect(existsSync(out)).toBe(false);
   }, LONG);

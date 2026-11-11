@@ -9,9 +9,10 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { realPathOf } from '@retake/core';
-import type { WorkspaceConfig } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import { FONT_EXTENSIONS, FONT_MAX_BYTES, IMAGE_MAX_BYTES, LOGO_EXTENSIONS, SVG_MAX_BYTES, brandSourceProblem } from './files.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export const BRAND_LIST_MAX_ENTRIES = 5_000;
 export const BRAND_LIST_MAX_DEPTH = 6;
@@ -29,10 +30,10 @@ export interface BrandFileList {
 }
 
 /** The workspace's image or font files a theme may take (see the header). */
-export async function brandFileList(ws: WorkspaceConfig, kind: 'image' | 'font'): Promise<BrandFileList> {
+export async function brandFileList(ws: OpenedWorkspace, kind: 'image' | 'font'): Promise<BrandFileList> {
   if (kind !== 'image' && kind !== 'font') throw new EngineError('invalid', 'kind is image or font');
   const exts: readonly string[] = kind === 'font' ? FONT_EXTENSIONS : LOGO_EXTENSIONS;
-  const root = realPathOf(resolve(ws.root));
+  const root = realPathOf(resolve(ws.root), nodeFileFacts);
   const out: BrandFileList = { kind, files: [], truncated: false, links: 0 };
   let seen = 0;
   const walk = async (dir: string, depth: number): Promise<void> => {

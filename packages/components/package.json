@@ -16,6 +16,11 @@
       "types": "./dist/kit/index.d.ts",
       "default": "./dist/kit/index.js"
     },
+    "./geometry": {
+      "source": "./src/geometry-entry.ts",
+      "types": "./dist/geometry-entry.d.ts",
+      "default": "./dist/geometry-entry.js"
+    },
     "./schema/*.json": "./schema/*.json"
   },
   "files": [

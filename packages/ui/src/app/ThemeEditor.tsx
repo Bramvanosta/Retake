@@ -21,10 +21,13 @@
  *   `visibleControls`; the frame runs workspace component code only on the player origin, in the sandbox.
  */
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ThemeEditResult, ThemeEditView } from '@retake/engine';
+import type { ThemeEditView } from '@retake/engine';
 import type { ThemeListAnswer, ThemePreviewAnswer } from '../server/theme-ops.js';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
 import type { Loaded } from './api.js';
+import { previewAllow, timelineLeave } from './data/edit.js';
+import { scenarioBlocks, scenarioEdit } from './data/scenarios.js';
+import { themeCopy, themeEdit, themePreview, themeView } from './data/themes.js';
 import { Txt } from './bits.js';
 import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
@@ -38,7 +41,7 @@ import { ShellSlot } from './shell/slots.js';
 import { SECTIONS, ThemeFields, showSection } from './ThemeFields.js';
 import type { Draft, Send } from './ThemeFields.js';
 import { DraftThrottle, EDITOR_KINDS, TARGET_WORDS, ThemeHistory, USE_IN_SCENARIO_WORDS, componentRow, kindLabel, themeEventAction, useInScenarioPlan, usedByWords, written } from './theme-words.js';
-import type { PreviewTarget, ScenarioFacts, ThemeEdit } from './theme-words.js';
+import type { PreviewTarget, ThemeEdit } from './theme-words.js';
 import { previewUrls } from './timeline-words.js';
 import { Button, Callout, LinkButton, Segmented, Select, Sheet, SourceList, StatusMark, Tag, TextField } from './ui-kit/index.js';
 
@@ -63,7 +66,7 @@ function useThemeView(theme: string): [Loaded<ThemeEditView>, () => Promise<Them
   const load = useCallback(async () => {
     const n = ++seq.current;
     try {
-      const d = await call<ThemeEditView>('theme_view', { theme });
+      const d = await themeView({ theme });
       if (n === seq.current) setV({ state: 'ready', data: d });
       return d;
     } catch (e) {
@@ -144,7 +147,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   const [lease] = useState(newLease);
   useEffect(
     () => () => {
-      void call('timeline_leave', { project: slug, lease }).catch(() => undefined);
+      void timelineLeave({ project: slug, lease }).catch(() => undefined);
     },
     [slug, lease],
   );
@@ -155,7 +158,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     async (d: Draft | null) => {
       const n = ++pseq.current;
       try {
-        const a = await call<ThemePreviewAnswer>('theme_preview', { project: slug, theme, target, lease, ...(d && (d.colors || d.background) ? { draft: d } : {}) });
+        const a = await themePreview({ project: slug, theme, target, lease, ...(d && (d.colors || d.background) ? { draft: d } : {}) });
         if (n !== pseq.current) return;
         setAnswer(a);
         setPreviewError(null);
@@ -188,7 +191,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     const before = v.yaml !== null ? { text: v.yaml, sha256: v.sha256 } : null;
     const step = mode === 'undo' ? history.current.undoStep() : mode === 'redo' ? history.current.redoStep() : null;
     try {
-      const r = await call<ThemeEditResult>('theme_edit', { theme, if_match: step ? step.if_match : v.sha256, edit: step ? step.edit : edit });
+      const r = await themeEdit({ theme, if_match: step ? step.if_match : v.sha256, edit: step ? step.edit : edit });
       const nv = await load();
       if (mode === 'undo') history.current.undone();
       else if (mode === 'redo') history.current.redone();
@@ -377,7 +380,7 @@ function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: string; 
     if (problem) return setState({ error: problem });
     setState({ busy: true });
     try {
-      const c = await call<{ name: string }>('theme_copy', { from: theme, name });
+      const c = await themeCopy({ from: theme, name });
       location.hash = hrefTo({ name: 'themes', slug, theme: c.name });
     } catch (e) {
       if (!(e instanceof SessionEnded)) setState({ error: errorText(e) });
@@ -482,7 +485,7 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
   const allow = (c: { id: string; hash: string }) => {
     setAllowing(c.id);
     setAllowError(null);
-    call('preview_allow', { id: c.id, hash: c.hash })
+    previewAllow({ id: c.id, hash: c.hash })
       .then(
         () => {
           setRestart((n) => n + 1);
@@ -587,11 +590,11 @@ const UseInScenario = memo(function UseInScenario({ slug, theme, scenarios, onCh
   const use = async () => {
     setSt({ s: 'busy' });
     try {
-      const b = await call<ScenarioFacts>('scenario_blocks', { project: slug, name: scenario });
+      const b = await scenarioBlocks({ project: slug, name: scenario });
       const plan = useInScenarioPlan(b, theme);
       if ('already' in plan) return setSt({ s: 'already', scenario });
       if ('why' in plan) return setSt({ s: 'error', message: plan.why });
-      const r = await call<{ hash: string; label: string }>('scenario_edit', { project: slug, name: scenario, hash: b.hash, edit: plan.edit });
+      const r = await scenarioEdit({ project: slug, name: scenario, hash: b.hash, edit: plan.edit });
       setSt({ s: 'done', scenario, label: r.label, hash: r.hash, previous: { text: b.text, hash: b.hash } });
       onChanged();
     } catch (e) {
@@ -601,7 +604,7 @@ const UseInScenario = memo(function UseInScenario({ slug, theme, scenarios, onCh
   const undo = async (d: Extract<UseState, { s: 'done' }>) => {
     setSt({ s: 'busy' });
     try {
-      await call('scenario_edit', { project: slug, name: d.scenario, hash: d.hash, edit: { kind: 'restore', text: d.previous.text, text_hash: d.previous.hash } });
+      await scenarioEdit({ project: slug, name: d.scenario, hash: d.hash, edit: { kind: 'restore', text: d.previous.text, text_hash: d.previous.hash } });
       setSt({ s: 'undone', scenario: d.scenario });
       onChanged();
     } catch (e) {

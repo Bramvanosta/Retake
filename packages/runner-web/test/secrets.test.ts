@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { normalizeStep } from '@retake/core';
+import { normalizeStep, PERSON_POLICY } from '@retake/core';
 import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { RunSecrets, TIMELINE_POLICY, describeStep, runScenario, trimSnippet } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
@@ -218,7 +218,7 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
 
   async function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<{ rec: RunRecord; events: RunProgress[] }> {
     const events: RunProgress[] = [];
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: makeProject(dir, { app: server.url }),
       scenario: makeScenario(name, { pacing: FAST, vars: { customer: 'Harbour Coffee Co.' }, ...scenario }),
       mode: 'dry',

@@ -11,7 +11,8 @@
  */
 import { rmSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { interpolateDeep, isHostAllowed, normalizeHost, prefetchSecrets, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@retake/core';
+import { interpolateDeep, isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@retake/core';
+import { prefetchSecrets } from '@retake/core/io';
 import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core';
 import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@retake/hooks';
 import type { HookContext, HookResult } from '@retake/hooks';
@@ -167,6 +168,7 @@ export async function runSeed(
   const env = resolveEnvironment(project, sandbox.env);
   const ctx: HookContext = {
     project,
+    policy: pctx.policy,
     env,
     vars: { ...(project.config.vars ?? {}) },
     runId: opts.by,
@@ -186,6 +188,21 @@ export async function runSeed(
   // sees a batch between exec steps: its index is moved to the seed's).
   let offset = 0;
   const trust = pctx.seedTrust;
+  const record = pctx.recordSeedRun;
+  // runHooks numbers a batch's steps from 0: reported at their position among ALL the seed steps (a rollback keeps its
+  // journal seq).
+  // Reset hooks (hotfix v0.2.5) come after the seed's positions (`base`, as their approvals) and are journaled as `reset`.
+  const phase = opts.what ? 'reset' : 'seed';
+  if (record) ctx.recordRun = (r, run) => record(r.phase === 'rollback' ? r : { ...r, index: base + offset + r.index, phase }, run);
+  /** An exec step run, reported like a hook step (never its command); best effort, like recordHookRun. */
+  const recordExec = async (step: SeedStep, index: number, status: string, ms: number) => {
+    if (!record) return;
+    try {
+      await record({ index: base + index, ...(step.name !== undefined ? { name: step.name } : {}), kind: 'exec', phase, status, ...(step.optional ? { optional: true } : {}), ms });
+    } catch {
+      // the step ran: its report is best effort
+    }
+  };
   if (trust?.trust === 'mcp') {
     ctx.trust = 'mcp';
     const confirm = trust.confirm;
@@ -199,7 +216,7 @@ export async function runSeed(
   // container may publish the same port on ::1); `external: true` ones as their URL says.
   const addresses = await databaseAddresses(pctx, provider);
   if (addresses.size) ctx.connectAddress = (host, port) => (isIP(host.replace(/^\[|\]$/g, '')) ? undefined : addresses.get(port));
-  const journalFile = opts.what ? paths.seedJournal.replace(/seed-journal\.json$/, 'reset-journal.json') : paths.seedJournal;
+  const journalFile = opts.what ? paths.resetJournal : paths.seedJournal;
   rmSync(journalFile, { force: true });
   const journal = await Journal.open(journalFile);
   let batch: HookStep[] = [];
@@ -224,13 +241,18 @@ export async function runSeed(
       await flush();
       if (!provider.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
       pctx.progress?.step(`${word} ${done + 1}/${steps.length}`, `exec in ${step.exec.service}`);
+      const t1 = Date.now();
       try {
         await provider.exec(pctx, step.exec);
       } catch (e) {
+        const refused = e instanceof SandboxError && e.code === 'seed';
+        const isInterrupt = e instanceof SandboxError && e.code === 'interrupted';
+        await recordExec(step, done, isInterrupt ? 'interrupted' : refused ? 'refused' : 'failed', Date.now() - t1);
         // Ctrl-C stays an interrupt (exit 130), not a failed seed.
-        if (e instanceof SandboxError && e.code === 'interrupted') throw e;
-        throw new SandboxError(`sandbox ${sandbox.env}: ${word} step ${done + 1}/${steps.length} (exec in ${step.exec.service}) ${e instanceof SandboxError && e.code === 'seed' ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
+        if (isInterrupt) throw e;
+        throw new SandboxError(`sandbox ${sandbox.env}: ${word} step ${done + 1}/${steps.length} (exec in ${step.exec.service}) ${refused ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
       }
+      await recordExec(step, done, 'ok', Date.now() - t1);
       done++;
       continue;
     }

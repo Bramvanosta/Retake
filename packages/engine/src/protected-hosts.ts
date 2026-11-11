@@ -14,10 +14,12 @@
  * pattern, are not compared.
  */
 import { lookup } from 'node:dns/promises';
-import { canonicalAddress, canonicalIp, channelWords, environmentAccess, hostMatches, listProjects, normalizeAllowEntry, resolveEnvironment } from '@retake/core';
-import type { AgentChannel, LoadedProject, WorkspaceConfig } from '@retake/core';
+import { canonicalAddress, canonicalIp, channelWords, environmentAccess, hostMatches, normalizeAllowEntry, resolveEnvironment } from '@retake/core';
+import { listProjects } from '@retake/core/io';
+import type { AgentChannel, LoadedProject } from '@retake/core';
 import { EngineError } from './errors.js';
 import { openProject } from './workspace.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** A host of a production or read-only environment of a project of the workspace. */
 export interface WorkspaceProtectedHost {
@@ -101,7 +103,7 @@ function isProtected(env: Parameters<typeof environmentAccess>[0]): boolean {
 }
 
 /** The protected hosts of every project of the workspace but `except` (a project that does not load protects nothing). */
-export async function workspaceProtectedHosts(ws: WorkspaceConfig, except?: string): Promise<WorkspaceProtectedHost[]> {
+export async function workspaceProtectedHosts(ws: OpenedWorkspace, except?: string): Promise<WorkspaceProtectedHost[]> {
   const out: WorkspaceProtectedHost[] = [];
   for (const p of await listProjects(ws.root)) {
     if (p.slug === except) continue;
@@ -173,7 +175,7 @@ function describe(h: ProtectedHostHit): string {
 }
 
 /** project_create: refuse pages that point at the hosts of another project's production or read-only environment. */
-export async function checkNewProjectHosts(ws: WorkspaceConfig, environments: Record<string, Record<string, string>> | undefined): Promise<void> {
+export async function checkNewProjectHosts(ws: OpenedWorkspace, environments: Record<string, Record<string, string>> | undefined): Promise<void> {
   if (!environments || !Object.keys(environments).length) return;
   const hosts = await workspaceProtectedHosts(ws);
   const pages = Object.entries(environments).flatMap(([env, list]) => Object.entries(list ?? {}).map(([page, url]) => ({ env, page, url })));
@@ -191,7 +193,7 @@ export async function checkNewProjectHosts(ws: WorkspaceConfig, environments: Re
  * points at a host of another project's production or read-only environment. A protected environment itself is not
  * concerned (its run is read-only, or refuses what writes).
  */
-export async function checkWorkspaceProtection(ws: WorkspaceConfig, project: LoadedProject, envName: string | undefined, fix?: string, via?: AgentChannel): Promise<void> {
+export async function checkWorkspaceProtection(ws: OpenedWorkspace, project: LoadedProject, envName: string | undefined, fix?: string, via?: AgentChannel): Promise<void> {
   const env = resolveEnvironment(project, envName);
   if (isProtected(env) || env.sandbox !== undefined) return;
   const hosts = await workspaceProtectedHosts(ws, project.slug);

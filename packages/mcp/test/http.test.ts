@@ -24,7 +24,8 @@ import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { mcpHttpTokenFile, readPrivateToken, readWorkerLock, stableToken } from '@retake/engine';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from '../../ui/test/http.js';
-import { MCP_HTTP_BODY_MAX, TOOLS, claudeCodeHttpCommand, listenersAreOurs, lsofPortListeners, mcpHttpConfigJson, mcpHttpTokenExport, startMcpHttpServer } from '../src/index.js';
+import { claudeCodeHttpCommand, mcpHttpConfigJson, mcpHttpTokenExport } from '@retake/engine/integrations';
+import { MCP_HTTP_BODY_MAX, TOOLS, listenersAreOurs, lsofPortListeners, startMcpHttpServer } from '../src/index.js';
 import type { McpHttpServer, PortListenerLookup } from '../src/index.js';
 import { testChildEnv } from '../../core/test/child-env.js';
 

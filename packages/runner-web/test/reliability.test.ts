@@ -18,6 +18,10 @@ import type { EmailArtefact, LoadedProject, RunProgress, RunRecord, Scenario, Ti
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 const CSS = `*{box-sizing:border-box} body{margin:0;font:15px/1.4 system-ui,sans-serif;background:#f6f3ef}
 button{font:inherit;padding:8px 14px;border:1px solid #c9bfb7;border-radius:8px;background:#fff;cursor:pointer}
@@ -218,7 +222,7 @@ async function run(
 ): Promise<{ rec: RunRecord; events: TimelineEvent[]; progress: RunProgress[]; warnings: string[]; ms: number }> {
   const progress: RunProgress[] = [];
   const t0 = Date.now();
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project: opts.project ?? project(),
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
@@ -443,7 +447,7 @@ describe('defaults.timeout_s (R-FLD-14)', () => {
 });
 
 describe('persona mail addresses and mailbox diagnostics (R-FLD-15)', () => {
-  it('to: persona:<name> matches its address; no match lists what came; several matches warn; the artefact keeps the persona', async () => {
+  it.skipIf(!MAC_TIMING)('to: persona:<name> matches its address; no match lists what came; several matches warn; the artefact keeps the persona', async () => {
     messages.length = 0;
     const p = project();
     p.config.auth = { personas: { buyer: { email: 'orders@cafe.example' }, supplier: { email: 'maja@northfield.example' } } };

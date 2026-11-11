@@ -10,26 +10,11 @@
  */
 import { constants as fsConstants } from 'node:fs';
 import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm } from 'node:fs/promises';
-import { hostname, tmpdir } from 'node:os';
+import { hostname, tmpdir, homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
-import {
-  PERSONA_CHECK_TIMEOUT_S,
-  describeTarget,
-  environmentLoginPatterns,
-  interpolateAt,
-  isAbsoluteUrl,
-  loginCommand,
-  loginMatchers,
-  matchLoginUrl,
-  normalizeStep,
-  normalizeTarget,
-  resolveCheckUrl,
-  resolvePageUrl,
-  splitPageOpen,
-  urlOriginPath,
-  writeTextAtomic,
-} from '@retake/core';
+import { PERSONA_CHECK_TIMEOUT_S, describeTarget, environmentLoginPatterns, interpolateAt, isAbsoluteUrl, loginCommand, loginMatchers, matchLoginUrl, normalizeStep, normalizeTarget, resolveCheckUrl, resolvePageUrl, splitPageOpen, urlOriginPath } from '@retake/core';
+import { writeTextAtomic, nodeFileFacts } from '@retake/core/io';
 import type {
   LoadedProject,
   LoginMatcher,

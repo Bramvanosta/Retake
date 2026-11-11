@@ -26,10 +26,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, link, lstat, mkdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { retakeHome } from '@retake/core';
+import { retakeHome } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import { isAlive } from '../jobs/proc.js';
-import { stateDir } from '../jobs/queue.js';
+import { stateDir } from '../workspace-state.js';
 import { privateFileProblem, readPrivateText, replacePrivateFile } from './token-file.js';
 
 /** The version this build writes; a record of version 1 was written by an older Retake (with its token, never read). */

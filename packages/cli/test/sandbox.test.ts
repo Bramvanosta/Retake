@@ -14,10 +14,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import type { RunRecord } from '@retake/core';
 import { TakeLock, openSandbox, probePort, sandboxPaths } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const FIXTURE_PROJECT = join(REPO, 'projects/northfield-fixture');
@@ -125,7 +126,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   afterAll(async () => {
     try {
-      await openSandbox(await loadProject(dir)).down();
+      await openSandbox(await loadProject(dir), undefined, PERSON_POLICY).down();
     } catch {
       /* not started */
     }
@@ -271,7 +272,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   it('doctor: one line for the sandbox (no line for its accounts, nor for its pages)', async () => {
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@retake/core');
+    const { loadWorkspaceConfig } = await import('@retake/core/io');
     const probes = { ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) };
     const checks = (await doctorChecks(probes, await loadWorkspaceConfig(ws), { project: PROJECT })).filter((c) => /Sandbox|Persona|Host/.test(c.name));
     expect(checks).toEqual([
@@ -288,7 +289,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     for (const p of ports) expect(await probePort(p)).toBe(false);
     expect((await retake(['sandbox', 'down', PROJECT])).err).toContain('was not running');
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@retake/core');
+    const { loadWorkspaceConfig } = await import('@retake/core/io');
     const checks = await doctorChecks({ ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) }, await loadWorkspaceConfig(ws), { project: PROJECT });
     expect(checks.find((c) => c.name === 'Sandbox sandbox')).toEqual({
       status: 'warn',

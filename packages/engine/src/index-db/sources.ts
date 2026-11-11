@@ -17,8 +17,9 @@
  */
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { WorkspaceConfig } from '@retake/core';
 import { historyFile } from '../history.js';
+import { projectPath } from '@retake/core';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';
 
@@ -43,7 +44,7 @@ async function sig(path: string): Promise<string> {
 }
 
 /** Project folders of the workspace (a folder of projects_dir holding a project.yaml), by slug. */
-async function projectSlugs(ws: WorkspaceConfig): Promise<string[]> {
+async function projectSlugs(ws: OpenedWorkspace): Promise<string[]> {
   let entries;
   try {
     entries = await readdir(ws.projectsDir, { withFileTypes: true });
@@ -88,24 +89,24 @@ async function commentFolders(dir: string): Promise<string[]> {
  * Signatures of every source of the workspace. `unfinished` names, per project, the runs whose run.json is still being
  * written (the runner rewrites it in place while it runs: the runs/ folder alone would not change).
  */
-export async function scanSources(ws: WorkspaceConfig, unfinished: ReadonlyMap<string, readonly string[]> = new Map()): Promise<SourceMap> {
+export async function scanSources(ws: OpenedWorkspace, unfinished: ReadonlyMap<string, readonly string[]> = new Map()): Promise<SourceMap> {
   const out: SourceMap = new Map();
   for (const slug of await projectSlugs(ws)) {
     const dir = join(ws.projectsDir, slug);
     const yaml = await sig(join(dir, 'project.yaml'));
     if (yaml === '-') continue;
-    out.set(`project:${slug}`, [yaml, await sig(join(dir, 'sandbox.yaml')), await sig(join(dir, 'scenarios'))].join('|'));
+    out.set(`project:${slug}`, [yaml, await sig(join(dir, 'sandbox.yaml')), await sig(projectPath(dir, 'scenarios'))].join('|'));
     out.set(`readme:${slug}`, await sig(join(dir, 'README.md')));
-    const runs = [await sig(join(dir, 'runs'))];
-    for (const id of unfinished.get(slug) ?? []) runs.push(`${id}=${await sig(join(dir, 'runs', id, 'run.json'))}`);
+    const runs = [await sig(projectPath(dir, 'runs'))];
+    for (const id of unfinished.get(slug) ?? []) runs.push(`${id}=${await sig(projectPath(dir, 'runs', id, 'run.json'))}`);
     out.set(`runs:${slug}`, runs.join('|'));
     // L5.10a fixes (review A-L4): review/ too — a review run from a terminal swaps review/<id> in by a rename (no job,
     // no renders/ change): a board or a render list re-reads its verdict.
-    out.set(`renders:${slug}`, `${await sig(join(dir, 'renders'))}|${await sig(join(dir, 'review'))}`);
-    for (const [name, files] of await scenarioFiles(join(dir, 'scenarios'))) {
-      out.set(`scenario:${slug}/${name}`, (await Promise.all(files.map((f) => sig(join(dir, 'scenarios', f))))).join('|'));
+    out.set(`renders:${slug}`, `${await sig(projectPath(dir, 'renders'))}|${await sig(projectPath(dir, 'review'))}`);
+    for (const [name, files] of await scenarioFiles(projectPath(dir, 'scenarios'))) {
+      out.set(`scenario:${slug}/${name}`, (await Promise.all(files.map((f) => sig(projectPath(dir, 'scenarios', f))))).join('|'));
     }
-    for (const name of await commentFolders(join(dir, 'comments'))) out.set(`comments:${slug}/${name}`, await sig(join(dir, 'comments', name)));
+    for (const name of await commentFolders(projectPath(dir, 'comments'))) out.set(`comments:${slug}/${name}`, await sig(projectPath(dir, 'comments', name)));
   }
   out.set('history', await sig(historyFile(ws.root)));
   return out;

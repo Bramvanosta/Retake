@@ -8,16 +8,8 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import {
-  COMPONENT_ID_RE,
-  COMPONENT_KINDS,
-  errorsOf,
-  formatPath,
-  loadWorkspaceConfig,
-  normalizeComponentRef,
-  resolveThemeComponents,
-  suggestion,
-} from '@retake/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, formatPath, normalizeComponentRef, resolveThemeComponents, suggestion } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 import type { ComponentKind, ComponentRef, Template } from '@retake/core';
 import { ComponentError, formatComponentIssues } from './errors.js';
 import { applyParamDefaults, validateParamValue } from './json-schema.js';

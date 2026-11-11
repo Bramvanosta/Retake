@@ -1,5 +1,6 @@
 /**
- * The job queue (L3.1, R-ARC-02): files under <workspace>/.retake/jobs/<id>/, one writer per file.
+ * The file job queue (L3.1, R-ARC-02), the JobQueue port's product adapter: files under <workspace>/.retake/jobs/<id>/,
+ * one writer per file (the behaviour is queue-core.ts's, over these files).
  *
  * - job.json: written once by the submitter (`queued`, atomically), then only by the worker that claimed the job;
  * - claim: created exclusively (O_EXCL) by the worker that takes the job — the atomic claim;
@@ -10,6 +11,7 @@
  *   worker polls it with the cancel marker and ends the recording as if its window were closed (the check replay runs);
  * - live.json (L4.4, a running `run` job): the live channel's port and token, 0600, written and removed by the claiming
  *   worker (jobs/live-channel.ts);
+ * - browser.json: the render browser a job's worker started (pid + start time), to kill it after a crash;
  * - events.jsonl: appended by the claiming worker only;
  * - yield.json (L5.14, a running heavy job): written and removed by the worker that claimed it while the job yields to a
  *   filming take (background priority); readers derive the job's `yield` from it, and `waiting` for a queued heavy job
@@ -19,27 +21,56 @@
  * (pid + start time) is `interrupted`; a `queued` job with a cancel marker and no claim is `cancelled`. The next worker
  * persists those states (it claims a cancelled job to close it; it holds the worker lock when it marks interrupted
  * jobs).
+ *
+ * The paths are the file part's (`files`, JobFiles): it is handed, apart from the queue, only to the code that reads or
+ * writes a job's files itself (the worker: a render's browser.json; the live channel: live.json; the Studio's live run:
+ * events.jsonl by byte range; the Project board: job.json's stat); the port (job-queue.ts) has none, and reads a
+ * submit's own files (a render's edit snapshot) itself (jobFile).
  */
 import { randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_ID_RE, JobInputSchema, isFilming, jobClass } from '@retake/core';
-import type { JobInput, JobKind, JobState } from '@retake/core';
-import { EngineError } from '../errors.js';
-import { newJobId } from './ids.js';
-import { isAlive } from './proc.js';
-import { signApprovals } from './signing.js';
-import type { ProcessIdentity } from './proc.js';
-import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
-import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
+import { JOB_ID_RE } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
+import { jobsDir } from '../workspace-state.js';
+import type { JobFileRead, TakeHold } from './job-queue.js';
+import { StoredJobQueue, checkJobId } from './queue-core.js';
+import type { JobEntries } from './queue-core.js';
 
-/** <workspace>/.retake: machine-local state of a workspace (git-ignored). */
-export function stateDir(root: string): string {
-  return join(root, '.retake');
-}
+/** The file queue's paths: a job's folder and the files the code beside the queue reads or writes itself. */
+export class JobFiles {
+  /** `dir`: <workspace>/.retake/jobs. */
+  constructor(readonly dir: string) {}
 
-export function jobsDir(root: string): string {
-  return join(stateDir(root), 'jobs');
+  /** <jobs>/<id>: refused for anything but a job id (never a path). */
+  job(id: string): string {
+    return join(this.dir, checkJobId(id));
+  }
+
+  /** <job>/job.json: the job's record (the Project board memoises it by this file's stat). */
+  record(id: string): string {
+    return join(this.job(id), 'job.json');
+  }
+
+  /** <job>/browser.json: the render browser a job's worker started (pid + start time), to kill it after a crash. */
+  browser(id: string): string {
+    return join(this.job(id), 'browser.json');
+  }
+
+  /** <job>/live.json: the live channel of a running `run` job (jobs/live-channel.ts). */
+  live(id: string): string {
+    return join(this.job(id), 'live.json');
+  }
+
+  /** <job>/yield.json (L5.14): the port writes and reads it (setYield, yieldOf); tests look at the file itself. */
+  yield(id: string): string {
+    return join(this.job(id), 'yield.json');
+  }
+
+  /** <job>/events.jsonl: the job's events (the Studio's live run tails it by byte range). */
+  events(id: string): string {
+    return join(this.job(id), 'events.jsonl');
+  }
 }
 
 async function writeAtomic(file: string, text: string): Promise<void> {
@@ -48,522 +79,110 @@ async function writeAtomic(file: string, text: string): Promise<void> {
   await rename(tmp, file);
 }
 
-async function readJsonFile<T>(file: string): Promise<T | undefined> {
-  try {
-    return JSON.parse(await readFile(file, 'utf8')) as T;
-  } catch {
-    return undefined;
-  }
-}
+/** A job's entries as the files of its folder. */
+class FileEntries implements JobEntries {
+  constructor(private readonly files: JobFiles) {}
 
-async function exists(file: string): Promise<boolean> {
-  try {
-    await stat(file);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Create `file` only if it does not exist; false when it does. */
-async function createExclusive(file: string, text: string): Promise<boolean> {
-  let fh;
-  try {
-    fh = await open(file, 'wx');
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'EEXIST') return false;
-    throw e;
-  }
-  try {
-    await fh.writeFile(text);
-  } finally {
-    await fh.close();
-  }
-  return true;
-}
-
-export interface ClaimRecord extends ProcessIdentity {
-  at: string;
-}
-
-export interface JobFilter {
-  project?: string;
-  states?: readonly JobState[];
-  kinds?: readonly JobKind[];
-  /** Only jobs of this run (a `run` job's run_id). */
-  runId?: string;
-  /** Only jobs about this render (the render_id of a `render`, `review` or `export` job). */
-  renderId?: string;
-  limit?: number;
-}
-
-/** Names of the files a submit may add to a job folder (no path, no hidden file). */
-const JOB_FILE_RE = /^[a-z][a-z0-9-]{0,30}\.(?:yaml|json|txt)$/;
-/** The job folder's own files: never written by a submit. */
-const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'stop', 'browser.json', 'live.json', 'events.jsonl', 'yield.json']);
-
-export class FileJobQueue {
-  readonly dir: string;
-  private watch?: import('./captures.js').FilmingWatch;
-  /** Ids whose job.json was read finished (final: never read again by takeHold). */
-  private readonly finished = new Set<string>();
-
-  /** `cli`: how the commands a human is asked to run start ("retake -C <root>"). */
-  constructor(
-    readonly root: string,
-    readonly cli = 'retake',
-  ) {
-    this.dir = jobsDir(root);
+  private file(id: string, name: string): string {
+    return join(this.files.job(id), name);
   }
 
-  jobDir(id: string): string {
-    if (!JOB_ID_RE.test(id)) throw new EngineError('invalid', `invalid job id "${id}": j_ followed by 26 characters (job_list names them)`);
-    return join(this.dir, id);
-  }
-
-  /**
-   * Validate an input and queue it: job.json written once, atomically (`queued`). `files`: files of the job folder
-   * written first (mode 0600, by name: a render's edit.yaml snapshot, L4.5), so a worker that sees the job sees them.
-   */
-  async enqueue(input: JobInput, opts: { files?: Record<string, string> } = {}): Promise<JobRecord> {
-    const parsed = JobInputSchema.safeParse(input);
-    if (!parsed.success) {
-      throw new EngineError('invalid', `invalid job input: ${parsed.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ')}`);
-    }
-    const id = newJobId();
-    const dir = join(this.dir, id);
-    // Its approvals are signed for this job (signing.ts): the worker honours no approval a submit did not write for it.
-    const signed = await signApprovals(parsed.data, { jobId: id, root: this.root });
-    await mkdir(dir, { recursive: true });
-    for (const [name, text] of Object.entries(opts.files ?? {})) {
-      if (!JOB_FILE_RE.test(name) || JOB_RESERVED_FILES.has(name)) throw new EngineError('invalid', `invalid job file name "${name.slice(0, 40)}"`);
-      await writeFile(join(dir, name), text, { mode: 0o600, flag: 'wx' });
-    }
-    const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: new Date().toISOString() };
-    await writeAtomic(join(dir, 'job.json'), JSON.stringify(rec, null, 2) + '\n');
-    return rec;
-  }
-
-  /** job.json as stored (no derivation); undefined when there is none (yet). */
-  async stored(id: string): Promise<JobRecord | undefined> {
-    const rec = await readJsonFile<JobRecord>(join(this.jobDir(id), 'job.json'));
-    if (!(rec && typeof rec === 'object' && rec.id === id)) return undefined;
-    if (FINISHED_JOB_STATES.has(rec.state)) this.finished.add(id);
-    return rec;
-  }
-
-  async claimOf(id: string): Promise<ClaimRecord | undefined> {
-    return readJsonFile<ClaimRecord>(join(this.jobDir(id), 'claim'));
-  }
-
-  /** When a cancel was asked (the marker's time), or undefined. */
-  async cancelOf(id: string): Promise<string | undefined> {
-    const marker = await readJsonFile<{ at?: string }>(join(this.jobDir(id), 'cancel'));
-    if (marker?.at) return marker.at;
-    try {
-      return (await stat(join(this.jobDir(id), 'cancel'))).mtime.toISOString();
-    } catch {
-      return undefined;
-    }
-  }
-
-  /** A job as clients see it: its stored record with the cancel request and the derived states (`hold`: as derive's). */
-  async get(id: string, opts: { hold?: () => Promise<'here' | 'elsewhere' | undefined> } = {}): Promise<JobRecord | undefined> {
-    const rec = await this.stored(id);
-    return rec ? this.derive(rec, opts) : undefined;
-  }
-
-  /**
-   * Derive what a dead worker could not write, the cancel request and a heavy job's yield. Writes nothing. `hold`: what
-   * holds heavy work now, read once for a whole list (takeHold).
-   */
-  async derive(stored: JobRecord, opts: { hold?: () => Promise<'here' | 'elsewhere' | undefined> } = {}): Promise<JobRecord> {
-    const rec: JobRecord = { ...stored };
-    const cancelAt = FINISHED_JOB_STATES.has(rec.state) ? undefined : await this.cancelOf(rec.id);
-    if (cancelAt) rec.cancel_requested_at = cancelAt;
-    if (rec.state === 'running' && rec.kind === 'run') {
-      const pauseAt = await this.pauseOf(rec.id);
-      if (pauseAt) rec.pause_requested_at = pauseAt;
-    }
-    const heavy = jobClass(rec.kind) === 'heavy';
-    if (rec.state === 'queued') {
-      const claim = await this.claimOf(rec.id);
-      if (claim) {
-        if (!(await isAlive(claim))) return interrupted(rec, this.cli, `the worker (pid ${claim.pid}) stopped right after taking the job, before it started`);
-      } else if (cancelAt) {
-        return { ...rec, state: 'cancelled', finished_at: cancelAt, error: { code: 'cancelled', message: 'cancelled before it started' }, derived: true };
-      } else if (heavy) {
-        const cause = await (opts.hold ?? (() => this.takeHold()))();
-        if (cause) rec.yield = { state: 'waiting', cause };
-      }
-    } else if (rec.state === 'running') {
-      if (!rec.worker || !(await isAlive(rec.worker))) {
-        // L5.14: a heavy job's `worker` is its job process (its claiming worker is `supervisor`).
-        const who = rec.supervisor ? 'its job process' : 'the worker';
-        return interrupted(rec, this.cli, `${who}${rec.worker ? ` (pid ${rec.worker.pid})` : ''} stopped while the job ran (killed, crashed or the machine slept through a restart)`);
-      }
-      if (heavy) {
-        const y = await this.yieldOf(rec.id);
-        if (y) rec.yield = y;
-      }
-    }
-    return rec;
-  }
-
-  /** A running heavy job's yield.json (written by its worker), checked: fixed words and a time only, or undefined. */
-  async yieldOf(id: string): Promise<JobYield | undefined> {
-    const y = await readJsonFile<{ state?: unknown; cause?: unknown; since?: unknown; cap_min?: unknown }>(this.yieldFile(id));
-    if (!y || typeof y !== 'object' || (y.state !== 'background' && y.state !== 'past_cap')) return undefined;
-    const since = typeof y.since === 'string' && Number.isFinite(Date.parse(y.since)) ? new Date(Date.parse(y.since)).toISOString() : undefined;
-    const cap = y.state === 'past_cap' && typeof y.cap_min === 'number' && Number.isInteger(y.cap_min) && y.cap_min > 0 && y.cap_min <= 1440 ? y.cap_min : undefined;
-    return { state: y.state, cause: y.cause === 'here' ? 'here' : 'elsewhere', ...(since ? { since } : {}), ...(cap ? { cap_min: cap } : {}) };
-  }
-
-  /**
-   * What holds this workspace's heavy work now (L5.14, review B M4): a filming take of this workspace waiting in the
-   * queue (`here`), else a filming marker of this user (captures.ts: `here` when its workspace is this one); undefined
-   * when nothing does. Reads only the jobs this queue has not seen finished (review A M1: a finished job's job.json is
-   * read once, not at every call); callers read it once per list or poll.
-   */
-  async takeHold(): Promise<'here' | 'elsewhere' | undefined> {
-    for (const id of await this.ids()) {
-      if (this.finished.has(id)) continue;
-      const s = await this.stored(id).catch(() => undefined);
-      if (s?.state === 'queued' && isFilming(s.input) && (await this.cancelOf(id)) === undefined && (await this.claimOf(id)) === undefined) return 'here';
-    }
-    const { FilmingWatch } = await import('./captures.js');
-    this.watch ??= new FilmingWatch({ root: this.root });
-    const st = await this.watch.scan().catch(() => undefined);
-    return st?.holding ? (st.cause ?? 'elsewhere') : undefined;
-  }
-
-  /** Job ids, oldest first. */
   async ids(): Promise<string[]> {
     try {
-      return (await readdir(this.dir)).filter((n) => JOB_ID_RE.test(n)).sort();
+      return (await readdir(this.files.dir)).filter((n) => JOB_ID_RE.test(n)).sort();
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
       throw e;
     }
   }
 
-  /** Jobs, newest first (derived states). */
-  async list(f: JobFilter = {}): Promise<JobRecord[]> {
-    const out: JobRecord[] = [];
-    const limit = f.limit ?? 50;
-    let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
-    const once = () => (hold ??= this.takeHold());
-    for (const id of (await this.ids()).reverse()) {
-      if (out.length >= limit) break;
-      const stored = await this.stored(id);
-      if (!stored) continue;
-      if (f.project !== undefined && jobProject(stored.input) !== f.project) continue;
-      if (f.kinds && !f.kinds.includes(stored.kind)) continue;
-      if (f.runId !== undefined && !(stored.input.kind === 'run' && stored.input.run_id === f.runId)) continue;
-      if (f.renderId !== undefined && !('render_id' in stored.input && stored.input.render_id === f.renderId)) continue;
-      const rec = await this.derive(stored, { hold: once });
-      if (f.states && !f.states.includes(rec.state)) continue;
-      out.push(rec);
-    }
-    return out;
+  async make(id: string): Promise<void> {
+    await mkdir(join(this.files.dir, id), { recursive: true });
   }
 
-  /** The job of a run (submitted through the engine), or undefined (a CLI run). */
-  async ofRun(project: string, runId: string): Promise<JobRecord | undefined> {
-    return (await this.list({ project, runId, limit: 1 }))[0];
+  async add(id: string, name: string, text: string): Promise<void> {
+    await writeFile(join(this.files.dir, id, name), text, { mode: 0o600, flag: 'wx' });
   }
 
-  /** The newest job of a render id (a render id is reused after a failed or cancelled render), or undefined. */
-  async ofRender(project: string, renderId: string): Promise<JobRecord | undefined> {
-    return (await this.list({ project, renderId, kinds: ['render'], limit: 1 }))[0];
-  }
-
-  /** <job>/browser.json: the render browser a job's worker started (pid + start time), to kill it after a crash. */
-  browserFile(id: string): string {
-    return join(this.jobDir(id), 'browser.json');
-  }
-
-  /**
-   * Ask for a cancel: the marker is created once (asking again keeps the first time). A queued job is then cancelled
-   * (derived at once, closed by the next worker); a running one is stopped by its worker (teardown and rollbacks still
-   * run). A finished job is returned as it is.
-   */
-  /** `reason` 'discard' (L4.8): the Studio's Discard of an open recording window — its view says "discarded", not "cancelled". */
-  async cancel(id: string, by: string, reason?: 'discard'): Promise<JobRecord> {
-    const rec = await this.get(id);
-    if (!rec) throw new EngineError('not_found', `job ${id} not found (job_list names the jobs)`);
-    if (FINISHED_JOB_STATES.has(rec.state)) return rec;
-    await createExclusive(join(this.jobDir(id), 'cancel'), JSON.stringify({ at: new Date().toISOString(), by, ...(reason ? { reason } : {}) }) + '\n');
-    return (await this.get(id)) ?? rec;
-  }
-
-  async cancelRequested(id: string): Promise<boolean> {
-    return exists(join(this.jobDir(id), 'cancel'));
-  }
-
-  /** The cancel marker's reason (cancel's `reason`), if any. */
-  async cancelReason(id: string): Promise<'discard' | undefined> {
-    const marker = await readJsonFile<{ reason?: unknown }>(join(this.jobDir(id), 'cancel'));
-    return marker?.reason === 'discard' ? 'discard' : undefined;
-  }
-
-  /**
-   * Ask a running job to pause (`on`) or to resume (L4.4): the `pause` marker is created once (asking again keeps the
-   * first time) or removed. The caller checks the job may pause (engine runs.pause); the worker only reads the marker.
-   */
-  async requestPause(id: string, on: boolean, by: string): Promise<void> {
-    const file = join(this.jobDir(id), 'pause');
-    if (on) await createExclusive(file, JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
-    else await rm(file, { force: true });
-  }
-
-  async pauseRequested(id: string): Promise<boolean> {
-    return exists(join(this.jobDir(id), 'pause'));
-  }
-
-  /** When a pause was asked (the marker's time), or undefined. */
-  async pauseOf(id: string): Promise<string | undefined> {
-    const marker = await readJsonFile<{ at?: string }>(join(this.jobDir(id), 'pause'));
-    if (typeof marker?.at === 'string') return marker.at;
+  async read(id: string, name: string): Promise<string | undefined> {
+    const file = this.file(id, name);
     try {
-      return (await stat(join(this.jobDir(id), 'pause'))).mtime.toISOString();
+      return await readFile(file, 'utf8');
     } catch {
       return undefined;
     }
   }
 
-  /**
-   * Ask a running `record` job to stop and keep (L4.8): the `stop` marker is created once (asking again keeps the first
-   * time). The caller checks the job may stop (engine record.stop); the worker only reads the marker, and a marker left
-   * by a finished job is inert.
-   */
-  async requestStop(id: string, by: string): Promise<void> {
-    await createExclusive(join(this.jobDir(id), 'stop'), JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+  async readPlain(id: string, name: string, max: number): Promise<JobFileRead> {
+    const read = readPlainFile(this.file(id, name), max);
+    return read.ok ? { ok: true, text: read.bytes.toString('utf8') } : { ok: false, reason: read.reason };
   }
 
-  async stopRequested(id: string): Promise<boolean> {
-    return exists(join(this.jobDir(id), 'stop'));
-  }
-
-  /** <job>/live.json: the live channel of a running `run` job (jobs/live-channel.ts). */
-  liveFile(id: string): string {
-    return join(this.jobDir(id), 'live.json');
-  }
-
-  /** Take a job (O_EXCL claim file): true for exactly one caller. */
-  async claim(id: string, who: ProcessIdentity): Promise<boolean> {
-    const claim: ClaimRecord = { ...who, at: new Date().toISOString() };
+  async mtime(id: string, name: string): Promise<string | undefined> {
     try {
-      return await createExclusive(join(this.jobDir(id), 'claim'), JSON.stringify(claim) + '\n');
+      return (await stat(this.file(id, name))).mtime.toISOString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  async create(id: string, name: string, text: string): Promise<boolean> {
+    let fh;
+    try {
+      fh = await open(this.file(id, name), 'wx');
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false; // the job folder is gone
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') return false;
       throw e;
     }
-  }
-
-  /**
-   * Give a claimed job back to the queue (L5.14: its job process refused to start on another build) — only the worker
-   * that claimed it, before anything ran.
-   */
-  async unclaim(id: string): Promise<void> {
-    await rm(join(this.jobDir(id), 'claim'), { force: true });
-  }
-
-  /** <job>/yield.json (L5.14): written by the worker while a running heavy job yields to a filming take. */
-  yieldFile(id: string): string {
-    return join(this.jobDir(id), 'yield.json');
-  }
-
-  /** The seq of the last event written (0: none) — a second writer of a job's events goes on from there. */
-  async lastSeq(id: string): Promise<number> {
-    const events = await this.events(id);
-    return events.length ? events[events.length - 1]!.seq : 0;
-  }
-
-  /** Write job.json — only the worker holding the job's claim calls this. */
-  async write(rec: JobRecord): Promise<void> {
-    const { cancel_requested_at: _c, pause_requested_at: _p, derived: _d, yield: _y, ...stored } = rec;
-    await writeAtomic(join(this.jobDir(rec.id), 'job.json'), JSON.stringify(stored, null, 2) + '\n');
-  }
-
-  /** Append events (the claiming worker only). */
-  async append(id: string, seq: number, events: readonly JobEventBody[]): Promise<number> {
-    if (!events.length) return seq;
-    const t = new Date().toISOString();
-    const lines = events.map((e) => JSON.stringify({ seq: ++seq, t, ...e })).join('\n') + '\n';
-    await appendFile(join(this.jobDir(id), 'events.jsonl'), lines);
-    return seq;
-  }
-
-  /** Events after `after` (seq), oldest first. */
-  async events(id: string, opts: { after?: number; limit?: number } = {}): Promise<JobEvent[]> {
-    let text: string;
     try {
-      text = await readFile(join(this.jobDir(id), 'events.jsonl'), 'utf8');
-    } catch {
-      return [];
+      await fh.writeFile(text);
+    } finally {
+      await fh.close();
     }
-    const out: JobEvent[] = [];
-    for (const line of text.split('\n')) {
-      if (!line) continue;
-      try {
-        const e = JSON.parse(line) as JobEvent;
-        if (e.seq > (opts.after ?? 0)) out.push(e);
-      } catch {
-        /* a torn last line while it is written */
-      }
-    }
-    return opts.limit !== undefined ? out.slice(-opts.limit) : out;
+    return true;
   }
 
-  /**
-   * Where a queued job stands in its lane (L5.14: the worker runs one capture and one heavy job at a time, captures
-   * first): how many jobs of the same class run or wait before it (0: it is next). Undefined when it is not queued.
-   * `held_by: 'take'` (review B M4): a heavy job that cannot start now — a filming take of this workspace waits in the
-   * queue, or a take films on this Mac (a filming marker holds) — whatever its place in its lane.
-   */
-  async position(id: string): Promise<{ ahead: number; running?: string; held_by?: 'take' } | undefined> {
-    let ahead = 0;
-    let running: string | undefined;
-    let mine: JobRecord | undefined;
-    const recs: JobRecord[] = [];
-    let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
-    const once = () => (hold ??= this.takeHold());
-    for (const other of await this.ids()) {
-      const stored = await this.stored(other);
-      if (!stored || FINISHED_JOB_STATES.has(stored.state)) continue;
-      const rec = await this.derive(stored, { hold: once });
-      if (other === id) mine = rec;
-      else recs.push(rec);
-    }
-    if (mine?.state !== 'queued') return undefined;
-    const lane = jobClass(mine.kind);
-    for (const rec of recs) {
-      if (jobClass(rec.kind) !== lane) continue;
-      if (rec.state === 'running') running = rec.id;
-      // Captures go before every heavy job whatever their age; within a lane, the oldest first.
-      else if (rec.state === 'queued' && rec.id < id) ahead++;
-    }
-    const held = lane === 'heavy' && (await once()) !== undefined;
-    return { ahead: ahead + (running ? 1 : 0), ...(running ? { running } : {}), ...(held ? { held_by: 'take' as const } : {}) };
+  async replace(id: string, name: string, text: string): Promise<void> {
+    await writeAtomic(this.file(id, name), text);
+  }
+
+  async put(id: string, name: string, text: string): Promise<void> {
+    await writeFile(this.file(id, name), text);
+  }
+
+  async append(id: string, name: string, text: string): Promise<void> {
+    await appendFile(this.file(id, name), text);
+  }
+
+  async remove(id: string, name: string): Promise<void> {
+    await rm(this.file(id, name), { force: true });
   }
 }
 
-function shellWord(s: string): string {
-  return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
-}
+/** The file queue: the port over a job folder; `files`, its file part, is handed apart to the code that needs paths. */
+export class FileJobQueue extends StoredJobQueue {
+  /** The file part: the paths of the jobs folder and of a job's files. */
+  readonly files: JobFiles;
+  /** This queue's own reader of the filming markers (its memory: first sight and holding time of each take). */
+  private watch?: import('./captures.js').FilmingWatch;
 
-/** The project of a job's input (a site extraction is workspace-level: none). */
-export function jobProject(input: JobInput): string | undefined {
-  return 'project' in input ? input.project : undefined;
-}
+  /** `cli`: how the commands a human is asked to run start ("retake -C <root>"). */
+  constructor(root: string, cli = 'retake') {
+    const files = new JobFiles(jobsDir(root));
+    super(root, cli, new FileEntries(files));
+    this.files = files;
+  }
 
-/** A job closed as interrupted (derived for a dead worker; written by the worker that saw its job process die). */
-export function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
-  const i = rec.input;
-  if (i.kind === 'site') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The site extraction stopped with its browser (files written before stay in .retake/site/${i.site_id}/); nothing else was touched`,
-        fix: `${cli} theme from-site ${shellWord(i.url)}`,
-      },
-    };
+  /** A new file queue on the same folder: no finished job seen yet, a marker watch of its own. */
+  withOwnMemory(cli = 'retake'): FileJobQueue {
+    return new FileJobQueue(this.root, cli);
   }
-  if (i.kind === 'render') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The render stopped: nothing was written under ${i.render_id} (the next worker removes its temporary files and its browser)`,
-        fix: `${cli} render ${i.project} ${i.scenario} --run ${i.run_id}${i.template ? ` --theme ${i.template}` : ''}`,
-      },
-    };
+
+  /** A filming marker of this user (captures.ts: `here` when its workspace is this one). */
+  protected async filming(): Promise<TakeHold> {
+    const { FilmingWatch } = await import('./captures.js');
+    this.watch ??= new FilmingWatch({ root: this.root });
+    const st = await this.watch.scan().catch(() => undefined);
+    return st?.holding ? (st.cause ?? 'elsewhere') : undefined;
   }
-  if (i.kind === 'review' || i.kind === 'export') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message:
-          i.kind === 'review'
-            ? `interrupted: ${why}. The review stopped: the previous review of ${i.render_id} is kept (the next worker puts it back and removes the temporary folder)`
-            : `interrupted: ${why}. The export stopped: formats written before stay in exports/${i.render_id}/ (the next worker removes partial files and a re-render's browser)`,
-        fix: i.kind === 'review' ? `${cli} review ${i.project} ${i.render_id}` : `${cli} export ${i.project} ${i.render_id} --formats ${i.formats.join(',')}`,
-      },
-    };
-  }
-  if (i.kind === 'preview') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The preview stopped: images written before stay in .retake/previews/${i.preview_id}/ (the next worker kills its browser)`,
-        ...(i.target.kind === 'component' ? { fix: `${cli} components preview ${i.target.component}${i.template ? ` --theme ${i.template}` : ''} --out <folder>` } : {}),
-      },
-    };
-  }
-  if (i.kind === 'inspect') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The inspection stopped: it ran a dry replay only (no hook); submit it again`,
-        fix: `${cli} inspect ${i.project} ${i.source.kind === 'page' ? i.source.page : i.source.scenario}${i.env ? ` --env ${i.env}` : ''}`,
-      },
-    };
-  }
-  if (i.kind === 'record') {
-    // Where it was (the job's last progress): from the draft on, the recording had ended and its draft was written.
-    const phase = rec.progress?.phase ?? '';
-    const folder = `.retake/records/${i.rec_id}`;
-    // A recording the Studio started is never saved by its job: the person saves it from the Record screen.
-    const studio = i.submitted_by === 'ui';
-    const message = studio
-      ? phase === 'check' || phase === 'draft'
-        ? `interrupted: ${why}. The recording had ended: open it in the Studio's Record screen to look at its draft and save it`
-        : `interrupted: ${why}. The recording stopped with it: what was recorded up to then is kept — open it in the Studio's Record screen to save it, or record again`
-      : phase === 'check'
-        ? `interrupted: ${why}. The recording had ended and its draft was made: ${folder}/draft.yaml (saved under scenarios/ too when its name was free); only its check replay was cut — dry-run the draft`
-        : phase === 'draft'
-          ? `interrupted: ${why}. The recording had ended; its draft was being made: ${folder}/draft.yaml if it was written (${folder}/events.jsonl holds what was recorded); record again if it is missing`
-          : `interrupted: ${why}. The recording stopped with it: no draft was made (what was recorded up to then is in ${folder}/events.jsonl, if the window had opened); record again`;
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message,
-        fix: `${cli} record ${i.project}${i.scenario ? ` ${i.scenario}` : ''}${i.env ? ` --env ${i.env}` : ''}${i.persona ? ` --persona ${i.persona}` : ''} --page ${i.source.page}${i.source.path !== '/' ? ` --path ${shellWord(i.source.path)}` : ''}`,
-      },
-    };
-  }
-  const env = i.env ? ` --env ${i.env}` : '';
-  const error: JobRecord['error'] =
-    i.kind === 'auth_login'
-      ? { code: 'cancelled', message: `interrupted: ${why}. The sign-in stopped with it: its session may not have been saved`, fix: `${cli} login ${i.project}${env}${i.persona ? ` --persona ${i.persona}` : ''}${i.mode === 'auto' ? ' --auto' : ''}` }
-      : i.kind === 'sandbox_up' || i.kind === 'sandbox_reset'
-        ? {
-            code: 'cancelled',
-            message: `interrupted: ${why}. Services it started may still run, and a seed it began is not recorded: the next sandbox up seeds again`,
-            fix: `${cli} sandbox up ${i.project}${env}`,
-          }
-        : {
-            code: 'cancelled',
-            message: `interrupted: ${why}. ${i.kind === 'run' ? 'Its run' : 'It'} stopped where it was; rollbacks it left pending are replayed by an environment reset`,
-            fix: `${cli} env reset ${i.project}${env}`,
-          };
-  return { ...rec, state: 'interrupted', derived: true, error };
 }

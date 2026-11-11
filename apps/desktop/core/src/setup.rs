@@ -19,12 +19,13 @@ pub enum InstallLocation {
     Volumes,
 }
 
-/// What the person does about a location that is not Ok (the same words as core app-setup.ts).
+/// What the person does about a location that is not Ok (the same words as the engine's integrations/app-setup.ts).
 pub const MOVE_TO_APPLICATIONS: &str = "Move Retake to Applications, then open it again";
 
 /// Where `app` (the `.app` folder) runs from — the App Translocation marker first, then a read-only volume
-/// (`read_only`: the caller's statfs MNT_RDONLY), then anything under /Volumes. Pure (core app-setup.ts
-/// `installLocation` has the same rules: core's test replays every `install_location` assert of this file's tests).
+/// (`read_only`: the caller's statfs MNT_RDONLY), then anything under /Volumes. Pure (the engine's
+/// integrations/app-setup.ts `installLocation` has the same rules: the engine's app-setup test
+/// (packages/engine/test/app-setup.test.ts) replays every `install_location` assert of this file's tests).
 pub fn install_location(app: &Path, read_only: bool) -> InstallLocation {
     let s = app.to_string_lossy();
     if s.contains("/AppTranslocation/") {
@@ -103,10 +104,10 @@ pub fn setup_page_js(section: Option<&str>) -> Option<String> {
     Some(format!("window.dispatchEvent(new CustomEvent('studio:setup', {{ detail: {detail} }}))"))
 }
 
-/// The longest path the shell writes on the server's stdin (ui desktop.ts parseShellLine: 4096 characters).
+/// The longest path the shell writes on the server's stdin (ui shell-line.ts parseShellLine: 4096 characters).
 pub const SHELL_PATH_MAX: usize = 4096;
 
-/// The longest line the shell writes on the server's stdin, in BYTES (UTF-8, its newline not counted): ui desktop.ts
+/// The longest line the shell writes on the server's stdin, in BYTES (UTF-8, its newline not counted): ui shell-line.ts
 /// SHELL_LINE_MAX and the CLI's stdin reader drop anything longer (L5.16d review B-L4: a cap in characters is not one in
 /// bytes — a JSON escape is 6 bytes, a character up to 4).
 pub const SHELL_LINE_MAX: usize = 8192;
@@ -146,7 +147,8 @@ mod tests {
     use super::*;
 
     /// Critique H1: the paths of a translocated copy, the mounted disk image and an external disk are each caught; an
-    /// app in /Applications or ~/Applications is Ok — the same cases as core app-setup.ts `installLocation`.
+    /// app in /Applications or ~/Applications is Ok — the same cases as the engine's integrations/app-setup.ts
+    /// `installLocation`.
     #[test]
     fn install_location_on_fake_paths() {
         let p = |s: &str| PathBuf::from(s);

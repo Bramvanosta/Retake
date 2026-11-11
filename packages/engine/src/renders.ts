@@ -8,18 +8,20 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile } from '@retake/core';
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, projectPath } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
+import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { RUN_ID_RE, checkProjectSlug, checkScenarioName } from './refs.js';
-import { editor, planRenderRequest } from './jobs/render-job.js';
+import { planRenderRequest } from './jobs/render-job.js';
+import { editor } from './lazy.js';
 import type { RenderRequest } from './jobs/render-job.js';
-import type { FileJobQueue } from './jobs/queue.js';
+import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord, JobYield, RenderJobResult } from './jobs/types.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 export interface PlanPreviewSegment {
   id: string;
@@ -68,7 +70,7 @@ export interface PlanPreviewView {
 const s3 = (frames: number, fps: number) => Math.round((frames / fps) * 1000) / 1000;
 
 /** Plan a render request (trust `mcp`) and describe the plan; nothing is rendered, no browser is opened. */
-export async function planPreview(ws: WorkspaceConfig, cli: string, req: RenderRequest): Promise<PlanPreviewView> {
+export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderRequest): Promise<PlanPreviewView> {
   const { project, planned, source } = await planRenderRequest(ws, cli, req);
   const ed = await editor();
   const plan = planned.plan;
@@ -150,7 +152,7 @@ export interface RenderStatusView {
 
 async function readRecord(projectDir: string, id: string): Promise<RenderRecord | undefined> {
   try {
-    const r = JSON.parse(await readFile(join(projectDir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
+    const r = JSON.parse(await readFile(projectPath(projectDir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
     return r && r.version === 1 && r.id === id ? r : undefined;
   } catch {
     return undefined;
@@ -184,7 +186,7 @@ export async function renderForWork(project: LoadedProject, renderIdArg: string,
 }
 
 /** The render id `latest` names: the newest render (record or job) of the project, of `scenario` when given. */
-async function latestRenderId(projectDir: string, queue: FileJobQueue, slug: string, scenario?: string): Promise<string | undefined> {
+async function latestRenderId(projectDir: string, queue: JobQueueView, slug: string, scenario?: string): Promise<string | undefined> {
   const ed = await editor();
   const candidates: Array<{ id: string; at: string }> = [];
   for (const r of await ed.listRenders(projectDir)) if (scenario === undefined || r.scenario === scenario) candidates.push({ id: r.id, at: r.created_at });
@@ -196,7 +198,7 @@ async function latestRenderId(projectDir: string, queue: FileJobQueue, slug: str
 }
 
 /** A render's status: its newest job (queued, running, its result or error), then its record. */
-export async function renderStatus(ws: WorkspaceConfig, queue: FileJobQueue, slug: string, renderIdArg: string, scenario?: string): Promise<RenderStatusView> {
+export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slug: string, renderIdArg: string, scenario?: string): Promise<RenderStatusView> {
   checkProjectSlug(slug);
   if (scenario !== undefined) checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);
@@ -424,7 +426,7 @@ function reportOf(file: string): { counts: Record<string, unknown>; at: string }
 
 /** The review verdict of review/<id>/report.json (written after the render: `since`), or undefined. */
 function reportSummary(projectDir: string, id: string, since: string): { summary: RenderReviewSummary; at: string } | undefined {
-  const r = reportOf(join(projectDir, 'review', id, 'report.json'));
+  const r = reportOf(projectPath(projectDir, 'review', id, 'report.json'));
   if (!r) return undefined;
   const at = r.at;
   // A review of an earlier render of the id (its record pruned, the id reused) is not this render's.
@@ -436,7 +438,7 @@ function reportSummary(projectDir: string, id: string, since: string): { summary
 
 /** renders/<file> as a render record of its own id (version 1, a creation time), or undefined. */
 export function readRenderRecord(projectDir: string, file: string): RenderRecord | undefined {
-  const r = readJsonPlain(join(projectDir, 'renders', file)) as unknown as RenderRecord | undefined;
+  const r = readJsonPlain(projectPath(projectDir, 'renders', file)) as unknown as RenderRecord | undefined;
   return r && r.version === 1 && r.id === file.slice(0, -5) && RENDER_ID_RE.test(r.id) && typeof r.created_at === 'string' ? r : undefined;
 }
 
@@ -482,7 +484,7 @@ export function renderView(projectDir: string, r: RenderRecord, renderJobs: read
 }
 
 /** A scenario's render jobs and renders, path-free (the Studio's render queue and list). */
-export async function scenarioRenders(ws: WorkspaceConfig, queue: FileJobQueue, slug: string, scenario: string): Promise<ScenarioRendersView> {
+export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, slug: string, scenario: string): Promise<ScenarioRendersView> {
   checkProjectSlug(slug);
   checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);
@@ -491,7 +493,7 @@ export async function scenarioRenders(ws: WorkspaceConfig, queue: FileJobQueue, 
 
   // Records: renders/<scenario>-v<N>[-variant].json only (named by the file first: other scenarios' records are not read).
   const nameRe = new RegExp(`^${escapeRe(scenario)}-v\\d+(?:-vertical|-square)?\\.json$`);
-  const files = (await readdir(join(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => nameRe.test(f));
+  const files = (await readdir(projectPath(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => nameRe.test(f));
   const records: RenderRecord[] = [];
   for (const f of files) {
     const r = readRenderRecord(project.dir, f);

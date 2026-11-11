@@ -2,6 +2,10 @@
  * The shared rules for work an agent can shape (trust `mcp`, core HookTrust): one home for the lists every package
  * applies, so the engine, the hooks and the runner never keep their own copy.
  *
+ * The agent's channel and the paths it writes: the wording of a refusal per channel (channelWords), the project paths
+ * an agent or the tools write (AGENT_WRITABLE_PATHS, agentWritable — never run as code: agent-trust.ts), and the real
+ * path every such comparison is made on (realPathOf).
+ *
  * Loader variables: environment variables that make a program load code, change the shell it starts or the folders it
  * reads its configuration from, before the command itself runs — node (NODE_OPTIONS, NODE_PATH), the shell (PATH, HOME,
  * ZDOTDIR, XDG_CONFIG_HOME, BASH_ENV, ENV, SHELLOPTS, BASHOPTS, PS4, PROMPT_COMMAND, IFS, CDPATH), the dynamic linker
@@ -24,24 +28,65 @@
  * whoever writes them (sandboxOffArgProblem): every browser Retake launches runs sandboxed. For a job an agent can shape
  * also positional arguments and every switch outside AGENT_ALLOWED_SWITCHES (agentArgProblem).
  *
- * Agent policy: whether this process serves trust `mcp` (useAgentPolicy: the jobs worker, the MCP server, the Studio
- * server — never a command a person types), and under it the programs a job may run (programProblem: none from inside
+ * Agent policy: whether a piece of work is one an agent can shape (a WorkPolicy whose `agentFolders` are set: the jobs
+ * worker, the MCP server, the Studio server — never a command a person types; the engine builds it when it opens a
+ * workspace and passes it to every adapter), and under it the programs a job may run (programProblem: none from inside
  * the workspace, none by a relative path; policyProgram also gives the real path to start) and the browser switches it
  * may pass (policyArgsProblems: an allow-list). Also under it, the
  * environment of the programs a job starts: an allow-list of the worker's (childEnv, project.yaml `pass_env:`).
  */
-import { accessSync, constants as fsConstants, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { AGENT_WRITABLE_PATHS, agentWritable, channelWords, realPathOf } from './agent-trust.js';
-import type { AgentChannel } from './agent-trust.js';
-import { showHiddenChars } from './brand.js';
-import { setBundleProgramCheck } from './bundle.js';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { showHiddenChars } from './printable.js';
 import { isUnder } from './client-path.js';
+import { needFiles } from './file-facts.js';
+import type { FileFacts } from './file-facts.js';
+import type { RenderSettings } from './render-settings.js';
 import type { IssuePath } from './issues.js';
 import { scenePageEntries, splitPageOpen } from './pages.js';
 import { normalizeStep, stepActionKeys } from './steps.js';
 import { suggestion } from './validation/suggest.js';
+import { relativeInside } from './path-inside.js';
+
+// ── The agent's channel and the paths it writes ─────────────────────────────────────────────────────────────────
+
+/**
+ * The channel agent work comes through, for the wording of a refusal: `mcp` (the MCP server: "through MCP"), `studio`
+ * (the Studio web app, L4.2: "from the Studio"). The rules are the same.
+ */
+export type AgentChannel = 'mcp' | 'studio';
+
+/** "through MCP" / "from the Studio". */
+export function channelWords(via: AgentChannel | undefined): string {
+  return via === 'studio' ? 'from the Studio' : 'through MCP';
+}
+
+/**
+ * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`).
+ */
+export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/'];
+
+/**
+ * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared
+ * without case: the default macOS and Windows file systems ignore it, so `RUNS/…` is `runs/…` there (refusing it on a
+ * case-sensitive file system too only errs on the safe side).
+ */
+export function agentWritable(rel: string): boolean {
+  const p = rel.split(sep).join('/').replace(/^(?:\.\/)+/, '').toLowerCase();
+  return AGENT_WRITABLE_PATHS.some((w) => (w.endsWith('/') ? p === w.slice(0, -1) || p.startsWith(w) : p === w.toLowerCase()));
+}
+
+/**
+ * The real path of `p`: its existing part resolved (symbolic links followed, and the case of each name as it is on
+ * disk — FileFacts.nativeRealpath), the rest appended.
+ */
+export function realPathOf(p: string, files: FileFacts): string {
+  const real = files.nativeRealpath(p);
+  if (real !== undefined) return real;
+  const parent = dirname(p);
+  return parent === p ? p : join(realPathOf(parent, files), basename(p));
+}
+
+// ── Loader variables ────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Names of the loader variables (see the module comment). */
 export const LOADER_ENV_NAMES: readonly RegExp[] = [
@@ -141,8 +186,10 @@ export interface AgentShellOptions {
   projectDir: string;
   /** The folder the command runs in, which relative words resolve from (default projectDir). */
   cwd?: string;
-  /** What `~` stands for (default the home folder; agentWritablePath only — a command has no `~`). */
+  /** What `~` stands for (the account's home folder; agentWritablePath only — a command has no `~`). */
   home?: string;
+  /** How real paths are read (core FileFacts). */
+  files: FileFacts;
 }
 
 /**
@@ -152,16 +199,17 @@ export interface AgentShellOptions {
  */
 function projectPlace(path: string, o: AgentShellOptions & { tilde?: boolean }): { own: string } | { beside: string; rest: string } | null {
   let p = path.replace(/^file:\/\//i, '');
-  if (o.tilde !== false && (p === '~' || p.startsWith('~/'))) p = join(o.home ?? homedir(), p.slice(1));
-  const real = realPathOf(resolve(o.cwd ?? o.projectDir, p));
-  const below = (base: string): string | undefined => {
-    const rel = relative(base, real);
-    return rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel) ? undefined : rel;
-  };
-  const root = realPathOf(resolve(o.projectDir));
+  if (o.tilde !== false && (p === '~' || p.startsWith('~/'))) {
+    if (o.home === undefined) throw new Error('agentWritablePath: a path starting with `~` needs `home` (the account\'s home folder)');
+    p = join(o.home, p.slice(1));
+  }
+  const files = needFiles(o.files, 'agentWritablePath');
+  const real = realPathOf(resolve(o.cwd ?? o.projectDir, p), files);
+  const below = (base: string): string | undefined => relativeInside(real, base, { self: false });
+  const root = realPathOf(resolve(o.projectDir), files);
   const own = below(root);
   if (own !== undefined) return { own };
-  const beside = below(realPathOf(dirname(root)));
+  const beside = below(realPathOf(dirname(root), files));
   if (beside === undefined) return null;
   const [, ...rest] = beside.split(sep);
   return rest.length ? { beside, rest: rest.join(sep) } : null;
@@ -762,25 +810,48 @@ export function agentArgsProblems(args: readonly string[]): Array<{ index: numbe
   return out;
 }
 
-// ── Agent policy: the process serves trust mcp ────────────────────────────────────────────────────────────────────
+// ── Agent policy: the work an agent can shape ─────────────────────────────────────────────────────────────────────
 
 /**
- * The folders of the workspace whose jobs an agent can shape in this process, or null. On in a process that serves
- * trust `mcp`: the jobs worker and its job processes (they run every job alike, whoever submitted it — the Studio's
- * and the desktop app's included), the MCP server and the Studio server. Off in a command a person types (the CLI).
- * engine `openWorkspace` sets or clears it each time it opens a workspace (a process serves one).
+ * What a piece of work runs under, as the workspace it belongs to says: the agent policy and the workspace's own tool
+ * settings. The engine builds it each time it opens a workspace (workPolicy) and passes it to every adapter that starts
+ * a program, a browser or ffmpeg — there is no process-wide policy.
  */
-let agentFolders: string[] | null = null;
-
-/** Turn the agent policy on for these workspace folders (workspaceFolders), or off (null). */
-export function useAgentPolicy(folders: readonly string[] | null): void {
-  agentFolders = folders ? [...new Set(folders.map((f) => resolve(f)))] : null;
-  setBundleProgramCheck(agentFolders ? (program, what) => policyProgram(program, what) : null);
+export interface WorkPolicy {
+  /**
+   * The folders of the workspace whose jobs an agent can shape (workspaceFolders), or null. Set where the work serves
+   * trust `mcp`: the jobs worker and its job processes (they run every job alike, whoever submitted it — the Studio's
+   * and the desktop app's included), the MCP server and the Studio server. Null in a command a person types (the CLI).
+   */
+  readonly agentFolders: readonly string[] | null;
+  /** retake.yaml `ffmpeg` (absolute when it names a path): the ffmpeg this work runs before `$RETAKE_FFMPEG`. */
+  readonly ffmpeg?: string;
+  /** retake.yaml `render:` (core render-settings.ts): the workspace's render settings. */
+  readonly render?: RenderSettings;
 }
 
-/** The workspace folders of the agent policy, or null when this process does not serve trust `mcp`. */
-export function agentPolicyFolders(): readonly string[] | null {
-  return agentFolders;
+/** The policy of work outside any workspace's settings that a person runs: the agent policy off, no workspace ffmpeg or render settings. */
+export const PERSON_POLICY: WorkPolicy = Object.freeze({ agentFolders: null });
+
+/**
+ * The policy of the work of a workspace: `agent` turns the agent policy on for its folders (workspaceFolders); its
+ * retake.yaml `ffmpeg` and `render:` come along (an empty `render:` is none).
+ */
+export function workPolicy(ws: { root: string; projectsDir?: string; templatesDir?: string; componentsDir?: string; ffmpeg?: string; render?: RenderSettings }, o: { agent: boolean }): WorkPolicy {
+  return workPolicyFrom(o.agent ? workspaceFolders(ws) : null, ws.ffmpeg, ws.render);
+}
+
+/**
+ * A WorkPolicy from its parts: the agent folders (resolved, each once) — or null, a person's policy (the agent policy
+ * off) — and the workspace's ffmpeg and render settings.
+ */
+export function workPolicyFrom(folders: readonly string[] | null, ffmpeg?: string, render?: RenderSettings): WorkPolicy {
+  const ff = ffmpeg?.trim() || undefined;
+  return Object.freeze({
+    agentFolders: folders ? Object.freeze([...new Set(folders.map((f) => resolve(f)))]) : null,
+    ...(ff ? { ffmpeg: ff } : {}),
+    ...(render && Object.keys(render).length ? { render: Object.freeze({ ...render }) } : {}),
+  });
 }
 
 /** The folders an agent can write in a workspace: its root and its projects, templates and components folders. */
@@ -799,21 +870,13 @@ function onPath(name: string, path: string, exists: (p: string) => boolean): { f
   return null;
 }
 
-function isExecutableFile(p: string): boolean {
-  try {
-    if (!statSync(p).isFile()) return false;
-    accessSync(p, fsConstants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export interface ProgramPolicyOptions {
-  /** The PATH a bare command name is looked up in (default: this process's). */
-  path?: string;
-  /** Whether a file is an executable file (default: the file system's answer). */
+  /** The PATH a bare command name is looked up in (this process's: `@retake/core/io` programLookup()). */
+  path: string;
+  /** Whether a file is an executable file (default: the file system's answer, FileFacts.isExecutable). */
   exists?: (p: string) => boolean;
+  /** How the file system is looked at (core FileFacts): real paths, executable files. */
+  files: FileFacts;
 }
 
 /**
@@ -823,7 +886,7 @@ export interface ProgramPolicyOptions {
  * A bare command name is looked up in the PATH: the folder that holds it may not be relative or inside the workspace
  * either. An absolute path elsewhere, or a command found elsewhere on the PATH, may.
  */
-export function agentProgramProblem(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions = {}): string | null {
+export function agentProgramProblem(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions): string | null {
   return agentProgram(program, what, folders, o).problem;
 }
 
@@ -832,7 +895,7 @@ export function agentProgramProblem(program: string, what: string, folders: read
  * command name, of the file the PATH finds), links followed — so a link changed after the check starts nothing else.
  * A bare name the PATH does not find, and a refused program, are given back as they are.
  */
-export function agentProgram(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions = {}): { program: string; problem: string | null } {
+export function agentProgram(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions): { program: string; problem: string | null } {
   const p = program.trim();
   const refused = (problem: string) => ({ program, problem });
   if (!p) return { program, problem: null };
@@ -840,34 +903,36 @@ export function agentProgram(program: string, what: string, folders: readonly st
   const runs = 'jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it)';
   if (!isAbsolute(p)) {
     if (p.includes('/')) return refused(`${what} (${shown}) is a relative path — ${runs}: give the absolute path of a program outside the workspace`);
-    const found = onPath(p, o.path ?? process.env.PATH ?? '', o.exists ?? isExecutableFile);
+    const files = needFiles(o.files, 'agentProgram');
+    const found = onPath(p, o.path, o.exists ?? ((f) => files.isExecutable(f)));
     if (!found) return { program, problem: null };
     if (!isAbsolute(found.entry)) return refused(`${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
-    const inside = folders.find((f) => isUnder(found.file, f));
+    const inside = folders.find((f) => isUnder(found.file, f, files));
     if (inside) return refused(`${what} (${shown}) is found on PATH at ${showHiddenChars(found.file)}, inside the workspace (${inside}) — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
-    return { program: realPathOf(found.file), problem: null };
+    return { program: realPathOf(found.file, files), problem: null };
   }
-  const inside = folders.find((f) => isUnder(p, f));
+  const files = needFiles(o.files, 'agentProgram');
+  const inside = folders.find((f) => isUnder(p, f, files));
   if (inside) return refused(`${what} (${shown}) lies inside the workspace (${inside}) — ${runs}: move the program out of the workspace and point ${what} at its new place`);
-  return { program: realPathOf(p), problem: null };
+  return { program: realPathOf(p, files), problem: null };
 }
 
-/** agentProgramProblem under this process's agent policy: null when the policy is off (a command a person types). */
-export function programProblem(program: string, what: string, o: ProgramPolicyOptions = {}): string | null {
-  return agentFolders ? agentProgramProblem(program, what, agentFolders, o) : null;
+/** agentProgramProblem under a work's agent policy: null when the policy is off (a command a person types). */
+export function programProblem(policy: WorkPolicy, program: string, what: string, o: ProgramPolicyOptions): string | null {
+  return policy.agentFolders ? agentProgramProblem(program, what, policy.agentFolders, o) : null;
 }
 
 /**
- * agentProgram under this process's agent policy: the real path to start, or the refusal. Policy off (a command a
- * person types): the program as given, never refused.
+ * agentProgram under a work's agent policy: the real path to start, or the refusal. Policy off (a command a person
+ * types): the program as given, never refused.
  */
-export function policyProgram(program: string, what: string, o: ProgramPolicyOptions = {}): { program: string; problem: string | null } {
-  return agentFolders ? agentProgram(program, what, agentFolders, o) : { program, problem: null };
+export function policyProgram(policy: WorkPolicy, program: string, what: string, o: ProgramPolicyOptions): { program: string; problem: string | null } {
+  return policy.agentFolders ? agentProgram(program, what, policy.agentFolders, o) : { program, problem: null };
 }
 
-/** agentArgsProblems under this process's agent policy: none when the policy is off. */
-export function policyArgsProblems(args: readonly string[]): Array<{ index: number; message: string }> {
-  return agentFolders ? agentArgsProblems(args) : [];
+/** agentArgsProblems under a work's agent policy: none when the policy is off. */
+export function policyArgsProblems(policy: WorkPolicy, args: readonly string[]): Array<{ index: number; message: string }> {
+  return policy.agentFolders ? agentArgsProblems(args) : [];
 }
 
 // ── Agent policy: the environment of the programs a job starts ──────────────────────────────────────────────────────
@@ -915,8 +980,10 @@ export interface ChildEnvOptions {
   pass?: readonly string[];
   /** The programs are `docker` / `docker compose`: DOCKER_CHILD_ENV too. */
   docker?: boolean;
-  /** The workspace folders no PATH entry may be inside (default: the agent policy's, else none). */
+  /** The workspace folders no PATH entry may be inside (default none). */
   folders?: readonly string[];
+  /** How PATH entries are compared with the folders under any spelling (core FileFacts): needed with `folders`. */
+  files?: FileFacts;
 }
 
 /**
@@ -926,7 +993,7 @@ export interface ChildEnvOptions {
  * caller adds on top — Retake's own RETAKE_* variables, a hook's declared `env`, a sandbox service's `env` — is its own.
  */
 export function childEnv(source: NodeJS.ProcessEnv, o: ChildEnvOptions = {}): Record<string, string> {
-  const folders = o.folders ?? agentFolders ?? [];
+  const folders = o.folders ?? [];
   const pass = new Set((o.pass ?? []).filter((n) => passEnvProblem(n) === null));
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(source)) {
@@ -934,14 +1001,15 @@ export function childEnv(source: NodeJS.ProcessEnv, o: ChildEnvOptions = {}): Re
     if (CHILD_ENV_BASE.some((re) => re.test(k)) || (o.docker && DOCKER_CHILD_ENV.some((re) => re.test(k))) || pass.has(k)) out[k] = v;
   }
   if (out.PATH !== undefined) {
-    out.PATH = [...new Set(out.PATH.split(delimiter).filter((p) => p && isAbsolute(p) && !folders.some((f) => isUnder(p, f))))].join(delimiter);
+    const files = folders.length ? needFiles(o.files, 'childEnv') : undefined;
+    out.PATH = [...new Set(out.PATH.split(delimiter).filter((p) => p && isAbsolute(p) && !folders.some((f) => isUnder(p, f, files!))))].join(delimiter);
   }
   return out;
 }
 
-/** childEnv under this process's agent policy, or null when the policy is off (the child inherits, as a command a person types). */
-export function policyChildEnv(source: NodeJS.ProcessEnv, o: Omit<ChildEnvOptions, 'folders'> = {}): Record<string, string> | null {
-  return agentFolders ? childEnv(source, { ...o, folders: agentFolders }) : null;
+/** childEnv under a work's agent policy, or null when the policy is off (the child inherits, as a command a person types). */
+export function policyChildEnv(policy: WorkPolicy, source: NodeJS.ProcessEnv, o: Omit<ChildEnvOptions, 'folders' | 'files'> & { files: FileFacts }): Record<string, string> | null {
+  return policy.agentFolders ? childEnv(source, { ...o, folders: policy.agentFolders }) : null;
 }
 
 /**

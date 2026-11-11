@@ -1,10 +1,21 @@
 import { normalizeDisplay } from './display.js';
 import type { EnvironmentAccess, EnvironmentSettings, LoadedProject, ResolvedEnvironment } from './types.js';
+import { GUIDE, missingOrInvalid } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 export class EnvironmentError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'EnvironmentError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return missingOrInvalid(this.message);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.environments;
   }
 }
 

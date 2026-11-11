@@ -5,8 +5,7 @@
  * the thread, scrolled to its proposal (a one-shot hand-off: focusProposalOf). It NEVER applies: Apply is offered only
  * where the whole diff is shown (the thread's ProposalCard). Every server string is text.
  */
-import type { ThreadGetAnswer } from '../server/comment-ops.js';
-import { useCall } from './api.js';
+import { useThreadGet } from './data/comments.js';
 import { Txt } from './bits.js';
 import { proposalButtons, proposalSummary } from './comment-words.js';
 import { focusProposalOf } from './proposal-focus.js';
@@ -14,7 +13,7 @@ import { versionWords } from './render-words.js';
 import { Callout, LinkButton } from './ui-kit/index.js';
 
 export function ProposalBanner({ slug, name, proposal, shown }: { slug: string; name: string; proposal: { comment_id: string; entry_id: string }; shown: boolean | undefined }) {
-  const [loaded] = useCall<ThreadGetAnswer>('thread_get', { project: slug, comment_id: proposal.comment_id, entry_id: proposal.entry_id }, `${slug}\0${proposal.comment_id}\0${proposal.entry_id}`);
+  const [loaded] = useThreadGet({ project: slug, comment_id: proposal.comment_id, entry_id: proposal.entry_id }, `${slug}\0${proposal.comment_id}\0${proposal.entry_id}`);
   const data = loaded.state === 'ready' ? loaded.data : null;
   const p = data?.proposal && data.proposal.entry === proposal.entry_id ? data.proposal : null;
   const { why } = proposalButtons(p?.offer);

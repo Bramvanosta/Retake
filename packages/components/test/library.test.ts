@@ -13,7 +13,8 @@ import { createElement } from 'react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { loadTemplate, resolveThemeComponents } from '@retake/core';
+import { resolveThemeComponents, PERSON_POLICY } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { Template } from '@retake/core';
 import { LIBRARY_DIR, applyParamDefaults, captionBandBox, evalLayoutGeometry, isMultiPaneGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@retake/components';
 import type { ComponentManifest, ComponentProps, ComponentRegistry, LayoutRects, ThemeTokens } from '@retake/components';
@@ -158,7 +159,7 @@ describe('built-in library: a component for every referenced id', () => {
 
   it('the starter themes resolve every kind with the params they pass', async () => {
     for (const name of ['default', 'editorial', 'motion']) {
-      const t = await loadTemplate(name, REPO);
+      const t = await loadTemplate(name, REPO, { files: fileFacts(PERSON_POLICY) });
       const resolved = registry.resolveTheme(t.template);
       for (const [kind, rc] of Object.entries(resolved)) expect(rc?.kind, `${name} ${kind}`).toBe(kind);
     }
@@ -169,7 +170,7 @@ describe('built-in library: a component for every referenced id', () => {
   });
 
   it('every legacy template field value maps to a component that resolves (params included)', async () => {
-    const base = (await loadTemplate('default', REPO)).template;
+    const base = (await loadTemplate('default', REPO, { files: fileFacts(PERSON_POLICY) })).template;
     const variants: Array<Partial<Template>> = [
       ...(['card', 'browser', 'laptop', 'phone', 'raw'] as const).map((style) => ({ frame: { ...base.frame, style, width: 1400, radius: 24, shadow: 'strong' as const } })),
       ...(['logo-kicker-title', 'kicker-title', 'logo-only'] as const).map((layout) => ({ intro: { ...base.intro, layout } })),

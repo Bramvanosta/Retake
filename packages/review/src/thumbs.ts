@@ -12,7 +12,8 @@
 import { spawn } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import sharp from 'sharp';
-import { ffmpegBin } from '@retake/core';
+import { ffmpegBin } from '@retake/core/io';
+import type { WorkPolicy } from '@retake/core';
 
 /** Long side of a thumbnail, at most (240 CSS px on a 2× screen). */
 export const THUMB_MAX_PX = 480;
@@ -54,8 +55,10 @@ export interface VideoFramesOptions {
   signal?: AbortSignal;
   /** The process is killed after this long (default 10 s). */
   timeoutMs?: number;
-  /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
+  /** ffmpeg binary (default: core `ffmpegBin(policy)` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
   ffmpeg?: string;
+  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
+  policy: WorkPolicy;
 }
 
 /** Collect a stream into one Buffer, refusing more than `max` bytes (the stream is then drained and dropped). */
@@ -95,7 +98,7 @@ export type VideoInput = string | { fds: readonly number[] };
  * fd 3, 4, … — never a path, never a playlist, never the network). Throws when ffmpeg cannot start or is cancelled /
  * timed out.
  */
-export async function videoFramesAt(input: VideoInput, seconds: readonly number[], o: VideoFramesOptions = {}): Promise<Array<Buffer | null>> {
+export async function videoFramesAt(input: VideoInput, seconds: readonly number[], o: VideoFramesOptions): Promise<Array<Buffer | null>> {
   if (seconds.length === 0) return [];
   if (seconds.length > VIDEO_FRAMES_MAX) throw new Error(`at most ${VIDEO_FRAMES_MAX} frames per ffmpeg process (asked ${seconds.length})`);
   const fds = typeof input === 'string' ? null : input.fds;
@@ -114,7 +117,7 @@ export async function videoFramesAt(input: VideoInput, seconds: readonly number[
     args.push('-map', `${i}:v:0`, '-frames:v', '1', '-vf', scale, '-f', 'image2pipe', '-c:v', 'png', `pipe:${out0 + i}`);
   });
   const stdio: Array<'ignore' | 'pipe' | number> = ['ignore', 'ignore', 'pipe', ...(fds ?? []), ...seconds.map(() => 'pipe' as const)];
-  const proc = spawn(ffmpegBin(o.ffmpeg), args, { stdio });
+  const proc = spawn(ffmpegBin(o.policy, o.ffmpeg), args, { stdio });
   let stderr = '';
   proc.stderr?.on('data', (c: Buffer) => {
     if (stderr.length < 2000) stderr += c.toString();

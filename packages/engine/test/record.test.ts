@@ -15,10 +15,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadScenario, parseScenario } from '@retake/core';
+import { parseScenario, PERSON_POLICY } from '@retake/core';
+import { loadScenario, fileFacts } from '@retake/core/io';
 import type { LoadedProject, WorkspaceConfig } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
-import { EngineError, historyFile, openProject, openWorkspace, recordScenario, recordsRoot } from '../src/index.js';
+import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot } from '../src/index.js';
 import type { RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
@@ -82,6 +83,7 @@ async function reset(): Promise<void> {
 async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, ports: Partial<RecordPorts> = {}): Promise<{ o: RecordOutcome; logs: string[] }> {
   const logs: string[] = [];
   const o = await recordScenario(ws, await project(), req, {
+    queue: new FileJobQueue(ws.root),
     headless: true,
     windowSize: { width: 1400, height: 1000 },
     log: (l, m) => logs.push(`${l} ${m}`),
@@ -102,7 +104,7 @@ async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, 
 async function dryRun(name: string): Promise<{ status: string; error?: string }> {
   await reset();
   const p = await project();
-  const r = await runScenario({ project: p, scenario: await loadScenario(p, name), mode: 'dry', runsDir: join(root, 'dry-runs') });
+  const r = await runScenario({ policy: PERSON_POLICY, project: p, scenario: await loadScenario(p, name, { files: fileFacts(PERSON_POLICY) }), mode: 'dry', runsDir: join(root, 'dry-runs') });
   return { status: r.status, ...(r.error ? { error: r.error.message } : {}) };
 }
 
@@ -324,7 +326,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
       expect(o.counts.actions).toBe(1);
       expect(o.issues.map((i) => i.code)).toContain('max_duration');
       process.env.RETAKE_RECORD_MAX_MIN = 'soon';
-      const e = await recordScenario(ws, await project(), { page: 'shop' }, { headless: true, drive: async () => undefined }).then(
+      const e = await recordScenario(ws, await project(), { page: 'shop' }, { queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );
@@ -354,7 +356,7 @@ describe('recordScenario: access, sign-in, secrets', () => {
     const p = await project();
     const folders = existsSync(recordsRoot(p)) ? await readdir(recordsRoot(p)) : [];
     const refusal = (req: RecordRequest) =>
-      recordScenario(ws, p, req, { headless: true, drive: async () => undefined }).then(
+      recordScenario(ws, p, req, { queue: new FileJobQueue(ws.root), headless: true, drive: async () => undefined }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );

@@ -157,7 +157,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const asked = await engine.runs.pause('w', sub.run_id, true);
     expect(asked.job?.pause_requested_at).toEqual(expect.any(String));
     // The live channel: a reader of live.json connects and collects frames until the run ends.
-    const info = await waitFor('live.json', () => readLiveChannel(queue, sub.job.id).then((i) => i ?? undefined));
+    const info = await waitFor('live.json', () => readLiveChannel(queue, queue.files, sub.job.id).then((i) => i ?? undefined));
     const frames: LiveFeedFrame[] = [];
     const feed = openLiveFeed(info, { onFrame: (f) => frames.push(f) });
     const paused = await waitFor('paused', async () => {
@@ -189,7 +189,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const status = await engine.runs.status('w', sub.run_id);
     expect(status.paused).toBeUndefined();
     expect(status.pauses).toEqual(rec.pauses);
-    expect(existsSync(queue.liveFile(sub.job.id))).toBe(false);
+    expect(existsSync(queue.files.live(sub.job.id))).toBe(false);
     const events = (await queue.events(sub.job.id)).flatMap((e) => (e.type === 'run' ? [e.event] : []));
     expect(events.filter((e) => e.type === 'pause').map((e) => (e as { state: string }).state)).toEqual(['paused', 'resumed']);
     // The outline comes once the run's secrets are known, before any step (review A).
@@ -271,19 +271,19 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const e2 = await refusal(engine.runs.pause('w', queued.run_id, true));
     expect(e2.code).toBe('conflict');
     expect(e2.message).toContain('has not started yet');
-    expect(await queue.pauseRequested(queued.job.id)).toBe(false);
+    expect(await queue.pauseOf(queued.job.id)).toBeUndefined();
     // A capture pauses like a dry run (it does not film the pause): queued, it is not refused for being a capture.
     const capture = await engine.runs.submit({ project: 'w', scenario: 'steps', mode: 'capture' });
     const e3 = await refusal(engine.runs.pause('w', capture.run_id, true));
     expect(e3.code).toBe('conflict');
     expect(e3.message).toContain('has not started yet');
-    expect(await queue.pauseRequested(capture.job.id)).toBe(false);
+    expect(await queue.pauseOf(capture.job.id)).toBeUndefined();
     // A finished run: nothing to pause; resuming it is harmless.
     await engine.runs.cancel('w', queued.run_id);
     await engine.runs.cancel('w', capture.run_id);
     const e4 = await refusal(engine.runs.pause('w', queued.run_id, true));
     expect(e4.code).toBe('conflict');
-    expect(await queue.pauseRequested(queued.job.id)).toBe(false);
+    expect(await queue.pauseOf(queued.job.id)).toBeUndefined();
     expect((await engine.runs.pause('w', queued.run_id, false)).job?.state).toBe('cancelled');
   });
 });

@@ -21,10 +21,12 @@
 import { lstat, mkdir, open as openFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { HISTORY_VERSION, historyFile } from '../history.js';
 import type { HistoryEntry } from '../history.js';
-import { FileJobQueue, jobProject, stateDir } from '../jobs/queue.js';
+import type { JobQueueView } from '../jobs/job-queue.js';
+import { jobProject } from '../jobs/queue-core.js';
+import { stateDir } from '../workspace-state.js';
 import { FINISHED_JOB_STATES } from '../jobs/types.js';
 import type { JobRecord } from '../jobs/types.js';
 import { listProjectSummaries } from '../projects.js';
@@ -36,6 +38,8 @@ import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
+import { projectPath, projectRef } from '@retake/core';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** Bumped when the tables change: an index of another schema is rebuilt. */
 export const INDEX_SCHEMA = 1;
@@ -110,6 +114,8 @@ export interface IndexChanges {
 }
 
 export interface IndexOptions {
+  /** The workspace's job queue (one with its own memory: JobQueueView.withOwnMemory), for the activity feed's unfinished jobs. */
+  queue: JobQueueView;
   /** node:sqlite (default: loaded with the scoped warning filter). */
   loader?: SqliteLoader;
 }
@@ -157,14 +163,14 @@ async function readSmall(dir: string, ref: string, max: number): Promise<string 
 async function readRenders(dir: string): Promise<RenderRow[]> {
   let files: string[];
   try {
-    files = (await readdir(join(dir, 'renders'))).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
+    files = (await readdir(projectPath(dir, 'renders'))).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
   } catch {
     return [];
   }
   const out: RenderRow[] = [];
   for (const f of files) {
     try {
-      const text = await readSmall(dir, `renders/${f}`, RENDER_RECORD_MAX);
+      const text = await readSmall(dir, projectRef('renders', f), RENDER_RECORD_MAX);
       if (text === undefined) continue;
       const r = JSON.parse(text) as Record<string, unknown>;
       if (r?.version !== 1 || typeof r.id !== 'string') continue;
@@ -200,8 +206,8 @@ export class WorkspaceIndex {
 
   private constructor(
     private readonly db: DatabaseSync,
-    private readonly ws: WorkspaceConfig,
-    private readonly queue: FileJobQueue,
+    private readonly ws: OpenedWorkspace,
+    private readonly queue: JobQueueView,
     readonly file: string,
     /** Why the file was built at open; undefined when an existing index was reused. */
     readonly rebuilt: IndexRebuild | undefined,
@@ -211,7 +217,7 @@ export class WorkspaceIndex {
    * The workspace's index, opened (built or rebuilt when missing, corrupt or of another schema); null when this
    * Node.js has no node:sqlite (22.0–22.12). Not reconciled yet: call `reconcile()`.
    */
-  static async open(ws: WorkspaceConfig, o: IndexOptions = {}): Promise<WorkspaceIndex | null> {
+  static async open(ws: OpenedWorkspace, o: IndexOptions): Promise<WorkspaceIndex | null> {
     const sqlite = await (o.loader ?? loadSqlite)();
     if (!sqlite) return null;
     const file = indexFile(ws.root);
@@ -230,7 +236,7 @@ export class WorkspaceIndex {
       db.prepare('INSERT INTO meta(key, value) VALUES (?, ?), (?, ?)').run('schema', String(INDEX_SCHEMA), 'generation', '0');
       return db;
     };
-    const queue = new FileJobQueue(ws.root);
+    const queue = o.queue;
     if (kinds.includes('other')) {
       await remove();
       return new WorkspaceIndex(create(), ws, queue, file, 'not_a_file');

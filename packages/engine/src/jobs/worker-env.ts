@@ -26,7 +26,11 @@
  */
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, clientPath, isUnder, loadPathSeparator, retakeHome } from '@retake/core';
+import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, isUnder, loadPathSeparator, workspaceFolders } from '@retake/core';
+import { clientPath, retakeHome, nodeFileFacts } from '@retake/core/io';
+import { cleansWorkerEnv } from '../caller.js';
+import type { Caller } from '../caller.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** Variables a worker started by a client never gets. */
 export const WORKER_ENV_DROPPED: readonly RegExp[] = [
@@ -58,7 +62,7 @@ function loadsFromWorkspace(value: string, folders: readonly string[], sepRe: Re
   return value
     .split(sepRe)
     .filter((p) => p !== '')
-    .some((p) => !isAbsolute(p) || folders.some((f) => isUnder(p, f)));
+    .some((p) => !isAbsolute(p) || folders.some((f) => isUnder(p, f, nodeFileFacts)));
 }
 
 export interface WorkerEnvOptions {
@@ -86,4 +90,13 @@ export function cleanWorkerEnv(env: NodeJS.ProcessEnv, root: string, o: WorkerEn
   out.PATH = clientPath(o.node ?? process.execPath, env.PATH ?? '', o.exists ?? existsSync, folders);
   if (env.RETAKE_HOME?.trim()) out.RETAKE_HOME = retakeHome(env);
   return out;
+}
+
+/**
+ * The environment of the worker an engine's client starts — where the `{{env:…}}` secrets of its sign-ins are looked
+ * for too: the one the client hands (the Studio: the same cleaner's), else a clean copy of this process's for every
+ * caller but the CLI (caller.ts cleansWorkerEnv), else none (the CLI: the worker inherits this process's environment).
+ */
+export function workerEnvOf(o: { workerEnv?: NodeJS.ProcessEnv }, caller: Caller, ws: OpenedWorkspace): NodeJS.ProcessEnv | undefined {
+  return o.workerEnv ?? (cleansWorkerEnv(caller) ? cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) : undefined);
 }

@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'node:path';
 import type { Page } from 'playwright-core';
 import { collectSecretRefs, interpolate, interpolateDeep, isPoint, projectFileProblem, secretRefsProblem } from '@retake/core';
 import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
@@ -39,7 +40,7 @@ export async function evalStep(ctx: StepContext, args: EvalArgs): Promise<Action
   let body = args.js;
   if (body === undefined && args.file !== undefined) {
     if (rt.agentTrust) {
-      const problem = projectFileProblem(rt.project.dir, args.file, { code: true });
+      const problem = projectFileProblem(rt.project.dir, args.file, { code: true, files: nodeFileFacts });
       if (problem) throw new StepError(`eval: ${problem}`);
     }
     const file = isAbsolute(args.file) ? args.file : join(rt.project.dir, args.file);

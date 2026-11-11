@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, loadWorkspaceConfig, useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender, workspaceFolders } from '@retake/core';
-import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core';
+import { workPolicy } from '@retake/core';
+import { findWorkspaceRoot, loadProject, loadWorkspaceConfig } from '@retake/core/io';
+import type { BrowserConfig, LoadedProject, WorkPolicy, WorkspaceConfig } from '@retake/core';
 
 /** Where a workspace is: `root` (the CLI's `--root`), else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
 export interface WorkspaceOptions {
@@ -8,24 +9,30 @@ export interface WorkspaceOptions {
   /**
    * This process serves trust `mcp` (core agent-policy.ts): the jobs worker and its job processes, the MCP server, the
    * Studio server — never a command a person types. Its jobs then run no program from inside the workspace and pass
-   * Chromium, in browser.args, only switches of core AGENT_ALLOWED_SWITCHES.
+   * Chromium, in browser.args, only switches of core AGENT_ALLOWED_SWITCHES. Said by every caller (false: a person's
+   * policy, the CLI's), never left to a default.
    */
-  agent?: boolean;
+  agent: boolean;
+}
+
+/** A workspace as a command opened it: its retake.yaml, and the policy its work runs under (core WorkPolicy). */
+export interface OpenedWorkspace extends WorkspaceConfig {
+  /**
+   * What the work of this workspace runs under: its retake.yaml `ffmpeg` (core media-tools `ffmpegBin`) and `render:`
+   * (core render-settings.ts, L5.15), and — with `agent` — the agent policy on for its folders. The engine passes it to
+   * every adapter that starts a program, a browser or ffmpeg.
+   */
+  readonly policy: WorkPolicy;
 }
 
 /**
- * The workspace a command works in: `root`, else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. Its retake.yaml
- * `ffmpeg` becomes this process's ffmpeg (core bundle.ts `mediaTools`) and its `render:` this process's render settings
- * (core render-settings.ts, L5.15), and `agent` turns the agent policy on for its folders — or off (core useAgentPolicy):
- * a process serves one workspace.
+ * The workspace a command works in: `root`, else $RETAKE_ROOT, else the retake.yaml lookup from the cwd, with the
+ * policy its work runs under (`agent`: the agent policy on for its folders).
  */
-export async function openWorkspace(opts: WorkspaceOptions): Promise<WorkspaceConfig> {
+export async function openWorkspace(opts: WorkspaceOptions): Promise<OpenedWorkspace> {
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
   const ws = await loadWorkspaceConfig(root);
-  useAgentPolicy(opts.agent ? workspaceFolders(ws) : null);
-  useWorkspaceFfmpeg(ws.ffmpeg);
-  useWorkspaceRender(ws.render);
-  return ws;
+  return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }) };
 }
 
 /** retake.yaml `browser` ← project.yaml `browser` (the project wins; args from both are kept). */

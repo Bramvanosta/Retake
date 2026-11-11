@@ -1,15 +1,7 @@
-import {
-  AUTH_KEYS,
-  PERSONA_NONE,
-  checkNewProject,
-  createProject,
-  listProjects,
-  listTemplates,
-  loginPatternForm,
-  resolveEnvironment,
-  resolvePersonas,
-} from '@retake/core';
-import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@retake/core';
+import { AUTH_KEYS, PERSONA_NONE, loginPatternForm, resolveEnvironment, resolvePersonas } from '@retake/core';
+import { checkNewProject, listProjects, listTemplates, retakeHome } from '@retake/core/io';
+import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig, WorkPolicy } from '@retake/core';
+import { personScope, writeNewProject } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -20,6 +12,8 @@ import { loginCommandFor, signInPersona } from './auth.js';
 
 export interface NewOptions {
   name?: string;
+  theme?: string;
+  /** `--template`, the hidden name of `--theme` from before the glossary. */
   template?: string;
   /** Repeatable: "staging=console:https://console.staging.example.com,shop:https://shop.staging.example.com". */
   env?: string[];
@@ -50,28 +44,29 @@ export function parseEnvOptions(values: readonly string[]): ProjectConfig['envir
 /**
  * `retake new <slug>`: create a project. On a terminal without `--env`, it asks for the environments and, for each one,
  * the personas (the accounts the videos are filmed as) and offers to sign each one in (R-AUTH-08) — the slug, the
- * folder and the template are checked before the first question.
+ * folder and the theme are checked before the first question.
  */
 export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, opts: NewOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   let environments = parseEnvOptions(opts.env ?? []);
   let auth: Record<string, AuthConfig> | undefined;
   const interactive = ui.io.canPrompt && ui.io.ask !== undefined && ui.io.confirm !== undefined && !opts.env?.length;
-  const base = { name: opts.name ?? slug, slug, template: opts.template };
+  if (opts.theme !== undefined && opts.template !== undefined && opts.theme !== opts.template) throw new UsageError(`--theme ${opts.theme} and --template ${opts.template}: give the theme once (--template is the old name of --theme)`);
+  const base = { name: opts.name ?? slug, slug, template: opts.theme ?? opts.template };
   if (interactive) {
     await checkNewProject(ws.root, base);
     ({ environments, auth } = await askSetup(ui));
   }
-  const project = await createProject(ws.root, { ...base, environments, ...(auth ? { auth } : {}) });
+  const project = await writeNewProject(ws.root, { ...base, environments, ...(auth ? { auth } : {}) }, personScope(ws.root));
   const c = ui.c;
   ui.ok(`created project ${c.bold(project.slug)} in ${ui.path(project.dir)}`);
   ui.line(c.dim('  README.md     what the product is, audience, goals, tone, accounts (by reference)'));
-  ui.line(c.dim(`  project.yaml  environments, capture size, template, personas${auth ? '' : ' (commented example)'}`));
+  ui.line(c.dim(`  project.yaml  environments, capture size, theme (template:), personas${auth ? '' : ' (commented example)'}`));
   ui.line(c.dim('  scenarios/    one <name>.yaml per video'));
   ui.line(c.dim('  hooks/        sql / http / js / sh files used by setup and teardown'));
   if (Object.keys(environments).length === 0) ui.warn('no environment yet: add one under `environments:` in project.yaml');
   // Signed in with the workspace's browser settings (retake.yaml `browser`), as `retake login` would.
-  const code = auth ? await offerSignIn(ui, global, await openProject(ws, project.dir), auth) : EXIT.ok;
+  const code = auth ? await offerSignIn(ui, global, await openProject(ws, project.dir), auth, ws.policy) : EXIT.ok;
   ui.line(`next: write scenarios/<name>.yaml, then ${c.bold(`retake validate ${project.slug} <name>`)}`);
   return code;
 }
@@ -160,7 +155,7 @@ async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environm
  * After `retake new`: sign each persona in now (a browser window), or say how to later. No answer (Ctrl-C at the
  * question, the end of the input) or Ctrl-C in a window: that persona and the next ones later; EXIT.interrupted then.
  */
-async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject, auth: Record<string, AuthConfig>): Promise<ExitCode> {
+async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject, auth: Record<string, AuthConfig>, policy: WorkPolicy): Promise<ExitCode> {
   const later: string[] = [];
   const command = loginCommandFor(global);
   let asking = true;
@@ -180,9 +175,9 @@ async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject
         later.push(cmd);
         continue;
       }
-      const persona = resolvePersonas(project, env).find((p) => p.name === name)!;
+      const persona = resolvePersonas(project, env, { home: retakeHome() }).find((p) => p.name === name)!;
       try {
-        const r = await signInPersona(ui, global, project, resolveEnvironment(project, env), persona, {});
+        const r = await signInPersona(ui, global, project, resolveEnvironment(project, env), persona, { policy });
         if (r === EXIT.interrupted) {
           asking = false;
           code = r;
@@ -226,7 +221,7 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
       : `${p.name}  ${c.dim(`${plural(p.scenarios.length, 'scenario')}${p.scenarios.length ? `: ${p.scenarios.join(', ')}` : ''}`)}`;
     ui.result(`  ${c.bold(p.slug.padEnd(width))}  ${info}`);
   }
-  ui.result(`${c.bold('Templates')} ${c.dim(ui.path(ws.templatesDir))}`);
+  ui.result(`${c.bold('Themes')} ${c.dim(ui.path(ws.templatesDir))}`);
   ui.result(templates.length ? `  ${templates.map((t) => (t.source === 'starter' ? `${t.name} ${c.dim('(starter)')}` : t.name)).join(', ')}` : c.dim('  none'));
   return EXIT.ok;
 }

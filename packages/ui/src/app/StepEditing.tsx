@@ -19,7 +19,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ValidationIssue } from '@retake/core';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
+import { scenarioEdit } from './data/scenarios.js';
+import type { ScenarioEdit } from './data/scenarios.js';
+import type { ScenarioEditAnswer } from './data/scenarios.js';
 import { Txt, shown } from './bits.js';
 import { Button, Callout, StatusMark, Toolbar } from './ui-kit/index.js';
 import type { View } from './scenario-words.js';
@@ -28,15 +31,6 @@ import { anchorOf, editAgain } from './forms.js';
 import type { StepAnchor } from './forms.js';
 import { EditHistory, editWords, inField } from './step-edit.js';
 import type { StepEditOp } from './step-edit.js';
-
-interface EditAnswer {
-  hash: string;
-  label: string;
-  select: string | null;
-  warnings: ValidationIssue[];
-  notices: string[];
-  change?: 'filmed' | 'edit';
-}
 
 export interface StepEditor {
   /** Block edits are possible at all now (the view allows them and no YAML draft is open). */
@@ -121,13 +115,13 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
 
   /** Send one edit on the version shown; `after` runs with the answer (the history's bookkeeping). */
   const run = useCallback(
-    (edit: Record<string, unknown>, after: (r: EditAnswer, shown: View) => string) => {
+    (edit: ScenarioEdit, after: (r: ScenarioEditAnswer, shown: View) => string) => {
       const shown = vRef.current;
       if (busyRef.current || !shown) return;
       busyRef.current = true;
       setBusy(true);
       setError(null);
-      call<EditAnswer>('scenario_edit', { project: slug, name, hash: shown.hash, edit }).then(
+      scenarioEdit({ project: slug, name, hash: shown.hash, edit }).then(
         (r) => {
           history.current.know(r.hash);
           const words = after(r, shown);
@@ -163,7 +157,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
     (op: StepEditOp) => {
       if (!enabled) return;
       setConflict(null);
-      run(op as unknown as Record<string, unknown>, (r, shown) => {
+      run(op, (r, shown) => {
         history.current.push({ label: r.label, before: shown.text, hashBefore: shown.hash, after: null, hashAfter: r.hash });
         // A form's change says which kind it is (L5.5): a move, a delete, a copy or a new step is always filmed.
         return `${r.label}. Saved.${op.kind === 'set_step' ? ` ${CHANGE_WORDS[r.change ?? 'filmed']}` : ''}`;

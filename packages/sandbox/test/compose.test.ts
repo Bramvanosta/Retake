@@ -16,6 +16,8 @@
  * - another checkout sharing the compose project name is refused by every command, and another container publishing
  *   the sandbox's port on [::1] (OrbStack allows it next to 127.0.0.1) is refused by up (K2, K3).
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -25,10 +27,20 @@ import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
+import type { LoadedProject, WorkPolicy } from '@retake/core';
 import { SandboxError, dockerEnv, findDocker, initSandbox, openSandbox, probePort } from '@retake/sandbox';
 import type { SandboxLog } from '@retake/sandbox';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
 
 const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 const DOCKER = findDocker() ?? 'docker';
@@ -38,7 +50,7 @@ const ours = (name: string) => name.startsWith(PREFIX);
 const require = createRequire(import.meta.url);
 
 function docker(args: string[]): string {
-  return execFileSync(DOCKER, args, { encoding: 'utf8', env: dockerEnv(), stdio: ['ignore', 'pipe', 'pipe'], timeout: 180_000 });
+  return execFileSync(DOCKER, args, { encoding: 'utf8', env: dockerEnv(policy), stdio: ['ignore', 'pipe', 'pipe'], timeout: 180_000 });
 }
 
 /** Names of this test's resources (by the compose project label) of one kind. */
@@ -151,7 +163,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
   it('the init scaffold: up seeds and takes a snapshot, reset restores it, --reseed retakes it, a take restores it, a seed change makes it stale, down --volumes leaves nothing', async () => {
     const name = `${PREFIX}scaffold-${rand()}`;
     const dir = await newProject('scaffold');
-    const res = await initSandbox(await loadProject(dir), { basePort: await freeBase(3) });
+    const res = await initSandbox(await loadProject(dir), { write: plainWrite,  basePort: await freeBase(3) });
     const manifest = (await readFile(res.manifest, 'utf8'))
       .replace('  files: [compose.yaml]', `  files: [compose.yaml]\n  project: ${name}`)
       .replace('  # restart: [app]', '  restart: [app]')
@@ -162,7 +174,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     await writeFile(res.manifest, manifest);
     const project = await loadProject(dir);
     expect(project.sandboxes!.sandbox.issues).toEqual([]);
-    const sb = openSandbox(project);
+    const sb = openSandbox(project, undefined, policy);
     const url = `postgres://demo:pg-sandbox-${res.ports.db}@localhost:${res.ports.db}/app`;
     const count = async () => Number((await query(url, 'SELECT count(*) AS n FROM demo_customers'))[0].n);
     const times: string[] = [];
@@ -207,7 +219,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     // A seed change (a file of seed/) makes the snapshot stale: the seed runs and the snapshot is taken again.
     const seedFile = join(res.dir, 'seed', '01-demo-data.sql');
     await writeFile(seedFile, `${await readFile(seedFile, 'utf8')}INSERT INTO demo_customers (name, city) VALUES ('Late Addition', 'Riverton');\n`);
-    const changed = openSandbox(await loadProject(dir));
+    const changed = openSandbox(await loadProject(dir), undefined, policy);
     expect((await changed.status()).seed?.current).toBe(false);
     const r3 = await changed.reset({ log });
     expect(r3).toMatchObject({ restored: false, snapshot: { action: 'taken' } });
@@ -232,9 +244,9 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
   it('an interrupted restore — the database dropped, or its connections blocked — is repaired by up and by a take (K4)', async () => {
     const name = `${PREFIX}repair-${rand()}`;
     const dir = await newProject('repair');
-    const res = await initSandbox(await loadProject(dir), { basePort: await freeBase(3) });
+    const res = await initSandbox(await loadProject(dir), { write: plainWrite,  basePort: await freeBase(3) });
     await writeFile(res.manifest, (await readFile(res.manifest, 'utf8')).replace('  files: [compose.yaml]', `  files: [compose.yaml]\n  project: ${name}`));
-    const sb = openSandbox(await loadProject(dir));
+    const sb = openSandbox(await loadProject(dir), undefined, policy);
     const url = `postgres://demo:pg-sandbox-${res.ports.db}@localhost:${res.ports.db}/app`;
     const admin = url.replace(/\/app$/, '/postgres');
     const count = async () => Number((await query(url, 'SELECT count(*) AS n FROM demo_customers'))[0].n);
@@ -274,7 +286,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const base = await readFile(file, 'utf8');
     const withSeed = async (step: string) => {
       await writeFile(file, `${base}seed:\n  - exec: {service: web, command: ${step}}\n`);
-      return openSandbox(await loadProject(web.dir));
+      return openSandbox(await loadProject(web.dir), undefined, policy);
     };
     const sleeping = () =>
       docker(['compose', '-p', name, 'exec', '-T', 'web', 'ps'])
@@ -298,7 +310,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
       expect(Date.now() - t0).toBeLessThan(30_000);
       expect(sleeping()).toEqual([]);
     } finally {
-      await openSandbox(await loadProject(web.dir)).down({ volumes: true });
+      await openSandbox(await loadProject(web.dir), undefined, policy).down({ volumes: true });
     }
     expect(labelled('container', name)).toEqual([]);
   });
@@ -308,7 +320,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const port = await freeBase(1);
     const project = await webSandbox('starting', name, port, ['test: ["CMD", "false"]', 'interval: 60s', 'timeout: 2s', 'retries: 3', 'start_period: 120s'], 5);
     const t0 = Date.now();
-    const err = await openSandbox(project)
+    const err = await openSandbox(project, undefined, policy)
       .up({ log })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SandboxError);
@@ -317,7 +329,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     expect(Date.now() - t0).toBeLessThan(60_000);
     // Stopped (its logs kept), not removed.
     expect(docker(['ps', '-a', '--filter', `label=com.docker.compose.project=${name}`, '--format', '{{.State}}']).trim()).toBe('exited');
-    await openSandbox(project).down({ volumes: true });
+    await openSandbox(project, undefined, policy).down({ volumes: true });
     expect(labelled('container', name)).toEqual([]);
   });
 
@@ -333,7 +345,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
       });
     const local = await listen('127.0.0.1');
     expect(local).not.toBeNull();
-    const err = await openSandbox(project)
+    const err = await openSandbox(project, undefined, policy)
       .up({ log })
       .catch((e: unknown) => e);
     local!.close();
@@ -341,7 +353,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     expect((err as Error).message).toMatch(new RegExp(`port ${port} \\(service web, published\\) is in use by another program \\(node, pid ${process.pid}\\)`));
     expect(labelled('container', name)).toEqual([]);
 
-    const sb = openSandbox(project);
+    const sb = openSandbox(project, undefined, policy);
     await sb.up({ log });
     const wildcard = await listen('0.0.0.0');
     if (wildcard) {
@@ -365,15 +377,15 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const health = ['test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/hostname"]', 'interval: 1s', 'timeout: 2s', 'retries: 30'];
     const a = await webSandbox('checkout-a', name, port, health, 60);
     const b = await webSandbox('checkout-b', name, port, health, 60);
-    const sb = openSandbox(a);
+    const sb = openSandbox(a, undefined, policy);
     const intruder = `${PREFIX}intruder-${rand()}`;
     try {
       await sb.up({ log });
       const other = new RegExp(`compose project ${name} belongs to another folder`);
-      await expect(openSandbox(b).status()).rejects.toThrow(other);
-      await expect(openSandbox(b).reset()).rejects.toThrow(other);
-      await expect(openSandbox(b).logs()).rejects.toThrow(other);
-      await expect(openSandbox(b).down()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy).status()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy).reset()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy).logs()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy).down()).rejects.toThrow(other);
       expect(labelled('container', name).length).toBe(1);
       // Another container on the same port, on [::1] (localhost resolves there first).
       let started = true;

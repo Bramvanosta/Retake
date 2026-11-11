@@ -11,6 +11,7 @@ import type { AddressInfo } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { chromium } from 'playwright-core';
 import { launchTarget, writeSnapshot } from '../src/index.js';
+import { PERSON_POLICY } from '@retake/core';
 
 export interface Account {
   email: string;
@@ -169,8 +170,8 @@ export async function startAuthServer(): Promise<AuthServer> {
 export async function signInMaster(opts: { url: string; persona: string; profileDir?: string; snapshot: string; project: string; env: string }): Promise<void> {
   const a = ACCOUNTS[opts.persona];
   const context = opts.profileDir
-    ? await chromium.launchPersistentContext(opts.profileDir, { headless: true, ...launchTarget() })
-    : await (await chromium.launch({ headless: true, ...launchTarget() })).newContext();
+    ? await chromium.launchPersistentContext(opts.profileDir, { headless: true, ...launchTarget({}, { policy: PERSON_POLICY }) })
+    : await (await chromium.launch({ headless: true, ...launchTarget({}, { policy: PERSON_POLICY }) })).newContext();
   try {
     const p = context.pages()[0] ?? (await context.newPage());
     await p.goto(`${opts.url}/sign-in`);

@@ -5,20 +5,8 @@
  */
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-  agentTrustProblems,
-  agentTrustProblemsAt,
-  canonicalAddress,
-  canonicalIp,
-  canonicalOrigin,
-  isPageOrigin,
-  loadProject,
-  navigationProblem,
-  pageOrigins,
-  parseScenario,
-  parseYaml,
-  scenarioNavigationRefs,
-} from '@retake/core';
+import { agentTrustProblems, agentTrustProblemsAt, canonicalAddress, canonicalIp, canonicalOrigin, isPageOrigin, navigationProblem, pageOrigins, parseScenario, parseYaml, scenarioNavigationRefs } from '@retake/core';
+import { loadProject, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -247,26 +235,26 @@ describe('agent trust: the environment origins', () => {
       const p = await project();
       for (const url of ['http://localhost:4403/x', 'https://elsewhere.example.test/']) {
         const s = sc(f.yaml(JSON.stringify(url)));
-        expect(agentTrustProblems(p, s, { env }), url).toEqual([expect.stringMatching(new RegExp(`^${f.path.map((k) => (typeof k === 'number' ? `\\[${k}\\]` : `\\.?${k}`)).join('')}: .* is on .*add its origin as a page of environment local in project\\.yaml`))]);
-        expect(agentTrustProblems(p, s), url).toEqual([]);
+        expect(agentTrustProblems(p, s, { files: nodeFileFacts, env }), url).toEqual([expect.stringMatching(new RegExp(`^${f.path.map((k) => (typeof k === 'number' ? `\\[${k}\\]` : `\\.?${k}`)).join('')}: .* is on .*add its origin as a page of environment local in project\\.yaml`))]);
+        expect(agentTrustProblems(p, s, { files: nodeFileFacts }), url).toEqual([]);
       }
       for (const url of ['http://localhost:4402/x', 'http://LOCALHOST:4401/', '/x', 'about:blank', '{{vars.u}}']) {
-        expect(agentTrustProblems(p, sc(f.yaml(JSON.stringify(url))), { env }), url).toEqual([]);
+        expect(agentTrustProblems(p, sc(f.yaml(JSON.stringify(url))), { files: nodeFileFacts, env }), url).toEqual([]);
       }
     });
   }
 
   it('a multi-page `<page>:/path` is a page of the environment; `//host` is refused', async () => {
     const p = await project();
-    expect(agentTrustProblems(p, sc(FIELDS[1].yaml('"shop:/x"')), { env })).toEqual([]);
-    expect(agentTrustProblems(p, sc(FIELDS[4].yaml('"//elsewhere.example.test/x"')), { env })).toEqual([expect.stringContaining('names a host without a scheme')]);
+    expect(agentTrustProblems(p, sc(FIELDS[1].yaml('"shop:/x"')), { files: nodeFileFacts, env })).toEqual([]);
+    expect(agentTrustProblems(p, sc(FIELDS[4].yaml('"//elsewhere.example.test/x"')), { files: nodeFileFacts, env })).toEqual([expect.stringContaining('names a host without a scheme')]);
   });
 
   it('agentTrustProblemsAt places each refused URL at its line, worded for the channel', async () => {
     const text = ['video: x', 'scenes:', '  - id: a', '    page: shop', '    open: /', '    steps:', '      - click: Go', '      - open: "http://localhost:4499/admin"', ''].join('\n');
-    const at = agentTrustProblemsAt(await project(), sc(text), text, { via: 'studio', env });
+    const at = agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: 'studio', env });
     expect(at.map((p) => [p.line, p.path.join('.')])).toEqual([[8, 'scenes.0.steps.1.open']]);
     expect(at[0].message).toContain('from the Studio a scenario opens only');
-    expect(agentTrustProblemsAt(await project(), sc(text), text, { via: 'studio' })).toEqual([]);
+    expect(agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: 'studio' })).toEqual([]);
   });
 });

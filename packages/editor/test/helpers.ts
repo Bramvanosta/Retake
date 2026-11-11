@@ -4,12 +4,14 @@
  * (placeholders since L2.4, replaced in L2.5/L2.7: builtinDir null) —, the real templates and fixture project of the
  * repo, the two real fixture timelines and a builder of synthetic timelines.
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProject, loadTemplate } from '@retake/core';
+import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
 import type {
   ComponentKind,
   LoadedProject,
@@ -22,6 +24,13 @@ import { createComponent, loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
+import { PERSON_POLICY } from '@retake/core';
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 export const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -74,7 +83,7 @@ export async function studioWorkspace(
   const componentsDir = join(root, 'components');
   const all = [...STUDIO_COMPONENTS.filter(([id]) => !(opts.omit ?? []).includes(id)), ...(opts.extra ?? [])];
   for (const [id, kind] of all) {
-    const created = await createComponent(root, { id, kind, componentsDir, builtinDir: null, description: `Test stand-in for ${id}.` });
+    const created = await createComponent(root, { write: plainWrite,  id, kind, componentsDir, builtinDir: null, description: `Test stand-in for ${id}.` });
     const file = join(created.dir, 'component.yaml');
     let yaml = await readFile(file, 'utf8');
     const extra = EXTRA_PARAMS[id];
@@ -92,7 +101,7 @@ export async function studioWorkspace(
 
 const templates: Record<string, LoadedTemplate> = {};
 export async function template(name: 'editorial' | 'motion' | 'default'): Promise<LoadedTemplate> {
-  templates[name] ??= await loadTemplate(name, REPO);
+  templates[name] ??= await loadTemplate(name, REPO, { files: fileFacts(PERSON_POLICY) });
   return templates[name];
 }
 

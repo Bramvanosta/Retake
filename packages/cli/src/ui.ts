@@ -1,6 +1,6 @@
 import { isAbsolute, parse, relative } from 'node:path';
 import pc from 'picocolors';
-import { formatPath } from '@retake/core';
+import { formatPath, relativeInside } from '@retake/core';
 import type { ValidationIssue } from '@retake/core';
 import type { Colors, Io } from './io.js';
 
@@ -94,8 +94,7 @@ export function displayPath(p: string): string {
   const cwd = process.cwd();
   // From the filesystem root a relative path would read like an absolute one without its leading slash.
   if (!isAbsolute(p) || cwd === parse(cwd).root) return p;
-  const rel = relative(cwd, p);
-  return rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : p;
+  return relativeInside(p, cwd, { self: false, dotDotPrefix: true }) ?? p;
 }
 
 /** Cut to `max` characters with an ellipsis. */

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { BundleInfo } from '@retake/core';
+import type { BundleInfo } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, memoryIo } from '../src/index.js';
 import { agentJobsCheck, doctorCommand, systemProbes } from '../src/commands/doctor.js';
@@ -290,6 +290,8 @@ describe('retake doctor (mocked environment)', () => {
       const list = (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks;
       expect(code).toBe(EXIT.failure);
       expect(byName(list, 'Template plain')).toMatchObject({ status: 'fail', detail: expect.stringContaining('fonts/Inter-Bold.ttf') });
+      // The check names stay (the JSON reads them); the words a person reads follow the glossary.
+      expect(byName(list, 'Template default')).toMatchObject({ status: 'ok', detail: expect.stringMatching(/ · starter theme$/) });
       expect(byName(list, 'Workspace')).toMatchObject({ status: 'warn', hint: expect.stringContaining('retake new') });
     } finally {
       await rm(broken, { recursive: true, force: true });

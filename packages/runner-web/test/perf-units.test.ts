@@ -39,6 +39,7 @@ import {
   streamArgs,
 } from '../src/index.js';
 import { execFileP, tempDir } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let dir: string;
 beforeAll(async () => {
@@ -135,11 +136,11 @@ describe('CFR schedule as frames arrive (stream.ts)', () => {
       await execFileP('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `color=c=${c}:s=320x180`, '-frames:v', '1', file]);
       jpegs.push(await readFile(file));
     }
-    for (const encoder of [await resolveEncoder('auto'), 'libx264' as const]) {
+    for (const encoder of [await resolveEncoder('auto', undefined, PERSON_POLICY), 'libx264' as const]) {
       const out = join(dir, `stream-${encoder}.mp4`);
       const thumbs: number[] = [];
       let clock = 0;
-      const enc = new StreamEncoder({ out, fps: 10, width: 320, height: 180, format: 'jpeg', encoder, crf: 20, horizon: () => clock, onThumb: (n) => thumbs.push(n) });
+      const enc = new StreamEncoder({ policy: PERSON_POLICY, out, fps: 10, width: 320, height: 180, format: 'jpeg', encoder, crf: 20, horizon: () => clock, onThumb: (n) => thumbs.push(n) });
       enc.start();
       enc.push({ t: 0, data: jpegs[0] });
       enc.push({ t: 0.42, data: jpegs[1] });
@@ -166,7 +167,7 @@ describe('CFR schedule as frames arrive (stream.ts)', () => {
       expect(r9[2]).toBeGreaterThan(150);
     }
     const out = join(dir, 'aborted.mp4');
-    const enc = new StreamEncoder({ out, fps: 10, width: 320, height: 180, format: 'jpeg', encoder: 'libx264', crf: 20, horizon: () => 1 });
+    const enc = new StreamEncoder({ policy: PERSON_POLICY, out, fps: 10, width: 320, height: 180, format: 'jpeg', encoder: 'libx264', crf: 20, horizon: () => 1 });
     enc.start();
     enc.push({ t: 0, data: jpegs[0] });
     await enc.abort();

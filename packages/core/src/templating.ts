@@ -1,14 +1,21 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
-
-const execFileP = promisify(execFile);
+import { GUIDE } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 export class TemplateError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'TemplateError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
   }
 }
 
@@ -60,7 +67,8 @@ function availableKeys(ctx: TemplateContext): string[] {
   return keys;
 }
 
-function defaultSecrets(ref: string): string | undefined {
+/** What a secret reference reads without a resolver: `env:VAR` from this process's environment, nothing else. */
+export function defaultSecrets(ref: string): string | undefined {
   if (ref.startsWith('env:')) return process.env[ref.slice(4)];
   return undefined;
 }
@@ -197,55 +205,6 @@ export function collectSandboxRefs(value: unknown, out = new Set<string>()): Set
     for (const [k, v] of Object.entries(value)) if (k !== 'note') collectSandboxRefs(v, out);
   }
   return out;
-}
-
-/**
- * Resolve one secret reference:
- *  - env:VAR
- *  - keychain:service/account → macOS `security find-generic-password -s service -a account -w`,
- *    Linux `secret-tool lookup service <service> account <account>`.
- */
-export async function resolveSecretRef(ref: string): Promise<string> {
-  if (ref.startsWith('secret:')) ref = ref.slice(7);
-  if (ref.startsWith('env:')) {
-    const v = process.env[ref.slice(4)];
-    if (v === undefined) throw new TemplateError(`environment variable ${ref.slice(4)} is not set`);
-    return v;
-  }
-  if (ref.startsWith('keychain:')) {
-    const spec = ref.slice('keychain:'.length);
-    const slash = spec.indexOf('/');
-    const service = slash >= 0 ? spec.slice(0, slash) : spec;
-    const account = slash >= 0 ? spec.slice(slash + 1) : '';
-    try {
-      if (process.platform === 'darwin') {
-        const args = ['find-generic-password', '-s', service, '-w'];
-        if (account) args.splice(3, 0, '-a', account);
-        const { stdout } = await execFileP('security', args);
-        return stdout.replace(/\n$/, '');
-      }
-      const args = ['lookup', 'service', service];
-      if (account) args.push('account', account);
-      const { stdout } = await execFileP('secret-tool', args);
-      return stdout.replace(/\n$/, '');
-    } catch (e) {
-      // One line: the tool's own reason (its last stderr line, without the "security: SecKeychain…:" prefixes).
-      const err = e as NodeJS.ErrnoException & { stderr?: string };
-      const tool = process.platform === 'darwin' ? 'security' : 'secret-tool';
-      const said = (err.stderr ?? '').trim().split('\n').pop()?.split(': ').pop()?.trim();
-      const why = err.code === 'ENOENT' ? `${tool} is not installed` : said || `${tool} exited with code ${String(err.code)}`;
-      throw new TemplateError(`keychain item ${service}${account ? '/' + account : ''} not found (${why})`);
-    }
-  }
-  throw new TemplateError(`unsupported secret reference "${ref}" (use env:VAR or keychain:service/account)`);
-}
-
-/** Resolve every secret ref of `value` and return a synchronous resolver for interpolate(). */
-export async function prefetchSecrets(value: unknown): Promise<{ resolver: SecretResolver; values: string[] }> {
-  const refs = collectSecretRefs(value);
-  const map = new Map<string, string>();
-  for (const ref of refs) map.set(ref, await resolveSecretRef(ref));
-  return { resolver: (ref) => map.get(ref) ?? defaultSecrets(ref), values: [...map.values()] };
 }
 
 /** Replace every secret value in a string by "***". */

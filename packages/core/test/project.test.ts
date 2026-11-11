@@ -2,21 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  ConfigError,
-  DEFAULT_CAPTURE,
-  ScenarioError,
-  createProject,
-  findWorkspaceRoot,
-  listProjects,
-  loadProject,
-  loadScenario,
-  loadWorkspaceConfig,
-  parseProjectYaml,
-  saveScenario,
-  updateReadme,
-} from '@retake/core';
-import { SPEC_EXAMPLE, SPEC_HOOK_FILES, STAGING, errors, tempDir, writeFiles } from './helpers.js';
+import { ConfigError, DEFAULT_CAPTURE, ScenarioError, parseProjectYaml, parseScenario, PERSON_POLICY } from '@retake/core';
+import { findWorkspaceRoot, listProjects, loadProject, loadScenario, loadWorkspaceConfig, fileFacts, nodeFileFacts } from '@retake/core/io';
+import { SPEC_EXAMPLE, SPEC_HOOK_FILES, STAGING, createProject, errors, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
 const savedRoot = process.env.RETAKE_ROOT;
@@ -143,42 +131,32 @@ describe('projects', () => {
     ]);
   });
 
-  it('updateReadme', async () => {
+  it('an invalid scenario text has error issues (the engine refuses to save it); a valid one written loadScenario round-trips', async () => {
     const p = await createProject(ws.dir, { name: 'Northfield', environments: STAGING });
-    await updateReadme(p, '# Northfield\n\n## Product\nSpecialty coffee wholesale.');
-    expect(p.readme).toBe('# Northfield\n\n## Product\nSpecialty coffee wholesale.\n');
-    expect((await loadProject(p.dir)).readme).toBe(p.readme);
-  });
-
-  it('saveScenario refuses invalid scenarios, then loadScenario round-trips', async () => {
-    const p = await createProject(ws.dir, { name: 'Northfield', environments: STAGING });
-    const bad = SPEC_EXAMPLE.replace('click: {text: New import}', 'click: {txt: New import}');
-    const err = await saveScenario(p, 'catalogue', bad).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ScenarioError);
-    expect((err as ScenarioError).message).toMatch(/catalogue\.yaml:\d+:\d+ error scenes\[0\]\.steps\[1\]\.click: unknown key "txt"/);
-    expect(existsSync(join(p.dir, 'scenarios', 'catalogue.yaml'))).toBe(false);
-    await expect(saveScenario(p, '../escape', SPEC_EXAMPLE)).rejects.toThrow(/invalid scenario name/);
-
+    const file = join(p.dir, 'scenarios', 'catalogue.yaml');
     await writeFiles(p.dir, SPEC_HOOK_FILES);
-    const saved = await saveScenario(p, 'catalogue', SPEC_EXAMPLE);
-    expect(saved.file).toBe(join(p.dir, 'scenarios', 'catalogue.yaml'));
-    expect(errors(saved.issues)).toEqual([]);
-    expect(p.scenarios).toEqual(['catalogue']);
+    const bad = SPEC_EXAMPLE.replace('click: {text: New import}', 'click: {txt: New import}');
+    expect(errors(parseScenario(bad, { files: fileFacts(PERSON_POLICY), file, project: p }).issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual(['scenes.0.steps.1.click: unknown key "txt" (did you mean "text"?)']);
+    expect(existsSync(file)).toBe(false);
+    expect(errors(parseScenario(SPEC_EXAMPLE.trimEnd(), { files: fileFacts(PERSON_POLICY), file, project: p }).issues)).toEqual([]);
+    expect(existsSync(file)).toBe(false);
+    await writeFiles(p.dir, { 'scenarios/catalogue.yaml': SPEC_EXAMPLE });
+    p.scenarios = ['catalogue'];
 
-    const loaded = await loadScenario(p, 'catalogue');
+    const loaded = await loadScenario(p, 'catalogue', { files: nodeFileFacts });
     expect(loaded.name).toBe('catalogue');
     expect(loaded.text).toBe(SPEC_EXAMPLE);
     expect(loaded.scenario.scenes).toHaveLength(4);
     expect(loaded.issues.every((i) => i.severity === 'warning')).toBe(true);
     expect((await loadProject(p.dir)).scenarios).toEqual(['catalogue']);
-    expect((await loadScenario(p, 'scenarios/catalogue.yaml')).file).toBe(saved.file);
-    await expect(loadScenario(p, 'catalog')).rejects.toThrow(/scenario "catalog" not found .*\(did you mean "catalogue"\?\)/);
+    expect((await loadScenario(p, 'scenarios/catalogue.yaml', { files: nodeFileFacts })).file).toBe(file);
+    await expect(loadScenario(p, 'catalog', { files: nodeFileFacts })).rejects.toThrow(/scenario "catalog" not found .*\(did you mean "catalogue"\?\)/);
   });
 
   it('loadScenario throws ScenarioError carrying the issues', async () => {
     const p = await createProject(ws.dir, { name: 'Northfield', environments: STAGING });
     await writeFiles(p.dir, { 'scenarios/broken.yaml': 'video: broken\nscenes:\n  - id: a\n    open: /\n    steps: [{wait: soon}]\n' });
-    const err = await loadScenario(p, 'broken').catch((e: unknown) => e);
+    const err = await loadScenario(p, 'broken', { files: nodeFileFacts }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ScenarioError);
     expect((err as ScenarioError).issues).toEqual([
       { severity: 'error', path: ['scenes', 0, 'steps', 0, 'wait'], message: 'expected a number, got "soon"', line: 5, col: 20 },
@@ -205,7 +183,7 @@ describe('parseProjectYaml semantic checks', () => {
       '  - http: {url: "{{console}}/api/reset", method: POST}',
       'vars: {agent: "{{env:AGENT_EMAIL}}", plain: Harbour Coffee Co.}',
     ].join('\n');
-    const { config, issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml');
+    const { config, issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml', nodeFileFacts);
     expect(config).toBeUndefined();
     expect(errors(issues).map((i) => `${i.line} ${i.message}`)).toEqual([
       '2 unknown environment "prod" (available: staging)',
@@ -228,7 +206,7 @@ describe('parseProjectYaml semantic checks', () => {
       '  - shell: "psql -h db.staging.example.com -c \'select 1\' && curl -fsS https://console.staging.example.com/api/reset"',
       '  - shell: "pg_restore --host db.prod.example.com demo.dump"',
     ].join('\n');
-    const { issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml');
+    const { issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml', nodeFileFacts);
     expect(errors(issues).map((i) => `${i.line} ${i.message}`)).toEqual([
       '7 shell hook names host db.prod.example.com (pg_restore -h): it is not allowed: use localhost, an environment host, or add it to allow_hosts (allowed: localhost, 127.0.0.1, ::1, console.staging.example.com, db.staging.example.com)',
     ]);

@@ -14,7 +14,7 @@ import type { AddressInfo } from 'node:net';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { normalizeTarget, parseScenario } from '@retake/core';
+import { normalizeTarget, parseScenario, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, LoadedScenario, Scenario, TargetSpec } from '@retake/core';
 import { INSPECT_BUDGET_MS, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { InspectReport, InspectRequest, RunOptions } from '../src/index.js';
@@ -92,7 +92,7 @@ function scenario(s: Omit<Scenario, 'video'>): LoadedScenario {
 /** One inspection: the run (dry, its folder under `dir/inspect`) and the report it handed over. */
 async function inspect(sc: LoadedScenario, req: Omit<InspectRequest, 'onResult'> = {}, opts: Partial<RunOptions> = {}) {
   let report: InspectReport | null = null;
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project,
     scenario: sc,
     mode: 'dry',
@@ -267,7 +267,7 @@ describe('the inspection lab (fixture shop)', () => {
   });
 
   it('every suggestion round-trips: YAML → scenario parser → find resolves its element (count 1 or its nth)', async () => {
-    const session = await openSession({ width: W, height: H, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+    const session = await openSession({ policy: PERSON_POLICY, width: W, height: H, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
     try {
       const page = await session.page('main');
       await page.goto(`${fixture.urls.shop}/inspect-lab?dialog=1`);
@@ -522,7 +522,7 @@ describe('a page that leaves for another origin while it is inspected', () => {
     const abort = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const t0 = Date.now();
-    const run = runScenario({
+    const run = runScenario({ policy: PERSON_POLICY,
       project: late,
       scenario: scenario({ scenes: [{ id: 'late', page: 'app', open: `/late?${query}#frag`, steps: [{ wait: 0 }] }] }),
       mode: 'dry',
@@ -580,7 +580,7 @@ describe('a page that leaves for another origin while it is inspected', () => {
 
   it('labels and names leave out what a field holds; ARIA text fields are listed without a tabindex', async () => {
     let report: InspectReport | null = null;
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: late,
       scenario: scenario({ scenes: [{ id: 'fields', page: 'app', open: '/fields', steps: [{ wait: 0 }] }] }),
       mode: 'dry',
@@ -613,7 +613,7 @@ describe('a page that leaves for another origin while it is inspected', () => {
 
   async function inspectSame(n: number, budgetMs?: number): Promise<InspectReport> {
     let report: InspectReport | null = null;
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: late,
       scenario: scenario({ scenes: [{ id: 'same', page: 'app', open: `/same?n=${n}`, steps: [{ wait: 0 }] }] }),
       mode: 'dry',

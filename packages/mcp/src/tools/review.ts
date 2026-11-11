@@ -2,7 +2,6 @@ import { z } from 'zod';
 import type { Engine, ReviewImagesMode, ReviewView } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import { READ, RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { WAIT_MAX_S, waitJob, waitS } from './run.js';
@@ -48,11 +47,11 @@ export function reviewSummary(r: ReviewView): string {
   return lines.join('\n');
 }
 
-async function reviewOutput(engine: Engine, project: string, id: string, mode: ReviewImagesMode, extra: string[] = [], level: Detail = 'compact'): Promise<ToolOutput> {
+async function reviewOutput(engine: Engine, project: string, id: string, mode: ReviewImagesMode, extra: string[] = [], level: Detail = 'compact') {
   const r = await engine.reviews.get(project, id, { images: mode });
   // Images only once the review is written and finished (a running one would show the previous review's sheets).
   const show = r.finished && r.status === 'succeeded' && r.images.length > 0;
-  return { summary: [...extra, reviewSummary(r)].join('\n'), data: level === 'full' ? (r as unknown as Record<string, unknown>) : compactReview(r), ...(show ? { images: r.images } : {}) };
+  return { summary: [...extra, reviewSummary(r)].join('\n'), data: level === 'full' ? r : compactReview(r), ...(show ? { images: r.images } : {}) };
 }
 
 export const reviewTool = defineTool({
@@ -101,4 +100,4 @@ export const reviewGet = defineTool({
   },
 });
 
-export const REVIEW_TOOLS: ToolDef[] = [reviewTool, reviewGet];
+export const REVIEW_TOOLS = [reviewTool, reviewGet] as const satisfies readonly ToolDef[];

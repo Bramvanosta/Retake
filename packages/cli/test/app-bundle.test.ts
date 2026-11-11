@@ -3,6 +3,7 @@
  * lint), the bundle setup runs first in both entry points, one version number, the stage's layout check (on a small
  * fake stage), `retake init`, the plugin marketplace and the preview writes of an app bundle.
  */
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -10,11 +11,12 @@ import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { BUNDLE_GUARD, BundleError, RETAKE_VERSION, bundleNodeArgs, overrideBundleInfo, readBundleManifest } from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { RETAKE_VERSION, PERSON_POLICY } from '@retake/core';
+import { BUNDLE_GUARD, BundleError, bundleNodeArgs, overrideBundleInfo, readBundleManifest } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 import { assertRenderBrowser, renderBrowser, renderBundleRestriction, renderComponentPreviews } from '@retake/editor';
 import type { RenderPreviewsOptions } from '@retake/editor';
-import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/mcp';
+import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { main, memoryIo } from '../src/index.js';
 import { componentsPreviewCommand } from '../src/commands/components.js';
 import { initWorkspace } from '../src/commands/init.js';
@@ -38,7 +40,7 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
   // A command literal where a program is started or defaulted: spawn('ffmpeg', …), x ?? 'ffmpeg', ffmpeg = 'ffmpeg'.
   const SPAWN = /\b(?:spawn|spawnSync|execFile|execFileSync|exec|run|runFfmpeg)\(\s*(['"`])ff(?:mpeg|probe)\1|(?:\?\?|\|\|)\s*(['"`])ff(?:mpeg|probe)\2|=\s*(['"`])ff(?:mpeg|probe)\3\s*[,)]/;
 
-  it('no source names ffmpeg / ffprobe as a command outside core/src/bundle.ts', () => {
+  it('no source names ffmpeg / ffprobe as a command outside core/src/io/bundle.ts', () => {
     const offenders: string[] = [];
     for (const pkg of readdirSync(join(REPO, 'packages'))) {
       let files: string[];
@@ -48,7 +50,7 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
         continue;
       }
       for (const f of files) {
-        if (f.endsWith(join('core', 'src', 'bundle.ts'))) continue;
+        if (f.endsWith(join('core', 'src', 'io', 'bundle.ts'))) continue;
         readFileSync(f, 'utf8')
           .split('\n')
           .forEach((line, i) => {
@@ -61,7 +63,7 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
 
   it('the lint itself catches the four forms', () => {
     for (const bad of ["run('ffmpeg', args)", "spawn(o.ffprobe ?? 'ffprobe', a)", "function f(ffmpeg = 'ffmpeg') {", "execFileSync('ffprobe', [])"]) expect(SPAWN.test(bad), bad).toBe(true);
-    for (const ok of ["name: 'ffmpeg' | 'ffprobe'", "whichOnPath('ffmpeg', env)", 'spawn(ffmpegBin(o.ffmpeg), a)']) expect(SPAWN.test(ok), ok).toBe(false);
+    for (const ok of ["name: 'ffmpeg' | 'ffprobe'", "whichOnPath('ffmpeg', env)", 'spawn(ffmpegBin(PERSON_POLICY, o.ffmpeg), a)']) expect(SPAWN.test(ok), ok).toBe(false);
   });
 });
 
@@ -81,8 +83,8 @@ describe('the render browser is checked before the asset server starts (review B
   it('render.ts: renderBrowser / assertRenderBrowser come before startAssetServer() in openSession', () => {
     const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render.ts'), 'utf8');
     const session = code.slice(code.indexOf('async function openSession('));
-    expect(session.indexOf('assertRenderBrowser(browser)')).toBeGreaterThan(0);
-    expect(session.indexOf('assertRenderBrowser(browser)')).toBeLessThan(session.indexOf('startAssetServer()'));
+    expect(session.indexOf('assertRenderBrowser(browser, opts.workPolicy)')).toBeGreaterThan(0);
+    expect(session.indexOf('assertRenderBrowser(browser, opts.workPolicy)')).toBeLessThan(session.indexOf('startAssetServer()'));
   });
 });
 
@@ -115,6 +117,7 @@ interface StageModule {
   RENDERER_PATCH_MARKS: Record<string, Record<string, number>>;
   rendererPatchProblems(dir: string): string[];
   scrubDeployedEngine(engine: string): void;
+  staleBuildOutputs(repo: string): string[];
 }
 const stageModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as StageModule;
 
@@ -311,6 +314,28 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
     expect(repoSnapshot(repo)).toMatch(/^\?\? packages\/a\/notes\.txt /m);
   });
 
+  it("a build output whose source is gone is found, and the stage refuses it before it deploys anything", async () => {
+    const { staleBuildOutputs } = await stageModule();
+    const repo = join(tmp, `stale-${Date.now()}`);
+    const put = (rel: string) => {
+      mkdirSync(dirname(join(repo, rel)), { recursive: true });
+      writeFileSync(join(repo, rel), '');
+    };
+    for (const f of ['a/src/index.ts', 'a/src/sub/view.tsx', 'a/src/kit.mts', 'a/src/plain.js']) put(`packages/${f}`);
+    for (const f of ['a/dist/index.js', 'a/dist/index.d.ts', 'a/dist/index.js.map', 'a/dist/sub/view.js', 'a/dist/kit.mjs', 'a/dist/plain.js', 'a/dist/moved.js', 'a/dist/moved.d.ts', 'a/dist/old/gone.cjs', 'b/dist/x.js']) put(`packages/${f}`);
+    put('packages/c/src/only.ts');
+    expect(staleBuildOutputs(repo)).toEqual(['packages/a/dist/moved.js', 'packages/a/dist/old/gone.cjs', 'packages/b/dist/x.js']);
+    rmSync(join(repo, 'packages', 'a', 'dist', 'moved.js'));
+    rmSync(join(repo, 'packages', 'a', 'dist', 'old'), { recursive: true });
+    rmSync(join(repo, 'packages', 'b'), { recursive: true });
+    expect(staleBuildOutputs(repo)).toEqual([]);
+    // The check runs before the engine is deployed (and after the build is known to exist).
+    const js = readFileSync(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs'), 'utf8');
+    const stage = js.slice(js.indexOf('function stageInto('));
+    expect(stage.indexOf('staleBuildOutputs(REPO)')).toBeGreaterThan(stage.indexOf("throw new StageError('run pnpm build first')"));
+    expect(stage.indexOf('staleBuildOutputs(REPO)')).toBeLessThan(stage.indexOf('deployEngine(REPO, engine)'));
+  });
+
   it('breakHardLinks keeps bytes and mode; templates / skills are copied from git-tracked files only', async () => {
     const { breakHardLinks, trackedFiles } = await stageModule();
     const dir = join(tmp, `links-${Date.now()}`);
@@ -335,6 +360,8 @@ describe('retake init (a workspace folder of your own)', () => {
     const dir = join(tmp, 'ws-new');
     expect(await initWorkspace(dir)).toEqual({ root: dir, created: true });
     expect(readFileSync(join(dir, 'retake.yaml'), 'utf8')).toMatch(/^version: 1$/m);
+    // The bytes written, pinned (the workspace's files go through the project store since).
+    expect(createHash('sha256').update(readFileSync(join(dir, 'retake.yaml'))).digest('hex')).toBe('00a93f8141ad48a6a45b9b2fafbaa659b998525e5c92506dccfc765e0263f0e1');
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('.retake/\n');
     expect(readdirSync(join(dir, 'projects'))).toEqual([]);
     writeFileSync(join(dir, 'retake.yaml'), 'version: 1\nprojects_dir: mine\n');
@@ -439,7 +466,7 @@ describe('every Node.js started on the bundle\'s code loads its module lookup gu
   it('the jobs worker of a bundle (the built engine) starts with the guard before its entry', () => {
     const app = appBundle();
     writeFileSync(join(app.root, BUNDLE_GUARD), '');
-    const core = pathToFileURL(join(REPO, 'packages', 'core', 'dist', 'index.js')).href;
+    const core = pathToFileURL(join(REPO, 'packages', 'core', 'dist', 'io', 'index.js')).href;
     const spawn = pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'jobs', 'spawn.js')).href;
     const script = `const core = await import(${JSON.stringify(core)});
 const { workerCommand } = await import(${JSON.stringify(spawn)});

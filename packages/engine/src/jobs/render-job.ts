@@ -18,10 +18,11 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, readPlainFile } from '@retake/core';
-import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@retake/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, projectPath, projectRef } from '@retake/core';
+import type { EditOverridesInput, LoadedProject, RenderJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
+import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
@@ -30,11 +31,13 @@ import { isAlive } from './proc.js';
 import { signalablePid } from './signal.js';
 import type { ProcessIdentity } from './proc.js';
 import type { SubmitContext } from './run-job.js';
-import type { FileJobQueue } from './queue.js';
+import type { JobFileRead } from './job-queue.js';
+import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
-/** Lazy: @retake/editor pulls in Remotion's renderer and bundler. */
-export const editor = () => import('@retake/editor');
+import { editor } from '../lazy.js';
+import { planWork, renderWork } from '../pipeline.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export interface RenderRequest {
   project: string;
@@ -119,7 +122,7 @@ export function editSourceOf(planned: Pick<PlannedRun, 'edit'>): RenderEditSourc
  * `source` says which and what changed. `editText` (L4.6): a text read instead of today's file (a proposal's preview).
  */
 export async function planRenderRequest(
-  ws: WorkspaceConfig,
+  ws: OpenedWorkspace,
   cli: string,
   req: RenderRequest,
   o: { registry?: ComponentRegistry; musicLength?: (file: string) => Promise<number | undefined>; editText?: string } = {},
@@ -128,14 +131,15 @@ export async function planRenderRequest(
   const project = await openProjectBySlug(ws, req.project);
   const ed = await editor();
   try {
-    const planned = await ed.planRun({
+    const planned = await planWork({
+      workPolicy: ws.policy,
       project,
       run: req.run_id ?? 'latest',
       scenario: req.scenario,
       ...(req.template !== undefined ? { template: req.template } : {}),
       overrides: overrides as EditOverrides,
       root: ws.root,
-      trust: 'mcp',
+      trust: ENGINE_TRUST,
       ...(o.registry ? { registry: o.registry } : {}),
       ...(o.musicLength ? { musicLength: o.musicLength } : {}),
       // L4.6 (critique B9): a proposal previewed in the timeline is planned from its text in memory, never written.
@@ -169,7 +173,7 @@ async function checkShownEdit(project: LoadedProject, scenario: string, planned:
     );
   }
   if (now !== shown) {
-    throw new EngineError('conflict', `scenarios/${scenario} changed since it was shown: look at the timeline again, then render`, {
+    throw new EngineError('conflict', `${projectRef('scenarios', scenario)} changed since it was shown: look at the timeline again, then render`, {
       details: { shown, ...(now !== undefined ? { current: now } : {}) },
     });
   }
@@ -233,7 +237,7 @@ export async function submitRenderJob(
 }
 
 /** Remove the version lock a render job reserved (a cancel before it started, an early failure). */
-export async function releaseRenderLock(ws: WorkspaceConfig, input: Pick<RenderJobInput, 'project' | 'scenario' | 'render_id'>): Promise<void> {
+export async function releaseRenderLock(ws: OpenedWorkspace, input: Pick<RenderJobInput, 'project' | 'scenario' | 'render_id'>): Promise<void> {
   const project = await openProjectBySlug(ws, input.project);
   const ed = await editor();
   const { version } = parseRenderId(input.render_id, input.scenario);
@@ -255,16 +259,16 @@ function isTempProfile(dir: string): boolean {
  * pid AND start time: Remotion starts it detached, so it outlives its parent), remove its temporary profile, the
  * version lock and the partial video files. Best effort: what fails is logged.
  */
-export async function cleanupInterruptedRender(ws: WorkspaceConfig, queue: FileJobQueue, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedRender(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'render') return;
   const input = job.input;
-  await killRecordedBrowser(queue, job, log);
+  await killRecordedBrowser(files, job, log);
   try {
     await releaseRenderLock(ws, input);
     const project = await openProjectBySlug(ws, input.project);
-    await removePartials(join(project.dir, 'renders'), `.${input.render_id}.partial-`);
+    await removePartials(projectPath(project.dir, 'renders'), `.${input.render_id}.partial-`);
     // A worker killed during the inline review (L4.5): the previous review set aside comes back.
-    if (input.review) await (await import('./review-job.js')).review().then((rv) => rv.recoverReviewDir(join(project.dir, 'review', input.render_id)));
+    if (input.review) await (await import('./review-job.js')).review().then((rv) => rv.recoverReviewDir(projectPath(project.dir, 'review', input.render_id)));
   } catch (e) {
     log(`job ${job.id}: render leftovers not removed (${(e as Error).message})`);
   }
@@ -279,10 +283,10 @@ export async function removePartials(dir: string, prefix: string): Promise<void>
  * The render browser a job recorded (job folder, browser.json) and left running when its worker was killed: killed when
  * it still runs as the same process (pid AND start time), and its temporary profile removed. Best effort.
  */
-export async function killRecordedBrowser(queue: FileJobQueue, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function killRecordedBrowser(files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   let browser: RecordedBrowser | undefined;
   try {
-    browser = JSON.parse(await readFile(queue.browserFile(job.id), 'utf8')) as RecordedBrowser;
+    browser = JSON.parse(await readFile(files.browser(job.id), 'utf8')) as RecordedBrowser;
   } catch {
     browser = undefined;
   }
@@ -301,7 +305,7 @@ export async function killRecordedBrowser(queue: FileJobQueue, job: JobRecord, l
 }
 
 export interface RenderJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: RenderJobInput;
   signal: AbortSignal;
@@ -309,23 +313,23 @@ export interface RenderJobContext {
   progress(p: JobProgress): void;
   /** The render browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
-  /** The job's folder (its edit.yaml snapshot, L4.5). */
-  jobDir?: string;
+  /** A file the submit added to the job, read through the queue (JobQueue.jobFile): its edit.yaml snapshot, L4.5. */
+  jobFile?: (name: string, maxBytes: number) => Promise<JobFileRead>;
 }
 
 /**
- * The scenario text a render job plans its edit from (L4.5, critique B5): the job folder's edit.yaml, read without
- * following a link, whose sha256 must be the job's `edit_sha256` (a conflict otherwise). Undefined when the job has no
- * edit of the file, or was queued by a build without snapshots (the worker then reads today's file, as before L4.5).
+ * The scenario text a render job plans its edit from (L4.5, critique B5): the job's edit.yaml, read through the queue
+ * without following a link, whose sha256 must be the job's `edit_sha256` (a conflict otherwise). Undefined when the job
+ * has no edit of the file, or was queued by a build without snapshots (the worker then reads today's file, as before L4.5).
  */
-export function renderJobEditText(input: Pick<RenderJobInput, 'edit_sha256'>, jobDir: string | undefined): string | undefined {
-  if (!input.edit_sha256 || !jobDir) return undefined;
-  const read = readPlainFile(join(jobDir, EDIT_SNAPSHOT_FILE), SCENARIO_EDIT_MAX_CHARS * 4);
+export async function renderJobEditText(input: Pick<RenderJobInput, 'edit_sha256'>, jobFile: RenderJobContext['jobFile']): Promise<string | undefined> {
+  if (!input.edit_sha256 || !jobFile) return undefined;
+  const read = await jobFile(EDIT_SNAPSHOT_FILE, SCENARIO_EDIT_MAX_CHARS * 4);
   if (!read.ok) {
     if (read.reason === 'missing') return undefined;
     throw new EngineError('conflict', `the scenario snapshot of this render (${EDIT_SNAPSHOT_FILE}) cannot be read (${read.reason}): submit the render again`);
   }
-  const text = read.bytes.toString('utf8');
+  const text = read.text;
   if (sha256Hex(text) !== input.edit_sha256) {
     throw new EngineError('conflict', `the scenario snapshot of this render (${EDIT_SNAPSHOT_FILE}) is not the version it was submitted with: submit the render again`);
   }
@@ -370,14 +374,13 @@ export async function reviewInline(
   }
 }
 
-/** Execute a `render` job: the timeline check, then `renderVideo` (trust `mcp`, network guard) with the reserved id. */
+/** Execute a `render` job: the timeline check, then the pipeline's render (pipeline.ts: trust `mcp`, network guard) with the reserved id. */
 export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJobResult> {
   const { input } = ctx;
-  const ed = await editor();
   const project = await openProjectBySlug(ctx.ws, input.project);
   const { version, variant } = parseRenderId(input.render_id, input.scenario);
   try {
-    const sha = sha256Hex(await readFile(join(project.dir, 'runs', input.run_id, 'timeline.json')));
+    const sha = sha256Hex(await readFile(projectPath(project.dir, 'runs', input.run_id, 'timeline.json')));
     if (sha !== input.timeline_sha256) {
       throw new EngineError('conflict', `the timeline of run ${input.run_id} changed since the render was submitted: submit it again`, { details: { submitted: input.timeline_sha256, current: sha } });
     }
@@ -387,20 +390,22 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
   }
   let editText: string | undefined;
   try {
-    editText = renderJobEditText(input, ctx.jobDir);
+    editText = await renderJobEditText(input, ctx.jobFile);
   } catch (e) {
     await releaseRenderLock(ctx.ws, input).catch(() => undefined);
     throw e;
   }
   let last = '';
-  const record = await ed.renderVideo({
+  // The pipeline's render that the CLI's `retake render` runs too, with the trust of work submitted through MCP and its reserved id.
+  const record = await renderWork({
+    workPolicy: ctx.ws.policy,
     project,
     run: input.run_id,
     scenario: input.scenario,
     ...(input.template !== undefined ? { template: input.template } : {}),
     overrides: input.overrides as EditOverrides,
     root: ctx.ws.root,
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     network: 'guard',
     signal: ctx.signal,
     reserved: { scenario: input.scenario, version, variant },

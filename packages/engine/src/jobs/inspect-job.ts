@@ -5,7 +5,7 @@
  * (inspect.json, screenshot.png and, drawn here through the review package, marked.jpg). The newest 20 are kept.
  *
  * Trust: run_dry's semantics — the environment's own access (production read-only), hooks never run, agent trust of
- * the replayed scenario (`hookTrust: 'mcp'`), the workspace's protected hosts — checked at submit and again by the
+ * the replayed scenario (`hookTrust` ENGINE_TRUST: `mcp`), the workspace's protected hosts — checked at submit and again by the
  * worker (project.yaml or the scenario may change in between: the scenario's bytes are pinned by their sha256). A URL is
  * accepted only on the exact origin of one of the environment's pages and becomes a page key + path; the runner checks
  * the final URL again before anything of the page is taken. No `{{…}}` template in anything given. Inspections never
@@ -25,9 +25,13 @@ import {
   isPageOrigin,
   pageOrigins,
   resolveEnvironment,
+  statePath,
+  projectRef,
 } from '@retake/core';
-import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@retake/core';
+import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkPolicy } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
+import { fileFacts } from '@retake/core/io';
+import { ENGINE_TRUST } from '../caller.js';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import { checkSandboxEnv, prepareRun } from '../execute-run.js';
@@ -36,10 +40,11 @@ import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
 import { newJobId } from './ids.js';
-import { FileJobQueue } from './queue.js';
+import type { JobQueueView } from './job-queue.js';
 import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -64,7 +69,7 @@ export interface InspectSubmitRequest {
 
 /** <project>/.retake/inspect */
 export function inspectRoot(project: LoadedProject): string {
-  return join(project.dir, '.retake', 'inspect');
+  return statePath(project.dir, 'inspect');
 }
 
 /** <project>/.retake/inspect/<id> (the id checked: never a path). */
@@ -78,17 +83,17 @@ export function newInspectId(): string {
 }
 
 /** The inspections of a project whose job is queued or running (their folders are in use). */
-export async function activeInspections(root: string, slug: string): Promise<string[]> {
-  const jobs = await new FileJobQueue(root).list({ project: slug, kinds: ['inspect'], states: ['queued', 'running'], limit: 10_000 });
+export async function activeInspections(queue: JobQueueView, slug: string): Promise<string[]> {
+  const jobs = await queue.list({ project: slug, kinds: ['inspect'], states: ['queued', 'running'], limit: 10_000 });
   return jobs.flatMap((j) => (j.input.kind === 'inspect' ? [j.input.inspect_id] : []));
 }
 
 /**
  * Keep the newest `keep` inspection folders of a project (ids sort by creation); `except` is never removed, nor —
- * given the workspace root — the folder of an inspection whose job is still queued or running.
+ * given the workspace's job queue — the folder of an inspection whose job is still queued or running.
  */
-export async function pruneInspections(project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], root?: string): Promise<string[]> {
-  const active = root !== undefined ? await activeInspections(root, project.slug).catch(() => null) : [];
+export async function pruneInspections(project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
+  const active = queue !== undefined ? await activeInspections(queue, project.slug).catch(() => null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
@@ -204,7 +209,7 @@ export interface PreparedInspect {
  * Build the replayed scenario of a source and check it (submit, the worker, the CLI): the page key and persona against
  * the environment, or the saved scenario (its `until`, its sha256 when one was pinned); the page key's origin again.
  */
-export async function prepareInspect(ws: WorkspaceConfig, project: LoadedProject, source: InspectSourceDraft, envArg: string | undefined): Promise<PreparedInspect> {
+export async function prepareInspect(ws: OpenedWorkspace, project: LoadedProject, source: InspectSourceDraft, envArg: string | undefined): Promise<PreparedInspect> {
   try {
     if (source.kind === 'page') {
       const env = resolveEnvironment(project, envArg);
@@ -213,7 +218,7 @@ export async function prepareInspect(ws: WorkspaceConfig, project: LoadedProject
       if (!isPageOrigin(env.pages[source.page], env.pages)) throw new EngineError('refused', `page ${source.page} of environment ${env.name} is not an http(s) URL: nothing to inspect`);
       let scenario: LoadedScenario;
       try {
-        scenario = inspectScenario(source.page, source.path, { ...(source.persona !== undefined ? { persona: source.persona } : {}), check: { project, env: env.name } });
+        scenario = inspectScenario(source.page, source.path, { ...(source.persona !== undefined ? { persona: source.persona } : {}), check: { project, env: env.name, files: fileFacts(ws.policy) } });
       } catch (e) {
         throw new EngineError('invalid', (e as Error).message);
       }
@@ -226,7 +231,7 @@ export async function prepareInspect(ws: WorkspaceConfig, project: LoadedProject
       ...(envArg !== undefined ? { env: envArg } : {}),
       ...(source.scenario_sha256 !== undefined ? { expectSha256: source.scenario_sha256 } : {}),
     }).catch((e: unknown) => {
-      throw scenarioChangedConflict(e, `scenarios/${source.scenario} changed since the inspection was submitted: submit it again (what was checked is what runs)`);
+      throw scenarioChangedConflict(e, `${projectRef('scenarios', source.scenario)} changed since the inspection was submitted: submit it again (what was checked is what runs)`);
     });
     const env = resolveEnvironment(project, envArg ?? prepared.scenario.scenario.env);
     const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
@@ -255,7 +260,7 @@ export async function submitInspectJob(ctx: SubmitContext, req: InspectSubmitReq
   const id = newInspectId();
   const dir = inspectDir(project, id);
   await mkdir(dir, { recursive: true });
-  await pruneInspections(project, INSPECT_KEEP, [id], ctx.ws.root);
+  await pruneInspections(project, INSPECT_KEEP, [id], ctx.queue);
   const input: InspectJobInput = {
     version: JOB_INPUT_VERSION,
     kind: 'inspect',
@@ -293,6 +298,8 @@ export interface InspectionRun {
 }
 
 export interface InspectionOptions {
+  /** What the work runs under (core WorkPolicy). */
+  policy: WorkPolicy;
   prepared: PreparedInspect;
   /** The folder holding inspection folders, and this one's id (its folder: <runsDir>/<id>). */
   runsDir: string;
@@ -318,6 +325,7 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
   let report: InspectReport | null = null;
   let signIn: InspectionRun['signIn'] = null;
   const record = await runScenario({
+    policy: o.policy,
     project: prepared.project,
     scenario: prepared.scenario,
     mode: 'dry',
@@ -388,7 +396,7 @@ export function inspectResult(id: string, dir: string, run: InspectionRun): Insp
 }
 
 export interface InspectJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: InspectJobInput;
   signal: AbortSignal;
@@ -403,13 +411,14 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
   const dir = inspectDir(project, input.inspect_id);
   const prepared = await prepareInspect(ctx.ws, project, input.source, input.env);
   await checkWorkspaceProtection(ctx.ws, project, prepared.env);
-  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }));
+  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
   const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: new Date().toISOString() };
   const update = (patch: Partial<JobProgress>) => {
     Object.assign(progress, patch, { updated_at: new Date().toISOString() });
     ctx.progress({ ...progress });
   };
   const run = await runInspection({
+    policy: ctx.ws.policy,
     prepared,
     runsDir: inspectRoot(project),
     id: input.inspect_id,
@@ -417,7 +426,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
     ...(input.targets ? { targets: input.targets } : {}),
     ...(input.limit !== undefined ? { limit: input.limit } : {}),
     images: input.images,
-    hookTrust: 'mcp',
+    hookTrust: ENGINE_TRUST,
     signal: ctx.signal,
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     onProgress: (e) => {
@@ -432,7 +441,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
 }
 
 /** An inspection's report, read back from its folder (page text stays under `untrusted`). */
-export async function readInspection(ws: WorkspaceConfig, slug: string, id: string): Promise<{ dir: string; report: InspectReport | null; marked: string | null }> {
+export async function readInspection(ws: OpenedWorkspace, slug: string, id: string): Promise<{ dir: string; report: InspectReport | null; marked: string | null }> {
   checkProjectSlug(slug);
   const project = await openProjectBySlug(ws, slug);
   const dir = inspectDir(project, id);

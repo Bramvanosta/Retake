@@ -4,7 +4,6 @@ import type { Engine, JobRecord } from '@retake/engine';
 import { signInStoppedText } from '@retake/engine';
 import { envName, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import { READ, SANDBOX_JOB, SIGN_IN, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { waitJob, waitS } from './run.js';
@@ -30,7 +29,7 @@ export const authStatus = defineTool({
         r.personas.length ? `${plural(r.personas.length, 'persona')}:\n${lines.join('\n')}` : `No personas${project ? ` in ${project}` : ''}.`,
         ...r.errors.map((e) => `${e.project}: does not load`),
       ].join('\n'),
-      data: r as unknown as Record<string, unknown>,
+      data: r,
     };
   },
 });
@@ -55,7 +54,7 @@ export const sandboxStatus = defineTool({
         s.lock ? `in use by: ${s.lock.command}` : 'take lock: free',
         ...(s.state !== 'up' ? [`start it: sandbox_up {project: "${project}", env: "${s.env}"}`] : []),
       ].join('\n'),
-      data: s as unknown as Record<string, unknown>,
+      data: s,
     };
   },
 });
@@ -85,10 +84,10 @@ export function environmentJobSummary(job: JobRecord): string {
   return lines.join('\n');
 }
 
-async function jobOutput(engine: Engine, job: JobRecord, seconds: number, ctx: ToolContext, intro: string): Promise<ToolOutput> {
+async function jobOutput(engine: Engine, job: JobRecord, seconds: number, ctx: ToolContext, intro: string) {
   await waitJob(engine, job, seconds, ctx);
   const now = await engine.jobs.get(job.id);
-  return { summary: `${intro}\n${environmentJobSummary(now)}`, data: now as unknown as Record<string, unknown> };
+  return { summary: `${intro}\n${environmentJobSummary(now)}`, data: now };
 }
 
 export const authLogin = defineTool({
@@ -146,4 +145,4 @@ export const sandboxReset = defineTool({
   },
 });
 
-export const ENVIRONMENT_TOOLS: ToolDef[] = [authStatus, authLogin, sandboxStatus, sandboxUp, sandboxReset];
+export const ENVIRONMENT_TOOLS = [authStatus, authLogin, sandboxStatus, sandboxUp, sandboxReset] as const satisfies readonly ToolDef[];

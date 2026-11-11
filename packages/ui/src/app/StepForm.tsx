@@ -18,8 +18,10 @@ import { useUnsavedMark } from './drafts.js';
 import { actionForm, fieldLabel, fieldWords, fieldsOf, formChanges, groupLabel, inputsOf, isRequired, issueField, readInputs } from './forms.js';
 import type { Inputs } from './forms.js';
 import type { StepEditor } from './StepEditing.js';
-import type { FieldValue } from './step-edit.js';
+import type { FieldValue, StepEditOp } from './step-edit.js';
 import { Button, Callout, Disclosure, Select, Switch, TextField } from './ui-kit/index.js';
+
+type InsertStep = Extract<StepEditOp, { kind: 'insert_step' }>;
 
 /** One field's input in the inspector's row: a text box, a yes / no / not set choice, or a choice of its options. */
 function FieldInput({ f, value, onChange, required, error, disabled, locked }: { f: FormField; value: string; onChange: (v: string) => void; required: boolean; error?: string; disabled: boolean; locked?: string }) {
@@ -358,7 +360,8 @@ export function Palette({ forms, scenes, selected, ed, onClose, at }: { forms: S
   const add = () => {
     setTouched(true);
     if (!canAdd || !form || !where) return;
-    ed.send({ kind: 'insert_step', to: { scene: where.scene, index: where.index }, after: where.after, action: form.action, values: values as Record<string, FieldValue> });
+    // The palette offers the palette's actions only (scenario_forms `palette`: core PALETTE_ACTIONS).
+    ed.send({ kind: 'insert_step', to: { scene: where.scene, index: where.index }, after: where.after, action: form.action as InsertStep['action'], values: values as Record<string, FieldValue> });
   };
   const titleId = `${idBase}-palette`;
   return (

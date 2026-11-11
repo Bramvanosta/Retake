@@ -10,22 +10,15 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  FORMAT_VERSIONS,
-  JOB_INPUT_VERSION,
-  listSteps,
-  loginCommand as coreLoginCommand,
-  reserveRunId,
-  resolveEnvironment,
-  resolveStepRef,
-  usedNamedHooks,
-  writeJson,
-} from '@retake/core';
-import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@retake/core';
+import { FORMAT_VERSIONS, JOB_INPUT_VERSION, listSteps, loginCommand as coreLoginCommand, resolveEnvironment, resolveStepRef, usedNamedHooks, projectPath, statePath, projectRef } from '@retake/core';
+import { reserveRunId, writeJson } from '@retake/core/io';
+import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus } from '@retake/core';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
+import type { RunAdmit } from '../admission.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
+import { ENGINE_TRUST, callerOf } from '../caller.js';
 import type { EngineErrorCode } from '../errors.js';
 import { executeRun, prepareRun } from '../execute-run.js';
 import type { PreparedRun, RunPorts } from '../execute-run.js';
@@ -35,8 +28,9 @@ import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { getScenario } from '../scenarios.js';
 import { sha256Hex } from '../storage.js';
-import type { FileJobQueue } from './queue.js';
+import type { JobQueue } from './job-queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RunJobResult } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export interface RunSubmitRequest {
   project: string;
@@ -48,14 +42,19 @@ export interface RunSubmitRequest {
   sandbox?: boolean;
   /**
    * sha256 of the scenario's bytes the client showed (the Studio's view `hash`): the submit is refused as `conflict`
-   * when the bytes it checks are other ones (review A #6: what was clicked is what runs).
+   * when the bytes it checks are other ones (what was clicked is what runs).
    */
   expect_sha256?: string;
+  /**
+   * A capture: the personas whose session is not valid that the caller confirms (the engine's `sessions_ack` admission
+   * rule, admission.ts: the Studio and MCP); not written with the job.
+   */
+  sessions_ack?: readonly string[];
 }
 
 export interface SubmitContext {
-  ws: WorkspaceConfig;
-  queue: FileJobQueue;
+  ws: OpenedWorkspace;
+  queue: JobQueue;
   /** "retake -C <root>": how the commands a human is asked to run start. */
   cli: string;
   client: JobClient;
@@ -79,7 +78,7 @@ export function runCommandLine(cli: string, r: RunSubmitRequest): string {
 
 /** A journal file a preflight opens and never writes (a dry run journals nothing). */
 export function preflightJournal(project: LoadedProject): string {
-  return join(project.dir, '.retake', 'journals', `preflight-${randomUUID()}.json`);
+  return statePath(project.dir, 'journals', `preflight-${randomUUID()}.json`);
 }
 
 /** Steps the run will execute (all, or up to `until`), as the runner counts them. */
@@ -156,7 +155,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
             { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
             ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
-          { env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
+          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
         ).catch((e: unknown) => {
           throw toEngineError(e);
         })
@@ -276,10 +275,15 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
   return { kind: err.code === 'invalid' ? 'invalid' : 'prepare' };
 }
 
-/** Check, reserve the run id and queue a `run` job. */
-export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
+/**
+ * Check, reserve the run id and queue a `run` job. `admit` (the engine's admission rules, admission.ts, for the callers
+ * it admits): `prepared` once the request is opened and its scenario parsed — on the environment the take uses —,
+ * `reserve` after the gates (and any human approval they waited for), just before the run id is reserved.
+ */
+export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver, admit?: RunAdmit): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
   const s = await prepareSubmit(ctx, req);
   const { project, prepared } = s;
+  await admit?.prepared({ project, scenario: prepared.scenario, env: prepared.sandboxEnv ?? req.env });
   const sc = prepared.scenario.scenario;
   const env = resolveEnvironment(project, prepared.sandboxEnv ?? req.env ?? sc.env);
   const hooksMode = req.hooks ?? (req.mode === 'capture' ? 'run' : 'skip');
@@ -292,11 +296,12 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   // the worker parses only bytes with this hash.
   const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
   if (req.expect_sha256 !== undefined && req.expect_sha256 !== sha) {
-    throw new EngineError('conflict', `scenarios/${prepared.scenario.name} changed since it was shown: look at it again, then start the run`, {
+    throw new EngineError('conflict', `${projectRef('scenarios', prepared.scenario.name)} changed since it was shown: look at it again, then start the run`, {
       details: { shown: req.expect_sha256, current: sha },
     });
   }
-  const { id: runId, dir } = await reserveRunId(join(project.dir, 'runs'), prepared.scenario.name);
+  await admit?.reserve();
+  const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
   const queued: RunRecord = {
     version: FORMAT_VERSIONS.run,
     id: runId,
@@ -345,7 +350,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
 }
 
 export interface RunJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: RunJobInput;
   signal: AbortSignal;
@@ -378,11 +383,11 @@ export function pauseMaxMs(env: NodeJS.ProcessEnv = process.env): number | undef
 export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
-  const runDir = join(project.dir, 'runs', input.run_id);
+  const runDir = projectPath(project.dir, 'runs', input.run_id);
   try {
     // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
     const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox, expectSha256: input.scenario_sha256 }).catch((e: unknown) => {
-      throw scenarioChangedConflict(e, `scenarios/${input.scenario} changed since the run was submitted: submit it again (what was checked is what runs)`);
+      throw scenarioChangedConflict(e, `${projectRef('scenarios', input.scenario)} changed since the run was submitted: submit it again (what was checked is what runs)`);
     });
     await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
     const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: new Date().toISOString() };
@@ -432,13 +437,15 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       prepared,
       { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox },
       {
+        policy: ctx.ws.policy,
         runId: input.run_id,
         signal: ctx.signal,
         loginCommand: (p) => coreLoginCommand(p).replace(/^retake /, `${ctx.cli} `),
         // A queued job came through MCP: the hook files' trust flags do not count; only the approvals taken at submit.
-        hookTrust: 'mcp',
+        hookTrust: ENGINE_TRUST,
         hookVia: agentChannel(input.submitted_by),
         confirmHook: approvalChecker(input.approvals),
+        recordAs: callerOf(input.submitted_by),
         ...(ctx.live ? { live: ctx.live } : {}),
         ...(ctx.pause ? { pause: ctx.pause } : {}),
         ...(ctx.onFilming ? { onFilming: ctx.onFilming } : {}),

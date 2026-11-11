@@ -5,6 +5,8 @@
  */
 import { environmentHosts } from './env.js';
 import type { LoadedProject } from './types.js';
+import { GUIDE } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 /** Always allowed. */
 export const LOCAL_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '::1'];
@@ -148,6 +150,15 @@ export class HostRefusedError extends Error {
     super(`${hostRefusalMessage(hosts.join(', '), project, via)}${detail}`, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'HostRefusedError';
     this.hosts = [...hosts];
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'refused';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.security;
   }
 }
 

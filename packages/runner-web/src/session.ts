@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import { gpuInfoOf } from '@retake/core';
-import type { BrowserConfig, GpuInfo, PageHttpCredentials, ResolvedClock, SystemInfoReply } from '@retake/core';
+import type { BrowserConfig, GpuInfo, PageHttpCredentials, ResolvedClock, SystemInfoReply, WorkPolicy } from '@retake/core';
 import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
@@ -43,6 +43,8 @@ import type {
 import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core';
 
 export interface SessionOptions {
+  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
+  policy: WorkPolicy;
   width: number;
   height: number;
   /** deviceScaleFactor. */
@@ -911,7 +913,7 @@ export type { GpuInfo, SystemInfoReply } from '@retake/core';
 async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {
   const b = opts.browser ?? {};
   // The target first: a refused executable leaves no temporary profile behind.
-  const { executablePath, channel } = launchTarget(b, { headless: opts.headed ? false : (b.headless ?? true) });
+  const { executablePath, channel } = launchTarget(b, { headless: opts.headed ? false : (b.headless ?? true), policy: opts.policy });
   const temp = spec.userDataDir ? null : await mkdtemp(join(tmpdir(), 'retake-profile-'));
   if (temp) registerSessionCopy(temp);
   const userDataDir = spec.userDataDir ?? temp!;
@@ -943,7 +945,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       handleSIGTERM: false,
       handleSIGHUP: false,
       ...(opts.httpCredentials ? { httpCredentials: { ...opts.httpCredentials } } : {}),
-      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args)], browserArgs: b.args }),
+      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args)], browserArgs: b.args, policy: opts.policy }),
     });
   } catch (e) {
     if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);

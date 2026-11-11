@@ -40,6 +40,12 @@ describe('retake new / list / validate', () => {
     expect(list.code).toBe(EXIT.ok);
     const data = JSON.parse(list.out) as { projects: Array<{ slug: string; name: string; environments: string[] }> };
     expect(data.projects).toEqual([expect.objectContaining({ slug: 'demo', name: 'Demo product', environments: ['staging'] })]);
+    // The words a person reads follow the glossary (docs/GLOSSARY.md): themes, not templates.
+    const human = await retake('list');
+    expect(human.code).toBe(EXIT.ok);
+    expect(human.out).toMatch(/^Themes /m);
+    expect(human.out).toMatch(/^ {2}default, editorial, motion$/m);
+    expect(human.out).not.toMatch(/^Templates/m);
   });
 
   it('validates scenarios with file:line:col messages and exit codes', async () => {
@@ -120,6 +126,37 @@ describe('studio usage, schema and later phases', () => {
     const rb = await retake('hooks', 'rollback', 'demo');
     expect(rb.code).toBe(EXIT.ok);
     expect(rb.err).toContain('no pending rollbacks');
+  });
+});
+
+describe('retake journal: the workspace journal', () => {
+  it('lists the authored writes and the hook runs of the workspace, who made them and their outcome', async () => {
+    // `retake new demo` (above) wrote the project's files through the project store, as the person's.
+    const writes = await retake('journal', '--writes', '--project', 'demo', '--json');
+    expect(writes.code, writes.err).toBe(EXIT.ok);
+    const lines = (JSON.parse(writes.out) as { entries: Array<{ by: { client: string }; op: string; what: string; path: string; outcome: string }> }).entries;
+    expect(lines.filter((e) => e.what === 'project').map((e) => e.path)).toEqual(
+      ['scenarios/.gitkeep', 'hooks/.gitkeep', 'assets/.gitkeep', 'project.yaml', 'README.md', '.gitignore'].map((f) => `projects/demo/${f}`),
+    );
+    expect(lines.every((e) => e.by.client === 'cli' && e.op === 'write')).toBe(true);
+    // A hook run outside a capture: one line per hook, its name and outcome — never its command.
+    const yaml = join(ws, 'projects', 'demo', 'project.yaml');
+    const before = await readFile(yaml, 'utf8');
+    await writeFile(yaml, `${before}reset:\n  - name: touch\n    shell: echo secret-value > touched.txt\n`);
+    try {
+      const run = await retake('hooks', 'run', 'demo', 'reset', '--env', 'staging', '--yes');
+      expect(run.code, run.err).toBe(EXIT.ok);
+      const hooks = await retake('journal', '--hooks');
+      expect(hooks.code).toBe(EXIT.ok);
+      expect(hooks.out).toMatch(/^\S+ \S+ {2}cli {2}hook reset touch \(shell\) demo · run \S+ {2}ok$/m);
+      expect(hooks.out).not.toContain('secret-value');
+      const all = await retake('journal', '--limit', '2');
+      expect(all.out.trim().split('\n')).toHaveLength(2);
+      expect((await retake('journal', '--writes', '--hooks')).code).toBe(EXIT.usage);
+      expect((await retake('journal', '--limit', '0')).code).toBe(EXIT.usage);
+    } finally {
+      await writeFile(yaml, before);
+    }
   });
 });
 

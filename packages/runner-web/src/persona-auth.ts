@@ -10,7 +10,7 @@
  * loaded so its SDK refreshes it, and read again.
  */
 import type { BrowserContext, Page } from 'playwright-core';
-import { loginMatchers, matchLoginUrl } from '@retake/core';
+import { loginMatchers, matchLoginUrl, personaAuthOriginProblem } from '@retake/core';
 import type { ResolvedPersona } from '@retake/core';
 import { RunnerError, errorMessage } from './errors.js';
 import { networkIdle } from './network.js';
@@ -138,6 +138,11 @@ export interface PersonaAuthSource {
   envPages: Record<string, string>;
   /** The command that signs the persona in again, for the messages. */
   relogin: string;
+  /**
+   * Trust `mcp` (core agent-trust personaAuthOriginProblem): the only origins the session is read for — the persona's
+   * own pages'. A URL elsewhere is refused before its cookies or token are read. Absent: any URL (a person's own run).
+   */
+  origins?: readonly string[];
 }
 
 /**
@@ -148,6 +153,10 @@ export interface PersonaAuthSource {
 export function personaAuthReader(src: PersonaAuthSource): (url: string) => Promise<PersonaRequestAuth> {
   let cached: FirebaseUser | undefined;
   return async (url) => {
+    if (src.origins) {
+      const problem = personaAuthOriginProblem(src.persona.name, url, src.origins);
+      if (problem) throw new RunnerError(problem);
+    }
     const context = await src.context();
     const cookies = await context.cookies(url);
     const out: PersonaRequestAuth = {};

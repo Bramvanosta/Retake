@@ -70,4 +70,4 @@ export const scenarioSave = defineTool({
   },
 });
 
-export const SCENARIO_TOOLS: ToolDef[] = [scenarioGet, scenarioValidate, scenarioSave];
+export const SCENARIO_TOOLS = [scenarioGet, scenarioValidate, scenarioSave] as const satisfies readonly ToolDef[];

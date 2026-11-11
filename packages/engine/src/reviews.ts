@@ -11,16 +11,17 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, readPlainFile } from '@retake/core';
-import type { WorkspaceConfig } from '@retake/core';
+import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, projectPath } from '@retake/core';
+import { readPlainFile, nodeFileFacts } from '@retake/core/io';
 import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName } from './refs.js';
 import { renderForWork } from './renders.js';
 import { review } from './jobs/review-job.js';
-import type { FileJobQueue } from './jobs/queue.js';
+import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord } from './jobs/types.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** Which images review_get lists for the client to look at: none, the contact sheet pages + marker key frames, or all. */
 export type ReviewImagesMode = 'none' | 'sheets' | 'all';
@@ -84,24 +85,24 @@ function rebuilt(dir: string, p: unknown, sub?: string): string | undefined {
   const name = basename(p);
   if (!FILE_NAME.test(name)) return undefined;
   const file = sub ? join(dir, sub, name) : join(dir, name);
-  return existsSync(file) && insideFolder(dir, file) ? file : undefined;
+  return existsSync(file) && insideFolder(dir, file, nodeFileFacts) ? file : undefined;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
 /** Read a review (report.json, as data) and its newest job. `latest`: the review of the newest render (of `scenario`). */
-export async function reviewGet(ws: WorkspaceConfig, queue: FileJobQueue, slug: string, renderIdArg: string, o: { scenario?: string; images?: ReviewImagesMode } = {}): Promise<ReviewView> {
+export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: string, renderIdArg: string, o: { scenario?: string; images?: ReviewImagesMode } = {}): Promise<ReviewView> {
   checkProjectSlug(slug);
   if (o.scenario !== undefined) checkScenarioName(o.scenario);
   const project = await openProjectBySlug(ws, slug);
   const record = await renderForWork(project, renderIdArg, o.scenario !== undefined ? { scenario: o.scenario } : {});
   const id = record.id;
-  const dir = join(project.dir, 'review', id);
+  const dir = projectPath(project.dir, 'review', id);
   const job = (await queue.list({ project: slug, kinds: ['review'], renderId: id, limit: 1 }))[0];
   let report: Record<string, unknown> | undefined;
   const reportFile = join(dir, 'report.json');
-  if (existsSync(reportFile) && insideFolder(dir, reportFile)) {
+  if (existsSync(reportFile) && insideFolder(dir, reportFile, nodeFileFacts)) {
     try {
       const r = JSON.parse(await readFile(reportFile, 'utf8')) as Record<string, unknown>;
       if (r && r.version === 1 && Array.isArray(r.findings)) report = r;
@@ -247,8 +248,8 @@ function imageLabel(name: string, fps: number): string {
  * A JPEG thumbnail (base64, ≤ `maxPx` on its long side) of an image of the workspace, made on read (sharp, from the
  * review package): never stored. Refused outside the workspace and its projects folder.
  */
-export async function thumbnail(ws: WorkspaceConfig, file: string, maxPx = 1280): Promise<{ base64: string; width: number; height: number; bytes: number }> {
-  if (!(insideFolder(ws.root, file) || insideFolder(ws.projectsDir, file))) throw new EngineError('refused', `${file} is outside the workspace: no thumbnail`);
+export async function thumbnail(ws: OpenedWorkspace, file: string, maxPx = 1280): Promise<{ base64: string; width: number; height: number; bytes: number }> {
+  if (!(insideFolder(ws.root, file, nodeFileFacts) || insideFolder(ws.projectsDir, file, nodeFileFacts))) throw new EngineError('refused', `${file} is outside the workspace: no thumbnail`);
   const rv = await review();
   return rv.thumbnailOf(file, Math.max(64, Math.min(1280, Math.round(maxPx))));
 }
@@ -287,17 +288,17 @@ const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
  * must be a regular file with one name (no hard link: review A N4) within REVIEW_IMAGE_SOURCE_MAX and start like its
  * kind (JPEG FF D8 FF, PNG's signature): a link planted in the folder, a renamed file or a huge file is refused.
  */
-export async function reviewImage(ws: WorkspaceConfig, slug: string, renderId: string, image: string): Promise<ReviewImageView> {
+export async function reviewImage(ws: OpenedWorkspace, slug: string, renderId: string, image: string): Promise<ReviewImageView> {
   checkProjectSlug(slug);
   if (typeof renderId !== 'string' || !RENDER_ID_RE.test(renderId) || renderId.length > 200) throw new EngineError('invalid', `invalid render id "${String(renderId)}": <scenario>-v<N>`);
   if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image)) throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
   const project = await openProjectBySlug(ws, slug);
-  const dir = join(project.dir, 'review', renderId);
+  const dir = projectPath(project.dir, 'review', renderId);
   if (!existsSync(dir)) throw new EngineError('not_found', `render ${renderId} has no review yet`);
-  if (!insideFolder(project.dir, dir)) throw new EngineError('refused', `the review folder of ${renderId} lies outside the project: not shown`);
+  if (!insideFolder(project.dir, dir, nodeFileFacts)) throw new EngineError('refused', `the review folder of ${renderId} lies outside the project: not shown`);
   const file = join(dir, image);
   // A key frame's folder too stays in the review folder once links are resolved (the file itself: O_NOFOLLOW below).
-  if (!insideFolder(dir, dirname(file))) throw new EngineError('refused', `${image} of the review of ${renderId} lies outside its folder: not shown`);
+  if (!insideFolder(dir, dirname(file), nodeFileFacts)) throw new EngineError('refused', `${image} of the review of ${renderId} lies outside its folder: not shown`);
   const read = readPlainFile(file, REVIEW_IMAGE_SOURCE_MAX, { verify: (st) => st.nlink === 1 });
   if (!read.ok) {
     if (read.reason === 'missing') throw new EngineError('not_found', `the review of ${renderId} has no ${image}`);

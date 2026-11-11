@@ -8,22 +8,8 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import {
-  authFor,
-  isGlobalAuth,
-  loginCommand,
-  loginMatchers,
-  matchLoginUrl,
-  parseProjectYaml,
-  parseScenario,
-  personaPaths,
-  planPersonas,
-  projectPersonaNames,
-  resolveCheckUrl,
-  resolvePersonas,
-  retakeHome,
-  writeTextAtomic,
-} from '@retake/core';
+import { authFor, isGlobalAuth, loginCommand, loginMatchers, matchLoginUrl, parseProjectYaml, parseScenario, personaPaths, planPersonas, projectPersonaNames, resolveCheckUrl, resolvePersonas } from '@retake/core';
+import { retakeHome, writeTextAtomic } from '@retake/core/io';
 import type { LoadedProject, Scenario, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
 

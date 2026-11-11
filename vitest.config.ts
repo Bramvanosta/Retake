@@ -40,17 +40,26 @@ const kit = fileURLToPath(new URL('./packages/components/src/kit/index.ts', impo
 export default defineConfig({
   resolve: {
     alias: {
+      // Before '@retake/core', as for the kit: the side of core that touches the machine.
+      '@retake/core/io': fileURLToPath(new URL('./packages/core/src/io/index.ts', import.meta.url)),
       '@retake/core': pkg('core'),
       '@retake/hooks': pkg('hooks'),
       '@retake/sandbox': pkg('sandbox'),
-      // Before '@retake/components': the first matching alias wins and that one would also match '…/kit'.
+      // Before '@retake/components': the first matching alias wins and that one would also match '…/kit' and '…/geometry'.
       '@retake/components/kit': kit,
+      '@retake/components/geometry': fileURLToPath(new URL('./packages/components/src/geometry-entry.ts', import.meta.url)),
       '@retake/runner-web': pkg('runner-web'),
       '@retake/components': pkg('components'),
+      // Before '@retake/editor', as for the kit: the planner's own entry (no renderer).
+      '@retake/editor/plan': fileURLToPath(new URL('./packages/editor/src/plan-entry.ts', import.meta.url)),
       '@retake/editor': pkg('editor'),
       // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import).
       '@retake/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
       '@retake/review': pkg('review'),
+      // Before '@retake/engine', as for the kit: the operation contract's, the catalogue's and the integrations' own entries.
+      '@retake/engine/contract': fileURLToPath(new URL('./packages/engine/src/contract.ts', import.meta.url)),
+      '@retake/engine/catalogue': fileURLToPath(new URL('./packages/engine/src/catalogue.ts', import.meta.url)),
+      '@retake/engine/integrations': fileURLToPath(new URL('./packages/engine/src/integrations.ts', import.meta.url)),
       '@retake/engine': pkg('engine'),
       '@retake/mcp': pkg('mcp'),
       '@retake/ui': pkg('ui'),

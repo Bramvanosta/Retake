@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { readPlainFile } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
 
 const dir = mkdtempSync(join(tmpdir(), 'ds-plain-file-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));

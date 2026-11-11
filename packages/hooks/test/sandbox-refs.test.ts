@@ -8,7 +8,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { loadProject, resolveEnvironment } from '@retake/core';
+import { PERSON_POLICY, resolveEnvironment } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import type { HookStep, LoadedProject } from '@retake/core';
 import { Journal, runHooks } from '@retake/hooks';
 import type { HookContext } from '@retake/hooks';
@@ -69,7 +70,7 @@ async function sandboxProject(): Promise<LoadedProject> {
 
 function contextOf(project: LoadedProject, env: string, over: Partial<HookContext> = {}): { ctx: HookContext; text: () => string } {
   const logs: string[] = [];
-  const ctx: HookContext = { project, env: resolveEnvironment(project, env), vars: {}, saved: {}, log: (level, msg) => logs.push(`${level} ${msg}`), ...over };
+  const ctx: HookContext = { project, policy: PERSON_POLICY, env: resolveEnvironment(project, env), vars: {}, saved: {}, log: (level, msg) => logs.push(`${level} ${msg}`), ...over };
   return { ctx, text: () => logs.join('\n') };
 }
 
@@ -181,5 +182,30 @@ describe('auth: {persona} on an http hook (hotfix v0.2.3)', () => {
     const empty = contextOf(project, 'stage', { personaAuth: async () => ({}) }).ctx;
     expect(await err(empty, { auth: { persona: 'buyer' } })).toContain('holds nothing to send');
     expect(api.requests).toHaveLength(0);
+  });
+
+  it("through MCP a persona's session goes only to that persona's own pages: same origin sent, another origin refused before anything is read or sent; a person's run unchanged", async () => {
+    const project = await sandboxProject();
+    const journal = await Journal.open(join(tmp.dir, 'runs/r6/hooks-journal.json'));
+    const asked: string[] = [];
+    const session = { personaAuth: async (_p: string, url: string) => (asked.push(url), { authorization: `Bearer ${TOKEN}` }) };
+    const elsewhere = api.base.replace('127.0.0.1', 'localhost');
+    const run = async (ctx: HookContext, url: string) => (await runHooks([{ http: { url, auth: { persona: 'buyer' } } } as HookStep], ctx, { phase: 'teardown', journal })).results[0];
+    const agent = contextOf(project, 'stage', { trust: 'mcp', ...session }).ctx;
+    // Same origin as the persona's page (console): sent with its token.
+    expect((await run(agent, '{{console}}/text')).ok).toBe(true);
+    expect(api.requests).toHaveLength(1);
+    expect(api.requests[0].headers.authorization).toBe(`Bearer ${TOKEN}`);
+    // Another origin: refused, naming the persona and the rule; no session read, no request made.
+    const refused = await run(agent, `${elsewhere}/text`);
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toMatch(/http hook acting as persona buyer .* sends its session only to that persona's own pages \(http:\/\/127\.0\.0\.1:\d+\): http:\/\/localhost:\d+ is not one of them/);
+    expect(asked).toEqual([`${api.base}/text`]);
+    expect(api.requests).toHaveLength(1);
+    // A person's own run (no trust `mcp`): the request goes as written.
+    const person = contextOf(project, 'stage', session).ctx;
+    expect((await run(person, `${elsewhere}/text`)).ok).toBe(true);
+    expect(api.requests).toHaveLength(2);
+    expect(api.requests[1].headers.authorization).toBe(`Bearer ${TOKEN}`);
   });
 });

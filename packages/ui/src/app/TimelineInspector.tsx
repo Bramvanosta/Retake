@@ -27,7 +27,10 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { TimelineView } from '@retake/engine';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
+import { scenarioEdit } from './data/scenarios.js';
+import type { ScenarioEdit } from './data/scenarios.js';
+import type { ScenarioEditAnswer } from './data/scenarios.js';
 import { Txt, plural } from './bits.js';
 import { SessionEnded } from './session.js';
 import { EditHistory, inField } from './step-edit.js';
@@ -40,14 +43,6 @@ type Segment = TimelineView['model']['segments'][number];
 
 /** The parts of the timeline view the switches need (the file's text: what undo restores). */
 export type SwitchView = Pick<TimelineView, 'hash' | 'editable' | 'choices'> & { text?: string };
-
-interface EditAnswer {
-  hash: string;
-  label: string;
-  notices: string[];
-  warnings: unknown[];
-  change?: 'filmed' | 'edit';
-}
 
 /** Said after a switch (L5.5's rule: every switch is an edit value). */
 export const SWITCH_CHANGE_WORDS = 'Only the edit changed: a render of this take shows it, no new capture.';
@@ -113,13 +108,13 @@ export function useSwitchEditor(slug: string, name: string, v: SwitchView, reloa
 
   /** Send one edit on the version shown; `after` runs with the answer (the history's bookkeeping) and gives the words. */
   const run = useCallback(
-    (edit: Record<string, unknown>, after: (r: EditAnswer, shown: SwitchView) => string, op?: SwitchEdit) => {
+    (edit: ScenarioEdit, after: (r: ScenarioEditAnswer, shown: SwitchView) => string, op?: SwitchEdit) => {
       const shown = vRef.current;
       if (busyRef.current || shown.hash === undefined) return;
       busyRef.current = true;
       setBusy(true);
       setError(null);
-      call<EditAnswer>('scenario_edit', { project: slug, name, hash: shown.hash, edit }).then(
+      scenarioEdit({ project: slug, name, hash: shown.hash, edit }).then(
         (r) => {
           history.current.know(r.hash);
           const words = after(r, shown);
@@ -154,7 +149,7 @@ export function useSwitchEditor(slug: string, name: string, v: SwitchView, reloa
   const send = useCallback(
     (edit: SwitchEdit, c?: Choice) => {
       run(
-        edit as unknown as Record<string, unknown>,
+        edit,
         (r, shown) => {
           history.current.push({ label: r.label, before: shown.text!, hashBefore: shown.hash!, after: null, hashAfter: r.hash });
           return `${c ? `${switchEditWords(edit, c)}.` : `${r.label}.`} Saved: ⌘Z undoes. ${SWITCH_CHANGE_WORDS}`;

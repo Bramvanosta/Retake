@@ -1,8 +1,7 @@
 import type { Engine, JobRecord, PreviewSubmitted } from '@retake/engine';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import type { ToolContext } from './define.js';
-import { jobLine, previewImages } from './jobs.js';
+import { jobLine, previewImages } from './job-lines.js';
 import { WAIT_MAX_S, waitJob } from './run.js';
 
 /** The summary of a preview job: state, the images written, what to do next (the guard's warnings stay under untrusted). */
@@ -21,7 +20,7 @@ export function previewSummary(job: JobRecord): string {
 }
 
 /** Wait on a submitted preview (wait_s), then its summary and, once it succeeded, its stills as images. */
-export async function previewOutput(engine: Engine, sub: PreviewSubmitted, waitSeconds: number, ctx: ToolContext, head: string): Promise<ToolOutput> {
+export async function previewOutput(engine: Engine, sub: PreviewSubmitted, waitSeconds: number, ctx: ToolContext, head: string) {
   await waitJob(engine, sub.job, waitSeconds, ctx);
   const job = await engine.jobs.get(sub.job.id);
   const images = previewImages(job);

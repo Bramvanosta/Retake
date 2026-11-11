@@ -7,6 +7,9 @@ import { z } from 'zod';
 import { COMPONENT_ID_RE, EditOverridesInputSchema, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, TEMPLATE_NAME_RE } from '@retake/core';
 import { RUN_ID_RE } from '@retake/engine';
 
+/** Problems named per argument: the operation contract's (callTool reports them). */
+export { argumentProblems } from '@retake/engine/contract';
+
 export const projectSlug = z
   .string()
   .max(100)
@@ -61,13 +64,4 @@ export function inputJsonSchema(schema: z.ZodType): Record<string, unknown> {
   delete json.$schema;
   delete json.$id;
   return json;
-}
-
-/** One line per problem, naming the argument: "project: a project slug…". */
-export function argumentProblems(error: z.ZodError): string[] {
-  return error.issues.map((i) => {
-    const where = i.path.length ? i.path.map(String).join('.') : '(arguments)';
-    const keys = (i as { keys?: string[] }).keys;
-    return i.code === 'unrecognized_keys' && keys ? `${where}: unknown argument${keys.length > 1 ? 's' : ''} ${keys.join(', ')}` : `${where}: ${i.message}`;
-  });
 }

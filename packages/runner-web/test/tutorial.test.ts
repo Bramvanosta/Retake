@@ -8,7 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TimelineSchema } from '@retake/core';
+import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { TextArtefact, Timeline } from '@retake/core';
 import { captureValue, runScenario } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
@@ -35,7 +35,7 @@ beforeAll(async () => {
   const { port } = srv.address() as AddressInfo;
   server = { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((r) => (srv.closeAllConnections(), srv.close(() => r()))) };
   dir = await tempDir('rw-tutorial-');
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }),
     scenario: makeScenario('tutorial', {
       pacing: FAST,

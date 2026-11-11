@@ -10,14 +10,14 @@
 import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { chromium } from 'playwright-core';
-import type { BrowserConfig, CursorIcon, RawLayerFormat } from '@retake/core';
+import type { BrowserConfig, CursorIcon, RawLayerFormat, WorkPolicy } from '@retake/core';
+import { ffmpegBin } from '@retake/core/io';
 import { EncodeError } from '../errors.js';
 import { kitSource } from '../kit/source.js';
 import type { KitConfig } from '../kit/types.js';
 import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
 import { CURSOR_LOOK, type CursorFrame } from './cursor.js';
-import { ffmpegBin } from '@retake/core';
 
 /** Atlas geometry (CSS px): each sprite in a cell, its hotspot (the cursor point / ripple centre) at `hot`. */
 export const ATLAS = { cell: 128, hot: 64, columns: 12, ripple_step_s: 1 / 120, scale_steps: 10 } as const;
@@ -89,15 +89,15 @@ function cutSprite(rgba: Buffer, stride: number, x0: number, y0: number, size: n
  * reused in open shadow roots) for each icon × press scale and the ripple at each age, transitions off, the ripple's
  * animations paused at that age; one transparent screenshot at `scale`, decoded with ffmpeg.
  */
-export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; browser?: BrowserConfig; ffmpeg?: string }): Promise<CursorAtlas> {
+export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; browser?: BrowserConfig; ffmpeg?: string; policy: WorkPolicy }): Promise<CursorAtlas> {
   const { cell, hot, columns } = ATLAS;
   const rippleCount = Math.ceil(CURSOR_LOOK.ripple_ms / 1000 / ATLAS.ripple_step_s);
   const specs: Array<{ icon?: CursorIcon; scale?: number; age_ms?: number }> = [];
   for (const icon of ICONS) for (let k = 0; k <= ATLAS.scale_steps; k++) specs.push({ icon, scale: 1 - (k / ATLAS.scale_steps) * (1 - CURSOR_LOOK.press_scale) });
   for (let k = 0; k < rippleCount; k++) specs.push({ age_ms: k * ATLAS.ripple_step_s * 1000 });
   const rows = Math.ceil(specs.length / columns);
-  const target = launchTarget(opts.browser);
-  const browser = await chromium.launch({ headless: true, ...target, ...launchOptions({ args: DEFAULT_BROWSER_ARGS, browserArgs: opts.browser?.args }) });
+  const target = launchTarget(opts.browser, { policy: opts.policy });
+  const browser = await chromium.launch({ headless: true, ...target, ...launchOptions({ args: DEFAULT_BROWSER_ARGS, browserArgs: opts.browser?.args, policy: opts.policy }) });
   await refuseUnsandboxed(browser, () => browser.close(), 'The cursor layer browser');
   let png: Buffer;
   try {
@@ -142,7 +142,7 @@ export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; b
   }
   const W = columns * cell * opts.scale;
   const H = rows * cell * opts.scale;
-  const rgba = await run(ffmpegBin(opts.ffmpeg), ['-v', 'error', '-f', 'png_pipe', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1'], png);
+  const rgba = await run(ffmpegBin(opts.policy, opts.ffmpeg), ['-v', 'error', '-f', 'png_pipe', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1'], png);
   if (rgba.length !== W * H * 4) throw new EncodeError(`cursor atlas: decoded ${rgba.length} bytes, expected ${W}×${H} RGBA`);
   const empty: Sprite = { dx: 0, dy: 0, w: 0, h: 0, data: Buffer.alloc(0) };
   const sprite = (i: number) => cutSprite(rgba, W, (i % columns) * cell * opts.scale, Math.floor(i / columns) * cell * opts.scale, cell * opts.scale, hot * opts.scale) ?? empty;
@@ -240,10 +240,12 @@ export async function encodeCursorLayer(opts: {
   out: string;
   timecode: string;
   ffmpeg?: string;
+  /** What the work runs under (core WorkPolicy): which ffmpeg and Chromium, under its agent policy. */
+  policy: WorkPolicy;
   signal?: AbortSignal;
 }): Promise<void> {
   const { width, height } = opts;
-  const bin = ffmpegBin(opts.ffmpeg);
+  const bin = ffmpegBin(opts.policy, opts.ffmpeg);
   const child = spawn(bin, layerArgs(opts.format, width, height, opts.fps, opts.frames.length, opts.out, opts.timecode), { stdio: ['pipe', 'ignore', 'pipe'] });
   let err = '';
   child.stderr.on('data', (d: Buffer) => {

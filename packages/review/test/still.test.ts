@@ -12,6 +12,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ReviewError, extractStill } from '../src/index.js';
 import { hasTool } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 let dir: string;
@@ -49,22 +50,22 @@ describe.skipIf(!can)('extractStill', () => {
     const expected = (n: number) => (((7 * n) % 220) * 255) / 219;
     for (const f of [0, 1, 17, 18, 31, 59]) {
       const out = join(dir, `still-${f}.jpg`);
-      const r = await extractStill(video, f, out);
+      const r = await extractStill(video, f, out, { policy: PERSON_POLICY });
       expect(r).toMatchObject({ width: 320, height: 180 });
       expect(r.bytes).toBeGreaterThan(0);
       const { mean } = await look(out);
       expect(Math.abs(mean - expected(f)), `frame ${f}: mean ${mean.toFixed(1)}, expected ${expected(f).toFixed(1)}`).toBeLessThan(2.5);
     }
     // Past the end: refused.
-    await expect(extractStill(video, 60, join(dir, 'past.jpg'))).rejects.toThrow(ReviewError);
-    await expect(extractStill(video, -1, join(dir, 'neg.jpg'))).rejects.toThrow(/not a frame number/);
+    await expect(extractStill(video, 60, join(dir, 'past.jpg'), { policy: PERSON_POLICY })).rejects.toThrow(ReviewError);
+    await expect(extractStill(video, -1, join(dir, 'neg.jpg'), { policy: PERSON_POLICY })).rejects.toThrow(/not a frame number/);
   });
 
   it('scales a 4K master to 1920 px on its long side', async () => {
     const video = join(dir, 'uhd.mp4');
     counterVideo(video, 3840, 2160, 3);
     const out = join(dir, 'uhd.jpg');
-    expect(await extractStill(video, 2, out)).toMatchObject({ width: 1920, height: 1080 });
+    expect(await extractStill(video, 2, out, { policy: PERSON_POLICY })).toMatchObject({ width: 1920, height: 1080 });
     const { width, height, mean } = await look(out);
     expect([width, height]).toEqual([1920, 1080]);
     expect(Math.abs(mean - (14 * 255) / 219)).toBeLessThan(2.5);
@@ -75,7 +76,7 @@ describe.skipIf(!can)('extractStill', () => {
     counterVideo(video, 640, 360, 30);
     const out = join(dir, 'region.jpg');
     const region = { x: 0.5, y: 0.5, w: 0.25, h: 0.25 };
-    await extractStill(video, 20, out, { region });
+    await extractStill(video, 20, out, { policy: PERSON_POLICY, region });
     // Left edge of the box, half-way down: the mark colour (#ff2d78), red well above green.
     const edge = (await look(out, 320 + 1, 180 + 45)).at;
     expect(edge[0] - edge[1], `edge ${edge}`).toBeGreaterThan(120);
@@ -85,14 +86,14 @@ describe.skipIf(!can)('extractStill', () => {
       const [r, g, b] = (await look(out, x, y)).at;
       expect(Math.max(r, g, b) - Math.min(r, g, b), `${x},${y}`).toBeLessThan(8);
     }
-    await expect(extractStill(video, 1, join(dir, 'bad.jpg'), { region: { x: 0.9, y: 0, w: 0.2, h: 0.1 } })).rejects.toThrow(/inside the frame/);
+    await expect(extractStill(video, 1, join(dir, 'bad.jpg'), { policy: PERSON_POLICY, region: { x: 0.9, y: 0, w: 0.2, h: 0.1 } })).rejects.toThrow(/inside the frame/);
   });
 
   it('a region on a 4K master is drawn on the scaled still (1920 px), where it lies in the frame', async () => {
     const video = join(dir, 'uhd-region.mp4');
     counterVideo(video, 3840, 2160, 2);
     const out = join(dir, 'uhd-region.jpg');
-    expect(await extractStill(video, 1, out, { region: { x: 0.5, y: 0.5, w: 0.25, h: 0.25 } })).toMatchObject({ width: 1920, height: 1080 });
+    expect(await extractStill(video, 1, out, { policy: PERSON_POLICY, region: { x: 0.5, y: 0.5, w: 0.25, h: 0.25 } })).toMatchObject({ width: 1920, height: 1080 });
     // The box's left edge on the still: x 960, y 540..810.
     const edge = (await look(out, 961, 675)).at;
     expect(edge[0] - edge[1], `edge ${edge}`).toBeGreaterThan(120);
@@ -104,7 +105,7 @@ describe.skipIf(!can)('extractStill', () => {
     const video = join(dir, 'vertical.mp4');
     counterVideo(video, 1080, 1920, 2);
     const out = join(dir, 'vertical.jpg');
-    await extractStill(video, 1, out, { region: { x: 0.25, y: 0.25, w: 0.5, h: 0.25 } });
+    await extractStill(video, 1, out, { policy: PERSON_POLICY, region: { x: 0.25, y: 0.25, w: 0.5, h: 0.25 } });
     // Long side 1920 → scale 1.5 → a 3 px stroke from x 270: columns 270..272 pink, 274 grey.
     for (const x of [270, 272]) {
       const at = (await look(out, x, 700)).at;

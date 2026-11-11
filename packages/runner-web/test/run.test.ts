@@ -3,13 +3,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { TimelineSchema } from '@retake/core';
+import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario, scaleArgs } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { DOC_PAGE, DROP_PAGE, DRY_PAGE, SCROLL_PAGE, STRATEGY_PAGE, TABS_PAGE } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 let server: TestServer;
 let dir: string;
@@ -37,7 +40,7 @@ afterAll(async () => {
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({
+  return runScenario({ policy: PERSON_POLICY,
     project,
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
@@ -144,7 +147,7 @@ describe('device scale 2 (4K-class captures, L2.8)', () => {
 
   it('captures real 2× frames: the screencast frames and capture.mp4 are width·2 × height·2', async () => {
     const project = makeProject(dir, { app: server.url }, { width: 640, height: 360 });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('scale2', { pacing: FAST, capture: { scale: 2 }, scenes: [{ id: 'doc', open: '/doc.html', steps: [{ hold: 0.6 }] }] }),
       mode: 'capture',
@@ -445,7 +448,7 @@ describe('dry-run, --until, failures, cancellation', () => {
     expect(rec.warnings.join(' ')).toMatch(/optional/);
   });
 
-  it('an AbortSignal cancels the run and teardown still happens: teardown hooks, then the setup rollbacks (R-RUN-08)', async () => {
+  it.skipIf(!MAC_TIMING)('an AbortSignal cancels the run and teardown still happens: teardown hooks, then the setup rollbacks (R-RUN-08)', async () => {
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 1200);
     const t0 = Date.now();

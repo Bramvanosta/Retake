@@ -35,11 +35,12 @@ import type { ComponentKind, LoadedTemplate } from '@retake/core';
 import { EngineError, checkSiteUrl, firstErrorLine, memoRegistry, openProjectBySlug, siteCommandLine, siteHostConflicts, themeAssetProblems, themeEditList, themeForWork } from '@retake/engine';
 import type { Engine, SiteList, ThemeEditList, ThemeEditResult, ThemeEditView } from '@retake/engine';
 import type { ComponentRegistry } from '@retake/components';
-import type { ToolDef } from '@retake/mcp';
+import { defineTool } from '@retake/engine/contract';
+import { fileFacts } from '@retake/core/io';
 import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { opChain } from './op-chain.js';
-import type { PreviewLeases, PreviewHeld } from './ops.js';
+import type { PreviewLeases, PreviewHeld } from './preview-leases.js';
 import type { PlayerServer } from './player.js';
 import type { PreviewAllowList } from './preview-allow.js';
 
@@ -167,10 +168,10 @@ export interface ThemeOpsOptions {
   leases?: PreviewLeases;
 }
 
-export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
+export function themeOps(o: ThemeOpsOptions = {}) {
   const oneAtATime = o.chain ?? opChain();
 
-  const list: ToolDef<typeof ListInput> = {
+  const list = defineTool({
     name: 'theme_list',
     title: 'The themes of the workspace',
     description: "Every theme (workspace, starters, the project's own folder): editable or read-only with why, its colours, what uses it; the components a theme may pick per kind; the project's scenarios.",
@@ -189,12 +190,12 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
       };
       return {
         summary: `${data.themes.length} themes (${data.themes.filter((t) => t.editable === true).length} editable), ${data.components.length} components`,
-        data: data as unknown as Record<string, unknown>,
+        data,
       };
     },
-  };
+  });
 
-  const view: ToolDef<typeof ViewInput> = {
+  const view = defineTool({
     name: 'theme_view',
     title: 'A theme in the editor',
     description: "One theme as the editor shows it: editable or read-only with why, template.yaml and its sha256, the editable fields, components per kind, its font and image files, palette checks, and what uses it.",
@@ -206,12 +207,12 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
       const { yaml, ...rest } = v;
       return {
         summary: `theme ${v.name} (${v.source}${v.editable === true ? ', editable' : ', read-only'})${v.issues.length ? `, ${v.issues.length} issues` : ''}`,
-        data: { ...pathFreeDeep(rest, engine.workspace.root), yaml } as unknown as Record<string, unknown>,
+        data: { ...pathFreeDeep(rest, engine.workspace.root), yaml },
       };
     },
-  };
+  });
 
-  const edit: ToolDef<typeof EditInput> = {
+  const edit = defineTool({
     name: 'theme_edit',
     title: 'Edit a theme from the Studio',
     description: "One verified write of a workspace theme's template.yaml (an allow-listed field, the background, a kind's component, or undo / redo's exact earlier version), on the version the editor showed.",
@@ -221,12 +222,12 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
       const r: ThemeEditResult = await oneAtATime(themeKey(a.theme), () => engine.templates.edit(a.theme, { if_match: a.if_match, edit: a.edit }));
       return {
         summary: `${r.label}: ${r.name} (sha256 ${r.sha256.slice(0, 12)})${r.removed.length ? `, removed ${r.removed.join(', ')}` : ''}${r.warnings.length ? `, ${r.warnings.length} warnings` : ''}`,
-        data: pathFreeDeep(r, engine.workspace.root) as unknown as Record<string, unknown>,
+        data: pathFreeDeep(r, engine.workspace.root),
       };
     },
-  };
+  });
 
-  const copy: ToolDef<typeof CopyInput> = {
+  const copy = defineTool({
     name: 'theme_copy',
     title: 'Copy a theme to edit it',
     description: 'A new workspace theme copied from a listed one (a starter, another theme): its files verbatim, only its name changed.',
@@ -234,11 +235,11 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
     annotations: WRITE,
     async run(a, { engine }) {
       const r = await oneAtATime(themeKey(a.name), () => engine.templates.copy({ from: a.from, name: a.name }));
-      return { summary: `theme ${r.name} copied from ${r.from} (${r.files.length} files)`, data: pathFreeDeep(r, engine.workspace.root) as unknown as Record<string, unknown> };
+      return { summary: `theme ${r.name} copied from ${r.from} (${r.files.length} files)`, data: pathFreeDeep(r, engine.workspace.root) };
     },
-  };
+  });
 
-  const create: ToolDef<typeof CreateInput> = {
+  const create = defineTool({
     name: 'theme_create',
     title: 'New theme from brand files',
     description: "A NEW workspace theme from the brand's colours, logo and fonts (workspace files or a site candidate), over a base theme — as template_create_from_brand makes it, never replacing one.",
@@ -250,12 +251,12 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
       const { dir: _dir, ...rest } = c;
       return {
         summary: `theme ${c.name} created over ${c.base} (${c.files.length} files)${c.warnings.length ? `, ${c.warnings.length} warnings` : ''}`,
-        data: pathFreeDeep(rest, engine.workspace.root) as unknown as Record<string, unknown>,
+        data: pathFreeDeep(rest, engine.workspace.root),
       };
     },
-  };
+  });
 
-  const files: ToolDef<typeof FilesInput> = {
+  const files = defineTool({
     name: 'brand_files',
     title: 'Brand files of the workspace',
     description: "The workspace's image or font files a new theme may take (names relative to the workspace and sizes; hidden, agent-writable and components folders left out).",
@@ -263,11 +264,11 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
     annotations: READ,
     async run(a, { engine }) {
       const r = await engine.templates.files(a.kind);
-      return { summary: `${r.files.length} ${a.kind} files${r.truncated ? ' (not all listed)' : ''}`, data: r as unknown as Record<string, unknown> };
+      return { summary: `${r.files.length} ${a.kind} files${r.truncated ? ' (not all listed)' : ''}`, data: r };
     },
-  };
+  });
 
-  const sites: ToolDef<typeof SitesInput> = {
+  const sites = defineTool({
     name: 'site_list',
     title: 'Site extractions',
     description: "The newest site extractions (colour roles with contrast, logo candidates; the page's URL, host and text as untrusted data) — and, for a URL, the command that extracts it (never queued from the Studio).",
@@ -294,12 +295,12 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
       // The command keeps the workspace (`retake -C <root>`): the person copies it into a terminal, like an error's `fix`.
       return {
         summary: `${out.sites.length} site extractions${out.command ? '; command ready' : out.url_problem ? `; ${out.url_problem}` : ''}`,
-        data: out as unknown as Record<string, unknown>,
+        data: out,
       };
     },
-  };
+  });
 
-  const preview: ToolDef<typeof PreviewInput> = {
+  const preview = defineTool({
     name: 'theme_preview',
     title: "A theme's live preview",
     description: "The theme editor's live preview of the theme's intro, its layout with its caption (clip), its outro or one component in the theme — with colours being changed applied in memory — as the preview frame's capability URLs.",
@@ -310,11 +311,11 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
       const r = await themePreview(engine, a, o);
       const head = `${a.theme}: ${'component' in r.target && r.target.component ? r.target.component : r.target.kind}`;
       const summary = 'frame_url' in r ? `${head}, ${r.frames} frames` : 'not_previewed' in r ? `${head}: not previewed (${r.not_previewed})` : `${head}: no preview`;
-      return { summary, data: r as unknown as Record<string, unknown> };
+      return { summary, data: r };
     },
-  };
+  });
 
-  return [list, view, edit, copy, create, files, sites, preview] as unknown as ToolDef[];
+  return [list, view, edit, copy, create, files, sites, preview] as const;
 }
 
 /** The workspace components among `ids` that the person has not allowed in the preview (empty without an allow-list). */
@@ -345,7 +346,7 @@ function withDraft(t: LoadedTemplate, draft: z.infer<typeof PreviewInput>['draft
 export async function themePreview(engine: Engine, a: z.infer<typeof PreviewInput>, o: ThemeOpsOptions): Promise<ThemePreviewAnswer> {
   const ws = engine.workspace;
   const p = await openProjectBySlug(ws, a.project);
-  const loaded = await themeForWork(p, a.theme);
+  const loaded = await themeForWork(p, a.theme, fileFacts(ws.policy));
   const problems = themeAssetProblems(loaded);
   if (problems.length) throw new EngineError('refused', `${problems.map((x) => pathFree(x, ws.root)).join('; ')}: a theme serves only its own files`);
   const registry = (await memoRegistry(ws)).registry;

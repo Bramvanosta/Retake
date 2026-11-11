@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
-import { personaPaths } from '@retake/core';
+import { personaPaths, PERSON_POLICY } from '@retake/core';
 import type { AuthConfig, LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/core';
 import {
   copyProfile,
@@ -75,7 +75,7 @@ async function master(persona: 'supplier' | 'buyer', opts: { profile?: boolean }
 
 async function run(p: LoadedProject, name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<{ rec: RunRecord; events: RunProgress[]; dir: string }> {
   const events: RunProgress[] = [];
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project: p,
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
@@ -186,7 +186,7 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
 
   it('a master held by a running browser (the login window) is refused before anything runs; its lock is seen as live', async () => {
     await master('buyer');
-    const held = await chromium.launchPersistentContext(files('buyer').profileDir, { headless: true, ...launchTarget() });
+    const held = await chromium.launchPersistentContext(files('buyer').profileDir, { headless: true, ...launchTarget({}, { policy: PERSON_POLICY }) });
     try {
       // Chromium's lock is a dangling symbolic link "<host>-<pid>": existsSync says false, lstat sees it.
       expect(existsSync(join(files('buyer').profileDir, 'SingletonLock'))).toBe(false);
@@ -771,7 +771,7 @@ describe('session copies (R-AUTH-07, units)', () => {
     await mkdir(copy);
     await mkdir(other);
     await expect(
-      openSession({
+      openSession({ policy: PERSON_POLICY,
         width: 400,
         height: 300,
         scale: 1,

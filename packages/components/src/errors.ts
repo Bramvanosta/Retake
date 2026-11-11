@@ -1,5 +1,6 @@
-import { formatPath } from '@retake/core';
+import { formatPath, GUIDE, missingOrInvalid } from '@retake/core';
 import type { ComponentIssue } from './types.js';
+import type { ErrorKind } from '@retake/core';
 
 /** A component that cannot be found, resolved, created or validated. The message is written for the user. */
 export class ComponentError extends Error {
@@ -11,6 +12,15 @@ export class ComponentError extends Error {
   ) {
     super(message);
     this.name = 'ComponentError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return /already exists/.test(this.message) ? 'conflict' : missingOrInvalid(this.message, this.issues);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.components;
   }
 }
 

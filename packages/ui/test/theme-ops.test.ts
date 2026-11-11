@@ -20,7 +20,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR } from '@retake/core';
+import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import type { ComponentPreviewSpec } from '@retake/editor';
 import type { ThemeEditView } from '@retake/engine';

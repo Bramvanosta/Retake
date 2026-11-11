@@ -5,8 +5,6 @@
  * A file of a higher version than this Retake reads is refused with one message — it was made for a newer Retake
  * — instead of a flood of unknown-key errors. Retake never rewrites a user's file to another version.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 /**
  * The version of Retake (`retake --version`, run.json `engine.retake`, the app). One number: the root package.json's,
@@ -14,6 +12,12 @@ import { join } from 'node:path';
  * apps/desktop/Cargo.toml (a test keeps them equal).
  */
 export const RETAKE_VERSION = '0.2.6';
+
+/**
+ * Where Retake's repository is read on the web: the root package.json's `repository` field (its URL without `git+` and
+ * `.git`), repeated here (a test keeps them equal). The documentation URLs of errors point into it (error-kind.ts).
+ */
+export const RETAKE_REPOSITORY = 'https://github.com/Bramvanosta/Retake';
 
 /** The format version of each file this Retake reads and writes (a file without `version` is version 1). */
 export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 } as const;
@@ -34,18 +38,4 @@ export function newerFormatMessage(value: unknown, format: FormatVersion): strin
   const v = (value as { version?: unknown }).version;
   if (typeof v !== 'number' || !Number.isInteger(v) || v <= format.supported) return undefined;
   return `this ${format.file} is version ${v}: it was made for a newer Retake (this one reads version ${format.supported}) — update Retake`;
-}
-
-/**
- * The refusal of a run folder whose run.json a newer Retake wrote (render, plan, raw export). Undefined when
- * run.json is absent, unreadable or of a version this Retake reads: a run without one still renders.
- */
-export function newerRunMessage(dir: string): string | undefined {
-  let value: unknown;
-  try {
-    value = JSON.parse(readFileSync(join(dir, 'run.json'), 'utf8'));
-  } catch {
-    return undefined;
-  }
-  return newerFormatMessage(value, { file: 'run.json', supported: FORMAT_VERSIONS.run });
 }

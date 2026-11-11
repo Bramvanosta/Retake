@@ -19,9 +19,7 @@
  */
 import { z } from 'zod';
 import { EngineError } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
-import { parseUpdateLine } from './update-ops.js';
-import type { UpdateLine } from './update-ops.js';
+import { defineTool } from '@retake/engine/contract';
 
 /** The quit question's id (desktop_core guard_flow `id_ok`): 22 base64url characters. */
 export const QUIT_ID_RE = /^[A-Za-z0-9_-]{22}$/;
@@ -37,39 +35,6 @@ export const DesktopAnswerInput = z.union([
 /** L5.16c: what the server may ask the shell to do for the Set-up sheet (desktop_core pipe.rs SetupAction). */
 export const SETUP_ACTIONS = ['notifications', 'cli_folder'] as const;
 export type SetupAction = (typeof SETUP_ACTIONS)[number];
-
-/** The longest line the shell writes on the server's stdin (bytes). */
-export const SHELL_LINE_MAX = 8192;
-
-/** A line the desktop shell wrote on the supervised server's stdin (L5.16c; L5.16d: the update's state). */
-export type ShellLine = { type: 'cli_folder'; path: string } | { type: 'cli_folder_open' } | { type: 'cli_folder_cancelled' } | { type: 'notifications'; state: 'on' | 'off' | 'unknown' } | UpdateLine;
-
-/**
- * One line of the shell on stdin, or null for anything but its exact shapes: `{"type":"cli_folder_open"}` (its native
- * folder panel is up: review c A-L7 — the sheet says "choose in the panel" only then), `{"type":"cli_folder","path":
- * <absolute>}` (the folder the person picked there), `{"type":"cli_folder_cancelled"}` (none: cancelled, or the panel
- * could not open while another question was up), `{"type":"notifications","state":"on"|"off"|"unknown"}`. Strict: no
- * other field, a path absolute, one line, no NUL, at most 4096 characters; the line at most SHELL_LINE_MAX bytes (UTF-8).
- * L5.16d: `{"type":"update","state":…}` — the update's state (update-ops.ts parseUpdateLine: fixed keys per state).
- */
-export function parseShellLine(line: string): ShellLine | null {
-  if (Buffer.byteLength(line, 'utf8') > SHELL_LINE_MAX) return null;
-  let v: unknown;
-  try {
-    v = JSON.parse(line);
-  } catch {
-    return null;
-  }
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
-  const o = v as Record<string, unknown>;
-  const keys = Object.keys(o).sort().join(',');
-  if (o.type === 'cli_folder' && keys === 'path,type' && typeof o.path === 'string' && o.path.startsWith('/') && o.path.length <= 4096 && !/[\0\n\r]/.test(o.path)) return { type: 'cli_folder', path: o.path };
-  if (o.type === 'cli_folder_open' && keys === 'type') return { type: 'cli_folder_open' };
-  if (o.type === 'cli_folder_cancelled' && keys === 'type') return { type: 'cli_folder_cancelled' };
-  if (o.type === 'notifications' && keys === 'state,type' && (o.state === 'on' || o.state === 'off' || o.state === 'unknown')) return { type: 'notifications', state: o.state };
-  if (o.type === 'update') return parseUpdateLine(o);
-  return null;
-}
 
 /** The pipe of a supervised server (set by startSupervisor); none otherwise. */
 export class DesktopPipe {
@@ -107,7 +72,8 @@ export class DesktopPipe {
 
   /**
    * L5.16c: a set-up request for the shell (setup-ops.ts) — `notifications` (ask macOS for the permission) or
-   * `cli_folder` (show the native folder panel; the answer comes back on stdin: parseShellLine). Fixed shapes only.
+   * `cli_folder` (show the native folder panel; the answer comes back on stdin: shell-line.ts parseShellLine). Fixed
+   * shapes only.
    */
   setup(action: SetupAction): void {
     this.send(this.need(), JSON.stringify({ type: 'setup', action }));
@@ -130,8 +96,8 @@ export class DesktopPipe {
 }
 
 /** The own op `desktop_answer` on `pipe`. */
-export function desktopOps(pipe: DesktopPipe): ToolDef[] {
-  const op: ToolDef<typeof DesktopAnswerInput> = {
+export function desktopOps(pipe: DesktopPipe) {
+  const op = defineTool({
     name: 'desktop_answer',
     title: 'Answer the desktop app',
     description: "The window's quit question: shown (the sheet is on screen) or the person's answer. The desktop app's own server only.",
@@ -145,8 +111,8 @@ export function desktopOps(pipe: DesktopPipe): ToolDef[] {
       const sent = pipe.shown(a.id);
       return { summary: sent ? 'shown' : 'shown (not sent: too many this minute)', data: { ok: true } };
     },
-  };
-  return [op as unknown as ToolDef];
+  });
+  return [op];
 }
 
 export const DESKTOP_OPS = ['desktop_answer'] as const;

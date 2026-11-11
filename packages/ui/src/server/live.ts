@@ -31,10 +31,10 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@retake/engine';
-import type { RunChange, RunRow, SourceMap, SqliteLoader } from '@retake/engine';
+import { ENGINE_HTTP_API, EngineError, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@retake/engine';
+import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { libraryChanges, libraryWatchScan } from './library-watch.js';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 
@@ -54,7 +54,12 @@ export const EVENT_POLL_MS = 1000;
 export const EVENT_KEEPALIVE_MS = 15_000;
 
 export interface LiveOptions {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
+  /**
+   * The engine's job queue (Engine.queue): the job watch and the index each read it with a memory of their own
+   * (withOwnMemory: the jobs each saw finished, the takes each counts), and the default `retake` in derived fix texts.
+   */
+  queue: JobQueueView;
   /** node:sqlite (tests inject a Node.js without it). */
   sqlite?: SqliteLoader;
   pollMs?: number;
@@ -88,14 +93,14 @@ export class Live {
     /** null: no node:sqlite on this Node.js. */
     readonly index: WorkspaceIndex | null,
   ) {
-    this.jobs = new JobsWatch(new FileJobQueue(o.ws.root));
+    this.jobs = new JobsWatch(o.queue.withOwnMemory());
   }
 
   /** Opens (builds, rebuilds) and reconciles the index, and takes stock of the jobs. */
   static async start(o: LiveOptions): Promise<Live> {
     let index: WorkspaceIndex | null = null;
     try {
-      index = await WorkspaceIndex.open(o.ws, o.sqlite ? { loader: o.sqlite } : {});
+      index = await WorkspaceIndex.open(o.ws, { queue: o.queue.withOwnMemory(), ...(o.sqlite ? { loader: o.sqlite } : {}) });
     } catch (e) {
       o.log?.(`retake ui: the workspace index could not be opened (${e instanceof Error ? e.message : String(e)}): activity and search are off`);
     }

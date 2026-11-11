@@ -8,8 +8,9 @@ import type { BBox, CursorEffect, CursorIcon, CursorSample, Timeline, TimelineEv
 import { gridFrameOf, type RawClipPlan, type RawPlan, sequenceStartOf } from './plan.js';
 
 /**
- * Timing of the kit's cursor look (kit.ts `lookCss`; a unit test keeps them in step): the press scales the icon to
- * 0.9 over a 90 ms ease-out transition; a ripple grows over 500 ms and fades over 550 ms, then it is removed.
+ * Timing of the kit's cursor look (kit/page/cursor-look.ts `lookCss`; a unit test keeps them in step): the press
+ * scales the icon to 0.9 over a 90 ms ease-out transition; a ripple grows over 500 ms and fades over 550 ms, then it is
+ * removed.
  */
 export const CURSOR_LOOK = { press_scale: 0.9, press_ms: 90, ripple_ms: 550 } as const;
 /** A synthetic click (dom / pointer strategy) flashes the press for this long (kit `flashPress`). */

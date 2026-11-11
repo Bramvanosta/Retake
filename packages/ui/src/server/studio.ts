@@ -26,10 +26,12 @@ import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
-import { loadWorkspaceConfig, workspaceFolders } from '@retake/core';
+import { workspaceFolders } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 import {
   BodyTooLargeError,
   BootstrapCodes,
+  ENGINE_ERROR_CODES,
   ENGINE_HTTP_API,
   ERROR_STATUS,
   checkRequest,
@@ -42,8 +44,13 @@ import {
   securityHeaders,
 } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
-import { TOOLS, callTool, capUntrusted } from '@retake/mcp';
-import type { ToolDef } from '@retake/mcp';
+import { servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
+import type { OperationName, StudioOpName, StudioPinsOf } from '@retake/engine/catalogue';
+import { callTool, capUntrusted, pinArguments } from '@retake/engine/contract';
+import type { PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
+import type { z } from 'zod';
+import { TOOLS } from '@retake/mcp';
+import type { McpTools } from '@retake/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { PlayerBundles } from '../player/bundle-player.js';
@@ -51,12 +58,14 @@ import { Live } from './live.js';
 import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
-import { OWN_OPS, PreviewLeases, boardOp, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { OWN_OPS, boardOp, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { PreviewLeases } from './preview-leases.js';
 import { libraryOps } from './library-ops.js';
 import { themeOps } from './theme-ops.js';
 import { recordOps } from './record-ops.js';
 import { commentOps, pathFree } from './comment-ops.js';
 import { opChain } from './op-chain.js';
+import type { OpChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { UnsavedBoard, unsavedOps } from './unsaved.js';
@@ -64,71 +73,31 @@ import { DesktopPipe, desktopOps } from './desktop.js';
 import { SetupState, setupOps, systemSetupContext } from './setup-ops.js';
 import { UpdateState, updateOps } from './update-ops.js';
 import type { SetupContext } from './setup-ops.js';
-import { z } from 'zod';
 
 /**
- * The ops the Studio may call — L4.1: read the engine and the projects, write a README (if_match), list jobs, list a
- * project's runs: MCP tools; and the Studio's own reads (ops.ts): the workspace index (activity_list, search) and the
- * Projects screen's cards in one call (projects_overview). L4.2: a run's status (`run_status`, without its long-poll:
- * the running banner's progress), the scenario screen's reads (scenario_blocks, run_thumbs), its Dry run / Capture
- * (`scenario_run`, an own op with pinned arguments: no sandbox, no until, no wait — critique B11) and Cancel
- * (`run_cancel`). L4.3: the YAML view's live check (`scenario_validate`, read-only) and the scenario write path
- * (`scenario_edit`, an own op — `scenario_save` stays out: one Studio write path) and the step forms (`scenario_forms`).
- * L4.4: the Run screen's Pause / Resume (`run_pause`) and preflight panel (`scenario_sessions`), the Sessions panel
- * (`auth_status`, read-only; `auth_login` NARROWED to a headed window for the person, never a wait; `sign_in_cancel`).
- * L4.5: the timeline screen's read (`timeline_view`: the view and the preview's capability URLs), `timeline_leave` (a
- * page left: its project's preview URLs are revoked once no page holds one) and `preview_allow` (the person allows a
- * workspace component to run in the preview, this session only: PreviewAllowList); part E: Render with
- * pinned arguments (`scenario_render`), the render queue and list (`scenario_renders`), Cancel of a render or review of
- * the project (`render_cancel`), the review without paths (`render_review`) and its contact sheets (`review_image`).
- * L4.6: the comment ops (comment-ops.ts — threads_list, threads_counts, thread_get, thread_still, render_outline,
- * render_frame, frame_anchor; thread_add, thread_reply, thread_resolve, thread_reopen, thread_apply: the channel
- * `studio`, never a proposal) and `timeline_view {proposal}` (the preview of Claude's proposal). The MCP's comment tools
- * (comments_list, comment_reply, comment_resolve) stay out: a page is never Claude.
- * L4.7: the component library (library-ops.ts — library_view, library_images, library_render: posters and loops are
- * pixels the worker rendered, never component code in the Studio's origin) and the theme editor (theme-ops.ts —
- * theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview: the live preview in the
- * sandboxed frame, workspace components held until allowed). `template_from_site` stays out (a site extraction needs a
- * person's approval of the URL: the Studio shows the command), as do the MCP theme tools (MCP never edits a theme).
- * L4.8: the Record screen (record-ops.ts — record_options, record_start, record_view, record_annotate, record_stop,
- * record_discard, record_save: the control panel of the headed window the worker opens; nothing reaches that window).
- * `scenario_record` and `job_cancel` stay out (a recording from the Studio is pinned: page and path, no --allow-writes,
- * the check on; it is stopped, discarded and saved through its own ops only).
- * L5.2b: `unsaved_report` (unsaved.ts — what a tab holds unsaved, kinds and names only: the desktop app's quit question).
- * L5.12d: `desktop_answer` (desktop.ts — the window page's ack and answer to the desktop app's quit question, written
- * on the supervised pipe; 409 on any other server).
- * L5.16c: the installed app's Set-up sheet (setup-ops.ts — setup_status, setup_cli_install, setup_cli_choose,
- * setup_cli_remove, setup_claude_code_run, setup_claude_desktop_add, setup_notifications, setup_done): the desktop app's
- * own server only, never MCP tools — no MCP tool can install the command or register Retake with Claude.
- * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
+ * The ops the Studio may call, in catalogue order: the operations the catalogue (@retake/engine/catalogue) says the
+ * Studio serves — MCP tools it serves as they are or with pinned arguments, and its own ops (ops.ts and the other
+ * *-ops.ts modules). The catalogue also says why the Studio serves none of the other MCP tools; an op that is not
+ * listed answers 404 `unknown op`.
  */
-export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
-export type UiOp = (typeof UI_OPS)[number];
+export const UI_OPS: readonly UiOp[] = Object.freeze(servedNames('studio'));
+/** An op's name: an operation of the catalogue (which of them the Studio serves is UI_OPS). */
+export type UiOp = OperationName;
 
 /**
- * MCP tools the Studio calls with fewer arguments than Claude (critique B11: pin what a page can ask): `run_status`
- * never long-polls from a page (`wait_s` absent or 0 — a page waiting 25 s holds one of the browser's 6 connections).
- * `auth_login` (L4.4) opens only the headed window where the PERSON signs in (`mode: 'headed'`; `auto` is what every
- * run's preflight does by itself) and never waits (`wait_s` 0: the Sessions panel follows the job): a page script can
- * do no more than open a window the person sees (it closes by itself after RETAKE_SIGNIN_MAX_MIN).
+ * Each op's own HTTP status for an engine error code (the catalogue's `studio.status`, read with studioStatus): a frame
+ * request past the server's queue is 429 with Retry-After — the page backs off and asks for its newest frame again. Its
+ * timeout is `unavailable` (503, reason `timeout`), which the page says after one more try.
  */
-const NARROWED: Partial<Record<UiOp, (t: ToolDef) => ToolDef>> = {
-  run_status: (t) => ({ ...t, input: (t.input as z.ZodObject).extend({ wait_s: z.literal(0).optional().describe('Always 0 from the Studio (no long-poll).') }) }),
-  auth_login: (t) => ({
-    ...t,
-    input: (t.input as z.ZodObject).extend({
-      mode: z.literal('headed').default('headed').describe('Always headed from the Studio: a window where the person signs in.'),
-      wait_s: z.literal(0).default(0).describe('Always 0 from the Studio (the panel follows the job).'),
-    }),
+export const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = Object.fromEntries(
+  UI_OPS.flatMap((op) => {
+    const status = Object.fromEntries(ENGINE_ERROR_CODES.flatMap((code) => {
+      const s = studioStatus(op, code);
+      return s === undefined ? [] : [[code, s]];
+    }));
+    return Object.keys(status).length ? [[op, status]] : [];
   }),
-};
-
-/**
- * An op's own HTTP status for an engine error code (L4.6, critique B7): a frame request past the server's queue is 429
- * with Retry-After — the page backs off and asks for its newest frame again. Its timeout is `unavailable` (503, reason
- * `timeout`: review B L3), which the page says after one more try.
- */
-const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = { render_frame: { busy: 429 } };
+);
 
 /** Every string of an error's details made path-free (pathFree), at most 8 levels deep (deeper values are dropped). */
 export function withoutPathsDeep(v: unknown, root: string, depth = 0): unknown {
@@ -209,7 +178,7 @@ export interface StudioServer {
   player: PlayerServer;
   /** The preview bundles (memo). */
   bundles: PlayerBundles;
-  /** The workspace components the person allowed in the preview this session (memory only; review A H1 c). */
+  /** The workspace components the person allowed in the preview this session (memory only). */
   previewAllow: PreviewAllowList;
   /** The workspace index and the event streams. */
   live: Live;
@@ -237,15 +206,77 @@ export interface StudioServer {
  * which never take an MCP tool's name).
  */
 export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
-  const mcp = new Map(TOOLS.map((t) => [t.name, t]));
-  const mine = new Map(own.map((t) => [t.name, t]));
+  const mcp = new Map<string, ToolDef>(TOOLS.map((t) => [t.name, t]));
+  const mine = new Map<string, ToolDef>(own.map((t) => [t.name, t]));
   for (const name of mine.keys()) if (mcp.has(name)) throw new Error(`UI op ${name} would shadow the MCP tool of that name`);
   return new Map(UI_OPS.map((op) => {
     const t = mcp.get(op) ?? mine.get(op);
     if (!t) throw new Error(`UI op ${op} is not a tool`);
-    return [op, NARROWED[op]?.(t) ?? t];
+    const pins = studioPins(op);
+    return [op, pins.length ? pinArguments(t as ToolDef<z.ZodObject>, pins) : t];
   }));
 }
+
+/** What the Studio's own ops close over: the server's live state, built once per server. */
+export interface StudioToolDeps {
+  live: Live;
+  chain: OpChain;
+  player: () => PlayerServer;
+  forbid: () => readonly string[];
+  allow: PreviewAllowList;
+  registry: NonNullable<Parameters<typeof timelineOps>[0]['registry']>;
+  leases: PreviewLeases;
+  unsaved: UnsavedBoard;
+  desktop: DesktopPipe;
+  setupState: SetupState;
+  updateState: UpdateState;
+  setupContext: () => SetupContext;
+  workspace: string;
+}
+
+/** The ops of one Studio server: the MCP tools of the allow-list and the Studio's own ops, each by name (uiTools). */
+export function studioTools(d: StudioToolDeps): Map<string, ToolDef> {
+  return uiTools(ownOps(d));
+}
+
+/** The Studio's own ops (ops.ts and the other *-ops.ts modules), each with its types (OwnOps). */
+function ownOps(d: StudioToolDeps) {
+  const { chain, leases } = d;
+  return [
+    ...indexOps(d.live),
+    overviewOp(),
+    boardOp(),
+    ...scenarioOps(),
+    ...runOps(),
+    ...editOps(chain),
+    ...liveOps(),
+    ...timelineOps({ player: d.player, forbid: d.forbid, allow: d.allow, registry: d.registry, leases }),
+    ...renderOps(chain),
+    ...commentOps({ chain }),
+    ...libraryOps({ chain }),
+    ...themeOps({ chain, player: d.player, forbid: d.forbid, allow: d.allow, leases }),
+    ...recordOps({ chain }),
+    ...unsavedOps(d.unsaved),
+    ...desktopOps(d.desktop),
+    ...setupOps({ pipe: d.desktop, state: d.setupState, ctx: d.setupContext, workspace: d.workspace }),
+    ...updateOps({ pipe: d.desktop, state: d.updateState }),
+  ] as const;
+}
+
+/** The Studio's own ops by name, as types. */
+type OwnOps = ToolsByName<ReturnType<typeof ownOps>[number]>;
+/** The definition of an op the Studio serves: the MCP tool of that name, else its own op. */
+type ToolOf<K extends StudioOpName> = K extends keyof McpTools ? McpTools[K] : K extends keyof OwnOps ? OwnOps[K] : never;
+/**
+ * Every op the Studio serves as `/v1/call/<op>` runs it — the MCP tool or its own op, the Studio's pinned arguments
+ * applied (as uiTools builds them) — by name, as types: the app's StudioOps (src/app/data/ops.ts) is derived from it
+ * (each op's arguments `ToolArgs`, its answer `ToolData`). Types only: the server's table is studioTools.
+ */
+export type StudioTools = { [K in StudioOpName]: PinnedTool<ToolOf<K>, StudioPinsOf<K>> };
+/** An op the catalogue says the Studio serves without a tool of that name: none (a compile-time check, as uiTools's at start). */
+type Toolless = { [K in StudioOpName]: [ToolOf<K>] extends [never] ? K : never }[StudioOpName];
+export type EveryStudioOpHasATool = NoneOf<Toolless>;
+type NoneOf<T extends never> = T;
 
 function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefined {
   if (assets.has(path)) return STATIC;
@@ -256,8 +287,7 @@ function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefine
 export async function startStudioServer(o: StudioServerOptions): Promise<StudioServer> {
   const log = o.log ?? (() => undefined);
   const assets = await buildUi();
-  // The Studio starts the worker when a run is submitted (L4.2), with a clean environment (critique B5) — cleaned of
-  // every folder of the workspace (its projects, templates and components folders may lie outside the root).
+  // The Studio starts the worker when a run is submitted, with a clean environment — cleaned of every folder of the workspace (its projects, templates and components folders may lie outside the root).
   const root = resolve(o.root);
   const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [root]);
   const engine = await createEngine({
@@ -269,7 +299,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
   });
   const getEngine = async () => engine;
-  const live = await Live.start({ ws: engine.workspace, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
+  const live = await Live.start({ ws: engine.workspace, queue: engine.queue, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
   // The player origin starts after the Studio's listener (it must know the Studio's port): the timeline op reads it
   // when called, which is only ever after startStudioServer returned.
   let player: PlayerServer | undefined;
@@ -278,7 +308,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!player) throw new Error('the preview server is not started');
     return player;
   };
-  // One chain for the writes of a scenario (critique B5): scenario_edit, scenario_render and thread_apply.
+  // One chain for the writes of a scenario: scenario_edit, scenario_render and thread_apply.
   const chain = opChain();
   // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));
@@ -288,25 +318,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const setupState = new SetupState();
   const updateState = new UpdateState();
   const setupContext = o.setup ?? (() => systemSetupContext());
-  const tools = uiTools([
-    ...indexOps(live),
-    overviewOp(),
-    boardOp(),
-    ...scenarioOps(),
-    ...runOps(),
-    ...editOps(chain),
-    ...liveOps(),
-    ...timelineOps({ player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases }),
-    ...renderOps(chain),
-    ...commentOps({ chain }),
-    ...libraryOps({ chain }),
-    ...themeOps({ chain, player: playerNow, forbid, allow: previewAllow, leases }),
-    ...recordOps({ chain }),
-    ...unsavedOps(unsaved),
-    ...desktopOps(desktop),
-    ...setupOps({ pipe: desktop, state: setupState, ctx: setupContext, workspace: engine.workspace.root }),
-    ...updateOps({ pipe: desktop, state: updateState }),
-  ]);
+  const tools = studioTools({ live, chain, player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases, unsaved, desktop, setupState, updateState, setupContext, workspace: engine.workspace.root });
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
@@ -426,12 +438,12 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!r.ok) {
       const e = r.error;
       const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
-      // Every error's words are path-free (review A L1): the workspace's part cut off, any other absolute path shortened —
+      // Every error's words are path-free: the workspace's part cut off, any other absolute path shortened —
       // in the message and every string of the details (an engine or scenario error may quote a file's absolute path).
       // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
       // one the screen already shows before the click.
       const root = engine.workspace.root;
-      const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
+      const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.docs ? { docs: e.docs } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
       send(res, status, { ok: false, error }, 'api', status === 429 ? { 'Retry-After': '1' } : {});
       return;
     }

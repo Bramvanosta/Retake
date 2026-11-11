@@ -25,8 +25,6 @@ import { isDeepStrictEqual } from 'node:util';
 import { canonicalJson } from './canonical-json.js';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
-import type { FieldEdit } from './field-edits.js';
-import type { StepEdit } from './step-edits.js';
 import { parseYaml } from './validation/yaml-source.js';
 
 /** The largest scenario the Studio writes (characters): MCP scenario_save's cap. */
@@ -35,20 +33,11 @@ export const SCENARIO_EDIT_MAX_CHARS = 500_000;
 /**
  * The kinds of `scenario_edit`: the YAML view's text, undo / redo's byte-exact restore, the Blocks tab's step edits
  * (step-edits.ts STEP_EDIT_KINDS — written out here: step-edits imports this module's input rules) and the timeline's
- * field edits (L4.5, field-edits.ts `set_field`).
+ * field edits (L4.5, field-edits.ts `set_field`). The edit itself is the engine's ScenarioEdit (engine scenarios.ts: these
+ * kinds, with step-edits.ts StepEdit and field-edits.ts FieldEdit).
  */
 export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'delete_step', 'duplicate_step', 'set_step', 'insert_step', 'set_field'] as const;
 export type ScenarioEditKind = (typeof SCENARIO_EDIT_KINDS)[number];
-
-export type ScenarioEdit =
-  /** The YAML view's text: written as given, with a final line break added when it has none (as scenario_save). */
-  | { kind: 'replace_text'; text: string }
-  /** Undo / redo: the exact bytes of an earlier version (`text_hash`: their sha256, checked), no line break added. */
-  | { kind: 'restore'; text: string; text_hash: string }
-  /** The Blocks tab: move, delete, duplicate, change or add a step (step-edits.ts: text splices, verified). */
-  | StepEdit
-  /** The timeline (L4.5): one edit value of the video, a scene, a card or an interstitial (field-edits.ts, verified). */
-  | FieldEdit;
 
 // Characters the Studio never adds (see the header): controls, format and default-ignorable characters, line /
 // paragraph separators, the Hangul fillers and the braille blank; tab, line feed and a CR LF's carriage return are left

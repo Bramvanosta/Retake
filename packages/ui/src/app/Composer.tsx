@@ -12,9 +12,9 @@
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import type { FrameCommentAnchor } from '@retake/core';
-import type { ThreadAnswer } from '../server/comment-ops.js';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
+import { frameAnchor, threadAdd } from './data/comments.js';
+import type { AnchorAnswer } from './data/ops.js';
 import { Txt } from './bits.js';
 import { COMMENT_TEXT_MAX, anchorChips, charactersLeft, charactersLeftAnnounced, fieldsOf, regionOfFields, regionWords, renderWords, sameRegion } from './comment-words.js';
 import type { Region, RegionFields } from './comment-words.js';
@@ -22,14 +22,6 @@ import type { Shown } from './FrameViewer.js';
 import { SessionEnded } from './session.js';
 import { ChipList } from './ThreadPanel.js';
 import { Button, Callout, NumberField, TextArea } from './ui-kit/index.js';
-
-interface AnchorAnswer {
-  frame: number;
-  timecode: string;
-  anchor: FrameCommentAnchor;
-  step_now?: string | null;
-  warnings: string[];
-}
 
 const FIELDS: Array<[keyof RegionFields, string]> = [
   ['x', 'Left %'],
@@ -60,7 +52,7 @@ export function Composer(p: { slug: string; name: string; shown: Shown; frame: n
     const n = ++seq.current;
     setAnchor((a) => (a.state === 'ok' ? a : { state: 'loading' }));
     const t = setTimeout(() => {
-      call<AnchorAnswer>('frame_anchor', { project: slug, render_id: shown.render_id, created_at: shown.created_at, frame, ...(region ? { region } : {}) }).then(
+      frameAnchor({ project: slug, render_id: shown.render_id, created_at: shown.created_at, frame, ...(region ? { region } : {}) }).then(
         (a) => n === seq.current && setAnchor({ state: 'ok', a }),
         (e: unknown) => {
           if (n !== seq.current || e instanceof SessionEnded) return;
@@ -80,7 +72,7 @@ export function Composer(p: { slug: string; name: string; shown: Shown; frame: n
     if (posting || text.trim() === '') return;
     setPosting(true);
     setError(null);
-    call<{ thread: ThreadAnswer; warnings: string[] }>('thread_add', { project: slug, render_id: shown.render_id, created_at: shown.created_at, frame, ...(region ? { region } : {}), text })
+    threadAdd({ project: slug, render_id: shown.render_id, created_at: shown.created_at, frame, ...(region ? { region } : {}), text })
       .then(
         (r) => {
           setText('');

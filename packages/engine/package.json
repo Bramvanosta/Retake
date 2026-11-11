@@ -10,6 +10,21 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./catalogue": {
+      "source": "./src/catalogue.ts",
+      "types": "./dist/catalogue.d.ts",
+      "default": "./dist/catalogue.js"
+    },
+    "./contract": {
+      "source": "./src/contract.ts",
+      "types": "./dist/contract.d.ts",
+      "default": "./dist/contract.js"
+    },
+    "./integrations": {
+      "source": "./src/integrations.ts",
+      "types": "./dist/integrations.d.ts",
+      "default": "./dist/integrations.js"
     }
   },
   "files": [
@@ -23,6 +38,7 @@
     "@retake/hooks": "workspace:*",
     "@retake/review": "workspace:*",
     "@retake/runner-web": "workspace:*",
-    "@retake/sandbox": "workspace:*"
+    "@retake/sandbox": "workspace:*",
+    "zod": "^4.1.0"
   }
 }

@@ -10,7 +10,8 @@
  */
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { info, setToken, useCall, useConnection } from './api.js';
+import { info, setToken, useConnection } from './api.js';
+import { useProjectList } from './data/projects.js';
 import { onlyRunProgress, startEvents, useEvents } from './events.js';
 import { Txt } from './bits.js';
 import { APP_NAME } from './brand.js';
@@ -33,7 +34,6 @@ import { parseRoute } from './route.js';
 import type { Route } from './route.js';
 import { SessionEnded, openSession, takeCodeFromUrl } from './session.js';
 import { AppShell } from './shell/AppShell.js';
-import type { ProjectList } from './shell/AppShell.js';
 import { GalleryScreen } from './GalleryScreen.js';
 import { Callout, EmptyState, LinkButton, Progress, TextArea, studioShell } from './ui-kit/index.js';
 import './tokens.css';
@@ -56,7 +56,7 @@ const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'P
 
 function Studio() {
   const route = useRoute();
-  const [list, reloadList] = useCall<ProjectList>('project_list', {}, 'all');
+  const [list, reloadList] = useProjectList({}, 'all');
   const connection = useConnection();
   useEffect(() => guardUnload(), []);
   // L5.2b: what the tab holds unsaved, for the desktop app's quit question (kinds and names only).

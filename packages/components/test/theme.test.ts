@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TEMPLATE, loadTemplate } from '@retake/core';
+import { DEFAULT_TEMPLATE, PERSON_POLICY } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedTemplate } from '@retake/core';
 import { fontFileFace, themeFontFamilies, themeTokens } from '@retake/components';
 
@@ -9,7 +10,7 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 describe('themeTokens (R-REG-11)', () => {
   it('maps a loaded template to the tokens components read', async () => {
-    const editorial = await loadTemplate('editorial', ROOT);
+    const editorial = await loadTemplate('editorial', ROOT, { files: fileFacts(PERSON_POLICY) });
     const t = themeTokens(editorial, {
       logo: 'http://assets.local/editorial/logo.svg',
       wordmark: 'http://assets.local/editorial/wordmark.svg',
@@ -46,7 +47,7 @@ describe('themeTokens (R-REG-11)', () => {
   });
 
   it('without asset URLs: no logo, the wordmark is the brand name as text, no font faces', async () => {
-    const motion = await loadTemplate('motion', ROOT);
+    const motion = await loadTemplate('motion', ROOT, { files: fileFacts(PERSON_POLICY) });
     const t = themeTokens(motion);
     expect(t.logo).toBeUndefined();
     expect(t.wordmark).toEqual({ text: motion.template.brand?.name });

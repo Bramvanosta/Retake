@@ -22,7 +22,8 @@
  * sits in "From the page" boxes; a run's error is "from the page" only when a step raised it (review B L9 of L4.4).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { call, errorText } from './api.js';
+import { errorText } from './api.js';
+import { runCancel, runPause } from './data/shoot.js';
 import { Txt, plural, shown } from './bits.js';
 import { envFlagWords } from './board-words.js';
 import { LiveView } from './LiveView.js';
@@ -148,7 +149,7 @@ function Controls({ slug, name, runId, s, fb, mode, finished }: { slug: string; 
     if (inFlight.current) return;
     setBusy(on ? 'pause' : 'resume');
     setSaid(null);
-    call('run_pause', { project: slug, run_id: runId, paused: on })
+    runPause({ project: slug, run_id: runId, paused: on })
       .then(
         () => undefined,
         (e: unknown) => setSaid(errorText(e)),
@@ -165,7 +166,7 @@ function Controls({ slug, name, runId, s, fb, mode, finished }: { slug: string; 
     if (now) return say(`Wait: ${now === 'pause' ? 'pausing' : now === 'resume' ? 'resuming' : 'stopping'}…`);
     setBusy('stop');
     setSaid(null);
-    call('run_cancel', { project: slug, run_id: runId })
+    runCancel({ project: slug, run_id: runId })
       .then(
         () => {
           setStopAsked(true);

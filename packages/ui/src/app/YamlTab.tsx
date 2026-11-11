@@ -24,7 +24,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ValidationIssue } from '@retake/core';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
+import { scenarioBlocks, scenarioEdit, scenarioValidate } from './data/scenarios.js';
 import { Txt, plural, shown } from './bits.js';
 import { crlfToLf, detectEol, getDraft, isDirty, scenarioKey, setDraft, toEol, useDirty } from './drafts.js';
 import type { Draft } from './drafts.js';
@@ -58,12 +59,6 @@ function hiddenLines(text: string): string[] {
     if (m) out.push(`line ${i + 1} (${hex(m[0])})`);
   });
   return out;
-}
-
-interface SaveAnswer {
-  hash: string;
-  label: string;
-  warnings: ValidationIssue[];
 }
 
 function Editor({
@@ -150,7 +145,7 @@ function Editor({
         return;
       }
       inflight.current = true;
-      call<{ issues: ValidationIssue[] }>('scenario_validate', { project: slug, name, yaml: text })
+      scenarioValidate({ project: slug, name, yaml: text })
         .then(
           (r) => setLive({ text, issues: r.issues }),
           () => undefined,
@@ -185,7 +180,7 @@ function Editor({
       setSaving(true);
       setError(null);
       try {
-        const r = await call<SaveAnswer>('scenario_edit', { project: slug, name, hash: base.hash, edit: { kind: 'replace_text', text } });
+        const r = await scenarioEdit({ project: slug, name, hash: base.hash, edit: { kind: 'replace_text', text } });
         superseded.current.add(base.hash);
         if (cur.base.hash) superseded.current.add(cur.base.hash);
         superseded.current.delete(r.hash);
@@ -202,7 +197,7 @@ function Editor({
         if (e instanceof SessionEnded) return;
         if (e instanceof CallError && e.error.code === 'conflict') {
           try {
-            const now = await call<View>('scenario_blocks', { project: slug, name });
+            const now = await scenarioBlocks({ project: slug, name });
             setConflict({ mine: cur.text, disk: diskOf(now) });
           } catch (e2) {
             if (!(e2 instanceof SessionEnded)) setError({ message: errorText(e2), issues: [] });

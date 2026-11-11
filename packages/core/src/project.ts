@@ -1,23 +1,14 @@
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-import { stringify } from 'yaml';
+import { dirname, resolve } from 'node:path';
 import type { z } from 'zod';
-import { insideBundle } from './bundle.js';
 import { checkProject } from './checks/project.js';
 import { FORMAT_VERSIONS } from './formats.js';
-import { readPlainFile } from './plain-file.js';
+import type { FileFacts } from './file-facts.js';
 import { normalizeEnvironments } from './env.js';
-import { ConfigError, hasErrors, issuesMessage } from './issues.js';
-import { loadSandboxes, mergeSandboxes } from './sandbox.js';
+import { hasErrors } from './issues.js';
 import { ProjectFileSchema } from './schemas/project.js';
 import { DEFAULT_CAPTURE } from './types.js';
-import type { CaptureSettings, FrameStyle, LoadedProject, ProjectConfig, ValidationIssue } from './types.js';
-import { slugify, writeTextAtomic } from './util.js';
+import type { CaptureSettings, FrameStyle, ProjectConfig, ValidationIssue } from './types.js';
 import { checkYamlDocument } from './validation/document.js';
-import { parseYaml } from './validation/yaml-source.js';
-import { suggestion } from './validation/suggest.js';
-import { findWorkspaceRoot, loadWorkspaceConfig } from './workspace.js';
 
 export const PROJECT_FILE = 'project.yaml';
 export const README_FILE = 'README.md';
@@ -79,118 +70,16 @@ export function applyProjectDefaults(file: ProjectFile): ProjectConfig {
 }
 
 /**
- * Validate project.yaml text. `file` (its path) enables hook-file checks relative to the project dir.
+ * Validate project.yaml text. `file` (its path) enables hook-file checks relative to the project dir (through `files`).
  * `config` (defaults applied) is returned only when there is no error-level issue.
  */
-export function parseProjectYaml(text: string, file?: string): { config?: ProjectConfig; issues: ValidationIssue[] } {
+export function parseProjectYaml(text: string, file?: string, files?: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] } {
   const projectDir = file ? dirname(resolve(file)) : undefined;
-  const { value, issues } = checkYamlDocument(text, ProjectFileSchema, (v, structural) => checkProject(v, structural, { projectDir }), {}, {
+  const { value, issues } = checkYamlDocument(text, ProjectFileSchema, (v, structural) => checkProject(v, structural, { projectDir, ...(files ? { files } : {}) }), {}, {
     formatVersion: { file: PROJECT_FILE, supported: FORMAT_VERSIONS.project },
   });
   if (hasErrors(issues)) return { issues };
   return { config: applyProjectDefaults(value as ProjectFile), issues };
-}
-
-/** The largest README.md a project load keeps in memory (the engine's own reader shows why a bigger one is not shown). */
-const README_LOAD_MAX_BYTES = 2 * 1024 * 1024;
-
-/**
- * README.md for `project.readme`, or null: missing, or not a small plain file (L4.2, BL-79 residue: a FIFO named
- * README.md held every project load; a link or an oversized file is left to the engine's reader, which says why).
- */
-function readmeText(file: string): string | null {
-  const r = readPlainFile(file, README_LOAD_MAX_BYTES);
-  return r.ok ? r.bytes.toString('utf8') : null;
-}
-
-async function readOptional(file: string): Promise<string | null> {
-  try {
-    return await readFile(file, 'utf8');
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw e;
-  }
-}
-
-async function subdirs(dir: string): Promise<string[]> {
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw e;
-  }
-}
-
-/** Names of <projectDir>/scenarios/*.yaml (and *.yml), sorted. */
-export async function listScenarioNames(projectDir: string): Promise<string[]> {
-  let files: string[];
-  try {
-    files = await readdir(join(projectDir, 'scenarios'));
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw e;
-  }
-  const names = files.filter((f) => /\.ya?ml$/i.test(f) && !f.startsWith('.')).map((f) => f.replace(/\.ya?ml$/i, ''));
-  return [...new Set(names)].sort();
-}
-
-/** Projects of a workspace (directories of projects_dir holding a project.yaml), sorted by slug. */
-export async function listProjects(root: string): Promise<Array<{ slug: string; name: string; dir: string }>> {
-  const { projectsDir } = await loadWorkspaceConfig(root);
-  const out: Array<{ slug: string; name: string; dir: string }> = [];
-  for (const slug of (await subdirs(projectsDir)).sort()) {
-    const dir = join(projectsDir, slug);
-    const text = await readOptional(join(dir, PROJECT_FILE));
-    if (text === null) continue;
-    const value = parseYaml(text).value as { name?: unknown } | null | undefined;
-    const name = value && typeof value.name === 'string' ? value.name : slug;
-    out.push({ slug, name, dir });
-  }
-  return out;
-}
-
-async function resolveProjectDir(dirOrSlug: string, root?: string): Promise<{ dir: string; root: string }> {
-  const pathLike = isAbsolute(dirOrSlug) || dirOrSlug.startsWith('.') || /[\\/]/.test(dirOrSlug);
-  if (pathLike) {
-    const dir = resolve(dirOrSlug);
-    if (!existsSync(join(dir, PROJECT_FILE))) throw new ConfigError(`no ${PROJECT_FILE} in ${dir}`);
-    return { dir, root: root ? resolve(root) : findWorkspaceRoot(dir) };
-  }
-  const ws = await loadWorkspaceConfig(root ?? findWorkspaceRoot());
-  const dir = join(ws.projectsDir, dirOrSlug);
-  if (existsSync(join(dir, PROJECT_FILE))) return { dir, root: ws.root };
-  const available = (await listProjects(ws.root)).map((p) => p.slug);
-  throw new ConfigError(
-    `project "${dirOrSlug}" not found in ${ws.projectsDir}${suggestion(dirOrSlug, available)} (available: ${available.join(', ') || 'none'})`,
-  );
-}
-
-/**
- * Load a project by slug (in the workspace projects dir) or by directory path.
- * Throws ConfigError when it cannot be found or project.yaml has errors; warnings are kept in `issues`.
- */
-export async function loadProject(dirOrSlug: string, root?: string): Promise<LoadedProject> {
-  const { dir, root: wsRoot } = await resolveProjectDir(dirOrSlug, root);
-  const file = join(dir, PROJECT_FILE);
-  // Runs, renders and exports are written in the project folder: never one inside the app bundle (a link into it too).
-  if (insideBundle(dir)) throw new ConfigError(`the project ${dir} lies inside the Retake app, which nothing may write to: use a folder of your own`, [], file);
-  const text = await readFile(file, 'utf8');
-  const { config, issues } = parseProjectYaml(text, file);
-  if (!config) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
-  // Sandbox environments (L1.8): each manifest is read and validated (a broken one throws), then merged in.
-  const sandboxes = await loadSandboxes(dir, config);
-  return {
-    slug: basename(dir),
-    dir,
-    root: wsRoot,
-    config: sandboxes ? mergeSandboxes(config, sandboxes) : config,
-    readme: readmeText(join(dir, README_FILE)),
-    scenarios: await listScenarioNames(dir),
-    file,
-    issues,
-    ...(sandboxes ? { sandboxes } : {}),
-  };
 }
 
 export interface CreateProjectInput {
@@ -210,7 +99,7 @@ export interface CreateProjectInput {
 }
 
 /** The pages a new project is created with, as readmeSkeleton takes them: the URLs, and the display URLs given. */
-function createdPages(environments: CreateProjectInput['environments'] = {}): [ProjectConfig['environments'], ProjectConfig['environment_settings']] {
+export function createdPages(environments: CreateProjectInput['environments'] = {}): [ProjectConfig['environments'], ProjectConfig['environment_settings']] {
   const urls: ProjectConfig['environments'] = {};
   const settings: NonNullable<ProjectConfig['environment_settings']> = {};
   for (const [env, pages] of Object.entries(environments)) {
@@ -320,73 +209,18 @@ export function readmeSkeleton(
   ].join('\n');
 }
 
-function projectYamlText(input: CreateProjectInput, slug: string): string {
-  const { width, height, scale, fps } = DEFAULT_CAPTURE;
-  const data: Record<string, unknown> = {
-    version: FORMAT_VERSIONS.project,
-    name: input.name,
-    environments: input.environments ?? {},
-    ...(input.default_env !== undefined ? { default_env: input.default_env } : {}),
-    ...(input.auth ? { auth: input.auth } : {}),
-    capture: { width, height, scale, fps, ...input.capture },
-    frame: input.frame ?? DEFAULT_FRAME,
-    template: input.template ?? DEFAULT_TEMPLATE_NAME,
-  };
-  return [
-    `# Retake project "${slug}"`,
-    stringify(data, { lineWidth: 0 }).trimEnd(),
-    ...(input.auth
-      ? []
-      : [
-          '# auth:              # the accounts the videos are filmed as (global, or keyed by environment); never a password or a path:',
-          `#   personas:         # \`retake login ${slug} --persona admin\` keeps a session in ~/.retake`,
-          '#     admin: {pages: [app], check: {url: "app:/", expect_text: Your account name}}',
-        ]),
-    '',
-  ].join('\n');
+/** A file of a new project: its project-relative ref and text. */
+export interface NewProjectFile {
+  ref: string;
+  text: string;
 }
 
-/** What createProject checks before writing anything: the slug, the folder (absent or empty), the project.yaml. */
-async function newProjectPlan(root: string, input: CreateProjectInput): Promise<{ wsRoot: string; dir: string; file: string; yamlText: string }> {
-  const ws = await loadWorkspaceConfig(root);
-  const slug = input.slug ?? slugify(input.name);
-  if (!PROJECT_SLUG_RE.test(slug)) {
-    throw new ConfigError(`invalid project slug "${slug}": use lower-case letters, digits and "-"`);
-  }
-  const dir = join(ws.projectsDir, slug);
-  if (existsSync(join(dir, PROJECT_FILE))) throw new ConfigError(`project "${slug}" already exists (${dir})`);
-  if (existsSync(dir) && (await readdir(dir)).length > 0) {
-    throw new ConfigError(`cannot create project "${slug}": ${dir} exists and is not empty`);
-  }
-  const file = join(dir, PROJECT_FILE);
-  const yamlText = projectYamlText(input, slug);
-  const { issues } = parseProjectYaml(yamlText, file);
-  if (hasErrors(issues)) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
-  return { wsRoot: ws.root, dir, file, yamlText };
-}
-
-/** Throws what createProject would refuse, writing nothing (`retake new` checks before asking its questions). */
-export async function checkNewProject(root: string, input: CreateProjectInput): Promise<void> {
-  await newProjectPlan(root, input);
-}
-
-/** Create projects/<slug>/ with README.md, project.yaml, scenarios/, hooks/, assets/ and a .gitignore. */
-export async function createProject(root: string, input: CreateProjectInput): Promise<LoadedProject> {
-  const { wsRoot, dir, file, yamlText } = await newProjectPlan(root, input);
-  for (const sub of ['scenarios', 'hooks', 'assets']) {
-    await mkdir(join(dir, sub), { recursive: true });
-    await writeFile(join(dir, sub, '.gitkeep'), '');
-  }
-  await writeTextAtomic(file, yamlText);
-  const readme = input.readme ?? readmeSkeleton(input.name, ...createdPages(input.environments));
-  await writeTextAtomic(join(dir, README_FILE), readme.endsWith('\n') ? readme : `${readme}\n`);
-  await writeTextAtomic(join(dir, '.gitignore'), PROJECT_GITIGNORE.join('\n') + '\n');
-  return loadProject(dir, wsRoot);
-}
-
-/** Replace README.md (atomically) and update `project.readme`. */
-export async function updateReadme(project: LoadedProject, markdown: string): Promise<void> {
-  const text = markdown.endsWith('\n') ? markdown : `${markdown}\n`;
-  await writeTextAtomic(join(project.dir, README_FILE), text);
-  project.readme = text;
+/** What a new project is made of (planNewProject): its folder and its files, in the order they are written. */
+export interface NewProjectPlan {
+  /** The workspace root. */
+  wsRoot: string;
+  slug: string;
+  /** projects/<slug>/ */
+  dir: string;
+  files: NewProjectFile[];
 }

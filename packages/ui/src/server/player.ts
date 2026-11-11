@@ -39,12 +39,13 @@ import { randomBytes, createHash } from 'node:crypto';
 import { closeSync, constants as fsConstants, createReadStream, fstatSync, lstatSync, openSync, realpathSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
-import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
+import { basename, extname, relative, resolve } from 'node:path';
 import { checkRequest, listenLoopback, newSecret, secretEquals } from '@retake/engine';
 import type { RouteSpec } from '@retake/engine';
 import type { ComponentPreviewSpec, EditPlan } from '@retake/editor';
 import type { PlayerBundle } from '../player/bundle-player.js';
 import { isPreviewDisplayText } from '../player/protocol.js';
+import { pathInside } from '@retake/core';
 
 /** Files registered per scope (a plan has a few dozen). */
 export const PLAYER_FILES_MAX = 4096;
@@ -234,11 +235,6 @@ function realOrUndefined(p: string): string | undefined {
   }
 }
 
-function isInside(file: string, dir: string): boolean {
-  const r = relative(dir, file);
-  return r !== '' && !r.startsWith('..') && !isAbsolute(r);
-}
-
 /** The file's name as served: its base name in URL-safe characters (the content type comes from its extension). */
 export function servedName(file: string): string {
   const ext = extname(file).toLowerCase().replace(/[^a-z0-9.]/g, '').slice(0, 10);
@@ -314,7 +310,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     if (!real) return undefined;
     if (!within.some((d) => {
       const r = realOrUndefined(d);
-      return r !== undefined && isInside(real, r);
+      return r !== undefined && pathInside(real, r, { self: false, dotDotPrefix: true });
     })) return undefined;
     try {
       // The path given is no link (its folders may be: the real path is what is read, then never through a link).

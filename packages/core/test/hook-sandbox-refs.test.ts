@@ -6,8 +6,9 @@
  * Through MCP a scenario names none of them (agent trust).
  */
 import { describe, expect, it } from 'vitest';
-import { agentTrustProblems, parseSandboxYaml, validateScenario } from '@retake/core';
+import { agentTrustProblems, agentTrustProblemsAt, parseSandboxYaml, personaAuthOriginProblem, validateScenario } from '@retake/core';
 import type { Scenario, ValidationIssue } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { errors, fakeProject } from './helpers.js';
 
 const msgs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -75,9 +76,32 @@ seed:
   });
 
   it('through MCP a scenario never names a sandbox secret (it acts as a persona with auth instead)', () => {
-    const refused = agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', json: { p: '{{accounts.admin.password}}', k: '{{compose_env:API_KEY}}' } } }] }));
+    const refused = agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', json: { p: '{{accounts.admin.password}}', k: '{{compose_env:API_KEY}}' } } }] }), { files: nodeFileFacts });
     expect(refused).toEqual([expect.stringContaining('the scenario uses {{accounts.admin.password}}, {{compose_env:API_KEY}}: through MCP a scenario never resolves a secret')]);
     // A username is not a secret.
-    expect(agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', auth: { persona: 'admin' }, json: { e: '{{accounts.admin.username}}' } } }] }))).toEqual([]);
+    expect(agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', auth: { persona: 'admin' }, json: { e: '{{accounts.admin.username}}' } } }] }), { files: nodeFileFacts })).toEqual([]);
+  });
+
+  it("through MCP an http hook acting as a persona targets that persona's own pages only (its URL's origin is one of theirs)", () => {
+    const p = project();
+    const files = { files: nodeFileFacts };
+    const hook = (url: string, extra: Record<string, unknown> = {}) => scenario({ setup: [{ http: { method: 'POST', url, auth: { persona: 'buyer' }, ...extra } }] });
+    // Same origin as a page the persona signs in to: allowed.
+    expect(agentTrustProblems(p, hook('{{console}}/api/replies'), files)).toEqual([]);
+    expect(agentTrustProblems(p, hook('https://console.staging.example.com/api/x'), files)).toEqual([]);
+    // Another page of the environment, another site, a host the agent's vars choose, a rollback elsewhere: refused.
+    const rule = /^setup\[0\]\.http(\.rollback)?\.url: through MCP an http hook acting as persona buyer \(`auth: \{persona\}`\) sends its session only to that persona's own pages \(https:\/\/console\.staging\.example\.com\)/;
+    for (const url of ['{{shop}}/api/x', 'https://elsewhere.example/collect', '{{vars.host}}/x', 'https://{{vars.sub}}.example.com/x', '{{console}}@elsewhere.example/x']) {
+      const got = agentTrustProblems(p, hook(url), files);
+      expect(got, url).toEqual([expect.stringMatching(rule)]);
+    }
+    expect(agentTrustProblems(p, hook('{{console}}/a', { rollback: { method: 'DELETE', url: '{{shop}}/a', auth: { persona: 'buyer' } } }), files)).toEqual([expect.stringMatching(rule)]);
+    // Positioned at the hook's url; the environment of a submit narrows the check to its pages.
+    const at = agentTrustProblemsAt(p, hook('{{shop}}/x'), 'video: x\nsetup:\n  - http: {method: POST, url: "{{shop}}/x", auth: {persona: buyer}}\nscenes: []\n', files);
+    expect(at).toEqual([expect.objectContaining({ path: ['setup', 0, 'http', 'url'], line: 3 })]);
+    expect(agentTrustProblems(p, hook('https://shop.staging.example.com/x'), { ...files, env: { name: 'staging', pages: { console: 'https://shop.staging.example.com' } } })).toEqual([]);
+    // The rule itself, on a rendered URL.
+    expect(personaAuthOriginProblem('buyer', 'https://console.staging.example.com/x?y', ['https://console.staging.example.com'])).toBeNull();
+    expect(personaAuthOriginProblem('buyer', 'http://console.staging.example.com/x', ['https://console.staging.example.com'])).toContain('http://console.staging.example.com is not one of them');
   });
 });

@@ -25,7 +25,7 @@
  * literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, posix } from 'node:path';
 import { Fragment, createElement } from 'react';
@@ -33,6 +33,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '@retake/components/kit';
+import { catalogueOperation } from '@retake/engine/catalogue';
 import type { RecordOptionsAnswer, RecordViewAnswer } from '../src/server/record-ops.js';
 import { RecordingBody, StartForm } from '../src/app/RecordScreen.js';
 import { SlotContext } from '../src/app/shell/slots.js';
@@ -127,6 +128,108 @@ async function appSources(): Promise<Array<[string, string]>> {
 /** The source without comments (a comment may name what is banned). */
 function code(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+/**
+ * L6.13: the app's API calls go through its data modules (src/app/data/): `themeEdit(args, o)` is
+ * `call('theme_edit', args, o)`, `useThemeList(args, key)` is `useCall('theme_list', args, key)`, and the two data
+ * functions whose op is an argument (`threadWrite(op, args)`, `projectRead(op, args)`) are `call(op, args)`. The op
+ * lints below see each as the call it makes: `call` / `useCall` by their names, a data function when the file imports
+ * it from a data module (a local function of the same name is not one).
+ */
+interface DataFn {
+  /** The op it calls, or null when the op is its first argument (then `ops`: the ones it takes). */
+  op: string | null;
+  ops: string[];
+}
+function dataFunctions(): Map<string, DataFn> {
+  const out = new Map<string, DataFn>();
+  for (const f of readdirSync(join(APP, 'data')).filter((x) => /\.ts$/.test(x))) {
+    const text = readFileSync(join(APP, 'data', f), 'utf8');
+    for (const m of text.matchAll(/^export const (\w+) = (?:op|readHook)\('([a-z_]+)'\);$/gm)) out.set(m[1], { op: m[2], ops: [m[2]] });
+    const aliases = new Map([...text.matchAll(/^export type (\w+) = ((?:'[a-z_]+'(?: \| )?)+);$/gm)].map((m) => [m[1], m[2]]));
+    // L6.12–L6.13 fixes: generic over the op (`<K extends …>(name: K, …)`); `keyof typeof <TABLE>` names a table's keys.
+    const tables = new Map([...text.matchAll(/^const (\w+) = \{ ([^}]+) \};$/gm)].map((m) => [m[1], [...m[2].matchAll(/(\w+): /g)].map((x) => `'${x[1]}'`).join(' | ')]));
+    for (const [k, v] of [...text.matchAll(/^export type (\w+) = keyof typeof (\w+);$/gm)].map((m) => [m[1], tables.get(m[2]) ?? ''] as const)) aliases.set(k, v);
+    for (const m of text.matchAll(/^export function (\w+)(?:<\w+ extends ([^>]+)>)?\(name: ([^,]+), /gm)) {
+      const type = m[2] ?? m[3];
+      const union = aliases.get(type) ?? type;
+      out.set(m[1], { op: null, ops: [...union.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) });
+    }
+  }
+  return out;
+}
+const DATA_FNS = dataFunctions();
+
+/** The data modules' sources but the client's and the op map's (which make no call of their own): [file, text]. */
+function dataSources(): Array<[string, string]> {
+  return readdirSync(join(APP, 'data'))
+    .filter((x) => /\.ts$/.test(x) && x !== 'client.ts' && x !== 'ops.ts')
+    .map((f) => [f, readFileSync(join(APP, 'data', f), 'utf8')]);
+}
+
+/** Every value those modules export, by name (its file): a re-export of values counts as one. */
+function dataValueExports(sources: Array<[string, string]>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [f, text] of sources) {
+    const src = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true);
+    for (const st of src.statements) {
+      const exported = ts.canHaveModifiers(st) && ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (exported && ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) out.set(d.name.getText(src), f);
+      if (exported && (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) && st.name) out.set(st.name.text, f);
+      if (ts.isExportDeclaration(st) && !st.isTypeOnly) out.set(`(re-export in ${f})`, f);
+    }
+  }
+  return out;
+}
+const isDataModule = (spec: string) => /(^|\/)data\/[a-z-]+\.js$/.test(spec);
+
+/** The data functions a source imports from a data module (by their own names). */
+function dataImports(src: ts.SourceFile): Map<string, DataFn> {
+  const out = new Map<string, DataFn>();
+  for (const st of src.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier) || !isDataModule(st.moduleSpecifier.text)) continue;
+    const b = st.importClause?.namedBindings;
+    if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.propertyName && DATA_FNS.has(e.name.text)) out.set(e.name.text, DATA_FNS.get(e.name.text)!);
+  }
+  return out;
+}
+
+interface ApiCall {
+  /** The op (a literal), or `(not a literal: …)`. */
+  op: string;
+  /** Its arguments' expression. */
+  args: ts.Expression | undefined;
+  /** The call's argument list as written: `(…)`. */
+  list: string;
+  /** The callee as written. */
+  callee: string;
+  line: number;
+  node: ts.CallExpression;
+}
+
+/** Every API call of a source: `call(op, args, …)` / `useCall(op, args, key)` (`members`: `x.call(…)` too) and data functions. */
+function apiCalls(text: string, o: { members?: boolean } = {}): ApiCall[] {
+  const src = ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const data = dataImports(src);
+  const out: ApiCall[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n)) {
+      const c = n.expression;
+      const name = ts.isIdentifier(c) ? c.text : o.members && ts.isPropertyAccessExpression(c) && c.name.text === 'call' ? 'call' : null;
+      const d = name !== null && ts.isIdentifier(c) ? data.get(name) : undefined;
+      const at = name === 'call' || name === 'useCall' || (d && d.op === null) ? 0 : d ? -1 : null;
+      if (at !== null) {
+        const opArg = at === 0 ? n.arguments[0] : undefined;
+        const op = d?.op ?? (opArg && ts.isStringLiteral(opArg) ? opArg.text : `(not a literal: ${opArg ? opArg.getText(src) : ''})`);
+        const list = `(${n.arguments.map((x) => x.getText(src)).join(', ')})`;
+        out.push({ op, args: n.arguments[at + 1], list, callee: c.getText(src), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1, node: n });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
 }
 
 describe('the app builds no HTML from data (source lint)', () => {
@@ -327,23 +430,13 @@ describe('the app builds no HTML from data (source lint)', () => {
  * channel (`via`) or proposal key: the Studio writes the channel `studio` under the name it was started with, and
  * proposals are Claude's (the server refuses all three: a 400).
  */
-const THREAD_CALL = /\b(?:call|useCall)(?:<[^>]*>)?\(\s*'(thread_[a-z_]+)'/g;
 const NAMED = /\b(author|via|proposal|name)\s*:/;
 
-/** The argument text of each `call('thread_…', …)` in a source (to its closing parenthesis). */
+/** The argument list of each `thread_…` call in a source (`call('thread_…', …)` or its data function's). */
 function threadCalls(src: string): Array<{ op: string; args: string }> {
-  const out: Array<{ op: string; args: string }> = [];
-  for (const m of src.matchAll(THREAD_CALL)) {
-    let depth = 0;
-    let i = src.indexOf('(', m.index);
-    const start = i;
-    for (; i < src.length; i++) {
-      if (src[i] === '(') depth++;
-      else if (src[i] === ')' && --depth === 0) break;
-    }
-    out.push({ op: m[1], args: src.slice(start, i + 1) });
-  }
-  return out;
+  return apiCalls(src)
+    .filter((c) => c.op.startsWith('thread_'))
+    .map((c) => ({ op: c.op, args: c.list }));
 }
 
 describe('the comment writes name nobody (L4.6 part D1)', () => {
@@ -357,7 +450,7 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
     const sources = await appSources();
     const screen = code(sources.find(([f]) => f === 'ThreadPanel.tsx')![1]);
     for (const op of ['thread_reply', 'thread_resolve', 'thread_reopen']) expect(screen).toContain(`'${op}'`);
-    const HELPER = /call\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \}\)/g;
+    const HELPER = /threadWrite\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \} as OpArgs<K>\)/g;
     expect(screen.match(HELPER)?.length).toBe(1);
     expect(sources.filter(([f, text]) => (code(text).match(HELPER) ?? []).length > 0 || /\bsend\('[A-Za-z]+', 'thread_/.test(code(text))).map(([f]) => f)).toEqual(['ThreadPanel.tsx']);
     for (const c of calls) expect(NAMED.test(c.args), `${c.f}: ${c.op} sends ${c.args}`).toBe(false);
@@ -382,15 +475,19 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
     }
     expect(args).toBe(1);
     const timeline = code(files.find(([f]) => f === 'TimelineScreen.tsx')![1]);
-    expect(timeline).toMatch(/useCall<TimelineViewAnswer>\('timeline_view', args,/);
+    expect(timeline).toMatch(/useTimelineView\(args,/);
+    // L6.12–L6.13 fixes (L7): that read is timeline_view's (the one op whose `proposal` it is).
+    expect(DATA_FNS.get('useTimelineView')).toEqual({ op: 'timeline_view', ops: ['timeline_view'] });
     // thread_apply sends the reply and the proposal's hash shown, nothing else (L5.12b: ProposalCard.tsx, M1: the one call
     // of the app — no other file applies).
     const panel = code(files.find(([f]) => f === 'ProposalCard.tsx')![1]);
     const applies = threadCalls(panel).filter((c) => c.op === 'thread_apply');
-    expect(applies.map((c) => c.args)).toEqual(["('thread_apply', { project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch })"]);
+    expect(applies.map((c) => c.args)).toEqual(['({ project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch })']);
     const everywhere = files.flatMap(([f, text]) => threadCalls(code(text)).filter((c) => c.op === 'thread_apply').map(() => f));
     expect(everywhere).toEqual(['ProposalCard.tsx']);
-    expect(files.filter(([, text]) => /thread_apply/.test(code(text))).map(([f]) => f)).toEqual(['ProposalCard.tsx']);
+    // L6.13: data/ names it once (its function); its arguments and result are derived from the op table (data/ops.ts).
+    expect(files.filter(([f, text]) => !f.startsWith('data/') && /thread_apply|threadApply/.test(code(text))).map(([f]) => f)).toEqual(['ProposalCard.tsx']);
+    expect(files.filter(([f, text]) => f.startsWith('data/') && /\bop\('thread_apply'\)/.test(text)).map(([f]) => f)).toEqual(['data/comments.ts']);
   });
 });
 
@@ -1754,11 +1851,9 @@ const PROJECT_SIDE = ['WelcomeScreen.tsx', 'ProductionsScreen.tsx', 'CastScreen.
 /** The ops the project side may call: reads only (the write path is unchanged: critique §7.3). */
 const PROJECT_SIDE_OPS = new Set(['project_get', 'project_board', 'auth_status', 'projects_overview', 'engine_info', 'run_list', 'run_status', 'run_thumbs', 'activity_list', 'search']);
 
-/** The op names a source passes to call / useCall (a literal first argument; anything else is reported as such). */
+/** The op names a source calls through call / useCall or a data function (a call whose op is not a literal is reported as such). */
 function opsCalled(text: string): string[] {
-  const out: string[] = [];
-  for (const m of code(text).matchAll(/\b(?:call|useCall)\s*(?:<[^>]*>)?\(\s*([^,)]*)/g)) out.push(/^'[a-z_]+'$/.test(m[1].trim()) ? m[1].trim().slice(1, -1) : `(not a literal: ${m[1].trim()})`);
-  return out;
+  return apiCalls(code(text)).map((c) => c.op);
 }
 
 describe('L5.10a: the project side', () => {
@@ -1832,18 +1927,9 @@ const SCENARIO_SIDE_OPS = new Set(['scenario_blocks', 'scenario_forms', 'scenari
 
 /** Each `call('scenario_edit', …)` of a source: whether its arguments name the version shown (`hash`: the if_match). */
 function editCalls(text: string): Array<{ at: number; hash: boolean }> {
-  const src = ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const out: Array<{ at: number; hash: boolean }> = [];
-  const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'call' && n.arguments[0] && ts.isStringLiteral(n.arguments[0]) && n.arguments[0].text === 'scenario_edit') {
-      const args = n.arguments[1];
-      const hash = !!args && ts.isObjectLiteralExpression(args) && args.properties.some((p) => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === 'hash' && ts.isPropertyAssignment(p) && !(ts.isIdentifier(p.initializer) && p.initializer.text === 'undefined'));
-      out.push({ at: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1, hash });
-    }
-    ts.forEachChild(n, visit);
-  };
-  visit(src);
-  return out;
+  return apiCalls(text)
+    .filter((c) => c.op === 'scenario_edit')
+    .map((c) => ({ at: c.line, hash: !!c.args && ts.isObjectLiteralExpression(c.args) && c.args.properties.some((p) => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === 'hash' && ts.isPropertyAssignment(p) && !(ts.isIdentifier(p.initializer) && p.initializer.text === 'undefined')) }));
 }
 
 describe('L5.10b: the scenario side', () => {
@@ -1966,7 +2052,7 @@ describe('L5.11a: Shoot', () => {
     const runs = (await appSources()).flatMap(([f, text]) => opsCalled(text).filter((op) => op === 'scenario_run').map(() => f));
     expect(runs).toEqual(['shoot-data.ts']);
     const store = files.find(([f]) => f === 'shoot-data.ts')![1];
-    expect(store).toMatch(/call<RunAnswer>\('scenario_run', \{ project: o\.slug, name: o\.name, mode: o\.mode, \.\.\.\(o\.hash \? \{ hash: o\.hash \} : \{\}\)/);
+    expect(store).toMatch(/scenarioRun\(\{ project: o\.slug, name: o\.name, mode: o\.mode, \.\.\.\(o\.hash \? \{ hash: o\.hash \} : \{\}\)/);
   });
 
   it('⚑ the Studio says Rehearse: no "dry run" in a string the page shows (comments, test ids and the one mapping line excepted; a planted label fails it)', async () => {
@@ -2071,9 +2157,9 @@ const COMMENTS_OPS: Record<string, string[]> = {
 };
 /** The timeline's proposal banner may import exactly these values (a read, words, the focus hand-off, the kit). */
 const BANNER_IMPORTS: Record<string, string[]> = {
-  api: ['useCall'],
   bits: ['Txt'],
   'comment-words': ['proposalButtons', 'proposalSummary'],
+  'data/comments': ['useThreadGet'],
   'proposal-focus': ['focusProposalOf'],
   'render-words': ['versionWords'],
   'ui-kit/index': ['Callout', 'LinkButton'],
@@ -2123,15 +2209,9 @@ function keysOf(n: ts.Expression | undefined): string[] {
   });
 }
 
-/** How many `call(…)` of a source (the api's function, not a method) take an op that is not a string literal. */
+/** How many API calls of a source (`call(…)`, not a method, or a data function) take an op that is not a string literal. */
 function nonLiteralCalls(text: string): number {
-  let n = 0;
-  const visit = (m: ts.Node) => {
-    if (ts.isCallExpression(m) && ts.isIdentifier(m.expression) && m.expression.text === 'call' && !(m.arguments[0] && ts.isStringLiteral(m.arguments[0]))) n++;
-    ts.forEachChild(m, visit);
-  };
-  visit(tsx(text));
-  return n;
+  return apiCalls(text).filter((c) => c.op.startsWith('(not a literal')).length;
 }
 
 /** The literal op names of ThreadPanel's helper calls (`send(what, op, args, …)`). */
@@ -2150,16 +2230,16 @@ function threadWrites(text: string): Array<{ op: string; keys: string[]; line: n
   const src = tsx(text);
   const out: Array<{ op: string; keys: string[]; line: number }> = [];
   const WRITES = new Set(['thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply']);
+  for (const c of apiCalls(text)) if (WRITES.has(c.op) && c.op !== 'thread_add') out.push({ op: c.op, keys: keysOf(c.args), line: c.line });
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
-      const at = n.expression.text === 'call' ? 0 : n.expression.text === 'send' ? 1 : -1;
-      const op = at >= 0 ? n.arguments[at] : undefined;
-      if (op && ts.isStringLiteral(op) && WRITES.has(op.text) && op.text !== 'thread_add') out.push({ op: op.text, keys: keysOf(n.arguments[at + 1]), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1 });
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'send') {
+      const op = n.arguments[1];
+      if (op && ts.isStringLiteral(op) && WRITES.has(op.text) && op.text !== 'thread_add') out.push({ op: op.text, keys: keysOf(n.arguments[2]), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1 });
     }
     ts.forEachChild(n, visit);
   };
   visit(src);
-  return out;
+  return out.sort((a, b) => a.line - b.line);
 }
 
 /** What writes, imported: `call`, the proposal's card, a render, a run, the bus's commands (the menu's: they act). */
@@ -2185,6 +2265,8 @@ function paletteGroupWriters(file: string, text: string): Array<{ slot: string; 
     if (w) for (const n of i.names) if (w === '*' || w.includes(n)) writerNames.add(n);
   }
   writerNames.add('call');
+  // L6.13: a data function the file imports whose op writes (the catalogue's effect: anything but a read).
+  for (const [name, d] of dataImports(src)) if (d.ops.some((op) => catalogueOperation(op)?.effect !== 'read')) writerNames.add(name);
   // Declarations by name, each with the scope that holds it (a block, the file, a function for its parameters); a
   // parameter or a destructured name is a declaration with nothing to follow (it shadows).
   const defs = new Map<string, Array<{ scope: ts.Node; body: ts.Node | null }>>();
@@ -2323,8 +2405,10 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     // The helper's literal ops (its op is an argument): Reply, Resolve, Reopen — nothing else.
     const panel = files.find(([f]) => f === 'ThreadPanel.tsx')![1];
     expect(sendOps(panel).sort()).toEqual(['thread_reopen', 'thread_reply', 'thread_resolve']);
-    // A call with an op that is not a literal: the thread's helper, the project reads' loader and api.ts itself — no other.
-    expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['ThreadPanel.tsx', 'api.ts', 'project-data.ts']);
+    // A call with an op that is not a literal: the thread's helper, the project reads' loader and (L6.13) the data layer's
+    // own — its client and the thread writes' data function (L6.12–L6.13 fixes: projectRead calls its reads' own op
+    // functions) — no other.
+    expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['ThreadPanel.tsx', 'data/client.ts', 'data/comments.ts', 'project-data.ts']);
     expect(nonLiteralCalls(panel)).toBe(1);
     // The mutation (review A-M1): a resolve planted in the list fails its allow-list.
     const list = files.find(([f]) => f === 'ThreadList.tsx')![1];
@@ -2394,33 +2478,26 @@ const LIBRARY_OPS: Record<string, string[]> = {
 
 /** Every `call('<op>', {…})` of a source among `ops` and its argument keys (a parser pass: the object written in the call). */
 function opCalls(text: string, ops: ReadonlySet<string>): Array<{ op: string; keys: string[]; line: number }> {
-  const src = tsx(text);
-  const out: Array<{ op: string; keys: string[]; line: number }> = [];
-  const visit = (n: ts.Node) => {
-    // A bare `call(…)` or (L5.12c fixes, review A-M2) a member `x.call(…)`.
-    const callee = ts.isCallExpression(n) ? n.expression : null;
-    const isCall = callee !== null && ((ts.isIdentifier(callee) && callee.text === 'call') || (ts.isPropertyAccessExpression(callee) && callee.name.text === 'call'));
-    if (isCall && ts.isCallExpression(n) && n.arguments[0] && ts.isStringLiteral(n.arguments[0]) && ops.has(n.arguments[0].text)) {
-      out.push({ op: n.arguments[0].text, keys: keysOf(n.arguments[1]), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1 });
-    }
-    ts.forEachChild(n, visit);
-  };
-  visit(src);
-  return out;
+  // A bare `call(…)`, a data function or (L5.12c fixes, review A-M2) a member `x.call(…)`.
+  return apiCalls(text, { members: true })
+    .filter((c) => ops.has(c.op))
+    .map((c) => ({ op: c.op, keys: keysOf(c.args), line: c.line }));
 }
 
-const API_NAMES = new Set(['call', 'useCall']);
-const isApi = (spec: ts.Expression) => ts.isStringLiteral(spec) && /(^|\/)api\.js$/.test(spec.text);
+/** L6.13: the API's call / useCall and every data function (each is a call: data/). */
+const API_NAMES = new Set(['call', 'useCall', ...DATA_FNS.keys()]);
+const isApi = (spec: ts.Expression) => ts.isStringLiteral(spec) && (/(^|\/)api\.js$/.test(spec.text) || isDataModule(spec.text));
 
 /**
  * L5.12c fixes (review A-M2): how a file reaches the api — `call` / `useCall` imported by their own names from api.js
  * (no `as`, no namespace or default import, no re-export, no dynamic import) and used only as a call's callee (never
- * bound to another name or passed on): the op lints (opsCalled, opCalls) then see every call a file makes.
+ * bound to another name or passed on): the op lints (opsCalled, opCalls) then see every call a file makes. L6.13: the
+ * same for the data modules' functions (data/*.js), the app's calls since only data/ imports call / useCall.
  */
 function apiImportFindings(file: string, text: string): string[] {
   const src = tsx(text);
   const out: string[] = [];
-  let bound = false;
+  const bound = new Set<string>();
   for (const st of src.statements) {
     if (ts.isImportDeclaration(st) && isApi(st.moduleSpecifier)) {
       const c = st.importClause;
@@ -2431,7 +2508,7 @@ function apiImportFindings(file: string, text: string): string[] {
         for (const e of b.elements) {
           const name = (e.propertyName ?? e.name).text;
           if (e.propertyName && API_NAMES.has(name)) out.push(`${file}: import { ${name} as ${e.name.text} } from the api`);
-          if (!e.propertyName && API_NAMES.has(name)) bound = true;
+          if (!e.propertyName && API_NAMES.has(name)) bound.add(name);
         }
       }
     }
@@ -2439,7 +2516,7 @@ function apiImportFindings(file: string, text: string): string[] {
   }
   const visit = (n: ts.Node) => {
     if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && isApi(n.arguments[0])) out.push(`${file}: a dynamic import of the api`);
-    if (bound && ts.isIdentifier(n) && API_NAMES.has(n.text)) {
+    if (ts.isIdentifier(n) && bound.has(n.text)) {
       const p = n.parent;
       const callee = ts.isCallExpression(p) && p.expression === n;
       const named = (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n) || ts.isImportSpecifier(p) || ((ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) || ts.isMethodSignature(p)) && p.name === n);
@@ -2547,15 +2624,19 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
   it('⚑ L5.12c fixes (review A-M2): every app file imports the api\'s call / useCall by their own names and only calls them — an alias, a namespace import or a call bound to another name fails (both of the review\'s dodges planted); the if_match lint sees `x.call(…)`', async () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f) && f !== 'api.ts');
     expect(files.flatMap(([f, text]) => apiImportFindings(f, text))).toEqual([]);
-    // The files that call the api at all are seen by the lint (it is not vacuous).
-    expect(files.filter(([, text]) => /from '\.\/(?:\.\.\/)?api\.js'/.test(text)).length).toBeGreaterThan(20);
+    // The files that call the api at all (L6.13: through a data module) are seen by the lint (it is not vacuous).
+    expect(files.filter(([, text]) => /from '\.\/(?:\.\.\/)?(?:api|data\/[a-z-]+)\.js'/.test(text)).length).toBeGreaterThan(20);
     const editor = files.find(([f]) => f === 'ThemeEditor.tsx')![1];
-    const line = "import { CallError, call, errorText } from './api.js';";
+    const line = "import { CallError, errorText } from './api.js';";
     expect(editor).toContain(line);
     // Dodge 1: `import { call as rpc }` then rpc('theme_edit', …) — invisible to opsCalled, caught here.
     const alias = `${editor.replace(line, `${line}\nimport { call as rpc } from './api.js';`)}\nexport const dodge = () => rpc('theme_edit', { theme: 'x', edit: {} });\n`;
     expect(opsCalled(alias).filter((op) => op === 'theme_edit').length).toBe(opsCalled(editor).filter((op) => op === 'theme_edit').length);
     expect(apiImportFindings('ThemeEditor.tsx', alias)).toEqual(['ThemeEditor.tsx: import { call as rpc } from the api']);
+    // L6.13: the same dodge through a data function — `import { themeEdit as rpc }`.
+    const dataAlias = `${editor.replace(line, `${line}\nimport { themeEdit as rpc } from './data/themes.js';`)}\nexport const dodge = () => rpc({ theme: 'x', edit: {} });\n`;
+    expect(opsCalled(dataAlias).filter((op) => op === 'theme_edit').length).toBe(opsCalled(editor).filter((op) => op === 'theme_edit').length);
+    expect(apiImportFindings('ThemeEditor.tsx', dataAlias)).toEqual(['ThemeEditor.tsx: import { themeEdit as rpc } from the api']);
     // Dodge 2: `import * as api` then api.call('theme_edit', …) without if_match — caught here and by opCalls.
     const ns = `${editor.replace(line, `${line}\nimport * as api from './api.js';`)}\nexport const dodge = () => api.call('theme_edit', { theme: 'x', edit: {} });\n`;
     expect(apiImportFindings('ThemeEditor.tsx', ns)).toEqual(['ThemeEditor.tsx: import * as api from the api']);
@@ -2568,6 +2649,20 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(apiImportFindings('X.tsx', "const m = import('./api.js');")).toEqual(['X.tsx: a dynamic import of the api']);
     // What stays allowed: a call, a member named call of something else, an object key.
     expect(apiImportFindings('X.tsx', "import { call, useCall } from './api.js';\ncall<T>('theme_view', {});\nuseCall('x', {}, 'k');\nfn.call(null);\nconst o = { call: 1 };")).toEqual([]);
+  });
+
+  it('⚑ L6.12–L6.13 fixes (L7): every value a data module exports is a data function the op lints know (DATA_FNS: `op(…)` / `readHook(…)` of its op, or a helper whose op is its argument) — none escapes them', () => {
+    const sources = dataSources();
+    expect(sources.map(([f]) => f)).toEqual(expect.arrayContaining(['comments.ts', 'projects.ts', 'themes.ts']));
+    const values = dataValueExports(sources);
+    expect(values.size).toBeGreaterThan(60);
+    expect([...values.keys()].filter((n) => !DATA_FNS.has(n))).toEqual([]);
+    // The helpers whose op is an argument: each with the ops it takes.
+    expect(DATA_FNS.get('threadWrite')).toEqual({ op: null, ops: ['thread_reply', 'thread_resolve', 'thread_reopen'] });
+    expect(DATA_FNS.get('projectRead')).toEqual({ op: null, ops: ['project_get', 'project_board', 'auth_status'] });
+    // The mutations: a data function the lints would not see (a wrapper of its own, a re-export, a class).
+    const planted: Array<[string, string]> = [...sources, ['planted.ts', "import { call } from '../api.js';\nexport const sneaky = (a: object) => call('theme_edit', a);\nexport { themeEdit as edit } from './themes.js';\nexport class Client {}\n"]];
+    expect([...dataValueExports(planted).keys()].filter((n) => !DATA_FNS.has(n))).toEqual(['sneaky', '(re-export in planted.ts)', 'Client']);
   });
 
   it('⚑ L5.12c fixes (review A-L5): the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery\'s sample, the New theme form, the colour fields\' fallback', async () => {

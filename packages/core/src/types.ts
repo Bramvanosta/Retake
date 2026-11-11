@@ -1841,7 +1841,6 @@ export interface TimelineStall {
   during: 'move' | 'ripple';
 }
 
-/** A wait the screen showed after the click at `click` (capture seconds): near-identical frames from `t_start` to `t_end`. */
 /**
  * Hotfix v0.2.6: a loading indicator the page showed in its viewport while the take recorded — a skeleton, a shimmer, a
  * spinner, an `aria-busy` region (`what`: their kinds, e.g. "skeleton ×6") — from `t_start` to `t_end` (capture s).
@@ -1854,6 +1853,7 @@ export interface TimelineLoadingUi {
   page?: string;
 }
 
+/** A wait the screen showed after the click at `click` (capture seconds): near-identical frames from `t_start` to `t_end`. */
 export interface TimelineBusy {
   t_start: number;
   t_end: number;

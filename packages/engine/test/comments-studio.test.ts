@@ -19,6 +19,7 @@ import { CommentIndex, EngineError, addComment, anchorAt, createEngine, diffSour
 import type { Engine } from '../src/index.js';
 import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const LONG = 240_000;
 const SCENARIO = ['scenes:', '  - id: s1', '    steps:', '      - click: Go', '      - hold: 2.4', '  - id: s2', '    steps:', '      - click: Go', '      - wait_for: Proposal ready', '        mark: proposal', '      - hold: 2.4'].join('\n');
@@ -171,7 +172,7 @@ describe('the Studio channel (T1)', () => {
     const video = fifoCase.record.file;
     await rm(video);
     expect(spawnSync('mkfifo', [video]).status).toBe(0);
-    const adding = addComment(project, { render: 'slow-v1', frame: 5, text: 'The still waits' }, { via: 'cli', name: 'Reviewer' });
+    const adding = addComment(project, { render: 'slow-v1', frame: 5, text: 'The still waits' }, { via: 'cli', name: 'Reviewer' }, undefined, PERSON_POLICY);
     const folder = join(project.dir, 'comments', 'slow');
     let seen: string[] = [];
     for (let i = 0; i < 200 && seen.length === 0; i++) {

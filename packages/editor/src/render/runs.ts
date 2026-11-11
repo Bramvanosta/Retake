@@ -5,9 +5,11 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario } from '@retake/core';
+import { RUN_FOLDER_RE, parseScenario, runIdMatchesScenario, projectPath } from '@retake/core';
+import { newerRunMessage } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
-import type { RenderRecord } from './types.js';
+import { readRenderRecords } from '../render-record.js';
+import type { RenderRecord } from '../render-record.js';
 import { RenderError } from './types.js';
 
 export interface RunRef {
@@ -49,7 +51,7 @@ export function findRun(project: LoadedProject, arg: string, scenario?: string):
 }
 
 function locateRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
-  const runsDir = join(project.dir, 'runs');
+  const runsDir = projectPath(project.dir, 'runs');
   if (arg === 'latest') {
     let ids: string[] = [];
     try {
@@ -97,7 +99,7 @@ export async function runEnv(dir: string): Promise<string | undefined> {
 
 /** `<project>/renders` */
 export function rendersDir(project: Pick<LoadedProject, 'dir'>): string {
-  return join(project.dir, 'renders');
+  return projectPath(project.dir, 'renders');
 }
 
 function escapeRe(s: string): string {
@@ -150,21 +152,6 @@ export async function reserveVersion(dir: string, name: string, owner = String(p
 
 /** The RenderRecords of a project (renders/*.json), oldest first. Unreadable files are skipped. */
 export async function listRenders(project: Pick<LoadedProject, 'dir'> | string): Promise<RenderRecord[]> {
-  const dir = typeof project === 'string' ? join(resolve(project), 'renders') : rendersDir(project);
-  let files: string[];
-  try {
-    files = (await readdir(dir)).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
-  } catch {
-    return [];
-  }
-  const out: RenderRecord[] = [];
-  for (const f of files) {
-    try {
-      const r = JSON.parse(await readFile(join(dir, f), 'utf8')) as RenderRecord;
-      if (r && r.version === 1 && typeof r.id === 'string' && r.plan) out.push(r);
-    } catch {
-      // not a render record
-    }
-  }
-  return out.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+  const dir = typeof project === 'string' ? projectPath(resolve(project), 'renders') : rendersDir(project);
+  return readRenderRecords(dir, { list: (d) => readdir(d), read: (f) => readFile(f, 'utf8') });
 }

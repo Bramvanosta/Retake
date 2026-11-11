@@ -1,41 +1,8 @@
 import { copyFile, mkdir, readdir, rm, stat, statfs, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
-import {
-  ARTEFACTS_DIR,
-  agentTrustProblems,
-  channelWords,
-  FORMAT_VERSIONS,
-  compileWritePolicy,
-  guardsWrites,
-  displayPages,
-  displayTable,
-  isCaptureScene,
-  listSteps,
-  loginCommand as defaultLoginCommand,
-  loginMatchers,
-  mailboxFor,
-  networkHost,
-  pageOrigins,
-  scenePageEntries,
-  planPersonas,
-  reserveRunId,
-  resolveClock,
-  resolveEnvironment,
-  resolvePersonas,
-  resolveRunAccess,
-  resolveStepRef,
-  sceneId,
-  templateSceneEntry,
-  templateVideo,
-  timelineVideo,
-  writeJson,
-  writingHooks,
-  hookStepNames,
-  resolveNamedHook,
-  stepHookList,
-  ffmpegBin,
-} from '@retake/core';
+import { ARTEFACTS_DIR, agentTrustProblems, channelWords, FORMAT_VERSIONS, compileWritePolicy, guardsWrites, displayPages, displayTable, isCaptureScene, listSteps, loginCommand as defaultLoginCommand, loginMatchers, mailboxFor, networkHost, pageOrigins, personaPageOrigins, scenePageEntries, planPersonas, resolveClock, resolveEnvironment, resolvePersonas, resolveRunAccess, resolveStepRef, sceneId, templateSceneEntry, templateVideo, timelineVideo, writingHooks, hookStepNames, resolveNamedHook, stepHookList, projectPath } from '@retake/core';
+import { reserveRunId, writeJson, ffmpegBin, nodeFileFacts, retakeHome } from '@retake/core/io';
 import type {
   AgentChannel,
   TimelineEvent,
@@ -62,6 +29,7 @@ import type {
   TimelineEnvironment,
   TimelineWrite,
   WritePolicy,
+  WorkPolicy,
 } from '@retake/core';
 import { snapshotMailbox } from './actions/artefacts.js';
 import { ActivityRecorder, analyzeActivity, clicksOf, slowTransitions } from './activity.js';
@@ -77,7 +45,7 @@ import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
 import { personaAuthReader } from './persona-auth.js';
 import type { PersonaRequestAuth } from './persona-auth.js';
-import type { ConfirmHook, HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
+import type { ConfirmHook, HookContextLike, HookResultLike, HooksModule, JournalLike } from './hooks-bridge.js';
 import { HOLD_MAX_MS } from './hold.js';
 import { INSPECT_PACING, inspectPage } from './inspect.js';
 import type { InspectContext, InspectRequest } from './inspect.js';
@@ -111,6 +79,9 @@ import type { GuardedWrite, WriteGuardOptions } from './write-guard.js';
 
 export interface RunOptions {
   project: LoadedProject;
+  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
+  policy: WorkPolicy;
+
   scenario: LoadedScenario;
   template?: LoadedTemplate;
   mode: RunMode;
@@ -157,6 +128,11 @@ export interface RunOptions {
    * (`confirmHook`) and always counts as writing — a read-only run refuses it before anything runs.
    */
   hookTrust?: HookTrust;
+  /**
+   * Reports each hook and rollback this run executes (hooks HookContext.recordRun) with the run's id: the engine journals
+   * it in the workspace journal as its caller's (absent: not journaled).
+   */
+  recordHookRun?: (result: HookResultLike, runId: string) => Promise<void>;
   /**
    * The channel a trust-`mcp` run came through, for the wording of its refusals (L4.2): `studio` (a Studio user is told
    * "from the Studio", never about MCP) or `mcp` (default).
@@ -386,7 +362,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       );
     }
   }
-  const runsDir = resolve(opts.runsDir ?? join(project.dir, 'runs'));
+  const runsDir = resolve(opts.runsDir ?? projectPath(project.dir, 'runs'));
   // Two runs of one scenario started in the same second (concurrent runs, L1.6) never share a folder: the later one
   // takes the next free second (core reserveRunId). A pre-assigned id (a job's, reserved at submit) reuses its folder.
   const { id: runId, dir } = opts.runId !== undefined ? { id: opts.runId, dir: join(runsDir, opts.runId) } : await reserveRunId(runsDir, loaded.name);
@@ -520,6 +496,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       encoder: encoderKind ?? 'libx264',
       crf: capture.crf,
       ...(opts.ffmpeg ? { ffmpeg: opts.ffmpeg } : {}),
+      policy: opts.policy,
       horizon: o.horizon,
       ...(o.thumbs ? { onThumb: (n: number, g: Buffer) => activity.add(n, g) } : {}),
     });
@@ -548,7 +525,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // stay in the project (code never from a file an agent can write) and the URLs it opens are on the environment's
     // origins — refused before anything runs.
     if (opts.hookTrust === 'mcp') {
-      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp', env });
+      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp', env, files: nodeFileFacts });
       if (problems.length) throw new RunnerError(`refused (work submitted ${channelWords(opts.hookVia)}): ${problems.join('; ')}`);
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
@@ -591,7 +568,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     await prefetchSecrets(secrets, sc, until, readsMail ? (mailbox ?? null) : null);
     // Sessions & personas (L1.6): which persona films each page, each one's browser on a copy of its session, checked
     // off camera before anything runs — no setup hook, no recorder yet.
-    personas = resolvePersonas(project, env.name);
+    personas = resolvePersonas(project, env.name, { home: retakeHome() });
     // A sandbox account's plain password (L1.8) is a secret as written: registered now, before anything this run writes
     // can hold it (the outline below; autoLogin registers it again when its login runs).
     for (const p of personas) for (const v of p.secrets ?? []) secrets.addValue(v);
@@ -605,6 +582,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     prepared = await prepareSessions(personas.filter((p) => plan.used.includes(p.name)), { runId, log });
     const realmOf = personaOf(plan, personas, env, () => rt);
     session = await BrowserSession.open({
+      policy: opts.policy,
       width: capture.width,
       height: capture.height,
       scale: capture.scale,
@@ -629,7 +607,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     }
     if (mode === 'capture') {
       // L5.7: the encoder fed during the take, the GPU the capture renders with, a limiter turned off.
-      encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg);
+      encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg, opts.policy);
       gpu = await session.gpuInfo();
       if (gpu && !gpu.accelerated) {
         const m = `the capture browser renders without its GPU (${gpu.renderer ?? 'software'}${gpu.software?.length ? `; in software: ${gpu.software.join(', ')}` : ''}): motion may look choppy and the CPU climbs — see \`retake doctor\`${browserConfig.channel === 'headless-shell' ? ' (browser.channel: headless-shell has no GPU: remove it)' : ''}`;
@@ -718,6 +696,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       };
     } else if (hasHooks) {
       const deps: SetupDeps = {
+        policy: opts.policy,
         rt,
         session,
         project,
@@ -730,7 +709,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         log,
         record,
         hookLanding: hookLanding(guard, personas, env, session, commandOf, expire),
-        personaAuth: hookPersonaAuth(personas, env, session, commandOf),
+        personaAuth: hookPersonaAuth(personas, env, session, commandOf, opts.hookTrust === 'mcp'),
         ...(writeGuard ? { writes: { policy: writeGuard.policy, ...(writeGuard.onWrite ? { onWrite: writeGuard.onWrite } : {}) } } : {}),
         signal,
         running: hookGroups,
@@ -738,6 +717,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         ...(opts.hookVia ? { via: opts.hookVia } : {}),
         ...(opts.hookTrust === 'mcp' && sc.vars && Object.keys(sc.vars).length ? { agentVars: Object.keys(sc.vars) } : {}),
         ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
+        ...(opts.recordHookRun ? { recordHookRun: opts.recordHookRun } : {}),
       };
       hooks = await openHooks(deps);
       await setupHooks(hooks, sc.setup ?? [], deps);
@@ -992,7 +972,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // Artefact images (emails, PDF pages, icons, project documents) are rendered after the capture, in a clean browser.
     if (rt && !(failure !== null && (isCancelled(failure) || failure instanceof LoginPageError))) {
       try {
-        await rt.artefacts.finalize({ browser: projectBrowser(project, opts.browser), scenario: sc, project });
+        await rt.artefacts.finalize({ browser: projectBrowser(project, opts.browser), scenario: sc, project, policy: opts.policy });
       } catch (e) {
         timeline.warn(`artefacts: ${errorMessage(e)}`);
       }
@@ -1119,7 +1099,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
           const t = trackOf(ev);
           const file = t ? join(dir, t.builder.info.file) : record.capture;
           return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
-        }, capture.fps, ffmpegBin(opts.ffmpeg), log);
+        }, capture.fps, ffmpegBin(opts.policy, opts.ffmpeg), log);
   }
   // What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens.
   let transitions: RunPerf['transitions'];
@@ -1447,6 +1427,8 @@ async function prefetchSecrets(
 }
 
 interface SetupDeps {
+  /** What the run runs under (RunOptions.policy): its hooks get it too. */
+  policy: WorkPolicy;
   /** A read-only run: the js hook tabs stop writes (never mocked) and report them. */
   writes?: { policy: WritePolicy; onWrite?: (w: GuardedWrite) => void };
   rt: Runtime;
@@ -1474,6 +1456,7 @@ interface SetupDeps {
   /** Trust `mcp`: the scenario's own vars, the agent's (HookContextLike.agentVars). */
   agentVars?: readonly string[];
   confirmHook?: ConfirmHook;
+  recordHookRun?: RunOptions['recordHookRun'];
 }
 
 function formatIssuePath(path: ReadonlyArray<string | number>): string {
@@ -1598,6 +1581,8 @@ function hookPersonaAuth(
   env: { name: string; pages: Record<string, string> },
   session: BrowserSession,
   command: (persona: string) => string,
+  /** Trust `mcp`: the session is read only for the persona's own pages' origins (persona-auth.ts `origins`). */
+  ownPagesOnly = false,
 ): NonNullable<HookContextLike['personaAuth']> {
   const readers = new Map<string, (url: string) => Promise<PersonaRequestAuth>>();
   return async (name, url) => {
@@ -1606,7 +1591,7 @@ function hookPersonaAuth(
     if (!session.hasRealm(name)) throw new RunnerError(`persona ${name}: this run has no browser signed in as it (its hook is not one the run planned)`);
     let read = readers.get(name);
     if (!read) {
-      read = personaAuthReader({ persona, context: () => session.contextOf(name), envPages: env.pages, relogin: command(name) });
+      read = personaAuthReader({ persona, context: () => session.contextOf(name), envPages: env.pages, relogin: command(name), ...(ownPagesOnly ? { origins: personaPageOrigins(persona.pages, env.pages) } : {}) });
       readers.set(name, read);
     }
     return read(url);
@@ -1691,6 +1676,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
   d.template.hooks = saved;
   const ctx: HookContextLike = {
     project: d.project,
+    policy: d.policy,
     env: d.env,
     vars: Object.fromEntries(Object.entries(d.template.vars ?? {}).map(([k, v]) => [k, String(v)])),
     runId: d.runId,
@@ -1715,6 +1701,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     ...(d.via ? { via: d.via } : {}),
     ...(d.agentVars ? { agentVars: d.agentVars } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
+    ...(d.recordHookRun ? { recordRun: (r: HookResultLike, run?: string) => d.recordHookRun!(r, run ?? d.runId) } : {}),
     ...(d.personaAuth ? { personaAuth: d.personaAuth } : {}),
   };
   return { mod, journal, ctx };

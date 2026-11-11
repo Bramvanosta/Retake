@@ -28,8 +28,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scaffoldDir } from '@retake/components';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import { loadComponentRegistry } from '@retake/components';
+import { PERSON_POLICY } from '@retake/core';
 import {
   REMOTION_PREVIEW_BACKEND,
   RenderCancelledError,
@@ -108,7 +109,7 @@ function renderBrowsers(): number[] {
 const commandOf = (pid: number) => execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' });
 
 async function reachingPlan(): Promise<EditPlan> {
-  const planned = await planRun({ project: ws.project, run: 'latest', root: ws.root, overrides: { scale: 0.25, intro: true, components: { intro: 'acme/reaching' } } });
+  const planned = await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root, overrides: { scale: 0.25, intro: true, components: { intro: 'acme/reaching' } } });
   expect(planned.plan.segments[0]?.component.id).toBe('acme/reaching');
   return planned.plan;
 }
@@ -163,7 +164,7 @@ afterAll(async () => {
 
 describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   it('the default policy draws with ANGLE (Metal) and encodes with VideoToolbox: said in the record, a key frame every 2 s, SSIM ≥ 0.995 against software', async () => {
-    const gpu = await renderVideo({ project: ws.project, root: ws.root, run: 'latest', scenario: 'synthetic', overrides: { scale: 0.25 }, cacheDir: SHARED_CACHE, out: join(ws.root, 'gpu.mp4'), settings: GPU });
+    const gpu = await renderVideo({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, run: 'latest', scenario: 'synthetic', overrides: { scale: 0.25 }, cacheDir: SHARED_CACHE, out: join(ws.root, 'gpu.mp4'), settings: GPU });
     expect(gpu.policy).toMatchObject({
       gl: { asked: 'auto', source: 'option', resolved: 'angle', used: 'angle', renderer: expect.stringMatching(/Metal/) },
       encoder: { asked: 'auto', used: 'h264_videotoolbox' },
@@ -176,7 +177,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     // 57 frames, a key frame every 60: one (ffmpeg's default of 12 without gopSize gives 5).
     expect(gpu.frames).toBe(57);
     expect(keyFrames(gpu.file)).toBe(1);
-    const sw = await renderVideo({ project: ws.project, root: ws.root, run: 'latest', scenario: 'synthetic', overrides: { scale: 0.25 }, cacheDir: SHARED_CACHE, out: join(ws.root, 'sw.mp4'), settings: { gl: 'software', encoder: 'libx264' } });
+    const sw = await renderVideo({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, run: 'latest', scenario: 'synthetic', overrides: { scale: 0.25 }, cacheDir: SHARED_CACHE, out: join(ws.root, 'sw.mp4'), settings: { gl: 'software', encoder: 'libx264' } });
     expect(sw.policy).toMatchObject({ gl: { used: 'software' }, encoder: { used: 'libx264' } });
     expect(readFileSync(sw.file).includes('x264 - core')).toBe(true);
     const ssim = ssimFrames(gpu.file, sw.file);
@@ -247,7 +248,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     const plan = await reachingPlan();
     const browsers: BrowserProcessInfo[] = [];
     hits = [];
-    const res = await renderPlan({
+    const res = await renderPlan({ workPolicy: PERSON_POLICY,
       plan,
       out: join(ws.root, 'nogpu.mp4'),
       root: ws.root,
@@ -270,7 +271,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     try {
       process.env.RETAKE_RENDER_GL = 'auto';
       process.env.RETAKE_RENDER_ENCODER = 'auto';
-      const doctor = await probeRenderPath({ gpuInfo: SWIFTSHADER });
+      const doctor = await probeRenderPath({ workPolicy: PERSON_POLICY, gpuInfo: SWIFTSHADER });
       expect(doctor).toMatchObject({ gl: 'software', encoder: 'libx264', concurrency: res.concurrency });
     } finally {
       process.env.RETAKE_RENDER_GL = saved.gl;
@@ -283,7 +284,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     const warnings: string[] = [];
     const browsers: BrowserProcessInfo[] = [];
     hits = [];
-    const [file] = await renderStills({
+    const [file] = await renderStills({ workPolicy: PERSON_POLICY,
       plan,
       frames: [{ frame: 2, out: join(ws.root, 'still.png') }],
       root: ws.root,
@@ -307,6 +308,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     const attempts: Array<{ n: number; gl: string; encoder: string }> = [];
     hits = [];
     const res = await renderPlan({
+      workPolicy: PERSON_POLICY,
       plan,
       out: join(ws.root, 'fallback.mp4'),
       root: ws.root,
@@ -349,7 +351,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   it('a failure mid-render: the partial file removed before the fallback starts from frame 0; progress clamped, said as retrying', async () => {
     const progress: RenderProgress[] = [];
     let atRetry: string[] = [];
-    const res = await renderVideo({
+    const res = await renderVideo({ workPolicy: PERSON_POLICY,
       project: ws.project,
       root: ws.root,
       run: 'latest',
@@ -381,7 +383,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     const plan = await reachingPlan();
     let n = 0;
     await expect(
-      renderPlan({ plan, out: join(ws.root, 'twice.mp4'), root: ws.root, cacheDir: SHARED_CACHE, frameRange: [0, 5], settings: GPU, seams: { beforeRender: () => {
+      renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, 'twice.mp4'), root: ws.root, cacheDir: SHARED_CACHE, frameRange: [0, 5], settings: GPU, seams: { beforeRender: () => {
         n++;
         throw new Error('GPU process exited unexpectedly');
       } } }),
@@ -389,7 +391,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     expect(n).toBe(2);
     n = 0;
     await expect(
-      renderPlan({ plan, out: join(ws.root, 'timeout.mp4'), root: ws.root, cacheDir: SHARED_CACHE, frameRange: [0, 5], settings: GPU, seams: { beforeRender: () => {
+      renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, 'timeout.mp4'), root: ws.root, cacheDir: SHARED_CACHE, frameRange: [0, 5], settings: GPU, seams: { beforeRender: () => {
         n++;
         throw new Error('Timeout (90000ms) exceeded rendering the component at frame 3');
       } } }),
@@ -397,7 +399,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     expect(n).toBe(1);
     const ac = new AbortController();
     await expect(
-      renderPlan({ plan, out: join(ws.root, 'cancel.mp4'), root: ws.root, cacheDir: SHARED_CACHE, frameRange: [0, 5], settings: GPU, signal: ac.signal, seams: { beforeRender: (k) => {
+      renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, 'cancel.mp4'), root: ws.root, cacheDir: SHARED_CACHE, frameRange: [0, 5], settings: GPU, signal: ac.signal, seams: { beforeRender: (k) => {
         if (k === 1) throw new Error('GPU process exited unexpectedly');
         ac.abort();
       } } }),
@@ -407,7 +409,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   }, LONG);
 
   it('review B L1: a render failing on the GPU path and again in software keeps the GPU story in its record', async () => {
-    const err = await renderVideo({
+    const err = await renderVideo({ workPolicy: PERSON_POLICY,
       project: ws.project,
       root: ws.root,
       run: 'latest',
@@ -437,12 +439,12 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   }, LONG);
 
   it('a page of a guarded GPU render fails: our one software retry, guarded and reported; Remotion never opens a browser of its own (B gets nothing, none outlives it)', async () => {
-    const planned = await planRun({ project: ws.project, run: 'latest', root: ws.root, overrides: { scale: 0.25, intro: true, components: { intro: 'acme/closing' } } });
+    const planned = await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root, overrides: { scale: 0.25, intro: true, components: { intro: 'acme/closing' } } });
     const before = renderBrowsers();
     const browsers: BrowserProcessInfo[] = [];
     const attempts: Array<{ n: number; gl: string }> = [];
     hits = [];
-    const err = await renderPlan({
+    const err = await renderPlan({ workPolicy: PERSON_POLICY,
       plan: planned.plan,
       out: join(ws.root, 'closing.mp4'),
       root: ws.root,
@@ -471,7 +473,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
 
   it("review B M4: the Library's preview backend on the GPU path — no GPU: reopened in software before it is reported or guarded; with one: drawn with ANGLE", async () => {
     const registry = await loadComponentRegistry({ root: ws.root });
-    const template = await loadTemplate('editorial', ws.root);
+    const template = await loadTemplate('editorial', ws.root, { files: fileFacts(PERSON_POLICY) });
     const info = registry.get('acme/reaching');
     const target = { id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest };
     const loops = async (gpuInfo: typeof SWIFTSHADER | undefined, tag: string) => {
@@ -480,7 +482,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       // The real backend, with its GPU-status seam: what a library job runs.
       const backend: PreviewBackend = { bundle: (o) => REMOTION_PREVIEW_BACKEND.bundle(o), open: (o) => REMOTION_PREVIEW_BACKEND.open({ ...o, ...(gpuInfo ? { gpuInfo } : {}) }) };
       hits = [];
-      const r = await renderComponentLoops({
+      const r = await renderComponentLoops({ workPolicy: PERSON_POLICY,
         root: ws.root,
         registry,
         template,
@@ -515,7 +517,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
 
   it('a GPU left during the render (Chromium falls back by itself) is what the record says: read again at the end', async () => {
     let calls = 0;
-    const res = await renderVideo({
+    const res = await renderVideo({ workPolicy: PERSON_POLICY,
       project: ws.project,
       root: ws.root,
       run: 'latest',

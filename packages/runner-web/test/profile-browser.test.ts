@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { PROFILE_BROWSER_FILE, checkProfileBrowser, launchMajor, profileMajor, recordProfileBrowser } from '../src/index.js';
 import { BrowserSession } from '../src/session.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const base = mkdtempSync(join(tmpdir(), 'profile-browser-'));
 afterAll(() => rmSync(base, { recursive: true, force: true }));
@@ -80,7 +81,7 @@ describe('the launch of a persona\'s profile', () => {
     writeFileSync(join(app, 'Contents', 'Info.plist'), '<key>CFBundleShortVersionString</key><string>141.0.1.0</string>');
     const p = profile();
     writeFileSync(join(p, 'Last Version'), '999.0.0.0');
-    const opts = { profileDir: p, width: 640, height: 360, scale: 1, browser: { executable: join(app, 'Contents', 'MacOS', 'Chromium') } };
+    const opts = { policy: PERSON_POLICY, profileDir: p, width: 640, height: 360, scale: 1, browser: { executable: join(app, 'Contents', 'MacOS', 'Chromium') } };
     await expect(BrowserSession.open(opts as never)).rejects.toThrow(/last opened by Chromium 999, and this copy of Retake runs Chromium 141/);
   });
 

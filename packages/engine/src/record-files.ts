@@ -8,7 +8,8 @@
  */
 import { writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_CLIENTS, JOB_ID_RE, RECORD_ID_RE, SLUG_RE, isIsoUtcDate, parseRecordAnnotations, readPlainFile } from '@retake/core';
+import { JOB_CLIENTS, JOB_ID_RE, RECORD_ID_RE, SLUG_RE, isIsoUtcDate, parseRecordAnnotations, statePath } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
 import type { JobClient, RecordAnnotations } from '@retake/core';
 import type { ProcessIdentity } from './jobs/proc.js';
 
@@ -44,7 +45,7 @@ export function recordLockName(id: string): string {
 }
 
 export function recordLockFile(projectDir: string, id: string): string {
-  return join(projectDir, '.retake', 'locks', recordLockName(id));
+  return statePath(projectDir, 'locks', recordLockName(id));
 }
 
 /** Write meta.json once (0600; never over an existing file). */

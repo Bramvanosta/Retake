@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { DEFAULT_CAPTURE } from '@retake/core';
+import { DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, ProjectConfig } from '@retake/core';
 import type { HookContext, HookLogLevel } from '@retake/hooks';
 
@@ -56,6 +56,7 @@ export function makeContext(
   const logs: LogLine[] = [];
   const ctx: HookContext = {
     project,
+    policy: PERSON_POLICY,
     env: { name: 'local', pages: { ...project.config.environments.local } },
     vars: {},
     log: (level, msg) => logs.push({ level, msg }),

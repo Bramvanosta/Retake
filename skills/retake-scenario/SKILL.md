@@ -81,7 +81,11 @@ render on the same take). Hooks are the user's: propose one, never add one they 
 8. **Capture.** `run_capture {project, scenario}` (`sandbox: true` on a sandbox) returns a run id and a job id at
    once; follow it with `job_status {job_id, wait_s: 600}` (one call) or `run_status {project, run_id, wait_s: 25}`
    until it is finished. When its hooks need a human, the user sees an
-   approval form and decides (see Rules).
+   approval form and decides (see Rules). A `conflict` with `details.sessions` names personas whose saved session is
+   not valid and that no run signs in by itself: tell the user, who signs in (`auth_login`) or confirms; only then
+   call again with `sessions_ack` naming each one. A `conflict` naming a run means a run of the scenario is already
+   queued or running (follow it with `run_status`, or stop it with `run_cancel` if the user agrees); one naming a
+   render, the same for `render` (`render_status`).
 9. **Edit and look.** `plan_preview {project, scenario}` (cheap: segments, timings, warnings), then
    `render {project, scenario}` and `render_status {project, render_id, wait_s: 25}` until it is finished, then
    `review {project, render_id}` (it waits up to 20 s; a review still running: follow it with

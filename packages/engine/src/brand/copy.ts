@@ -10,16 +10,18 @@
  * link, a hard link or a special file is refused whole (a copy would serve a file from elsewhere); at most THEME_COPY_MAX_FILES files
  * and THEME_COPY_MAX_BYTES bytes.
  */
-import { randomBytes } from 'node:crypto';
-import { copyFile, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, loadTemplate, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
-import type { WorkspaceConfig } from '@retake/core';
+import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
+import { loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
+import { ProjectStore } from '../store/project-store.js';
+import type { StoreScope } from '../store/project-store.js';
 import { checkTemplateName, themeAssetProblems } from '../templates.js';
 import { PACKAGE_ROOT, THEME_PROVENANCE_FILE, checkNewName, removeStale } from './create.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export const THEME_COPY_MAX_FILES = 2_000;
 export const THEME_COPY_MAX_BYTES = 25 * 1024 * 1024;
@@ -72,7 +74,7 @@ function renamedText(text: string, name: string, from: string): string {
 }
 
 /** Copy a listed theme into a new workspace theme `name` (see the header). */
-export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: string }, o: { now?: Date } = {}): Promise<ThemeCopied> {
+export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { now?: Date; scope: StoreScope }): Promise<ThemeCopied> {
   const from = checkTemplateName(req?.from);
   const name = req?.name;
   if (typeof name !== 'string' || !THEME_NAME_RE.test(name) || name.length > 64) {
@@ -80,14 +82,14 @@ export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: 
   }
   const now = o.now ?? new Date();
   const templatesDir = ws.templatesDir;
-  if (insideFolder(PACKAGE_ROOT, templatesDir)) {
+  if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
     throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a copy would land among its starter themes`, {
       fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
     });
   }
   let source;
   try {
-    source = await loadTemplate(from, ws.root);
+    source = await loadTemplate(from, ws.root, { files: fileFacts(ws.policy) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -101,39 +103,36 @@ export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: 
   const text = renamedText(await readFile(join(source.dir, TEMPLATE_FILE), 'utf8'), name, from);
   const hashes: Record<string, string> = {};
   for (const f of files) hashes[f] = f === TEMPLATE_FILE ? sha256Hex(text) : sha256Hex(await readFile(join(source.dir, ...f.split('/'))));
-  const tmp = join(templatesDir, `.tmp-${name}-${randomBytes(6).toString('hex')}`);
-  const final = join(templatesDir, name);
   try {
-    await mkdir(tmp);
-    // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
-    const provenance = { version: 1, made_by: 'retake', tool_version: RETAKE_VERSION, created_at: now.toISOString(), name, base: from, copy_of: from, trust: 'author', files: hashes };
-    await writeFile(join(tmp, THEME_PROVENANCE_FILE), `${JSON.stringify(provenance, null, 2)}\n`, { flag: 'wx' });
-    for (const f of files) {
-      const p = join(tmp, ...f.split('/'));
-      await mkdir(dirname(p), { recursive: true });
-      if (f === TEMPLATE_FILE) await writeFile(p, text, { flag: 'wx' });
-      else {
-        await copyFile(join(source.dir, ...f.split('/')), p, 1 /* COPYFILE_EXCL */);
-        // Copied bytes are the ones hashed (a source file changed meanwhile refuses the copy).
-        if (sha256Hex(await readFile(p)) !== hashes[f]) throw new EngineError('conflict', `theme ${from}: ${f} changed while it was copied — try again`);
-      }
-    }
-    const parsed = parseTemplateYaml(text, { dir: tmp });
-    const errors = parsed.issues.filter((i) => i.severity === 'error');
-    if (errors.length) throw new EngineError('invalid', `the copy does not validate: ${errors.map((i) => i.message).join('; ')}`);
-    const loaded = await loadTemplate(tmp);
-    const outside = themeAssetProblems(loaded);
-    if (outside.length) throw new EngineError('refused', outside.join('; '));
-    try {
-      (await workspaceRegistry(ws)).resolveTheme(loaded.template);
-    } catch (e) {
-      throw new EngineError('invalid', `the copy's components do not resolve: ${toEngineError(e).message}`);
-    }
-    // Checked again right before the rename (an empty folder of that name would be replaced silently on macOS).
-    await checkNewName(templatesDir, name, false, 'author');
-    await rename(tmp, final);
+    await new ProjectStore(templatesDir, o.scope, undefined, '<templates_dir>').createFolder(templatesDir, name, {
+      what: 'theme',
+      build: async (stage) => {
+        // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
+        const provenance = { version: 1, made_by: 'retake', tool_version: RETAKE_VERSION, created_at: now.toISOString(), name, base: from, copy_of: from, trust: 'author', files: hashes };
+        await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
+        for (const f of files) {
+          if (f === TEMPLATE_FILE) await stage.write(f, text);
+          else {
+            await stage.copy(f, join(source.dir, ...f.split('/')));
+            // Copied bytes are the ones hashed (a source file changed meanwhile refuses the copy).
+            if (sha256Hex(await readFile(join(stage.dir, ...f.split('/')))) !== hashes[f]) throw new EngineError('conflict', `theme ${from}: ${f} changed while it was copied — try again`);
+          }
+        }
+        const parsed = parseTemplateYaml(text, { dir: stage.dir, files: fileFacts(ws.policy) });
+        const errors = parsed.issues.filter((i) => i.severity === 'error');
+        if (errors.length) throw new EngineError('invalid', `the copy does not validate: ${errors.map((i) => i.message).join('; ')}`);
+        const loaded = await loadTemplate(stage.dir, undefined, { files: fileFacts(ws.policy) });
+        const outside = themeAssetProblems(loaded);
+        if (outside.length) throw new EngineError('refused', outside.join('; '));
+        try {
+          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
+        } catch (e) {
+          throw new EngineError('invalid', `the copy's components do not resolve: ${toEngineError(e).message}`);
+        }
+      },
+      recheck: () => checkNewName(templatesDir, name, false, 'author'),
+    });
   } catch (e) {
-    await rm(tmp, { recursive: true, force: true });
     throw toEngineError(e);
   }
   return { name, from, files: [...files, THEME_PROVENANCE_FILE] };

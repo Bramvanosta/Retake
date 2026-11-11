@@ -7,12 +7,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadProject, loadTemplate, parseScenario, stepFingerprint } from '@retake/core';
+import { parseScenario, stepFingerprint, PERSON_POLICY } from '@retake/core';
+import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
 import type { Scene, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { brandmarkRect, planEdit } from '@retake/editor';
-import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
+import { brandmarkRect, planEdit } from '@retake/editor/plan';
+import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor/plan';
 import { captionRegion, frameAnchor, segmentSpans, transitionSpans } from '../src/index.js';
 import { REPO, synthTimeline } from './helpers.js';
 
@@ -22,7 +23,7 @@ let registry: ComponentRegistry;
 
 async function planOf(timeline: Timeline, overrides: EditOverrides = {}, theme = 'editorial'): Promise<EditPlan> {
   const project = await loadProject('northfield-fixture', REPO);
-  const template = await loadTemplate(theme, REPO);
+  const template = await loadTemplate(theme, REPO, { files: fileFacts(PERSON_POLICY) });
   return planEdit({ timeline, template, project, registry, captureFile: '/captures/capture.mp4', overrides });
 }
 const clipOf = (p: EditPlan, id: string) => p.segments.find((s) => s.id === id) as ClipSegment;

@@ -6,11 +6,13 @@
  * nothing listening). It validates and comes up as written.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, sep } from 'node:path';
+import { readFile, readdir } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { SANDBOX_SCHEMA_FILE, addSandboxEntry, bundleInfoOrNull, insideBundle, sandboxNames } from '@retake/core';
-import type { BundleInfo, LoadedProject } from '@retake/core';
+import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@retake/core';
+import { bundleInfoOrNull, insideBundle } from '@retake/core/io';
+import type { LoadedProject } from '@retake/core';
+import type { BundleInfo } from '@retake/core/io';
 import { SandboxError } from './errors.js';
 import { probePort, sandboxPorts } from './ports.js';
 
@@ -30,6 +32,12 @@ export interface InitSandboxOptions {
   basePort?: number;
   /** Is a port free? (default: nothing accepts a connection on it). */
   isFree?: (port: number) => Promise<boolean>;
+  /**
+   * Writes one file of the project (an absolute path; its folders made): the engine's project store, which writes over
+   * an existing file on the version it read (`if_match`: `previous`, the text this package read, else the file as it is
+   * just before) and journals it. This package writes no file itself.
+   */
+  write: (file: string, text: string, previous?: string) => Promise<void>;
 }
 
 export interface InitSandboxResult {
@@ -112,7 +120,7 @@ async function listFiles(dir: string, base = dir): Promise<string[]> {
  * taken by an environment, a sandbox of that name or any file the scaffold would write already there (without
  * `force`), no free ports.
  */
-export async function initSandbox(project: LoadedProject, opts: InitSandboxOptions = {}): Promise<InitSandboxResult> {
+export async function initSandbox(project: LoadedProject, opts: InitSandboxOptions): Promise<InitSandboxResult> {
   const env = opts.env ?? DEFAULT_SANDBOX_ENV;
   if (!ENV_RE.test(env)) throw new SandboxError(`"${env}" cannot name an environment: lower-case letters, digits, "-" and "_"`);
   const existing = project.sandboxes?.[env];
@@ -154,8 +162,7 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
   const files: string[] = [];
   for (const rel of scaffold) {
     const target = join(dir, rel);
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, render(await readFile(join(SCAFFOLD_DIR, rel), 'utf8')));
+    await opts.write(target, render(await readFile(join(SCAFFOLD_DIR, rel), 'utf8')));
     files.push(target);
   }
 
@@ -167,6 +174,6 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
   } catch (e) {
     throw new SandboxError(`${(e as Error).message} — the scaffold was written to ${folder}/; add \`sandboxes: {${env}: ${posixPath(folder)}/sandbox.yaml}\` by hand`);
   }
-  if (after !== before) await writeFile(projectFile, after);
+  if (after !== before) await opts.write(projectFile, after, before);
   return { env, dir, manifest, files, ports: { app, db, mailpit }, projectYaml: after === before ? 'kept' : 'added' };
 }

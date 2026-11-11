@@ -8,7 +8,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { rm } from 'node:fs/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { HostRefusedError } from '@retake/core';
+import { HostRefusedError, PERSON_POLICY } from '@retake/core';
 import type { NotificationArtefact } from '@retake/core';
 import { evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, HookPageOptions } from '../src/index.js';
@@ -140,7 +140,7 @@ describe('evalHookInPage: the guarded js hook tab', () => {
   };
 
   beforeAll(async () => {
-    session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined), browser: { args: [RESOLVE] } });
+    session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined), browser: { args: [RESOLVE] } });
   });
   afterAll(async () => {
     await session?.close();
@@ -294,7 +294,7 @@ describe('js setup hooks in a run', () => {
   it('prepare the capture tab\'s storage, and a hook tab left open keeps working: its notification is captured', async () => {
     pinged = false;
     const project = makeProject(dir, { app: A, notifier: `${A}/notifier.html` });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('hook-tab', {
         pacing: FAST,

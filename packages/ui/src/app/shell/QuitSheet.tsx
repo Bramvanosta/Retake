@@ -9,13 +9,13 @@
  * second ⌘Q re-asks, natively 10 s after the first ack).
  */
 import { useEffect, useState } from 'react';
-import { call } from '../api.js';
+import { desktopAnswer } from '../data/desktop.js';
 import { Txt } from '../bits.js';
 import { Callout, Sheet } from '../ui-kit/index.js';
 import { QUIT_CLOSE_EVENT, QUIT_EVENT, parseQuitDetail, quitActions } from './quit.js';
 import type { QuitQuestion } from './quit.js';
 
-const sendShown = (id: string) => void call('desktop_answer', { id, shown: true }).catch(() => undefined);
+const sendShown = (id: string) => void desktopAnswer({ id, shown: true }).catch(() => undefined);
 
 /** An answer in flight (`busy`: the action chosen) or the last one failed. */
 type Sent = { id: string; busy: 'proceed' | 'cancel' | null; failed: boolean };
@@ -76,7 +76,7 @@ export function QuitSheet() {
     const asked = q;
     const qid = q.id;
     setSent({ id: qid, busy: a, failed: false });
-    call('desktop_answer', { id: qid, answer: a }).then(
+    desktopAnswer({ id: qid, answer: a }).then(
       () => {
         setSent((cur) => (cur && cur.id === qid ? null : cur));
         // This dispatch answered: it closes (a question dispatched since stays — the shell closes what it answered).

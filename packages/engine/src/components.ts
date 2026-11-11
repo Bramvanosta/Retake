@@ -12,9 +12,12 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core';
-import type { ComponentKind, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import type { ComponentKind, ValidationIssue } from '@retake/core';
 import type { ComponentInfo, ComponentManifest, ComponentRegistry } from '@retake/components';
 import { EngineError, toEngineError } from './errors.js';
+import { ProjectStore } from './store/project-store.js';
+import type { StoreScope } from './store/project-store.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** Lazy: @retake/components pulls in esbuild (compile checks). */
 export const components = () => import('@retake/components');
@@ -35,7 +38,7 @@ export function checkComponentKind(kind: string): ComponentKind {
 }
 
 /** The registry of a workspace (its components/ folder, then the built-in library). */
-export async function workspaceRegistry(ws: WorkspaceConfig): Promise<ComponentRegistry> {
+export async function workspaceRegistry(ws: OpenedWorkspace): Promise<ComponentRegistry> {
   const c = await components();
   return c.loadComponentRegistry({ root: ws.root });
 }
@@ -86,7 +89,7 @@ async function summary(c: ComponentInfo): Promise<ComponentSummary> {
 }
 
 /** Every usable component (of `kind`), workspace first then built-in, with the registry's notices. */
-export async function componentList(ws: WorkspaceConfig, kind?: string): Promise<ComponentListView> {
+export async function componentList(ws: OpenedWorkspace, kind?: string): Promise<ComponentListView> {
   const k = kind === undefined ? undefined : checkComponentKind(kind);
   const reg = await workspaceRegistry(ws);
   const list = reg.list(k);
@@ -113,7 +116,7 @@ export interface ComponentView extends ComponentSummary {
 }
 
 /** One component: its manifest, files and README. */
-export async function componentGet(ws: WorkspaceConfig, id: string): Promise<ComponentView> {
+export async function componentGet(ws: OpenedWorkspace, id: string): Promise<ComponentView> {
   checkComponentId(id);
   const lib = await components();
   const reg = await workspaceRegistry(ws);
@@ -153,7 +156,7 @@ export interface ComponentValidationView {
 }
 
 /** Validate one component of the registry — a valid one, or one the registry found invalid — by id. */
-export async function componentValidate(ws: WorkspaceConfig, id: string): Promise<ComponentValidationView> {
+export async function componentValidate(ws: OpenedWorkspace, id: string): Promise<ComponentValidationView> {
   checkComponentId(id);
   const lib = await components();
   const reg = await workspaceRegistry(ws);
@@ -203,7 +206,7 @@ export interface ComponentCreated {
  * Scaffold a workspace component (the tool's scaffold only: the description and name go into component.yaml through
  * the YAML library and into README.md as text, never into code). Refuses the built-in namespace and built-in ids.
  */
-export async function componentCreate(ws: WorkspaceConfig, req: ComponentCreateRequest): Promise<ComponentCreated> {
+export async function componentCreate(ws: OpenedWorkspace, req: ComponentCreateRequest, scope: StoreScope): Promise<ComponentCreated> {
   checkComponentId(req.id);
   const kind = checkComponentKind(req.kind);
   const lib = await components();
@@ -214,6 +217,7 @@ export async function componentCreate(ws: WorkspaceConfig, req: ComponentCreateR
       ...(req.description !== undefined ? { description: req.description } : {}),
       ...(req.name !== undefined ? { name: req.name } : {}),
       noOverride: true,
+      write: componentWriter(ws, scope),
     });
     return { id: created.manifest.id, kind, dir: created.dir, entry: created.entry, files: created.files, issues: created.issues as ValidationIssue[] };
   } catch (e) {
@@ -221,4 +225,15 @@ export async function componentCreate(ws: WorkspaceConfig, req: ComponentCreateR
     if (/namespace belongs to the built-in library|is a built-in component's/.test(err.message)) throw new EngineError('refused', err.message);
     throw err;
   }
+}
+
+/**
+ * The writer of a component scaffold (components createComponent `write`): each file created through the project store
+ * rooted at the workspace's components folder (`if_match` null: never over a file), journaled as the caller's.
+ */
+export function componentWriter(ws: Pick<OpenedWorkspace, 'componentsDir'>, scope: StoreScope): (file: string, text: string) => Promise<void> {
+  const store = new ProjectStore(ws.componentsDir, scope, undefined, '<components_dir>');
+  return async (file, text) => {
+    await store.writeFileAt(file, text, { ifMatch: null, what: 'component' });
+  };
 }

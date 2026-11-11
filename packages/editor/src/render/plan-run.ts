@@ -14,27 +14,14 @@
 import { createHash } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import {
-  displayPages,
-  editReplannedMessage,
-  insideFolder,
-  isCaptureScene,
-  issuesMessage,
-  loadProjectTemplate,
-  parseScenario,
-  readJson,
-  renderFileProblems,
-  replanEdit,
-  resolveEnvironment,
-  scenarioSinceRun,
-  templateRefProblem,
-  timelineVideo,
-} from '@retake/core';
-import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline } from '@retake/core';
+import { displayPages, editReplannedMessage, insideFolder, isCaptureScene, issuesMessage, parseScenario, renderFileProblems, replanEdit, resolveEnvironment, templateRefProblem, timelineVideo, GUIDE } from '@retake/core';
+import { loadProjectTemplate, readJson, scenarioSinceRun, nodeFileFacts, fileFacts } from '@retake/core/io';
+import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
-import { musicFile, musicSpecOf, planEdit } from '../plan.js';
+import { planEdit } from '../plan.js';
+import { musicFile, musicSpecOf } from '../planner/music.js';
 import { PLAN_ASSET_SCHEME } from '../plan-types.js';
 import type { EditOverrides, EditPlan } from '../plan-types.js';
 import { probeMedia } from './probe.js';
@@ -51,9 +38,20 @@ export class PlanTrustError extends RenderError {
     super(`refused through MCP:\n${problems.map((p) => `- ${p}`).join('\n')}`);
     this.name = 'PlanTrustError';
   }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  override get errorKind(): ErrorKind {
+    return 'refused';
+  }
+
+  override get errorDocs(): string {
+    return GUIDE.security;
+  }
 }
 
 export interface PlanRunOptions {
+  /** What the work runs under (core WorkPolicy): the ffprobe of its files. */
+  workPolicy: WorkPolicy;
   project: LoadedProject;
   /** Run id, run directory, or "latest" (of `scenario` when given). */
   run: string;
@@ -127,14 +125,14 @@ export interface PlannedRun {
 }
 
 /** The theme a plan of this run uses: asked, else the overrides', else the run's, else the project's. */
-function themeRef(o: PlanRunOptions, timeline: Timeline): string | LoadedTemplate | undefined {
+function themeRef(o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'>, timeline: Timeline): string | LoadedTemplate | undefined {
   return o.template ?? o.overrides?.theme ?? timeline.video?.template ?? o.project.config.template;
 }
 
 /** Gate 1 (trust `mcp`): what the plan will read, checked before anything is read. Empty: nothing refused. */
 export function preReadProblems(project: LoadedProject, timeline: Timeline, video: Timeline['video'], o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'> & { registry?: ComponentRegistry }): string[] {
   const problems: string[] = [];
-  const theme = themeRef(o as PlanRunOptions, timeline);
+  const theme = themeRef(o, timeline);
   if (typeof theme === 'string') {
     const where = o.template !== undefined ? 'the theme asked' : o.overrides?.theme !== undefined ? 'the theme of the overrides' : timeline.video?.template !== undefined ? "the run's theme (the scenario's template:)" : 'the theme';
     const p = templateRefProblem(theme, project.config.template, where);
@@ -143,7 +141,7 @@ export function preReadProblems(project: LoadedProject, timeline: Timeline, vide
   const uses = planFileUses(timeline).map((u) => ({ ref: u.ref, where: u.where }));
   const music = musicSpecOf(video, o.overrides ?? {});
   if (music) uses.push({ ref: music.file, where: typeof o.overrides?.music === 'string' ? 'the music of the overrides' : 'the music bed (music.file)' });
-  problems.push(...renderFileProblems(project.dir, uses));
+  problems.push(...renderFileProblems(project.dir, uses, nodeFileFacts));
   // A slot the component only shows or encodes (a CTA's url, its QR code) is not a file to load: its manifest says.
   const slotType = (component: string | undefined, slot: string): string | undefined => {
     if (!component || !o.registry) return undefined;
@@ -164,7 +162,7 @@ export function servedFileProblems(plan: Pick<EditPlan, 'assets'>, folders: { pr
   const problems: string[] = [];
   for (const [url, file] of Object.entries(plan.assets)) {
     const name = url.startsWith(PLAN_ASSET_SCHEME) ? url.slice(PLAN_ASSET_SCHEME.length) : url;
-    if (insideFolder(folders.project, file) || insideFolder(folders.run, file) || insideFolder(folders.theme, file)) {
+    if (insideFolder(folders.project, file, nodeFileFacts) || insideFolder(folders.run, file, nodeFileFacts) || insideFolder(folders.theme, file, nodeFileFacts)) {
       // A hard link inside the folders may be the same file as one outside them (review A N4): never served.
       if (hardLinked(file)) problems.push(`the plan serves ${name} from ${file}, a file with more than one name (a hard link): through MCP a render serves none`);
       continue;
@@ -199,7 +197,7 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const overrides: EditOverrides = { ...(o.overrides ?? {}) };
   const scenarioSnapshot = await runScenario(run.dir);
   const envName = await runEnv(run.dir);
-  const { timeline, edit, warnings: editWarnings, text: editText } = editOfToday(project, run, captured, envName, o.edit ?? 'auto', o.editText);
+  const { timeline, edit, warnings: editWarnings, text: editText } = editOfToday(project, run, captured, envName, o.edit ?? 'auto', o.editText, fileFacts(o.workPolicy));
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
   // The registry first (the components' own files, not the run's): gate 1 reads slot types from the manifests.
   const registry = o.registry ?? (await loadComponentRegistry({ root }));
@@ -208,7 +206,7 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
     if (problems.length) throw new PlanTrustError(problems);
   }
   const theme = themeRef(o, timeline);
-  const template = theme && typeof theme === 'object' ? theme : await loadProjectTemplate(project, theme);
+  const template = theme && typeof theme === 'object' ? theme : await loadProjectTemplate(project, theme, { files: fileFacts(o.workPolicy) });
   if (o.template || overrides.theme) overrides.theme = template.name;
   const captureFile = join(run.dir, timeline.capture.file || 'capture.mp4');
   if (!existsSync(captureFile)) throw new RenderError(`run ${run.id} has no capture video (${captureFile})`);
@@ -218,10 +216,10 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   if (musicSpec && o.measureMusic !== false) {
     const file = musicFile(musicSpec, project);
     if (!existsSync(file)) throw new RenderError(`music file not found: ${file}`);
-    const length = o.musicLength ? await o.musicLength(file) : (await probeMedia(file))?.duration_s;
+    const length = o.musicLength ? await o.musicLength(file) : (await probeMedia(file, o.workPolicy))?.duration_s;
     if (length !== undefined && length > 0) musicDuration_s = length;
   }
-  const files = await planInputFiles(timeline, project, template);
+  const files = await planInputFiles(timeline, project, template, o.workPolicy);
   const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, env: envName, overrides, musicDuration_s, files });
   noteEdit(plan, edit, editWarnings, run.id);
   if (trust === 'mcp') {
@@ -264,7 +262,9 @@ export function editOfToday(
   captured: Timeline,
   envName: string | undefined,
   mode: 'auto' | 'run' = 'auto',
-  editText?: string,
+  editText: string | undefined,
+  /** How today's scenario's files are looked at (core FileFacts): the work's. */
+  files: WorkFileFacts,
 ): { timeline: Timeline; edit: PlannedEdit; warnings: string[]; text?: string } {
   const asCaptured = (edit: PlannedEdit, warnings: string[] = []) => ({ timeline: captured, edit, warnings });
   if (mode === 'run') return asCaptured({ from: 'run' });
@@ -274,7 +274,7 @@ export function editOfToday(
   if (since.filmed.length > 0) return asCaptured({ from: 'run', scenario_changed: true, filmed_changes: since.filmed });
   const sha256 = createHash('sha256').update(since.now).digest('hex');
   const file = since.file;
-  const now = parseScenario(since.now, { file, project });
+  const now = parseScenario(since.now, { files, file, project });
   const then = parseScenario(since.then);
   if (!now.scenario) {
     const reason = `today's scenario ${captured.scenario} does not validate: the render shows the edit of run ${run.id} as captured — ${issuesMessage('scenario', now.issues, file).split('\n').slice(0, 4).join(' ')}`;

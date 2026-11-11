@@ -23,7 +23,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EntryBlock, SceneBlock, StepForms } from '@retake/core';
-import { call, useCall } from './api.js';
+import { runThumbs, scenarioForms, useScenarioBlocks } from './data/scenarios.js';
 import { Txt, plural } from './bits.js';
 import { envFlagWords } from './board-words.js';
 import { useScenarioEvents } from './events.js';
@@ -37,7 +37,6 @@ import { hrefTo } from './route.js';
 import type { ScenarioTab } from './route.js';
 import { ShellSlot } from './shell/slots.js';
 import { ThumbsProvider } from './Thumb.js';
-import type { ThumbAnswer } from './thumbs.js';
 import { FileInspector, YamlTab } from './YamlTab.js';
 import { scenarioKey, useDirty } from './drafts.js';
 import { keyboardMove } from './step-edit.js';
@@ -96,7 +95,7 @@ function useStepForms(): StepForms | null {
   const [forms, setForms] = useState<StepForms | null>(null);
   useEffect(() => {
     let live = true;
-    formsOnce ??= call<StepForms>('scenario_forms', {});
+    formsOnce ??= scenarioForms({});
     formsOnce.then(
       (f) => {
         if (live) setForms(f);
@@ -178,7 +177,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const loc = useRunLocation(slug, name, envs);
   const sentEnv = loc.sent;
   const droppedEnv = loc.dropped ?? null;
-  const [view, reload] = useCall<View>('scenario_blocks', { project: slug, name, ...(pick ? { run: pick } : {}), ...(sentEnv ? { env: sentEnv } : {}) }, key);
+  const [view, reload] = useScenarioBlocks({ project: slug, name, ...(pick ? { run: pick } : {}), ...(sentEnv ? { env: sentEnv } : {}) }, key);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -233,7 +232,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const ed = useStepEditor(slug, name, view.state === 'ready' ? view.data : null, yamlDraft, reload, tab === 'blocks');
   const edRef = useRef(ed);
   edRef.current = ed;
-  const fetchThumbs = useCallback((run: string, keys: string[], signal: AbortSignal) => call<ThumbAnswer>('run_thumbs', { project: slug, run, keys }, { signal }), [slug]);
+  const fetchThumbs = useCallback((run: string, keys: string[], signal: AbortSignal) => runThumbs({ project: slug, run, keys }, { signal }), [slug]);
   const forms = useStepForms();
   const v = view.state === 'ready' ? view.data : null;
   // The one resolved selection (review B M2): what the board marks and the inspector shows. A picked subject that went

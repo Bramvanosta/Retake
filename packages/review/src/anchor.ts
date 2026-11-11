@@ -12,8 +12,8 @@
  */
 import { scenarioStepFingerprint } from '@retake/core';
 import type { CommentRegion, FrameCommentAnchor, Timeline } from '@retake/core';
-import { brandmarkRect } from '@retake/editor';
-import type { ClipSegment, EditPlan, Rect } from '@retake/editor';
+import { brandmarkRect } from '@retake/editor/plan';
+import type { ClipSegment, EditPlan, Rect } from '@retake/editor/plan';
 import { captionRegion } from './checks.js';
 import { segmentSpans, spanAt, stepAt, transitionAt, transitionSpans } from './spans.js';
 

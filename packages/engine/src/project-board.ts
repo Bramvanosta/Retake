@@ -29,13 +29,15 @@
 import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@retake/core';
-import type { LoadedProject, RunRecord, WorkspaceConfig } from '@retake/core';
+import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
+import type { LoadedProject, RunRecord } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
+import { fileFacts } from '@retake/core/io';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
-import { jobProject } from './jobs/queue.js';
-import type { FileJobQueue } from './jobs/queue.js';
+import { jobProject } from './jobs/queue-core.js';
+import type { JobQueueView } from './jobs/job-queue.js';
+import type { JobFiles } from './jobs/queue.js';
 import { RUN_ID_RE } from './refs.js';
 import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from './run-data.js';
 import { RunFolder, lsig } from './run-files.js';
@@ -46,6 +48,7 @@ import { readRecord } from './runs.js';
 import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from './scenarios.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */
 export const BOARD_SCENARIOS_MAX = 200;
@@ -138,14 +141,17 @@ export interface RunPoster {
 }
 
 export interface ProjectBoardContext {
-  ws: WorkspaceConfig;
-  queue: FileJobQueue;
+  ws: OpenedWorkspace;
+  queue: JobQueueView;
+  /** The queue's paths: a job's record is memoised by its file's stat (JobFiles.record). */
+  files: Pick<JobFiles, 'record'>;
   project(slug: string): Promise<LoadedProject>;
   /** The run's status with its job overlaid, for a run whose job is not in the board's queue pass (a pass cut short). */
   overlay(slug: string, run: { id: string; status: RunRecord['status'] }): Promise<ViewRunStatus>;
 }
 
-interface FileFacts {
+/** What the board knows of one scenario file (not core's FileFacts port). */
+interface BoardFileFacts {
   hash?: string;
   yaml?: string;
   file: BoardScenario['file'];
@@ -229,7 +235,7 @@ function themeName(p: LoadedProject, ref: string | undefined): string | undefine
 
 /** The project boards of one engine (memos apart from the scenario views'). */
 export class ProjectBoards {
-  private readonly files = new Map<string, FileFacts>();
+  private readonly files = new Map<string, BoardFileFacts>();
   private readonly paths = new Map<string, string>();
   private readonly runs = new Map<string, RunEntry>();
   private readonly pictures = new Map<string, Awaited<ReturnType<typeof runPictures>>>();
@@ -249,7 +255,7 @@ export class ProjectBoards {
     const p = await this.ctx.project(slug);
     const names = p.scenarios.slice(0, BOARD_SCENARIOS_MAX);
     const psig = await this.projectSig(p);
-    const [facts, groups, pass] = await Promise.all([pool(names, BOARD_CONCURRENCY, (n) => this.fileFacts(p, n, psig)), this.runGroups(p, new Set(names)), this.jobsOf(slug)]);
+    const [facts, groups, pass] = await Promise.all([pool(names, BOARD_CONCURRENCY, (n) => this.boardFileFacts(p, n, psig)), this.runGroups(p, new Set(names)), this.jobsOf(slug)]);
     const jobs = pass.jobs;
     const envs = p.config.environments ?? {};
     const renderJobs = jobs.filter((j) => j.input.kind === 'render');
@@ -339,7 +345,7 @@ export class ProjectBoards {
 
   /** The last pictured step of a run's timeline and its scenes' length (memoised by the folder's and timeline's stat). */
   async poster(p: LoadedProject, runId: string): Promise<RunPoster> {
-    const dir = join(p.dir, 'runs', runId);
+    const dir = projectPath(p.dir, 'runs', runId);
     const key = `${dir}\0${await lsig(dir)}\0${await lsig(join(dir, 'timeline.json'))}`;
     const hit = this.posters.get(key);
     if (hit) return hit;
@@ -380,7 +386,7 @@ export class ProjectBoards {
     // The project's theme as validation loads it (templateOf): its folder (a file added or gone) and its template.yaml.
     const ref = p.config.template;
     const theme = SLUG_RE.test(ref) ? join(this.ctx.ws.templatesDir, ref) : resolve(p.dir, ref);
-    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml'), theme, join(theme, 'template.yaml')];
+    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), projectPath(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml'), theme, join(theme, 'template.yaml')];
     return (await Promise.all(files.map(lsig))).join('|');
   }
 
@@ -389,7 +395,7 @@ export class ProjectBoards {
     return (await Promise.all(deps.map(lsig))).join('|');
   }
 
-  private async fileFacts(p: LoadedProject, name: string, psig: string): Promise<FileFacts> {
+  private async boardFileFacts(p: LoadedProject, name: string, psig: string): Promise<BoardFileFacts> {
     const known = this.paths.get(`${p.dir}\0${name}`);
     let sig = '';
     if (known) {
@@ -422,7 +428,7 @@ export class ProjectBoards {
     }
     const filesRead = new Set<string>();
     const at = Date.now();
-    const { ok, issues } = await validateScenarioText(p, text.yaml, { name, filesRead });
+    const { ok, issues } = await validateScenarioText(p, text.yaml, { files: fileFacts(this.ctx.ws.policy), name, filesRead });
     const deps = [...filesRead].sort();
     const depSig = await this.depSig(deps);
     const blocks = scenarioBlocks(text.yaml, { issues });
@@ -438,7 +444,7 @@ export class ProjectBoards {
     content.hooks = blocks.hooks.setup.length + blocks.hooks.teardown.length + blocks.hooks.named.length;
     const t = blocks.video.title;
     const title = (t?.text ?? t?.kicker ?? '').trim().slice(0, BOARD_TITLE_MAX);
-    const facts: FileFacts = {
+    const facts: BoardFileFacts = {
       hash: text.hash,
       yaml: text.yaml,
       file: { parsed: blocks.parsed, ok, errors: issues.filter((i) => i.severity === 'error').length, warnings: issues.filter((i) => i.severity === 'warning').length },
@@ -481,7 +487,7 @@ export class ProjectBoards {
 
   /** run.json of a run: re-checked by its stat (`check`), else held once read (an older finished run). */
   private async record(projectDir: string, id: string, check: boolean): Promise<RunRecord | null> {
-    const file = join(projectDir, 'runs', id, 'run.json');
+    const file = projectPath(projectDir, 'runs', id, 'run.json');
     const key = `${projectDir}\0${id}`;
     const held = this.runs.get(key);
     if (held && !check && (held.record === null || FINISHED.has(this.statusOf(held.record.status)))) return held.record;
@@ -495,7 +501,7 @@ export class ProjectBoards {
   }
 
   private async picturesOf(projectDir: string, id: string, mode: string): Promise<Awaited<ReturnType<typeof runPictures>>> {
-    const key = `${projectDir}\0${id}\0${await lsig(join(projectDir, 'runs', id))}`;
+    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}`;
     if (this.pictures.has(key)) return this.pictures.get(key)!;
     return remember(this.pictures, key, await runPictures(projectDir, id, mode), 2048);
   }
@@ -553,7 +559,7 @@ export class ProjectBoards {
     const groups = new Map<string, RunGroup>();
     let ids: string[] = [];
     try {
-      ids = (await readdir(join(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
+      ids = (await readdir(projectPath(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
     } catch {
       return groups;
     }
@@ -593,7 +599,7 @@ export class ProjectBoards {
 
   /** Whether today's file films the capture's take: unchanged, or only its edit changed (null: no snapshot to tell). */
   private async current(p: LoadedProject, runId: string, yaml: string, hash: string): Promise<boolean | null> {
-    const snap = join(p.dir, 'runs', runId, 'scenario.yaml');
+    const snap = projectPath(p.dir, 'runs', runId, 'scenario.yaml');
     const key = `${snap}\0${await lsig(snap)}\0${hash}`;
     if (this.currents.has(key)) return this.currents.get(key)!;
     this.stats.current++;
@@ -625,7 +631,7 @@ export class ProjectBoards {
     for (let i = ids.length - 1; i >= 0; i--) {
       if (jobs.length >= BOARD_JOBS_MAX) return { jobs, complete: false };
       const id = ids[i];
-      const sig = lsigSync(join(q.dir, id, 'job.json'));
+      const sig = lsigSync(this.ctx.files.record(id));
       let held = this.jobMemo.get(id);
       if (!held || held.sig !== sig) {
         this.stats.jobs++;
@@ -645,13 +651,13 @@ export class ProjectBoards {
   /** The project's render records per scenario, newest first (one readdir; records held while their stat holds). */
   private async renderRecordsOf(p: LoadedProject, names: ReadonlySet<string>): Promise<Map<string, RenderRecord[]>> {
     const out = new Map<string, RenderRecord[]>();
-    const files = await readdir(join(p.dir, 'renders')).catch(() => [] as string[]);
+    const files = await readdir(projectPath(p.dir, 'renders')).catch(() => [] as string[]);
     await Promise.all(
       files.map(async (f) => {
         const m = RENDER_FILE_RE.exec(f);
         if (!m || !names.has(m[1])) return;
         const key = `${p.dir}\0${f}`;
-        const sig = await lsig(join(p.dir, 'renders', f));
+        const sig = await lsig(projectPath(p.dir, 'renders', f));
         let held = this.renderRecords.get(key);
         if (!held || held.sig !== sig) {
           held = { sig, record: readRenderRecord(p.dir, f) };

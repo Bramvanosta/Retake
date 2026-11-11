@@ -8,7 +8,8 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION, loadWorkspaceConfig } from '@retake/core';
+import { JOB_INPUT_VERSION, PERSON_POLICY } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 import { JOB_RECORD_VERSION, createEngine, makeSiteDir, newSiteId } from '@retake/engine';
 import type { Engine, JobRecord, SiteJobResult } from '@retake/engine';
 import { siteOutput } from '../src/tools/theme.js';
@@ -32,7 +33,7 @@ afterAll(async () => {
 });
 
 async function finishedJob(warnings: unknown[]): Promise<{ job: JobRecord; dir: string }> {
-  const ws = await loadWorkspaceConfig(root);
+  const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY };
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
   await writeFile(join(dir, 'logo-1.png'), drawPng(256, 128, () => [14, 124, 102, 255]));

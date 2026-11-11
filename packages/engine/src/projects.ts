@@ -1,13 +1,17 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
 import { realpath } from 'node:fs/promises';
-import { join, relative, isAbsolute } from 'node:path';
-import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, readmeEnvironmentsDrift, resolveEnvironment, resolvePersonas } from '@retake/core';
-import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import { join, relative } from 'node:path';
+import { PROJECT_FILE, README_FILE, environmentAccess, readmeEnvironmentsDrift, resolveEnvironment, resolvePersonas, pathInside } from '@retake/core';
+import { loadProject, planNewProject, listProjects, retakeHome } from '@retake/core/io';
+import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
 import { LocalStorage, READ_TEXT_MAX_BYTES } from './storage.js';
 import { openProject } from './workspace.js';
+import { ProjectStore } from './store/project-store.js';
+import type { StoreScope } from './store/project-store.js';
 import { checkNewProjectHosts } from './protected-hosts.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 export interface ProjectSummary {
   slug: string;
@@ -46,14 +50,13 @@ async function checkProjectFile(dir: string): Promise<void> {
   } catch {
     return; // no project.yaml (or no folder): core says so in its own words
   }
-  const rel = relative(realDir, real);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+  if (!pathInside(real, realDir, { self: false, dotDotPrefix: true })) {
     throw new EngineError('refused', `${join(dir, PROJECT_FILE)} leads out of the project folder (a symbolic link): not read`, { fix: `replace the link with a regular file inside ${dir}` });
   }
 }
 
 /** Every project of the workspace with its scenarios and environments (a broken one is listed with its error). */
-export async function listProjectSummaries(ws: WorkspaceConfig): Promise<ProjectSummary[]> {
+export async function listProjectSummaries(ws: OpenedWorkspace): Promise<ProjectSummary[]> {
   const projects = await listProjects(ws.root);
   return Promise.all(
     projects.map(async (p) => {
@@ -69,7 +72,7 @@ export async function listProjectSummaries(ws: WorkspaceConfig): Promise<Project
 }
 
 /** A project by slug (never a path: core would resolve one outside the workspace). */
-export async function openProjectBySlug(ws: WorkspaceConfig, slug: string): Promise<LoadedProject> {
+export async function openProjectBySlug(ws: OpenedWorkspace, slug: string): Promise<LoadedProject> {
   await checkProjectFile(join(ws.projectsDir, checkProjectSlug(slug)));
   return openProject(ws, slug);
 }
@@ -170,7 +173,7 @@ export async function projectView(project: LoadedProject): Promise<ProjectView> 
       production: env.production === true,
       access: environmentAccess(env),
       sandbox: env.sandbox !== undefined,
-      personas: resolvePersonas(project, name).map((p) => ({
+      personas: resolvePersonas(project, name, { home: retakeHome() }).map((p) => ({
         name: p.name,
         pages: p.pages,
         login_steps: (p.login?.length ?? 0) > 0,
@@ -204,22 +207,35 @@ export async function projectView(project: LoadedProject): Promise<ProjectView> 
 
 export type CreateProjectRequest = Pick<CreateProjectInput, 'name' | 'slug' | 'readme' | 'environments' | 'default_env' | 'template'>;
 
+/**
+ * Write a new project (core planNewProject: scenarios/, hooks/ and assets/ with their .gitkeep, project.yaml, README.md,
+ * .gitignore) through the project store — each file created (`if_match` null: never over one) and journaled — then load
+ * it. Refuses what core refuses (a taken slug, a folder that is not empty, an invalid project.yaml). `retake new` and
+ * engine.projects.create both write a project this way.
+ */
+export async function writeNewProject(root: string, input: CreateProjectInput, scope: StoreScope): Promise<LoadedProject> {
+  const plan = await planNewProject(root, input);
+  const store = new ProjectStore(plan.dir, scope, plan.slug);
+  for (const f of plan.files) await store.writeText(f.ref, f.text, { ifMatch: null, what: 'project' });
+  return loadProject(plan.dir, plan.wsRoot);
+}
+
 /** README.md, project.yaml, scenarios/, hooks/, assets/ and .gitignore of a new project; refuses an existing slug. */
-export async function createProjectFromRequest(ws: WorkspaceConfig, input: CreateProjectRequest): Promise<LoadedProject> {
+export async function createProjectFromRequest(ws: OpenedWorkspace, input: CreateProjectRequest, scope: StoreScope): Promise<LoadedProject> {
   if (input.slug !== undefined) checkProjectSlug(input.slug);
   // Never a page on another project's production or read-only hosts (they would run read-write here).
   const urls = input.environments
     ? Object.fromEntries(Object.entries(input.environments).map(([env, pages]) => [env, Object.fromEntries(Object.entries(pages ?? {}).map(([k, v]) => [k, typeof v === 'string' ? v : v.url]))]))
     : undefined;
   await checkNewProjectHosts(ws, urls);
-  const created = await createProject(ws.root, {
+  const created = await writeNewProject(ws.root, {
     name: input.name,
     ...(input.slug !== undefined ? { slug: input.slug } : {}),
     ...(input.readme !== undefined ? { readme: input.readme } : {}),
     ...(input.environments !== undefined ? { environments: input.environments } : {}),
     ...(input.default_env !== undefined ? { default_env: input.default_env } : {}),
     ...(input.template !== undefined ? { template: input.template } : {}),
-  });
+  }, scope);
   return openProject(ws, created.dir);
 }
 
@@ -228,9 +244,9 @@ export async function createProjectFromRequest(ws: WorkspaceConfig, input: Creat
  * a missing one is created (ifMatch absent or null). The file ends with a line break and holds README_MAX_CHARS at most;
  * a README.md linked to another file of the project is written through the link.
  */
-export async function updateProjectReadme(project: LoadedProject, markdown: string, ifMatch: string | null | undefined): Promise<{ file: string; path: string; hash: string }> {
-  const storage = new LocalStorage(project.dir);
-  const current = await storage.readText(README_FILE);
+export async function updateProjectReadme(project: LoadedProject, markdown: string, ifMatch: string | null | undefined, scope: StoreScope): Promise<{ file: string; path: string; hash: string }> {
+  const store = ProjectStore.of(project, scope);
+  const current = await store.readText(README_FILE);
   if (current && (ifMatch === undefined || ifMatch === null)) {
     throw new EngineError('conflict', `${README_FILE} of ${project.slug} exists: pass if_match with the readme_hash you read (project_get), so a change made meanwhile is not lost`, {
       details: { current: current.sha256 },
@@ -243,7 +259,7 @@ export async function updateProjectReadme(project: LoadedProject, markdown: stri
   if (text.length > README_MAX_CHARS) {
     throw new EngineError('invalid', `${README_FILE} would be ${text.length.toLocaleString('en')} characters with its final line break: at most ${README_MAX_CHARS.toLocaleString('en')}`, { fix: 'shorten it' });
   }
-  const res = await storage.writeText(README_FILE, text, { ifMatch: ifMatch ?? null });
+  const res = await store.writeText(README_FILE, text, { ifMatch: ifMatch ?? null, what: 'readme' });
   project.readme = text;
   return { file: res.ref, path: res.path, hash: res.sha256 };
 }

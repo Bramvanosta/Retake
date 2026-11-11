@@ -199,7 +199,7 @@ A take fails early, loudly and completely rather than "succeeding" with a wrong 
 
 Everything visual in the edit is a **component** with an id `namespace/name` (lower-case letters, digits and `-`,
 e.g. `studio/intro-stack`): the built-in library uses the `studio/` namespace, your workspace `components/` folder
-your own. The theme picks a default per kind (see [Templates](themes-and-components.md#templates-themes)); a scenario overrides it per use:
+your own. The theme picks a default per kind (see [Themes](themes-and-components.md#themes)); a scenario overrides it per use:
 
 ```yaml
 intro: {component: studio/intro-minimal, duration: 2.4}
@@ -321,7 +321,9 @@ user (`Authorization: Bearer …`, read from the session's IndexedDB or localSto
 page when it is about to expire). The run signs the persona in like a filmed one (checked by the preflight, its own
 browser) even when no scene films it; `retake hooks run` opens a headless browser on a copy of its session. Not with an
 `Authorization` or `Cookie` header of its own, and not in a sandbox seed (nobody is signed in yet: sign in with the
-product's API and `{{accounts.<persona>.password}}`, save the token with `save_as`).
+product's API and `{{accounts.<persona>.password}}`, save the token with `save_as`). Work submitted through MCP or the Studio's
+agent path sends a persona's session only to that persona's own pages: the hook's URL must have the origin of a page
+the persona signs in to (`{{<its page>}}/…`), else the hook is refused before it runs.
 
 ```yaml
 # a sandbox environment: approve the sign-up as the admin, then answer as the owner

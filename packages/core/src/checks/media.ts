@@ -4,10 +4,11 @@
  * container for its kind, the file exists, the renderer can decode it (ffprobe: codec, length), `from` / `to` inside it,
  * an overlay video with an alpha channel, and the fields that only apply to some kinds.
  */
-import { closeSync, openSync, readSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { needFiles, needProber } from '../file-facts.js';
+import type { FileFacts } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
-import { MEDIA_EXTENSIONS, MediaProbeError, VIDEO_CODECS, fileExtension, mediaFileKinds, probeVideoFile, readLottieFile } from '../media.js';
+import { MEDIA_EXTENSIONS, MediaProbeError, VIDEO_CODECS, fileExtension, mediaFileKinds, readLottieMeta } from '../media.js';
 import type { LottieMeta, VideoProbe } from '../media.js';
 import type { MediaFileKind } from '../types.js';
 import type { CheckContext } from './context.js';
@@ -36,24 +37,9 @@ function article(kind: MediaFileKind): string {
   return kind === 'image' ? 'an image' : kind === 'lottie' ? 'a Lottie file' : 'a video';
 }
 
-/** The first bytes of a file (empty when it cannot be read). */
-function head(file: string, n = 32): Buffer {
-  let fd: number | undefined;
-  try {
-    fd = openSync(file, 'r');
-    const buf = Buffer.alloc(n);
-    const read = readSync(fd, buf, 0, n, 0);
-    return buf.subarray(0, read);
-  } catch {
-    return Buffer.alloc(0);
-  } finally {
-    if (fd !== undefined) closeSync(fd);
-  }
-}
-
 /** Does an image file's content match its extension? (PNG, JPEG, WebP, SVG signatures.) */
-function imageMatches(file: string, ext: string): boolean {
-  const b = head(file, 256);
+function imageMatches(files: FileFacts, file: string, ext: string): boolean {
+  const b = files.readHead(file, 256);
   if (b.length === 0) return false;
   if (ext === '.png') return b.length >= 8 && b.readUInt32BE(0) === 0x89504e47;
   if (ext === '.jpg' || ext === '.jpeg') return b[0] === 0xff && b[1] === 0xd8;
@@ -128,14 +114,15 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
   ctx.file(path, [...p, kind], `${kind} file`, 'error', dir);
   out.exists = ctx.out.length === before;
   if (!out.exists) return out;
+  const files = needFiles(ctx.files, 'a media file check');
 
   if (kind === 'image') {
-    if (!imageMatches(abs, ext)) ctx.error([...p, kind], `"${path}" is not ${ext === '.svg' ? 'an SVG' : `a ${ext.slice(1).toUpperCase()}`} image (its content does not match its extension)`);
+    if (!imageMatches(files, abs, ext)) ctx.error([...p, kind], `"${path}" is not ${ext === '.svg' ? 'an SVG' : `a ${ext.slice(1).toUpperCase()}`} image (its content does not match its extension)`);
     return out;
   }
   if (kind === 'lottie') {
     try {
-      out.lottie = readLottieFile(abs);
+      out.lottie = readLottieMeta(files.readText(abs));
     } catch (e) {
       ctx.error([...p, kind], `"${path}": ${(e as Error).message}`);
       return out;
@@ -149,13 +136,15 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
     return out;
   }
 
+  const prober = needProber(files, 'a video file check');
   let v: VideoProbe;
   try {
-    v = probeVideoFile(abs);
+    v = prober.probeVideo(abs);
   } catch (e) {
-    const err = e as MediaProbeError;
-    if (err.reason === 'no-ffprobe') ctx.warning([...p, kind], `cannot check "${path}": ${err.message} (the render needs it too)`);
-    else ctx.error([...p, kind], `"${path}" is not a video the renderer can read: ${err.message}`);
+    // What ffprobe cannot say of the file is reported; anything else (a bug, a missing port) is not a file problem.
+    if (!(e instanceof MediaProbeError)) throw e;
+    if (e.reason === 'no-ffprobe') ctx.warning([...p, kind], `cannot check "${path}": ${e.message} (the render needs it too)`);
+    else ctx.error([...p, kind], `"${path}" is not a video the renderer can read: ${e.message}`);
     return out;
   }
   out.video = v;

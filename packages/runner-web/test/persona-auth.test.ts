@@ -11,7 +11,8 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BrowserContext } from 'playwright-core';
 import { chromium } from 'playwright-core';
-import { resolvePersonas } from '@retake/core';
+import { PERSON_POLICY, resolvePersonas } from '@retake/core';
+import { retakeHome } from '@retake/core/io';
 import { launchTarget, personaAuthReader } from '../src/index.js';
 import { makeProject, tempDir } from './helpers.js';
 
@@ -56,7 +57,7 @@ afterAll(async () => {
 
 /** A browser whose app origin holds a Firebase user with `token` expiring at `expires` (none: signed out). */
 async function browserWith(user: { token: string; expires: number } | null, cookie = true): Promise<BrowserContext> {
-  const t = launchTarget({}, { headless: true });
+  const t = launchTarget({}, { headless: true, policy: PERSON_POLICY });
   const context = await chromium.launchPersistentContext(await tempDir('ds-pauth-profile-'), { headless: true, executablePath: t.executablePath, channel: t.channel });
   if (cookie) await context.addCookies([{ name: 'sid', value: 'session-cookie-1', url }]);
   const page = await context.newPage();
@@ -79,14 +80,29 @@ async function browserWith(user: { token: string; expires: number } | null, cook
   return context;
 }
 
-async function reader(context: BrowserContext) {
+async function reader(context: BrowserContext, origins?: readonly string[]) {
   const project = makeProject(await tempDir('ds-pauth-'), { app: url });
   project.config.auth = { login_url: '/login', personas: { buyer: { pages: ['app'] } } };
-  const persona = resolvePersonas(project, 'test').find((p) => p.name === 'buyer')!;
-  return personaAuthReader({ persona, context: async () => context, envPages: { app: url }, relogin: 'retake login northfield --persona buyer' });
+  const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'buyer')!;
+  return personaAuthReader({ persona, context: async () => context, envPages: { app: url }, relogin: 'retake login northfield --persona buyer', ...(origins ? { origins } : {}) });
 }
 
 describe('the session of a persona as an http hook sends it (hotfix v0.2.3)', () => {
+  it("with `origins` (trust mcp: the persona's own pages): read for those origins, refused elsewhere before the session is touched", async () => {
+    const context = await browserWith({ token: 'fresh-token', expires: Date.now() + 3_600_000 });
+    try {
+      const own = new URL(url).origin;
+      const read = await reader(context, [own]);
+      expect(await read(`${url}/api/things`)).toEqual({ authorization: 'Bearer fresh-token', cookie: 'sid=session-cookie-1' });
+      let touched = false;
+      const guarded = await reader(new Proxy(context, { get: (t, k) => ((touched = true), Reflect.get(t, k)) }), [own]);
+      await expect(guarded('https://elsewhere.example/collect')).rejects.toThrow(/persona buyer .*sends its session only to that persona's own pages .*https:\/\/elsewhere\.example is not one of them/);
+      expect(touched).toBe(false);
+    } finally {
+      await context.close();
+    }
+  });
+
   it('a fresh Firebase ID token and the cookies: read without asking the product anything', async () => {
     const context = await browserWith({ token: 'fresh-token', expires: Date.now() + 3_600_000 });
     try {

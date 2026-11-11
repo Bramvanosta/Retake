@@ -19,6 +19,9 @@
  *   asked again while it is on screen; any other missing reason is kept and said in words.
  * - At most CACHE_MAX pictures are kept (the oldest not on screen leave first); the server keeps its own memory cache.
  */
+import type { ThumbAnswer } from './data/ops.js';
+
+export type { ThumbAnswer };
 
 /** Keys of one `run_thumbs` call, at most (the op's own cap). */
 export const BATCH_MAX = 24;
@@ -91,11 +94,6 @@ export type MissingReason = 'no_step' | 'not_reached' | 'no_picture' | 'unreadab
 export type ThumbEntry =
   | { state: 'ok'; base64: string; width: number; height: number; from: string }
   | { state: 'missing'; reason: MissingReason };
-
-export interface ThumbAnswer {
-  thumbs: Array<{ key: string; mime?: string; base64: string; width: number; height: number; from: string }>;
-  missing: Array<{ key: string; reason: string }>;
-}
 
 /** One `run_thumbs` call. A rejection after `signal` aborted is a cancellation. */
 export type ThumbFetch = (run: string, keys: string[], signal: AbortSignal) => Promise<ThumbAnswer>;

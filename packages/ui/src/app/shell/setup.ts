@@ -5,7 +5,10 @@
  * menu.rs `setup_page_js`, a constant shape) and at `#/setup`. Every step is skippable and happens only on its click.
  */
 import { APP_NAME } from '../brand.js';
+import type { CliStatus, InstallLocation, SetupStatus } from '../data/ops.js';
 import type { MarkState } from '../ui-kit/index.js';
+
+export type { CliStatus, InstallLocation, SetupStatus };
 
 export const SETUP_EVENT = 'studio:setup';
 /** The sections a `studio:setup` event may open on (menu.rs SETUP_SECTIONS: a static test compares the two). */
@@ -21,49 +24,6 @@ export function parseSetupDetail(d: unknown): SetupSection | null | undefined {
   const s = (d as { section?: unknown }).section;
   if (keys.length !== 1 || keys[0] !== 'section' || typeof s !== 'string' || !(SETUP_SECTIONS as readonly string[]).includes(s)) return undefined;
   return s as SetupSection;
-}
-
-export type InstallLocation = 'ok' | 'translocated' | 'read_only' | 'volumes';
-
-export interface CliStatus {
-  dir: string;
-  default_dir: string;
-  link: string;
-  launcher: string;
-  state: 'absent' | 'ours' | 'other_app' | 'foreign';
-  target?: string;
-  dangling?: boolean;
-  what?: string;
-  chosen: boolean;
-  chosen_error?: string;
-  /** The shell's folder panel: up (`open`), or no folder came back (`cancelled`: cancelled, or another question was up). */
-  panel?: 'open' | 'cancelled';
-  /** This app's command (the link the app recorded, else the default folder's), when it runs this app. */
-  installed: string | null;
-  on_path: boolean;
-  first: string | null;
-  first_is_this: boolean;
-  path_line: string;
-  profile: string;
-}
-
-export interface SetupStatus {
-  available: boolean;
-  reason?: 'not_supervised' | 'not_bundled';
-  version?: string;
-  seen?: boolean;
-  location?: InstallLocation;
-  location_words?: string;
-  workspace?: string;
-  home?: string;
-  home_from_env?: boolean;
-  app?: string;
-  cli?: CliStatus;
-  claude_code?: { claude: string | null; candidates: string[]; config_dir: string; lines: string[]; plugin: boolean };
-  /** `running`: true / false, null when the process list could not be read, absent until it was read. */
-  claude_desktop?: { file: string; folder: boolean; state: 'create' | 'add' | 'same' | 'replace' | 'unreadable'; entry: string; running?: boolean | null; backups: string };
-  notifications?: 'on' | 'off' | 'unknown';
-  untrusted?: { desktop_current?: string; desktop_problem?: string };
 }
 
 /** A checklist item's state and its word (a state word the colour-only rule knows: ready, conflict, blocked…). */

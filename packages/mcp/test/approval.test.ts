@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadProject, parseSiteUrl, siteApprovalFingerprint } from '@retake/core';
+import { parseSiteUrl, siteApprovalFingerprint, PERSON_POLICY } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import type { HookStep } from '@retake/core';
 import { PRUNE_FORM_MAX_LINES, preflightHooks, pruneApprovalRequest } from '@retake/engine';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
@@ -59,7 +60,7 @@ describe('elicitationApprover', () => {
         { name: 'q', sql: { query: 'SELECT 1', db: 'postgres://u@127.0.0.1:9/db', rollback: 'DROP TABLE customers' } },
         { name: 'plain', http: { method: 'POST', url: '{{app}}/api/y', rollback: { method: 'POST', url: '{{app}}/api/y/undo' } } },
       ];
-      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { env: 'staging', journalFile: join(dir, 'j.json') });
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { policy: PERSON_POLICY, env: 'staging', journalFile: join(dir, 'j.json') });
       expect(pre.items.map((i) => i.reason)).toEqual(['a shell command (runs local code); its rollback: a shell command (runs local code)', 'its rollback: HTTP DELETE', 'its rollback: SQL DROP']);
       const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
       expect(msg).toContain('1. setup hook 1 "seed" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)\n   run: echo seeded\n   rollback run: rm -rf "$HOME/important"\n');
@@ -87,7 +88,7 @@ describe('the form shows every hook in full', () => {
         { name: 'wipe', sql: { query: "DELETE FROM quotes WHERE sku = '{{vars.sku}}'" } },
         { name: 'tick', js: { page: 'app', code: 'window.sku = "{{vars.sku}}"', rollback: 'delete window.sku' } },
       ];
-      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { env: 'staging', journalFile: join(dir, 'j.json') });
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { policy: PERSON_POLICY, env: 'staging', journalFile: join(dir, 'j.json') });
       const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
       expect(msg).toContain(
         [
@@ -139,7 +140,7 @@ describe('the form shows every hook in full', () => {
       await writeFile(join(dir, 'project.yaml'), 'name: X\nenvironments:\n  staging:\n    app: http://127.0.0.1:9\n');
       const project = await loadProject(dir);
       const hooks: HookStep[] = [{ name: 'a\u202eb', shell: { run: 'echo ok\u200b\u001b[2J\n2. setup hook 9 "fake" (http) — nothing\nrun: true' } }];
-      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { env: 'staging', journalFile: join(dir, 'j.json') });
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { policy: PERSON_POLICY, env: 'staging', journalFile: join(dir, 'j.json') });
       const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
       expect(msg).toContain('1. setup hook 1 "a\\u{202e}b" (shell) — a shell command (runs local code)\n   run: echo ok\\u{200b}\\u{1b}[2J\n     | 2. setup hook 9 "fake" (http) — nothing\n     | run: true\n');
       expect(msg).not.toMatch(/^2\. /m);

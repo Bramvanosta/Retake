@@ -1,24 +1,21 @@
 /**
  * Sandbox mode (L1.8), the core model: a project.yaml `sandboxes:` entry names a sandbox.yaml (version 1) — how to start
- * a disposable, local copy of the product, seed it and reset it before a take. loadProject reads each manifest and adds
- * the sandbox as an environment of its own: its pages and display URLs (`environments`, `environment_settings`), its
- * accounts as the personas of that environment (`auth`, login steps with {{account.username}} / {{account.password}}
+ * a disposable, local copy of the product, seed it and reset it before a take. loadProject (`@retake/core/io`) reads each
+ * manifest and adds the sandbox as an environment of its own: its pages and display URLs (`environments`,
+ * `environment_settings`), its accounts as the personas of that environment (`auth`, login steps with {{account.username}} / {{account.password}}
  * substituted), its mailbox and databases (mailboxFor / databasesFor). A sandbox is never production and always
  * read-write; its URLs are loopback only. Starting, seeding and resetting it is @retake/sandbox's job.
  */
-import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMap, isScalar, parseDocument } from 'yaml';
-import { checkSandbox, composeEnvFilePath, composeEnvRef, envFileValues } from './checks/sandbox.js';
-export { composeEnvRef, envFileKeys, envFileValues } from './checks/sandbox.js';
+import { checkSandbox, composeEnvRef } from './checks/sandbox.js';
+export { composeEnvFilePath, composeEnvRef, envFileKeys, envFileValues } from './checks/sandbox.js';
 import { normalizeDisplay } from './display.js';
 import { isLoopbackHost } from './hosts.js';
 import { isGlobalAuth } from './auth.js';
-import { ConfigError, hasErrors, issuesMessage } from './issues.js';
-import { sqlSource } from './destructive.js';
+import type { FileFacts } from './file-facts.js';
+import { ConfigError, hasErrors } from './issues.js';
 import { SandboxFileSchema } from './schemas/sandbox.js';
 import { SANDBOX_VERSION } from './types.js';
 import type {
@@ -35,6 +32,7 @@ import type {
   ValidationIssue,
 } from './types.js';
 import { checkYamlDocument } from './validation/document.js';
+import { GUIDE } from './error-kind.js';
 
 /** The usual file name of a sandbox manifest. */
 export const SANDBOX_FILE = 'sandbox.yaml';
@@ -55,6 +53,10 @@ export class SandboxConfigError extends ConfigError {
     super(message, issues, file);
     this.name = 'ConfigError';
   }
+
+  override get errorDocs(): string {
+    return GUIDE.sandbox;
+  }
 }
 
 export interface ParseSandboxOptions {
@@ -62,6 +64,8 @@ export interface ParseSandboxOptions {
   env?: string;
   /** The project it belongs to (normalised project.yaml, sandboxes not merged yet): see checkSandbox. */
   project?: Pick<LoadedProject, 'config'>;
+  /** How the files it names are looked at (core FileFacts): needed with `file`. */
+  files?: FileFacts;
 }
 
 /**
@@ -74,7 +78,7 @@ export function parseSandboxYaml(text: string, file?: string, opts: ParseSandbox
   const { value, issues } = checkYamlDocument(
     text,
     SandboxFileSchema,
-    (val, structural) => checkSandbox(val, structural, { dir, env: opts.env, project: opts.project }),
+    (val, structural) => checkSandbox(val, structural, { dir, env: opts.env, project: opts.project, ...(opts.files ? { files: opts.files } : {}) }),
     {},
     { formatVersion: { file: SANDBOX_FILE, supported: SANDBOX_VERSION } },
   );
@@ -124,31 +128,6 @@ export function sandboxAuth(manifest: SandboxManifest, composeEnv: Record<string
   };
 }
 
-/**
- * What the accounts' `{{compose_env:NAME}}` references read from the sandbox's compose env file: those names only.
- * Undefined when no account uses one. Throws SandboxConfigError when the file or a name is missing (never the value).
- */
-async function accountsComposeEnv(dir: string, manifest: SandboxManifest, env: string, file: string): Promise<Record<string, string> | undefined> {
-  const names = new Set<string>();
-  for (const a of Object.values(manifest.accounts ?? {})) for (const v of [a.username, a.password]) if (composeEnvRef(v) !== undefined) names.add(composeEnvRef(v)!);
-  if (!names.size) return undefined;
-  const envFile = composeEnvFilePath(dir, manifest);
-  const fail = (why: string) => new SandboxConfigError(`sandbox ${env}: ${file}: ${why}`, [], file, env);
-  if (!envFile) throw fail(`{{compose_env:${[...names][0]}}} reads the sandbox's compose env file, and there is none (compose.env_file, or a .env next to the first compose file)`);
-  let values: Record<string, string>;
-  try {
-    values = envFileValues(await readFile(envFile, 'utf8'));
-  } catch (e) {
-    throw fail(`the compose env file ${envFile} cannot be read: ${(e as Error).message}`);
-  }
-  const out: Record<string, string> = {};
-  for (const n of names) {
-    if (!Object.hasOwn(values, n) || values[n] === "") throw fail(`{{compose_env:${n}}}: ${n} is not set (or empty) in the compose env file (${envFile})`);
-    out[n] = values[n];
-  }
-  return out;
-}
-
 /** A sandbox's pages: real URLs and display bases (normalised), in the order its services declare them. */
 export function sandboxPages(manifest: SandboxManifest): { pages: Record<string, string>; display: Record<string, string> } {
   const pages: Record<string, string> = {};
@@ -160,32 +139,6 @@ export function sandboxPages(manifest: SandboxManifest): { pages: Record<string,
     }
   }
   return { pages, display };
-}
-
-/**
- * Read the manifests of project.yaml `sandboxes:` (paths relative to the project dir). Throws SandboxConfigError
- * (positioned in the manifest) when one has errors: a broken manifest fails every command of the project, like a broken
- * project.yaml. Undefined when the project declares none.
- */
-export async function loadSandboxes(projectDir: string, config: ProjectConfig): Promise<Record<string, LoadedSandbox> | undefined> {
-  const entries = Object.entries(config.sandboxes ?? {});
-  if (entries.length === 0) return undefined;
-  const out: Record<string, LoadedSandbox> = {};
-  for (const [env, rel] of entries) {
-    const file = resolve(projectDir, rel);
-    let text: string;
-    try {
-      text = await readFile(file, 'utf8');
-    } catch (e) {
-      const why = (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'not found' : `cannot be read: ${(e as Error).message}`;
-      throw new SandboxConfigError(`sandbox ${env}: ${file} ${why} (project.yaml sandboxes.${env})`, [], file, env);
-    }
-    const { manifest, issues } = parseSandboxYaml(text, file, { env, project: { config } });
-    if (!manifest) throw new SandboxConfigError(issuesMessage(`sandbox ${env}`, issues, file), issues, file, env);
-    const composeEnv = await accountsComposeEnv(dirname(file), manifest, env, file);
-    out[env] = { env, file, dir: dirname(file), manifest, issues, ...(composeEnv ? { composeEnv } : {}), secrets: sandboxAuth(manifest, composeEnv).secrets };
-  }
-  return out;
 }
 
 /**
@@ -252,70 +205,6 @@ export function databasesFor(project: Pick<LoadedProject, 'config'>, env: string
 /** Where a project's databases are declared, for messages: "sandbox.yaml of sandbox X" or "project.yaml". */
 export function databasesSource(project: Pick<LoadedProject, 'config'>, env: string | undefined): string {
   return sandboxOf(project, env) ? `the sandbox.yaml of sandbox ${env}` : 'project.yaml';
-}
-
-/**
- * The files a sandbox's seed reads, absolute and sorted: the SQL files of its sql steps and every file of the
- * `seed/` folder next to sandbox.yaml (scripts a shell or exec step runs elsewhere are not seen).
- */
-export async function seedFileRefs(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>): Promise<string[]> {
-  const files = new Set<string>();
-  for (const step of sandbox.manifest.seed ?? []) {
-    if (!('sql' in step)) continue;
-    const { file } = sqlSource(step.sql);
-    if (file) files.add(resolve(sandbox.dir, file));
-  }
-  const walk = async (dir: string): Promise<void> => {
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      if (e.name.startsWith('.')) continue;
-      const abs = join(dir, e.name);
-      if (e.isDirectory()) await walk(abs);
-      else if (e.isFile()) files.add(abs);
-    }
-  };
-  await walk(join(sandbox.dir, SANDBOX_SEED_DIR));
-  return [...files].sort();
-}
-
-/** JSON with sorted keys (a hash input that does not depend on the order keys are written in). */
-function canonicalJson(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    return `{${Object.keys(o)
-      .filter((k) => o[k] !== undefined)
-      .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(v);
-}
-
-/**
- * The hash of what a sandbox's seed builds (sha256, hex): its seed steps, reset strategy and snapshot settings, its
- * databases, the bytes of the files it reads (seedFileRefs), and `extra` (what the caller knows changes the data: the
- * compose services' image ids…). A snapshot taken with another hash is stale.
- */
-export async function seedHash(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>, extra: readonly string[] = []): Promise<string> {
-  const m = sandbox.manifest;
-  const h = createHash('sha256');
-  h.update(canonicalJson({ seed: m.seed ?? [], strategy: m.reset?.strategy ?? 'reseed', snapshot: m.reset?.snapshot ?? null, databases: m.databases ?? {} }));
-  for (const file of await seedFileRefs(sandbox)) {
-    h.update(`\0${relative(sandbox.dir, file)}\0`);
-    try {
-      h.update(await readFile(file));
-    } catch {
-      h.update('\0missing\0');
-    }
-  }
-  for (const e of extra) h.update(`\0extra\0${e}`);
-  return h.digest('hex');
 }
 
 /**
@@ -389,16 +278,6 @@ export function addSandboxEntry(text: string, env: string, file: string): string
   const written = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
   if (!ok(written)) throw new Error('project.yaml could not be updated');
   return written;
-}
-
-/**
- * The env file of a docker-compose sandbox (L5.8, R-FLD-32), absolute: `compose.env_file` (relative to sandbox.yaml),
- * else `.env` next to the first compose file when it exists; undefined for none (`env_file: false`, no such file, a
- * process sandbox). Retake passes it to every compose command (`--env-file`), and leaves the names it sets out of
- * the environment docker runs with — a shell's value would win over the file's.
- */
-export function composeEnvFile(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>): string | undefined {
-  return composeEnvFilePath(sandbox.dir, sandbox.manifest);
 }
 
 /**

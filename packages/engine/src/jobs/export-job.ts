@@ -9,21 +9,24 @@
  * must lie in the project folder. No output location: the folder is fixed. A cancel stops between formats and kills
  * ffmpeg or the re-render; a killed worker's leftovers (the re-render's browser, partial files) are removed by the next.
  */
-import { join } from 'node:path';
-import { EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION } from '@retake/core';
-import type { ExportFormatName, ExportJobInput, WorkspaceConfig } from '@retake/core';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION, projectPath } from '@retake/core';
+import type { ExportFormatName, ExportJobInput } from '@retake/core';
 import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
+import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { renderForWork } from '../renders.js';
-import { editor, killRecordedBrowser, removePartials } from './render-job.js';
-import type { FileJobQueue } from './queue.js';
+import { editor } from '../lazy.js';
+import { exportWork, planWork } from '../pipeline.js';
+import { killRecordedBrowser, removePartials } from './render-job.js';
+import type { JobFiles } from './queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
-/** Formats exported when none are named (derived from the master: no re-render). */
-export const DEFAULT_JOB_EXPORT_FORMATS: readonly ExportFormatName[] = ['mp4_1080p', 'webm', 'gif_preview'];
+/** Formats exported when none are named (derived from the master: no re-render): core's one list. */
+export const DEFAULT_JOB_EXPORT_FORMATS: readonly ExportFormatName[] = DEFAULT_EXPORT_FORMAT_NAMES;
 
 export interface ExportRequest {
   project: string;
@@ -49,10 +52,14 @@ function checkFormats(formats: readonly string[] | undefined): ExportFormatName[
 }
 
 /**
- * Check, resolve the render and queue an `export` job. Formats that need a re-render are planned first, here (trust
+ * Check, resolve the render (then `admit` it: the engine's admission rules) and queue an `export` job. Formats that need a re-render are planned first, here (trust
  * `mcp`: a file outside the project, a theme folder, a remote slot value are refused now, with the command a human runs).
  */
-export async function submitExportJob(ctx: SubmitContext, req: ExportRequest): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] }> {
+export async function submitExportJob(
+  ctx: SubmitContext,
+  req: ExportRequest,
+  o: { admit?: (renderId: string) => Promise<void> } = {},
+): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] }> {
   checkProjectSlug(req.project);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   const formats = checkFormats(req.formats);
@@ -63,12 +70,14 @@ export async function submitExportJob(ctx: SubmitContext, req: ExportRequest): P
   const project = await openProjectBySlug(ctx.ws, req.project);
   const fix = (id: string) => exportCommandLine(ctx.cli, { project: req.project, render_id: id, formats });
   const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix });
+  // The admission rules see the render this export is of once `latest` is resolved (admission.ts export_cap).
+  await o.admit?.(record.id);
   const ed = await editor();
   const rerendered = formats.filter((f) => ed.exportMethod(record, f) === 'render');
   if (rerendered.length) {
     // A re-render plans the master's run with its theme and overrides: through the same gates as a render job.
     try {
-      await ed.planRun({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: 'mcp', measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
+      await planWork({ workPolicy: ctx.ws.policy, project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
     } catch (e) {
       if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
       throw toEngineError(e);
@@ -90,13 +99,13 @@ export async function submitExportJob(ctx: SubmitContext, req: ExportRequest): P
  * After an export job was interrupted (its worker killed): the re-render's browser it recorded is killed, and the partial
  * files of exports/<render_id>/ are removed. Best effort.
  */
-export async function cleanupInterruptedExport(ws: WorkspaceConfig, queue: FileJobQueue, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'export') return;
   const input = job.input;
-  await killRecordedBrowser(queue, job, log);
+  await killRecordedBrowser(files, job, log);
   try {
     const project = await openProjectBySlug(ws, input.project);
-    const dir = join(project.dir, 'exports', input.render_id);
+    const dir = projectPath(project.dir, 'exports', input.render_id);
     // ".<id>-vertical.partial-<pid>.mp4" (a format) and ".<id>-vertical.partial-…" (a re-render's own temporary files).
     await removePartials(dir, `.${input.render_id}`);
   } catch (e) {
@@ -105,7 +114,7 @@ export async function cleanupInterruptedExport(ws: WorkspaceConfig, queue: FileJ
 }
 
 export interface ExportJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: ExportJobInput;
   signal: AbortSignal;
@@ -115,22 +124,23 @@ export interface ExportJobContext {
   browser(b: BrowserProcessInfo): void;
 }
 
-/** Execute an `export` job: `exportRender` with trust `mcp` and the network guard (re-rendered formats). */
+/** Execute an `export` job: the pipeline's export (pipeline.ts) with trust `mcp` and the network guard (re-rendered formats). */
 export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJobResult> {
   const { input } = ctx;
-  const ed = await editor();
   const project = await openProjectBySlug(ctx.ws, input.project);
   await renderForWork(project, input.render_id, { fix: (id) => exportCommandLine(ctx.cli, { project: input.project, render_id: id, formats: input.formats }) });
   const total = input.formats.length;
   let done = 0;
   let last = '';
-  const result = await ed.exportRender({
+  // The pipeline's export that the CLI's `retake export` runs too, with the trust of work submitted through MCP.
+  const result = await exportWork({
+    workPolicy: ctx.ws.policy,
     project,
     root: ctx.ws.root,
     render: input.render_id,
     formats: input.formats,
     ...(input.gif ? { gif: input.gif } : {}),
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     network: 'guard',
     signal: ctx.signal,
     onBrowser: (b) => ctx.browser(b),

@@ -9,7 +9,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_ID_RE, RunRecordSchema, reserveRunId } from '@retake/core';
+import { JOB_ID_RE, RunRecordSchema } from '@retake/core';
+import { reserveRunId } from '@retake/core/io';
 import type { RunJobInput } from '@retake/core';
 import {
   EngineError,
@@ -460,23 +461,23 @@ describe('captures first in the job views (L5.14b)', () => {
     const me = { ...(await selfIdentity()), host: hostname() };
     const stored = (await q.stored(running.id))!;
     await q.write({ ...stored, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me });
-    await writeFile(q.yieldFile(running.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'here' }));
+    await writeFile(q.files.yield(running.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'here' }));
     const bg = (await q.get(running.id))!;
     expect(bg.yield).toEqual({ state: 'background', cause: 'here', since: '2026-11-04T14:02:00.000Z' });
     expect(yieldWords(bg.yield!)).toBe('slowed during a take (in this workspace)');
     expect(heldWork([bg, (await q.get(queued.id))!])).toEqual({ state: 'background', cause: 'here', kind: 'review', count: 1 });
-    await writeFile(q.yieldFile(running.id), JSON.stringify({ v: 1, state: 'past_cap', since: '2026-11-04T15:02:00.000Z', cause: 'elsewhere', cap_min: 60 }));
+    await writeFile(q.files.yield(running.id), JSON.stringify({ v: 1, state: 'past_cap', since: '2026-11-04T15:02:00.000Z', cause: 'elsewhere', cap_min: 60 }));
     const capped = (await q.get(running.id))!;
     expect(capped.yield).toEqual({ state: 'past_cap', cause: 'elsewhere', since: '2026-11-04T15:02:00.000Z', cap_min: 60 });
     expect(yieldWords(capped.yield!)).toBe('going on: a take (elsewhere on this Mac) has held heavy work for over 60 min');
     for (const bad of ['{', JSON.stringify({ state: 'paused', cause: 'here' }), JSON.stringify({ state: 'background', cause: '/Users/someone/ws', since: 'soon' })]) {
-      await writeFile(q.yieldFile(running.id), bad);
+      await writeFile(q.files.yield(running.id), bad);
       const y = (await q.get(running.id))!.yield;
       if (y) expect(y).toEqual({ state: 'background', cause: 'elsewhere' });
     }
     // Derived only: a record written back never carries it.
-    await writeFile(q.yieldFile(running.id), JSON.stringify({ v: 1, state: 'background', cause: 'here' }));
+    await writeFile(q.files.yield(running.id), JSON.stringify({ v: 1, state: 'background', cause: 'here' }));
     await q.write((await q.get(running.id))!);
-    expect(JSON.parse(await readFile(join(q.jobDir(running.id), 'job.json'), 'utf8')).yield).toBeUndefined();
+    expect(JSON.parse(await readFile(join(q.files.job(running.id), 'job.json'), 'utf8')).yield).toBeUndefined();
   });
 });

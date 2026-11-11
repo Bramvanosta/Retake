@@ -15,7 +15,8 @@
  * - A name that fails the server's rule (a slug of at most 100 characters) is left out before sending, the item kept
  *   (review A L4: one bad name never makes the whole report a 400 — the server drops such a name too).
  */
-import { CallError, call } from './api.js';
+import { CallError } from './api.js';
+import { unsavedReport } from './data/desktop.js';
 import { onUnsavedChange, unsavedItems } from './drafts.js';
 import type { UnsavedItem } from './drafts.js';
 import { SessionEnded } from './session.js';
@@ -61,7 +62,7 @@ export function newTabId(bytes: Uint8Array = crypto.getRandomValues(new Uint8Arr
 
 function browserDeps(): ReportDeps {
   return {
-    send: (args, keepalive) => call('unsaved_report', { ...args }, { keepalive }),
+    send: (args, keepalive) => unsavedReport({ ...args }, { keepalive }),
     items: unsavedItems,
     subscribe: onUnsavedChange,
     hidden: () => document.visibilityState === 'hidden',

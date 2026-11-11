@@ -23,8 +23,9 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, filmedChanges, loadProjectTemplate, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core';
-import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import { SLUG_RE, environmentAccess, filmedChanges, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo, projectPath } from '@retake/core';
+import { loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
+import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';
@@ -38,6 +39,7 @@ import { listRuns } from './runs.js';
 import type { RunSummary } from './runs.js';
 import { getScenario, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** Runs of the scenario in the picker, at most. */
 export const VIEW_RUNS_MAX = 20;
@@ -221,7 +223,7 @@ export interface ScenarioView {
 export type EditAbility = { ok: true } | { ok: false; why: string; problems?: Array<{ line?: number; message: string }> };
 
 export interface ScenarioViewContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   /** Agent trust for the client reading the view (the Studio: yes) and its wording channel — what `edit` checks. */
   agent?: boolean;
   via?: AgentChannel;
@@ -436,8 +438,8 @@ export class ScenarioViews {
     if (pending) return pending;
     const job = (async () => {
       this.stats.actions++;
-      const { ok, issues } = await validateScenarioText(p, file.yaml, { name, ...(env !== undefined ? { env } : {}) });
-      const blocks = scenarioBlocks(file.yaml, { issues, hookFiles: { projectDir: p.dir } });
+      const { ok, issues } = await validateScenarioText(p, file.yaml, { files: fileFacts(this.ctx.ws.policy), name, ...(env !== undefined ? { env } : {}) });
+      const blocks = scenarioBlocks(file.yaml, { issues, hookFiles: { projectDir: p.dir, files: nodeFileFacts } });
       const run_blockers = studioBlockers(await this.ctx.blockers({ project: slug, scenario: name, ...(env !== undefined ? { env } : {}) }), blocks, ok, issues);
       return remember(this.acts, key, { at: Date.now(), ok, run_blockers, environment: environmentFacts(p, env ?? blocks.video.env), content: contentOf(blocks) }, 64);
     })();
@@ -452,7 +454,7 @@ export class ScenarioViews {
   // ── Text layer ──────────────────────────────────────────────────────────
 
   private async projectSig(p: LoadedProject): Promise<string> {
-    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml')];
+    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), projectPath(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml')];
     return (await Promise.all(files.map(lsig))).join('|');
   }
 
@@ -475,8 +477,8 @@ export class ScenarioViews {
   private async computeText(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined, key: string): Promise<TextLayer> {
     const { yaml } = file;
     this.stats.text++;
-    const { ok, issues } = await validateScenarioText(p, yaml, { name, ...(env !== undefined ? { env } : {}) });
-    const blocks = scenarioBlocks(yaml, { issues, hookFiles: { projectDir: p.dir } });
+    const { ok, issues } = await validateScenarioText(p, yaml, { files: fileFacts(this.ctx.ws.policy), name, ...(env !== undefined ? { env } : {}) });
+    const blocks = scenarioBlocks(yaml, { issues, hookFiles: { projectDir: p.dir, files: nodeFileFacts } });
     const run_blockers = studioBlockers(await this.ctx.blockers({ project: slug, scenario: name, ...(env !== undefined ? { env } : {}) }), blocks, ok, issues);
     let environment: ScenarioEnvironmentFacts | null = null;
     let pages: Record<string, string> = {};
@@ -527,7 +529,7 @@ export class ScenarioViews {
       previous = s.id;
     }
     const shown = trimBlocks(blocks, VIEW_STEPS_MAX);
-    const edit = await editAbility(p, file, { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio' }, { parsed: blocks.parsed, ok, truncated: shown.keys !== null });
+    const edit = await editAbility(p, file, { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio', files: fileFacts(this.ctx.ws.policy) }, { parsed: blocks.parsed, ok, truncated: shown.keys !== null });
     return remember(this.texts, key, { at: Date.now(), blocks, shown, ok, issues, run_blockers, environment, scenes, identity, edit });
   }
 
@@ -535,7 +537,7 @@ export class ScenarioViews {
 
   /** What tells the cached run list is stale: the runs folder, its newest folders and their run.json, unfinished runs'. */
   private async runsSig(p: LoadedProject, memo: RunListMemo | undefined): Promise<string> {
-    const dir = join(p.dir, 'runs');
+    const dir = projectPath(p.dir, 'runs');
     let names: string[] = [];
     try {
       names = (await readdir(dir)).filter((n) => RUN_ID_RE.test(n)).sort().reverse().slice(0, 8);
@@ -574,11 +576,11 @@ export class ScenarioViews {
    * the run folder's signature holds (a finished run's files do not change; deleting frames changes the folder).
    */
   private async factsOf(projectDir: string, id: string, mode: string, finished: boolean, failed: boolean): Promise<RunFacts> {
-    const key = `${projectDir}\0${id}\0${await lsig(join(projectDir, 'runs', id))}`;
+    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}`;
     const hit = finished ? this.facts.get(key) : undefined;
     if (hit) return hit;
     const pictures = await runPictures(projectDir, id, mode);
-    const snapshot = (await lsig(join(projectDir, 'runs', id, 'scenario.yaml'))) !== '-';
+    const snapshot = (await lsig(projectPath(projectDir, 'runs', id, 'scenario.yaml'))) !== '-';
     let failedAt: string | undefined;
     if (failed) {
       const folder = await RunFolder.open(projectDir, id);
@@ -861,16 +863,16 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
 async function editAbility(
   p: LoadedProject,
   file: ScenarioText,
-  o: { agent: boolean; via: AgentChannel },
+  o: { agent: boolean; via: AgentChannel; files: WorkFileFacts },
   facts: { parsed: boolean; ok: boolean; truncated: boolean },
 ): Promise<ScenarioView['edit']> {
   let scenario;
   if (o.agent && file.utf8) {
-    const template = await loadProjectTemplate(p).then(
+    const template = await loadProjectTemplate(p, undefined, { files: o.files }).then(
       (t) => t.template,
       () => undefined,
     );
-    scenario = parseScenario(file.yaml, { file: file.path, project: p, template }).scenario;
+    scenario = parseScenario(file.yaml, { files: o.files, file: file.path, project: p, template }).scenario;
   }
   const blocked = scenarioEditBlocker(p, file, scenario, o);
   const yaml: EditAbility = blocked ? { ok: false, why: blocked.why, ...(blocked.problems.length ? { problems: blocked.problems } : {}) } : { ok: true };

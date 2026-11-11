@@ -6,6 +6,10 @@ import type { BrowserSession, CursorEffectPayload, CursorState, KitClient, Resol
 import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, FRAME_PAGE, NO_CONTENT_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE, deepPage, latePaintPage } from './pages.js';
 import { startServer } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 let server: TestServer;
 /** Another origin (another port) serving the frame page: its content must stay out of reach. */
@@ -32,7 +36,7 @@ beforeAll(async () => {
     '/widget.html': `<!doctype html><html><body><main><button id="top-save">Save changes</button><input id="nd" type="date" min="2026-10-01" max="2026-12-31">
       <iframe id="w" srcdoc="<button id='fr-save'>Save</button>"></iframe><div id="many" hidden></div></main></body></html>`,
   });
-  session = await openSession({ width: 1000, height: 700, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+  session = await openSession({ policy: PERSON_POLICY, width: 1000, height: 700, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
   page = await session.page('main');
   kit = session.kit(page);
 });
@@ -312,7 +316,7 @@ describe('cursor overlay', () => {
     expect(await page.evaluate(() => document.querySelector('retake-cursor')?.isConnected === true)).toBe(true);
   });
 
-  it('a cursor carried to a new document is drawn once the page painted content of its own, or when revealed (R-ISS-08)', async () => {
+  it.skipIf(!MAC_TIMING)('a cursor carried to a new document is drawn once the page painted content of its own, or when revealed (R-ISS-08)', async () => {
     await page.goto(`${server.url}/overlay-a.html`);
     await page.mouse.move(300, 260);
     await page.waitForTimeout(50);
@@ -338,13 +342,18 @@ describe('cursor overlay', () => {
   it('debug style: a 6×6 #FF00FF square centred on the hotspot, over the arrow (R-KIT-06)', async () => {
     await page.goto(`${server.url}/overlay-a.html`);
     await kit.cursorSet(700, 420, true);
-    await page.waitForTimeout(50);
-    const img = await decodePng(page, await page.screenshot({ clip: { x: 690, y: 410, width: 20, height: 20 } }));
-    const hits: Array<[number, number]> = [];
-    for (let y = 0; y < img.h; y++) {
-      for (let x = 0; x < img.w; x++) {
-        const i = (y * img.w + x) * 4;
-        if (img.data[i] === 255 && img.data[i + 1] === 0 && img.data[i + 2] === 255) hits.push([x, y]);
+    // Until the square is painted (a frame or two; a loaded machine takes longer).
+    let img!: Awaited<ReturnType<typeof decodePng>>;
+    let hits: Array<[number, number]> = [];
+    for (let k = 0; k < 40 && hits.length === 0; k++) {
+      await page.waitForTimeout(50);
+      img = await decodePng(page, await page.screenshot({ clip: { x: 690, y: 410, width: 20, height: 20 } }));
+      hits = [];
+      for (let y = 0; y < img.h; y++) {
+        for (let x = 0; x < img.w; x++) {
+          const i = (y * img.w + x) * 4;
+          if (img.data[i] === 255 && img.data[i + 1] === 0 && img.data[i + 2] === 255) hits.push([x, y]);
+        }
       }
     }
     // Exactly the pixels [x − 3, x + 3) × [y − 3, y + 3): the hotspot (700, 420) is at (10, 10) in the clip.
@@ -396,7 +405,7 @@ describe('click ripple (R-ISS-03, R-CHO-05)', () => {
   let rp: Page;
 
   beforeAll(async () => {
-    rs = await openSession({ width: 1000, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-dark', ripple_color: EDITORIAL_RIPPLE }) });
+    rs = await openSession({ policy: PERSON_POLICY, width: 1000, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-dark', ripple_color: EDITORIAL_RIPPLE }) });
     rp = await rs.page('main');
   });
   afterAll(async () => {
@@ -412,7 +421,10 @@ describe('click ripple (R-ISS-03, R-CHO-05)', () => {
     const started: Array<{ id: string; name: string; source: { duration: number; keyframesRule?: { keyframes: Array<{ easing: string }> } } }> = [];
     cdp.on('Animation.animationStarted', (e) => started.push(e.animation as unknown as (typeof started)[number]));
     await rs.kit(rp).ripple(C.x, C.y);
-    for (let i = 0; i < 50 && started.length < 2; i++) await rp.waitForTimeout(10);
+    // Both of its animations (scale and opacity) paused before any is measured: one left running fades out.
+    const both = () => ['dsr-t', 'dsr-o'].every((n) => started.some((a) => a.name === n));
+    for (let i = 0; i < 500 && !both(); i++) await rp.waitForTimeout(10);
+    expect(started.map((a) => a.name), 'the ripple animations started').toEqual(expect.arrayContaining(['dsr-t', 'dsr-o']));
     const ids = started.map((a) => a.id);
     await cdp.send('Animation.setPaused', { animations: ids, paused: true });
     await cdp.send('Animation.seekAnimations', { animations: ids, currentTime: ms });

@@ -57,7 +57,7 @@ describe('captures first through MCP (L5.14b)', () => {
       const me = { ...(await selfIdentity()), host: hostname() };
       const rec = (await queue.stored(job.id))!;
       await queue.write({ ...rec, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me, progress: { phase: 'rendering', fraction: 0.25, steps_done: 0, steps_total: 0 } } as JobRecord);
-      await writeFile(queue.yieldFile(job.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'elsewhere' }));
+      await writeFile(queue.files.yield(job.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'elsewhere' }));
       const run = await tool('job_status', { job_id: job.id });
       expect((run.data as { yield?: unknown }).yield).toEqual({ state: 'background', cause: 'elsewhere', since: '2026-11-04T14:02:00.000Z' });
       expect(run.summary).toContain(': running · slowed during a take (elsewhere on this Mac) · 25 %');

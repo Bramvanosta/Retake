@@ -15,32 +15,21 @@
  * into place; a failure removes it. A crash's leftovers (`.tmp-` / `.old-<name>-<12 hex>/` older than an hour, holding
  * this tool's provenance file or nothing) are removed by the next create; any other hidden folder is never touched.
  */
-import { randomBytes } from 'node:crypto';
-import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, sep } from 'node:path';
-import {
-  AuthorBrandInputSchema,
-  BrandInputSchema,
-  RETAKE_VERSION,
-  STARTER_TEMPLATES_DIR,
-  TEMPLATE_FILE,
-  THEME_NAME_RE,
-  fontRefFile,
-  insideFolder,
-  loadTemplate,
-  parseTemplateYaml,
-  parseYaml,
-  printableText,
-  siteRef,
-} from '@retake/core';
-import type { BrandFontRef, BrandInput, TemplateFile, WorkspaceConfig } from '@retake/core';
+import { AuthorBrandInputSchema, BrandInputSchema, RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, fontRefFile, insideFolder, parseTemplateYaml, parseYaml, printableText, siteRef } from '@retake/core';
+import { STARTER_TEMPLATES_DIR, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core';
 import type { Palette } from '@retake/components';
 import { components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
+import { ProjectStore } from '../store/project-store.js';
+import type { StoreScope } from '../store/project-store.js';
 import { checkTemplateName, themeAssetProblems } from '../templates.js';
 import { BRAND_TOTAL_MAX_BYTES, checkImage, fontCopyName, readBrandFile, sniffFont, standardWeight } from './files.js';
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** The provenance file of a theme this tool made (hidden: the loader and listTemplates ignore it). */
 export const THEME_PROVENANCE_FILE = '.retake-theme.json';
@@ -86,6 +75,8 @@ export interface ThemeCreated {
 
 export interface ThemeCreateOptions {
   trust: BrandTrust;
+  /** Where the theme is written and journaled (the caller). */
+  scope: StoreScope;
   /** trust `author`: relative file paths resolve against it (default process.cwd()). */
   cwd?: string;
   now?: Date;
@@ -370,14 +361,14 @@ function fontFace(info: FontInfo, ref: BrandFontRef): { weight: number; italic: 
 }
 
 /** Create a theme from brand inputs (see the module comment). Throws EngineError: invalid, refused, conflict, not_found. */
-export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o: ThemeCreateOptions): Promise<ThemeCreated> {
+export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o: ThemeCreateOptions): Promise<ThemeCreated> {
   const input = parseInput(raw, o.trust);
   const now = o.now ?? new Date();
   const date = now.toISOString().slice(0, 10);
   const { name } = input;
   const replace = input.replace === true;
   const templatesDir = ws.templatesDir;
-  if (insideFolder(PACKAGE_ROOT, templatesDir)) {
+  if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
     throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a new theme would land among its starter themes`, {
       fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
     });
@@ -392,7 +383,7 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
   // The base: its components, frame, captions, motion and durations; its fonts when none are given.
   let base;
   try {
-    base = await loadTemplate(baseName, ws.root);
+    base = await loadTemplate(baseName, ws.root, { files: fileFacts(ws.policy) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -525,52 +516,37 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
     files: Object.fromEntries([...written].map(([f, b]) => [f, sha256Hex(b)])),
   };
 
-  const tmp = join(templatesDir, `.tmp-${name}-${randomBytes(6).toString('hex')}`);
-  const final = join(templatesDir, name);
-  let old: string | undefined;
+  let made: { dir: string; replaced: boolean };
   try {
-    await mkdir(tmp);
-    // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
-    await writeFile(join(tmp, THEME_PROVENANCE_FILE), `${JSON.stringify(provenance, null, 2)}\n`, { flag: 'wx' });
-    for (const [f, b] of written) {
-      const p = join(tmp, ...f.split('/'));
-      await mkdir(dirname(p), { recursive: true });
-      await writeFile(p, b, { flag: 'wx' });
-    }
-    // What a render will load: the loader, the files inside the folder, the components it picks.
-    const parsed = parseTemplateYaml(generated.yaml, { dir: tmp });
-    if (parsed.issues.length) throw new EngineError('internal', `the new theme does not validate: ${parsed.issues.map((i) => i.message).join('; ')}`);
-    const loaded = await loadTemplate(tmp);
-    const outside = themeAssetProblems(loaded);
-    if (outside.length) throw new EngineError('internal', outside.join('; '));
-    try {
-      (await workspaceRegistry(ws)).resolveTheme(loaded.template);
-    } catch (e) {
-      throw new EngineError('invalid', `the new theme's components do not resolve (from ${baseName}): ${toEngineError(e).message}`);
-    }
-    // Checked again right before the rename (an empty folder of that name would be replaced silently on macOS).
-    const { existing } = await checkNewName(templatesDir, name, replace, o.trust);
-    if (existing) {
-      old = join(templatesDir, `.old-${name}-${randomBytes(6).toString('hex')}`);
-      await rename(final, old);
-    }
-    try {
-      await rename(tmp, final);
-    } catch (e) {
-      if (old) await rename(old, final).catch(() => undefined);
-      old = undefined;
-      throw e;
-    }
+    made = await new ProjectStore(templatesDir, o.scope, undefined, '<templates_dir>').createFolder(templatesDir, name, {
+      what: 'theme',
+      build: async (stage) => {
+        // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
+        await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
+        for (const [f, b] of written) await stage.write(f, b);
+        // What a render will load: the loader, the files inside the folder, the components it picks.
+        const parsed = parseTemplateYaml(generated.yaml, { dir: stage.dir, files: fileFacts(ws.policy) });
+        if (parsed.issues.length) throw new EngineError('internal', `the new theme does not validate: ${parsed.issues.map((i) => i.message).join('; ')}`);
+        const loaded = await loadTemplate(stage.dir, undefined, { files: fileFacts(ws.policy) });
+        const outside = themeAssetProblems(loaded);
+        if (outside.length) throw new EngineError('internal', outside.join('; '));
+        try {
+          (await workspaceRegistry(ws)).resolveTheme(loaded.template);
+        } catch (e) {
+          throw new EngineError('invalid', `the new theme's components do not resolve (from ${baseName}): ${toEngineError(e).message}`);
+        }
+      },
+      recheck: () => checkNewName(templatesDir, name, replace, o.trust),
+    });
   } catch (e) {
-    await rm(tmp, { recursive: true, force: true });
     throw toEngineError(e);
   }
-  if (old) await rm(old, { recursive: true, force: true });
+  const final = made.dir;
   return {
     name,
     dir: final,
     base: baseName,
-    replaced: old !== undefined,
+    replaced: made.replaced,
     files: [...written.keys(), THEME_PROVENANCE_FILE],
     template_yaml: generated.yaml,
     palette,

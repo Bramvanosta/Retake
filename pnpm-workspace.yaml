@@ -1,6 +1,8 @@
 packages:
   - packages/*
   - fixtures/*
+# The only packages whose install scripts run (pnpm 10 runs none by default). The one list: pnpm reads it here, not
+# from package.json (its `pnpm` field keeps the overrides and the patch only).
 onlyBuiltDependencies:
   - esbuild
   - sharp

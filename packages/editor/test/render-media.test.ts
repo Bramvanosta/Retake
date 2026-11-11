@@ -16,6 +16,7 @@ import { overlayBoxAt, renderVideo } from '@retake/editor';
 import type { ClipSegment, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameColour, hasTool, pixelAt, renderWorkspace, syntheticTimeline } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -59,7 +60,7 @@ beforeAll(async () => {
   withOverlay(t, 'a', { t_start: 1.1, t_end: 1.2 }, 'assets/half.webm');
   withOverlay(t, 'b', { t_start: 3.2, t_end: 3.3 }, 'assets/half.mov');
   await writeFile(join(ws.runDir, 'timeline.json'), JSON.stringify(t, null, 2));
-  record = await renderVideo({ project: ws.project, root: ws.root, run: 'latest', scenario: 'synthetic', overrides: { scale: 0.5 }, concurrency: 2, cacheDir: SHARED_CACHE });
+  record = await renderVideo({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, run: 'latest', scenario: 'synthetic', overrides: { scale: 0.5 }, concurrency: 2, cacheDir: SHARED_CACHE });
 }, LONG);
 afterAll(async () => {
   await ws?.cleanup();

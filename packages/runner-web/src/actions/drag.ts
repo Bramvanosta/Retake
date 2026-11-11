@@ -3,6 +3,7 @@ import { basename, isAbsolute, join } from 'node:path';
 import type { ElementHandle } from 'playwright-core';
 import { isPoint, projectFileProblem } from '@retake/core';
 import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { StepError } from '../errors.js';
 import { distance, moveDuration } from '../motion.js';
 import { resolveTarget } from '../resolve.js';
@@ -62,7 +63,7 @@ interface FilePayload {
 async function loadPayload(ctx: StepContext, args: DropFileArgs): Promise<FilePayload> {
   if (args.path) {
     if (ctx.rt.agentTrust) {
-      const problem = projectFileProblem(ctx.rt.project.dir, args.path);
+      const problem = projectFileProblem(ctx.rt.project.dir, args.path, { files: nodeFileFacts });
       if (problem) throw new StepError(`drop_file: ${problem}`);
     }
     const file = isAbsolute(args.path) ? args.path : join(ctx.rt.project.dir, args.path);

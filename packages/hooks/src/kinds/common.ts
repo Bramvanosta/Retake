@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { collectSandboxRefs, collectSecretRefs, projectFileProblem, secretRefsProblem } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { HookError, HookSecurityError } from '../errors.js';
 import { journalsRollback } from '../types.js';
 import type { ShownAction } from '../shown.js';
@@ -90,7 +91,7 @@ export async function readProjectFile(projectDir: string, rel: string, what: str
  */
 export async function readHookFile(ctx: HookContext, baseDir: string, rel: string, what: string): Promise<string> {
   if (ctx.trust === 'mcp') {
-    const problem = projectFileProblem(ctx.project.dir, rel, { baseDir, code: true });
+    const problem = projectFileProblem(ctx.project.dir, rel, { baseDir, code: true, files: nodeFileFacts });
     if (problem) throw new HookSecurityError(`${what}: ${problem}`, 'mcp');
   }
   const text = await readProjectFile(baseDir, rel, what);

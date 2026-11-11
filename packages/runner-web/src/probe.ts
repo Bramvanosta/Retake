@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
-import { bundleInfo, insideBundle } from '@retake/core';
-import type { BrowserConfig, BundleInfo } from '@retake/core';
+import { bundleInfo, insideBundle } from '@retake/core/io';
+import type { BrowserConfig, WorkPolicy } from '@retake/core';
+import type { BundleInfo } from '@retake/core/io';
 import { browserSandbox, launchOptions } from './launch.js';
 import type { BrowserSandbox } from './launch.js';
 import { DEFAULT_BROWSER_ARGS, gpuInfoOf } from './session.js';
@@ -46,7 +47,7 @@ export function chromiumExecutable(browser?: BrowserConfig, bundle: BundleInfo |
 }
 
 /** Locate Chromium and (optionally) launch it headless the way the runner does, render a page, and close it. */
-export async function probeChromium(browser?: BrowserConfig, opts: { launch?: boolean; timeoutMs?: number } = {}): Promise<ChromiumProbe> {
+export async function probeChromium(browser: BrowserConfig | undefined, opts: { launch?: boolean; timeoutMs?: number; policy: WorkPolicy }): Promise<ChromiumProbe> {
   const { path, source } = chromiumExecutable(browser);
   const out: ChromiumProbe = { path, source, exists: !!path && existsSync(path), launched: false };
   if (opts.launch === false || !out.exists) return out;
@@ -60,7 +61,7 @@ export async function probeChromium(browser?: BrowserConfig, opts: { launch?: bo
       channel,
       executablePath,
       timeout: opts.timeoutMs ?? 30_000,
-      ...launchOptions({ args: DEFAULT_BROWSER_ARGS, browserArgs: browser?.args }),
+      ...launchOptions({ args: DEFAULT_BROWSER_ARGS, browserArgs: browser?.args, policy: opts.policy }),
     });
     out.version = b.version();
     const page = await b.newPage({ viewport: { width: 320, height: 200 } });

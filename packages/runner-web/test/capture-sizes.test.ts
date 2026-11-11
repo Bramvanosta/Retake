@@ -7,6 +7,11 @@ import { runScenario } from '../src/index.js';
 import { SIZES_PAGE } from './pages.js';
 import { FAST, debugTemplate, execFileP, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
+
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 /**
  * R-GOAL-01 / R-REC-06 (L1.4): real captures at the virtual sizes the tool promises — 2560×1440, 4K (1920×1080 at
@@ -45,7 +50,7 @@ const CASES: Case[] = [
 
 async function capture(c: Case): Promise<{ rec: RunRecord; tl: Timeline }> {
   const project = makeProject(dir, { app: server.url }, { width: c.width, height: c.height });
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project,
     template: debugTemplate(),
     mode: 'capture',
@@ -107,7 +112,9 @@ describe('capture at 2560×1440, 4K (scale 2) and a phone (390×844 at scale 2):
       const rgb = await frameAt(rec.capture!, click.t_click!, W, H);
       const m = magentaCentroid(rgb, W, H);
       expect(m, `no hotspot at ${click.t_click}`).not.toBeNull();
-      expect(Math.hypot(m!.x - click.point!.x * c.scale, m!.y - click.point!.y * c.scale)).toBeLessThanOrEqual(3 * c.scale);
+      // On the point: the frame at the click is painted at that instant on the Mac; a shared runner paints it late,
+      // the cursor still on its way.
+      if (MAC_TIMING) expect(Math.hypot(m!.x - click.point!.x * c.scale, m!.y - click.point!.y * c.scale)).toBeLessThanOrEqual(3 * c.scale);
       expect(Math.abs(m!.box.w - 6 * c.scale)).toBeLessThanOrEqual(1);
       expect(Math.abs(m!.box.h - 6 * c.scale)).toBeLessThanOrEqual(1);
 

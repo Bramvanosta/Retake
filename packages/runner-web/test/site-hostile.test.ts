@@ -18,6 +18,7 @@ import type { PageFacts } from '../src/site/page-script.js';
 import type { SiteReport } from '../src/index.js';
 import { hasOpenssl, startBrandSite } from './site-fixture.js';
 import type { BrandSite } from './site-fixture.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const can = hasOpenssl();
 
@@ -46,7 +47,7 @@ describe('shared workers and fetchLater are removed by each layer alone (no netw
   const NO_DNS = '--host-resolver-rules=MAP * ~NOTFOUND';
 
   it('the init script: both throw, and cannot be put back', async () => {
-    const browser = await chromium.launch({ ...launchTarget(undefined), headless: true, args: [...DEFAULT_BROWSER_ARGS, NO_DNS] });
+    const browser = await chromium.launch({ ...launchTarget(undefined, { policy: PERSON_POLICY }), headless: true, args: [...DEFAULT_BROWSER_ARGS, NO_DNS] });
     try {
       const plain = await securePage(await browser.newContext());
       expect(await plain.evaluate('[typeof SharedWorker, typeof fetchLater]')).toEqual(['function', 'function']);
@@ -65,7 +66,7 @@ describe('shared workers and fetchLater are removed by each layer alone (no netw
   });
 
   it('the Blink switch of siteBrowserArgs: neither exists at all', async () => {
-    const browser = await chromium.launch({ ...launchTarget(undefined), headless: true, args: siteBrowserArgs(9) });
+    const browser = await chromium.launch({ ...launchTarget(undefined, { policy: PERSON_POLICY }), headless: true, args: siteBrowserArgs(9) });
     try {
       const page = await securePage(await browser.newContext());
       expect(await page.evaluate('[typeof SharedWorker, typeof fetchLater]')).toEqual(['undefined', 'undefined']);
@@ -77,7 +78,7 @@ describe('shared workers and fetchLater are removed by each layer alone (no netw
 
 describe('the page reader cuts what the page controls (no network: a page set in place)', () => {
   it('family names to 200 characters, candidate URLs (data: and https) to their caps', async () => {
-    const browser = await chromium.launch({ ...launchTarget(undefined), headless: true, args: DEFAULT_BROWSER_ARGS });
+    const browser = await chromium.launch({ ...launchTarget(undefined, { policy: PERSON_POLICY }), headless: true, args: DEFAULT_BROWSER_ARGS });
     try {
       const page = await browser.newPage();
       await page.route('**/*', (r) => r.abort());
@@ -117,7 +118,7 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
 
   it('a renderer busy loop ends at the call timeout: failed, the browser closed, nothing hangs', async () => {
     const t0 = Date.now();
-    const r = await extractSite({ url: 'https://hostile.test/hang', host: 'hostile.test', outDir: await outDir(), testResolve: site.testResolve, callTimeoutMs: 3000 });
+    const r = await extractSite({ policy: PERSON_POLICY, url: 'https://hostile.test/hang', host: 'hostile.test', outDir: await outDir(), testResolve: site.testResolve, callTimeoutMs: 3000 });
     expect(r.status).toBe('failed');
     expect(r.untrusted.error).toMatch(/the page did not answer in 3 s/);
     expect(Date.now() - t0).toBeLessThan(25_000);
@@ -125,7 +126,7 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
 
   it('and at the deadline when calls may take longer', async () => {
     const t0 = Date.now();
-    const r = await extractSite({ url: 'https://hostile.test/hang', host: 'hostile.test', outDir: await outDir(), testResolve: site.testResolve, callTimeoutMs: 120_000, deadlineMs: 9000 });
+    const r = await extractSite({ policy: PERSON_POLICY, url: 'https://hostile.test/hang', host: 'hostile.test', outDir: await outDir(), testResolve: site.testResolve, callTimeoutMs: 120_000, deadlineMs: 9000 });
     expect(r.status).toBe('failed');
     expect(r.untrusted.error).toMatch(/took more than 9 s/);
     expect(Date.now() - t0).toBeLessThan(20_000);
@@ -134,7 +135,7 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
   it('a cancel ends it within seconds, whatever the page does', async () => {
     const ac = new AbortController();
     let abortedAt = 0;
-    const p = extractSite({
+    const p = extractSite({ policy: PERSON_POLICY,
       url: 'https://hostile.test/hang',
       host: 'hostile.test',
       outDir: await outDir(),
@@ -155,7 +156,7 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
 
   it('font face names are cut: site.json stays small', async () => {
     const dir = await outDir();
-    const r = await extractSite({ url: 'https://hostile.test/fonts', host: 'hostile.test', outDir: dir, testResolve: site.testResolve });
+    const r = await extractSite({ policy: PERSON_POLICY, url: 'https://hostile.test/fonts', host: 'hostile.test', outDir: dir, testResolve: site.testResolve });
     expect(r.status, JSON.stringify(r.untrusted.error)).toBe('ok');
     expect(r.untrusted.fonts!.faces.length).toBeGreaterThan(0);
     expect(r.untrusted.fonts!.faces.length).toBeLessThanOrEqual(40);
@@ -165,7 +166,7 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
 
   it('a top-level redirect to another host fails: the approval names one host (its www / apex sibling aside)', async () => {
     const dir = await outDir();
-    const r = await extractSite({ url: 'https://brand.test/to-other', host: 'brand.test', outDir: dir, testResolve: site.testResolve });
+    const r = await extractSite({ policy: PERSON_POLICY, url: 'https://brand.test/to-other', host: 'brand.test', outDir: dir, testResolve: site.testResolve });
     expect(r.status).toBe('failed');
     expect(r.warnings.join(' ')).toMatch(/the page redirects to another host \(its URL is the last of untrusted\.redirect_chain\): only brand\.test and its www \/ apex sibling are read/);
     // The other host is named only under untrusted.
@@ -181,7 +182,7 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
 
   it('logos a create would refuse are never made: under 64 px high dropped, too heavy drawn smaller', async () => {
     wideDir = await outDir();
-    wide = await extractSite({ url: 'https://hostile.test/wide', host: 'hostile.test', outDir: wideDir, testResolve: site.testResolve, candidateMaxBytes: 200_000 });
+    wide = await extractSite({ policy: PERSON_POLICY, url: 'https://hostile.test/wide', host: 'hostile.test', outDir: wideDir, testResolve: site.testResolve, candidateMaxBytes: 200_000 });
     expect(wide.status, JSON.stringify(wide.untrusted.error)).toBe('ok');
     // The noise image only (the 2000 × 30 one would be 31 px high at 2048 px wide).
     expect(wide.candidates).toHaveLength(1);
@@ -200,7 +201,7 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
       await writeFile(join(victims, f), 'ORIGINAL\n');
       await symlink(join(victims, f), join(dir, f));
     }
-    const r = await extractSite({ url: 'https://hostile.test/wide', host: 'hostile.test', outDir: dir, testResolve: site.testResolve });
+    const r = await extractSite({ policy: PERSON_POLICY, url: 'https://hostile.test/wide', host: 'hostile.test', outDir: dir, testResolve: site.testResolve });
     expect(r.status, JSON.stringify(r.untrusted.error)).toBe('ok');
     for (const f of ['site.json', 'screenshot.jpg', 'logo-1.png']) {
       expect(await readFile(join(victims, f), 'utf8'), f).toBe('ORIGINAL\n');
@@ -210,6 +211,6 @@ describe.skipIf(!can)('a site extraction against hostile pages', () => {
     expect((await readdir(dir)).filter((f) => f.startsWith('.'))).toEqual([]);
     const linked = join(await outDir(), 'linked');
     await symlink(victims, linked);
-    await expect(extractSite({ url: 'https://hostile.test/wide', host: 'hostile.test', outDir: linked, testResolve: site.testResolve })).rejects.toThrow(/is not a folder/);
+    await expect(extractSite({ policy: PERSON_POLICY, url: 'https://hostile.test/wide', host: 'hostile.test', outDir: linked, testResolve: site.testResolve })).rejects.toThrow(/is not a folder/);
   }, 60_000);
 });

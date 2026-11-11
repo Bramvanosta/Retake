@@ -20,9 +20,9 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { PROJECT_SLUG_RE, SLUG_RE } from '@retake/core';
+import { PROJECT_SLUG_RE, SLUG_RE, projectPath } from '@retake/core';
 import { EngineError } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
+import { defineTool } from '@retake/engine/contract';
 
 export const UNSAVED_KINDS = ['readme', 'yaml_draft', 'step_form', 'comment', 'component_brief', 'new_theme', 'theme_draft'] as const;
 export type UnsavedKind = (typeof UNSAVED_KINDS)[number];
@@ -87,7 +87,7 @@ export class UnsavedBoard {
     const dir = join(this.projectsDir, item.project);
     if (!(await exists(join(dir, 'project.yaml')))) return out;
     out.project = item.project;
-    if (item.scenario !== undefined && item.scenario.length <= NAME_MAX && SLUG_RE.test(item.scenario) && (await exists(join(dir, 'scenarios', `${item.scenario}.yaml`)))) out.scenario = item.scenario;
+    if (item.scenario !== undefined && item.scenario.length <= NAME_MAX && SLUG_RE.test(item.scenario) && (await exists(projectPath(dir, 'scenarios', `${item.scenario}.yaml`)))) out.scenario = item.scenario;
     return out;
   }
 
@@ -148,8 +148,8 @@ export class UnsavedBoard {
 }
 
 /** The own op `unsaved_report` on `board`. Not read-only (the board changes), idempotent; never nudges the job watch. */
-export function unsavedOps(board: UnsavedBoard): ToolDef[] {
-  const op: ToolDef<typeof UnsavedReportInput> = {
+export function unsavedOps(board: UnsavedBoard) {
+  const op = defineTool({
     name: 'unsaved_report',
     title: 'Report unsaved text',
     description: "What this tab holds unsaved (kinds and names only, never the text): the desktop app's quit question names it.",
@@ -159,8 +159,8 @@ export function unsavedOps(board: UnsavedBoard): ToolDef[] {
       await board.report(a.tab, a.hidden, a.items);
       return { summary: `${board.items().length} unsaved item(s) across ${board.tabCount} tab(s)`, data: { tabs: board.tabCount } };
     },
-  };
-  return [op as unknown as ToolDef];
+  });
+  return [op];
 }
 
 export const UNSAVED_OPS = ['unsaved_report'] as const;

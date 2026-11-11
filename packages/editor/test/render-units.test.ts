@@ -7,9 +7,8 @@ import { readFileSync, readdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { useAgentPolicy } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import {
@@ -26,6 +25,7 @@ import {
   defaultConcurrency,
   entrySource,
   findRun,
+  geometryFiles,
   listRenders,
   musicVolumeAt,
   nextVersion,
@@ -45,6 +45,11 @@ import {
 } from '@retake/editor';
 import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
 import { fixtureProject, realTimeline, template } from './helpers.js';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import type { WorkPolicy } from '@retake/core';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 let registry: ComponentRegistry;
 let quote: EditPlan;
@@ -126,6 +131,14 @@ describe('generated bundle sources', () => {
     const rootSrc = readFileSync(root, 'utf8');
     expect(rootSrc).toContain(`landscape: '${COMPOSITION_IDS.landscape}'`);
     expect(rootSrc).toContain(`vertical: '${COMPOSITION_IDS.vertical}'`);
+  });
+
+  it('the geometry entry the composition imports its frame helpers from is hashed with the modules beside it that it loads', () => {
+    const { entry, files } = geometryFiles();
+    expect(entry).toBe(join(dirname(EDITOR_DIR), 'components', 'src', 'geometry-entry.ts'));
+    // Its kit modules are hashed with the kit; type-only re-exports (the registry's) load nothing.
+    expect(files.map((f) => basename(f))).toEqual(['data.ts', 'geometry-entry.ts', 'geometry.ts', 'slots.ts', 'theme.ts', 'types.ts']);
+    expect(readFileSync(join(EDITOR_DIR, 'src', 'remotion', 'frames.ts'), 'utf8')).toMatch(/^import \{[^}]+\} from '@retake\/components\/geometry';$/m);
   });
 
   it('the bundle hash follows the content of the bundled components (cache key)', async () => {
@@ -324,33 +337,33 @@ describe('render environment', () => {
   it('without a headless shell no render starts (Remotion never downloads its own): the message says how to install one', () => {
     const none = renderBrowser({}, null, () => null);
     expect(none).toMatchObject({ path: null, source: 'none' });
-    expect(() => assertRenderBrowser(none, null)).toThrow(`no browser to render with: Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`);
-    expect(() => assertRenderBrowser(renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' }, null, () => null), null)).toThrow(/points to a missing file .*playwright-core install chromium-headless-shell/);
-    expect(() => assertRenderBrowser(renderBrowser({}, null, () => process.execPath), null)).not.toThrow();
+    expect(() => assertRenderBrowser(none, policy, null)).toThrow(`no browser to render with: Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`);
+    expect(() => assertRenderBrowser(renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' }, null, () => null), policy, null)).toThrow(/points to a missing file .*playwright-core install chromium-headless-shell/);
+    expect(() => assertRenderBrowser(renderBrowser({}, null, () => process.execPath), policy, null)).not.toThrow();
   });
 
   it('under the agent policy (a job of the worker) a render browser inside the workspace is refused; the CLI renders with it', () => {
     const shell = join(tmp, 'tools', 'headless_shell');
     const b = { path: shell, source: 'env' as const };
-    expect(() => assertRenderBrowser(b, null)).not.toThrow();
-    useAgentPolicy([tmp]);
+    expect(() => assertRenderBrowser(b, policy, null)).not.toThrow();
+    policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
-      expect(() => assertRenderBrowser(b, null)).toThrow(/^\$RETAKE_CHROMIUM_HEADLESS_SHELL \(.*\/tools\/headless_shell\) lies inside the workspace .*: move the program out of the workspace/);
-      expect(() => assertRenderBrowser({ path: process.execPath, source: 'playwright' }, null)).not.toThrow();
+      expect(() => assertRenderBrowser(b, policy, null)).toThrow(/^\$RETAKE_CHROMIUM_HEADLESS_SHELL \(.*\/tools\/headless_shell\) lies inside the workspace .*: move the program out of the workspace/);
+      expect(() => assertRenderBrowser({ path: process.execPath, source: 'playwright' }, policy, null)).not.toThrow();
     } finally {
-      useAgentPolicy(null);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
   });
 
   it('the render browser to start: as given for a command a person types; under the agent policy the real path that was checked', () => {
     const link = join(tmp, 'shell-link');
     symlinkSync(process.execPath, link);
-    expect(assertRenderBrowser({ path: link, source: 'env' }, null)).toBe(link);
-    useAgentPolicy([join(tmp, 'ws-of-an-agent')]);
+    expect(assertRenderBrowser({ path: link, source: 'env' }, policy, null)).toBe(link);
+    policy = workPolicyFrom([join(tmp, 'ws-of-an-agent')], policy.ffmpeg, policy.render);
     try {
-      expect(assertRenderBrowser({ path: link, source: 'env' }, null)).toBe(realpathSync(process.execPath));
+      expect(assertRenderBrowser({ path: link, source: 'env' }, policy, null)).toBe(realpathSync(process.execPath));
     } finally {
-      useAgentPolicy(null);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
   });
 

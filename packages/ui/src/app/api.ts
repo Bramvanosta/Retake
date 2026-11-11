@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SessionEnded, endSession } from './session.js';
+import type { StudioOp, StudioOps } from './data/ops.js';
 
 export interface ApiError {
   code: string;
@@ -126,13 +127,20 @@ export function info<T>(): Promise<T> {
   return request<T>('/v1/info');
 }
 
-/**
- * `POST /v1/call/<op>`: one op of the allow-list with its arguments; the tool's data, or a CallError. `signal` aborts
- * it (the server then stops the op: closing the request aborts its work) — a CallError `cancelled`. `keepalive`: the
- * request outlives the page (a `pagehide` report).
- */
-export function call<T>(op: string, args: Record<string, unknown> = {}, o: { signal?: AbortSignal; keepalive?: boolean } = {}): Promise<T> {
-  return request<T>(`/v1/call/${encodeURIComponent(op)}`, {
+/** A call's options: `signal` aborts it, `keepalive` lets it outlive the page. */
+export interface CallOptions {
+  signal?: AbortSignal;
+  keepalive?: boolean;
+}
+
+/** An op's arguments and its result (StudioOps, data/ops.ts: derived from the Studio's op table). */
+export type OpArgs<K extends StudioOp> = StudioOps[K]['args'];
+export type OpResult<K extends StudioOp> = StudioOps[K]['result'];
+/** A call's parameters after the op: its arguments — optional when the op needs none — and the options. */
+export type OpParams<K extends StudioOp> = {} extends OpArgs<K> ? [args?: OpArgs<K>, o?: CallOptions] : [args: OpArgs<K>, o?: CallOptions];
+
+function callOp(op: string, args: object, o: CallOptions): Promise<unknown> {
+  return request<unknown>(`/v1/call/${encodeURIComponent(op)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(args),
@@ -140,6 +148,17 @@ export function call<T>(op: string, args: Record<string, unknown> = {}, o: { sig
     // L5.2b: the unsaved report's last call on pagehide outlives the page.
     ...(o.keepalive ? { keepalive: true } : {}),
   });
+}
+
+/**
+ * `POST /v1/call/<op>`: one op of the allow-list with its arguments; the tool's data, or a CallError. `signal` aborts
+ * it (the server then stops the op: closing the request aborts its work) — a CallError `cancelled`. `keepalive`: the
+ * request outlives the page (a `pagehide` report). Typed by StudioOps (L6.12): an op the Studio does not serve, an
+ * argument its input refuses or a result read as another type is a compile error. Only data/ calls it (L6.13).
+ */
+export function call<K extends StudioOp>(op: K, ...a: OpParams<K>): Promise<OpResult<K>> {
+  const [args = {}, o = {}] = a as [object?, CallOptions?];
+  return callOp(op, args, o) as Promise<OpResult<K>>;
 }
 
 export function errorText(e: unknown): string {
@@ -153,14 +172,15 @@ export type Loaded<T> = { state: 'loading' } | { state: 'error'; error: string; 
  * One op's answer for a component: loads on mount and when `key` changes, `reload()` refetches (keeping the last data
  * on screen while it does), and a window focus refetches (a cheap fallback to the event stream: events.ts).
  */
-export function useCall<T>(op: string, args: Record<string, unknown>, key: string): [Loaded<T>, () => void] {
+export function useCall<K extends StudioOp>(op: K, args: OpArgs<K>, key: string): [Loaded<OpResult<K>>, () => void] {
+  type T = OpResult<K>;
   const [v, setV] = useState<Loaded<T>>({ state: 'loading' });
   const argsRef = useRef(args);
   argsRef.current = args;
   const seq = useRef(0);
   const load = useCallback(() => {
     const n = ++seq.current;
-    call<T>(op, argsRef.current).then(
+    (callOp(op, argsRef.current, {}) as Promise<T>).then(
       (data) => n === seq.current && setV({ state: 'ready', data }),
       (e: unknown) => {
         if (n !== seq.current || e instanceof SessionEnded) return;

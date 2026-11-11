@@ -7,7 +7,8 @@
  */
 import { useEffect, useState } from 'react';
 import type { ActivityItem, SearchHit } from '@retake/engine';
-import { call, errorText, useCall } from './api.js';
+import { errorText } from './api.js';
+import { search, useActivityList } from './data/projects.js';
 import { Txt, When, shown } from './bits.js';
 import { useEvents } from './events.js';
 import { yieldWords } from './render-words.js';
@@ -66,7 +67,7 @@ function Item({ i, showProject }: { i: ActivityItem; showProject: boolean }) {
 
 /** Lately: the recent activity of the workspace, a project, or one of its productions (`scenario`, filtered here). */
 export function Lately({ project, scenario, limit = 8, label = 'Lately' }: { project?: string; scenario?: string; limit?: number; label?: string }) {
-  const [v, reload] = useCall<{ items: ActivityItem[] }>('activity_list', { ...(project ? { project } : {}), limit: scenario ? 20 : limit }, project ?? '*');
+  const [v, reload] = useActivityList({ ...(project ? { project } : {}), limit: scenario ? 20 : limit }, project ?? '*');
   useEvents((e) => {
     if (e.type === 'jobs' || e.type === 'index' || e.type === 'resync') reload();
   });
@@ -105,7 +106,7 @@ export function SearchBox() {
     }
     let live = true;
     const t = window.setTimeout(() => {
-      call<{ hits: SearchHit[] }>('search', { q: query.slice(0, 200), limit: 20 }).then(
+      search({ q: query.slice(0, 200), limit: 20 }).then(
         (d) => live && setHits({ q: query, hits: d.hits }),
         (e: unknown) => live && !(e instanceof SessionEnded) && setHits({ q: query, error: errorText(e) }),
       );

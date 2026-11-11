@@ -11,8 +11,9 @@
 import { lstat, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LoadedProject, RunRecord } from '@retake/core';
-import { listComments } from './comments.js';
-import { editor } from './jobs/render-job.js';
+import { listComments } from './comments/views.js';
+import { editor } from './lazy.js';
+import { projectPath } from '@retake/core';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;
@@ -110,7 +111,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   // Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names.
   const ed = await editor();
   const renders = await ed.listRenders(project.dir);
-  const rendersDir = join(project.dir, 'renders');
+  const rendersDir = projectPath(project.dir, 'renders');
   const rendersFiles = await readdir(rendersDir).catch(() => [] as string[]);
   const keptRenders = new Set<string>();
   const groups = new Map<string, typeof renders>();
@@ -134,7 +135,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   }
 
   // Reviews: review/<render id>/ of the renders kept.
-  const reviewDir = join(project.dir, 'review');
+  const reviewDir = projectPath(project.dir, 'review');
   let reviewsKept = 0;
   for (const name of await readdir(reviewDir).catch(() => [] as string[])) {
     if (name.startsWith('.')) continue;
@@ -149,7 +150,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   }
 
   // Takes: the last succeeded capture per scenario, and every take a kept render or a thread uses.
-  const runsDir = join(project.dir, 'runs');
+  const runsDir = projectPath(project.dir, 'runs');
   const runs: RunRecord[] = [];
   const unreadable: string[] = [];
   for (const name of (await readdir(runsDir).catch(() => [] as string[])).sort()) {

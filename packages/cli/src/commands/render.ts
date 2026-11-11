@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, scenarioSinceRun } from '@retake/core';
-import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planRun, renderStill, renderVideo } from '@retake/editor';
+import { resolve } from 'node:path';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { scenarioSinceRun } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
-import type { EditOverrides, RenderProgress, RenderRecord } from '@retake/editor';
-import { appendHistory } from '@retake/engine';
+import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
+import type { EditOverrides, RenderProgress, RenderRecord } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -160,11 +160,11 @@ function summary(ui: Ui, r: RenderRecord): void {
  * shows the take as captured: re-capture to film it), or its edit alone (re-planned on this take). A run that cannot be
  * found says nothing here: the render reports it.
  */
-function warnScenarioChanged(ui: Ui, project: LoadedProject, runArg: string, scenario: string): void {
+async function warnScenarioChanged(ui: Ui, project: LoadedProject, runArg: string, scenario: string): Promise<void> {
   let dir: string;
   let id: string;
   try {
-    ({ dir, id } = findRun(project, runArg, scenario));
+    ({ dir, id } = await findRunOf(project, runArg, scenario));
   } catch {
     return;
   }
@@ -195,21 +195,18 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (opts.intro === false) overrides.intro = false;
   if (opts.outro === false) overrides.outro = false;
   if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;
-  warnScenarioChanged(ui, project, opts.run ?? 'latest', scenario);
+  await warnScenarioChanged(ui, project, opts.run ?? 'latest', scenario);
   // Captures first (L5.14): the run is the one named now ("latest" resolved before any wait, critique M10).
-  let runId: string;
-  try {
-    runId = findRun(project, opts.run ?? 'latest', scenario).id;
-  } catch (e) {
-    if (e instanceof RenderError) throw new CliError(e.message);
-    throw e;
-  }
+  // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
+  const runId = (await findRunOf(project, opts.run ?? 'latest', scenario)).id;
   const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering run ${runId}`);
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
   const { signal, dispose } = abortOnSigint(ui);
   try {
-    const record = await renderVideo({
+    // The render, then its line of the workspace's history (the engine's in-process operation).
+    const record = await renderInProcess({
+      workPolicy: ws.policy,
       project,
       root: ws.root,
       run: runId,
@@ -222,13 +219,11 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
       onProgress: (p) => printer?.handle(p),
     });
     printer?.done();
-    // The workspace's job history counts renders (the Remotion usage a licence would track; best effort).
-    await appendHistory(ws.root, { kind: 'render', project: project.slug, submitted_by: 'cli', state: 'succeeded', ms: record.timings.total_ms, counted: { captures: 0, dry_runs: 0, renders: 1 } });
     if (!opts.json) summary(ui, record);
     let review;
     if (opts.review) {
       try {
-        review = await runReview(ui, { project, root: ws.root, render: record.record, quiet: opts.json });
+        review = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: record.record, quiet: opts.json });
       } catch (e) {
         if (e instanceof Error && e.name === 'ReviewError') throw new CliError(`rendered ${record.id}, but the review failed: ${e.message}`);
         throw e;
@@ -245,8 +240,8 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     return EXIT.ok;
   } catch (e) {
     printer?.done();
-    if (e instanceof RenderCancelledError) throw new CliError('render cancelled: nothing was written');
-    if (e instanceof RenderError) throw new CliError(e.message);
+    // A cancelled render in the CLI's words; any other error as it is.
+    if ((await editorErrorOf(e)) === 'render_cancelled') throw new CliError('render cancelled: nothing was written');
     throw e;
   } finally {
     dispose();
@@ -265,42 +260,30 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   const overrides: EditOverrides = {};
   if (variant) overrides.variant = variant;
   if (opts.layout) overrides.frame = opts.layout;
-  let planned;
-  try {
-    planned = await planRun({
-      project,
-      run: opts.run ?? 'latest',
-      scenario,
-      ...(opts.theme ? { template: opts.theme } : {}),
-      overrides,
-      root: ws.root,
-      measureMusic: false,
-    });
-  } catch (e) {
-    if (e instanceof RenderError) throw new CliError(e.message);
-    throw e;
-  }
-  const { plan, run, registry } = planned;
+  const { plan, run, registry } = await planWork({
+    workPolicy: ws.policy,
+    project,
+    run: opts.run ?? 'latest',
+    scenario,
+    ...(opts.theme ? { template: opts.theme } : {}),
+    overrides,
+    root: ws.root,
+    measureMusic: false,
+  });
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
-  const out = opts.out
-    ? resolve(opts.out)
-    : join(project.dir, 'renders', 'stills', `${scenario}${VARIANT_SUFFIX[plan.variant]}-f${String(frame).padStart(5, '0')}.png`);
+  const out = opts.out ? resolve(opts.out) : await defaultStillFile(project, scenario, plan.variant, frame);
   // Captures first (L5.14): the run was planned (resolved) before any wait.
   const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering frame ${frame} of run ${run.id}`);
   const t0 = performance.now();
   ui.setStatus(ui.c.dim(`  … rendering frame ${frame} of ${scenario}`));
   try {
-    await renderStill({ plan, frame, out, root: ws.root, registry });
-  } catch (e) {
-    if (e instanceof RenderError) throw new CliError(e.message);
-    throw e;
+    // The still, then its line of the workspace's history (a still is a render too).
+    await stillInProcess({ workPolicy: ws.policy, plan, frame, out, root: ws.root, registry, project });
   } finally {
     ui.clearStatus();
     await gate.dispose();
   }
-  // A still is a render too (the Remotion usage a licence would track; best effort).
-  await appendHistory(ws.root, { kind: 'still', project: project.slug, submitted_by: 'cli', state: 'succeeded', ms: Math.round(performance.now() - t0), counted: { captures: 0, dry_runs: 0, renders: 1 } });
   const segment = plan.segments.filter((s) => s.from <= frame).pop();
   if (opts.json) {
     ui.result(JSON.stringify({ file: out, frame, time_s: frame / plan.fps, segment: segment?.id, run_id: run.id, width: plan.width, height: plan.height }, null, 2));

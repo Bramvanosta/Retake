@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import { hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
+import { canonicalJson, hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
 import type { HookStep, ShellHookSpec } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import type { HookPhase } from './types.js';
 
 /** Where a hook stands when its approval is asked for and checked: its list, its position, its environment. */
@@ -19,18 +20,6 @@ export interface HookPlace {
   files?: Record<string, string>;
 }
 
-/** JSON with object keys sorted at every depth: one text per value, whatever the order a YAML file wrote. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-}
-
 /**
  * The fingerprint a human approval is bound to (L3.1, R-MCP-35): sha256 of the raw hook as its file declares it — its
  * templates unresolved, so a dry preflight and the real run agree whatever `{{run.id}}` or a saved response holds —
@@ -41,7 +30,7 @@ function canonical(value: unknown): string {
 export function hookFingerprint(hook: HookStep, place: HookPlace): string {
   const files = place.files && Object.keys(place.files).length ? place.files : undefined;
   return createHash('sha256')
-    .update(canonical({ v: 1, phase: place.phase, index: place.index, env: place.env, hook, ...(files ? { files } : {}) }))
+    .update(canonicalJson({ v: 1, phase: place.phase, index: place.index, env: place.env, hook, ...(files ? { files } : {}) }))
     .digest('hex');
 }
 
@@ -91,7 +80,7 @@ export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: str
   const files: Record<string, string> = {};
   const problems: string[] = [];
   for (const { ref, what } of hookFileRefs(hook)) {
-    const problem = projectFileProblem(o.projectDir, ref, { baseDir, code: true });
+    const problem = projectFileProblem(o.projectDir, ref, { baseDir, code: true, files: nodeFileFacts });
     if (problem) problems.push(`${what}: ${problem}`);
     else files[ref] = sha256File(resolve(baseDir, ref));
   }
@@ -106,7 +95,7 @@ export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: str
         if (!isFile(abs)) continue;
         const ref = s.cwd && cwd !== baseDir ? `${s.cwd}/${w}` : w;
         if (Object.hasOwn(files, ref)) continue;
-        const problem = projectFileProblem(o.projectDir, w, { baseDir: cwd, code: true });
+        const problem = projectFileProblem(o.projectDir, w, { baseDir: cwd, code: true, files: nodeFileFacts });
         // A file the command names outside the project (a system tool by a relative path) is not the project's to bind.
         if (problem && /resolves outside the project folder/.test(problem)) continue;
         if (problem && o.agentWritten) continue;

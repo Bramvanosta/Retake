@@ -20,9 +20,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
-import type { ScenarioRenderAnswer } from '../server/ops.js';
-import { CallError, call, errorText, useCall } from './api.js';
+import { CallError, errorText } from './api.js';
 import type { Loaded } from './api.js';
+import { renderCancel, scenarioRender, useScenarioRenders } from './data/renders.js';
 import { Txt, When } from './bits.js';
 import { useEvents } from './events.js';
 import { hrefTo } from './route.js';
@@ -53,7 +53,7 @@ export interface RendersState {
 
 /** The scenario's render list, read again on the events that concern it (at most once a second), with Render / Cancel. */
 export function useRenders(slug: string, name: string, onStale?: () => void): RendersState {
-  const [loaded, reload] = useCall<ScenarioRendersView>('scenario_renders', { project: slug, name }, `${slug}\0${name}`);
+  const [loaded, reload] = useScenarioRenders({ project: slug, name }, `${slug}\0${name}`);
   const seen = useRef(new Set<string>());
   const shown = useRef<ReadonlySet<string>>(new Set());
   shown.current = loaded.state === 'ready' ? shownJobsOf(loaded.data) : new Set();
@@ -91,7 +91,7 @@ export function useRenders(slug: string, name: string, onStale?: () => void): Re
     (t: { run: string; hash: string }) => {
       setSending(true);
       setOutcome(null);
-      call<ScenarioRenderAnswer>('scenario_render', { project: slug, name, run: t.run, expect_edit_sha256: t.hash })
+      scenarioRender({ project: slug, name, run: t.run, expect_edit_sha256: t.hash })
         .then(
           (d) => {
             setOutcome({ kind: 'queued', render_id: d.render_id });
@@ -115,7 +115,7 @@ export function useRenders(slug: string, name: string, onStale?: () => void): Re
   const cancel = useCallback(
     (job: string) => {
       setCancelling((c) => new Set([...c, job]));
-      call('render_cancel', { project: slug, job })
+      renderCancel({ project: slug, job })
         .catch((e: unknown) => {
           if (!(e instanceof SessionEnded)) setOutcome({ kind: 'cancel_failed', message: errorText(e) });
         })

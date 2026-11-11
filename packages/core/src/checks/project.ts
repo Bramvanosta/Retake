@@ -3,6 +3,7 @@ import { passEnvProblem, sandboxOffArgsProblems } from '../agent-policy.js';
 import { AUTH_KEYS } from '../auth.js';
 import { environmentAccess, environmentHttpCredentials, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
+import type { FileFacts } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
 import { parseRequestPattern } from '../writes.js';
 import { KEY_RE, SLUG_RE } from '../schemas/primitives.js';
@@ -142,10 +143,10 @@ export function checkWorkspace(value: unknown, structural: readonly LocatedIssue
 export function checkProject(
   value: unknown,
   structural: readonly LocatedIssue[],
-  opts: { projectDir?: string } = {},
+  opts: { projectDir?: string; files?: FileFacts } = {},
 ): LocatedIssue[] {
   if (!isObj(value)) return [];
-  const ctx = new CheckContext(structural, opts.projectDir);
+  const ctx = new CheckContext(structural, opts.projectDir, undefined, opts.files);
   const written = isObj(value.environments) && !ctx.broken(['environments']) ? value.environments : {};
   // Both forms (L1.7): the page map of each environment, `{url, display}` reduced to its url.
   const raw = rawEnvironments(written);

@@ -119,7 +119,7 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults; `readme_environments` when the README's "Environments & links" section no longer matches them (a line names an environment, then its pages: `- **stg** (note) · shop: <url> · console: <url> : a description`; bold, code, a note in parentheses, several pages and a description are fine) | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); `environments` pages are a URL or `{url, display}`, `default_env` names the default one; refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
-| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed captures, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
@@ -128,9 +128,9 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `scenario_from_script` | an optional aid, only when the user hands a timecoded script table (see *Authoring*): an outline and a skeleton draft (one `hold` per beat, the action as its `note`) validated against the project, the script's issues with line / col, timing warnings; `env` (page keys of that environment), `name` (the draft's `video`) | — |
 | `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, the take's cost in one line, the paths of capture.mp4, timeline.json and the screenshots folder, and the state of its job (queued and its place, interrupted…); `detail: "full"` adds every output with its sha256, each dry-run screenshot and the take's measurements; `wait_s` (≤ 25) waits for it to finish | — |
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
-| `run_capture` | captures a scenario as a job (`env`, `sandbox`) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
+| `run_capture` | captures a scenario as a job (`env`, `sandbox`, `sessions_ack`: the personas whose session is not valid that the user confirms) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
 | `run_cancel` | cancels a run started here: queued, it never starts; running, it stops at its next step and its teardown and rollbacks still run | — |
-| `plan_preview` | plans a render of a capture without rendering it (`run_id` default: the scenario's latest capture; `template`: a theme name; `overrides`: frame, variant, fps, scale, intro / outro / captions / camera / trim_idle, speeds, transition, components by kind or segment, music, tutorial): variant, size, duration, theme, segments with their component and timing, music, the id the next render would get, `edit` (`scenario`: today's scenario file re-planned on the run's take, with `edit_changes`; `run`: the run as captured), `scenario_changed` (the filmed part of the scenario changed since the run, listed in `filmed_changes`: a line in the summary names the `run_capture` that films the change, and the last line says to capture first instead of offering the render); captions, warnings and the text summary under `untrusted` | — |
+| `plan_preview` | plans a render of a capture without rendering it (`run_id` default: the scenario's latest capture; `template`: a theme name; `overrides`: frame, variant, fps, scale, intro / outro / captions / camera / trim_idle, speeds, transition, components by kind or segment, music, tutorial): variant, size, duration, theme, segments with their component and timing, music, the id the next render would get, `edit` (`scenario`: today's scenario file re-planned on the run's capture, with `edit_changes`; `run`: the run as captured), `scenario_changed` (the filmed part of the scenario changed since the run, listed in `filmed_changes`: a line in the summary names the `run_capture` that films the change, and the last line says to capture first instead of offering the render); captions, warnings and the text summary under `untrusted` | — |
 | `render` | the same arguments: planned and checked, then rendered as a job; returns the reserved `render_id` at once (`<scenario>-v<N>`, `-vertical` / `-square`), the `run_id` it renders (`latest`: the newest capture whose folder name is a run id, dated ids first) and `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as `plan_preview`'s; `wait_s` waits for it | `renders/<render_id>.mp4` + `.json` |
 | `render_status` | a render by id (or `latest`, of a scenario): its job first — queued (with the job it waits behind, its stage and time left), running (stage, percent, frames, time left), failed / cancelled / interrupted — then its record (paths, duration, size, fps, theme, variant, overrides, timings, ffprobe); warnings and a failure's message under `untrusted`; `wait_s` long-polls | — |
 | `review` | reviews a render (`render_id` or `latest` of a `scenario`; `fps` 1 or 2; `previous`: a render id or `false`) as a job and waits up to `wait_s` (default 20): finished in time, it answers as `review_get` | `review/<render_id>/` |
@@ -147,7 +147,7 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `component_get` | one component: manifest (slots and their types, params JSON Schema with defaults, duration, geometry, preview samples), params with defaults, source files, README | — |
 | `component_validate` | a component's issues (component.yaml, id vs folder, entry, the esbuild compile allowing react / remotion / the kit; nothing executed), positioned | — |
 | `component_preview` | a still of one component with a theme (default the project's), the manifest's samples or your `slots` (text, url, color slots) and `params` (checked against its schema), `at_s`; a job, returned as an image like `template_preview`; never written into the component's folder | `.retake/previews/<id>/` |
-| `component_create` | scaffolds `components/<namespace>/<name>/` from its kind's template (component.yaml, index.tsx, README.md; `description` and `name` written as text), validated, no preview; refuses the `studio/` namespace and any built-in id | the new component folder |
+| `component_create` | scaffolds `components/<namespace>/<name>/` from its kind's scaffold (component.yaml, index.tsx, README.md; `description` and `name` written as text), validated, no preview; refuses the `studio/` namespace and any built-in id | the new component folder |
 | `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images; an inspection as `page_inspect` returns it, marked screenshot included; a recording's draft), a cancel; `job_status {wait_s}` waits up to 600 s (a capture or a render followed in one call, a progress notification at least every 15 s); a run, render, preview, review, export, inspect or record job's error message is under `untrusted.error` | — |
 | `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.retake/journals/` |
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
@@ -159,7 +159,8 @@ same advice if it is not yours. This is checked at start only, the client does n
 
 Every result starts with a short summary for Claude, then the data as JSON (also as `structuredContent`) with local
 paths it can read; an error is a tool error with a code (`not_found`, `invalid`, `conflict`, `refused`,
-`needs_approval`, `busy`, `unavailable`, `cancelled`, `internal`), a message and, where one exists, the `fix`.
+`needs_approval`, `busy`, `unavailable`, `cancelled`, `internal`), a message and, where one exists, the `fix` and
+`docs`: the web address of the guide page about it, as of this version's release tag (`v<version>`).
 
 **Authoring: Claude writes the scenario.** The loop the server's instructions give: `project_get` (the README, the
 environments and their page keys) → `page_inspect` each page the video shows → Claude writes the YAML itself, copying
@@ -227,6 +228,7 @@ exits after a minute without work. So no call outlives an agent's timeout: `run_
 fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2,700 → 900, a review ≈ 2,200 → 400). A job `succeeded` when it ran to the end — its run may still have failed (`result.status`);
 `failed` means it could not run (a scenario changed since it was submitted — a run, an inspection or a scenario's
 hooks: submit it again —, a sandbox that would not start…).
+
 - The worker outlives the session that started it: a capture under way when Claude Code closes still finishes, with its
   teardown, and its result waits for the next session (`job_list`). It keeps the environment (`env` block) of the
   server that started it: after changing that block, wait until it exits (`engine_info` shows it) or stop it.
@@ -295,6 +297,28 @@ hooks: submit it again —, a sandbox that would not start…).
 - `retake doctor` has an **MCP** line: the Node.js a registration names (a path that survives patch upgrades where
   there is one), whether the PATH it registers finds ffmpeg, the worker (running or idle), and whether the workspace's
   `.retake/` is git-ignored when the workspace is a git work tree.
+
+**Admission rules.** Before it queues a run, a render or an export, the engine checks the same rules for Claude as for
+the Studio; a refusal is `conflict`, names what it waits for in `details`, and queues nothing:
+- **One run of a scenario at a time**: `run_dry` and `run_capture` are refused while a run of the scenario is queued or
+  running (`details.run_id`, `details.job`) — wait for it to end (`run_status`), or stop it (`run_cancel`). A capture
+  whose hooks wait for the user's approval is checked again once approved, just before its run id is reserved.
+- **Sessions to confirm**: `run_capture` of a scenario whose persona's saved session is not valid (expired, error,
+  never signed in) and that no run signs in by itself (no usable `login:` steps, not a sandbox account) is refused
+  with `details.sessions` (each persona, its state, and whether the run checks it before filming) until
+  `sessions_ack` names each one. Claude tells the user, who signs in (`auth_login`) or confirms the capture; the
+  run's own preflight still stops before filming a persona it can check. It is checked on the environment the take
+  uses (with `sandbox: true`, the sandbox's: its accounts sign in by themselves), after the call's own refusals (an
+  unknown environment, a scenario that does not validate). A dry run needs none.
+- **One render of a scenario at a time**: `render` is refused while a render of the scenario is queued or running
+  (`details.render_id`) — follow it with `render_status`, or stop it with `job_cancel`.
+- **Exports**: `export` is refused while an export of that render is queued or running (follow it with `job_status`),
+  and while two exports of the workspace are (`details.open`).
+
+Each check and the submit after it run one at a time within one server process, so two calls at once to one server
+queue one job. The rules hold per process: another process (the Studio, a second MCP server) checks its own calls,
+and two calls to two processes at the same moment may both pass. `retake run`, `retake render` and `retake export` in
+a terminal run in their own process and are not held to these rules.
 
 **Safety.**
 - **Hooks need a human.** The agent driving the server can write the scenarios it runs (`scenario_save`), so the trust

@@ -3,18 +3,28 @@
  * render to compare with.
  */
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { loadProject } from '@retake/core';
-import type { LoadedProject, RunRecord, Timeline } from '@retake/core';
-import { listRenders, rendersDir } from '@retake/editor';
-import type { RenderRecord } from '@retake/editor';
+import { GUIDE, missingOrInvalid, projectPath } from '@retake/core';
+import { loadProject } from '@retake/core/io';
+import type { LoadedProject, RunRecord, Timeline, ErrorKind } from '@retake/core';
+import { isRenderRecord, readRenderRecords } from '@retake/editor/plan';
+import type { RenderRecord } from '@retake/editor/plan';
 
 /** A review that cannot start (message written for the user). */
 export class ReviewError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ReviewError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return missingOrInvalid(this.message);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.review;
   }
 }
 
@@ -34,8 +44,18 @@ async function readRecord(file: string): Promise<RenderRecord> {
   } catch (e) {
     throw new ReviewError(`cannot read the render record ${file}: ${(e as Error).message}`);
   }
-  if (!r || r.version !== 1 || typeof r.id !== 'string' || !r.plan) throw new ReviewError(`${file} is not a render record (renders/<id>.json)`);
+  if (!isRenderRecord(r)) throw new ReviewError(`${file} is not a render record (renders/<id>.json)`);
   return r;
+}
+
+/** `<project>/renders`: where the project's renders and their records are. */
+function rendersDir(project: Pick<LoadedProject, 'dir'>): string {
+  return projectPath(project.dir, 'renders');
+}
+
+/** The render records of a project (renders/*.json), oldest first; unreadable files are skipped. */
+function listRenders(project: Pick<LoadedProject, 'dir'>): Promise<RenderRecord[]> {
+  return readRenderRecords(rendersDir(project), { list: (d) => readdir(d), read: (f) => readFile(f, 'utf8') });
 }
 
 /**
@@ -89,7 +109,7 @@ export async function findPrevious(project: LoadedProject, current: RenderRecord
 
 /** The run timeline of a render (cursor track, clicks, captions as captured); undefined when the run is gone. */
 export async function renderTimeline(project: LoadedProject, record: RenderRecord): Promise<{ timeline?: Timeline; file?: string }> {
-  for (const dir of [record.run_dir, join(project.dir, 'runs', record.run_id)]) {
+  for (const dir of [record.run_dir, projectPath(project.dir, 'runs', record.run_id)]) {
     if (!dir) continue;
     const file = join(dir, 'timeline.json');
     try {
@@ -103,7 +123,7 @@ export async function renderTimeline(project: LoadedProject, record: RenderRecor
 
 /** The run.json of a render's run (L5.7: what the take cost, its slow transitions), when it can be read. */
 export async function renderRun(project: LoadedProject, record: RenderRecord): Promise<RunRecord | undefined> {
-  for (const dir of [record.run_dir, join(project.dir, 'runs', record.run_id)]) {
+  for (const dir of [record.run_dir, projectPath(project.dir, 'runs', record.run_id)]) {
     if (!dir) continue;
     try {
       return JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as RunRecord;
@@ -116,5 +136,5 @@ export async function renderRun(project: LoadedProject, record: RenderRecord): P
 
 /** `<project>/review` */
 export function reviewsDir(project: Pick<LoadedProject, 'dir'>): string {
-  return join(project.dir, 'review');
+  return projectPath(project.dir, 'review');
 }

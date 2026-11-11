@@ -45,19 +45,24 @@ import {
   resolveEnvironment,
   resolvePersonas,
   resolveRunAccess,
+  projectPath,
+  statePath,
 } from '@retake/core';
-import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkspaceConfig } from '@retake/core';
+import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkPolicy } from '@retake/core';
 import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web';
+import { retakeHome, fileFacts } from '@retake/core/io';
+import { callerOf, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
 import { newJobId } from './jobs/ids.js';
-import { FileJobQueue } from './jobs/queue.js';
+import type { JobQueueView } from './jobs/job-queue.js';
 import { selfIdentity } from './jobs/proc.js';
 import { lockAlive, readLock } from '@retake/sandbox';
 import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** Recordings kept per project (the newest). */
 export const RECORD_KEEP = 20;
@@ -66,7 +71,7 @@ export const RECORD_MAX_ENV = 'RETAKE_RECORD_MAX_MIN';
 
 /** <project>/.retake/records */
 export function recordsRoot(project: LoadedProject): string {
-  return join(project.dir, '.retake', 'records');
+  return statePath(project.dir, 'records');
 }
 
 /** <project>/.retake/records/<id> (the id checked: never a path). */
@@ -80,19 +85,19 @@ export function newRecordId(): string {
 }
 
 /** The recordings of a project whose `record` job is queued or running (their folders are in use or reserved). */
-export async function activeRecords(root: string, slug: string): Promise<string[]> {
-  const jobs = await new FileJobQueue(root).list({ project: slug, kinds: ['record'], states: ['queued', 'running'], limit: 10_000 });
+export async function activeRecords(queue: JobQueueView, slug: string): Promise<string[]> {
+  const jobs = await queue.list({ project: slug, kinds: ['record'], states: ['queued', 'running'], limit: 10_000 });
   return jobs.flatMap((j) => (j.input.kind === 'record' ? [j.input.rec_id] : []));
 }
 
 /**
- * Keep the newest `keep` recording folders of a project; `except` is never removed, nor — given the workspace root —
- * the folder of a recording whose job is still queued or running. L4.8 (critique B12): nor a folder whose lock is held
+ * Keep the newest `keep` recording folders of a project; `except` is never removed, nor — given the workspace's job
+ * queue — the folder of a recording whose job is still queued or running. L4.8 (critique B12): nor a folder whose lock is held
  * (an annotate, a Save or a Discard in progress), nor an unsaved, undiscarded Studio recording younger than
  * RECORD_UNSAVED_KEEP_MS.
  */
-export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], root?: string): Promise<string[]> {
-  const active = root !== undefined ? await activeRecords(root, project.slug).catch(() => null) : [];
+export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
+  const active = queue !== undefined ? await activeRecords(queue, project.slug).catch(() => null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
@@ -117,7 +122,7 @@ function recordInUse(project: LoadedProject, id: string, now: number): boolean {
   const held = readLock(recordLockFile(project.dir, id));
   if (held && lockAlive(held)) return true;
   const meta = readRecordMeta(join(recordsRoot(project), id), id);
-  if (meta?.submitted_by !== 'ui') return false;
+  if (!meta || !submittedInStudio(meta)) return false;
   const ann = readRecordAnnotations(join(recordsRoot(project), id));
   if ('annotations' in ann && (ann.annotations?.saved || ann.annotations?.discard)) return false;
   const started = Date.parse(meta.started_at);
@@ -154,7 +159,7 @@ export function defaultRecordName(project: LoadedProject, now = new Date()): str
 }
 
 function scenarioTaken(project: LoadedProject, name: string): boolean {
-  return project.scenarios.includes(name) || existsSync(join(project.dir, 'scenarios', `${name}.yaml`)) || existsSync(join(project.dir, 'scenarios', `${name}.yml`));
+  return project.scenarios.includes(name) || existsSync(projectPath(project.dir, 'scenarios', `${name}.yaml`)) || existsSync(projectPath(project.dir, 'scenarios', `${name}.yml`));
 }
 
 export interface RecordRequest {
@@ -183,6 +188,8 @@ export interface RecordRequest {
 }
 
 export interface RecordPorts {
+  /** The workspace's job queue: a recording whose job is queued or running is never pruned. */
+  queue: JobQueueView;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
   /** What the recording does now. */
   onPhase?: (phase: 'preflight' | 'recording' | 'draft' | 'check') => void;
@@ -275,7 +282,7 @@ export function recordStart(project: LoadedProject, req: Pick<RecordRequest, 'en
   } catch (e) {
     throw toEngineError(e);
   }
-  const personas = resolvePersonas(project, env.name);
+  const personas = resolvePersonas(project, env.name, { home: retakeHome() });
   const legacy = personas.find((p) => p.legacy) ?? null;
   const defaultOf = (key: string): ResolvedPersona | null => personas.find((p) => !p.legacy && p.pages.includes(key)) ?? legacy;
   let persona: ResolvedPersona | null | undefined;
@@ -324,14 +331,14 @@ const isCancel = (e: unknown) => e instanceof Error && (e.name === 'CancelledErr
  * The persona's session as a run would see it: valid, else signed in by its login steps (headless), else refused with
  * the command that signs it in.
  */
-async function preflight(project: LoadedProject, env: ResolvedEnvironment, persona: ResolvedPersona, ports: RecordPorts): Promise<void> {
+async function preflight(project: LoadedProject, env: ResolvedEnvironment, persona: ResolvedPersona, ports: RecordPorts, policy: WorkPolicy): Promise<void> {
   const { checkSavedSession, signIn } = await import('@retake/runner-web');
   const log = ports.log ?? (() => undefined);
   const command = (ports.loginCommand ?? ((p) => `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({ project: project.slug, env: env.name, persona: persona.name });
   let status: string;
   let detail = '';
   try {
-    const r = await checkSavedSession({ project, env, persona, log, ...(ports.signal ? { signal: ports.signal } : {}) });
+    const r = await checkSavedSession({ project, policy, env, persona, log, ...(ports.signal ? { signal: ports.signal } : {}) });
     status = r.status;
     detail = r.detail;
   } catch (e) {
@@ -345,7 +352,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
   }
   log('info', `persona ${persona.name}: session ${status} — signing in with its login steps (headless)`);
   try {
-    const r = await signIn({ project, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
+    const r = await signIn({ project, policy, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
     if (r.check.status !== 'valid' && r.check.status !== 'unchecked') {
       throw new EngineError('refused', `persona ${persona.name} could not be signed in by its login steps (${r.check.detail}): sign it in by hand — ${command}`, { fix: command });
     }
@@ -357,7 +364,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
 }
 
 /** Record a scenario (see the module comment). EngineError on a refusal before the window opens, or on a cancel. */
-export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject, req: RecordRequest, ports: RecordPorts = {}): Promise<RecordOutcome> {
+export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject, req: RecordRequest, ports: RecordPorts): Promise<RecordOutcome> {
   const started = Date.now();
   const log = ports.log ?? (() => undefined);
   const start = recordStart(project, req);
@@ -378,7 +385,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
     throw new EngineError('unavailable', 'a recording opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen');
   }
   ports.onPhase?.('preflight');
-  if (persona) await preflight(project, env, persona, ports);
+  if (persona) await preflight(project, env, persona, ports, ws.policy);
 
   const id = req.id ?? newRecordId();
   const dir = recordDir(project, id);
@@ -402,7 +409,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
     max_ms: maxMs ?? null,
     owner: await selfIdentity(),
   });
-  await pruneRecords(project, RECORD_KEEP, [id], ws.root);
+  await pruneRecords(project, RECORD_KEEP, [id], ports.queue);
   const eventsFile = join(dir, 'events.jsonl');
 
   ports.onPhase?.('recording');
@@ -410,6 +417,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   let session: RecordSessionResult;
   try {
     session = await recordSession({
+      policy: ws.policy,
       project,
       env,
       persona,
@@ -484,7 +492,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   // Valid in the project (its vars, pages, personas), not only as a scenario: else it is neither saved nor checked.
   if (!draft.issues.some((i) => i.severity === 'error')) {
     const ids = base.scenes.map((x) => x.id);
-    for (const x of parseScenario(draft.yaml, { project, file: draftFile, env: env.name }).issues) {
+    for (const x of parseScenario(draft.yaml, { files: fileFacts(ws.policy), project, file: draftFile, env: env.name }).issues) {
       if (x.severity === 'error') draft.issues.push(draftInvalidIssue(x, ids, 'the draft does not validate in the project'));
     }
   }
@@ -504,7 +512,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   else if (scenarioTaken(project, name)) notSaved = 'name_taken';
   else {
     try {
-      const r = await saveScenarioText(project, name, draft.yaml, { ifMatch: null, agent: req.agent === true });
+      const r = await saveScenarioText(project, name, draft.yaml, { files: fileFacts(ws.policy), ifMatch: null, agent: req.agent === true, scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli') } });
       saved = { file: r.file, path: r.path, hash: r.hash };
     } catch (e) {
       const err = toEngineError(e);
@@ -523,14 +531,14 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   else if (!valid) check = { status: 'skipped', scope: null, reason: 'invalid_draft', steps_passed: 0, steps_total: 0 };
   else {
     ports.onPhase?.('check');
-    check = await checkReplay({ project, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, runScenario, ports });
+    check = await checkReplay({ project, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, runScenario, ports });
   }
   await recordJson({ saved: saved ? saved.file : null, not_saved: notSaved ?? null, check });
   await history(ws, project, req, 'succeeded', started, id, draft.stats.steps, saved !== null, ports.history !== false);
   return { ...base, dir, draft: draftFile, saved, ...(notSaved ? { not_saved: notSaved } : {}), check };
 }
 
-async function history(ws: WorkspaceConfig, project: LoadedProject, req: RecordRequest, state: string, started: number, id: string, steps: number, saved: boolean, on = true): Promise<void> {
+async function history(ws: OpenedWorkspace, project: LoadedProject, req: RecordRequest, state: string, started: number, id: string, steps: number, saved: boolean, on = true): Promise<void> {
   if (!on) return;
   await appendHistory(ws.root, {
     kind: 'record',
@@ -546,6 +554,7 @@ async function history(ws: WorkspaceConfig, project: LoadedProject, req: RecordR
 /** The dry replay of a fresh draft (see the module comment). Never throws: a failure is the check's result. */
 async function checkReplay(o: {
   project: LoadedProject;
+  policy: WorkPolicy;
   envName: string;
   dir: string;
   draftFile: string;
@@ -570,12 +579,13 @@ async function checkReplay(o: {
   const scope = until ? 'until_write' : 'all';
   // Replayed at inspection pacing (a check, not a take); the saved draft is unchanged.
   const text = `${o.yaml.endsWith('\n') ? o.yaml : `${o.yaml}\n`}pacing: ${JSON.stringify(o.pacing)}\n`;
-  const { scenario, issues } = parseScenario(text, { project, file: o.draftFile, env: o.envName, ...(until ? { until } : {}) });
+  const { scenario, issues } = parseScenario(text, { files: fileFacts(o.policy), project, file: o.draftFile, env: o.envName, ...(until ? { until } : {}) });
   if (!scenario) return { status: 'skipped', scope: null, reason: 'invalid_draft', steps_passed: 0, steps_total: total };
   const loaded: LoadedScenario = { name: 'record-check', file: o.draftFile, text, scenario, issues };
   let record: RunRecord;
   try {
     record = await o.runScenario({
+      policy: o.policy,
       project,
       scenario: loaded,
       mode: 'dry',

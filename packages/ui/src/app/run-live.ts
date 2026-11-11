@@ -16,8 +16,9 @@
  * Every text of the view arrives already reduced by the server; the screen renders each one as a text node (Txt).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { call, openStream } from './api.js';
+import { openStream } from './api.js';
 import type { ApiError } from './api.js';
+import { runStatus } from './data/shoot.js';
 import { readSse } from './sse.js';
 
 export type PictureState = 'off' | 'none' | 'waiting' | 'live' | 'busy' | 'ended';
@@ -569,7 +570,7 @@ export function useRunLive(slug: string, runId: string, frames: boolean | null, 
     if (conn !== 'busy' || !visible) return;
     let live = true;
     const read = () =>
-      call<RunStatusLite>('run_status', { project: slug, run_id: runId }).then(
+      runStatus({ project: slug, run_id: runId }).then(
         (d) => live && setFallback(d),
         () => undefined,
       );

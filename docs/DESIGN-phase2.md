@@ -327,7 +327,7 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   acting page's. Every track is encoded with the main capture's end time and fps (`cfrSchedule`) → the same frame grid.
   Timeline: `scenes[].pages` (`TimelineScenePage`), `tracks[]` (`TimelineTrack`: file, frames_file, size, viewport,
   recording spans, URL segments, cursor), `events[].page`, `markers[].page`; idle intervals = frames of every track.
-- **Planner** (`editor/src/panes.ts`, `plan.ts`): `EditPlan.tracks` (key → `PlanSource`); a multi-page clip has
+- **Planner** (`editor/src/panes.ts`, `planner/clip-panes.ts`): `EditPlan.tracks` (key → `PlanSource`); a multi-page clip has
   `panes` (page, track, label, `layout: {capture, card, chrome?, radius, crop?}` fitted top-aligned in the layout's
   pane, per-pane `camera`, `reframe`, `urls`, `zooms`), `acting` (pane per relative frame: the page of the scene's
   opening still from frame 0 — the runner makes it the first step's page, acting without a switch pause; a clip joined
@@ -654,6 +654,9 @@ planEdit(input: { timeline; template: LoadedTemplate; project; registry: Compone
 //  that template and passes it as `template`. Plan types grew additively (see plan-types.ts): PlanTransition per
 //  segment, clip cues/layout/src/speeds/trims/zooms/heldFrames, OverlayUse.anchor (source px), PlanLayout.crop,
 //  ResolvedComponent.missing, plan.assets (`ds-asset:` URL → file, swapped by resolvePlanAssets) and plan.meta.
+//  L6.10: plan.ts runs the named steps of src/planner/ (context, sources, components, entries and runs, cameras,
+//  segments, transitions, clip details, tap targets, brand, music) in order; `@retake/editor/plan` is the editor
+//  without its renderer (it reaches the components only through `@retake/components/geometry`).
 renderVideo(opts: { project; run /* id or dir */; scenario?; template?; overrides?; out?; onProgress?; signal?;
                     concurrency? }): Promise<RenderRecord>
 //  renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square") and renders/<scenario>-v<N>.json (RenderRecord incl. plan +

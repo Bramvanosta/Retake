@@ -17,7 +17,8 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { HOME_KEY_FILE, canonicalJson, homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core';
+import { canonicalJson } from '@retake/core';
+import { HOME_KEY_FILE, homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core/io';
 import type { JobApproval, JobInput } from '@retake/core';
 
 export const APPROVAL_KEY_FILE = HOME_KEY_FILE;

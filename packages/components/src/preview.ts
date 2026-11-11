@@ -8,12 +8,13 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { MANIFEST_FILE, parseManifest } from './manifest.js';
 import { paramDefaults } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';
 import { PACKAGE_DIR } from './paths.js';
 import type { ComponentManifest } from './types.js';
+import { relativeInside } from '@retake/core';
 
 /** The committed preview image of a component folder. */
 export const PREVIEW_FILE = 'preview.png';
@@ -88,8 +89,9 @@ export function componentSourceFiles(dir: string, manifest?: Pick<ComponentManif
     const file = queue.shift()!;
     if (seen.has(file) || !existsSync(file)) continue;
     seen.add(file);
-    const rel = posix(relative(root, file));
-    if (rel.startsWith('..')) continue;
+    const inside = relativeInside(file, root, { dotDotPrefix: true });
+    if (inside === undefined) continue;
+    const rel = posix(inside);
     files.add(rel);
     if (!CODE_EXTS.some((e) => file.endsWith(e))) continue;
     const text = readFileSync(file, 'utf8');

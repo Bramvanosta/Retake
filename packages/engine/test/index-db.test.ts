@@ -14,10 +14,11 @@ import { appendFile, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { loadWorkspaceConfig } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 import type { WorkspaceConfig } from '@retake/core';
 import { FileJobQueue, JobsWatch, WorkspaceIndex, ftsQuery, historyFile, indexFile, isCorruptionError, newJobId, processStart, scanSources, diffSources, workspaceChanges } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let ws: string;
 let cfg: WorkspaceConfig;
@@ -40,7 +41,7 @@ beforeAll(async () => {
     line({ at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' } }) +
       line({ at: '2026-10-16T08:00:00.000Z', kind: 'render', project: P, job: newJobId(), submitted_by: 'mcp', render: { id: 'quote-v1', scenario: 'quote' } }),
   );
-  cfg = await loadWorkspaceConfig(ws);
+  cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY };
 });
 
 afterAll(async () => {
@@ -64,7 +65,7 @@ async function ix0Pages(file: string): Promise<void> {
 }
 
 async function fresh(): Promise<WorkspaceIndex> {
-  const ix = await WorkspaceIndex.open(cfg);
+  const ix = await WorkspaceIndex.open(cfg, { queue: new FileJobQueue(cfg.root) });
   if (!ix) throw new Error('node:sqlite is missing on this Node.js');
   return ix;
 }
@@ -219,12 +220,12 @@ describe('the workspace index', () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-link-'));
     try {
       await fixtureWorkspace(dir);
-      const c = await loadWorkspaceConfig(dir);
+      const c = { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY };
       const file = indexFile(dir);
       await mkdir(join(dir, '.retake'), { recursive: true });
       const target = join(dir, 'elsewhere', 'planted.sqlite');
       await symlink(target, file);
-      let ix = await WorkspaceIndex.open(c);
+      let ix = await WorkspaceIndex.open(c, { queue: new FileJobQueue(c.root) });
       expect(ix?.rebuilt).toBe('not_a_file');
       await ix!.reconcile();
       expect(ix!.counts().projects).toBe(1);
@@ -234,12 +235,12 @@ describe('the workspace index', () => {
       // A planted -wal link next to a sound db: the same.
       await rm(`${file}-wal`, { force: true });
       await symlink(`${target}-wal`, `${file}-wal`);
-      ix = await WorkspaceIndex.open(c);
+      ix = await WorkspaceIndex.open(c, { queue: new FileJobQueue(c.root) });
       expect(ix?.rebuilt).toBe('not_a_file');
       ix!.close();
       expect((await lstat(`${file}-wal`).catch(() => null))?.isSymbolicLink() ?? false).toBe(false);
       await expect(lstat(`${target}-wal`)).rejects.toThrow(/ENOENT/);
-      ix = await WorkspaceIndex.open(c);
+      ix = await WorkspaceIndex.open(c, { queue: new FileJobQueue(c.root) });
       expect(ix?.rebuilt).toBeUndefined();
       ix!.close();
     } finally {
@@ -268,7 +269,7 @@ describe('the workspace index', () => {
       expect(spawnSync('mkfifo', [join(proj, 'renders', 'pipe-v1.json')]).status).toBe(0);
       await mkdir(join(proj, 'runs', '20261018-090000-pipe'), { recursive: true });
       expect(spawnSync('mkfifo', [join(proj, 'runs', '20261018-090000-pipe', 'run.json')]).status).toBe(0);
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir));
+      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir) });
       try {
         const done = await Promise.race([ix!.reconcile().then(() => 'reconciled'), new Promise((r) => setTimeout(() => r('blocked on a FIFO'), 5000))]);
         expect(done).toBe('reconciled');
@@ -287,7 +288,7 @@ describe('the workspace index', () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-nosqlite-'));
     try {
       await fixtureWorkspace(dir);
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { loader: async () => null });
+      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir), loader: async () => null });
       expect(ix).toBeNull();
       await expect(stat(indexFile(dir))).rejects.toThrow();
     } finally {
@@ -342,7 +343,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
       await ix.reconcile();
       const started = await processStart(child.pid!);
       const id = newJobId();
-      await mkdir(join(queue.dir, id), { recursive: true });
+      await mkdir(join(queue.files.dir, id), { recursive: true });
       const job = {
         version: 1,
         id,
@@ -354,7 +355,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
         worker: { pid: child.pid, ...(started !== null ? { started_at: new Date(started).toISOString() } : {}), host: 'x' },
         progress: { steps_done: 1, steps_total: 3 },
       };
-      await writeFile(join(queue.dir, id, 'job.json'), JSON.stringify(job));
+      await writeFile(join(queue.files.dir, id, 'job.json'), JSON.stringify(job));
       expect(await watch.poll()).toEqual([id]);
       expect(await watch.poll()).toEqual([]);
       const a = await ix.activity({ limit: 5 });
@@ -368,7 +369,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
       expect(await watch.poll()).toEqual([id]);
       expect(await watch.poll()).toEqual([]);
       expect((await ix.activity({ project: 'nope' }))).toEqual([]);
-      expect(JSON.parse(await readFile(join(queue.dir, id, 'job.json'), 'utf8')).state).toBe('running');
+      expect(JSON.parse(await readFile(join(queue.files.dir, id, 'job.json'), 'utf8')).state).toBe('running');
     } finally {
       child.kill('SIGKILL');
       ix.close();
@@ -381,7 +382,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
     const watch = new JobsWatch(queue);
     await watch.poll();
     const job = await queue.enqueue({ version: 1, kind: 'render', project: P, scenario: 'quote', run_id: '20261016-090000-catalogue', timeline_sha256: 'a'.repeat(64), render_id: 'quote-v9', overrides: {}, submitted_by: 'test' });
-    const file = join(queue.dir, job.id, 'job.json');
+    const file = join(queue.files.dir, job.id, 'job.json');
     const text = await readFile(file, 'utf8');
     await rm(file);
     try {
@@ -393,7 +394,7 @@ describe('the activity feed and the job watch (critique B2)', () => {
       expect(watch.record(job.id)?.state).toBe('failed');
       expect(await watch.poll()).toEqual([]);
     } finally {
-      await rm(join(queue.dir, job.id), { recursive: true, force: true });
+      await rm(join(queue.files.dir, job.id), { recursive: true, force: true });
     }
   });
 });
@@ -406,13 +407,13 @@ describe('the activity feed reads a finished job once (review B L1)', () => {
       const queue = new FileJobQueue(dir);
       const write = async (state: string) => {
         const id = newJobId();
-        await mkdir(join(queue.dir, id), { recursive: true });
-        await writeFile(join(queue.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state, created_at: new Date().toISOString(), ...(state === 'queued' ? {} : { finished_at: new Date().toISOString() }) }));
+        await mkdir(join(queue.files.dir, id), { recursive: true });
+        await writeFile(join(queue.files.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state, created_at: new Date().toISOString(), ...(state === 'queued' ? {} : { finished_at: new Date().toISOString() }) }));
         return id;
       };
       for (let i = 0; i < 40; i++) await write(i % 2 ? 'succeeded' : 'failed');
       const queued = await write('queued');
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir));
+      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir) });
       const spy = vi.spyOn(FileJobQueue.prototype, 'stored');
       try {
         expect((await ix!.activity({ limit: 5 }))[0]).toMatchObject({ source: 'queue', job: queued });

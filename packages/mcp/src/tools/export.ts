@@ -5,7 +5,7 @@ import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import { RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
-import { jobData, jobLine } from './jobs.js';
+import { jobData, jobLine } from './job-lines.js';
 import { WAIT_MAX_S, waitJob, waitS } from './run.js';
 
 /** The summary of an export job: its state, the files written, what to do next. */
@@ -27,7 +27,7 @@ export function exportSummary(job: JobRecord): string {
 export const exportTool = defineTool({
   name: 'export',
   title: 'Export a render',
-  description: `Export a render to delivery formats in exports/<render_id>/ (+ manifest.json): ${EXPORT_FORMAT_NAMES.join(', ')} (default mp4_1080p, webm, gif_preview). Formats derived from the master are transcoded; vertical_9x16, square_1x1 and a 4K from a smaller master are re-rendered from the same run, theme and overrides (minutes each; planned and checked first, as a render). A job runs it in the background: this call returns at once (or waits up to wait_s) — follow it with job_status {wait_s}, stop it with job_cancel (formats written before stay). The folder is fixed; failure messages are under "untrusted".`,
+  description: `Export a render to delivery formats in exports/<render_id>/ (+ manifest.json): ${EXPORT_FORMAT_NAMES.join(', ')} (default mp4_1080p, webm, gif_preview). Formats derived from the master are transcoded; vertical_9x16, square_1x1 and a 4K from a smaller master are re-rendered from the same run, theme and overrides (minutes each; planned and checked first, as a render). A job runs it in the background (refused while an export of the render is queued or running, and while two exports of the workspace are): this call returns at once (or waits up to wait_s) — follow it with job_status {wait_s}, stop it with job_cancel (formats written before stay). The folder is fixed; failure messages are under "untrusted".`,
   input: z.strictObject({
     project: projectSlug,
     render_id: z.union([renderId, z.literal('latest')]).describe('Render id (what render returned), or "latest": the newest finished render (of scenario).'),
@@ -60,4 +60,4 @@ export const exportTool = defineTool({
   },
 });
 
-export const EXPORT_TOOLS: ToolDef[] = [exportTool];
+export const EXPORT_TOOLS = [exportTool] as const satisfies readonly ToolDef[];

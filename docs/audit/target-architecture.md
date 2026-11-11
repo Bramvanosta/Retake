@@ -3,15 +3,17 @@
 The lens is a reference project of the same author (a desktop app, an MCP server and an HTTP server over one Rust
 workspace, built on a pure domain, an application layer with ports, one operation catalogue and one write pipeline).
 Retake keeps what serves it, adapts the rest to a TypeScript monorepo, and leaves out what has no counterpart here.
-The steps to get there are in [action-plan.md](action-plan.md).
+The steps to get there are in [action-plan.md](action-plan.md); the words for the concepts are in the
+[glossary](../GLOSSARY.md), and the layer rules below are held by an import-rules ratchet
+(`packages/core/test/import-rules.test.ts`, baseline `scripts/audit/baseline.json`).
 
 ## Principles: applies, adapted, or not
 
 | Principle in the reference project | Here | One line |
 |---|---|---|
 | Layers as crates, enforced by the compiler plus a test | **Adapted** | Packages and `exports` sub-paths (no new packages needed at first), plus an import-rules ratchet test built from `scripts/audit/rules.mjs` |
-| A pure domain with no I/O | **Adapted** | `@retake/core` becomes pure; loaders move to a `core/io` entry, disk probes go behind a `FileFacts` port, `app-setup.ts` leaves core |
-| An application layer with ports | **Adapted** | `@retake/engine` holds the operations and the ports: JobQueue, ProjectStore, CaptureRunner, Renderer, Reviewer, SandboxProvider, HookRunner, SecretStore, Clock, ProgressSink, Approver, FileFacts |
+| A pure domain with no I/O | **Adapted** | `@retake/core` does no I/O and reads no environment but three listed defaults (`defaultSecrets`, `expandHome`, `unsafeTestResolve`: DESIGN §1); the clock and ids are allowed (L6.9): its readers, the app bundle, the media tools and the home key are its `@retake/core/io` entry, disk facts and video probes go behind the `FileFacts` and `VideoProber` ports core declares (the Node implementations in `core/io`, which also gives the PATH and the file system's case rule), the agent policy is a `WorkPolicy` value the engine passes on, `app-setup.ts` left core (L6.8) |
+| An application layer with ports | **Adapted** | `@retake/engine` holds the operations and the ports: JobQueue, ProjectStore, CaptureRunner, Renderer, Reviewer, SandboxProvider, HookRunner, SecretStore, Clock, ProgressSink, Approver, FileFacts (declared in core, see above) |
 | One catalogue of operations, as data, held by tests against each shell | **Applies** | One `catalogue.ts` in the engine: name, kind (read / write / job / runs code), the shells that serve it (CLI, MCP, Studio) with the reason when one does not, argument narrowing, admission rules; tests compare MCP `TOOLS`, Studio ops and CLI commands with it |
 | Shells translate the protocol and call the same operation | **Applies** | `invoke(op, args, caller)` behind the MCP tools, the Studio's `/v1/call` and the CLI commands; the contract (`ToolDef`, `callTool`) moves from `@retake/mcp` into the engine |
 | One write pipeline: authorize → act → record | **Adapted** | No queue writes here; the pipeline covers operations (parse → authorize the caller → admit → act → record → map errors), authored file writes (through one ProjectStore with `if_match` and its lock) and hook executions |
@@ -46,9 +48,11 @@ application   @retake/engine  (. façade + invoke, ./contract, catalogue, pipeli
                  │         SecretStore Clock ProgressSink Approver FileFacts
                  ▼
 adapters      runner-web · editor/render · review (media) · sandbox · hooks · components (compile)
-              file queue (then L5.14's store) · index-db · integrations (Claude registrations, today core/app-setup)
+              file queue (then L5.14's store) · index-db · integrations (Claude registrations: @retake/engine/integrations)
                  │
-domain        @retake/core (pure) · @retake/editor/plan · @retake/review/checks     no I/O, no adapter, no shell
+domain        @retake/core (pure) · @retake/components/geometry · @retake/editor/plan · @retake/review/checks
+                                         no I/O, no environment read (core's three listed defaults aside),
+                                         no adapter, no shell; the clock and ids allowed
 ```
 
 Rules (each a line of the ratchet test): the domain imports nothing above it and no I/O module; adapters

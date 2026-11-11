@@ -5,10 +5,11 @@
  * {{account.username}} / {{account.password}}). Given the project, a sandbox page sharing its host and port with a page
  * of a production or read-only environment is an error.
  */
-import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { parse as parseYamlText } from 'yaml';
 import { sqlSource } from '../destructive.js';
+import { needFiles } from '../file-facts.js';
+import type { FileFacts } from '../file-facts.js';
 import { environmentAccess } from '../env.js';
 import { isHostAllowed, isLoopbackHost } from '../hosts.js';
 import type { IssuePath } from '../issues.js';
@@ -38,6 +39,8 @@ const DIR_LABEL = 'the sandbox folder';
 export interface SandboxCheckOptions {
   /** Folder of sandbox.yaml: its relative paths resolve against it (undefined: files are not checked). */
   dir?: string;
+  /** How its files are looked at (core FileFacts): needed with `dir`. */
+  files?: FileFacts;
   /** The environment name it becomes (messages). */
   env?: string;
   /**
@@ -167,14 +170,15 @@ export function composeEnvRef(value: unknown): string | undefined {
 
 /**
  * The env file of a docker-compose sandbox, absolute (L5.8): `compose.env_file` (relative to sandbox.yaml), else `.env`
- * next to the first compose file when it exists; undefined for none (`env_file: false`, no such file, a process sandbox).
+ * next to the first compose file when it exists (`exists`: the caller's look at the disk); undefined for none
+ * (`env_file: false`, no such file, a process sandbox).
  */
-export function composeEnvFilePath(dir: string, manifest: { provider?: unknown; compose?: { files?: readonly string[]; env_file?: unknown } }): string | undefined {
+export function composeEnvFilePath(dir: string, manifest: { provider?: unknown; compose?: { files?: readonly string[]; env_file?: unknown } }, exists: (p: string) => boolean): string | undefined {
   const c = manifest.compose;
   if (manifest.provider !== 'docker-compose' || c?.env_file === false) return undefined;
   if (typeof c?.env_file === 'string') return resolve(dir, c.env_file);
   const guess = join(dirname(resolve(dir, (c?.files ?? DEFAULT_COMPOSE_FILES)[0])), '.env');
-  return existsSync(guess) ? guess : undefined;
+  return exists(guess) ? guess : undefined;
 }
 
 /**
@@ -182,27 +186,28 @@ export function composeEnvFilePath(dir: string, manifest: { provider?: unknown; 
  * default `.env` next to the first compose file) is refused — docker compose would read it and start other services
  * than sandbox.yaml says (the shell's COMPOSE_* are left out for the same reason).
  */
-function checkEnvFile(c: Record<string, unknown>, files: readonly string[], ctx: CheckContext): void {
+function checkEnvFile(c: Record<string, unknown>, composeFiles: readonly string[], ctx: CheckContext): void {
   if (!ctx.projectDir || c.env_file === false) return;
+  const files = needFiles(ctx.files, 'the env file check');
   let file: string;
   let at: IssuePath;
   if (typeof c.env_file === 'string') {
     if (!checkRelative(c.env_file, ['compose', 'env_file'], 'env file', ctx)) return;
     file = resolve(ctx.projectDir, c.env_file);
     at = ['compose', 'env_file'];
-    if (!existsSync(file)) {
+    if (files.kind(file) === undefined) {
       ctx.error(at, `env file "${c.env_file}" not found in ${DIR_LABEL}`);
       return;
     }
   } else {
-    if (!files.length || machinePath(files[0])) return;
-    file = resolve(dirname(resolve(ctx.projectDir, files[0])), '.env');
+    if (!composeFiles.length || machinePath(composeFiles[0])) return;
+    file = resolve(dirname(resolve(ctx.projectDir, composeFiles[0])), '.env');
     at = Array.isArray(c.files) ? ['compose', 'files', 0] : ['provider'];
-    if (!existsSync(file)) return;
+    if (files.kind(file) === undefined) return;
   }
   let text: string;
   try {
-    text = readFileSync(file, 'utf8');
+    text = files.readText(file);
   } catch {
     ctx.error(at, `env file ${file} cannot be read`);
     return;
@@ -216,9 +221,10 @@ function checkEnvFile(c: Record<string, unknown>, files: readonly string[], ctx:
 function checkDir(rel: string, path: IssuePath, what: string, ctx: CheckContext): void {
   if (!ctx.projectDir) return;
   const abs = resolve(ctx.projectDir, rel);
+  const files = needFiles(ctx.files, 'a folder check');
   let ok = false;
   try {
-    ok = existsSync(abs) && statSync(abs).isDirectory();
+    ok = files.kind(abs) === 'directory';
   } catch {
     ok = false;
   }
@@ -250,18 +256,20 @@ export function weakPasswordReason(password: string): string | null {
  * Why `{{compose_env:NAME}}` cannot be read (null when it can): not a docker-compose sandbox, no env file, the name not
  * set in it. Never the value. Without the sandbox's folder (a text validated alone) only the provider is checked.
  */
-function composeEnvProblem(manifest: Record<string, unknown>, name: string, dir: string | undefined): string | null {
+function composeEnvProblem(manifest: Record<string, unknown>, name: string, ctx: CheckContext): string | null {
+  const dir = ctx.projectDir;
   const ref = `{{compose_env:${name}}}`;
   if (manifest.provider !== 'docker-compose') return `${ref} reads the compose env file of a docker-compose sandbox: this one is not (use {{env:VAR}} or {{keychain:service/account}})`;
   const c = isObj(manifest.compose) ? manifest.compose : undefined;
   if (c?.env_file === false) return `${ref} reads the sandbox's compose env file, and \`compose.env_file: false\` says there is none`;
   if (!dir) return null;
+  const facts = needFiles(ctx.files, 'the compose env check');
   const files = Array.isArray(c?.files) ? c.files.filter((f): f is string => typeof f === 'string') : undefined;
-  const file = composeEnvFilePath(dir, { provider: 'docker-compose', compose: { ...(files?.length ? { files } : {}), env_file: c?.env_file } });
+  const file = composeEnvFilePath(dir, { provider: 'docker-compose', compose: { ...(files?.length ? { files } : {}), env_file: c?.env_file } }, (p) => facts.kind(p) !== undefined);
   if (!file) return `${ref} reads the sandbox's compose env file, and there is none: write \`compose.env_file\`, or a .env next to the first compose file`;
   let text: string;
   try {
-    text = readFileSync(file, 'utf8');
+    text = facts.readText(file);
   } catch {
     return null; // checkEnvFile says so
   }
@@ -292,9 +300,10 @@ function composeServices(files: readonly string[], base: IssuePath, written: boo
       return;
     }
     const abs = resolve(ctx.projectDir, f);
+    const disk = needFiles(ctx.files, 'the compose file check');
     let text: string;
     try {
-      text = readFileSync(abs, 'utf8');
+      text = disk.readText(abs);
     } catch {
       ctx.error(at, `compose file "${f}" not found in ${DIR_LABEL}${written ? '' : ' (compose.files defaults to [compose.yaml])'}`);
       complete = false;
@@ -372,7 +381,7 @@ function accountFields(v: unknown, out = new Set<string>()): Set<string> {
 /** Semantic checks of a sandbox.yaml value (schema issues in `structural`). */
 export function checkSandbox(value: unknown, structural: readonly LocatedIssue[], opts: SandboxCheckOptions = {}): LocatedIssue[] {
   if (!isObj(value)) return [];
-  const ctx = new CheckContext(structural, opts.dir, DIR_LABEL);
+  const ctx = new CheckContext(structural, opts.dir, DIR_LABEL, opts.files);
   const provider = value.provider === 'docker-compose' || value.provider === 'process' ? value.provider : undefined;
   const compose = provider === 'docker-compose';
   const services = isObj(value.services) ? value.services : {};
@@ -668,8 +677,9 @@ function checkSeedStep(step: unknown, p: IssuePath, s: SeedContext, ctx: CheckCo
     if (src.file !== undefined) {
       if (!checkRelative(src.file, fp, 'SQL file', ctx)) return null;
       if (ctx.projectDir) {
+        const disk = needFiles(ctx.files, 'the seed SQL check');
         try {
-          text = readFileSync(resolve(ctx.projectDir, src.file), 'utf8');
+          text = disk.readText(resolve(ctx.projectDir, src.file));
         } catch {
           text = undefined; // reported by checkHooks
         }
@@ -748,7 +758,7 @@ function checkAccounts(
     const path = toAuthPath(i.path);
     if (path) structural.push({ ...i, path, ...(i.loc ? { loc: { ...i.loc, path: toAuthPath(i.loc.path) ?? i.loc.path } } : {}) });
   }
-  const sub = new CheckContext(structural, ctx.projectDir, DIR_LABEL);
+  const sub = new CheckContext(structural, ctx.projectDir, DIR_LABEL, ctx.files);
   checkAuth(accountsAsAuth(value), { [env]: Object.fromEntries(pageKeys.map((k) => [k, pageUrls[k]])) }, sub, { vars }, { accounts: true });
   for (const i of sub.out) {
     ctx.out.push({ ...i, path: fromAuthPath(i.path), ...(i.loc ? { loc: { ...i.loc, path: fromAuthPath(i.loc.path) } } : {}) });
@@ -762,7 +772,7 @@ function checkAccounts(
       if (typeof v !== 'string' || !v.includes('{{')) continue;
       const fromFile = composeEnvRef(v);
       if (fromFile !== undefined) {
-        const problem = composeEnvProblem(value, fromFile, ctx.projectDir);
+        const problem = composeEnvProblem(value, fromFile, ctx);
         if (problem) ctx.error([...ap, field], problem);
       } else if (!isSecretReference(v)) {
         ctx.error([...ap, field], `a ${field} is plain text or one {{env:VAR}} / {{keychain:service/account}} / {{compose_env:NAME}} reference (it is put into the login steps as is)`);

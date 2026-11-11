@@ -16,10 +16,9 @@ import type { ScriptIssue, ValidationIssue } from '@retake/core';
 import type { Engine, JobRecord, RecordJobResult } from '@retake/engine';
 import { envName, projectSlug, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import { READ, RUN_JOB, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
-import { jobErrorLine, jobLine } from './jobs.js';
+import { jobErrorLine, jobLine } from './job-lines.js';
 import { WAIT_MAX_S } from './run.js';
 
 const scriptLine = (i: ScriptIssue) => `script ${i.line}${i.col !== undefined ? `:${i.col}` : ''} ${i.severity}: ${i.message}`;
@@ -67,7 +66,7 @@ const formatMs = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)} s` : `
  * counts, the saved file and the check (trusted), and the draft read from the recording's folder, its scene ids, issues
  * and the check's failure under `untrusted`.
  */
-export async function recordOutput(engine: Engine, job: JobRecord, head: string[] = []): Promise<ToolOutput> {
+export async function recordOutput(engine: Engine, job: JobRecord, head: string[] = []) {
   const input = job.input;
   if (input.kind !== 'record') throw new Error(`job ${job.id} is not a recording`);
   const lines = [...head, jobLine(job)];
@@ -167,4 +166,4 @@ export const scenarioRecord = defineTool({
   },
 });
 
-export const AUTHORING_TOOLS: ToolDef[] = [scenarioRecord, scenarioFromScript];
+export const AUTHORING_TOOLS = [scenarioRecord, scenarioFromScript] as const satisfies readonly ToolDef[];

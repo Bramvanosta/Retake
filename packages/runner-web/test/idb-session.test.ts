@@ -10,7 +10,8 @@ import { existsSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { chromium } from 'playwright-core';
-import { resolvePersonas } from '@retake/core';
+import { PERSON_POLICY, resolvePersonas } from '@retake/core';
+import { retakeHome } from '@retake/core/io';
 import type { LoadedProject, PersonaConfig } from '@retake/core';
 import { checkSavedSession, launchTarget, readSnapshot, signIn } from '../src/index.js';
 import { applyStorageState } from '../src/session.js';
@@ -89,12 +90,12 @@ const steps = (password: string): PersonaConfig['login'] => [
 async function setup(persona: Partial<PersonaConfig> = {}, password = PASSWORD): Promise<{ project: LoadedProject; persona: SignInOptions['persona'] }> {
   const project = makeProject(await tempDir('ds-idb-'), { app: url });
   project.config.auth = { login_url: '/login', personas: { ada: { pages: ['app'], login: steps(password), ...persona } } };
-  return { project, persona: resolvePersonas(project, ENV).find((p) => p.name === 'ada')! };
+  return { project, persona: resolvePersonas(project, ENV, { home: retakeHome() }).find((p) => p.name === 'ada')! };
 }
 
 /** What a fresh browser with `state` applied shows on the app's home page. */
 async function homeWith(state: StorageStateFile): Promise<string> {
-  const t = launchTarget({}, { headless: true });
+  const t = launchTarget({}, { headless: true, policy: PERSON_POLICY });
   const context = await chromium.launchPersistentContext(await tempDir('ds-idb-profile-'), { headless: true, executablePath: t.executablePath, channel: t.channel });
   try {
     await applyStorageState(context, state);
@@ -110,17 +111,17 @@ async function homeWith(state: StorageStateFile): Promise<string> {
 describe('a sign-in kept in IndexedDB (hotfix v0.2.2)', () => {
   it('auto, a profile persona without a check: the tab waits for the sign-in to finish; the saved profile is signed in', async () => {
     const { project, persona } = await setup();
-    const r = await signIn({ project, env: env(), persona, mode: 'auto' });
+    const r = await signIn({ policy: PERSON_POLICY, project, env: env(), persona, mode: 'auto' });
     expect(r.check.status).toBe('unchecked');
     expect(r.cookies).toBe(0);
     // The way a run sees it (a copy of the profile): signed in.
-    const seen = await checkSavedSession({ project, env: env(), persona: { ...persona, check: { url: 'app:/', expect_text: 'Signed in as Ada' } } });
+    const seen = await checkSavedSession({ policy: PERSON_POLICY, project, env: env(), persona: { ...persona, check: { url: 'app:/', expect_text: 'Signed in as Ada' } } });
     expect(seen).toMatchObject({ status: 'valid' });
   });
 
   it('auto, a storage_state persona: the snapshot holds the IndexedDB databases and a fresh browser restores them (a Date and bytes included)', async () => {
     const { project, persona } = await setup({ session: 'storage_state' });
-    const r = await signIn({ project, env: env(), persona, mode: 'auto' });
+    const r = await signIn({ policy: PERSON_POLICY, project, env: env(), persona, mode: 'auto' });
     expect(r.profileDir).toBeUndefined();
     const snapshot = (await readSnapshot(persona.snapshot!))!;
     expect(snapshot.cookies).toEqual([]);
@@ -129,12 +130,12 @@ describe('a sign-in kept in IndexedDB (hotfix v0.2.2)', () => {
     expect(await homeWith(snapshot)).toBe(`Signed in as Ada since ${new Date().getFullYear()}`);
     // Without its IndexedDB the same snapshot is signed out: it is what carries the session.
     expect(await homeWith({ cookies: snapshot.cookies, origins: snapshot.origins!.map(({ indexedDB: _, ...o }) => o) })).toBe('Sign in');
-    expect((await checkSavedSession({ project, env: env(), persona: { ...persona, check: { url: 'app:/', expect_text: 'Signed in as Ada' } } })).status).toBe('valid');
+    expect((await checkSavedSession({ policy: PERSON_POLICY, project, env: env(), persona: { ...persona, check: { url: 'app:/', expect_text: 'Signed in as Ada' } } })).status).toBe('valid');
   });
 
   it('auto, a sign-in that does not hold (a wrong password, no check): refused, saying where a new browser lands; nothing is left behind', async () => {
     const { project, persona } = await setup({}, 'not-the-password');
-    const failure = await signIn({ project, env: env(), persona, mode: 'auto' }).catch((e: unknown) => e as Error);
+    const failure = await signIn({ policy: PERSON_POLICY, project, env: env(), persona, mode: 'auto' }).catch((e: unknown) => e as Error);
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toMatch(
       /^automated login of persona ada \(env test\): the steps ran, but a new browser with the saved session lands on the sign-in page \(http:\/\/127\.0\.0\.1:\d+\/login\) — nothing was saved \(no cookie, no localStorage\)/,
@@ -155,7 +156,7 @@ describe('a sign-in kept in IndexedDB (hotfix v0.2.2)', () => {
       await page.waitForTimeout(2000); // one reading of the window (every 1.5 s)
       await page.close();
     };
-    await signIn({ project, env: env(), persona, mode: 'headed', headless: true, url: `${url}/login`, drive });
+    await signIn({ policy: PERSON_POLICY, project, env: env(), persona, mode: 'headed', headless: true, url: `${url}/login`, drive });
     const snapshot = (await readSnapshot(persona.snapshot!))!;
     expect(await homeWith(snapshot)).toBe(`Signed in as Ada since ${new Date().getFullYear()}`);
   });

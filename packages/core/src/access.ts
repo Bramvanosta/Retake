@@ -6,12 +6,23 @@
 import { environmentAccess, resolveEnvironment } from './env.js';
 import { hostMatches, networkHost, normalizeAllowEntry, normalizeHost } from './hosts.js';
 import type { EnvironmentAccess, LoadedProject, ResolvedEnvironment } from './types.js';
+import { GUIDE } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 /** `--allow-writes` given where it cannot apply (a read-only environment): a usage error. */
 export class AccessError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'AccessError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'refused';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.environments;
   }
 }
 

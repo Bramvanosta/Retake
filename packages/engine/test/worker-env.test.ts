@@ -3,16 +3,22 @@
  * Studio, an MCP client, tests) hands its worker cleanWorkerEnv — no package-manager variables, no model or agent
  * credential, no code loaded from the workspace (NODE_OPTIONS files, NODE_PATH / DYLD_* / LD_* entries inside one of its
  * folders or relative), PATH without its folders under any spelling — the tool variables kept as they are (the
- * worker's agent policy refuses one inside the workspace, saying what to change) — and the CLI keeps its own.
+ * worker's agent policy refuses one inside the workspace, saying what to change) — and the CLI keeps its own. The
+ * secrets of a sign-in are looked for in that same environment (auth.forScenario: what the cleaner drops is missing).
  */
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadWorkspaceConfig, programProblem, useAgentPolicy } from '@retake/core';
+import { programProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { loadWorkspaceConfig, nodeFileFacts } from '@retake/core/io';
 import { cleanWorkerEnv, createEngine } from '../src/index.js';
 import type { WorkerSpawnFn } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
+import type { WorkPolicy } from '@retake/core';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 let ws: string;
 const savedHome = process.env.RETAKE_HOME;
@@ -95,14 +101,14 @@ describe('cleanWorkerEnv', () => {
     };
     const env = cleanWorkerEnv({ ...tools, PATH: '/usr/bin' }, ws, { exists: () => false });
     expect(env).toMatchObject(tools);
-    useAgentPolicy([ws]);
+    policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
       // What the worker's mediaBin / launchTarget / docker check say of these values (core programProblem).
-      expect(programProblem(env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG')).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
-      expect(programProblem(env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE')).toMatch(/is a relative path/);
-      expect(programProblem(env.RETAKE_DOCKER!, '$RETAKE_DOCKER')).toMatch(/lies inside the workspace/);
+      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { files: nodeFileFacts })).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
+      expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { files: nodeFileFacts })).toMatch(/is a relative path/);
+      expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { files: nodeFileFacts })).toMatch(/lies inside the workspace/);
     } finally {
-      useAgentPolicy(null);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
   });
 
@@ -161,5 +167,28 @@ describe('every client but the CLI starts its worker with it', () => {
   it('the CLI: its own environment (a person at a terminal)', async () => {
     const env = await spawned('cli');
     expect(env.OPENAI_API_KEY).toBe('sk-from-the-agent');
+  });
+
+  it("a sign-in's secrets are looked for where that worker finds them: a variable the cleaner drops is missing for MCP, not for the CLI", async () => {
+    // The supplier's login steps read a code host's token (dropped from a clean worker environment), set in this process.
+    const other = await realpath(await mkdtemp(join(tmpdir(), 'engine-worker-env-signin-')));
+    await fixtureWorkspace(other);
+    const file = join(other, 'projects', 'northfield-fixture', 'project.yaml');
+    const yaml = await readFile(file, 'utf8');
+    expect(yaml).toContain('{{env:NORTHFIELD_SUPPLIER_PASSWORD}}');
+    await writeFile(file, yaml.replace('{{env:NORTHFIELD_SUPPLIER_PASSWORD}}', '{{env:GITHUB_TOKEN}}'));
+    const saved = process.env.GITHUB_TOKEN;
+    process.env.GITHUB_TOKEN = 'a-token-of-the-shell';
+    try {
+      const supplier = async (client: 'mcp' | 'cli') => (await (await createEngine({ root: other, client, autoStartWorker: false })).auth.forScenario('northfield-fixture', 'proforma')).personas[0];
+      expect(await supplier('mcp')).toMatchObject({ persona: 'supplier', auto: false, login_env_missing: ['GITHUB_TOKEN'] });
+      const cli = await supplier('cli');
+      expect(cli).toMatchObject({ persona: 'supplier', auto: true });
+      expect(cli.login_env_missing).toBeUndefined();
+    } finally {
+      if (saved === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = saved;
+      await rm(other, { recursive: true, force: true });
+    }
   });
 });

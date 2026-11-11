@@ -9,17 +9,18 @@
  * the others are rendered again with their own components); ⚑ a fresh renderer after a failed item (B M1).
  */
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedTemplate } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { RenderCancelledError, RenderDiskFullError, bundleHash, isDiskFullError, renderComponentLoops, renderComponentPreviews } from '@retake/editor';
 import type { BundleComponent, ComponentPreviewSpec, LoopItem, PreviewBackend, PreviewComponentTarget } from '@retake/editor';
 import { REPO } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let root: string;
 let out: string;
@@ -30,7 +31,7 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-preview-loops-'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   registry = await loadComponentRegistry({ root });
-  editorial = await loadTemplate('editorial', root);
+  editorial = await loadTemplate('editorial', root, { files: fileFacts(PERSON_POLICY) });
   out = join(root, 'out');
 });
 afterAll(async () => {
@@ -104,7 +105,7 @@ describe('preview sessions (injected backend)', () => {
     });
     const seen: string[] = [];
     const progress: Array<[number, number]> = [];
-    const r = await renderComponentLoops({ root, registry, template: editorial, items, backend, onItem: (it) => void seen.push(it.id), onProgress: (n, of) => void progress.push([n, of]) });
+    const r = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items, backend, onItem: (it) => void seen.push(it.id), onProgress: (n, of) => void progress.push([n, of]) });
     // Review B M2: every finished item counts, failed ones too — the job's progress reaches its total.
     expect(progress.at(-1)).toEqual([4, 4]);
     expect(progress.map((p) => p[0])).toEqual([1, 2, 3, 4]);
@@ -134,7 +135,7 @@ describe('preview sessions (injected backend)', () => {
         if (spec.main.id === 'studio/card-title' && what === 'gif') throw nospace;
       },
     });
-    const err = await renderComponentLoops({ root, registry, template: editorial, items, backend }).catch((e: unknown) => e);
+    const err = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items, backend }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RenderDiskFullError);
     expect((err as Error).message).toMatch(/^the disk is full \(preview of studio\/card-title: ENOSPC/);
     expect(backend.calls.some((c) => c.includes('outro-stack'))).toBe(false);
@@ -148,7 +149,7 @@ describe('preview sessions (injected backend)', () => {
     items = await itemsOf(ids);
     backend = fake();
     const written: string[] = [];
-    const err2 = await renderComponentLoops({
+    const err2 = await renderComponentLoops({ workPolicy: PERSON_POLICY,
       root,
       registry,
       template: editorial,
@@ -167,14 +168,14 @@ describe('preview sessions (injected backend)', () => {
   it('a loop over 1.5 MB is rendered again at 480 px; still over: too large, no file', async () => {
     let items = await itemsOf(['studio/intro-stack'], { loop: true });
     let backend = fake({ gifBytes: (w) => (w === 640 ? 1_600_000 : 900_000) });
-    let r = await renderComponentLoops({ root, registry, template: editorial, items, backend });
+    let r = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items, backend });
     expect(backend.calls).toEqual(['gif studio/intro-stack 640', 'gif studio/intro-stack 480']);
     expect(r.rendered[0].loop).toMatchObject({ width: 480, height: 270, bytes: 900_000 });
     expect(r.rendered[0].poster).toBeUndefined();
 
     items = await itemsOf(['studio/intro-stack'], { loop: true });
     backend = fake({ gifBytes: () => 1_600_000 });
-    r = await renderComponentLoops({ root, registry, template: editorial, items, backend });
+    r = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items, backend });
     expect(r.rendered[0].loop).toEqual({ too_large: true, bytes: 1_600_000 });
     expect(existsSync(items[0].loop!)).toBe(false);
     expect(r.failed).toEqual([]);
@@ -184,7 +185,7 @@ describe('preview sessions (injected backend)', () => {
     const items = await itemsOf(['studio/transition-fade-black']);
     const specs: ComponentPreviewSpec[] = [];
     const backend = fake({ fail: (spec) => void specs.push(spec) });
-    const r = await renderComponentLoops({ root, registry, template: editorial, items, backend });
+    const r = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items, backend });
     expect(specs.map((s) => [s.motion ?? null, s.durationInFrames])).toEqual([
       [null, 12],
       [{ lead: 18, tail: 30 }, 60],
@@ -196,7 +197,7 @@ describe('preview sessions (injected backend)', () => {
     const items = await itemsOf(['studio/intro-stack', 'studio/card-title'], { loop: true });
     const stop = new AbortController();
     const backend = fake();
-    const err = await renderComponentLoops({ root, registry, template: editorial, items, backend, signal: stop.signal, onItem: () => stop.abort() }).catch((e: unknown) => e);
+    const err = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items, backend, signal: stop.signal, onItem: () => stop.abort() }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RenderCancelledError);
     expect(backend.calls).toEqual(['gif studio/intro-stack 640']);
   });
@@ -205,14 +206,14 @@ describe('preview sessions (injected backend)', () => {
     const a = ['studio/intro-stack'];
     const b = ['studio/overlay-callout'];
     const reg = fake();
-    await renderComponentLoops({ root, registry, template: editorial, items: await itemsOf(a, { poster: true }), backend: reg, bundle: 'registry' });
-    await renderComponentLoops({ root, registry, template: editorial, items: await itemsOf(b, { poster: true }), backend: reg, bundle: 'registry' });
+    await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items: await itemsOf(a, { poster: true }), backend: reg, bundle: 'registry' });
+    await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items: await itemsOf(b, { poster: true }), backend: reg, bundle: 'registry' });
     const [h1, h2] = await Promise.all(reg.bundles.map((c) => bundleHash(c)));
     expect(h1).toBe(h2);
     expect(reg.bundles[0].length).toBe(registry.list().length + 8);
     const used = fake();
-    await renderComponentLoops({ root, registry, template: editorial, items: await itemsOf(a, { poster: true }), backend: used });
-    await renderComponentLoops({ root, registry, template: editorial, items: await itemsOf(b, { poster: true }), backend: used });
+    await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items: await itemsOf(a, { poster: true }), backend: used });
+    await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items: await itemsOf(b, { poster: true }), backend: used });
     const [u1, u2] = await Promise.all(used.bundles.map((c) => bundleHash(c)));
     expect(u1).not.toBe(u2);
   });
@@ -269,7 +270,7 @@ describe('preview sessions (injected backend)', () => {
       const ids = ['studio/intro-stack', 'studio/card-title', broken, 'studio/outro-stack'];
       const f = pageFake({ broken, mode, poison: true });
       const progress: Array<[number, number]> = [];
-      const r = await renderComponentLoops({ root, registry, template: editorial, items: await itemsOf(ids), backend: f.backend, bundle: 'registry', onProgress: (n, of) => void progress.push([n, of]) });
+      const r = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items: await itemsOf(ids), backend: f.backend, bundle: 'registry', onProgress: (n, of) => void progress.push([n, of]) });
       expect(r.rendered.map((x) => x.id)).toEqual(['studio/intro-stack', 'studio/card-title', 'studio/outro-stack']);
       expect(r.failed.map((x) => x.id)).toEqual([broken]);
       expect(r.failed[0].reason).toMatch(mode === 'load' ? /^its preview failed: boom at load$/ : /^its preview could not be bundled: Module build failed/);
@@ -289,13 +290,13 @@ describe('preview sessions (injected backend)', () => {
 
   it('⚑ review B M1: after an item fails, the next one runs in a freshly opened renderer (a leaked port fails nothing else)', async () => {
     const f = pageFake({ failOnce: 'studio/card-title', poison: true });
-    const r = await renderComponentLoops({ root, registry, template: editorial, items: await itemsOf(['studio/intro-stack', 'studio/card-title', 'studio/outro-stack'], { poster: true }), backend: f.backend });
+    const r = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items: await itemsOf(['studio/intro-stack', 'studio/card-title', 'studio/outro-stack'], { poster: true }), backend: f.backend });
     expect(r.rendered.map((x) => x.id)).toEqual(['studio/intro-stack', 'studio/outro-stack']);
     expect(r.failed).toEqual([{ id: 'studio/card-title', reason: 'its preview failed: select failed once' }]);
     expect(f.life).toEqual({ opens: 2, closes: 2 });
     // In registry mode the failed item is tried again alone (bundle of its own components) and then renders.
     const g = pageFake({ failOnce: 'studio/card-title', poison: true });
-    const r2 = await renderComponentLoops({ root, registry, template: editorial, items: await itemsOf(['studio/intro-stack', 'studio/card-title', 'studio/outro-stack'], { poster: true }), backend: g.backend, bundle: 'registry' });
+    const r2 = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items: await itemsOf(['studio/intro-stack', 'studio/card-title', 'studio/outro-stack'], { poster: true }), backend: g.backend, bundle: 'registry' });
     expect(r2.rendered.map((x) => x.id)).toEqual(['studio/intro-stack', 'studio/card-title', 'studio/outro-stack']);
     expect(r2.failed).toEqual([]);
   });
@@ -308,9 +309,66 @@ describe('preview sessions (injected backend)', () => {
     });
     await rm(out, { recursive: true, force: true });
     const targets = ['studio/intro-stack', 'studio/card-title', 'studio/outro-stack'].map(target);
-    await expect(renderComponentPreviews({ root, registry, template: editorial, targets, outDir: out, backend })).rejects.toThrow(/^preview of studio\/card-title: boom$/);
+    await expect(renderComponentPreviews({ workPolicy: PERSON_POLICY, root, registry, template: editorial, targets, outDir: out, backend })).rejects.toThrow(/^preview of studio\/card-title: boom$/);
     expect(backend.calls).toEqual(['still studio/intro-stack', 'still studio/card-title']);
-    const ok = await renderComponentPreviews({ root, registry, template: editorial, targets: [target('studio/intro-stack')], outDir: out, backend: fake() });
+    const ok = await renderComponentPreviews({ workPolicy: PERSON_POLICY, root, registry, template: editorial, targets: [target('studio/intro-stack')], outDir: out, backend: fake() });
     expect(ok[0].file).toBe(join(out, 'studio', 'intro-stack.png'));
+  });
+});
+
+describe('the README of a component preview', () => {
+  /** A copy of a built-in component in a folder of its own (`base`), its README as the author wrote it. */
+  async function copyOf(id: string, base: string): Promise<PreviewComponentTarget> {
+    const t = target(id);
+    const dir = join(base, id.replace('/', '__'));
+    await rm(dir, { recursive: true, force: true });
+    await cp(t.dir, dir, { recursive: true });
+    await writeFile(join(dir, 'README.md'), '# Mine\n\nThe author\'s words.\n');
+    return { ...t, dir, entry: join(dir, t.entry.slice(t.dir.length + 1)) };
+  }
+
+  it('under the writer\'s folder: written through it (the project store), merged into the README as read; elsewhere: written directly', async () => {
+    const components = join(root, 'components');
+    const inside = await copyOf('studio/intro-stack', components);
+    const outside = await copyOf('studio/intro-stack', join(root, 'elsewhere'));
+    const writes: Array<{ file: string; text: string; previous: string | null }> = [];
+    const readmes = { root: components, write: async (file: string, text: string, previous: string | null) => void writes.push({ file, text, previous }) };
+    const [a] = await renderComponentPreviews({ root, registry, template: editorial, targets: [inside], backend: fake(), readmes, workPolicy: PERSON_POLICY });
+    expect(writes).toHaveLength(1);
+    expect(writes[0].file).toBe(join(inside.dir, 'README.md'));
+    expect(writes[0].previous).toBe('# Mine\n\nThe author\'s words.\n');
+    expect(writes[0].text).toMatch(/Regenerate the preview and this block with `retake components preview studio\/intro-stack`/);
+    expect(writes[0].text).toContain("The author's words.");
+    expect(a.readme).toBe(join(inside.dir, 'README.md'));
+    // The writer writes: nothing else did.
+    expect(await readFile(join(inside.dir, 'README.md'), 'utf8')).toBe('# Mine\n\nThe author\'s words.\n');
+    const [b] = await renderComponentPreviews({ root, registry, template: editorial, targets: [outside], backend: fake(), readmes, workPolicy: PERSON_POLICY });
+    expect(writes).toHaveLength(1);
+    expect(b.readme).toBe(join(outside.dir, 'README.md'));
+    expect(await readFile(join(outside.dir, 'README.md'), 'utf8')).toMatch(/Regenerate the preview and this block[\s\S]*The author's words\./);
+    // No README yet: the writer is told so (null: created, never over one made in between), not "unknown".
+    await rm(join(inside.dir, 'README.md'));
+    await renderComponentPreviews({ root, registry, template: editorial, targets: [inside], backend: fake(), readmes, workPolicy: PERSON_POLICY });
+    expect(writes).toHaveLength(2);
+    expect(writes[1].previous).toBeNull();
+    expect(writes[1].text).toMatch(/Regenerate the preview and this block/);
+  });
+
+  it('a README the writer refuses: the error says the image and preview.json were written (they are), the README not', async () => {
+    const components = join(root, 'components');
+    const inside = await copyOf('studio/intro-stack', components);
+    const readmes = {
+      root: components,
+      write: async () => {
+        throw new Error(`${join(inside.dir, 'README.md')} leads out of the components folder (a symbolic link): not written`);
+      },
+    };
+    await rm(join(inside.dir, 'preview.png'), { force: true });
+    await rm(join(inside.dir, 'preview.json'), { force: true });
+    await expect(renderComponentPreviews({ root, registry, template: editorial, targets: [inside], backend: fake(), readmes, workPolicy: PERSON_POLICY })).rejects.toThrow(
+      `preview of studio/intro-stack: its preview.png and preview.json were written, its README.md was not — ${join(inside.dir, 'README.md')} leads out of the components folder (a symbolic link): not written`,
+    );
+    expect([existsSync(join(inside.dir, 'preview.png')), existsSync(join(inside.dir, 'preview.json'))]).toEqual([true, true]);
+    expect(await readFile(join(inside.dir, 'README.md'), 'utf8')).toBe('# Mine\n\nThe author\'s words.\n');
   });
 });

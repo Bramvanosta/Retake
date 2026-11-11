@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TimelineSchema } from '@retake/core';
+import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Timeline } from '@retake/core';
 import { exportCapture, probeVideo, runScenario } from '../src/index.js';
 import type { RawExportResult } from '../src/index.js';
@@ -49,7 +49,7 @@ beforeAll(async () => {
   server = await startServer({ '/': HOME, '/next': NEXT });
   dir = await tempDir('rw-raw-');
   for (const mode of ['hidden', 'baked'] as const) {
-    const rec = await runScenario({ project: project(), scenario: scenario(), template: debugTemplate(), mode: 'capture', runId: `raw-${mode}-${Date.now()}`, ...(mode === 'hidden' ? { hideCursor: true } : {}) });
+    const rec = await runScenario({ policy: PERSON_POLICY, project: project(), scenario: scenario(), template: debugTemplate(), mode: 'capture', runId: `raw-${mode}-${Date.now()}`, ...(mode === 'hidden' ? { hideCursor: true } : {}) });
     expect(rec.error?.message).toBeUndefined();
     runs[mode] = { rec, tl: await readTimeline(rec.timeline!) };
   }
@@ -125,9 +125,9 @@ describe('raw export (R-RAW-01…04)', () => {
   let bakedLayer: RawExportResult;
 
   beforeAll(async () => {
-    none = await exportCapture({ project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), out: join(dir, 'pkg-none'), selects: true });
-    layer = await exportCapture({ project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), cursor: 'layer', format: 'prores', fps: 60, out: join(dir, 'pkg-layer') });
-    bakedLayer = await exportCapture({ project: project(), runDir: runs.baked.rec.dir, template: debugTemplate(), cursor: 'layer', out: join(dir, 'pkg-baked-layer') });
+    none = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), out: join(dir, 'pkg-none'), selects: true });
+    layer = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), cursor: 'layer', format: 'prores', fps: 60, out: join(dir, 'pkg-layer') });
+    bakedLayer = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.baked.rec.dir, template: debugTemplate(), cursor: 'layer', out: join(dir, 'pkg-baked-layer') });
   }, 240_000);
 
   it('one clip per scene from its still, the load cut, MP4 H.264 high yuv420p with its timecode', async () => {
@@ -141,10 +141,10 @@ describe('raw export (R-RAW-01…04)', () => {
     expect(c.cuts[0]).toMatchObject({ reason: 'navigation', after_step: 2 });
     expect(c.cuts[0].wait_step).toBeUndefined();
     expect(runs.hidden.tl.loading?.some((l) => l.until === 'paint' && l.t_end - l.t_start > 1)).toBe(true);
-    const p = await probeVideo(join(none.dir, c.file), { count: true });
+    const p = await probeVideo(join(none.dir, c.file), { count: true, policy: PERSON_POLICY });
     expect(p).toMatchObject({ codec: 'h264', profile: 'High', pix_fmt: 'yuv420p', width: 800, height: 600, fps: 30, frames: c.frames, timecode: '00:00:00:00' });
     // The selects file is the sequence (one clip here).
-    expect((await probeVideo(join(none.dir, m.selects!.file), { count: true })).frames).toBe(m.sequence.frames);
+    expect((await probeVideo(join(none.dir, m.selects!.file), { count: true, policy: PERSON_POLICY })).frames).toBe(m.sequence.frames);
     const frames = decode(join(none.dir, c.file), 800, 600);
     expect(frames.length).toBe(c.frames);
     const colours = frames.map((f) => px(f, 800, 700, 500));
@@ -187,9 +187,9 @@ describe('raw export (R-RAW-01…04)', () => {
     const m = layer.manifest;
     expect(m.settings).toMatchObject({ format: 'prores', fps: 60, cursor: 'layer', layer: 'prores' });
     const c = m.clips[0];
-    const p = await probeVideo(join(layer.dir, c.file), { count: true });
+    const p = await probeVideo(join(layer.dir, c.file), { count: true, policy: PERSON_POLICY });
     expect(p).toMatchObject({ codec: 'prores', profile: 'HQ', pix_fmt: 'yuv422p10le', fps: 60, frames: c.frames });
-    const lp = await probeVideo(join(layer.dir, c.layer!.file), { count: true });
+    const lp = await probeVideo(join(layer.dir, c.layer!.file), { count: true, policy: PERSON_POLICY });
     expect(lp).toMatchObject({ codec: 'prores', profile: '4444', fps: 60, frames: c.frames, timecode: c.timecode });
     expect(lp.pix_fmt).toMatch(/^yuva444p/);
     // The manifest gives the pixel format ffprobe reads back, and its codec label names none to contradict it.
@@ -227,7 +227,7 @@ describe('raw export (R-RAW-01…04)', () => {
   }, 180_000);
 
   it('a VP9-alpha WebM layer: the same frames, alpha kept (decoded with libvpx), the dot on the cursor', async () => {
-    const webm = await exportCapture({ project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), cursor: 'layer', layer: 'webm', out: join(dir, 'pkg-webm') });
+    const webm = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, template: debugTemplate(), cursor: 'layer', layer: 'webm', out: join(dir, 'pkg-webm') });
     const c = webm.manifest.clips[0];
     expect(c.layer).toMatchObject({ file: 'cursor/01-start-cursor.webm', codec: 'vp9', alpha: true, frames: c.frames });
     expect(webm.manifest.warnings).toEqual([]);
@@ -243,7 +243,7 @@ describe('raw export (R-RAW-01…04)', () => {
     // Transparent away from the cursor.
     expect(out[k * n + (590 * 800 + (cursor.clips[0].samples[k].x > 400 ? 10 : 790)) * 4 + 3]).toBe(0);
     // No timecode in WebM: out of the FCPXML (Final Cut Pro cannot read it), from media time 0 in the OTIO; the README says so.
-    const probe = await probeVideo(join(webm.dir, c.layer!.file));
+    const probe = await probeVideo(join(webm.dir, c.layer!.file), { policy: PERSON_POLICY });
     expect(probe.timecode).toBeUndefined();
     expect(await readFile(join(webm.dir, webm.manifest.markers.fcpxml), 'utf8')).not.toContain('-cursor');
     const otio = JSON.parse(await readFile(join(webm.dir, webm.manifest.markers.otio), 'utf8')) as { tracks: { children: Array<{ name: string; children: Array<{ source_range: { start_time: { value: number } }; media_references: { DEFAULT_MEDIA: { target_url: string; available_range: { start_time: { value: number } } } } }> }> } };
@@ -280,14 +280,14 @@ describe('raw export (R-RAW-01…04)', () => {
   });
 
   it('refuses what a run cannot give: no cursor removed from pictures, no cursor baked into a cursorless run', async () => {
-    await expect(exportCapture({ project: project(), runDir: runs.baked.rec.dir, cursor: 'none', out: join(dir, 'x') })).rejects.toThrow(/--cursor none needs a run captured without it/);
-    await expect(exportCapture({ project: project(), runDir: runs.hidden.rec.dir, cursor: 'baked', out: join(dir, 'y') })).rejects.toThrow(/captured without its cursor/);
+    await expect(exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.baked.rec.dir, cursor: 'none', out: join(dir, 'x') })).rejects.toThrow(/--cursor none needs a run captured without it/);
+    await expect(exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, cursor: 'baked', out: join(dir, 'y') })).rejects.toThrow(/captured without its cursor/);
     expect(existsSync(join(dir, 'x'))).toBe(false);
     // A folder that is not a raw package is never replaced.
-    await expect(exportCapture({ project: project(), runDir: runs.baked.rec.dir, out: runs.baked.rec.dir })).rejects.toThrow(/not a raw package/);
+    await expect(exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.baked.rec.dir, out: runs.baked.rec.dir })).rejects.toThrow(/not a raw package/);
     expect(existsSync(join(runs.baked.rec.dir, 'timeline.json'))).toBe(true);
     // An earlier package is.
-    const again = await exportCapture({ project: project(), runDir: runs.hidden.rec.dir, out: none.dir, cuts: false });
+    const again = await exportCapture({ policy: PERSON_POLICY, project: project(), runDir: runs.hidden.rec.dir, out: none.dir, cuts: false });
     expect(again.manifest.settings.cuts).toBe(false);
     expect(again.manifest.clips[0].cuts).toEqual([]);
   }, 120_000);

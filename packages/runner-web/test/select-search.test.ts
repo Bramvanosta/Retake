@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Step, TimelineEvent } from '@retake/core';
+import { PERSON_POLICY } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
@@ -55,7 +56,7 @@ afterAll(async () => {
 
 async function run(runId: string, open: string, steps: Step[], timeout = 4) {
   const project = makeProject(dir, { app: server.url });
-  const rec = await runScenario({ project, mode: 'dry', runId, scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout }, scenes: [{ id: 'form', open, steps }] }) });
+  const rec = await runScenario({ policy: PERSON_POLICY, project, mode: 'dry', runId, scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout }, scenes: [{ id: 'form', open, steps }] }) });
   const events = (await readTimeline(join(rec.dir, 'timeline.json'))).events.filter((e: TimelineEvent) => e.step >= 0);
   return { rec, events };
 }

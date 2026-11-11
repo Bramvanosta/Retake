@@ -7,6 +7,7 @@ import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { collectSecretRefs, planPersonas, resolveEnvironment, resolvePersonas, sandboxOf } from '@retake/core';
 import type { LoadedProject, ResolvedPersona, Scenario } from '@retake/core';
+import { retakeHome } from '@retake/core/io';
 
 /** The `retake login` command for a persona (messages print it). */
 export type LoginCommandOf = (p: { project: string; env: string; persona?: string }) => string;
@@ -106,7 +107,7 @@ export async function projectPersonaStates(
   const envs = env !== undefined ? [resolveEnvironment(project, env).name] : Object.keys(project.config.environments ?? {});
   const out: Array<{ persona: ResolvedPersona; state: PersonaState }> = [];
   for (const e of envs) {
-    for (const persona of resolvePersonas(project, e, home !== undefined ? { home } : {})) out.push({ persona, state: await personaState(project, persona, command) });
+    for (const persona of resolvePersonas(project, e, { home: home ?? retakeHome() })) out.push({ persona, state: await personaState(project, persona, command) });
   }
   return out;
 }
@@ -142,7 +143,7 @@ export async function scenarioPersonaStates(
   opts: { env?: string; hooks: boolean; workerEnv?: NodeJS.ProcessEnv },
 ): Promise<{ env: string; personas: ScenarioPersona[]; issues: string[] }> {
   const env = resolveEnvironment(project, opts.env ?? sc.env);
-  const personas = resolvePersonas(project, env.name);
+  const personas = resolvePersonas(project, env.name, { home: retakeHome() });
   const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until: null, hooks: opts.hooks, ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
   const workerEnv = opts.workerEnv ?? process.env;
   const out: ScenarioPersona[] = [];

@@ -5,8 +5,8 @@
  */
 import { readProjectText, shellDestructiveReason, sqlSource } from './destructive.js';
 import type { DestructiveOptions } from './destructive.js';
-import { channelWords } from './agent-trust.js';
-import type { AgentChannel } from './agent-trust.js';
+import { channelWords } from './agent-policy.js';
+import type { AgentChannel } from './agent-policy.js';
 import { maskSql } from './sql-text.js';
 import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './writes.js';

@@ -163,6 +163,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     root,
     ws,
     queue,
+    files: queue.files,
     cli,
     build: o.build,
     worker: { ...self, host },

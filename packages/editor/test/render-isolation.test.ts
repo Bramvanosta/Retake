@@ -25,6 +25,7 @@ import { openRenderBrowser, planRun, playwrightHeadlessShell, renderPlan } from 
 import type { EditPlan } from '@retake/editor';
 import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 type Renderer = typeof import('@remotion/renderer');
 interface Served {
@@ -345,11 +346,11 @@ describe.skipIf(!canRender)('a guarded render whose bundle port has ::1 taken fa
   let plan: EditPlan;
   beforeAll(async () => {
     ws = await renderWorkspace();
-    plan = (await planRun({ project: ws.project, run: 'latest', root: ws.root })).plan;
+    plan = (await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root })).plan;
   }, LONG);
   afterAll(() => ws?.cleanup());
 
-  const render = (out: string) => renderPlan({ plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 2], concurrency: 1 });
+  const render = (out: string) => renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 2], concurrency: 1 });
 
   it('the same render passes without the other listener, fails with it (no file written)', async () => {
     const ok = await render('control.mp4');

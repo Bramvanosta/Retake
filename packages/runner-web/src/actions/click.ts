@@ -1,12 +1,12 @@
 import type { Page, Request, Response } from 'playwright-core';
 import { hasLocator, normalizeTarget, pickTarget } from '@retake/core';
-import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec, TimelineEvent } from '@retake/core';
+import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec } from '@retake/core';
 import { StepError } from '../errors.js';
 import { distance, isNudge } from '../motion.js';
 import type { PopupEntry } from '../kit/types.js';
 import { poll, resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';
-import type { ClickRole, StepContext } from '../runtime.js';
+import type { ClickRole, PendingPopup, StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
 import { DEAD_CLICK_MS, awaitEffect, checkInBackground, watchEffects } from './effects.js';
 import type { EffectWatch } from './effects.js';
@@ -330,14 +330,6 @@ export async function clickOutside(ctx: StepContext, open?: PopupEntry[]): Promi
   const desc = plan.kind === 'dialog-title' ? 'dialog title (click outside)' : 'blank area (click outside)';
   ctx.clicks.push({ role: 'outside', t: t_click, point: target, desc, strategy: 'real', popup_opened: false });
   return { t_click, point: target, desc, closed };
-}
-
-/** A plain click whose popup may still be opening, and its timeline event (Runtime.pendingPopup). */
-export interface PendingPopup {
-  before: number[];
-  wall: number;
-  ev: TimelineEvent;
-  page: Page;
 }
 
 /**

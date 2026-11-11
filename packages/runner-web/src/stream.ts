@@ -10,8 +10,8 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { rm } from 'node:fs/promises';
-import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffmpegEncoders } from '@retake/core';
-import type { CaptureEncoder } from '@retake/core';
+import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffmpegEncoders } from '@retake/core/io';
+import type { CaptureEncoder, WorkPolicy } from '@retake/core';
 import { EncodeError } from './errors.js';
 
 /** How far behind the capture clock the encoder's ticks stay (s): later frames are counted `late`. */
@@ -111,6 +111,8 @@ export interface StreamEncoderOptions {
   /** libx264 CRF. */
   crf: number;
   ffmpeg?: string;
+  /** What the work runs under (core WorkPolicy): which ffmpeg, under its agent policy. */
+  policy: WorkPolicy;
   /** The tick horizon (capture seconds), read every STREAM_TICK_MS: the capture clock less STREAM_LAG_S, a held load's start. */
   horizon: () => number;
   /**
@@ -158,7 +160,7 @@ const encoderChecks = new Map<string, Promise<boolean>>();
  * Can this ffmpeg encode with VideoToolbox here? A one-frame encode, checked once per binary (a Mac without the
  * hardware encoder, or an ffmpeg built without it, falls back to libx264).
  */
-export function videotoolboxWorks(ffmpeg: string = ffmpegBin()): Promise<boolean> {
+export function videotoolboxWorks(ffmpeg: string): Promise<boolean> {
   let p = encoderChecks.get(ffmpeg);
   if (!p) {
     p = new Promise<boolean>((resolve) => {
@@ -183,8 +185,8 @@ export function videotoolboxWorks(ffmpeg: string = ffmpegBin()): Promise<boolean
  * libx264 (L5.16: a foreign build, the system's when the app carries none) never gets libx264: VideoToolbox when it
  * works, else an error naming that ffmpeg.
  */
-export async function resolveEncoder(want: CaptureEncoder | undefined, ffmpeg?: string): Promise<Exclude<CaptureEncoder, 'auto'>> {
-  const bin = ffmpegBin(ffmpeg);
+export async function resolveEncoder(want: CaptureEncoder | undefined, ffmpeg: string | undefined, policy: WorkPolicy): Promise<Exclude<CaptureEncoder, 'auto'>> {
+  const bin = ffmpegBin(policy, ffmpeg);
   const list = await ffmpegEncoders(bin);
   const noX264 = list !== null && !list.has('libx264');
   if (want === 'libx264' && !noX264) return 'libx264';
@@ -234,7 +236,7 @@ export class StreamEncoder {
   start(): void {
     if (this.child) return;
     const args = streamArgs({ ...this.opts, thumbs: this.opts.onThumb !== undefined });
-    const child = spawn(ffmpegBin(this.opts.ffmpeg), args, { stdio: ['pipe', this.opts.onThumb ? 'pipe' : 'ignore', 'pipe'] });
+    const child = spawn(ffmpegBin(this.opts.policy, this.opts.ffmpeg), args, { stdio: ['pipe', this.opts.onThumb ? 'pipe' : 'ignore', 'pipe'] });
     this.child = child;
     child.stderr?.on('data', (d: Buffer) => {
       this.stderr = (this.stderr + d.toString()).slice(-4000);
@@ -245,7 +247,7 @@ export class StreamEncoder {
     });
     this.exited = new Promise((resolve) => {
       child.on('error', (e: NodeJS.ErrnoException) => {
-        this.failed ??= e.code === 'ENOENT' ? `${ffmpegBin(this.opts.ffmpeg)} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message;
+        this.failed ??= e.code === 'ENOENT' ? `${ffmpegBin(this.opts.policy, this.opts.ffmpeg)} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message;
         resolve(null);
       });
       child.on('close', (code) => resolve(code));
@@ -307,7 +309,7 @@ export class StreamEncoder {
     if (this.failed || code !== 0) {
       const why = this.failed ?? `exited with code ${code}`;
       await rm(this.opts.out, { force: true }).catch(() => undefined);
-      throw new EncodeError(`${ffmpegBin(this.opts.ffmpeg)} ${why}: ${this.stderr.trim().split('\n').slice(-6).join(' | ')}`.trim());
+      throw new EncodeError(`${ffmpegBin(this.opts.policy, this.opts.ffmpeg)} ${why}: ${this.stderr.trim().split('\n').slice(-6).join(' | ')}`.trim());
     }
     return { frames: count };
   }

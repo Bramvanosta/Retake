@@ -7,8 +7,9 @@
  */
 import { createRequire } from 'node:module';
 import type { Browser } from 'playwright-core';
-import { agentPolicyFolders, environmentHttpCredentials, policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
-import type { BrowserConfig, LoadedProject, PageHttpCredentials } from '@retake/core';
+import { environmentHttpCredentials, policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
+import type { BrowserConfig, LoadedProject, PageHttpCredentials, WorkPolicy } from '@retake/core';
+import { programLookup } from '@retake/core/io';
 import { RunnerError } from './errors.js';
 
 const require = createRequire(import.meta.url);
@@ -30,10 +31,10 @@ export const SITE_PER_PROCESS = '--site-per-process';
  * config that reached the runner another way. Under the agent policy (core agent-policy.ts: a job of the worker), also
  * when an entry of `browserArgs` is not a switch or not one of the switches such a job may pass (core agentArgProblem).
  */
-export function launchOptions(o: { args: readonly string[]; browserArgs?: readonly string[] }): LaunchSecurity {
+export function launchOptions(o: { args: readonly string[]; browserArgs?: readonly string[]; policy: WorkPolicy }): LaunchSecurity {
   const user = o.browserArgs ?? [];
   const all = [...o.args, ...user];
-  const problems = [...sandboxOffArgsProblems(all), ...policyArgsProblems(user)];
+  const problems = [...sandboxOffArgsProblems(all), ...policyArgsProblems(o.policy, user)];
   if (problems.length) throw new RunnerError(`Chromium was not launched: ${problems.map((p) => p.message).join('; ')}`);
   return { chromiumSandbox: true, args: all.includes(SITE_PER_PROCESS) ? all : [...all, SITE_PER_PROCESS] };
 }
@@ -63,18 +64,18 @@ export function playwrightExecutable(channel: string | undefined, headless: bool
  * relative path or lies inside the workspace — the browser playwright-core would pick for the channel too
  * (`o.headless`: the launch is headless, the default), wherever PLAYWRIGHT_BROWSERS_PATH puts it.
  */
-export function launchTarget(b: BrowserConfig = {}, o: { headless?: boolean } = {}): { executablePath?: string; channel?: string } {
+export function launchTarget(b: BrowserConfig = {}, o: { headless?: boolean; policy: WorkPolicy }): { executablePath?: string; channel?: string } {
   const given = b.executable ?? process.env.RETAKE_CHROMIUM ?? undefined;
   if (given) {
-    const checked = policyProgram(given, b.executable ? 'browser.executable' : '$RETAKE_CHROMIUM');
+    const checked = policyProgram(o.policy, given, b.executable ? 'browser.executable' : '$RETAKE_CHROMIUM', programLookup());
     if (checked.problem) throw new RunnerError(`Chromium was not launched: ${checked.problem}`);
     return { executablePath: checked.program, channel: undefined };
   }
   const channel = b.channel === 'headless-shell' ? undefined : (b.channel ?? 'chromium');
-  if (agentPolicyFolders()) {
+  if (o.policy.agentFolders) {
     const picked = playwrightExecutable(channel, o.headless !== false);
     const what = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim() ? '$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
-    const problem = picked ? programProblem(picked, what) : null;
+    const problem = picked ? programProblem(o.policy, picked, what, programLookup()) : null;
     if (problem) throw new RunnerError(`Chromium was not launched: ${problem}`);
   }
   return { executablePath: undefined, channel };

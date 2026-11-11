@@ -7,27 +7,15 @@
  */
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, resolve, sep } from 'node:path';
-import {
-  ScenarioError,
-  compileWritePolicy,
-  guardsWrites,
-  hasErrors,
-  loadScenario,
-  loginMatchers,
-  matchLoginUrl,
-  newRunId,
-  parseHookFile,
-  planPersonas,
-  resolveEnvironment,
-  resolvePersonas,
-  resolveRunAccess,
-  runAccess,
-  urlOriginPath,
-} from '@retake/core';
-import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@retake/core';
+import { isAbsolute, resolve } from 'node:path';
+import { ScenarioError, compileWritePolicy, guardsWrites, hasErrors, loginMatchers, matchLoginUrl, newRunId, personaPageOrigins, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, resolveRunAccess, runAccess, urlOriginPath, pathInside, GUIDE } from '@retake/core';
+import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
+import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
 import type { HookContext, HookPhase } from '@retake/hooks';
 import type { LoginCommandOf } from './auth.js';
+import type { Caller } from './caller.js';
+import { EngineError } from './errors.js';
+import { hookRunRecorder } from './store/journal.js';
 
 /**
  * A hooks source that cannot be used: `usage` — not a hooks source at all (the CLI: a usage error, exit 2); otherwise
@@ -40,6 +28,15 @@ export class HooksSourceError extends Error {
   ) {
     super(message);
     this.name = 'HooksSourceError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return this.usage ? 'invalid' : 'not_found';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
   }
 }
 
@@ -63,17 +60,13 @@ export function scenarioOfHooksSource(spec: string): string | undefined {
   return SCENARIO_HOOKS_RE.exec(spec)?.[1];
 }
 
-function inside(dir: string, file: string): boolean {
-  return file === dir || file.startsWith(dir.endsWith(sep) ? dir : dir + sep);
-}
-
 /**
  * The hooks of `spec`: `reset` (project.yaml), `<scenario>:setup` / `<scenario>:teardown`, or a YAML file of hooks.
  * `projectFilesOnly` (a client outside the CLI): a file must be `hooks/<name>.yaml` of the project, its real path
  * inside the project — never an absolute path or one relative to the current folder. `expectSha256`: the scenario of
  * `<scenario>:setup|teardown` is read once and parsed only when its bytes have that sha256 (core ScenarioChangedError).
  */
-export async function selectHooks(project: LoadedProject, spec: string, envOpt?: string, o: { projectFilesOnly?: boolean; expectSha256?: string } = {}): Promise<HookSelection> {
+export async function selectHooks(project: LoadedProject, spec: string, envOpt: string | undefined, o: { projectFilesOnly?: boolean; expectSha256?: string; files: WorkFileFacts }): Promise<HookSelection> {
   if (spec === 'reset') {
     const hooks = project.config.reset ?? [];
     if (!hooks.length) throw new HooksSourceError(`project "${project.slug}" declares no reset hooks (add \`reset:\` to project.yaml)`, false);
@@ -82,7 +75,7 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt?:
   const m = SCENARIO_HOOKS_RE.exec(spec);
   if (m) {
     const [, name, which] = m;
-    const loaded = await loadScenario(project, name, { env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
+    const loaded = await loadScenario(project, name, { files: o.files, env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
     const hooks = (which === 'setup' ? loaded.scenario.setup : loaded.scenario.teardown) ?? [];
     if (!hooks.length) throw new HooksSourceError(`scenario "${loaded.name}" has no ${which} hooks`, false);
     return {
@@ -103,7 +96,8 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt?:
       }
       const candidate = resolve(project.dir, spec);
       if (existsSync(candidate)) {
-        if (!inside(await realpath(project.dir), await realpath(candidate))) throw new HooksSourceError(`hooks file "${spec}" leads outside the project`, true);
+        const realProject = await realpath(project.dir);
+        if (!pathInside(await realpath(candidate), realProject, { compare: 'spelling' })) throw new HooksSourceError(`hooks file "${spec}" leads outside the project`, true);
         file = candidate;
       }
       if (!file) throw new HooksSourceError(`hooks file "${spec}" not found (looked in ${candidate})`, false);
@@ -112,7 +106,7 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt?:
       file = candidates.find((f) => existsSync(f));
       if (!file) throw new HooksSourceError(`hooks file "${spec}" not found (looked in ${candidates.join(' and ')})`, false);
     }
-    const { hooks, issues } = parseHookFile(await readFile(file, 'utf8'), { file, project });
+    const { hooks, issues } = parseHookFile(await readFile(file, 'utf8'), { file, project, files: nodeFileFacts });
     if (!hooks || hasErrors(issues)) throw new ScenarioError(`hooks file ${file} is invalid`, issues, file);
     const base = file.replace(/^.*[\\/]/, '').replace(/\.ya?ml$/i, '');
     return { label: base, hooks, phase: 'setup' };
@@ -138,6 +132,8 @@ export function hooksAccess(project: LoadedProject, env: ReturnType<typeof resol
 }
 
 export interface HookContextOptions {
+  /** What the work runs under (core WorkPolicy): the hooks' shell environment and js-hook browser. */
+  policy: WorkPolicy;
   env?: string;
   /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (CLI only). */
   allowWrites?: boolean;
@@ -161,6 +157,8 @@ export interface HookContextOptions {
   signal?: AbortSignal;
   /** L5.14, CLI only: asks about each rollback whose journal entry Retake did not sign for its journal (hooks journal.ts). */
   replayUnsigned?: HookContext['replayUnsigned'];
+  /** Who runs these hooks: each hook and rollback run is a line of the workspace journal, as this caller's (absent: none). */
+  recordAs?: Caller;
 }
 
 /**
@@ -173,7 +171,7 @@ export interface HookContextOptions {
 export async function createHookContext(project: LoadedProject, o: HookContextOptions): Promise<{ ctx: HookContext; access: RunAccess; closeSessions: () => Promise<void> }> {
   const env = resolveEnvironment(project, o.env);
   const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
-  const personas = resolvePersonas(project, env.name);
+  const personas = resolvePersonas(project, env.name, { home: retakeHome() });
   const sessions = new Map<string, Promise<import('@retake/runner-web').BrowserSession>>();
   const readers = new Map<string, (url: string) => Promise<{ authorization?: string; cookie?: string }>>();
   const command = o.loginCommand;
@@ -201,6 +199,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
       ? await rw.prepareSessions([persona], { runId, log: (level, msg) => ctx.log(level, msg), failure: `js hooks cannot use the saved session of persona ${persona.name}:` })
       : [];
     return rw.openSession({
+      policy: o.policy,
       width: capture.width,
       height: capture.height,
       scale: capture.scale,
@@ -213,6 +212,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   };
   const ctx: HookContext = {
     project,
+    policy: o.policy,
     env,
     vars: { ...(project.config.vars ?? {}), ...(o.vars ?? {}) },
     runId: o.runId,
@@ -228,10 +228,11 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),
+    ...(o.recordAs ? { recordRun: hookRunRecorder(project.root, o.recordAs, { project: project.slug, run: runId }) } : {}),
     // `auth: {persona}` of an http hook (hotfix v0.2.3): read in that persona's headless browser (the js hooks' one).
     personaAuth: async (name, url) => {
       const persona = personas.find((p) => p.name === name);
-      if (!persona) throw new Error(`persona "${name}" is not declared for environment "${env.name}" (personas: ${personas.map((p) => p.name).join(', ') || 'none'})`);
+      if (!persona) throw new EngineError('invalid', `persona "${name}" is not declared for environment "${env.name}" (personas: ${personas.map((p) => p.name).join(', ') || 'none'})`);
       let read = readers.get(name);
       if (!read) {
         const rw = await import('@retake/runner-web');
@@ -247,6 +248,8 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
           },
           envPages: env.pages,
           relogin: command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) }),
+          // Trust `mcp`: the session is read only for the persona's own pages' origins.
+          ...(o.trust === 'mcp' ? { origins: personaPageOrigins(persona.pages, env.pages) } : {}),
         });
         readers.set(name, read);
       }
@@ -254,7 +257,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     },
     evalInPage: async (pageKey, code) => {
       const rw = await import('@retake/runner-web');
-      if (!Object.keys(env.pages).length) throw new Error(`environment "${env.name}" declares no pages for the js hook to run in`);
+      if (!Object.keys(env.pages).length) throw new EngineError('invalid', `environment "${env.name}" declares no pages for the js hook to run in`);
       const persona = personaOf(pageKey ?? Object.keys(env.pages)[0]);
       let session = sessions.get(persona?.name ?? '');
       if (!session) {

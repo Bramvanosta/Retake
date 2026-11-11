@@ -5,7 +5,7 @@
  */
 import { stat, writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
-import type { CommentRegion } from '@retake/core';
+import type { CommentRegion, WorkPolicy } from '@retake/core';
 import { regionProblem } from '@retake/core';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { ReviewError } from './load.js';
@@ -16,6 +16,9 @@ import { drawMarks } from './sheets.js';
 export const STILL_MAX_PX = 1920;
 
 export interface StillOptions {
+  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
+  policy: WorkPolicy;
+
   /** Outlined on the still (0..1 of the frame). */
   region?: CommentRegion;
   /** Long side at most (default STILL_MAX_PX). */
@@ -26,19 +29,19 @@ export interface StillOptions {
 }
 
 /** Write the still of output frame `frame` of `video` to `out` (a JPEG). Throws a ReviewError when the frame cannot be read. */
-export async function extractStill(video: string, frame: number, out: string, opts: StillOptions = {}): Promise<{ width: number; height: number; bytes: number }> {
+export async function extractStill(video: string, frame: number, out: string, opts: StillOptions): Promise<{ width: number; height: number; bytes: number }> {
   if (!Number.isInteger(frame) || frame < 0) throw new ReviewError(`frame ${frame} is not a frame number`);
   if (opts.region) {
     const p = regionProblem(opts.region);
     if (p) throw new ReviewError(p);
   }
-  const info = await probeVideo(video);
+  const info = await probeVideo(video, opts.policy);
   const max = opts.maxPx ?? STILL_MAX_PX;
   const k = Math.min(1, max / Math.max(info.width, info.height));
   const width = Math.max(2, Math.round(info.width * k));
   const height = Math.max(2, Math.round(info.height * k));
   let img: RgbImage | undefined;
-  await extractFrames(video, [frame], { width, height, videoWidth: info.width, videoHeight: info.height, signal: opts.signal }, (_f, i) => {
+  await extractFrames(video, [frame], { width, height, videoWidth: info.width, videoHeight: info.height, policy: opts.policy, signal: opts.signal }, (_f, i) => {
     img = { width: i.width, height: i.height, data: Buffer.from(i.data) };
   });
   if (!img) throw new ReviewError(`frame ${frame} is past the end of ${video}${info.frames ? ` (${info.frames} frames)` : ''}`);

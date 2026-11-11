@@ -156,10 +156,10 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
     const worker = work();
     const running = await waitFor('the render rendering, its browser recorded', async () => {
       const j = await queue.get(sub.job.id);
-      return j?.state === 'running' && j.progress?.phase === 'rendering' && existsSync(queue.browserFile(sub.job.id)) ? j : undefined;
+      return j?.state === 'running' && j.progress?.phase === 'rendering' && existsSync(queue.files.browser(sub.job.id)) ? j : undefined;
     });
     const child = running.worker!.pid;
-    const browser = JSON.parse(await readFile(queue.browserFile(sub.job.id), 'utf8')) as RecordedBrowser;
+    const browser = JSON.parse(await readFile(queue.files.browser(sub.job.id), 'utf8')) as RecordedBrowser;
     const before = priorities(child);
     expect(before.has(browser.pid)).toBe(true);
     const take = film({ root, source: 'job', owner: me });
@@ -168,7 +168,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
       return p.size > 0 && [...p.values()].every((x) => x === 4) ? p : undefined;
     }, 10_000);
     expect(held.has(browser.pid)).toBe(true);
-    expect(JSON.parse(await readFile(queue.yieldFile(sub.job.id), 'utf8'))).toMatchObject({ v: 1, state: 'background', cause: 'here' });
+    expect(JSON.parse(await readFile(queue.files.yield(sub.job.id), 'utf8'))).toMatchObject({ v: 1, state: 'background', cause: 'here' });
     await new Promise((r) => setTimeout(r, 2_000));
     take.closeSync();
     await waitFor('normal priority again', async () => {
@@ -176,7 +176,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
       return p.size === 0 || [...p.values()].every((x) => x !== 4);
     }, 10_000);
     // yield.json goes as the hold ends (the worker removes it first, then releases): waited for, never read in between.
-    await waitFor('yield.json removed', async () => !existsSync(queue.yieldFile(sub.job.id)), 10_000);
+    await waitFor('yield.json removed', async () => !existsSync(queue.files.yield(sub.job.id)), 10_000);
     expect(await worker).toBe(0);
     const job = (await engine.jobs.get(sub.job.id)) as JobRecord;
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
@@ -191,7 +191,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
       return j?.state === 'running' && j.progress?.phase === 'rendering';
     });
     const take = film({ root, source: 'job', owner: me });
-    await waitFor('held', async () => existsSync(queue.yieldFile(sub.job.id)), 10_000);
+    await waitFor('held', async () => existsSync(queue.files.yield(sub.job.id)), 10_000);
     await engine.jobs.cancel(sub.job.id);
     expect(await worker).toBe(0);
     take.closeSync();
@@ -201,7 +201,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
     expect(logs.join('\n')).not.toMatch(/killing its job process/);
     const renders = await readdir(join(root, 'projects', 'demo', 'renders'));
     expect(renders.filter((f) => f.startsWith(sub.render_id) || f.startsWith(`.${sub.render_id}`))).toEqual([]);
-    expect(existsSync(queue.yieldFile(sub.job.id))).toBe(false);
+    expect(existsSync(queue.files.yield(sub.job.id))).toBe(false);
   }, LONG);
 });
 

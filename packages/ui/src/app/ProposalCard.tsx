@@ -23,7 +23,10 @@
  */
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ProposalAnswer, ThreadAnswer, ThreadApplyAnswer } from '../server/comment-ops.js';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
+import { threadApply, threadResolve } from './data/comments.js';
+import { scenarioRender } from './data/renders.js';
+import { scenarioEdit } from './data/scenarios.js';
 import { Txt, shown } from './bits.js';
 import type { RendersState } from './Renders.js';
 import { jobWords, versionWords } from './render-words.js';
@@ -72,7 +75,7 @@ export type ApplyOutcome = { ok: true; record: ApplyRecord } | { ok: false; conf
 async function applyProposal(slug: string, threadId: string, entryId: string, ifMatch: string, runId: string | null): Promise<ApplyOutcome> {
   let answer: ThreadApplyAnswer;
   try {
-    answer = await call<ThreadApplyAnswer>('thread_apply', { project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch });
+    answer = await threadApply({ project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch });
   } catch (e) {
     if (e instanceof SessionEnded) throw e;
     const conflict = e instanceof CallError && e.status === 409;
@@ -86,7 +89,7 @@ async function applyProposal(slug: string, threadId: string, entryId: string, if
   setRecord(slug, threadId, { answer, render: { state: 'sending' } });
   let render: RenderAsk;
   try {
-    const d = await call<{ render_id: string }>('scenario_render', renderAfterApplyArgs(slug, answer, runId));
+    const d = await scenarioRender(renderAfterApplyArgs(slug, answer, runId));
     render = { state: 'queued', render_id: d.render_id };
   } catch (e) {
     if (e instanceof SessionEnded) throw e;
@@ -162,7 +165,7 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
     if (!record) return;
     setBusy('undo');
     setSaid(null);
-    call('scenario_edit', undoEditArgs(slug, record.answer))
+    scenarioEdit(undoEditArgs(slug, record.answer))
       .then(
         () => setRecord(slug, th.id, { ...record, undone: true }),
         (e: unknown) => {
@@ -186,7 +189,7 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
   const resolveWith = (renderId: string) => {
     setBusy('resolve');
     setSaid(null);
-    call('thread_resolve', { project: slug, comment_id: th.id, note: `Applied the proposal ${p.entry} and rendered ${versionWords(renderId)}.`, render_id: renderId, if_match: th.hash })
+    threadResolve({ project: slug, comment_id: th.id, note: `Applied the proposal ${p.entry} and rendered ${versionWords(renderId)}.`, render_id: renderId, if_match: th.hash })
       .then(
         () => setSaid({ state: 'ok', title: `Resolved with ${versionWords(renderId)}`, words: `Resolved with ${versionWords(renderId)}` }),
         (e: unknown) => {

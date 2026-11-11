@@ -16,7 +16,7 @@
  * an announced size, an indeterminate one), and the badge shows the percent while the sheet is closed.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { call } from '../api.js';
+import { desktopUpdate, desktopUpdateStatus } from '../data/desktop.js';
 import { Txt } from '../bits.js';
 import { APP_NAME } from '../brand.js';
 import { Button, Callout, Progress, Shape, Sheet } from '../ui-kit/index.js';
@@ -33,7 +33,7 @@ export function UpdateControl() {
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState<{ busy: 'install' | 'later' | null; failed: string | null }>({ busy: null, failed: null });
   const load = useCallback(() => {
-    call<UpdateStatus>('desktop_update_status').then(
+    desktopUpdateStatus().then(
       (s) => setSt(s),
       () => undefined,
     );
@@ -94,7 +94,7 @@ export function UpdateControl() {
       return;
     }
     setSent({ busy: action, failed: null });
-    call('desktop_update', { action }).then(
+    desktopUpdate({ action }).then(
       () => {
         setSent({ busy: null, failed: null });
         if (action === 'later') setOpen(false);

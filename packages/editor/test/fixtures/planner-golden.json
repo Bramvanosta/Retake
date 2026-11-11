@@ -1,0 +1,250 @@
+{
+ "catalogue/editorial": {
+  "sha256": "cf2de154b9aa05fc5af14969a2ff20dc2549a6bf71932698b9a859313bf57f58",
+  "bytes": 29387
+ },
+ "catalogue/motion": {
+  "sha256": "2249bbb374c9b82a18f32ba12af2de5a9eaa5d63fec3a9a489021e78eeaece7c",
+  "bytes": 29408
+ },
+ "catalogue/default": {
+  "sha256": "6e57a372ca42fa3865d20a27647399f76719a05c18314ce7298a9707f51197b3",
+  "bytes": 29435
+ },
+ "highlights/editorial": {
+  "sha256": "3760a1059f67d81be83cce5776723774807d39c7274570c8c6e6ad404acece42",
+  "bytes": 16233
+ },
+ "highlights/motion": {
+  "sha256": "8112a2a6a5f8d1c60c106391405355739124668d2e5518dc903e671f3d8975fa",
+  "bytes": 16583
+ },
+ "highlights/default": {
+  "sha256": "db26ebc859ea8583cdb0663c5dfd6b76ef56fac49bb64217ea076a8a29c43d86",
+  "bytes": 16281
+ },
+ "live-quote/editorial": {
+  "sha256": "c9d9c8c117ffe046eb98c315c47b75e6f91dcfe83aab270f779494e0b4eaaedb",
+  "bytes": 29056
+ },
+ "live-quote/motion": {
+  "sha256": "3b92aa10688f0cbf5fe83e4fe205abc5978ebf5d41465907beb4163d9c86b368",
+  "bytes": 30083
+ },
+ "live-quote/default": {
+  "sha256": "b29940ddf6b3f9c6a360c19b7db4f8aafc408cec5b5bc49e6a3d0ceb337f2f7a",
+  "bytes": 29104
+ },
+ "phone-and-desktop/editorial": {
+  "sha256": "9f1e942d05afb1aef6f668803d54e7384a8cf461e000b26199e2d004971e7854",
+  "bytes": 23939
+ },
+ "phone-and-desktop/motion": {
+  "sha256": "d7b2b02f8cdbbe2614ecfb02aae66ddd2d5e0ba0454ff73fb3a4b454277884a5",
+  "bytes": 24782
+ },
+ "phone-and-desktop/default": {
+  "sha256": "eeb7f2355ddfc3c5f724342ce9e02c157a6649016ca8cec00ef7b96d2947273d",
+  "bytes": 23987
+ },
+ "quote-artefacts/editorial": {
+  "sha256": "c97fdc3a38579be39f1839be03547cb24c8b0b910e961198b4c11a6d7411a5a0",
+  "bytes": 24182
+ },
+ "quote-artefacts/motion": {
+  "sha256": "e409f8ce74f3bb17b8262efa5384b07f47f39a9e8684dfc99f655b1881d8a58f",
+  "bytes": 30253
+ },
+ "quote-artefacts/default": {
+  "sha256": "61738c6773a8792ba7e0346a32c4695f3df758022993cef592981b5e98f4914f",
+  "bytes": 24233
+ },
+ "quote/editorial": {
+  "sha256": "699100d9df693c7bfba5cf84d0672cb9bf80bba4487d93ca4cd2c6f0f3697269",
+  "bytes": 21094
+ },
+ "quote/motion": {
+  "sha256": "b814f6fe6f93587b6a36f5921886bd7d891ff23fadc847eb80bd7758dffbeb3b",
+  "bytes": 28929
+ },
+ "quote/default": {
+  "sha256": "40537a5816ab4d7421d71f9be634516e815f64db6e6590bbc29fd9406e99a1bc",
+  "bytes": 21146
+ },
+ "signup-tutorial/editorial": {
+  "sha256": "a772011f6c0ea6bb9ce34caf64c0c683a04f3d741cd9a856f03056420224c9c3",
+  "bytes": 29006
+ },
+ "signup-tutorial/motion": {
+  "sha256": "713cabcc67bc472eab2505b773efaf6bdcd9d476aa988dba9e7036db2961c384",
+  "bytes": 29150
+ },
+ "signup-tutorial/default": {
+  "sha256": "d13b0501dae44d926e3340b3440aa7b695bef2b75cfb18e4fd03b1883c37214e",
+  "bytes": 29053
+ },
+ "signup/editorial": {
+  "sha256": "25e52067faa24deccbccf20f9fc45c2f9030634c3b2fc9d85a85fd819b99e323",
+  "bytes": 16415
+ },
+ "signup/motion": {
+  "sha256": "0ee1d6569127898c04b3c2858c4dc661d06eff050d75aa9d7368c70374ee5603",
+  "bytes": 16562
+ },
+ "signup/default": {
+  "sha256": "85d01b0be75496ef9bd7eff572afaf6a6f11a340b634928400842aec99f117cd",
+  "bytes": 16462
+ },
+ "catalogue/editorial/vertical": {
+  "sha256": "2c3bdacd4fa59ee1ef0c3e90f168878193cb2701da70423c13fe7f14567a14a2",
+  "bytes": 49608
+ },
+ "catalogue/editorial/square": {
+  "sha256": "f6fdc1e4830a6f44b0201f68d3cdac08c2e11e4f2640d3f40d886a746f7c58e1",
+  "bytes": 55347
+ },
+ "quote/editorial/vertical": {
+  "sha256": "b45a24d84006ed175889edc84d40066c739d6b9c31d98158d2d6f4c286857866",
+  "bytes": 40214
+ },
+ "quote/editorial/square": {
+  "sha256": "354c52060bc158ff84714964cdb91fc186db2ad80e5e169cc68edf820900a69f",
+  "bytes": 43183
+ },
+ "live-quote/editorial/vertical": {
+  "sha256": "2fdce25bbc6eb32f8900197826498d743fe01117de94e04bfdc4ead14894c261",
+  "bytes": 64254
+ },
+ "live-quote/editorial/square": {
+  "sha256": "c43fc75b131f5eb5f112746aaaf483e52a586edd67967fcbf817d969f38ceea9",
+  "bytes": 64614
+ },
+ "phone-and-desktop/editorial/vertical": {
+  "sha256": "633869fa1588e89aaacd5b0077c797a70e8e015b7ed812062b6be4bc1c9e09fa",
+  "bytes": 33706
+ },
+ "phone-and-desktop/editorial/square": {
+  "sha256": "80b7374a4b6f9a0d391606dc8b647029198f222309f196b6b795cbd35ca9a59c",
+  "bytes": 36729
+ },
+ "signup-tutorial/editorial/vertical": {
+  "sha256": "e3e15a290f25fb2fbd12c236c9193f183cc73b322c960d45fbf25c3bb4a23b60",
+  "bytes": 39053
+ },
+ "signup-tutorial/editorial/square": {
+  "sha256": "8cfb0a452d8c721489ea2b633be3f3db3436f3ee3d62e6add143928314f22102",
+  "bytes": 41343
+ },
+ "quote/motion/vertical": {
+  "sha256": "cd966ec7e8fcbf797c42737e4bc33a7c5c2416a2d427ea44192f4cdedc9cc502",
+  "bytes": 47815
+ },
+ "quote/editorial/fps-scale": {
+  "sha256": "3a8864286bab4581fbeec49cb9b766775d1d184b6c3886981246443a9106f5a8",
+  "bytes": 27352
+ },
+ "quote/editorial/bad-values": {
+  "sha256": "0997ed3543c75038952655eb2d0a1170b90eac819960a589933448b1f9a17deb",
+  "bytes": 21652
+ },
+ "quote/editorial/no-trim": {
+  "sha256": "d0cda188bc62c464bb7b4b9096c1f68dadc51ce60d92c450cae48eecbe11d178",
+  "bytes": 21149
+ },
+ "catalogue/editorial/idle-threshold": {
+  "sha256": "8007773062a5406d92084b50c2c89a79b4ca6bd1c1a5716ea42992f594ccb920",
+  "bytes": 29605
+ },
+ "catalogue/motion/no-camera": {
+  "sha256": "41952727ab95b0d88a89c185d5299d41c603e2c3552343a1d57b018945644003",
+  "bytes": 21866
+ },
+ "quote/editorial/bare": {
+  "sha256": "3d6f718def93d95a1c29e257cf5c369ae34091ca715094172b810918deebfa38",
+  "bytes": 18240
+ },
+ "signup/editorial/forced": {
+  "sha256": "25e52067faa24deccbccf20f9fc45c2f9030634c3b2fc9d85a85fd819b99e323",
+  "bytes": 16415
+ },
+ "quote/editorial/fade-black": {
+  "sha256": "3d42980b7685ebae68b3a362892c4e8c6c868a0e4aa6d268ffac70e38274361b",
+  "bytes": 21264
+ },
+ "catalogue/editorial/cut": {
+  "sha256": "14e1d0585adb4edb6c9366bea281fd183b6cf5c561bd61468b93f1f8b757335b",
+  "bytes": 28049
+ },
+ "quote/editorial/speeds": {
+  "sha256": "47acf3767268452586066fb8557847a8c6732e24b6bcf527d2fbf48d1f5738eb",
+  "bytes": 22395
+ },
+ "quote/editorial/frame-raw": {
+  "sha256": "75afaccc1f6cf4ceaf7c488e63508cb34490a253d873587c03de4a8fd5c317d5",
+  "bytes": 20752
+ },
+ "quote/editorial/frame-browser": {
+  "sha256": "49ccd5b17b909a12b55280d1b3849416cfac74a385f48157a8ee6804ff74c726",
+  "bytes": 21735
+ },
+ "quote/editorial/components": {
+  "sha256": "7fd02f64409c1241e424125fe332ecfe2392282b55daef8df1beea76e0387cb9",
+  "bytes": 21761
+ },
+ "signup-tutorial/editorial/tutorial-off": {
+  "sha256": "9bf669e11660ac93e50bf047873437c5ed48303e9766ed0b4e605393176f5f4f",
+  "bytes": 19048
+ },
+ "signup/editorial/tutorial-on": {
+  "sha256": "204f860295257073d9d34350d89e429022c82219bcab00e112c9b8b61c6ddcc2",
+  "bytes": 22921
+ },
+ "quote/editorial/tutorial-switches": {
+  "sha256": "521c23b7f6365d00bd05b9876a54e3527161114e36277c4af9b3f243cfea2beb",
+  "bytes": 35674
+ },
+ "phone-and-desktop/editorial/tutorial-off": {
+  "sha256": "f9ea438a1f138b2abf07a24998e4d264c05cdb7781c8641e572bdc8a74c606c3",
+  "bytes": 17023
+ },
+ "quote/editorial/music-loop": {
+  "sha256": "40325211fc5d0937dbc96b70b4d87df1b08f724375483a86712bd5a61626b3c4",
+  "bytes": 22094
+ },
+ "quote/editorial/music-long": {
+  "sha256": "76dae8db6c03be8450f01e1461c3f4178b54bfb3681c094ae962d3d0a30610fa",
+  "bytes": 21639
+ },
+ "quote/editorial/music-off": {
+  "sha256": "699100d9df693c7bfba5cf84d0672cb9bf80bba4487d93ca4cd2c6f0f3697269",
+  "bytes": 21094
+ },
+ "quote/editorial/theme-mismatch": {
+  "sha256": "ac73927bd3a938d5f68b3391753148eef73a62cba8a78bc6b9260af29d6b47c0",
+  "bytes": 21215
+ },
+ "quote/editorial/own-files": {
+  "sha256": "8b9d030c825dcfbc23b9becc8a06a99a5bdb62e344f0b70457026224d3587734",
+  "bytes": 21959
+ },
+ "quote/editorial/own-files-missing": {
+  "sha256": "0dfd4a341e1e15fdc536b03e3f2fbb1811bedd89d3cae66424857dc0d3027b01",
+  "bytes": 21268
+ },
+ "quote/editorial/old-timeline": {
+  "sha256": "3008bb490b677c147d7ef631661b89957675661192664877531a87ce11f1de0a",
+  "bytes": 21175
+ },
+ "quote/motion/old-timeline-scenario": {
+  "sha256": "2316fe379e1e9719c77fcfd79962e5bc840fcc6c2aba72afdeac0ade90439bbd",
+  "bytes": 29622
+ },
+ "quote/editorial/env": {
+  "sha256": "ec855461d1772ea127f22736a5c2539c1a318c0bdeabc95f0d25ef2d8854a6e1",
+  "bytes": 21268
+ },
+ "quote-artefacts/editorial/run-dir": {
+  "sha256": "3d3341c055dfe190dae4bd7259cad09eea16314fc6f849c205cf34971c51b1e2",
+  "bytes": 24172
+ }
+}

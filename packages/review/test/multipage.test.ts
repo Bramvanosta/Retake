@@ -7,15 +7,16 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadProject, loadTemplate } from '@retake/core';
+import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
 import type { Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { insetRectAt, mapPaneRect, planEdit } from '@retake/editor';
-import type { ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor';
+import { insetRectAt, mapPaneRect, planEdit } from '@retake/editor/plan';
+import type { ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
 import { DEFAULT_RULES, checkCursor, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, planFontFiles, segmentSpans, transitionSpans } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
 import { REPO } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;
@@ -23,7 +24,7 @@ let registry: ComponentRegistry;
 
 async function ctxOf(timeline: Timeline, overrides: EditOverrides = {}, theme = 'editorial', edit?: (plan: EditPlan) => void): Promise<CheckContext> {
   const project = await loadProject('northfield-fixture', REPO);
-  const template = await loadTemplate(theme, REPO);
+  const template = await loadTemplate(theme, REPO, { files: fileFacts(PERSON_POLICY) });
   const plan: EditPlan = planEdit({ timeline, template, project, registry, captureFile: '/captures/capture.mp4', overrides });
   edit?.(plan);
   const record = { version: 1, id: `${timeline.scenario}-v1`, scenario: timeline.scenario, run_id: timeline.run_id, template: theme, status: 'succeeded', overrides, variant: plan.variant, plan } as unknown as RenderRecord;

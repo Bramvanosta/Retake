@@ -1,4 +1,4 @@
-import { isAccessError } from '@retake/core';
+import { isAccessError, scenarioRef } from '@retake/core';
 import { checkAllowWrites, recordScenario } from '@retake/engine';
 import type { RecordOutcome, RecordPorts } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
@@ -6,7 +6,7 @@ import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor, retakeCommand } from './auth.js';
 
@@ -68,6 +68,7 @@ export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: s
         submittedBy: 'cli',
       },
       {
+        queue: workspaceQueue(ws),
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onPhase: (phase) => {
           if (phase === 'preflight') ui.setStatus('checking the session…');
@@ -141,7 +142,7 @@ function printOutcome(ui: Ui, global: GlobalOptions, slug: string, o: RecordOutc
     );
   }
   if (o.saved) ui.ok(`saved ${o.saved.file}`);
-  else if (o.not_saved === 'name_taken') ui.warn(`scenarios/${o.name}.yaml exists: not saved — the draft is kept in the recording's folder`);
+  else if (o.not_saved === 'name_taken') ui.warn(`${scenarioRef(o.name)} exists: not saved — the draft is kept in the recording's folder`);
   else if (o.not_saved === 'invalid') ui.error('the draft does not validate: not saved (see the errors above)');
   else if (o.not_saved === 'refused') ui.error('the draft was refused: not saved');
   const k = o.check;

@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import type { EditPlan } from '@retake/editor';
+import type { EditPlan } from '@retake/editor/plan';
 import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkSlowTransitions, checkTextSlots, checkButtonContrast, checkOverlayCover, checkLoadingFilmed, checkZoomScroll, checkCaptionContradictions, checkOverlaysKept, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
@@ -196,7 +196,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   const { timeline } = await renderTimeline(project, record);
   if (!timeline) notes.push({ severity: 'info', code: 'timeline-missing', message: `the run ${record.run_id} (timeline.json) is not available: clicks, cursor and capture captions not checked` });
   const previous = await findPrevious(project, record, opts.previous);
-  const probed = await probeVideo(record.file);
+  const probed = await probeVideo(record.file, opts.policy);
 
   const F = plan.fps;
   const D = plan.durationInFrames;
@@ -236,7 +236,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     const keyFiles: Record<string, string> = {};
     const fullStep = Math.max(2, Math.round(Math.min(plan.width, plan.height) / 180));
     let done = 0;
-    const delivered = await extractFrames(record.file, [...wanted], { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height, ...(signal ? { signal } : {}) }, async (f, img) => {
+    const delivered = await extractFrames(record.file, [...wanted], { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height, policy: opts.policy, ...(signal ? { signal } : {}) }, async (f, img) => {
       const span = spanAt(spans, f);
       if (mainSet.has(f) || sceneSet.has(f)) tiles.set(f, await makeTile(img, layout.tile));
       for (const name of keyByFrame.get(f) ?? []) {
@@ -294,8 +294,8 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
           if (!src || !existsSync(src.file)) continue;
           const cw = Math.min(640, src.width);
           const ch = Math.max(2, Math.round((cw * src.height) / src.width / 2) * 2);
-          const info = await probeVideo(src.file);
-          await extractFrames(src.file, frames, { width: cw, height: ch, videoWidth: info.width, videoHeight: info.height, ...(signal ? { signal } : {}) }, (f, img: RgbImage) => {
+          const info = await probeVideo(src.file, opts.policy);
+          await extractFrames(src.file, frames, { width: cw, height: ch, videoWidth: info.width, videoHeight: info.height, policy: opts.policy, ...(signal ? { signal } : {}) }, (f, img: RgbImage) => {
             const key = `${track}:${f}`;
             sources!.set(key, regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: 2 }));
             if (sigWanted.has(key)) sourceSigs!.set(key, signature(img, { x: 0, y: 0, w: img.width, h: img.height }, 64, 36));
@@ -322,8 +322,8 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
       const prevSigs = new Map<number, Float32Array>();
       const prevTiles = new Map<number, { data: Buffer; width: number; height: number }>();
       try {
-        const info = await probeVideo(previous.file);
-        await extractFrames(previous.file, pairs.map((p) => p.previous_frame), { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height, ...(signal ? { signal } : {}) }, async (f, img) => {
+        const info = await probeVideo(previous.file, opts.policy);
+        await extractFrames(previous.file, pairs.map((p) => p.previous_frame), { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height, policy: opts.policy, ...(signal ? { signal } : {}) }, async (f, img) => {
           prevSigs.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }));
           prevTiles.set(f, await makeTile(img, layout.tile));
         });

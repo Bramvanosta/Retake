@@ -4,18 +4,27 @@
  * scenario's warnings and notes, the sandbox take or check, runScenario). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
-import { loadProjectTemplate, parseScenarioSource, readScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv } from '@retake/core';
-import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import { parseScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
+import { loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
+import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
 import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import type { SandboxLog, Take } from '@retake/sandbox';
+import type { Caller } from './caller.js';
+import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'RunOptionError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
   }
 }
 
@@ -29,6 +38,15 @@ export class SandboxTakeError extends Error {
   ) {
     super(message);
     this.name = 'SandboxTakeError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return sandboxErrorKind(this.code, this.message, 'unavailable');
+  }
+
+  get errorDocs(): string {
+    return GUIDE.sandbox;
   }
 }
 
@@ -51,7 +69,7 @@ export interface RunRequest {
 }
 
 export interface PreparedRun {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   project: LoadedProject;
   scenario: LoadedScenario;
   template?: LoadedTemplate;
@@ -96,15 +114,15 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  * mailbox receives. The file is read once (its sha256 is `scenario.sha256`, checked against `expectSha256` when given):
  * the sandbox's pick and the validation work on the same bytes.
  */
-export async function prepareRun(ws: WorkspaceConfig, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
+export async function prepareRun(ws: OpenedWorkspace, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
   if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
   const src = await readScenarioSource(project, scenarioRef, { ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}), ...(req.readFile ? { readFile: req.readFile } : {}) });
   const sandboxEnv = req.sandbox ? pickSandboxEnv(project, req.env, scenarioSourceEnv(src.text)) : undefined;
-  const scenario = parseScenarioSource(project, src, { env: sandboxEnv ?? req.env, until: req.until });
+  const scenario = parseScenarioSource(project, src, { files: fileFacts(ws.policy), env: sandboxEnv ?? req.env, until: req.until });
   let template: LoadedTemplate | undefined;
   let templateWarning: string | undefined;
   try {
-    template = await loadProjectTemplate(project, scenario.scenario.template);
+    template = await loadProjectTemplate(project, scenario.scenario.template, { files: fileFacts(ws.policy) });
   } catch (e) {
     // Phase 1 only takes the cursor ripple colour from the template: capture with the defaults.
     templateWarning = `${errorMessage(e)} — capturing with the default cursor colours`;
@@ -130,6 +148,8 @@ export interface RunPorts {
 }
 
 export interface ExecuteRunOptions {
+  /** What the work runs under (core WorkPolicy): its programs, browser and ffmpeg, under the agent policy. */
+  policy: WorkPolicy;
   /** A run id reserved ahead (core reserveRunId: a job's); default a new one. */
   runId?: string;
   /** `--allow-writes` (L1.7): checked by the caller first (checkAllowWrites). */
@@ -141,6 +161,8 @@ export interface ExecuteRunOptions {
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
   /** Who stands behind the scenario's hook flags (default `author`; `mcp` for a job submitted through MCP). */
   hookTrust?: HookTrust;
+  /** Who runs it: each hook, rollback and sandbox seed step run is a line of the workspace journal as this caller's. */
+  recordAs?: Caller;
   /** The channel a trust-`mcp` job came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
   hookVia?: AgentChannel;
   /** Approves a hook that needs a human (the worker: the job's approvals). */
@@ -156,7 +178,7 @@ export interface ExecuteRunOptions {
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */
 async function prepareSandboxTake(project: LoadedProject, env: string, scenario: string, ports: RunPorts, opts: ExecuteRunOptions): Promise<Take> {
   const { openSandbox } = await import('@retake/sandbox');
-  const sb = openSandbox(project, env);
+  const sb = openSandbox(project, env, opts.policy);
   const stop = await ports.interrupts.open({ message: 'interrupted: stopping what this take started…', onQuitSync: () => sb.killStartedSync() });
   let take: Take;
   try {
@@ -166,6 +188,7 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
       command: `run ${scenario}`,
       // The seed a reset may run is under the run's trust: through MCP a shell seed step needs its approval too.
       ...(opts.hookTrust ? { seedTrust: { trust: opts.hookTrust, ...(opts.confirmHook ? { confirm: opts.confirmHook } : {}) } } : {}),
+      ...(opts.recordAs ? { recordSeedRun: hookRunRecorder(project.root, opts.recordAs, { project: project.slug }) } : {}),
     });
   } catch (e) {
     const code = (e as { code?: string })?.code;
@@ -186,10 +209,10 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
  * A run on a sandbox environment without `sandbox`: no reset, and the sandbox must be up (its SandboxError otherwise);
  * a take holding its lock is a warning. Nothing for other environments.
  */
-export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note']): Promise<void> {
+export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note'], policy: WorkPolicy): Promise<void> {
   if (!sandboxOf(project, env)) return;
   const { openSandbox, describeLock } = await import('@retake/sandbox');
-  const { lock } = await openSandbox(project, env).checkRunning();
+  const { lock } = await openSandbox(project, env, policy).checkRunning();
   if (lock) note('warn', `sandbox ${env} is in use by ${describeLock(lock)}: this run films it as it is, while that command may reset it`);
   note('info', `sandbox ${env}: filmed as it is, without a reset (--sandbox resets it to its seed first)`);
 }
@@ -215,11 +238,12 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   // as it is, and must be up.
   let take: Take | undefined;
   if (sandboxEnv) take = await prepareSandboxTake(project, sandboxEnv, scenario.name, ports, opts);
-  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note);
+  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy);
 
   const { runScenario } = await import('@retake/runner-web');
   try {
     return await runScenario({
+      policy: opts.policy,
       project,
       scenario,
       template,
@@ -235,6 +259,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.allowWrites ? { allowWrites: true } : {}),
       ...(opts.hideCursor ? { hideCursor: true } : {}),
       ...(opts.hookTrust ? { hookTrust: opts.hookTrust } : {}),
+      ...(opts.recordAs ? { recordHookRun: hookRunRecorder(project.root, opts.recordAs, { project: project.slug }) } : {}),
       ...(opts.hookVia ? { hookVia: opts.hookVia } : {}),
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       ...(opts.live ? { live: opts.live } : {}),

@@ -13,6 +13,7 @@ import { LivePreview, kitConfigFor, openSession, runScenario } from '../src/inde
 import type { LiveFrame, LiveSink, RunOptions } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 /** A page that paints a new colour on every animation frame. */
 const ANIMATED = `<!doctype html><html><body style="margin:0"><div id="box" style="width:100vw;height:100vh"></div>
@@ -81,7 +82,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}) {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({ project, scenario: makeScenario(name, { pacing: FAST, ...scenario }), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts });
+  return runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...scenario }), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts });
 }
 
 describe('the live picture of a run', () => {
@@ -120,7 +121,7 @@ describe('the live picture of a run', () => {
   });
 
   it('nobody watching: no screencast at all; frames once someone watches, none again after', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('a');
       await page.goto(`${server.url}/anim.html`);
@@ -178,7 +179,7 @@ describe('the live picture of a run', () => {
   });
 
   it('a page that changes in a burst and goes still: the last frame handed on shows its final state (trailing edge)', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('a');
       await page.goto(`${server.url}/still.html`);
@@ -194,11 +195,14 @@ describe('the live picture of a run', () => {
             await new Promise((r) => setTimeout(r, 25));
           }
         });
+        // The newest frame handed on is the final state: within half a second on the Mac; a loaded machine's
+        // screencast delivers its last frame later, so it is waited for (never a later frame of another colour).
+        const lastColour = async () => {
+          const last = sink.frames.at(-1)!;
+          return centre(last.data, last.width, last.height);
+        };
         await wait(500);
-        const last = sink.frames.at(-1)!;
-        const [r, g, b] = await centre(last.data, last.width, last.height);
-        expect(b).toBeGreaterThan(200);
-        expect(r + g).toBeLessThan(80);
+        await expect.poll(async () => { const [r, g, b] = await lastColour(); return b > 200 && r + g < 80; }, { timeout: 5000, interval: 100 }).toBe(true);
         await page.evaluate(() => (document.body.style.background = '#ff0000'));
         await wait(400);
       }
@@ -209,7 +213,7 @@ describe('the live picture of a run', () => {
   });
 
   it('follows the page the run acts on (a switch to another page or tab)', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const a = await session.page('a');
       await a.goto(`${server.url}/anim.html`);

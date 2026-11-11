@@ -19,8 +19,10 @@ packages/runner-web   Playwright/CDP runner: in-page kit (cursor overlay, resolv
 packages/editor       (phase 2) Remotion compositions + edit planner + render API
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
 packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
-                      if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker
-packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c), SDK-free tool layer `callTool` (§4c)
+                      if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker;
+                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `callTool`) and catalogue (§4c);
+                      `@retake/engine/catalogue`: the catalogue alone, browser-safe (no run-time import)
+packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c): the contract's operations as tools
 packages/ui           (L4.1) the Studio web app and its server (`retake ui`, §4c)
 packages/cli          `retake` command — everything the MCP does, for humans and CI
 fixtures/wholesale    local test product (supplier console + buyer shop) built with real Radix UI and Base UI components
@@ -38,7 +40,41 @@ else `start`. `retake.yaml` (optional) may set `projects_dir`, `templates_dir`, 
 
 ## 1. @retake/core
 
-Exports everything from `types.ts` plus:
+Two entries (L6.9). `@retake/core` is the domain — the scenario language, schemas, validation, the agent policy's
+rules and lists — with no I/O (it imports no I/O module: the import-rules ratchet's R1) and no environment read, but
+three listed defaults: `defaultSecrets` (`{{env:VAR}}` filled in without a resolver), `expandHome` (`~` is `$HOME`) and
+`unsafeTestResolve` (the site test resolver's variable, which the site job's input schema reads); the clock and ids are
+allowed (`ids.ts`, `newRunId`, a schema file found from `import.meta.url`). `@retake/core/io` (`src/io/`) is its side
+that touches the machine: the readers below (workspace, projects, scenarios, themes, sandboxes), the app bundle and the
+media tools (`bundle.ts`, `media-tools.ts`), the Retake home and its signing key, secret references, atomic file writes,
+the media probes, the Node implementations of the ports below, and the environment the domain is given (this process's
+PATH: `programLookup()`; whether its file system ignores case: `nodeFileFacts.ignoresCase`). The domain never imports it.
+
+- **FileFacts** and **VideoProber** (`file-facts.ts`): what a domain rule learns from the machine. FileFacts is the
+  disk — kind (a file, a folder, something else, or nothing), real path (as given / as the file system spells it),
+  text, first bytes, executable, whether the file system ignores case; VideoProber is a video's ffprobe, which runs
+  under a work's policy. Every check that looks at a file (a file a scenario, a project, a theme or a sandbox names; the
+  real paths of the agent rules; the SQL a hook runs) is handed a FileFacts, and a check that probes a video also its
+  work's VideoProber; one that needs either without it throws `FileFactsMissingError`, never reads as "no file". What
+  ffprobe cannot say of a file (`MediaProbeError`) is reported; any other error is thrown. `nodeFileFacts` (io) is the
+  disk only; `fileFacts(policy)` (io, a `WorkFileFacts`) adds the VideoProber of a work's policy (a policy that refuses
+  the work's ffprobe: the file is one the renderer cannot read, in the refusal's words); `memoryFileFacts` (core)
+  answers both from a table. The loaders (`loadScenario`, `loadTemplate`, `loadProjectTemplate`) take a
+  `WorkFileFacts` always — there is no default.
+- **WorkPolicy** (`agent-policy.ts`): what a piece of work runs under — `agentFolders` (the agent policy on for a
+  workspace's folders, or null: a person's policy, a command a person types), the workspace's retake.yaml `ffmpeg` and
+  `render:`. The engine's `openWorkspace` returns it with the workspace (`OpenedWorkspace.policy`: `workPolicy(ws,
+  {agent})`; `workPolicyFrom(folders, ffmpeg, render)` builds one from its parts, `PERSON_POLICY` is a person's without
+  workspace settings) and passes it to every adapter that starts a program, a browser or ffmpeg (runner
+  `launchTarget` / `launchOptions`, editor `assertRenderBrowser` / `renderPolicy`, `ffmpegBin(policy)`, sandbox
+  providers, a hook's context) under the option key `policy` — `workPolicy` in the editor's render, export and preview
+  options, whose `policy` is the render's RenderPolicy; there is no process-wide policy (the ratchet's `policy-state`:
+  no module-level `let` of core, the engine or an adapter holds it). A program's check takes the PATH it looks a bare
+  name up in (`ProgramPolicyOptions.path`, this process's: `programLookup()`). The probes' memos (`probeVideoFile`, the
+  timeline's music length and capture keyframes) are keyed by the ffprobe that answered too.
+
+The readers and writers below are `@retake/core/io`'s; the parsers (`parseProjectYaml`, `parseScenario`…) are core's
+and take the FileFacts their checks use (`files`).
 
 ```ts
 // workspace
@@ -261,8 +297,8 @@ HookContext = {
   Rollback: file or inline SQL from the hook's `rollback`.
 - **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `RETAKE_PROJECT_DIR`,
   `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged. What it inherits (`inheritedEnv`):
-  `process.env` in the CLI; under the agent policy (core `useAgentPolicy`: the worker and its job processes, the MCP
-  server and the Studio server) core
+  `process.env` in the CLI; under the agent policy (the context's core `WorkPolicy`: the worker and its job processes,
+  the MCP server and the Studio server) core
   `policyChildEnv` — `CHILD_ENV_BASE` (PATH without relative entries or entries inside the workspace folders, HOME,
   USER, LOGNAME, SHELL, TMPDIR, TERM, LANG, LC_*, TZ, the proxy and certificate variables) plus project.yaml
   `pass_env:` (core `passEnvProblem` refuses a loader variable at validation, `childEnv` drops one again); an unsigned
@@ -417,7 +453,32 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
 - One tab per environment page key (`admin`, `app`…), created lazily; `new_tab` adds more (`tab2`, or `as`).
   The ACTIVE page is the one being recorded and acted on.
 
-### 3.2 In-page kit (`window.__retake`, written as a self-contained function, injected via `addInitScript`)
+### 3.2 In-page kit (`window.__retake`, built from modules into one page script, injected via `addInitScript`)
+- **How it is built**: the kit is a folder of modules, `packages/runner-web/src/kit/page/` — one per concern (`refs`,
+  `memo`, `trees` (shadow roots and frames), `text`, `visibility`, `roles`, `scopes`, `resolver`, `points`, `scrolling`,
+  `placement`, `changes`, `triggers`, `fields`, `calendar`, `clicks`, `file-drag`, `host`, `cursor-look`, `overlay`,
+  `cursor`, `ripple`, `frame-pointer`, `notifications`, `inventory`, `recorder`, `target-checks`, `click-effects`,
+  `clock`, `lifecycle`, `config`, `api`) and the entry `main.ts`. `kitBundle()` (runner `kit/source.ts`) builds them
+  with esbuild on first use, in memory, once per process: one immediately-invoked function, browser platform, ES2023
+  syntax, not minified, from the package's sources (they ship with it: `files: src`; the same folder from `src/` and
+  `dist/`); a build that fails is a set-up error (`RunnerError`, "the in-page kit was not built: …"), not kept: the next
+  use builds again. The modules are never emitted: runner-web's tsconfig excludes the folder, which is type-checked by
+  its own project (`src/kit/page/tsconfig.json`: the browser's types only, no Node globals; `tsc -b` reaches it through
+  `tsconfig.check.json`). The modules import only each other and types (erased): a build whose inputs leave the folder
+  is refused, and a test walks the graph (no package, no Node module, no cycle). `kitSource(config)` wraps the bundle in
+  a function that defines its configuration (`__retakeKitConfig`, read by `config.ts`): one script per configuration,
+  evaluated once per document (also re-evaluated by `KitClient.install` when a document lost its kit). Every module
+  only declares (functions, constants, state; a top-level initializer is side-effect-free — literals, functions, object,
+  array and template literals and collections of those, the module's own bindings — but for a named few that read the
+  environment or compute at load: the real clock, the window, the configuration, the cursor's look;
+  `test/kit-build.test.ts`); what touches the page happens in `main.ts`, in this order: the notification relay, the
+  replacement of a previous kit (a healthy one of the same version stays: the script stops there), the health ping,
+  the change watcher's cleanup, the overlay's host, the page's popover methods kept, the cursor (overlay, listeners,
+  patches — or nothing for the passive copy, or pointer forwarding in a sub-frame), the frame pointer relay, the click
+  effects' cleanup, then `window.__retake`. What the page receives — globals, the API's members, arities and
+  prototypes, the look, the patched natives, the listeners, the answers on a fixed page (frames, an open shadow root, a
+  scrolled container, a calendar, a modal dialog, a dropzone, notifications, the frame pointer relay) — is held by a
+  golden recorded from the kit before modules (`packages/runner-web/test/kit-page.test.ts`, `test/golden/kit-page.json`).
 - **Cursor overlay**: a `<retake-cursor>` host (shadow DOM, `pointer-events:none`) attached to
   `document.documentElement`, re-attached by a MutationObserver if removed. It uses `popover="manual"` and
   re-raises itself (hide+show popover) whenever another top-layer element opens (`toggle` events, dialog
@@ -1690,7 +1751,7 @@ environments)`), and `retake review` / `render --review` print the review's envi
 
 ## 4b. Engine API and MCP server (L3.1)
 
-**`@retake/engine`** (deps: core, hooks, runner-web, sandbox). One typed, in-process API over a workspace. The CLI calls
+**`@retake/engine`** (deps: components, core, editor, hooks, review, runner-web, sandbox, zod). One typed, in-process API over a workspace. The CLI calls
 the moved functions directly with its native options, errors and exit codes; `EngineError` exists only at the
 boundary of clients outside the CLI (the MCP server; the jobs worker and the HTTP API later).
 
@@ -1724,6 +1785,9 @@ Engine {
 loginTarget(project, {env?, persona?, auto?}) → {env, persona} / signInPersona(project, env, persona, {mode, page?, url?},
   {interrupts, log, onOpen?}) → {interrupted} | {result}   // moved from cli commands/auth.ts (LoginOptionError {usage})
 appendHistory(root, entry) / usageCounts(root) / entitlements() → {tier: 'internal', features: 'all', limits: null}
+planWork / renderWork / stillWork / exportWork / reviewWork(adapter options) → the adapter's result   // pipeline.ts (L6.7)
+findRunOf / findRenderOf / defaultStillFile / editorErrorOf(e) → 'render_cancelled' | 'render' | 'export' | undefined
+renderInProcess / stillInProcess / exportInProcess / runInProcess / inspectInProcess   // in-process.ts: the call + history line
 selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(project, {env?, allowWrites?, dry?, vars?,
   runId?, scenario?, trust?, log, confirm?, loginCommand, signal?}) → {ctx, access, closeSessions} / hooksAccess
                                                        // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
@@ -1732,6 +1796,28 @@ takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(ap
 pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(PruneApprovalRequest, approver?, client?)
 ```
 
+- **The façade, by sub-API** (L6.7). `createEngine` (engine.ts) is the composition root: it builds the file job queue,
+  one `EngineContext` (`facade/context.ts`: the caller and its decisions, the workspace opened with the caller's agent
+  policy, the store scope, the queue, the worker starter, the run overlays, the admission rules, the caches the screens
+  share), then each sub-API from it with its own builder (`facade/*-api.ts`: `projectsApi`, `scenariosApi`, `runsApi`,
+  `jobsApi` / `hooksApi` / `envApi` / `sandboxApi`, `authApi`, `rendersApi` / `timelineApi` / `reviewsApi` /
+  `exportsApi`, `templatesApi` / `componentsApi`, `inspectApi` / `recordApi`, `commentsApi`; `info.ts`, `sessions.ts`).
+  The types live in `facade/types.ts`, re-exported by engine.ts; `packages/engine/test/engine-facade.test.ts` holds the
+  façade's keys and every sub-API's, in order.
+- **The pipeline, one function per part** (L6.7, `pipeline.ts`; the word in the [glossary](GLOSSARY.md)). Plan,
+  render, still, export and review are each one function over the adapter's call (`planWork` / `renderWork` /
+  `stillWork` / `exportWork` over the editor's `planRun` / `renderVideo` / `renderStill` / `exportRender`, `reviewWork`
+  over the review's `reviewRender`, behind the engine's lazy imports), called by the worker's jobs (with trust `mcp`,
+  the network guard, a reserved id) and by the CLI (its own options: no trust, an output path, a concurrency): options,
+  results and errors pass through unchanged. The CLI runs them in process — no job, no worker — through
+  `in-process.ts` (`renderInProcess`, `stillInProcess`, `exportInProcess`, and `runInProcess` over `executeRun`,
+  `inspectInProcess` over `runInspection` with the pruning of older inspections, `pruneUnlessOpenIn` the workspace's
+  queue), each the call then its history line. The CLI's render, still, export and run commands import no adapter;
+  `retake review` runs `reviewWork` but still imports the review package's summary-line formatters (`summaryLine`,
+  `findingLine`, `environmentLine`: an R4 entry of `scripts/audit/baseline.json`). The editor's errors state their kind
+  (core error-kind.ts), so the CLI prints them as they are; only a cancelled render is reworded (`editorErrorOf`).
+  `packages/cli/test/pipeline-cli.test.ts` holds their stdout, stderr, exit codes, history and journal lines byte for
+  byte (fixtures/pipeline-cli.json), times measured by a clock alone normalised.
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
   `checkScenarioName` = `SLUG_RE`, `checkRunId` = `RUN_ID_RE`), checked before core sees it (core's loaders also take
   absolute and cwd-relative paths, which only the CLI may use).
@@ -1746,15 +1832,44 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   that is a symbolic link out of the project is refused, real paths compared). Producers (runner, editor, review)
   keep writing absolute paths into their records: refs inside run.json / render.json are a format change (L3.6 /
   BL-70); the engine converts at its boundary (a run's paths are re-rooted on its current folder).
+- **Project store and workspace journal** (L6.6, engine `store/`): every authored write goes through `ProjectStore`
+  (`writeText(ref, text, {ifMatch, what})` over `LocalStorage.writeText`, `ifMatch` always stated; `createFolder(parent,
+  name, {build, recheck})` for a folder made whole — staged as `.tmp-<name>-<random>`, renamed into place under
+  `<workspace>/.retake/locks/create-<hash of its real path>.lock` after the last check of its name): scenarios (the
+  engine's `saveScenarioText` checks, the store writes), the README, comment threads, themes (create, copy, edit),
+  component scaffolds (components `createComponent` takes the store's writer), new projects (core `planNewProject` names
+  the files), `retake init`, sandbox scaffolds (sandbox `initSandbox` takes the store's writer). Each write is journaled
+  in `<workspace>/.retake/journal.jsonl` (`store/journal.ts`, its only writer: O_APPEND, never through a link, a torn
+  last line closed first, fsync before the reply — crash-safe, not power-loss-safe on macOS —, no delete path) — `{v,
+  at, by: {client, channel, trust}, project?, op: write|folder|hook, what, path, if_match?, sha256?, bytes?, files?,
+  outcome}` —, its `path` workspace-relative (compared as given and by real paths) or, for a store configured outside
+  the workspace, its label and the path inside it (`<project>/…`, `<templates_dir>/…`, `<components_dir>/…`), never
+  absolute; and so is every hook and rollback run (hooks `HookContext.recordRun`, set by the engine's hook contexts, the
+  run executor and the sandbox seed — its exec steps too, kind `exec` —: `{op: 'hook', hook?, index, kind?, phase, run?,
+  ms?, outcome}`, never a description, message, error or command; `index` is the position among all the seed's steps, a
+  rollback's `run` the run whose hooks journal it replays). A file of its own beside `history.jsonl`: the history's
+  lines carry `counted` for the usage counters and the index's `history` table; the journal records who changed what.
+  Persona sessions are not authored state (secrets in the Retake home) and are not journaled. `retake journal` reads it
+  (with `--limit`, from the end of the file).
+- **Folder layout** (L6.6, core `layout.ts`): `PROJECT_DIRS`, `STATE_DIR`, `STATE_DIRS`, `projectPath`, `statePath`,
+  `projectRef`, `stateRef`, `scenarioFile`, `scenarioRef`, `runPath`, `defaultRetakeHome`, `HISTORY_FILE`,
+  `WORKSPACE_JOURNAL_FILE`; the import-rules ratchet counts a layout path spelt by hand anywhere else — a string or
+  template naming `.retake`, `history.jsonl`, `journal.jsonl` or `<layout folder>/…`, or a layout folder as a node:path
+  `join` / `resolve` argument (`layout` entries of scripts/audit/baseline.json, each file with its count).
 - **Views.** `ProjectView` leaves out `auth` (persona names, pages and whether they have login steps, per environment)
   and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
   `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health
   responses, a check's detail and URL) under `untrusted`.
-- **Errors.** `EngineError {code, message, fix?, details?}`, codes `not_found | invalid | conflict | refused |
-  needs_approval | busy | unavailable | cancelled | internal`; `toEngineError(e)` maps the other packages' errors by
-  name in one place (ScenarioError / ConfigError → not_found or invalid, AccessError / HookSecurityError /
-  WriteRefusedError / HostRefusedError → refused, SandboxError busy / down / interrupted → busy / unavailable /
-  cancelled, CancelledError → cancelled, anything else → internal).
+- **Errors.** `EngineError {code, message, fix?, details?, docs?}`, codes `not_found | invalid | conflict | refused |
+  needs_approval | busy | unavailable | cancelled | internal` (core's error kinds, `error-kind.ts`). Every error class
+  raised on purpose states its kind (`errorKind`, a getter where it depends on the message or a field) and may name its
+  guide page (`errorDocs`, carried as `docs`: its URL on the public repository, core `docsUrl`, which an MCP error's
+  data carries); `toEngineError(e)` reads them in one place, an EngineError of another module copy keeping its fix,
+  details and docs (ScenarioError / ConfigError →
+  not_found or invalid, AccessError / HookSecurityError / WriteRefusedError / HostRefusedError → refused, SandboxError
+  busy / down / interrupted → busy / unavailable / cancelled, CancelledError → cancelled; the table:
+  `packages/engine/test/error-kinds.test.ts`), anything without a kind → internal. The CLI prints an error with a kind
+  as one line, without a stack.
 
 **Runs: one executor** (`execute-run.ts`, moved from `cli/commands/run.ts`). `prepareRun(ws, project, scenario,
 {dry, until, hooks, env, headed, sandbox})` (the sandbox pick from the scenario's raw `env:`, the scenario validated
@@ -1785,6 +1900,31 @@ workers/worker.lock     {pid, started_at, host, version, build, since} — one w
 workers/worker.log      what workers print (stderr), appended
 ```
 
+- The queue is a port (L6.3; `jobs/job-queue.ts`), in two views. `JobQueueView` reads and asks: read (with the derived
+  states), a submit's own files (`jobFile`: a render's edit snapshot, never a link followed), the markers a client asks
+  with (cancel, pause, stop: `cancelOf` / `pauseOf` / `stopOf` say when, and a cancel's reason), who claimed a job, what
+  holds heavy work and a heavy job's yield (`takeHold`, `yieldOf`), the events, and `withOwnMemory()` (the same jobs for
+  another watcher: its own memory of the jobs seen finished and of the filming markers, and the default `retake` in
+  its derived fix texts). `JobQueue` adds the submit (`enqueue`) and the claiming worker's writes (`claim`, `unclaim`,
+  `write`, `setYield`, `append`: events get seq + 1, + 2… after the seq the writer passes, one writer at a time).
+  `Engine.queue` is a `JobQueueView`: the MCP server and the Studio read it, and the ratchet's `queue-call` rule keeps
+  the submit and the worker's writes inside `packages/engine/src`. No path in either. The behaviour is written once
+  (`queue-core.ts`) over a job's named entries; the file queue (`queue.ts` `FileJobQueue`, the files above) and an
+  in-memory queue (`memory-queue.ts`: tests of the code that is handed a queue) keep them, and one contract suite holds
+  both (`packages/engine/test/job-queue-contract.ts`). The paths are the file queue's file part (`JobFiles` — a job's
+  folder, job.json, browser.json, live.json, yield.json, events.jsonl), handed apart from the queue to the code that
+  reads or writes a job's files itself (the worker: a render's browser; the live channel; the Studio's live run through
+  `Engine.jobFiles`; the project board's stat memo). Only the composition roots build the file queue: the engine, the
+  worker, the job process and the CLI's `workspaceQueue` (its in-process commands read it so that their pruning spares
+  the folders of active jobs), plus the adapter's own `withOwnMemory()`; every other module is handed one (the
+  ratchet's `queue` rule). `<workspace>/.retake` and its jobs folder are named by `workspace-state.ts`; what an
+  interrupted job says, by `jobs/interrupted.ts`. The worker (`runWorker`, `jobs/worker.ts`) opens the workspace (trust
+  `mcp`, never beside a worker from before the rename), builds the queue and takes the lock, then orchestrates parts
+  that share one record of everything it holds (`jobs/worker-record.ts`), a module each: the process's signals
+  (`worker-signals.ts`), the recovery of what earlier workers left (`worker-recovery.ts`), the loop, its drain and the
+  hand-over (`worker-loop.ts`), the claims of a turn and the capture slot (`worker-slots.ts`, `worker-claim.ts`), the
+  heavy slot (`worker-heavy.ts`: its job process, yield, cancel and end) and the ends the worker writes itself
+  (`worker-finish.ts`).
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
   Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
   `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived
@@ -1974,8 +2114,11 @@ workers/worker.log      what workers print (stderr), appended
 - The worker's dispatch is a `switch` over the job kinds (exhaustive). Each finished job — and each interrupted one
   the next worker records — appends a line to `<workspace>/.retake/history.jsonl` (`{v, at, job, kind, project,
   submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `retake run`,
-  `retake render` and `retake still` append theirs (no job), `retake export` one counting the formats it re-rendered
-  (component previews are not counted). `engine.usage()` sums them; `entitlements()` is the parked licence hook.
+  `retake render`, `retake still` and `retake inspect` get theirs (no job) from the engine's in-process operations
+  (`in-process.ts`), `retake export` one counting the formats it re-rendered (component previews are not counted), and
+  `retake record` from `record.ts`: one writer per kind of line, no shell writes one itself
+  (`packages/engine/test/pipeline.test.ts` lists the writers). `engine.usage()` sums them; `entitlements()` is
+  the parked licence hook.
 - `retake jobs [list] | status <id> | cancel <id>` (CLI, `commands/jobs.ts`) reads the same queue through the engine
   (`client: 'cli'`, `autoStartWorker: false`: a worker started from a terminal would inherit the terminal's
   environment and run the jobs an MCP client queued): newest first with progress and outcome, one job's details, a
@@ -1997,8 +2140,9 @@ workers/worker.log      what workers print (stderr), appended
   + `fix`, `structuredContent.error`.
 - `startMcpServer({root})`: console.log / info / debug go to stderr; one engine (`client: 'mcp'`). Nothing in this
   process opens a browser or starts a capture (auth status reads files; sandbox status asks the provider).
-- `config-snippet.ts`: `--print-config` — `stableNodePath` (mise / nvm `node/[v]<major>`, Homebrew `opt/node@<major>`),
-  `clientPath` (core `client-path.ts` since L4.2, re-exported: PATH with the node's folder first + Homebrew / system
+- `config-snippet.ts` (since the architecture series in the engine, `@retake/engine/integrations`): `--print-config` —
+  `stableNodePath` (mise / nvm `node/[v]<major>`, Homebrew `opt/node@<major>`), `clientPath` (core `client-path.ts`
+  since L4.2, imported from core: PATH with the node's folder first + Homebrew / system
   folders, absolute entries only, without the folders a package manager adds for its script: `node_modules/.bin`,
   corepack, node-gyp-bin, and none inside the workspace, under any spelling of it — `realpathSync.native`, and any case
   where the system ignores case), `RETAKE_HOME` when set (absolute, through `retakeHome`); the `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr). L3.7: `pluginMarketplaceRoot` (the first
@@ -2133,10 +2277,56 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 `readme_error` says why (a link leading out: `readme` and `readme_hash` null; not UTF-8: the text with U+FFFD).
 `project_update_readme` holds `README_MAX_CHARS` (200,000) for the file as written, its final line break included.
 
-**MCP `callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** — the zod parse (problems per
-argument) and the handler, SDK-free; `protocolTool` and the Studio server both use it.
+**`callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** (`@retake/engine/contract`, an
+`exports` sub-path of the engine; moved from the MCP package) — the zod parse (problems per argument) and the handler,
+SDK-free; `protocolTool` and the Studio server both use it. The same entry holds `ToolDef<S, D, N>` (input schema,
+answer data, name — kept, not erased: `defineTool` infers them; `ToolArgs`, `ToolData`, `ToolsByName` read them) /
+`ToolContext` / `ToolOutput<D>`, `capUntrusted` and `pinArguments` (typed by its pins: `PinnedTool`), and the
+**operation catalogue** (`catalogue.ts`, also its own
+browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): every operation once (122: the 45 MCP
+tools, the Studio's 65 own ops, 12 operations only the CLI serves), its facets — the effect (`read`, `write`,
+`destructive`), whether MCP and the Studio queue it as a job, whose code it runs (`none`, `project`: hooks and sandbox
+commands, `workspace`: components and themes rendered), `serves` for the commands that serve others (`mcp`, `ui`,
+`worker`) — the engine's admission rules it meets (§4d; held to the engine's `SUBMIT_RULES` by a test), and, for each shell (CLI commands, MCP tool, Studio op), the
+service or the one-line reason it has none; the Studio's entry holds its pinned arguments (`run_status` `wait_s` 0;
+`auth_login` `mode` headed, `wait_s` 0) and its ops' own statuses (`render_frame` busy → 429, read with
+`studioStatus`). The Studio's allow-list `UI_OPS` is `servedNames('studio')`, in catalogue order. Tests hold MCP
+`TOOLS` (in order), the Studio's own ops, and the CLI's commander tree (`commandPaths()`) to it, and every tool's
+read-only and destructive hints to its effect (`hintsOf`: read-only exactly for `read`, destructive exactly for
+`destructive`; a table test — the hints are written by hand in each tool and held to the facets, not generated).
+`destructive` is narrow: an operation that removes or replaces data as its purpose, or in one of its cases, without an
+`if_match` on the version read, and its entry says what (`removes`; `facetProblem` refuses a destructive entry without
+one, a `removes` on any other, and a destructive operation held to admission rules) — `job_cancel` is one (it discards
+a recording whose window is open), `scenario_save` and the README are writes (if_match), and a run's hooks or sandbox
+reset are its `code: 'project'`, not its effect. Snapshots hold the published tool list and the Studio's operation table byte for byte
+(packages/mcp/test/fixtures/tool-list.json, packages/ui/test/fixtures/op-table.json).
 
-**`@retake/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it).
+**Admission rules and the caller (L6.5).** The engine's submits of a run, a render and an export hold the Studio and
+MCP (caller.ts `admits`) to four rules, each checked and followed by its submit under its own key in the engine's
+process (admission.ts): `one_run_per_scenario` (a run of the scenario queued or running → 409 `conflict` naming it),
+`sessions_ack` (a capture of a scenario whose persona's session is not valid and that no run signs in by itself needs
+`sessions_ack` naming it: `details.sessions`), `one_render_per_scenario`, `export_cap` (one export of a render, at most
+`EXPORTS_OPEN_MAX` = 2 of the workspace; a `latest` is held to it once resolved). The run submit (jobs/run-job.ts
+`submitRunJob`) makes two checks from inside (`RunAdmit`): `sessions_ack` once it opened the request and parsed the
+scenario, on the environment the take uses (the sandbox picked for `sandbox: true`) — so a refused request or a
+scenario that does not parse gets the submit's own answer —, and `one_run_per_scenario` again after the gates, just
+before the run id is reserved (a human's approval of hooks may take minutes, while another process queues a run). The
+rules hold within one process (each has its key in that engine; two processes check apart). A rule applies where
+`SUBMIT_RULES` lists it for that submit. The refusals are worded per channel: the Studio's words are those it gave when
+the rules were its own; MCP's use the glossary's words and name the tools that follow up (`run_status`, `run_cancel`,
+`auth_login`, `sessions_ack`, `render_status`, `job_cancel`, `job_status`; packages/cli/test/glossary.test.ts). The
+CLI's own commands (in their process) and the engine's tests are not held, and the engine's index exports no submit
+that skips the rules. Who calls is one `Caller` (`callerOf(client)`: client, channel `cli` / `studio` / `mcp`, trust
+`author` / `mcp`), and every decision the engine and the Studio's server take from it, or from who submitted a job, is
+a function of caller.ts (agent checks, refusal wording — `refusalChannel` of a caller, `submitterChannel` of a job's
+submitter —, person channel `speaksAsPerson`, `if_match`, proposals, the Record screen, a Studio recording
+`submittedInStudio`, the worker's clean environment, theme edits, admission); `EngineClient` is core's `JobClient`;
+`CallerTrust` is defined there and core's `HookTrust`, the editor's `PlanTrust` and `BrandTrust` are held to it (a
+compile-time check), and the engine holds every job and a theme made from a brand to `mcp` (`ENGINE_TRUST`, which every
+job module uses instead of a literal — a test reads them).
+
+**`@retake/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it; from the MCP
+package it takes only the tools it serves as they are and the Set-up sheet's registration helpers).
 - `buildUi()` — esbuild in memory: `src/app/main.tsx` + its CSS → `/app.js`, `/app.css` (ESM, minified, targets
   chrome120 / safari17 / firefox120), `/` a static `INDEX_HTML` without inline script or style; ≈ 100 ms, ≈ 190 KB.
 - `startStudioServer({root, port?, log?, sqlite?, pollMs?, startWorker?, workerSpawn?, workerIdleExitMs?}) → {url, port,
@@ -2188,6 +2378,28 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   last run — re-read at any project event, resync or focus —, `ActivityPanel`); `ProjectPage` (`project_get`, `run_list {limit: 5}`, `ActivityPanel {project}`); `ReadmeEditor`
   (below); `drafts.ts` (unsaved README text per project for this tab, `beforeunload` guard); `events.ts` (part 3,
   below); `Activity.tsx` (`ActivityPanel`, `SearchBox`: hits link to their project through `hrefTo`).
+- The data layer (L6.12 – L6.13): `api.ts` `call` / `useCall` are typed by `StudioOps` (`src/app/data/ops.ts`) — every
+  op the Studio serves (UI_OPS: the catalogue's `StudioOpName`), its arguments and its result derived from the
+  Studio's op table at the type level (L6.12–L6.13 fixes): the operation contract keeps each operation's types
+  (`ToolDef<S, D, N>`: its zod input, the data its handler answers, its name; `defineTool` infers them, the answer as
+  the union of the handler's returns), the MCP tools (`McpTools`) and the Studio's own ops are tables by name, and
+  server `studio.ts` `StudioTools` is each op as `/v1/call/<op>` runs it (the Studio's pins applied: `PinnedTool`).
+  An op's arguments are its input's `z.input` (read-only all the way down), its result its `ToolData` — no generated
+  file, no hand-written result: `Narrowed` lists the ops the app holds narrower, each with its reason (run_status:
+  never `detail: "full"`, so the compact `CompactRunStatus` of the engine), and a result the handler cannot infer
+  precisely is declared on the server where it is written (`SetupStatus`, `UpdateStatus`: the compiler holds the
+  handler to it). `data/ops.ts` imports types only (the engine's, the server's op table). An op the Studio does not
+  serve, an argument its input refuses or a result read as another type is a compile error (a check file compiled
+  with the app's options, and its mutations: test/studio-ops.test.ts). Only `src/app/data/` imports `call` /
+  `useCall`: one module per feature (`projects`, `scenarios`, `shoot`, `edit`, `renders`, `comments`, `library`,
+  `themes`, `record`, `desktop`) names each op once — `themeEdit = op('theme_edit')`, `useThemeList =
+  readHook('theme_list')`; an op that takes no argument is called and read without them (`engineInfo()`,
+  `useEngineInfo('info')`) — and the screens import those (same requests on the wire). `test/feature-boundaries.test.ts`
+  walks the app's imports: data/ imports nothing of the app but api.ts and itself (and, types only, the server's op
+  table), the kit nothing but its foundations (bits, route), the kit and the shell are reached through their public
+  modules (`ui-kit/index`; the shell, its slots, command bus, announcer and modes); outside the app it imports types
+  only (the server's answers above all), save the browser-safe modules listed with their reason (`mark`,
+  `player/parent`); exceptions listed with a reason, ratchet-style (new and stale both fail).
 - README editor: a textarea with `maxLength` 200,000 (the tool's cap) and a counter; save (button, Cmd/Ctrl+S) →
   `project_update_readme {markdown, if_match: the hash the text was based on}` — `markdown` with a final line break and
   the file's own line breaks (the textarea works in LF; `drafts.ts` remembers CR LF or LF from the text loaded, so
@@ -3045,7 +3257,8 @@ why?}`; `frame {seq, w, h, at, page?, jpeg}` (base64); `end {status?, job_state?
   auth.cancelSignIn; `auth_status` (MCP, read-only); `auth_login` NARROWED to `mode: 'headed'` and `wait_s: 0` (S6: a
   page script can only open a window the person sees, which closes after RETAKE_SIGNIN_MAX_MIN; `auto` is what
   every run's preflight does by itself).
-- *The session acknowledgement* (S7, critique B10): `scenario_run` of a capture reads auth.forScenario (capture mode)
+- *The session acknowledgement* (S7; since L6.5 an admission rule of the engine, `sessions_ack` of `runs.submit`, for
+  the Studio and MCP alike — `run_capture {sessions_ack}`; §4c): `scenario_run` of a capture reads auth.forScenario (capture mode)
   and needs `sessions_ack: string[]` naming every persona whose stored status is expired / error / never and that no
   run signs in by itself (not `auto`, not a sandbox account, not the legacy single-account file, where a run starts
   signed out) — else 409 `conflict` with `details.sessions: [{persona, status, checked_first}]` and nothing queued;
@@ -4955,8 +5168,9 @@ file on disk) through useRenders — the same refusals —, and a render queued 
 render_id}` (a render id's shape); queues the engine's existing `export` job with `formats: ['mp4_1080p']` into the
 fixed `exports/<render_id>/`; one at a time per render (a 409 naming the job while one is queued or running) and at most
 `REVIEW_EXPORTS_OPEN` = 2 exports of the workspace queued or running at once (a CLI's or Claude's count; a 409 "2
-exports are already queued or running"); the check and the submit run in one op chain for the whole workspace
-(`'review_export'`), so two clicks, two tabs or two renders never interleave (the race is tested: two calls at once on a
+exports are already queued or running"); the check and the submit run in one chain for the whole workspace (since
+L6.5 the engine's `export_cap` admission rule, `EXPORTS_OPEN_MAX`, for the Studio and MCP alike), so two clicks, two
+tabs or two renders never interleave (the race is tested: two calls at once on a
 render with no export yet give one job). The worker runs one heavy job at a time anyway (one worker per workspace, L5.14):
 the cap keeps one page from queueing an export — possibly a re-render — of every render. The answer is path-free (`job`,
 `state`, `formats`, `where` in words). The raw capture stays a command to copy, built only from a slug and a run id that
@@ -5330,8 +5544,8 @@ differ — whether the stage succeeded or not. (Found by L5.16a's reviews: the f
 `packages/*/package.json` through pnpm's hard links.) Measured (L5.16a): 977 MB = Node 110, engine 314 (after D7: `@remotion/cli`
 dropped; @remotion/bundler still needs @remotion/studio), browsers 500, ffmpeg 53 MB; ≈ 10 s on APFS.
 
-**Discovery** (core `bundle.ts`): `bundleInfo()` looks for `bundle.json` in exactly one folder, five above core's own
-`dist/` (`Resources/engine/node_modules/@retake/core/dist`), and accepts it only when its `paths.engine` holds that
+**Discovery** (core io `bundle.ts`, in `dist/io/`): `bundleInfo()` looks for `bundle.json` in exactly one folder, five
+above core's own `dist/` (`Resources/engine/node_modules/@retake/core/dist`), and accepts it only when its `paths.engine` holds that
 module at `node_modules/@retake/core/` — never a folder above the app, never a stray `bundle.json` above a checkout.
 One that claims this engine but is broken (a path leaving the folder, links followed) is never thrown at import
 (`prepareBundle` and `starterTemplatesDir` go on, `bundleProblems()` keeps it, doctor shows an "App bundle" FAIL line);
@@ -5347,13 +5561,13 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
   retake.yaml's value is made absolute against the workspace root by `loadWorkspaceConfig` when it names a path (a
   bare name stays a command); a relative `$RETAKE_FFMPEG` / `$RETAKE_FFPROBE` is refused (BundleError: it would name
   another file in each process's cwd), and `cleanWorkerEnv` drops a relative `RETAKE_FFMPEG` / `RETAKE_FFPROBE` /
-  `RETAKE_CHROMIUM*` from a worker a client starts. `mediaTools()` is this process's: `openWorkspace` registers — or
-  clears — the workspace's setting each time (`useWorkspaceFfmpeg`, process-wide: a CLI command, the MCP server, the
-  Studio server and a worker each serve one workspace; the one opened last wins, a test switches roots), so the sites no
-  option reached (the preview quantiser, the silent-track fix, the review's frame reader, the pixel helpers) honour
-  retake.yaml too.
-  Every spawn goes through `ffmpegBin(explicit?)` / `ffprobeBin(explicit?)`; a source lint (cli `app-bundle.test.ts`)
-  fails on a command literal `'ffmpeg'` / `'ffprobe'` anywhere else.
+  `RETAKE_CHROMIUM*` from a worker a client starts. `mediaTools(policy)` is a work's: the workspace's setting rides on
+  the `WorkPolicy` `openWorkspace` returns (L6.9: no process-wide setting), and the engine passes it to every site,
+  those no option reached included (the preview quantiser, the silent-track fix, the review's frame reader, the pixel
+  helpers), so they honour retake.yaml too.
+  Every spawn goes through `ffmpegBin(policy, explicit?)` / `ffprobeBin(policy, explicit?)` (core io
+  `media-tools.ts`); a source lint (cli `app-bundle.test.ts`) fails on a command literal `'ffmpeg'` / `'ffprobe'`
+  anywhere else.
 - Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
   browsers (below) — source `bundled`, else `playwright` (the cache).
 - Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) → none:
@@ -6016,7 +6230,7 @@ previews and site extractions are background work, a take is not (BL-116). Built
   filming take (`run`, mode `capture`) holds heavy work; the other captures go first and stay one at a time with the
   takes (hooks, resets and sandboxes share the hooks journal) but hold nothing (a 30-min recording window does not
   freeze renders).
-- **Two slots per worker** (jobs/worker.ts): the capture slot runs captures in the worker (unchanged code: the live
+- **Two slots per worker** (jobs/worker-slots.ts, jobs/worker-heavy.ts): the capture slot runs captures in the worker (unchanged code: the live
   channel, the test hooks, the signal rules); the heavy slot runs one heavy job in a **job process**
   (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>`, jobs/job-child.ts), detached
   (a process group of its own), log in worker.log, environment = the worker's. It runs the worker's job code

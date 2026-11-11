@@ -12,12 +12,13 @@ import { cp, link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import type { LoadedProject, Timeline } from '@retake/core';
 import { PlanTrustError, planRun, preReadProblems } from '@retake/editor';
 import type { PlanRunOptions } from '@retake/editor';
 import { synthTimeline } from './helpers.js';
 import { TEMPLATES, hasTool, makeColourCapture } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const canPlan = hasTool('ffmpeg');
 let root: string;
@@ -55,7 +56,7 @@ async function project(t: Timeline, template = 'editorial'): Promise<LoadedProje
   return loadProject(slug, root);
 }
 
-const mcp = (p: LoadedProject, o: Partial<PlanRunOptions> = {}) => planRun({ project: p, run: 'latest', root, trust: 'mcp', ...o });
+const mcp = (p: LoadedProject, o: Partial<PlanRunOptions> = {}) => planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust: 'mcp', ...o });
 
 async function refusal(p: Promise<unknown>): Promise<PlanTrustError> {
   const e = await p.then(
@@ -87,7 +88,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
   it('a plan of project files plans as with trust author', async () => {
     const p = await project(timeline({ component: 'studio/card-testimonial', slots: { quote: 'Fast.', name: 'A. Buyer', logo: 'assets/logo.svg' } }));
     await writeFile(join(p.dir, 'assets', 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>');
-    const a = await planRun({ project: p, run: 'latest', root });
+    const a = await planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root });
     const m = await mcp(p);
     expect(m.plan).toEqual(a.plan);
   });
@@ -99,7 +100,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
       const e = await refusal(mcp(p));
       expect(e.problems).toEqual([expect.stringMatching(/^scene quote, card slot logo: .*(absolute path|resolves outside the project folder)/)]);
       // The CLI's trust is unchanged: a human may name any file.
-      await expect(planRun({ project: p, run: 'latest', root })).resolves.toBeTruthy();
+      await expect(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root })).resolves.toBeTruthy();
     }
   });
 
@@ -127,7 +128,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect((await refusal(mcp(p, { overrides: { music: '../../outside/music.mp3' } }))).problems[0]).toContain('the music of the overrides');
     // And trust author still says what is missing (a human's own machine).
     const q = await project(timeline({}, (t) => (t.video!.music = { file: join(outside, 'missing.mp3') })));
-    await expect(planRun({ project: q, run: 'latest', root })).rejects.toThrow(/music file not found/);
+    await expect(planRun({ workPolicy: PERSON_POLICY, project: q, run: 'latest', root })).rejects.toThrow(/music file not found/);
   });
 
   it('gate 1: a Lottie file is code — never from a folder an agent writes (scenarios/), fine from assets/', () => {
@@ -174,7 +175,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect(preReadProblems(p, timeline({ component: 'studio/card-testimonial', slots: { logo: 'assets/logo.svg' } }), undefined, { project: p })).toEqual([]);
     expect((await refusal(mcp(p))).problems).toEqual([expect.stringMatching(/^the plan serves image-.* from .*assets\/logo\.svg, a file with more than one name \(a hard link\): through MCP a render serves none$/)]);
     // The CLI (trust author) is unchanged.
-    expect((await planRun({ project: p, run: 'latest', root })).plan.durationInFrames).toBeGreaterThan(0);
+    expect((await planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root })).plan.durationInFrames).toBeGreaterThan(0);
   });
 
   it("gate 2: a theme's logo that leaves its folder (and the project) is refused", async () => {

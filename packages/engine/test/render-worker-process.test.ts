@@ -15,13 +15,14 @@ import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import { renderVideo } from '@retake/editor';
 import { FileJobQueue, createEngine, historyFile } from '../src/index.js';
 import type { Engine, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
 import { REPO } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -123,7 +124,7 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
     const renders = join(root, 'projects', 'demo', 'renders');
     const w = startWorker('--idle-exit', '5000');
-    const browserFile = queue.browserFile(sub.job.id);
+    const browserFile = queue.files.browser(sub.job.id);
     await waitFor('the render running with its browser recorded', async () => {
       const j = await queue.get(sub.job.id);
       return j?.state === 'running' && (j.progress?.steps_done ?? 0) > 0 && existsSync(browserFile);
@@ -161,7 +162,7 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
     const renders = join(root, 'projects', 'demo', 'renders');
     const w = startWorker('--idle-exit', '5000');
-    const browserFile = queue.browserFile(sub.job.id);
+    const browserFile = queue.files.browser(sub.job.id);
     const running = await waitFor('the render running in its job process, its browser recorded', async () => {
       const j = await queue.get(sub.job.id);
       return j?.state === 'running' && (j.progress?.steps_done ?? 0) > 0 && existsSync(browserFile) ? j : undefined;
@@ -188,14 +189,14 @@ describe.skipIf(!canRender)('review and export jobs whose worker is killed', () 
   let renderId: string;
   beforeAll(async () => {
     const project = await loadProject('demo', root);
-    const r = await renderVideo({ project, root, run: '20260101-120000-synthetic', overrides: { scale: 0.5 }, concurrency: 2 });
+    const r = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: '20260101-120000-synthetic', overrides: { scale: 0.5 }, concurrency: 2 });
     renderId = r.id;
   }, LONG);
 
   it('SIGKILL mid re-render of an export: interrupted; the next worker kills the browser, removes the partial files; nothing counted', async () => {
     const sub = await engine.exports.submit({ project: 'demo', render_id: renderId, formats: ['vertical_9x16'] });
     const w = startWorker('--idle-exit', '5000');
-    const browserFile = queue.browserFile(sub.job.id);
+    const browserFile = queue.files.browser(sub.job.id);
     const dir = join(root, 'projects', 'demo', 'exports', renderId);
     await waitFor('the re-render rendering, its browser recorded', async () => {
       const j = await queue.get(sub.job.id);

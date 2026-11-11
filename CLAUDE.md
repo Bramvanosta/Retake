@@ -13,6 +13,8 @@ The current goal is **a local tool for our own use**; selling it is a later topi
    (target look), `README.md` (the front page) and `docs/guide/` (usage, scenario language, CLI: the reference).
 4. `docs/AGENTS.md` — how a lot is run with sub-agents (plan, critique, worktree, reviews, fixes) and the rules every
    sub-agent follows.
+5. `docs/GLOSSARY.md` — one word per concept (code, CLI, MCP, docs), the Studio's labels and the homonyms; the CLI help
+   and MCP descriptions avoid its retired words (`packages/cli/test/glossary.test.ts`).
 
 ## Working agreement
 - **One lot at a time**; the user decides how many lots to chain. Don't start the next lot unasked.
@@ -60,6 +62,7 @@ node scripts/requirements.mjs [--lot L1.5]                    # regenerate docs/
 node scripts/requirements.mjs --untested 1                    # fails while a phase-1 requirement has no test
 node scripts/requirements.mjs --check-cites                   # fails when an evidence string quotes a missing test title
 node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests: no lost title, expect or test id vs a git ref
+node scripts/audit/rules.mjs . --check | --write-baseline   # the import-rules ratchet (packages/core/test/import-rules.test.ts; baseline scripts/audit/baseline.json, each group with a reason)
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)
@@ -72,14 +75,17 @@ node scripts/set-version.mjs <version> | --check                # one version ev
 ```
 
 ## Where things live
-- `packages/core` scenario language, schemas, validation · `packages/runner-web` headless capture, in-page kit, raw
-  export (`src/raw/`) · `packages/hooks` setup/teardown hooks · `packages/components` component system, kit,
-  built-in library (`library/studio/*`), scaffolds · `packages/editor` planner (`planEdit`), Remotion compositions
-  (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report · `packages/cli` the `retake`
-  command · `packages/sandbox` sandbox engine (process and docker-compose providers, Postgres snapshots, `init`
-  scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker · `packages/mcp` the MCP
-  server (`retake mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the Studio web app and its
-  server (`retake ui`; design system in `src/app/ui-kit` + `tokens.ts`, reference `docs/reference/studio-ui.md`) · `apps/desktop` the macOS app (Tauri shell around `retake ui --supervised`) · `skills/` the Claude skills and plugin root.
+- `packages/core` scenario language, schemas, validation (no I/O; its readers, the app bundle, the media tools and the
+  Node side of its FileFacts / VideoProber ports: `packages/core/src/io`, `@retake/core/io`) · `packages/runner-web`
+  headless capture, in-page kit, raw export (`src/raw/`) · `packages/hooks` setup/teardown hooks · `packages/components`
+  component system, kit, built-in library (`library/studio/*`), scaffolds · `packages/editor` planner (`planEdit`),
+  Remotion compositions (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report ·
+  `packages/cli` the `retake` command · `packages/sandbox` sandbox engine (process and docker-compose providers,
+  Postgres snapshots, `init` scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker ·
+  `packages/mcp` the MCP server (`retake mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the
+  Studio web app and its server (`retake ui`; design system in `src/app/ui-kit` + `tokens.ts`, reference
+  `docs/reference/studio-ui.md`) · `apps/desktop` the macOS app (Tauri shell around `retake ui --supervised`) ·
+  `skills/` the Claude skills and plugin root.
 - `fixtures/wholesale` the fictional product filmed by the tests; `projects/northfield-fixture` its project
   (scenarios, hooks, assets; generated `runs/`, `renders/`, `review/`, `exports/` are git-ignored);
   `templates/` starter themes (default, editorial, motion); `scripts/` helpers; `docs/` everything else.

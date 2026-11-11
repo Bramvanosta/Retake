@@ -4,7 +4,7 @@
  * stdout: diagnostics go to stderr.
  */
 import { resolve } from 'node:path';
-import { findWorkspaceRoot } from '@retake/core';
+import { findWorkspaceRoot } from '@retake/core/io';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';

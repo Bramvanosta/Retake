@@ -1,0 +1,17 @@
+{
+  "//": "The in-page kit's modules run in the page: kit/source.ts bundles them from these sources (shipped with the package, `files: src`). Type-checked here with the browser's types only (no Node globals: `types: []`), never emitted. runner-web's tsconfig excludes this folder and references tsconfig.check.json, which references this project: `tsc -b` checks it.",
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "incremental": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "tsBuildInfoFile": "../../../dist/kit-page.tsbuildinfo"
+  },
+  "include": ["*.ts"],
+  "references": [{ "path": "../../../../core" }]
+}

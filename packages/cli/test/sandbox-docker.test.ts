@@ -18,10 +18,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import { MailboxClient, inlineCids } from '@retake/runner-web';
 import { dockerEnv, findDocker, openSandbox, probePort } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import type { WorkPolicy } from '@retake/core';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 const DOCKER = findDocker() ?? 'docker';
@@ -34,7 +39,7 @@ const PROJECT = 'northfield-docker';
 const ENV = 'sandbox-docker';
 
 function docker(args: string[]): string {
-  return execFileSync(DOCKER, args, { encoding: 'utf8', env: dockerEnv(), stdio: ['ignore', 'pipe', 'pipe'], timeout: 300_000 });
+  return execFileSync(DOCKER, args, { encoding: 'utf8', env: dockerEnv(policy), stdio: ['ignore', 'pipe', 'pipe'], timeout: 300_000 });
 }
 
 /** Names of a compose project's resources of one kind (by its label). */
@@ -125,7 +130,7 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
 
   afterAll(async () => {
     try {
-      if (dir) await openSandbox(await loadProject(dir), ENV).down({ volumes: true });
+      if (dir) await openSandbox(await loadProject(dir), ENV, policy).down({ volumes: true });
     } catch {
       /* not started */
     }

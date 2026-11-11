@@ -7,17 +7,26 @@
  * the others are rendered again with their own components, each fails alone (A M3 / B H1); a hidden import (a dot
  * folder) fails webpack's bundle (A H1). Needs ffmpeg and a headless shell; bundles in temporary caches, removed after.
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import { PREVIEW_SIZE, createComponent, loadComponentRegistry, pngSize } from '@retake/components';
 import { ensureBundle, renderComponentLoops, scaffoldComponents } from '@retake/editor';
 import type { LoopItem, PreviewComponentTarget } from '@retake/editor';
 import { REPO, hasTool } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
 
 const GATED = process.env.RETAKE_TEST_SLOW === '1' && hasTool('ffmpeg');
 const LONG = 600_000;
@@ -83,10 +92,10 @@ describe.skipIf(!GATED)('looping previews rendered with Remotion (RETAKE_TEST_SL
   it(
     'GIF loops and posters in one guarded registry bundle; a transition from the scene to the card; a throwing component alone',
     async () => {
-      const thrower = await createComponent(root, { id: 'acme/thrower', kind: 'card', description: 'A card that throws.' });
+      const thrower = await createComponent(root, { write: plainWrite,  id: 'acme/thrower', kind: 'card', description: 'A card that throws.' });
       await writeFile(thrower.entry, "export default function Thrower(): never {\n  throw new Error('thrower exploded');\n}\n");
       const registry = await loadComponentRegistry({ root });
-      const editorial = await loadTemplate('editorial', root);
+      const editorial = await loadTemplate('editorial', root, { files: fileFacts(PERSON_POLICY) });
       const t = (id: string): PreviewComponentTarget => {
         const i = registry.get(id);
         return { id, dir: i.dir, entry: i.entry, manifest: i.manifest };
@@ -99,7 +108,7 @@ describe.skipIf(!GATED)('looping previews rendered with Remotion (RETAKE_TEST_SL
         { target: { ...t('studio/card-title'), at: 2.4 }, poster: f('card.png') },
         { target: t('acme/thrower'), poster: f('thrower.png'), loop: f('thrower.gif') },
       ];
-      const r = await renderComponentLoops({ root, registry, template: editorial, items, bundle: 'registry', network: 'guard', cacheDir: join(root, 'cache') });
+      const r = await renderComponentLoops({ workPolicy: PERSON_POLICY, root, registry, template: editorial, items, bundle: 'registry', network: 'guard', cacheDir: join(root, 'cache') });
       expect(r.failed.map((x) => x.id)).toEqual(['acme/thrower']);
       expect(r.failed[0].reason).toContain('thrower exploded');
       expect(r.rendered.map((x) => x.id)).toEqual(['studio/intro-stack', 'studio/transition-crossfade', 'studio/layout-card', 'studio/card-title']);
@@ -132,16 +141,16 @@ describe.skipIf(!GATED)('looping previews rendered with Remotion (RETAKE_TEST_SL
       await mkdir(ws, { recursive: true });
       await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
       const cacheDir = join(ws, 'cache');
-      const boom = await createComponent(ws, { id: 'acme/load-boom', kind: 'card', description: 'Throws while its module loads.' });
+      const boom = await createComponent(ws, { write: plainWrite,  id: 'acme/load-boom', kind: 'card', description: 'Throws while its module loads.' });
       await writeFile(boom.entry, "throw new Error('boom at load');\nexport default function Boom() {\n  return null;\n}\n");
-      const editorial = await loadTemplate('editorial', ws);
+      const editorial = await loadTemplate('editorial', ws, { files: fileFacts(PERSON_POLICY) });
       const run = async (ids: string[]) => {
         const registry = await loadComponentRegistry({ root: ws });
         const items: LoopItem[] = ids.map((id) => {
           const i = registry.get(id);
           return { target: { id, dir: i.dir, entry: i.entry, manifest: i.manifest }, poster: join(ws, `${id.replace('/', '__')}.png`) };
         });
-        return renderComponentLoops({ root: ws, registry, template: editorial, items, bundle: 'registry', network: 'guard', cacheDir });
+        return renderComponentLoops({ workPolicy: PERSON_POLICY, root: ws, registry, template: editorial, items, bundle: 'registry', network: 'guard', cacheDir });
       };
       // Its module throws in the page every component of the registry bundle shares.
       const a = await run(['studio/intro-stack', 'acme/load-boom', 'studio/card-title']);
@@ -151,7 +160,7 @@ describe.skipIf(!GATED)('looping previews rendered with Remotion (RETAKE_TEST_SL
       expect(pngSize(join(ws, 'studio__card-title.png'))).toEqual(PREVIEW_SIZE);
 
       // A syntax error: the registry bundle does not build at all.
-      const syntax = await createComponent(ws, { id: 'acme/no-compile', kind: 'card', description: 'Does not compile.' });
+      const syntax = await createComponent(ws, { write: plainWrite,  id: 'acme/no-compile', kind: 'card', description: 'Does not compile.' });
       await writeFile(syntax.entry, 'export default function X( { return <div>; }\n');
       const b = await run(['studio/intro-stack', 'acme/no-compile']);
       expect(b.rendered.map((x) => x.id)).toEqual(['studio/intro-stack']);
@@ -159,7 +168,7 @@ describe.skipIf(!GATED)('looping previews rendered with Remotion (RETAKE_TEST_SL
       expect(b.failed[0].reason).toMatch(/^its preview could not be bundled: /);
 
       // A hidden import (a dot folder the content hash skips): webpack's guard fails the bundle closed.
-      const hidden = await createComponent(ws, { id: 'acme/hidden', kind: 'card', description: 'Imports a dot folder.' });
+      const hidden = await createComponent(ws, { write: plainWrite,  id: 'acme/hidden', kind: 'card', description: 'Imports a dot folder.' });
       await mkdir(join(hidden.dir, '.impl'), { recursive: true });
       await writeFile(join(hidden.dir, '.impl', 'code.ts'), "export const word = 'hidden';\n");
       await writeFile(hidden.entry, "import { word } from './.impl/code';\nexport default function H() {\n  return <div>{word}</div>;\n}\n");

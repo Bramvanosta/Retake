@@ -101,7 +101,7 @@ describe.skipIf(!canRender)('render jobs', () => {
     expect(job.result).toMatchObject({ kind: 'render', render_id: sub.render_id, variant: 'landscape', width: 960, height: 540 });
     expect(job.progress?.fraction).toBeGreaterThan(0.9);
     expect(await rendersFiles()).toEqual([`${SCENARIO}-v1.json`, `${SCENARIO}-v1.mp4`]);
-    expect(existsSync(queue.browserFile(sub.job.id))).toBe(false);
+    expect(existsSync(queue.files.browser(sub.job.id))).toBe(false);
     const done = await engine.renders.status('demo', sub.render_id);
     expect(done).toMatchObject({ status: 'succeeded', finished: true, file: join(renders, `${SCENARIO}-v1.mp4`), record: { id: sub.render_id, template: 'editorial', status: 'succeeded' } });
     expect(done.record).not.toHaveProperty('plan');

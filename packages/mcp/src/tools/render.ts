@@ -4,7 +4,6 @@ import { yieldWords } from '@retake/engine';
 import type { Engine, RenderStatusView } from '@retake/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import { READ, RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { WAIT_MAX_S, waitJob, waitS } from './run.js';
@@ -46,9 +45,9 @@ export function renderStatusSummary(r: RenderStatusView): string {
   return lines.join('\n');
 }
 
-async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}): Promise<ToolOutput> {
+async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}) {
   const r = await engine.renders.status(project, id);
-  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...(r as unknown as Record<string, unknown>), ...extraData } };
+  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...r, ...extraData } };
 }
 
 /**
@@ -69,7 +68,7 @@ export const planPreview = defineTool({
   name: 'plan_preview',
   title: 'Preview the plan of a render',
   description:
-    'Plan a render without rendering it (fast, nothing is written): the video it would make — variant, size, fps, duration, theme, frame, the segments (intro, clips, cards, interstitials, outro) with their component and timing, music — and the planner\'s warnings. Use it to check a theme, a component switch or other overrides before render. The edit comes from today\'s scenario file, re-planned on the run\'s take (edit: "scenario"), as long as the filmed part is unchanged since the capture: captions, cards and their order, durations, overlays, title, intro/outro, template and speeds need only a render. scenario_changed (with filmed_changes) says the filmed part changed — steps, pages, hooks, capture settings: the render then shows the run as captured and a new capture (run_capture) films the change. Files the scenario names must be files of the project; a theme is named (template), never a folder. Captions, warnings and the text summary are under "untrusted": they quote the scenario and the filmed site.',
+    'Plan a render without rendering it (fast, nothing is written): the video it would make — variant, size, fps, duration, theme, frame, the segments (intro, clips, cards, interstitials, outro) with their component and timing, music — and the planner\'s warnings. Use it to check a theme, a component switch or other overrides before render. The edit comes from today\'s scenario file, re-planned on the run\'s capture (edit: "scenario"), as long as the filmed part is unchanged since the capture: captions, cards and their order, durations, overlays, title, intro/outro, template and speeds need only a render. scenario_changed (with filmed_changes) says the filmed part changed — steps, pages, hooks, capture settings: the render then shows the run as captured and a new capture (run_capture) films the change. Files the scenario names must be files of the project; a theme is named (template), never a folder. Captions, warnings and the text summary are under "untrusted": they quote the scenario and the filmed site.',
   input: z.strictObject(renderInput),
   annotations: READ,
   async run({ project, scenario, run_id, template, overrides }, { engine }) {
@@ -87,7 +86,7 @@ export const planPreview = defineTool({
           ? `capture first: run_capture {project: "${project}", scenario: "${scenario}"}; then render {project: "${project}", scenario: "${scenario}"${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}}`
           : `render it: render {project: "${project}", scenario: "${scenario}"${run_id ? `, run_id: "${run_id}"` : ''}${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}} → ${p.next_render_id} (if no other render takes it first)`,
       ].join('\n'),
-      data: p as unknown as Record<string, unknown>,
+      data: p,
     };
   },
 });
@@ -96,7 +95,7 @@ export const render = defineTool({
   name: 'render',
   title: 'Render a capture',
   description:
-    "Render a capture run into a video (renders/<render_id>.mp4 + .json), with the run's theme or another (template) and edit overrides. The edit comes from today's scenario file re-planned on the take (captions, cards, durations, overlays, title, intro/outro, template: no new capture) while its filmed part is unchanged; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture (run_capture first; scenario_changed and filmed_changes say what changed). It is planned and checked first (as plan_preview), then a job renders it in the background (one render, review or export at a time, beside captures; it waits for a take filming on this Mac and yields during one; ≈ 1–3 min for a minute of video): this call returns at once (or waits up to wait_s) with the reserved render_id; follow it with render_status {wait_s}, stop it with job_cancel. A failed or cancelled render writes nothing under its id (the next render of the scenario may reuse it). Through this server the render loads only the files of its plan: files outside the project, a theme folder, remote images in slots and any other network request are refused or blocked.",
+    "Render a capture run into a video (renders/<render_id>.mp4 + .json), with the run's theme or another (template) and edit overrides. The edit comes from today's scenario file re-planned on the capture (captions, cards, durations, overlays, title, intro/outro, template: no new capture) while its filmed part is unchanged; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture (run_capture first; scenario_changed and filmed_changes say what changed). It is planned and checked first (as plan_preview), then a job renders it in the background (refused while a render of the scenario is queued or running; one render, review or export at a time, beside captures; it waits for a take filming on this Mac and yields during one; ≈ 1–3 min for a minute of video): this call returns at once (or waits up to wait_s) with the reserved render_id; follow it with render_status {wait_s}, stop it with job_cancel. A failed or cancelled render writes nothing under its id (the next render of the scenario may reuse it). Through this server the render loads only the files of its plan: files outside the project, a theme folder, remote images in slots and any other network request are refused or blocked.",
   input: z.strictObject({ ...renderInput, wait_s: waitS(0, 'the render to finish') }),
   annotations: RENDER_JOB,
   async run({ project, scenario, run_id, template, overrides, wait_s }, ctx: ToolContext) {
@@ -144,4 +143,4 @@ export const renderStatus = defineTool({
   },
 });
 
-export const RENDER_TOOLS: ToolDef[] = [planPreview, render, renderStatus];
+export const RENDER_TOOLS = [planPreview, render, renderStatus] as const satisfies readonly ToolDef[];

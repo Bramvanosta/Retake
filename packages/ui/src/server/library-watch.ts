@@ -17,6 +17,7 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { statePath } from '@retake/core';
 
 /** Entries a tree signature looks at, at most (a component folder is a handful of files). */
 export const WATCH_ENTRIES_MAX = 5000;
@@ -143,8 +144,8 @@ const statSig = (p: string): string => {
 
 /** The signature of `.retake/site/`: the folder, and each extraction folder's own stat and site.json's. */
 export function siteSignature(root: string): string {
-  const dir = join(root, '.retake', 'site');
-  const parts = [statSig(join(root, '.retake')), statSig(dir)];
+  const dir = statePath(root, 'site');
+  const parts = [statSig(statePath(root)), statSig(dir)];
   for (const id of realFolders(dir)) parts.push(`${id}=${statSig(join(dir, id))}|${statSig(join(dir, id, 'site.json'))}`);
   return createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
 }

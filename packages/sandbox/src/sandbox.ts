@@ -17,8 +17,9 @@
  */
 import { copyFileSync, existsSync, statSync, truncateSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { sandboxNames, seedHash } from '@retake/core';
-import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy } from '@retake/core';
+import { sandboxNames } from '@retake/core';
+import { seedHash } from '@retake/core/io';
+import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy, WorkPolicy } from '@retake/core';
 import { SandboxError, interrupted } from './errors.js';
 import { TakeLock, lockAlive, readLock } from './lock.js';
 import type { LockRecord } from './lock.js';
@@ -26,7 +27,7 @@ import { sandboxPaths, shownPath } from './paths.js';
 import type { SandboxPaths } from './paths.js';
 import { ComposeProvider } from './compose.js';
 import { ProcessProvider, tailLines } from './process.js';
-import type { DownResult, Provider, ProviderContext, SandboxLog, SandboxProgress, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type { DownResult, Provider, ProviderContext, SandboxLog, SandboxProgress, SeedRecorder, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
@@ -45,6 +46,8 @@ export interface SandboxCallOptions {
   progress?: SandboxProgress;
   /** Trust `mcp` for the seed steps this call may run (L3.1: a shell step then needs an approval). */
   seedTrust?: SeedTrust;
+  /** Each seed step run (hooks HookContext.recordRun): the engine journals it as its caller's. */
+  recordSeedRun?: SeedRecorder;
 }
 
 export interface ResetResult {
@@ -112,18 +115,18 @@ export interface Take {
 const quiet: SandboxLog = () => undefined;
 
 /** The provider of a sandbox.yaml (a fresh instance: it remembers what one call started). */
-export function providerFor(sandbox: LoadedSandbox): Provider {
-  return sandbox.manifest.provider === 'process' ? new ProcessProvider() : new ComposeProvider();
+export function providerFor(sandbox: LoadedSandbox, policy: WorkPolicy): Provider {
+  return sandbox.manifest.provider === 'process' ? new ProcessProvider() : new ComposeProvider({ policy });
 }
 
-/** The sandbox of environment `env` (default: the first project.yaml declares). */
-export function openSandbox(project: LoadedProject, env?: string): Sandbox {
+/** The sandbox of environment `env` (default: the first project.yaml declares), for work under `policy` (core WorkPolicy). */
+export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy): Sandbox {
   const names = sandboxNames(project);
   if (!names.length) throw new SandboxError(`project ${project.slug} has no sandbox: add \`sandboxes: {sandbox: sandbox/sandbox.yaml}\` to project.yaml`);
   const name = env ?? names[0];
   const loaded = project.sandboxes?.[name];
   if (!loaded) throw new SandboxError(`${name} is not a sandbox of project ${project.slug} (sandboxes: ${names.join(', ')})`);
-  return new Sandbox(project, loaded);
+  return new Sandbox(project, loaded, policy);
 }
 
 export class Sandbox {
@@ -138,10 +141,12 @@ export class Sandbox {
   constructor(
     readonly project: LoadedProject,
     readonly sandbox: LoadedSandbox,
+    /** What the work runs under (core WorkPolicy). */
+    readonly policy: WorkPolicy,
   ) {
     this.env = sandbox.env;
     this.paths = sandboxPaths(project.dir, sandbox.env);
-    this.provider = providerFor(sandbox);
+    this.provider = providerFor(sandbox, policy);
   }
 
   /** process | docker-compose. */
@@ -160,6 +165,7 @@ export class Sandbox {
     if (note) log('warn', note);
     const ctx: ProviderContext = {
       project: this.project,
+      policy: this.policy,
       sandbox: this.sandbox,
       paths: this.paths,
       state,
@@ -168,6 +174,7 @@ export class Sandbox {
       signal: opts.signal,
       ...(opts.progress ? { progress: opts.progress } : {}),
       ...(opts.seedTrust ? { seedTrust: opts.seedTrust } : {}),
+      ...(opts.recordSeedRun ? { recordSeedRun: opts.recordSeedRun } : {}),
     };
     this.ctx = ctx;
     return ctx;
@@ -182,7 +189,7 @@ export class Sandbox {
    * after its last step — the services it started are stopped again, and only those.
    */
   private async starting<T>(ctx: ProviderContext, what: string, fn: () => Promise<T>): Promise<T> {
-    this.provider = providerFor(this.sandbox);
+    this.provider = providerFor(this.sandbox, this.policy);
     try {
       const out = await fn();
       if (ctx.signal?.aborted) throw interrupted(`sandbox ${this.env} ${what}`);

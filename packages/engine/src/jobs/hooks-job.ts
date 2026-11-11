@@ -8,11 +8,13 @@
  * (`<scenario>:setup|teardown`) carry the sha256 of the scenario bytes submit read (`scenario_sha256`, covered by the
  * approvals' signatures): the worker reads the file once and runs those bytes only, else the job fails as `conflict`.
  */
-import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment } from '@retake/core';
-import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceConfig } from '@retake/core';
+import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment, projectRef } from '@retake/core';
+import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval } from '@retake/core';
 import type { HookResult } from '@retake/hooks';
+import { fileFacts } from '@retake/core/io';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
+import { ENGINE_TRUST, callerOf } from '../caller.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import { createHookContext, scenarioOfHooksSource, selectHooks } from '../hooks.js';
 import { openProjectBySlug } from '../projects.js';
@@ -21,6 +23,7 @@ import { checkProjectSlug } from '../refs.js';
 import type { SubmitContext } from './run-job.js';
 import { preflightJournal } from './run-job.js';
 import type { EnvResetJobResult, HookResultView, HooksJobResult, JobEventBody, JobRecord } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export interface HooksSubmitRequest {
   project: string;
@@ -70,7 +73,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
   let label: string;
   let scenarioSha: string | undefined;
   try {
-    const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true });
+    const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true, files: fileFacts(ctx.ws.policy) });
     label = sel.label;
     scenarioSha = sel.sha256;
     const env = req.env ?? sel.env;
@@ -81,6 +84,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
       const fix = hooksCommandLine(ctx.cli, { ...req, dry: false });
       // A scenario's hooks are the agent's (trust `mcp`); hooks/<name>.yaml and project.yaml's reset are a person's.
       const pre = await preflightHooks(project, [{ phase: sel.phase, hooks: sel.hooks, agentWritten: sel.scenario !== undefined }], {
+        policy: ctx.ws.policy,
         ...(env !== undefined ? { env } : {}),
         ...(sel.vars ? { vars: sel.vars } : {}),
         ...(sel.scenario ? { scenario: sel.scenario } : {}),
@@ -121,7 +125,7 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
-      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project) });
+      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project) });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client);
     }
@@ -160,7 +164,7 @@ export function hookResultView(r: HookResult, declared?: HookStep, describe?: (h
 }
 
 export interface HooksJobContext<I> {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: I;
   signal: AbortSignal;
@@ -180,8 +184,8 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
   if (scenario !== undefined && input.scenario_sha256 === undefined) {
     throw new EngineError('conflict', `this hooks job does not say which version of scenarios/${scenario} was submitted: submit it again (what was approved is what runs)`);
   }
-  const sel = await selectHooks(project, input.source, input.env, { projectFilesOnly: true, ...(scenario !== undefined ? { expectSha256: input.scenario_sha256 } : {}) }).catch((e: unknown) => {
-    throw scenarioChangedConflict(e, `scenarios/${scenario} changed since the hooks were submitted: submit them again (what was approved is what runs)`);
+  const sel = await selectHooks(project, input.source, input.env, { projectFilesOnly: true, files: fileFacts(ctx.ws.policy), ...(scenario !== undefined ? { expectSha256: input.scenario_sha256 } : {}) }).catch((e: unknown) => {
+    throw scenarioChangedConflict(e, `${projectRef('scenarios', String(scenario))} changed since the hooks were submitted: submit them again (what was approved is what runs)`);
   });
   // Checked again on those bytes (agent trust is a rule of this process, not of the submit).
   if (sel.scenario) {
@@ -190,16 +194,18 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
   }
   await checkWorkspaceProtection(ctx.ws, project, input.env ?? sel.env);
   const { ctx: hctx, closeSessions } = await createHookContext(project, {
+    policy: ctx.ws.policy,
     env: input.env ?? sel.env,
     dry: input.dry,
     ...(sel.vars ? { vars: sel.vars } : {}),
     runId: input.journal_id,
     ...(sel.scenario ? { scenario: sel.scenario } : {}),
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     confirm: approvalChecker(input.approvals),
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
+    recordAs: callerOf(input.submitted_by),
   });
   try {
     const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
@@ -228,14 +234,16 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
   const project = await openProjectBySlug(ctx.ws, input.project);
   await checkWorkspaceProtection(ctx.ws, project, input.env);
   const { ctx: hctx, closeSessions } = await createHookContext(project, {
+    policy: ctx.ws.policy,
     env: input.env,
     dry: input.dry,
     runId: input.journal_id,
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     confirm: approvalChecker(input.approvals),
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
+    recordAs: callerOf(input.submitted_by),
   });
   try {
     const outcomes = await hooks.rollbackPendingJournals(project.dir, hctx);

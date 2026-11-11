@@ -14,12 +14,13 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
 import { openSandbox } from '@retake/sandbox';
 import { EngineError, FileJobQueue, createEngine, historyFile, seedApprovalItems } from '../src/index.js';
 import type { ApprovalRequest, Approver, Engine, JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 function chromiumAvailable(): boolean {
   if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
@@ -171,7 +172,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
   afterAll(async () => {
     for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
     try {
-      await openSandbox(await loadProject('s', ws)).down();
+      await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY).down();
     } catch {
       /* never started */
     }

@@ -1,31 +1,11 @@
-import type { z } from 'zod';
-import type { Approver, Engine } from '@retake/engine';
-import type { Progress, ToolAnnotations } from '../server.js';
-import type { ToolOutput } from '../result.js';
+import type { ToolAnnotations } from '@retake/engine/contract';
 
-export interface ToolContext {
-  engine: Engine;
-  /** Aborted when the client cancels the call: it ends a wait, never the job. */
-  signal: AbortSignal;
-  /** Progress notifications while a call waits (when the client asked for them). */
-  progress?: (p: Progress) => void;
-  /** Asks the client's user to approve hooks (form elicitation); undefined when the client cannot ask anyone. */
-  approver?: Approver;
-}
-
-/** A tool of the server: one zod input schema (published as JSON Schema, and the parser), annotations and a handler. */
-export interface ToolDef<S extends z.ZodType = z.ZodType> {
-  name: string;
-  title: string;
-  description: string;
-  input: S;
-  annotations: ToolAnnotations;
-  run(args: z.output<S>, ctx: ToolContext): Promise<ToolOutput>;
-}
-
-export function defineTool<S extends z.ZodType>(t: ToolDef<S>): ToolDef {
-  return t as unknown as ToolDef;
-}
+/**
+ * A tool of the server is an operation of the contract (@retake/engine/contract): its definition lives there, and
+ * `defineTool` keeps its input, answer and name types (a tool table is typed by them: tool-set.ts TOOLS).
+ */
+export type { ToolContext, ToolDef } from '@retake/engine/contract';
+export { defineTool } from '@retake/engine/contract';
 
 export const READ: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 /** Writes authored files of the workspace (never deletes; overwrites need if_match). */
@@ -39,6 +19,8 @@ export const THEME_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHi
 export const RUN_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 /** Asks for a job's cancel (its teardown and rollbacks still run). */
 export const CANCEL: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+/** A job's cancel, which discards a recording whose window is open (the catalogue: job_cancel is destructive). */
+export const JOB_CANCEL: ToolAnnotations = { ...CANCEL, destructiveHint: true };
 /** Starts a job that runs hooks against an environment (a real run may write or delete: approvals guard it). */
 export const HOOK_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
 /** Opens a browser on the user's machine for a human to sign in (or plays a persona's login steps): saves a session. */

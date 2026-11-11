@@ -11,8 +11,9 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ConfigError, envFileValues, loadProject, useAgentPolicy } from '@retake/core';
+import { ConfigError, PERSON_POLICY, envFileValues, workPolicyFrom } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import { ComposeProvider, SandboxError, composeArgs, composeProject, composeProjectName, emptyState, runDocker, sandboxPaths } from '@retake/sandbox';
 import type { DockerExec, ProviderContext } from '@retake/sandbox';
 import { startedProgram } from '../src/compose.js';
@@ -53,7 +54,7 @@ async function project(name: string, manifest: string[], files: Record<string, s
 }
 
 function ctxOf(p: LoadedProject): ProviderContext {
-  return { project: p, sandbox: p.sandboxes!.stage, paths: sandboxPaths(p.dir, 'stage'), state: emptyState('stage', 'docker-compose'), save: () => undefined, log: () => undefined };
+  return { project: p, policy: PERSON_POLICY, sandbox: p.sandboxes!.stage, paths: sandboxPaths(p.dir, 'stage'), state: emptyState('stage', 'docker-compose'), save: () => undefined, log: () => undefined };
 }
 
 const psLine = (wd: string) => JSON.stringify({ Service: 'app', Name: 'p-app-1', ID: 'abc', State: 'running', Health: '', ExitCode: 0, Status: 'Up', Publishers: [], Labels: `com.docker.compose.project.working_dir=${wd},com.docker.compose.service=app` });
@@ -83,7 +84,7 @@ describe('compose files outside the folder of sandbox.yaml (v0.2.1)', () => {
     const ref = composeProject(p, p.sandboxes!.stage);
     const psFrom = (wd: string) => {
       const exec: DockerExec = async () => ({ code: 0, stdout: psLine(wd), stderr: '', ms: 1 });
-      return new ComposeProvider({ exec }).ps(ctxOf(p));
+      return new ComposeProvider({ policy: PERSON_POLICY, exec }).ps(ctxOf(p));
     };
     await expect(psFrom(ref.dir)).resolves.toHaveLength(1);
     await expect(psFrom(ref.sandboxDir!)).resolves.toHaveLength(1);
@@ -98,22 +99,18 @@ describe('docker under the agent policy keeps the name it was found as (v0.2.1)'
     await mkdir(dir, { recursive: true });
     const link = join(dir, 'docker');
     await symlink(process.execPath, link);
-    expect(startedProgram(link, 'docker')).toEqual({ program: link, problem: null });
-    useAgentPolicy([join(tmp, 'some-workspace')]);
-    try {
-      const checked = startedProgram(link, 'docker');
-      expect(checked.problem).toBeNull();
-      expect(checked.program).toBe(realpathSync(process.execPath));
-      expect(checked.argv0).toBe(basename(checked.program) === 'docker' ? undefined : 'docker');
-      const real = realpathSync(process.execPath);
-      expect(startedProgram(real, 'docker')).toEqual({ program: real, problem: null });
-    } finally {
-      useAgentPolicy(null);
-    }
+    expect(startedProgram(PERSON_POLICY, link, 'docker')).toEqual({ program: link, problem: null });
+    const agent = workPolicyFrom([join(tmp, 'some-workspace')]);
+    const checked = startedProgram(agent, link, 'docker');
+    expect(checked.problem).toBeNull();
+    expect(checked.program).toBe(realpathSync(process.execPath));
+    expect(checked.argv0).toBe(basename(checked.program) === 'docker' ? undefined : 'docker');
+    const real = realpathSync(process.execPath);
+    expect(startedProgram(agent, real, 'docker')).toEqual({ program: real, problem: null });
   });
 
   it('runDocker starts the program under that name', async () => {
-    const r = await runDocker(process.execPath, ['-e', 'process.stdout.write(process.argv0)'], { argv0: 'docker' });
+    const r = await runDocker(process.execPath, ['-e', 'process.stdout.write(process.argv0)'], { argv0: 'docker', policy: PERSON_POLICY });
     expect(r.code).toBe(0);
     expect(r.stdout).toBe('docker');
   });

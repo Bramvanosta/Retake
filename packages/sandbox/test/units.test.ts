@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { useAgentPolicy } from '@retake/core';
-import type { LoadedProject, LoadedSandbox, SandboxManifest } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import type { LoadedProject, LoadedSandbox, SandboxManifest, WorkPolicy } from '@retake/core';
 import {
   BREAKER_STALE_MS,
   SandboxError,
@@ -45,6 +45,9 @@ import {
   waitHealthy,
   writeState,
 } from '@retake/sandbox';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 const posix = process.platform !== 'win32';
 /** The built lock module (`pnpm build`): the race test runs it in separate processes. */
@@ -214,7 +217,7 @@ describe('take lock', () => {
       `import { TakeLock } from ${JSON.stringify(LOCK_MODULE)};`,
       'const [file, at] = process.argv.slice(1);',
       'while (Date.now() < Number(at)) {}',
-      "try { const l = TakeLock.acquire(file, 'probe', 'sandbox'); console.log('GOT'); const until = Date.now() + 300; while (Date.now() < until) {} l.releaseSync(); }",
+      "try { const l = TakeLock.acquire(file, 'probe', 'sandbox'); const t0 = Date.now(); const until = t0 + 300; while (Date.now() < until) {} const t1 = Date.now(); l.releaseSync(); console.log(`GOT ${t0} ${t1}`); }",
       "catch (e) { console.log(e.code === 'busy' ? 'BUSY' : `ERR ${e.message}`); }",
     ].join('\n');
     const one = (at: number) =>
@@ -229,8 +232,12 @@ describe('take lock', () => {
       await writeFile(file, round % 2 ? '' : JSON.stringify({ pid: 999_999, command: 'run x', since: new Date().toISOString() }));
       const at = Date.now() + 600;
       const outs = await Promise.all([one(at), one(at), one(at), one(at)]);
-      expect(outs.filter((o) => o === 'GOT').length, `round ${round}: ${outs.join(', ')}`).toBe(1);
-      expect(outs.filter((o) => o !== 'GOT' && o !== 'BUSY')).toEqual([]);
+      // Never held twice at once. A command that starts after the holder released (a slow machine starts the four
+      // late) takes the free lock in turn: that is not two takes of the same stale lock.
+      const held = outs.filter((o) => o.startsWith('GOT ')).map((o) => o.split(' ').slice(1).map(Number) as [number, number]).sort((a, b) => a[0] - b[0]);
+      expect(held.length, `round ${round}: ${outs.join(', ')}`).toBeGreaterThanOrEqual(1);
+      for (let i = 1; i < held.length; i++) expect(held[i]![0], `round ${round}: ${outs.join(', ')}`).toBeGreaterThanOrEqual(held[i - 1]![1]);
+      expect(outs.filter((o) => !o.startsWith('GOT ') && o !== 'BUSY')).toEqual([]);
     }
     expect(existsSync(file)).toBe(false);
     // A breaker left by a command that died while breaking (older than BREAKER_STALE_MS) does not block anyone.
@@ -378,7 +385,7 @@ describe('a service: command and environment', () => {
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
     try {
       const env = await serviceEnv(
-        { project, sandbox },
+        { project, sandbox, policy },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}', REGION: '{{vars.region}}', NODE_ENV: 'development' } },
         { PATH: '/usr/bin', HOME: '/home/me', npm_config_cache: 'x', npm_lifecycle_event: 'studio', PNPM_SCRIPT_SRC_DIR: 'y', VITEST: 'true', VITEST_POOL_ID: '1', NODE_ENV: 'test', INIT_CWD: '/x', LANG: 'C' },
       );
@@ -401,10 +408,10 @@ describe('a service: command and environment', () => {
     const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, pass_env: ['STRIPE_TEST_KEY'] } } as unknown as LoadedProject;
     const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
-    useAgentPolicy([tmp]);
+    policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
       const env = await serviceEnv(
-        { project, sandbox },
+        { project, sandbox, policy },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}' } },
         { PATH: `/usr/bin:${join(tmp, 'bin')}`, HOME: '/home/me', LANG: 'C', AWS_SECRET_ACCESS_KEY: 'exported', STRIPE_TEST_KEY: 'listed', NODE_OPTIONS: '--require ./x.cjs', DOCKER_HOST: 'unix:///x.sock' },
       );
@@ -419,7 +426,7 @@ describe('a service: command and environment', () => {
         RETAKE_SANDBOX: 'sandbox',
       });
     } finally {
-      useAgentPolicy(null);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
       delete process.env.RETAKE_TEST_SECRET;
     }
   });

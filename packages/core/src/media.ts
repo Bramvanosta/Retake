@@ -5,12 +5,10 @@
  * turns that sugar into an ordinary component use (studio/media, studio/lottie) so the rest of the pipeline — planner,
  * composition, review, component switching — treats a user file like any other component.
  *
- * Also here: the file checks shared by validation and planning — container by extension, a cached ffprobe of videos
- * (codec, size, length, sound, alpha) and the metadata of a Lottie file.
+ * Also here: the file checks shared by validation and planning — container by extension, what ffprobe's answer says of
+ * a video (codec, size, length, sound, alpha; the probe itself: `@retake/core/io` probeVideoFile) and the metadata of
+ * a Lottie file.
  */
-import { spawnSync } from 'node:child_process';
-import { readFileSync, statSync } from 'node:fs';
-import { ffprobeBin } from './bundle.js';
 import { MEDIA_COMPONENTS, MEDIA_FILE_KINDS } from './types.js';
 import type { BBox, MediaFileFields, MediaFileKind, OverlayAnchor, OverlaySpec } from './types.js';
 
@@ -146,17 +144,10 @@ export class MediaProbeError extends Error {
   }
 }
 
-const probeCache = new Map<string, VideoProbe | MediaProbeError>();
-
 function ratio(v: unknown): number {
   if (typeof v !== 'string') return 0;
   const [a, b] = v.split('/').map(Number);
   return b ? a / b : Number(a) || 0;
-}
-
-/** This process's ffprobe (bundle.ts: retake.yaml `ffmpeg`'s folder → $RETAKE_FFPROBE / $RETAKE_FFMPEG's → the app's → PATH). */
-export function ffprobeCommand(): string {
-  return ffprobeBin();
 }
 
 /** Interpret ffprobe's JSON (`-show_streams -show_format`) — pure, exported for tests. */
@@ -185,42 +176,6 @@ export function videoProbeFromJson(json: unknown): VideoProbe {
   if (profile) out.profile = profile;
   if (pix) out.pix_fmt = pix;
   return out;
-}
-
-/**
- * ffprobe a video file (synchronous, cached by path + size + mtime): codec, size, length, sound, alpha. Throws
- * MediaProbeError (`no-ffprobe` when ffprobe is missing, `unreadable` / `no-video` for a file it cannot use).
- */
-export function probeVideoFile(file: string): VideoProbe {
-  let key = file;
-  try {
-    const st = statSync(file);
-    key = `${file}\0${st.size}\0${st.mtimeMs}`;
-  } catch {
-    throw new MediaProbeError(`${file} not found`, 'unreadable');
-  }
-  const hit = probeCache.get(key);
-  if (hit instanceof MediaProbeError) throw hit;
-  if (hit) return hit;
-  const r = spawnSync(ffprobeCommand(), ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-  if (r.error) {
-    // Not cached: installing ffmpeg fixes it.
-    throw new MediaProbeError(`ffprobe is not available (${(r.error as NodeJS.ErrnoException).code ?? r.error.message}): install ffmpeg`, 'no-ffprobe');
-  }
-  let result: VideoProbe | MediaProbeError;
-  if (r.status !== 0) {
-    const why = String(r.stderr || '').trim().split('\n')[0] || `exit ${r.status}`;
-    result = new MediaProbeError(`ffprobe cannot read it (${why})`, 'unreadable');
-  } else {
-    try {
-      result = videoProbeFromJson(JSON.parse(r.stdout));
-    } catch (e) {
-      result = e instanceof MediaProbeError ? e : new MediaProbeError(`ffprobe output not understood (${(e as Error).message})`, 'unreadable');
-    }
-  }
-  probeCache.set(key, result);
-  if (result instanceof MediaProbeError) throw result;
-  return result;
 }
 
 /** What a Lottie file says about itself. */
@@ -272,9 +227,4 @@ export function readLottieMeta(text: string): LottieMeta {
   };
   if (typeof j.nm === 'string') out.name = j.nm;
   return out;
-}
-
-/** readLottieMeta of a file (throws an Error saying what is wrong). */
-export function readLottieFile(file: string): LottieMeta {
-  return readLottieMeta(readFileSync(file, 'utf8'));
 }

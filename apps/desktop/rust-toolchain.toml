@@ -1,0 +1,9 @@
+# The Rust the desktop shell is built with (Cargo.toml's rust-version, 1.90, is only its minimum). rustup reads this file
+# for every cargo run whose working folder is apps/desktop: `pnpm desktop:build` / `desktop:dev` (scripts/desktop.mjs)
+# and the app bundle's `tauri build` (scripts/bundle.mjs). The rules crate (core/) is built from the repository root
+# (desktop:test, desktop-core.test.ts) and keeps any Rust 1.70 or later. The release workflow installs this same version
+# (packages/cli/test/release-workflow.test.ts holds them equal).
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+targets = ["aarch64-apple-darwin"]

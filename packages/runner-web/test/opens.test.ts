@@ -12,7 +12,7 @@ import type { AddressInfo } from 'node:net';
 import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { compileWritePolicy } from '@retake/core';
+import { compileWritePolicy, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Scenario } from '@retake/core';
 import { kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { armFileGuard } from '../src/session.js';
@@ -62,7 +62,7 @@ type Trust = 'author' | 'mcp';
 async function run(name: string, sc: Omit<Scenario, 'video'>, o: { trust?: Trust; mode?: 'dry' | 'capture'; prewarm?: boolean } = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: app.url });
   if (o.prewarm) project.config.capture = { ...project.config.capture!, prewarm: true };
-  return runScenario({
+  return runScenario({ policy: PERSON_POLICY,
     project,
     scenario: makeScenario(name, { pacing: FAST, ...sc }),
     mode: o.mode ?? 'dry',
@@ -227,6 +227,7 @@ describe("the browser's own guard against file: (real browser)", () => {
     try {
       for (const readOnly of [false, true]) {
         const session = await openSession({
+          policy: PERSON_POLICY,
           width: 800,
           height: 600,
           scale: 1,

@@ -49,7 +49,8 @@ import type { TimelineView } from '@retake/engine';
 import type { TimelineViewAnswer } from '../server/ops.js';
 import type { PreviewConnection } from '../player/parent.js';
 import type { FrameMessage } from '../player/protocol.js';
-import { call, errorText, useCall } from './api.js';
+import { errorText } from './api.js';
+import { previewAllow, timelineLeave, useTimelineView } from './data/edit.js';
 import { Txt } from './bits.js';
 import { commentsEventAction, useEvents, useScenarioEvents } from './events.js';
 import { commentKey } from './comment-words.js';
@@ -117,7 +118,7 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
   const [lease] = useState(newLease);
   useEffect(
     () => () => {
-      void call('timeline_leave', { project: slug, lease }).catch(() => undefined);
+      void timelineLeave({ project: slug, lease }).catch(() => undefined);
     },
     [slug, lease],
   );
@@ -127,7 +128,7 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
     () => ({ project: slug, name, lease, ...(run ? { run } : {}), ...(pc !== undefined && pe !== undefined ? { proposal: { comment_id: pc, entry_id: pe } } : {}) }),
     [slug, name, run, lease, pc, pe],
   );
-  const [loaded, reload] = useCall<TimelineViewAnswer>('timeline_view', args, `${slug}\0${name}\0${run ?? ''}\0${pc ?? ''}\0${pe ?? ''}`);
+  const [loaded, reload] = useTimelineView(args, `${slug}\0${name}\0${run ?? ''}\0${pc ?? ''}\0${pe ?? ''}`);
   useScenarioEvents(slug, name, { reread: reload, progress: () => undefined });
   // L4.6: this scenario's threads changed (a comment posted, resolved): the pins are read again.
   useEvents((e) => {
@@ -259,7 +260,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   const allow = (c: { id: string; hash: string }) => {
     setAllowing(c.id);
     setAllowError(null);
-    call('preview_allow', { id: c.id, hash: c.hash })
+    previewAllow({ id: c.id, hash: c.hash })
       .then(
         () => {
           // A new frame document: its bundle now holds the component.

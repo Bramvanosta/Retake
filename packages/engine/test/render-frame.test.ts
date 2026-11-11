@@ -20,6 +20,7 @@ import { EngineError, RenderFrames, Semaphore, addComment, createEngine } from '
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
 import { bitsVideo, readBits } from '../../ui/test/timeline-take.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 240_000;
@@ -62,7 +63,7 @@ async function withRecord<T>(edit: (r: RenderRecord) => RenderRecord, fn: () => 
     await writeFile(recordFile(), savedRecord);
   }
 }
-const frames = (o: Partial<ConstructorParameters<typeof RenderFrames>[0]> = {}) => new RenderFrames({ slots: new Semaphore(2), ...o });
+const frames = (o: Partial<ConstructorParameters<typeof RenderFrames>[0]> = {}) => new RenderFrames({ policy: PERSON_POLICY, slots: new Semaphore(2), ...o });
 const ask = (rf: RenderFrames, frame: number, o: { session?: string; created_at?: string } = {}) =>
   rf.frame(project, { render_id: 'quote-v1', created_at: o.created_at ?? v1.record.created_at, frame }, o.session ? { session: o.session } : {});
 
@@ -119,7 +120,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
     }
     // The thread's still (the store's exact frame-number select) shows the frame the viewer showed.
     for (const f of [GOP - 1, GOP + 1]) {
-      const { thread, warnings } = await addComment(project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: f, text: 'This frame' }, { via: 'cli', name: 'Reviewer' });
+      const { thread, warnings } = await addComment(project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: f, text: 'This frame' }, { via: 'cli', name: 'Reviewer' }, undefined, PERSON_POLICY);
       expect(warnings).toEqual([]);
       expect(thread.frame).toBe(f);
       expect(readBits(await readFile(thread.still!))).toBe(f);

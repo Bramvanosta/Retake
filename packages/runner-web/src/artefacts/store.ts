@@ -6,8 +6,9 @@
  */
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
-import { ARTEFACTS_DIR, isCaptureScene, isCard, isDocumentPath, normalizeStep, writeJson } from '@retake/core';
-import type { BBox, BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TextArtefact, TimelineArtefact } from '@retake/core';
+import { ARTEFACTS_DIR, isCaptureScene, isCard, isDocumentPath, normalizeStep } from '@retake/core';
+import { writeJson } from '@retake/core/io';
+import type { BBox, BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TextArtefact, TimelineArtefact, WorkPolicy } from '@retake/core';
 import { errorMessage } from '../errors.js';
 import type { MailboxClient, MailMessage } from './mailbox.js';
 import { formatAddress, inlineCids } from './mailbox.js';
@@ -248,11 +249,11 @@ export class ArtefactStore {
    * After the capture: render email images, notification icons, rasterise PDFs, add the project documents named by
    * the scenario's slots. Failures are warnings (the artefact stays, without its image).
    */
-  async finalize(opts: { browser?: BrowserConfig; scenario?: Scenario; project?: LoadedProject }): Promise<void> {
+  async finalize(opts: { browser?: BrowserConfig; scenario?: Scenario; project?: LoadedProject; policy: WorkPolicy }): Promise<void> {
     const projectDocs = opts.scenario && opts.project ? projectDocuments(opts.scenario) : [];
     const docs = this.items.filter((a): a is DocumentArtefact => a.kind === 'document' && a.mime === 'application/pdf' && a.pages.length === 0);
     if (this.emails.length === 0 && this.icons.length === 0 && docs.length === 0 && projectDocs.length === 0) return;
-    const renderer = new ArtefactRenderer(opts.browser);
+    const renderer = new ArtefactRenderer(opts.browser, opts.policy);
     try {
       for (const e of this.emails) {
         try {

@@ -19,15 +19,14 @@
  * Nothing re-reads the board on every step of a capture (studio-e2e-board-reads counts the calls).
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import type { AuthStatus, ProjectBoardView, ProjectView } from '@retake/engine';
-import { CallError, call, errorText } from './api.js';
-import type { Loaded } from './api.js';
+import { CallError, errorText } from './api.js';
+import type { Loaded, OpResult } from './api.js';
+import { projectRead } from './data/projects.js';
 import type { StudioEvent } from './events.js';
 import { useEvents } from './events.js';
 import { SessionEnded } from './session.js';
 
 export type ProjectOp = 'project_get' | 'project_board' | 'auth_status';
-type DataOf<O extends ProjectOp> = O extends 'project_get' ? ProjectView : O extends 'project_board' ? ProjectBoardView : AuthStatus;
 
 /** Board re-reads on job changes: at most one per this. */
 export const BOARD_JOBS_THROTTLE_MS = 2000;
@@ -87,7 +86,7 @@ function load(e: Entry): void {
   e.inflight = true;
   e.lastAt = Date.now();
   reads[e.op]++;
-  call<unknown>(e.op, { project: e.slug }).then(
+  projectRead(e.op, { project: e.slug }).then(
     (data) => {
       e.backoff = 0;
       set(e, { state: 'ready', data });
@@ -126,7 +125,7 @@ const LOADING: Loaded<never> = { state: 'loading' };
 const NO_SUB = () => () => undefined;
 const NO_STATE = () => LOADING;
 
-function useEntry<O extends ProjectOp>(op: O, slug: string | null): Loaded<DataOf<O>> {
+function useEntry<O extends ProjectOp>(op: O, slug: string | null): Loaded<OpResult<O>> {
   const e = slug === null ? null : entryOf(op, slug);
   // Stable per entry: React keeps the subscription across renders (an inline function resubscribed at every one).
   const subscribe = useCallback(
@@ -152,7 +151,7 @@ function useEntry<O extends ProjectOp>(op: O, slug: string | null): Loaded<DataO
       if (e.users === 0) clearRetry(e);
     };
   }, [e]);
-  return state as Loaded<DataOf<O>>;
+  return state as Loaded<OpResult<O>>;
 }
 
 export const useProjectView = (slug: string | null) => useEntry('project_get', slug);
@@ -231,7 +230,7 @@ export function useProjectDataEvents(slug: string | null): void {
   useEvents((e) => {
     if (slug === null) return;
     const b = entries.get(`project_board\0${slug}`);
-    const data = b?.state.state === 'ready' ? (b.state.data as ProjectBoardView) : undefined;
+    const data = b?.state.state === 'ready' ? (b.state.data as OpResult<'project_board'>) : undefined;
     const shown = new Set(data?.jobs ?? []);
     const seen = seenJobs.get(slug) ?? new Set<string>();
     seenJobs.set(slug, seen);

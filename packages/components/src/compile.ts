@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 import type { Message, Plugin } from 'esbuild';
-import { didYouMean } from '@retake/core';
+import { didYouMean, pathInside } from '@retake/core';
 import { KIT_MODULE, kitEntry } from './paths.js';
 import type { ComponentIssue } from './types.js';
 
@@ -57,11 +57,6 @@ function realPath(p: string): string {
   } catch {
     return p;
   }
-}
-
-function isInside(file: string, dir: string): boolean {
-  const rel = relative(dir, file);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 /** Blank out comments, keeping line/column positions (strings are kept: a URL in a string is not a comment). */
@@ -205,7 +200,7 @@ export function unhashedImportMessage(spec: string, what: string): string {
 export function importProblem(spec: string, resolveDir: string, componentDir: string): string | undefined {
   if (spec.startsWith('.') || isAbsolute(spec)) {
     const target = resolve(resolveDir, spec);
-    if (!isInside(target, componentDir)) {
+    if (!pathInside(target, componentDir, { dotDotPrefix: true })) {
       return `import "${spec}" leaves the component folder: a component may only import its own files, react, remotion and ${KIT_MODULE}`;
     }
     const hidden = unhashedFileProblem(relative(componentDir, target), true);
@@ -284,7 +279,7 @@ function sortIssues(issues: ComponentIssue[]): ComponentIssue[] {
 
 function displayFile(file: string, dir: string): string {
   const abs = isAbsolute(file) ? file : resolve(dir, file);
-  if (isInside(abs, dir)) return relative(dir, abs).split(sep).join('/');
+  if (pathInside(abs, dir, { dotDotPrefix: true })) return relative(dir, abs).split(sep).join('/');
   return file;
 }
 
@@ -361,7 +356,7 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
     setup(b) {
       b.onResolve({ filter: /.*/ }, (args) => {
         if (args.kind === 'entry-point') return undefined;
-        const fromKit = kitDir !== undefined && isInside(args.importer, kitDir);
+        const fromKit = kitDir !== undefined && pathInside(args.importer, kitDir, { dotDotPrefix: true });
         const p = args.path;
         if (fromKit) {
           if (p.startsWith('.') || isAbsolute(p)) return undefined;
@@ -392,8 +387,8 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
       // only known here): the kit's own files, or a file of the component folder its content hash reads.
       b.onLoad({ filter: /.*/, namespace: 'file' }, (args) => {
         const real = realPath(args.path);
-        if (kitDir !== undefined && isInside(real, kitDir)) return undefined;
-        if (!isInside(real, absDir)) {
+        if (kitDir !== undefined && pathInside(real, kitDir, { dotDotPrefix: true })) return undefined;
+        if (!pathInside(real, absDir, { dotDotPrefix: true })) {
           return { errors: [{ text: `${basename(real)} lies outside the component folder (reached through a package.json or a link): a component may only import its own files, react, remotion and ${KIT_MODULE}` }] };
         }
         const rel = relative(absDir, real).split(sep).join('/');
@@ -444,7 +439,7 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
   for (const input of inputs) {
     if (input.startsWith(`${STUB_NS}:`)) continue;
     const abs = resolve(absDir, input);
-    if (isInside(abs, absDir)) own.add(abs);
+    if (pathInside(abs, absDir, { dotDotPrefix: true })) own.add(abs);
   }
   const files: string[] = [];
   for (const abs of [...own].sort()) {

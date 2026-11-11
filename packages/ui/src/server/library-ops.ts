@@ -31,10 +31,11 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, readPlainFile } from '@retake/core';
+import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE } from '@retake/core';
+import { readPlainFile, fileFacts } from '@retake/core/io';
 import { EngineError, libraryCacheDir, memoRegistry, openProjectBySlug, readLibraryImage, themeForWork } from '@retake/engine';
 import type { Engine, LibraryStatesView, TemplateSummary } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
+import { defineTool } from '@retake/engine/contract';
 import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { opChain } from './op-chain.js';
@@ -205,7 +206,7 @@ interface ViewMemo {
   themes: Awaited<ReturnType<Engine['templates']['list']>>;
 }
 
-export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
+export function libraryOps(o: { chain?: OpChain } = {}) {
   const oneAtATime = o.chain ?? opChain();
   /** library_view memo: (project, theme asked) → the reads, while the stat walks are unchanged (B5). */
   const memo = new Map<string, ViewMemo>();
@@ -214,7 +215,7 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
   const viewSignature = async (engine: Engine, slug: string, asked: string | undefined): Promise<string> => {
     const ws = engine.workspace;
     const p = await openProjectBySlug(ws, slug);
-    const t = await themeForWork(p, asked);
+    const t = await themeForWork(p, asked, fileFacts(ws.policy));
     const reg = (await memoRegistry(ws)).registry;
     // One entry budget for the whole signature (review A L4), as the event stream's scan.
     const budget = watchBudget();
@@ -228,7 +229,7 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
     ].join('\n');
   };
 
-  const view: ToolDef<typeof ViewInput> = {
+  const view = defineTool({
     name: 'library_view',
     title: 'The component library',
     description: "Every usable component with its poster and loop in a theme (keys, cache states, queued), the themes that pick it, the registry's notices and the theme switcher.",
@@ -295,12 +296,12 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const counts = { cached: items.filter((i) => i.loop.state === 'cached').length };
       return {
         summary: `${items.length} components in ${data.theme.name}: ${counts.cached} loops cached${queuedHere ? `, ${queuedHere} previews queued` : ''}${data.notices.length ? `, ${data.notices.length} notices` : ''}`,
-        data: data as unknown as Record<string, unknown>,
+        data,
       };
     },
-  };
+  });
 
-  const images: ToolDef<typeof ImagesInput> = {
+  const images = defineTool({
     name: 'library_images',
     title: 'Library posters and loops',
     description: 'Cached posters (PNG) and loops (GIF) by key, and committed posters of built-in components, as base64 — magic-checked and capped.',
@@ -362,11 +363,11 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
           out.images.push({ component: id, kind: 'poster', format: 'png', data });
         }
       }
-      return { summary: `${out.images.length} images${out.missing.length ? `, ${out.missing.length} missing` : ''}`, data: out as unknown as Record<string, unknown> };
+      return { summary: `${out.images.length} images${out.missing.length ? `, ${out.missing.length} missing` : ''}`, data: out };
     },
-  };
+  });
 
-  const render: ToolDef<typeof RenderInput> = {
+  const render = defineTool({
     name: 'library_render',
     title: 'Render library previews',
     description: `Queue posters and / or loops of at most ${LIBRARY_JOB_MAX} components in a theme, by the keys library_view gave; keys already queued or running are skipped.`,
@@ -399,11 +400,11 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
       });
       return {
         summary: r.job ? `library previews of ${r.components.length} components queued (job ${r.job.id})${r.skipped.length ? `, ${r.skipped.length} already queued` : ''}` : `nothing queued: ${r.skipped.length} previews already queued or running`,
-        data: r as unknown as Record<string, unknown>,
+        data: r,
       };
     },
-  };
-  const detail: ToolDef<typeof ComponentInput> = {
+  });
+  const detail = defineTool({
     name: 'library_component',
     title: 'One component of the library',
     description: "One component's detail: kinds, version, source, kit compatibility, duration bounds, variants, slots and params (the manifest's words under untrusted), README as text.",
@@ -413,10 +414,10 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
       await openProjectBySlug(engine.workspace, a.project);
       const c = await engine.components.get(a.component);
       const data = await componentAnswer(c, engine.workspace.root);
-      return { summary: `${data.component} (${data.kind}, ${data.source}): ${data.slots.length} slots, ${data.untrusted.params.length} params`, data: data as unknown as Record<string, unknown> };
+      return { summary: `${data.component} (${data.kind}, ${data.source}): ${data.slots.length} slots, ${data.untrusted.params.length} params`, data: data };
     },
-  };
-  return [view, images, render, detail] as unknown as ToolDef[];
+  });
+  return [view, images, render, detail] as const;
 }
 
 /** One slot as library_component shows it: what the manifest schema checks (name an identifier, type, numbers). */

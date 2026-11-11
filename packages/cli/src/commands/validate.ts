@@ -1,15 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import {
-  ConfigError,
-  SandboxConfigError,
-  ScenarioError,
-  errorsOf,
-  loadProjectTemplate,
-  loadScenario,
-  parseScenario,
-  warningsOf,
-} from '@retake/core';
-import type { LoadedProject, Template, ValidationIssue } from '@retake/core';
+import { ConfigError, SandboxConfigError, ScenarioError, errorsOf, parseScenario, warningsOf } from '@retake/core';
+import { fileFacts, loadProjectTemplate, loadScenario } from '@retake/core/io';
+import type { LoadedProject, Template, ValidationIssue, WorkFileFacts } from '@retake/core';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -50,8 +42,11 @@ export async function validateCommand(
 ): Promise<ExitCode> {
   const reports: FileReport[] = [];
   let project: LoadedProject;
+  let files: WorkFileFacts;
   try {
-    project = await openProject(await openWorkspace(global), projectArg);
+    const ws = await openWorkspace(global);
+    files = fileFacts(ws.policy);
+    project = await openProject(ws, projectArg);
   } catch (e) {
     const issues = e instanceof ConfigError ? e.issues : [];
     // A broken sandbox.yaml (L1.8) is reported under its own file.
@@ -70,7 +65,7 @@ export async function validateCommand(
 
   let template: Template | undefined;
   try {
-    template = (await loadProjectTemplate(project)).template;
+    template = (await loadProjectTemplate(project, undefined, { files })).template;
     reports.push({ kind: 'template', name: project.config.template, issues: [] });
   } catch (e) {
     const issues = e instanceof ConfigError ? e.issues : [];
@@ -84,7 +79,7 @@ export async function validateCommand(
   }
 
   const names = scenarioArg !== undefined ? [scenarioArg] : project.scenarios;
-  for (const name of names) reports.push(await validateScenarioFile(project, name, { ...opts, template }));
+  for (const name of names) reports.push(await validateScenarioFile(project, name, { ...opts, template }, files));
   return finish(ui, reports, opts);
 }
 
@@ -92,9 +87,10 @@ async function validateScenarioFile(
   project: LoadedProject,
   name: string,
   opts: ValidateOptions & { template?: Template },
+  files: WorkFileFacts,
 ): Promise<FileReport> {
   try {
-    const loaded = await loadScenario(project, name, { env: opts.env, until: opts.until, template: opts.template });
+    const loaded = await loadScenario(project, name, { files, env: opts.env, until: opts.until, template: opts.template });
     return { kind: 'scenario', name: loaded.name, file: loaded.file, issues: loaded.issues };
   } catch (e) {
     if (e instanceof ScenarioError && e.file) {
@@ -103,7 +99,7 @@ async function validateScenarioFile(
       const issues =
         text === null
           ? e.issues
-          : parseScenario(text, { file: e.file, project, env: opts.env, until: opts.until, template: opts.template }).issues;
+          : parseScenario(text, { files, file: e.file, project, env: opts.env, until: opts.until, template: opts.template }).issues;
       return { kind: 'scenario', name, file: e.file, issues };
     }
     return { kind: 'scenario', name, issues: [], error: errorMessage(e) };

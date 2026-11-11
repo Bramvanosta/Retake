@@ -5,10 +5,11 @@
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, extname, join, normalize, sep } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext } from 'playwright-core';
-import type { BrowserConfig } from '@retake/core';
+import { pathInside } from '@retake/core';
+import type { BrowserConfig, WorkPolicy } from '@retake/core';
 import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { launchTarget } from '../session.js';
 
@@ -57,12 +58,16 @@ export interface RenderedPage extends RenderedImage {
 export class ArtefactRenderer {
   private browser: Browser | null = null;
 
-  constructor(private readonly config: BrowserConfig = {}) {}
+  constructor(
+    private readonly config: BrowserConfig = {},
+    /** What the work runs under (core WorkPolicy): which Chromium, under its agent policy. */
+    private readonly policy: WorkPolicy,
+  ) {}
 
   private async open(): Promise<Browser> {
     if (!this.browser) {
-      const { executablePath, channel } = launchTarget(this.config);
-      const browser = await chromium.launch({ headless: true, executablePath, channel, ...launchOptions({ args: ['--hide-scrollbars', '--force-color-profile=srgb'] }) });
+      const { executablePath, channel } = launchTarget(this.config, { policy: this.policy });
+      const browser = await chromium.launch({ headless: true, executablePath, channel, ...launchOptions({ args: ['--hide-scrollbars', '--force-color-profile=srgb'], policy: this.policy }) });
       await refuseUnsandboxed(browser, () => browser.close(), 'The artefact browser');
       this.browser = browser;
     }
@@ -187,7 +192,8 @@ window.pdfReady = true;
     if (path === '/index.html') return route.fulfill({ status: 200, contentType: 'text/html', body: index });
     if (path === '/document.pdf') return route.fulfill({ status: 200, contentType: 'application/pdf', body: pdf });
     const file = normalize(join(root, decodeURIComponent(path)));
-    if (!file.startsWith(root + sep)) return route.fulfill({ status: 403, body: '' });
+    // Strictly inside the pdf.js folder, as spelt (both normalised); a root spelt with a trailing separator holds nothing.
+    if (!pathInside(file, root, { compare: 'spelling', self: false, trailingSepHoldsNothing: true })) return route.fulfill({ status: 403, body: '' });
     try {
       const body = await readFile(file);
       return route.fulfill({ status: 200, contentType: MIME[extname(file)] ?? 'application/octet-stream', body });

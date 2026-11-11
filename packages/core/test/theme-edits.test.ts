@@ -10,17 +10,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  STARTER_TEMPLATES_DIR,
-  StepEditError,
-  THEME_FIELD_PATHS,
-  THEME_REMOVABLE_FIELDS,
-  applyThemeEdit,
-  newHiddenCharProblem,
-  parseTemplateYaml,
-  parseYaml,
-  verifyEditText,
-} from '../src/index.js';
+import { StepEditError, THEME_FIELD_PATHS, THEME_REMOVABLE_FIELDS, applyThemeEdit, newHiddenCharProblem, parseTemplateYaml, parseYaml, verifyEditText } from '../src/index.js';
+import { STARTER_TEMPLATES_DIR } from '../src/io/index.js';
 import type { ComponentKind, ThemeEdit, ThemeField, ThemeFieldValue } from '../src/index.js';
 
 type Obj = Record<string, unknown>;

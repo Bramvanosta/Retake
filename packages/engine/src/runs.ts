@@ -4,8 +4,8 @@
  * warnings) is kept apart under `untrusted`, never mixed into what the engine itself says.
  */
 import { lstat, readFile, readdir } from 'node:fs/promises';
-import { isAbsolute, join, relative, sep } from 'node:path';
-import { newerFormatMessage, FORMAT_VERSIONS } from '@retake/core';
+import { isAbsolute, join, sep } from 'node:path';
+import { newerFormatMessage, FORMAT_VERSIONS, relativeInside, projectPath, projectRef } from '@retake/core';
 import type { LoadedProject, MissingTarget, RunMode, RunPerf, RunRecord, RunStatus } from '@retake/core';
 import { EngineError } from './errors.js';
 import { RUN_ID_RE, checkRunId } from './refs.js';
@@ -69,7 +69,7 @@ function summary(id: string, r: RunRecord): RunSummary {
 
 /** Runs of a project, newest first (run ids start with their date and time). Folders without a run.json are skipped. */
 export async function listRuns(project: LoadedProject, opts: { scenario?: string; mode?: RunMode; limit?: number } = {}): Promise<RunSummary[]> {
-  const runsDir = join(project.dir, 'runs');
+  const runsDir = projectPath(project.dir, 'runs');
   let ids: string[];
   try {
     ids = (await readdir(runsDir, { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
@@ -133,7 +133,7 @@ export interface RunStatusView extends RunSummary {
 export async function runStatus(project: LoadedProject, runId: string): Promise<RunStatusView> {
   checkRunId(runId);
   const storage = new LocalStorage(project.dir);
-  const runRef = `runs/${runId}`;
+  const runRef = projectRef('runs', runId);
   const runDir = storage.resolve(runRef);
   const { record, newer } = await readRecord(join(runDir, 'run.json'));
   if (newer) throw new EngineError('invalid', `run ${runId}: ${newer}`);
@@ -143,8 +143,8 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
   /** A path run.json recorded → a ref, wherever the project folder is now. */
   const refOf = (p: string | undefined): { ref: string; path: string } | undefined => {
     if (!p) return undefined;
-    const rel = isAbsolute(p) ? relative(record.dir, p) : p;
-    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return undefined;
+    const rel = isAbsolute(p) ? relativeInside(p, record.dir, { self: false, dotDotPrefix: true }) : p === '' || p.startsWith('..') ? undefined : p;
+    if (rel === undefined) return undefined;
     const ref = `${runRef}/${rel.split(sep).join('/')}`;
     try {
       return { ref, path: storage.resolve(ref) };

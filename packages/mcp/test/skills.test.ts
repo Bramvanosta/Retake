@@ -8,7 +8,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACTION_NAMES, loadProject, parseSandboxYaml } from '@retake/core';
+import { ACTION_NAMES, parseSandboxYaml, PERSON_POLICY } from '@retake/core';
+import { loadProject, fileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { validateScenarioText } from '@retake/engine';
 import { checkComponentEntry, parseManifest } from '@retake/components';
@@ -105,7 +106,7 @@ beforeAll(async () => {
       return `${io.stdout()}${io.stderr()}`;
     },
     validateScenario: async (yaml) =>
-      (await validateScenarioText(project, yaml, { agent: true })).issues.filter((i) => i.severity === 'error').map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
+      (await validateScenarioText(project, yaml, { files: fileFacts(PERSON_POLICY), agent: true })).issues.filter((i) => i.severity === 'error').map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
     validateManifest: (yaml) => parseManifest(yaml).issues.filter((i) => i.severity === 'error').map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
     validateSandbox: (yaml) => parseSandboxYaml(yaml).issues.filter((i) => i.severity === 'error').map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
     checkComponent: async (tsx) => {

@@ -10,13 +10,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProjectTemplate, readJson } from '@retake/core';
+import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { Timeline } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import { RenderCancelledError, bundleComponentsFor, ensureBundle, listRenders, planEdit, renderStill, renderVideo } from '@retake/editor';
 import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameColour, frameOfColour, hasTool, pixelAt, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -83,7 +84,7 @@ describe.skipIf(!canRender)('bundle cache', () => {
 describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
   it('writes renders/<scenario>-v1.mp4 + .json: the plan duration, fps and size, h264 yuv420p faststart with an audio track', async () => {
     const stages = new Set<string>();
-    record = await renderVideo({
+    record = await renderVideo({ workPolicy: PERSON_POLICY,
       project: ws.project,
       root: ws.root,
       run: 'latest',
@@ -150,7 +151,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
   it('a cancelled render leaves nothing under the final names', async () => {
     const controller = new AbortController();
     let rendered = 0;
-    const p = renderVideo({
+    const p = renderVideo({ workPolicy: PERSON_POLICY,
       project: ws.project,
       root: ws.root,
       run: 'latest',
@@ -177,13 +178,13 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
 
   it('renderStill writes one frame as a PNG', async () => {
     const out = join(ws.root, 'stills', 'frame-48.png');
-    expect(await renderStill({ plan: record.plan, frame: 48, out, root: ws.root, cacheDir: SHARED_CACHE })).toBe(out);
+    expect(await renderStill({ workPolicy: PERSON_POLICY, plan: record.plan, frame: 48, out, root: ws.root, cacheDir: SHARED_CACHE })).toBe(out);
     const size = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height,codec_name', '-of', 'csv=p=0', out], { encoding: 'utf8' }).trim();
     expect(size).toBe('png,960,540');
     const r = shownSourceFrame(out, record.plan, 48, 0);
     expect(r.shown).toBe(r.expected);
     expect(r.expected).toBe((record.plan.segments[1] as ClipSegment).srcFrames[48 - 30]);
-    await expect(renderStill({ plan: record.plan, frame: 57, out, root: ws.root })).rejects.toThrow(/outside the video/);
+    await expect(renderStill({ workPolicy: PERSON_POLICY, plan: record.plan, frame: 57, out, root: ws.root })).rejects.toThrow(/outside the video/);
   }, LONG);
 
   it('DemoVertical renders the vertical variant (9:16 crop of the capture)', async () => {
@@ -191,7 +192,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     const registry = await loadComponentRegistry({ root: ws.root });
     const plan = planEdit({
       timeline,
-      template: await loadProjectTemplate(ws.project, 'editorial'),
+      template: await loadProjectTemplate(ws.project, 'editorial', { files: fileFacts(PERSON_POLICY) }),
       project: ws.project,
       registry,
       captureFile: join(ws.runDir, 'capture.mp4'),
@@ -199,7 +200,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     });
     expect([plan.variant, plan.width, plan.height]).toEqual(['vertical', 540, 960]);
     const out = join(ws.root, 'stills', 'vertical-45.png');
-    await renderStill({ plan, frame: 45, out, root: ws.root, registry, cacheDir: SHARED_CACHE });
+    await renderStill({ workPolicy: PERSON_POLICY, plan, frame: 45, out, root: ws.root, registry, cacheDir: SHARED_CACHE });
     expect(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', out], { encoding: 'utf8' }).trim()).toBe('540,960');
     const r = shownSourceFrame(out, plan, 45, 0);
     expect(r.shown, `rgb ${r.rgb}`).toBe(r.expected);
@@ -209,7 +210,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     const music = join(ws.project.dir, 'assets', 'bed.wav');
     await mkdir(dirname(music), { recursive: true });
     execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', music]);
-    const rec = await renderVideo({
+    const rec = await renderVideo({ workPolicy: PERSON_POLICY,
       project: ws.project,
       root: ws.root,
       run: 'latest',

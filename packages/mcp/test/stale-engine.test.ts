@@ -9,8 +9,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RETAKE_VERSION, installedVersion, staleEngine } from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core';
+import { installedVersion, staleEngine } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { startMcpServer, staleWords } from '../src/index.js';
 

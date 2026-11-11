@@ -185,13 +185,14 @@ const post = MessagePort.prototype.postMessage;
 MessagePort.prototype.postMessage = function (...a) { if (!stolen) stolen = this; return post.apply(this, a); };
 export default function Flood() {
   useEffect(() => {
-    // First \`window\` alone (the page has no listener left: free), then the port it stole (the budget stops it).
+    // First \`window\` alone (the page has no listener left: free), then the port it stole (the budget stops it), 8 s
+    // after: well past the test's free stretch, however late \`loaded\` reaches it on a loaded machine.
     setTimeout(() => {
       for (let i = 0; i < 100000; i++) parent.postMessage({ v: 1, type: 'frame', frame: i % 10 }, '*');
     }, 200);
     setTimeout(() => {
       for (let i = 0; i < 100000; i++) if (stolen) post.call(stolen, { v: 1, type: 'frame', frame: i % 10 });
-    }, 3000);
+    }, 8000);
   }, []);
   return <AbsoluteFill />;
 }

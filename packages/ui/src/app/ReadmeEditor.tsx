@@ -23,7 +23,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectView } from '@retake/engine';
-import { CallError, call, errorText, useCall } from './api.js';
+import { CallError, errorText } from './api.js';
+import { projectGet, projectUpdateReadme, useProjectGet } from './data/projects.js';
 import { useEvents } from './events.js';
 import { Txt } from './bits.js';
 import { detectEol, getDraft, isDirty, normalizeEol, readmeKey, setDraft, toEol } from './drafts.js';
@@ -94,7 +95,7 @@ function Editor({ view }: { view: ProjectView }) {
     if (savingRef.current) return;
     const e = epoch.current;
     try {
-      const v = await call<ProjectView>('project_get', { project: slug });
+      const v = await projectGet({ project: slug });
       if (mounted.current && e === epoch.current && !savingRef.current) seeDisk(diskOf(v));
     } catch {
       // offline or the session ended: the shell says so
@@ -133,7 +134,7 @@ function Editor({ view }: { view: ProjectView }) {
       setSaving(true);
       setError(null);
       try {
-        const r = await call<{ hash: string }>('project_update_readme', { project: slug, markdown, if_match: over ? over.hash : cur.base.hash });
+        const r = await projectUpdateReadme({ project: slug, markdown, if_match: over ? over.hash : cur.base.hash });
         // What was written, as the editor shows it; text typed during the save stays as it is.
         const text = normalizeEol(markdown);
         const now = draftRef.current;
@@ -146,7 +147,7 @@ function Editor({ view }: { view: ProjectView }) {
         if (e instanceof SessionEnded) return;
         if (e instanceof CallError && e.error.code === 'conflict') {
           try {
-            const v = await call<ProjectView>('project_get', { project: slug });
+            const v = await projectGet({ project: slug });
             setConflict({ mine: cur.text, disk: diskOf(v) });
           } catch (e2) {
             if (!(e2 instanceof SessionEnded)) setError(errorText(e2));
@@ -307,7 +308,7 @@ function ReadOnly({ view }: { view: ProjectView }) {
 }
 
 export function ReadmeEditor({ slug }: { slug: string }) {
-  const [view, reload] = useCall<ProjectView>('project_get', { project: slug }, slug);
+  const [view, reload] = useProjectGet({ project: slug }, slug);
   // README.md may become (or stop being) one the editor must not rewrite: the view follows it.
   useEvents((e) => {
     if ((e.type === 'workspace' && e.readme.includes(slug)) || e.type === 'resync') reload();

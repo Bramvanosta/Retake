@@ -79,7 +79,7 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
 
 `EditOverrides` change the edit without touching the scenario: `frame`, `variant`, `fps`, `scale`, `intro`, `outro`,
 `captions`, `trim_idle`, `idle_threshold`, `speeds`, `transition`, `transition_duration`, `camera`, `components` (by
-kind or segment id), `theme` (the caller loads that template) and `music` (a file, or `false`). `variant` is
+kind or segment id), `theme` (the caller loads that theme) and `music` (a file, or `false`). `variant` is
 `landscape`, `vertical` or `square`.
 
 `retake plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
@@ -208,7 +208,7 @@ $ retake render northfield-fixture catalogue
   Mac with a GPU the video is encoded by the Mac's hardware encoder (VideoToolbox, 0.13 bit per pixel per frame: 8 Mb/s
   at 1080p30, a key frame every 2 s); elsewhere, and as the fallback, libx264 CRF 16 — see
   [Renders on the GPU](#renders-on-the-gpu).
-- **Options**: `--theme` (another template, the scenario untouched), `--frame` (frame style or layout component id for
+- **Options**: `--theme` (another theme, the scenario untouched), `--frame` (frame style or layout component id for
   every scene), `--vertical` (1080×1920) or `--square` (1080×1080), `--scale` (output size × the variant's size),
   `--music <file>` / `--no-music` (replace or drop the scenario's music bed), `--tutorial` / `--no-tutorial` (every
   tutorial overlay on over the scenario's switches, or none), `--no-intro`, `--no-outro`,

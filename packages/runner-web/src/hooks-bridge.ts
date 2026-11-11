@@ -1,4 +1,6 @@
-import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment } from '@retake/core';
+import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment, WorkPolicy } from '@retake/core';
+// Types only (erased): the module itself is loaded on demand (loadHooksModule); its types check the mirrors below.
+import type { HookApprovalRequest, HookContext, HookResult, Journal } from '@retake/hooks';
 
 /** What a hook's approval is asked about (@retake/hooks HookApprovalRequest, structurally). */
 export interface HookApprovalRequestLike {
@@ -16,6 +18,8 @@ import { RunnerError, errorMessage } from './errors.js';
 /** The part of @retake/hooks the runner uses (docs/DESIGN.md §2). */
 export interface HookContextLike {
   project: LoadedProject;
+  /** What the run runs under (RunOptions.policy): a shell hook's environment and PATH under the agent policy. */
+  policy: WorkPolicy;
   env: ResolvedEnvironment;
   vars: Record<string, string>;
   runId?: string;
@@ -39,11 +43,17 @@ export interface HookContextLike {
   agentVars?: readonly string[];
   /** Approves the hooks that need a human (RunOptions.confirmHook). */
   confirmDestructive?: ConfirmHook;
+  /** Reports each hook and rollback run (RunOptions.recordHookRun, with this run's id, or a rollback's journal's). */
+  recordRun?: (result: HookResultLike, run?: string) => Promise<void>;
   /** `auth: {persona}` of an http hook (@retake/hooks HookContext.personaAuth). */
   personaAuth?: (persona: string, url: string) => Promise<{ authorization?: string; cookie?: string }>;
 }
 
 export interface HookResultLike {
+  index?: number;
+  kind?: string;
+  phase?: string;
+  ms?: number;
   name?: string;
   description?: string;
   ok?: boolean;
@@ -67,6 +77,20 @@ export interface HooksModule {
   ): Promise<{ ok: boolean; results: HookResultLike[] }>;
   Journal: { open(file: string): Promise<JournalLike> };
 }
+
+/**
+ * The mirrors above, checked against @retake/hooks by tsc: the module is loaded on demand and cast to HooksModule, so
+ * nothing else compares them. A context the runner builds is one the hooks read (a HookContextLike without the
+ * work's `policy` compiled, and every shell hook of a run failed reading it), a journal's rollbacks take it, and what
+ * the hooks report and ask about reads as the mirrors say.
+ */
+type Assignable<A extends B, B> = [A, B];
+type HooksBridgeChecks = [
+  Assignable<HookContextLike, HookContext>,
+  Assignable<HookResult, HookResultLike>,
+  Assignable<HookApprovalRequest, HookApprovalRequestLike>,
+  Assignable<Journal['rollbackAll'], JournalLike['rollbackAll']>,
+];
 
 /** Loaded on demand: scenarios without hooks never touch the hooks package (or its pg dependency). */
 export async function loadHooksModule(): Promise<HooksModule> {

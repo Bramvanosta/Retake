@@ -2,24 +2,12 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import {
-  canonicalJson,
-  collectSandboxRefs,
-  collectSecretRefs,
-  homeKey,
-  homeKeyFile,
-  homeSign,
-  homeSigned,
-  interpolateDeep,
-  readHomeKey,
-  readOnlyHookMessage,
-  rollbackWriteReason,
-  sandboxOf,
-  writeJson,
-} from '@retake/core';
+import { canonicalJson, collectSandboxRefs, collectSecretRefs, interpolateDeep, readOnlyHookMessage, rollbackWriteReason, sandboxOf, projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core';
+import { homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, writeJson } from '@retake/core/io';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { actionLines, fieldLines, shownRollback } from './shown.js';
 import { executeRollback } from './kinds/index.js';
+import { recordHookRun } from './record.js';
 import { logger, redactText } from './secrets.js';
 import type { HookContext, HookResult, JournalEntry, JournalFile, NewJournalEntry, RollbackAction } from './types.js';
 import { isRecord, nowIso } from './util.js';
@@ -29,7 +17,7 @@ export const JOURNAL_FILE = 'hooks-journal.json';
  * Journals of hooks run outside a capture (`retake hooks run`, `retake env reset`), relative to the project dir:
  * `<project>/.retake/journals/<id>.json` — kept out of runs/ so they never look like runs (git-ignored).
  */
-export const JOURNALS_DIR = '.retake/journals';
+export const JOURNALS_DIR = stateRef('journals');
 
 export interface JournalLocations {
   /** Default `<projectDir>/runs`: run journals are `<runsDir>/<run-id>/hooks-journal.json`. */
@@ -40,12 +28,12 @@ export interface JournalLocations {
 
 /** Journal file of a standalone hooks run (`retake hooks run`, `retake env reset`). */
 export function standaloneJournalFile(projectDir: string, id: string, opts: JournalLocations = {}): string {
-  return join(opts.journalsDir ?? join(projectDir, JOURNALS_DIR), `${id}.json`);
+  return join(opts.journalsDir ?? statePath(projectDir, 'journals'), `${id}.json`);
 }
 
 /** The journal of `id`: a run's `runs/<id>/hooks-journal.json`, else `.retake/journals/<id>.json`; null when neither exists. */
 export function findJournal(projectDir: string, id: string, opts: JournalLocations = {}): string | null {
-  const run = join(opts.runsDir ?? join(projectDir, 'runs'), id, JOURNAL_FILE);
+  const run = opts.runsDir !== undefined ? join(opts.runsDir, id, JOURNAL_FILE) : runPath(projectDir, id, JOURNAL_FILE);
   if (existsSync(run)) return run;
   const standalone = standaloneJournalFile(projectDir, id, opts);
   return existsSync(standalone) ? standalone : null;
@@ -140,9 +128,9 @@ async function placeOf(file: string): Promise<JournalPlace> {
   const dir = dirname(abs);
   if (basename(abs) === JOURNAL_FILE && basename(dirname(dir)) === 'runs') {
     const project = dirname(dirname(dir));
-    return { project: await realPathOf(project), name: basename(project), kind: 'run', rel: `runs/${basename(dir)}/${JOURNAL_FILE}` };
+    return { project: await realPathOf(project), name: basename(project), kind: 'run', rel: projectRef('runs', basename(dir), JOURNAL_FILE) };
   }
-  if (basename(dir) === 'journals' && basename(dirname(dir)) === '.retake') {
+  if (basename(dir) === STATE_DIRS.journals && basename(dirname(dir)) === STATE_DIR) {
     const project = dirname(dirname(dir));
     return { project: await realPathOf(project), name: basename(project), kind: 'journals', rel: `${JOURNALS_DIR}/${basename(abs)}` };
   }
@@ -356,7 +344,12 @@ export class Journal {
       const wanted = new Set(seqs);
       const entries = this.data.entries.filter((e) => wanted.has(e.seq) && isPending(e)).sort((a, b) => b.seq - a.seq);
       const results: HookResult[] = [];
-      for (const entry of entries) results.push(await this.rollbackOne(entry, ctx));
+      for (const entry of entries) {
+        const result = await this.rollbackOne(entry, ctx);
+        // Journaled under the run whose journal this is, not the context's (an env reset mints its own id).
+        await recordHookRun(ctx, result, journalId(this.file));
+        results.push(result);
+      }
       return results;
     };
     const next = this.rolling.catch(() => undefined).then(run);
@@ -491,7 +484,7 @@ async function listJsonFiles(dir: string): Promise<string[]> {
  * opening them.
  */
 export async function findPendingJournals(projectDir: string, opts: JournalLocations = {}): Promise<string[]> {
-  const runsDir = opts.runsDir ?? join(projectDir, 'runs');
+  const runsDir = opts.runsDir ?? projectPath(projectDir, 'runs');
   const journalsDir = opts.journalsDir ?? join(projectDir, JOURNALS_DIR);
   const candidates: Array<{ id: string; file: string }> = [];
   for (const name of await listDirs(runsDir)) {

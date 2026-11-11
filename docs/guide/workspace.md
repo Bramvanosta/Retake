@@ -125,7 +125,7 @@ needs a sign-in and the accounts the videos are filmed as, and offers to sign ea
 ```
 projects/<slug>/
   README.md            # the product, audience, goals, tone, links, accounts by reference, do/don't
-  project.yaml         # environments, capture size, template, personas, hooks allow-list, reset hooks
+  project.yaml         # environments, capture size, theme, personas, hooks allow-list, reset hooks
   scenarios/<name>.yaml
   hooks/               # sql / http / js / sh files used by hooks
   assets/              # files used by scenarios (drop_file, eval, music…)
@@ -137,6 +137,25 @@ projects/<slug>/
   .retake/        # generated tool state: journals/<id>.json of `retake hooks run` / `retake env reset`, sandbox state,
                        # comments/<id>.jpg (the frame still of each comment thread: machine-local, never committed)
 ```
+
+### The workspace journal
+
+`<workspace>/.retake/journal.jsonl` records, one JSON line each, every **authored write** Retake makes — a scenario
+saved or edited, the README, a comment thread, a theme created, copied or edited, a component scaffolded, a project
+created (`retake new`, `project_create`), the workspace's own files (`retake init`), a sandbox scaffold — and every
+**hook run**: each setup, teardown, step, seed or reset hook executed (or refused), and each rollback replayed. A line
+says who (`by`: the client — `cli`, `mcp`, `ui` for the Studio —, its channel and its trust), what (the file or folder,
+workspace-relative — a projects, themes or components folder configured outside the workspace is named by a label:
+`<project>/scenarios/quote.yaml`, `<templates_dir>/mine`, `<components_dir>/…`, never an absolute path; a hook's name,
+kind and phase, a seed's exec step as kind `exec` — never a command, a body, a response or a secret), when (`at`) and
+the outcome (`ok`, or the error kind that stopped it: `conflict`, `refused`, `failed`…). A write also carries the hash it
+was made on (`if_match`) and the hash and size of the bytes written.
+
+The journal is append-only: each line is synced to disk before the operation replies, and nothing in Retake rewrites
+or removes it (`retake prune` leaves it alone; delete it by hand if you want it gone). It is machine-local (under
+`.retake/`, git-ignored) and separate from the job history (`history.jsonl`, what was produced: captures, dry runs,
+renders). Read it with `retake journal` (`--project P`, `--writes` or `--hooks`, `--limit N`, `--json`). Files you edit
+in your own editor are not in it: it records what Retake wrote.
 
 ```yaml
 # project.yaml
@@ -157,7 +176,7 @@ auth:                          # the accounts videos are filmed as: never a pass
       admin: {pages: [admin, app], check: {url: "app:/", expect_text: Jane Example}}
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → real 3840×2160 frames from a 1080p viewport (4K)
 frame: card                    # raw | card | browser | laptop | phone | tablet (| split | pip: multi-page scenes), or a layout component id
-template: default              # a workspace template, a starter (default, editorial, motion), or a path like ./theme
+template: default              # the theme: a workspace theme, a starter (default, editorial, motion), or a path like ./theme
 locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
 allow_hosts: [api.staging.example.com]                    # extra hosts hooks (every kind) may reach
 pass_env: [STAGING_DB_URL]     # variables a Studio or MCP job's hooks, docker and services also get (see above)
@@ -261,7 +280,7 @@ Every file Retake reads says which version of its format it is, in a top-level `
 
 - **Optional** in the files you write — scenarios, `project.yaml`, `template.yaml`, `retake.yaml` — and in `run.json`:
   `version: 1`, or nothing (a file without it is version 1, so every file written before the key existed still
-  loads). `retake new` and the runner write it; the starter templates and the fixture's files carry it.
+  loads). `retake new` and the runner write it; the starter themes and the fixture's files carry it.
 - **Required** in `sandbox.yaml` and in the files Retake writes for itself (`timeline.json`, the hooks journals,
   render and review records, raw export manifests).
 - **None** in hook files (`hooks/*.yaml`: a top-level list of hooks has no room for a key) — their hooks are checked

@@ -12,10 +12,21 @@ import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { agentPolicyFolders, useAgentPolicy } from '@retake/core';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FileJobQueue, JOB_EXIT, buildStamp, createEngine, runJobChild, runWorker } from '../src/index.js';
 import { REPO } from './helpers.js';
+import type { OpenedWorkspace } from '../src/index.js';
+import * as workspaceModule from '../src/workspace.js';
+
+// Every workspace this file's engines and job processes open, with the policy it carries (core WorkPolicy).
+vi.mock('../src/workspace.js', async (original) => {
+  const m = await original<typeof import('../src/workspace.js')>();
+  return { ...m, openWorkspace: vi.fn(m.openWorkspace) };
+});
+const opened = async (): Promise<OpenedWorkspace> => {
+  const results = vi.mocked(workspaceModule.openWorkspace).mock.results;
+  return (await results[results.length - 1].value) as OpenedWorkspace;
+};
 
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const PORT = 4971;
@@ -47,7 +58,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  useAgentPolicy(null);
   await new Promise((ok) => server?.close(ok));
   if (savedHome === undefined) delete process.env.RETAKE_HOME;
   else process.env.RETAKE_HOME = savedHome;
@@ -58,8 +68,7 @@ describe('a program inside the workspace: refused for a job of the worker, run b
   it('the worker fails the run before browser.executable starts, saying to move it out of the workspace', async () => {
     const engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
     const sub = await engine.runs.submit({ project: 'w', scenario: 'short', mode: 'dry' });
-    // The submitting engine's own policy is not what refuses: the worker turns it on for itself.
-    useAgentPolicy(null);
+    // The submitting engine's own policy is not what refuses: the worker opens the workspace under it for itself.
     const logs: string[] = [];
     expect(await runWorker({ root: ws, idleExitMs: 400, pollMs: 50, log: (m) => logs.push(m) })).toBe(0);
     const job = await new FileJobQueue(ws).get(sub.job.id);
@@ -72,20 +81,16 @@ describe('a program inside the workspace: refused for a job of the worker, run b
 
   it('the engine of the MCP server and of the Studio server turns the policy on; the CLI\'s keeps it off', async () => {
     for (const client of ['mcp', 'ui', 'cli'] as const) {
-      useAgentPolicy(null);
-      await createEngine({ root: ws, client, autoStartWorker: false });
-      if (client === 'cli') expect(agentPolicyFolders(), client).toBeNull();
-      else expect(agentPolicyFolders(), client).toEqual([ws, join(ws, 'projects'), join(REPO, 'templates'), join(ws, 'components')]);
+      const engine = await createEngine({ root: ws, client, autoStartWorker: false });
+      if (client === 'cli') expect(engine.workspace.policy.agentFolders, client).toBeNull();
+      else expect(engine.workspace.policy.agentFolders, client).toEqual([ws, join(ws, 'projects'), join(REPO, 'templates'), join(ws, 'components')]);
     }
-    useAgentPolicy(null);
   });
 
   it('a job process (renders, reviews, exports) serves under the policy too', async () => {
-    useAgentPolicy(null);
     const r = await runJobChild({ root: ws, id: 'j_none', kind: 'render', build: buildStamp(), supervisor: process.pid, digest: 'x', log: () => undefined });
     expect(r).toBe(JOB_EXIT.refused);
-    expect(agentPolicyFolders()).toContain(ws);
-    useAgentPolicy(null);
+    expect((await opened()).policy.agentFolders).toContain(ws);
   });
 
   it('`retake run` in a terminal starts it (the run then fails: the stand-in is no browser)', async () => {

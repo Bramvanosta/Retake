@@ -1,13 +1,15 @@
 /**
  * The browser Remotion renders with: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell
  * (looked up through playwright-core's browser registry, so it follows PLAYWRIGHT_BROWSERS_PATH and the installed
- * revision: the app bundle's own when Retake runs from one — core bundle.ts), else none: a render then refuses to start
+ * revision: the app bundle's own when Retake runs from one — `@retake/core/io` bundle.ts), else none: a render then refuses to start
  * and says how to install the headless shell. Remotion never downloads a browser of its own.
  */
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { bundleInfo, insideBundle, policyProgram } from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { policyProgram } from '@retake/core';
+import type { WorkPolicy } from '@retake/core';
+import { bundleInfo, insideBundle, programLookup } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 import { RenderError } from './types.js';
 
 const require = createRequire(import.meta.url);
@@ -67,10 +69,10 @@ export function renderBrowser(env: NodeJS.ProcessEnv = process.env, bundle: Bund
  * the worker), one outside the workspace. Returns the executable to start: under the policy, the real path that was
  * checked.
  */
-export function assertRenderBrowser(b: RenderBrowser, bundle: BundleInfo | null = bundleInfo()): string {
+export function assertRenderBrowser(b: RenderBrowser, work: WorkPolicy, bundle: BundleInfo | null = bundleInfo()): string {
   if (!b.path) throw new RenderError(`no browser to render with: ${b.note ?? missingNote(bundle)}`);
   const what = b.source === 'env' ? `$${HEADLESS_SHELL_ENV}` : b.source === 'playwright' && process.env.PLAYWRIGHT_BROWSERS_PATH?.trim() ? '$PLAYWRIGHT_BROWSERS_PATH' : 'the render browser';
-  const checked = policyProgram(b.path, what);
+  const checked = policyProgram(work, b.path, what, programLookup());
   if (checked.problem) throw new RenderError(checked.problem);
   return checked.program;
 }

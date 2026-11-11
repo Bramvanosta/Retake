@@ -10,8 +10,10 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES, ffmpegBin, h264CodecArgs, h264Encoder, insideFolder, loadProject } from '@retake/core';
-import type { H264Encoder, LoadedProject } from '@retake/core';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, missingOrInvalid, projectPath } from '@retake/core';
+import { ffmpegBin, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts } from '@retake/core/io';
+import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
+import type { H264Encoder } from '@retake/core/io';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
@@ -20,13 +22,13 @@ import { probeMedia, renderVideo } from './render.js';
 import type { RenderNetwork } from './render.js';
 import { listRenders, rendersDir } from './runs.js';
 import { RenderError } from './types.js';
-import type { RenderRecord } from './types.js';
+import type { RenderRecord } from '../render-record.js';
 
 /** Delivery formats (one list with core's job input). */
 export const EXPORT_FORMATS = EXPORT_FORMAT_NAMES;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
-/** Formats exported when none are named (the ones derived from the master, no re-render). */
-export const DEFAULT_EXPORT_FORMATS: readonly ExportFormat[] = ['mp4_1080p', 'webm', 'gif_preview'];
+/** Formats exported when none are named (the ones derived from the master, no re-render): core's one list. */
+export const DEFAULT_EXPORT_FORMATS: readonly ExportFormat[] = DEFAULT_EXPORT_FORMAT_NAMES;
 
 /** GIF preview settings (R-EXP-05): palette, 480 px wide, 12 fps, 15 s. */
 export const GIF_PREVIEW = { width: 480, fps: 12, seconds: 15, colors: 128, lead_s: 5 } as const;
@@ -85,6 +87,8 @@ export interface ExportProgress {
 }
 
 export interface ExportRenderOptions {
+  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
+  workPolicy: WorkPolicy;
   project: LoadedProject | string;
   /** Render id (renders/<id>.json), a path to a record / video, or `latest` (of `scenario` when given). */
   render: string;
@@ -116,6 +120,15 @@ export class ExportError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ExportError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return missingOrInvalid(this.message);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.editing;
   }
 }
 
@@ -213,7 +226,7 @@ export function recordPathProblem(projectDir: string, record: Pick<RenderRecord,
     ['video', record.file],
     ['run folder', record.run_dir],
   ] as const) {
-    if (typeof p !== 'string' || !insideFolder(projectDir, p)) {
+    if (typeof p !== 'string' || !insideFolder(projectDir, p, nodeFileFacts)) {
       return `the ${what} of render ${record.id} (${String(p)}) is outside the project folder: through MCP a render is read only from the project`;
     }
   }
@@ -264,8 +277,8 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   if (!existsSync(record.file)) throw new ExportError(`the video of render ${record.id} is missing (${record.file})`);
   const formats = [...new Set(opts.formats && opts.formats.length > 0 ? opts.formats : DEFAULT_EXPORT_FORMATS)];
   for (const f of formats) if (!(EXPORT_FORMATS as readonly string[]).includes(f)) throw new ExportError(`unknown export format "${f}": use ${EXPORT_FORMATS.join(', ')}`);
-  const bin = ffmpegBin(opts.ffmpeg);
-  const dir = resolve(opts.out ?? join(project.dir, 'exports', record.id));
+  const bin = ffmpegBin(opts.workPolicy, opts.ffmpeg);
+  const dir = resolve(opts.out ?? projectPath(project.dir, 'exports', record.id));
   await mkdir(dir, { recursive: true });
   const emit = opts.onProgress ?? (() => undefined);
   const variant = record.variant ?? record.plan.variant;
@@ -276,7 +289,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   const failures: ExportResult['failures'] = [];
 
   const finish = async (format: ExportFormat, file: string, method: ExportOutput['method'], t0: number, extra: Partial<ExportOutput> = {}): Promise<ExportOutput> => {
-    const probe = await probeMedia(file);
+    const probe = await probeMedia(file, opts.workPolicy);
     const size = (await stat(file)).size;
     const out: ExportOutput = {
       format,
@@ -304,6 +317,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
     if (over.scale !== undefined) overrides.scale = over.scale;
     else delete overrides.scale;
     const r = await renderVideo({
+      workPolicy: opts.workPolicy,
       project,
       root,
       run: record.run_dir,

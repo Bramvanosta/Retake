@@ -15,8 +15,10 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText, ffmpegBin } from '@retake/core';
-import type { BrowserConfig, DisplayEntry, H264Encoder, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@retake/core';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, resolveEnvironment, shownText, projectPath } from '@retake/core';
+import { newerRunMessage, ffmpegBin } from '@retake/core/io';
+import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline, WorkPolicy } from '@retake/core';
+import type { H264Encoder } from '@retake/core/io';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
 import { LAYER_ENCODING, RAW_ENCODING, clipFrameFiles, concatClips, decodeVideoFrames, encodeClip, exportSchedule, probeVideo, rawCodecLabel, readFrameSource, type FrameSource, type ProbedVideo } from './encode.js';
@@ -76,6 +78,8 @@ export interface ExportCaptureOptions {
   browser?: BrowserConfig;
   ffmpeg?: string;
   ffprobe?: string;
+  /** What the work runs under (core WorkPolicy): which ffmpeg and Chromium, under its agent policy. */
+  policy: WorkPolicy;
   signal?: AbortSignal;
   onProgress?: (p: RawExportProgress) => void;
 }
@@ -175,7 +179,7 @@ export function rawSettings(project: LoadedProject, timeline: Pick<Timeline, 'ca
 
 /** Default package folder of a run. */
 export function rawPackageDir(project: Pick<LoadedProject, 'dir'>, runId: string, s: { format: RawFormat; fps: number; cursor: RawCursorMode }): string {
-  return join(project.dir, 'exports', `${runId}-raw-${s.format}${s.fps}-${s.cursor}`);
+  return projectPath(project.dir, 'exports', `${runId}-raw-${s.format}${s.fps}-${s.cursor}`);
 }
 
 /** Export a run as a raw package for editors. */
@@ -206,7 +210,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
     );
   }
   const emit = opts.onProgress ?? (() => undefined);
-  const ffmpeg = ffmpegBin(opts.ffmpeg);
+  const ffmpeg = ffmpegBin(opts.policy, opts.ffmpeg);
   const notes: string[] = [];
   const warnings: string[] = [];
   emit({ stage: 'plan', done: 0, total: 1 });
@@ -275,9 +279,10 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
         out,
         tmp,
         ffmpeg,
+        policy: opts.policy,
         signal: opts.signal,
       })) ?? h264;
-      const p = await probeVideo(out, { ffprobe: opts.ffprobe });
+      const p = await probeVideo(out, { ffprobe: opts.ffprobe, policy: opts.policy });
       if (p.frames !== c.frames) warnings.push(`${clipRel(c)}: ${p.frames} frames written, ${c.frames} planned`);
       probes.set(c.index, p);
     }
@@ -302,7 +307,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
         emit({ stage: 'layer', done: c.index, total: plan.clips.length, message: layerRel(c) });
         let atlas = atlases.get(c.source.scale);
         if (!atlas) {
-          atlas = await renderCursorAtlas({ kit, scale: c.source.scale, browser: opts.browser ?? opts.project.config.browser, ffmpeg });
+          atlas = await renderCursorAtlas({ kit, scale: c.source.scale, browser: opts.browser ?? opts.project.config.browser, ffmpeg, policy: opts.policy });
           atlases.set(c.source.scale, atlas);
         }
         const out = join(work, layerRel(c));
@@ -317,10 +322,11 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
           out,
           timecode: timecode(sequenceStartOf(plan, c), s.fps),
           ffmpeg,
+          policy: opts.policy,
           signal: opts.signal,
         });
         // WebM keeps no frame count in its header: the layer's frames are counted.
-        const p = await probeVideo(out, { ffprobe: opts.ffprobe, count: s.layer === 'webm' });
+        const p = await probeVideo(out, { ffprobe: opts.ffprobe, count: s.layer === 'webm', policy: opts.policy });
         if (p.frames !== c.frames) warnings.push(`${layerRel(c)}: ${p.frames} frames written, ${c.frames} planned`);
         if (!p.alpha) warnings.push(`${layerRel(c)}: ffprobe sees no alpha channel`);
         layerProbes.set(c.index, p);
@@ -339,7 +345,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
         emit({ stage: 'selects', done: 0, total: 1 });
         const rel = `selects${enc.ext}`;
         await concatClips(primaries.map((c) => join(work, clipRel(c))), join(work, rel), tmp, ffmpeg, opts.signal);
-        const p = await probeVideo(join(work, rel), { ffprobe: opts.ffprobe });
+        const p = await probeVideo(join(work, rel), { ffprobe: opts.ffprobe, policy: opts.policy });
         if (p.frames !== plan.frames) warnings.push(`${rel}: ${p.frames} frames, the sequence has ${plan.frames}`);
         selects = { file: rel, frames: p.frames, duration_s: round3(p.frames / s.fps), codec: rawCodecLabel(s.format, h264), size_bytes: p.size_bytes };
       }

@@ -8,9 +8,7 @@
  * sessions/<project>/<env>/<persona>.status.json (the last check). The legacy single-account form (`auth.profile` /
  * `auth.storage_state`) keeps working as an implicit persona `default` signed into every page.
  */
-import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
-import { assertOutsideBundle, bundleInfoOrNull } from './bundle.js';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
 import { isAbsoluteUrl, scenePageEntries, splitPageOpen } from './pages.js';
@@ -27,20 +25,6 @@ export const LEGACY_PERSONA = 'default';
 export const AUTH_KEYS: readonly string[] = ['profile', 'storage_state', 'login_url', 'personas'];
 /** Default timeout of a persona check (seconds). */
 export const PERSONA_CHECK_TIMEOUT_S = 10;
-
-/**
- * The Retake home: $RETAKE_HOME (~ expanded, made absolute), else ~/.retake. A $RETAKE_HOME inside the app bundle is
- * refused (BundleError): the signed-in profiles are written there, and nothing writes inside the app.
- */
-export function retakeHome(env: NodeJS.ProcessEnv = process.env): string {
-  const v = env.RETAKE_HOME;
-  if (v && v.trim() !== '') {
-    const home = resolve(expandHome(v.trim()));
-    assertOutsideBundle(home, '$RETAKE_HOME', bundleInfoOrNull());
-    return home;
-  }
-  return join(homedir(), '.retake');
-}
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -135,12 +119,12 @@ function projectPath(dir: string, p: string): string {
 export function resolvePersonas(
   project: Pick<LoadedProject, 'slug' | 'dir' | 'config'> & Partial<Pick<LoadedProject, 'sandboxes'>>,
   env: string,
-  opts: { home?: string } = {},
+  opts: { home: string },
 ): ResolvedPersona[] {
   const auth = authFor(project.config, env);
   if (!auth) return [];
   const sandbox = project.sandboxes && Object.hasOwn(project.sandboxes, env) ? project.sandboxes[env] : undefined;
-  const home = opts.home ?? retakeHome();
+  const home = opts.home;
   const envPages = Object.keys(project.config.environments?.[env] ?? {});
   const common = asList(auth.login_url);
   if (auth.profile !== undefined || auth.storage_state !== undefined) {

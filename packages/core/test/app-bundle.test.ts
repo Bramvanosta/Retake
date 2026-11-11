@@ -8,38 +8,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import {
-  BundleError,
-  ConfigError,
-  bundleProblems,
-  H264EncoderError,
-  assertOutsideBundle,
-  findBundle,
-  h264CodecArgs,
-  h264Encoder,
-  insideBundle,
-  loadProject,
-  loadWorkspaceConfig,
-  mediaTools,
-  overrideBundleInfo,
-  parseEncoders,
-  pickH264,
-  prepareBundle,
-  readBundleManifest,
-  resetFfmpegEncoders,
-  resolveMediaTools,
-  retakeHome,
-  starterTemplatesDir,
-  useWorkspaceFfmpeg,
-} from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { ConfigError, PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { BundleError, bundleProblems, H264EncoderError, assertOutsideBundle, findBundle, h264CodecArgs, h264Encoder, insideBundle, loadProject, loadWorkspaceConfig, mediaTools, overrideBundleInfo, parseEncoders, pickH264, prepareBundle, readBundleManifest, resetFfmpegEncoders, resolveMediaTools, retakeHome, starterTemplatesDir } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-bundle-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 afterEach(() => {
   overrideBundleInfo(undefined);
-  useWorkspaceFfmpeg(undefined);
 });
 
 let n = 0;
@@ -47,8 +24,8 @@ let n = 0;
 function fakeBundle(opts: { paths?: Record<string, unknown>; app?: boolean } = {}): { root: string; module: string } {
   const base = join(tmp, `b${n++}`);
   const root = opts.app ? join(base, 'Retake.app', 'Contents', 'Resources') : base;
-  for (const d of ['node/bin', 'engine/node_modules/@retake/core/dist', 'browsers', 'ffmpeg/bin', 'engine/templates', 'plugin']) mkdirSync(join(root, d), { recursive: true });
-  const module = join(root, 'engine/node_modules/@retake/core/dist/bundle.js');
+  for (const d of ['node/bin', 'engine/node_modules/@retake/core/dist/io', 'browsers', 'ffmpeg/bin', 'engine/templates', 'plugin']) mkdirSync(join(root, d), { recursive: true });
+  const module = join(root, 'engine/node_modules/@retake/core/dist/io/bundle.js');
   writeFileSync(module, '');
   const paths = { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: 'ffmpeg/bin', templates: 'engine/templates', plugin: 'plugin', ...opts.paths };
   writeFileSync(join(root, 'bundle.json'), JSON.stringify({ v: 1, app: '0.2.0', node: '22.16.0', playwright: { core: '1.56.1', chromium: '1194', headless_shell: '1194' }, compositor: '4.0.534', ffmpeg: null, minimum_macos: '15.0', paths }));
@@ -62,7 +39,7 @@ describe('bundle discovery and the manifest', () => {
     expect(info?.root).toBe(b.root);
     expect(info?.sealed).toBe(b.root);
     expect(info?.paths.browsers).toBe(join(b.root, 'browsers'));
-    expect(findBundle(join(REPO, 'packages', 'core', 'src', 'bundle.ts'))).toBeNull();
+    expect(findBundle(join(REPO, 'packages', 'core', 'src', 'io', 'bundle.ts'))).toBeNull();
   });
 
   it('inside Retake.app the sealed root is the whole .app', () => {
@@ -97,7 +74,7 @@ describe('bundle discovery and the manifest', () => {
   it("a damaged manifest never throws at core's import: prepareBundle and the starter themes go on, bundleProblems names it, bundleInfo throws it", () => {
     // core's built bundle.js (pnpm build; it imports nothing but node:) copied into a fake stage whose manifest is broken.
     const b = fakeBundle({ paths: { ffmpeg: '../../ffmpeg' } });
-    copyFileSync(join(REPO, 'packages', 'core', 'dist', 'bundle.js'), b.module);
+    copyFileSync(join(REPO, 'packages', 'core', 'dist', 'io', 'bundle.js'), b.module);
     writeFileSync(join(b.root, 'engine', 'package.json'), '{"type":"module"}');
     const script = join(tmp, `damaged${n++}.mjs`);
     writeFileSync(
@@ -140,6 +117,18 @@ console.log(JSON.stringify({ problems: m.bundleProblems(), threw, templates, env
     prepareBundle({}, bundle, () => order.push('playwright-core'), (f) => order.push(f));
     expect(order.slice(2)).toEqual(['playwright-core']);
     expect(bundleProblems()).toEqual([expect.stringMatching(/module lookup guard does not load \(.*node\/guard\.cjs is missing\): reinstall Retake/)]);
+  });
+
+  // The bundle's own containment copy (`within`: pathInside's lexical check, options `{}`), through its caller: the
+  // folder itself and a name beginning with `..` are inside, a `..` segment leads out.
+  it('the manifest check: the bundle folder itself and a `..cache` name are inside, `../x` and `a/../../x` are not', () => {
+    const own = fakeBundle({ paths: { plugin: '.' } });
+    expect(readBundleManifest(own.root).paths.plugin).toBe(realpathSync(own.root));
+    const dotted = fakeBundle({ paths: { plugin: '..cache' } });
+    expect(readBundleManifest(dotted.root).paths.plugin).toBe(join(realpathSync(dotted.root), '..cache'));
+    expect(() => readBundleManifest(fakeBundle({ paths: { plugin: '../x' } }).root)).toThrow(/paths\.plugin \(\.\.\/x\) leaves the bundle/);
+    expect(() => readBundleManifest(fakeBundle({ paths: { plugin: 'a/../../x' } }).root)).toThrow(/leaves the bundle/);
+    expect(() => readBundleManifest(fakeBundle({ paths: { plugin: '..' } }).root)).toThrow(/leaves the bundle/);
   });
 
   it('paths leaving the bundle are refused (.., absolute, a link out)', () => {
@@ -193,12 +182,11 @@ describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → sys
 
   it("the process's tools: the open workspace's setting, then the environment and the bundle", () => {
     overrideBundleInfo(bundle);
-    expect(mediaTools().ffmpegSource).toBe(process.env.RETAKE_FFMPEG ? 'RETAKE_FFMPEG' : 'bundled');
+    expect(mediaTools(PERSON_POLICY).ffmpegSource).toBe(process.env.RETAKE_FFMPEG ? 'RETAKE_FFMPEG' : 'bundled');
     const dir = join(tmp, `wsff${n++}`);
     mkdirSync(dir);
     for (const t of ['ffmpeg', 'ffprobe']) writeFileSync(join(dir, t), '');
-    useWorkspaceFfmpeg(join(dir, 'ffmpeg'));
-    expect(mediaTools()).toMatchObject({ ffmpeg: join(dir, 'ffmpeg'), ffprobe: join(dir, 'ffprobe'), ffmpegSource: 'retake.yaml', ffprobeSource: 'retake.yaml' });
+    expect(mediaTools(workPolicyFrom(null, join(dir, 'ffmpeg')))).toMatchObject({ ffmpeg: join(dir, 'ffmpeg'), ffprobe: join(dir, 'ffprobe'), ffmpegSource: 'retake.yaml', ffprobeSource: 'retake.yaml' });
   });
 
   it("retake.yaml's ffmpeg: a path is the workspace's (made absolute against its root, whatever the cwd); a command name stays one", async () => {
@@ -288,7 +276,7 @@ describe('prepareBundle: the browsers path for playwright-core only (M2)', () =>
       script,
       `import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
-import { prepareBundle, readBundleManifest } from ${JSON.stringify(join(REPO, 'packages', 'core', 'dist', 'bundle.js'))};
+import { prepareBundle, readBundleManifest } from ${JSON.stringify(join(REPO, 'packages', 'core', 'dist', 'io', 'bundle.js'))};
 const b = readBundleManifest(${JSON.stringify(b.root)});
 prepareBundle(process.env, b);
 const { chromium } = createRequire(${JSON.stringify(join(b.root, 'engine', 'package.json'))})('playwright-core');

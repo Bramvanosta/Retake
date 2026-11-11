@@ -8,14 +8,17 @@
  * drops other versions of the theme first then the least recently read, ignores other names and never follows a link;
  * reading an image touches its meta; the disk gate refuses under 1 GB with "the disk has N MB free".
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate, useWorkspaceRender } from '@retake/core';
-import type { WorkspaceConfig } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
+import type { WorkspaceConfig, WorkPolicy } from '@retake/core';
 import { PREVIEW_MAX_BYTES, PREVIEW_SAMPLES_DIR, componentSourceHash, createComponent, loadComponentRegistry } from '@retake/components';
 import { loadPreviewSamples } from '@retake/editor';
 import {
@@ -35,6 +38,15 @@ import type { LibraryEntryMeta, LibraryKeyContext } from '../src/index.js';
 import { REPO } from './helpers.js';
 import { cleanWorkerEnv, openWorkspace } from '../src/index.js';
 
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
+
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('poster')]);
 const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]);
 const THEME = { name: 'brandx', hash: 'h1' };
@@ -50,19 +62,19 @@ beforeAll(async () => {
   await writeFile(join(root, 'templates', 'brandx', 'template.yaml'), yaml.replace(/^name: .*$/m, 'name: brandx').replace(/^  layout: .*$/m, '  layout: acme/frame'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   ws = { root } as WorkspaceConfig;
-  await createComponent(root, { id: 'acme/frame', kind: 'layout', description: 'A frame.' });
-  const card = await createComponent(root, { id: 'acme/card-x', kind: 'card', description: 'A card with assets.' });
+  await createComponent(root, { write: plainWrite,  id: 'acme/frame', kind: 'layout', description: 'A frame.' });
+  const card = await createComponent(root, { write: plainWrite,  id: 'acme/card-x', kind: 'card', description: 'A card with assets.' });
   await writeFile(join(card.dir, 'bg.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x01]));
   await writeFile(card.entry, `import bg from './bg.png';\n${await readFile(card.entry, 'utf8')}\nexport const background = bg;\n`);
   await writeFile(join(card.dir, 'data.json'), '{"rows": 1}\n');
-  await createComponent(root, { id: 'acme/other', kind: 'card', description: 'Unrelated.' });
+  await createComponent(root, { write: plainWrite,  id: 'acme/other', kind: 'card', description: 'Unrelated.' });
 });
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
 async function context(): Promise<LibraryKeyContext> {
-  return libraryKeyContext(await loadTemplate('brandx', root), await loadComponentRegistry({ root }));
+  return libraryKeyContext(await loadTemplate('brandx', root, { files: fileFacts(policy) }), await loadComponentRegistry({ root }), { policy });
 }
 
 async function keysOf(ctx?: LibraryKeyContext): Promise<Record<string, string>> {
@@ -139,11 +151,11 @@ describe('library preview keys', () => {
   });
 
   it('review A L3: the render browser is in the key (a browser update is a new picture)', async () => {
-    const tpl = await loadTemplate('brandx', root);
+    const tpl = await loadTemplate('brandx', root, { files: fileFacts(policy) });
     const reg = await loadComponentRegistry({ root });
-    const a = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1187/headless_shell 100 1' }));
-    const same = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1187/headless_shell 100 1' }));
-    const updated = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1193/headless_shell 104 2' }));
+    const a = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1187/headless_shell 100 1', policy }));
+    const same = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1187/headless_shell 100 1', policy }));
+    const updated = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1193/headless_shell 104 2', policy }));
     expect(changed(a, same)).toEqual([]);
     expect(changed(a, updated)).toEqual(Object.keys(a).sort());
     // By default: this machine's render browser (editor renderBrowserIdentity) and the GL the policy resolves.
@@ -154,23 +166,23 @@ describe('library preview keys', () => {
     const soft = await keysOf(await context());
     const yaml = await readFile(join(root, 'retake.yaml'), 'utf8');
     try {
-      useWorkspaceRender({ gl: 'gpu' });
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, { gl: 'gpu' });
       const gpu = await context();
       expect(gpu.browser).toMatch(/ gl=angle$/);
       expect(changed(soft, await keysOf(gpu))).toEqual(Object.keys(soft).sort());
       // A process that opens a workspace (the Studio server, a job process) takes its render: — both compute one key.
       await writeFile(join(root, 'retake.yaml'), `${yaml}render:\n  gl: gpu\n`);
-      useWorkspaceRender(undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       expect((await context()).browser).toMatch(/ gl=software$/);
-      await openWorkspace({ root });
+      policy = (await openWorkspace({ root })).policy;
       expect((await context()).browser).toMatch(/ gl=angle$/);
       // A setting that cannot work keys as "invalid" (the preview then fails and says why), never throws here.
-      useWorkspaceRender(undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       process.env.RETAKE_RENDER_GL = 'swangle';
       expect((await context()).browser).toMatch(/ gl=invalid$/);
     } finally {
       process.env.RETAKE_RENDER_GL = 'software';
-      useWorkspaceRender(undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       await writeFile(join(root, 'retake.yaml'), yaml);
     }
   });
@@ -188,7 +200,7 @@ describe('library preview keys', () => {
       expect(keyIn({ ...process.env })).toBe(studio);
       // retake.yaml render: is read alike by every process of the workspace: it wins over any process's variable.
       await writeFile(join(root, 'retake.yaml'), `${yaml}render:\n  gl: software\n`);
-      await openWorkspace({ root });
+      policy = (await openWorkspace({ root })).policy;
       const pinned = (await context()).browser;
       expect(pinned).toMatch(/ gl=software$/);
       expect(keyIn({ ...process.env, RETAKE_RENDER_GL: 'gpu' })).toBe(pinned);
@@ -197,7 +209,7 @@ describe('library preview keys', () => {
       expect(keyIn({ ...process.env, RETAKE_RENDER_GL: 'software' })).not.toBe(studio);
     } finally {
       process.env.RETAKE_RENDER_GL = 'software';
-      useWorkspaceRender(undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       await writeFile(join(root, 'retake.yaml'), yaml);
     }
   });

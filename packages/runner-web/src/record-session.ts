@@ -44,7 +44,7 @@ import {
   resolveRunAccess,
   urlOriginPath,
 } from '@retake/core';
-import type { BrowserConfig, LoadedProject, LoginMatcher, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunAccess } from '@retake/core';
+import type { BrowserConfig, LoadedProject, LoginMatcher, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunAccess, WorkPolicy } from '@retake/core';
 import { ensurePrivateDir, prepareSessions, registerSessionCopy, signInMatchers } from './auth.js';
 import { projectBrowser } from './config.js';
 import { CancelledError, RunnerError } from './errors.js';
@@ -72,6 +72,9 @@ const SENSITIVE_QUERY_KEY = /token|code|state|session|sig|auth|key|pass|secret|o
 
 export interface RecordSessionOptions {
   project: LoadedProject;
+  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
+  policy: WorkPolicy;
+
   env: ResolvedEnvironment;
   /** The persona the window is signed in as (its session is copied); null / absent: signed out (a fresh profile). */
   persona?: ResolvedPersona | null;
@@ -326,7 +329,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     await disableAutofill(userDataDir);
     if (policy.readOnly) enableServiceWorkerRequests();
     const b = projectBrowser(o.project, o.browser);
-    const { executablePath, channel } = launchTarget(b, { headless: o.headless === true });
+    const { executablePath, channel } = launchTarget(b, { headless: o.headless === true, policy: o.policy });
     // L5.16c: a persona's profile copy is never opened by an older Chromium than the one that opened it last.
     if (persona) checkProfileBrowser(userDataDir, launchMajor({ executablePath, channel }), persona.name);
     const size = o.windowSize;
@@ -348,6 +351,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
           ...(size ? [`--window-size=${size.width},${size.height}`] : ['--start-maximized']),
         ],
         browserArgs: b.args,
+        policy: o.policy,
       }),
     });
     const launched = context;

@@ -7,11 +7,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from 'playwright-core';
 import { chromium } from 'playwright-core';
 import { LoadingSpans, LoadingWatch } from '../src/loading-watch.js';
+import { PERSON_POLICY } from '@retake/core';
 import { launchTarget } from '../src/index.js';
 
 let browser: Browser;
 beforeAll(async () => {
-  const t = launchTarget({}, { headless: true });
+  const t = launchTarget({}, { headless: true, policy: PERSON_POLICY });
   browser = await chromium.launch({ headless: true, executablePath: t.executablePath, channel: t.channel });
 });
 afterAll(async () => {

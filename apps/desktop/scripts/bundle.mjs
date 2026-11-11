@@ -193,6 +193,30 @@ export function walk(dir, out = []) {
   return out;
 }
 
+/** The source extensions a package's `.js` / `.mjs` / `.cjs` output may come from (tsc: src/<path> → dist/<path>). */
+const SOURCE_EXTS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs'];
+
+/**
+ * Build outputs with no source: a `.js` / `.mjs` / `.cjs` in a package's dist/ whose src/ counterpart is gone. `tsc -b`
+ * never removes the output of a source that was deleted or moved, and `pnpm deploy` ships dist/ as it is, so such a
+ * file would ship in the app, importable. Repository-relative paths, sorted.
+ */
+export function staleBuildOutputs(repo) {
+  const out = [];
+  const packages = join(repo, 'packages');
+  for (const name of readdirSync(packages)) {
+    const dist = join(packages, name, 'dist');
+    if (!existsSync(dist)) continue;
+    for (const p of walk(dist)) {
+      const ext = /\.[mc]?js$/.exec(p)?.[0];
+      if (!ext || !lstatSync(p).isFile()) continue;
+      const stem = join(packages, name, 'src', relative(dist, p).slice(0, -ext.length));
+      if (!SOURCE_EXTS.some((e) => existsSync(stem + e))) out.push(relative(repo, p));
+    }
+  }
+  return out.sort();
+}
+
 /** Mach-O by its first four bytes: thin 32 / 64-bit (either byte order) and FAT (universal) binaries. */
 export function machOKind(file) {
   let fd;
@@ -647,6 +671,8 @@ function stageInto({ out, ffmpeg, env = process.env }) {
   if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new StageError('the app bundle is macOS on Apple silicon only for now (BACKLOG BL-139)');
   checkNode();
   if (!existsSync(join(REPO, 'packages', 'cli', 'dist', 'bin.js'))) throw new StageError('run pnpm build first');
+  const stale = staleBuildOutputs(REPO);
+  if (stale.length) throw new StageError(`${stale.length} build output(s) with no source would ship (${stale.slice(0, 5).join(', ')}${stale.length > 5 ? ', …' : ''}): remove the packages' dist folders (rm -rf packages/*/dist) and run pnpm build`);
   const dir = checkFolder(out, '--out', env);
   if (existsSync(dir) && readdirSync(dir).length) {
     if (!existsSync(join(dir, STAGE_MARK))) throw new StageError(`--out ${dir} is not empty and is not a previous stage`);

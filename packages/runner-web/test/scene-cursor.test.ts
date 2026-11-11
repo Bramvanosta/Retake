@@ -4,7 +4,7 @@ import type { BBox, CursorSample, PointSpec, Scenario, Timeline, TimelineEvent }
 import { runScenario } from '../src/index.js';
 import { KEEP_NEAR_PX, cursorCovers, firstPointerStep } from '../src/scene-cursor.js';
 import type { SceneCursorRecord } from '../src/scene-cursor.js';
-import { normalizeStep } from '@retake/core';
+import { normalizeStep, PERSON_POLICY } from '@retake/core';
 import { CURSOR_DIALOG_PAGE, CURSOR_PAGE, CURSOR_TALL_PAGE } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
@@ -101,7 +101,7 @@ describe('scene-start cursor (R-ISS-04)', () => {
         { id: 'g', open: '/cursor.html', steps: [{ wait: 0.1 }] },
       ],
     };
-    const rec = await runScenario({ project, scenario: makeScenario('cursor', scenario), mode: 'dry', runId: `cursor-${Date.now()}` });
+    const rec = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario('cursor', scenario), mode: 'dry', runId: `cursor-${Date.now()}` });
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
@@ -156,7 +156,7 @@ describe('scene-start cursor (R-ISS-04)', () => {
         { id: 'r', steps: [{ click: { text: 'Pick dates' } }] },
       ],
     };
-    const rec = await runScenario({ project, scenario: makeScenario('cursor-dialog', scenario), mode: 'dry', runId: `cursor-dialog-${Date.now()}` });
+    const rec = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario('cursor-dialog', scenario), mode: 'dry', runId: `cursor-dialog-${Date.now()}` });
     expect(rec.error?.message).toBeUndefined();
     const tl = await readTimeline(rec.timeline!);
     const st = stills(tl);
@@ -189,7 +189,7 @@ describe('scene-start cursor (R-ISS-04)', () => {
         { id: 'c', steps: [{ scroll: 1200 }, { click: { text: 'Deep button' } }] },
       ],
     };
-    const rec = await runScenario({ project, scenario: makeScenario('cursor-tall', scenario), mode: 'dry', runId: `cursor-tall-${Date.now()}` });
+    const rec = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario('cursor-tall', scenario), mode: 'dry', runId: `cursor-tall-${Date.now()}` });
     expect(rec.error?.message).toBeUndefined();
     const tl = await readTimeline(rec.timeline!);
     const st = stills(tl);

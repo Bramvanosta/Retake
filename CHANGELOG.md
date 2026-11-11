@@ -6,6 +6,46 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Added
+- The workspace journal, `.retake/journal.jsonl`: every file Retake writes for you (a scenario, the README, a comment
+  thread, a theme, a component, a new project, a sandbox scaffold) and every hook it runs, with who did it (you in a
+  terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
+
+### Changed
+- The README block `retake components preview` (and `retake components create`) writes into a component of your
+  workspace's components folder is an entry of the workspace journal too, written on the README as it was read.
+- A component README that is a symbolic link out of the components folder is now refused, like every other authored
+  write (the preview image and preview.json are still written, and the error says so); a README made while a preview
+  renders is no longer overwritten.
+- A sandbox scaffold (`retake sandbox init --force`) and the line it adds to project.yaml are written on the version
+  just read: a file changed in between is reported as a conflict instead of being overwritten. `--force` over a
+  sandbox that project.yaml declares in a folder outside the project is refused (its files are not written there).
+- Two theme creations or copies of the same name at once: the second waits a moment, then is told the name is being
+  created and to try again.
+- A component scaffold (`retake components create`) and a new project (`retake new`, `project_create`) are refused
+  when one of their files appears while they are being written, instead of replacing it.
+- Claude (the MCP tools) is held to the same rules as the Studio before a job is queued: one run of a scenario at a
+  time (`run_dry`, `run_capture`), one render of a scenario at a time (`render`), at most one export of a render and
+  two of the workspace at once (`export`), and a capture whose persona's session is not valid and that no run signs
+  in by itself waits until `run_capture`'s new `sessions_ack` names that persona (checked on the environment the take
+  uses: a sandbox capture's accounts sign in by themselves). Each refusal is a `conflict` that says what it waits for
+  and which tool follows up; a capture whose hooks waited for the user's approval is checked again before it is queued.
+- `job_cancel` is marked destructive for MCP clients: cancelling a recording whose window is open discards it.
+- The CLI prints these errors as one line instead of a stack trace: a scenario changed since it was submitted, a
+  write or host refused on a read-only environment or by the allow-list, an agent's render refused, an export error,
+  an unusable hooks source, a cancelled review, a full disk during a render.
+- `retake new --theme` names the starter theme (`--template` still works).
+- An MCP tool's error names the guide page about it (`docs`, its web address as of this version's release tag) when
+  there is one.
+- `retake doctor` and `retake list` say "theme" where they said "template" (the check names stay).
+- Through MCP (and the Studio's agent path), an http hook with `auth: {persona}` sends that persona's session only to
+  the persona's own pages — the origins of the pages it signs in to; a hook aimed at another origin is refused before
+  it runs, naming the persona and the rule. A run you start yourself is unchanged.
+
+### Fixed
+- The Studio's Set-up sheet: after Install or Uninstall of the `retake` command, the keyboard focus lands on the
+  command's next action once the sheet shows the new status, instead of being lost when the status came back late.
+
 ## [0.2.6] — 2026-11-11
 
 The review now catches what client demos kept bringing up: a page still loading on screen, a zoom while the page

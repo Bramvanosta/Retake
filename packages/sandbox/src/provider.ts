@@ -5,7 +5,7 @@
  * seed and the reset, and keeps the state file; a provider reads and updates `ctx.state` and calls `ctx.save()` as soon
  * as something it started exists.
  */
-import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider } from '@retake/core';
+import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider, WorkPolicy } from '@retake/core';
 import type { HookApprovalRequest } from '@retake/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';
@@ -24,6 +24,23 @@ export interface SeedTrust {
 }
 
 /**
+ * One seed step run as it is reported: a hook step's result (hooks HookResult), or an `exec` step's (kind `exec`; its
+ * command is never part of it). `index`: the step's position among all the seed's steps (a rollback: its journal seq).
+ */
+export interface SeedRunResult {
+  index: number;
+  name?: string;
+  kind?: string;
+  phase: string;
+  status: string;
+  optional?: boolean;
+  ms?: number;
+}
+
+/** What reports each seed step run (hooks HookContext.recordRun, and each exec step). */
+export type SeedRecorder = (result: SeedRunResult, run?: string) => Promise<void>;
+
+/**
  * What a sandbox call is doing, for whoever shows it (the CLI's live line and its summary — hotfix v0.2.2): `step`
  * starts a named step (the one before is over), `note` is one line of what the current step is doing (a line of
  * `docker compose`, of a seed command — already masked).
@@ -35,6 +52,8 @@ export interface SandboxProgress {
 
 export interface ProviderContext {
   project: LoadedProject;
+  /** What the work runs under (core WorkPolicy): the programs, the environment of the services and the seed's hooks. */
+  policy: WorkPolicy;
   sandbox: LoadedSandbox;
   paths: SandboxPaths;
   state: SandboxState;
@@ -44,6 +63,7 @@ export interface ProviderContext {
   progress?: SandboxProgress;
   signal?: AbortSignal;
   seedTrust?: SeedTrust;
+  recordSeedRun?: SeedRecorder;
 }
 
 export interface UpResult {

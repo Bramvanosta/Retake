@@ -19,9 +19,11 @@ packages/engine       the engine API the CLI and the MCP server share: workspace
                       (if_match saves), run, persona-session and sandbox reads, local storage refs, EngineError codes,
                       the run executor of `retake run`, the job queue and its worker (worker-main.ts), the local
                       HTTP servers' gate, 127.0.0.1 listener, tokens and discovery file (src/http/), the workspace
-                      index (src/index-db/: node:sqlite, the stat poll, the job watch)
+                      index (src/index-db/: node:sqlite, the stat poll, the job watch); `@retake/engine/contract`:
+                      the operation contract (ToolDef, the SDK-free callTool the MCP server and the Studio share) and
+                      the operation catalogue (catalogue.ts: every operation, its kind and the shells that serve it)
 packages/mcp          the MCP server (`retake mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
-                      results, --print-config, the SDK-free tool layer (callTool) the Studio shares
+                      results, --print-config
 apps/desktop          the macOS app (L5.2): a Tauri shell (Rust, Cargo; not a pnpm package) running `retake ui
                       --supervised` and showing it; core/ holds its rules (no dependency); scripts/desktop.mjs
 packages/ui           the Studio web app (`retake ui`): a React app bundled in memory by esbuild and its server — the

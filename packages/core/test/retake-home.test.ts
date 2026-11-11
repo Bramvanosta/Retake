@@ -13,7 +13,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync,
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { retakeHome } from '../src/index.js';
+import { retakeHome } from '../src/io/index.js';
 import { testChildEnv } from './child-env.js';
 
 const REPO = join(import.meta.dirname, '..', '..', '..');

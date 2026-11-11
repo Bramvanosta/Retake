@@ -82,7 +82,7 @@ afterAll(async () => {
 });
 
 /** Run the job's render up to the render stage (an aborted signal stops it there: no bundle, no browser). */
-async function renderUntilStage(job: JobRecord, jobDir: string | undefined): Promise<Error> {
+async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Error> {
   const events: unknown[] = [];
   const e = await executeRenderJob({
     ws: engine.workspace,
@@ -92,7 +92,7 @@ async function renderUntilStage(job: JobRecord, jobDir: string | undefined): Pro
     event: (x) => events.push(x),
     progress: () => undefined,
     browser: () => undefined,
-    ...(jobDir ? { jobDir } : {}),
+    ...(snapshot ? { jobFile: (name: string, max: number) => queue.jobFile(job.id, name, max) } : {}),
   }).then(
     () => new Error('rendered'),
     (x: Error) => x,
@@ -105,7 +105,7 @@ describe('render job snapshot (critique B5)', () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 }, review: { fps: 1 } });
     const input = sub.job.input as RenderJobInput;
     expect(input).toMatchObject({ edit_sha256: sha(TEXT), review: { fps: 1 } });
-    const snap = join(queue.jobDir(sub.job.id), EDIT_SNAPSHOT_FILE);
+    const snap = join(queue.files.job(sub.job.id), EDIT_SNAPSHOT_FILE);
     expect(await readFile(snap, 'utf8')).toBe(TEXT);
     expect((await stat(snap)).mode & 0o777).toBe(0o600);
     expect(JSON.stringify(sub.job)).not.toContain('First caption');
@@ -115,17 +115,17 @@ describe('render job snapshot (critique B5)', () => {
   it('⚑ a switch while the render waits: the worker plans from the snapshot (renders on); without it the render is refused as changed', async () => {
     await writeFile(scenarioFile(), TEXT);
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-    const jobDir = queue.jobDir(sub.job.id);
+    const jobDir = queue.files.job(sub.job.id);
     expect(existsSync(join(dir, 'renders', `.${sub.render_id}.lock`))).toBe(true);
     // The Studio switches the caption meanwhile (an edit change: today's file differs from the snapshot).
     await writeFile(scenarioFile(), TEXT.replace('caption: First caption', 'caption: Switched caption'));
-    const withSnapshot = await renderUntilStage(sub.job, jobDir);
+    const withSnapshot = await renderUntilStage(sub.job, true);
     expect(withSnapshot.message).toBe('render cancelled: no output written');
-    const withoutSnapshot = await renderUntilStage(sub.job, undefined);
+    const withoutSnapshot = await renderUntilStage(sub.job, false);
     expect(withoutSnapshot.message).toMatch(/changed since this render was planned/);
     // A snapshot that is not the submitted version: a conflict, nothing rendered.
     await writeFile(join(jobDir, EDIT_SNAPSHOT_FILE), TEXT.replace('First caption', 'Forged caption'));
-    const forged = await renderUntilStage(sub.job, jobDir);
+    const forged = await renderUntilStage(sub.job, true);
     expect(forged.message).toMatch(/is not the version it was submitted with/);
     expect(existsSync(join(dir, 'renders', `.${sub.render_id}.lock`))).toBe(false);
     await engine.jobs.cancel(sub.job.id);
@@ -144,7 +144,7 @@ describe('render job snapshot (critique B5)', () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
     expect(sub).toMatchObject({ edit: 'run', scenario_changed: true });
     expect(sub.job.input).not.toHaveProperty('edit_sha256');
-    expect(existsSync(join(queue.jobDir(sub.job.id), EDIT_SNAPSHOT_FILE))).toBe(false);
+    expect(existsSync(join(queue.files.job(sub.job.id), EDIT_SNAPSHOT_FILE))).toBe(false);
     await engine.jobs.cancel(sub.job.id);
     await writeFile(scenarioFile(), TEXT);
   });

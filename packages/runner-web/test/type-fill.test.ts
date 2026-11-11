@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TimelineEvent } from '@retake/core';
+import { PERSON_POLICY } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
@@ -38,7 +39,7 @@ afterAll(async () => {
 describe('type with fill (hotfix v0.2.6)', () => {
   it('fills the field at once: one input event, a change event, no key', async () => {
     const project = makeProject(dir, { app: server.url });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'fill',

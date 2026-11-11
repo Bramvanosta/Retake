@@ -27,6 +27,8 @@ import {
 } from '@retake/core';
 import type { LoadedProject, Scenario, Timeline, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
+import { fileFacts, nodeFileFacts } from '@retake/core/io';
+import { PERSON_POLICY } from '@retake/core';
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -91,21 +93,21 @@ describe('hook steps and named hooks (R-FLD-31)', () => {
 
   it('validation: an unknown hook (with a suggestion), edit values on a hook step, a named hook no step runs, a destructive one without confirm', () => {
     const p = project();
-    expect(errs(parseScenario(SCENARIO.replace('- hook: request', '- hook: requst'), { project: p }).issues)).toEqual([
+    expect(errs(parseScenario(SCENARIO.replace('- hook: request', '- hook: requst'), { files: fileFacts(PERSON_POLICY), project: p }).issues)).toEqual([
       expect.stringMatching(/^scenes\.1\.steps\.1\.hook: unknown hook "requst" \(did you mean "request"\?\): declare it under `hooks:` in the scenario or in project\.yaml \(hooks: request, queue\)$/),
     ]);
     // Without a project, a name the scenario does not declare may be project.yaml's: not an error.
-    expect(errs(parseScenario(SCENARIO.replace('hooks:\n  request:', 'hooks:\n  other:').replace('- hook: {name: queue}', '- hold: 1'), {}).issues)).toEqual(
+    expect(errs(parseScenario(SCENARIO.replace('hooks:\n  request:', 'hooks:\n  other:').replace('- hook: {name: queue}', '- hold: 1'), { files: fileFacts(PERSON_POLICY),}).issues)).toEqual(
       expect.arrayContaining([expect.stringMatching(/unknown hook "request"/)]),
     );
-    const w = warns(parseScenario(SCENARIO.replace('      - hook: request', '      - hook: request\n        caption: Sent\n        mark: sent').replace('  queue:', '  unused: {http: {method: GET, url: "{{console}}/api/health"}}\n  queue:'), { project: p }).issues);
+    const w = warns(parseScenario(SCENARIO.replace('      - hook: request', '      - hook: request\n        caption: Sent\n        mark: sent').replace('  queue:', '  unused: {http: {method: GET, url: "{{console}}/api/health"}}\n  queue:'), { files: fileFacts(PERSON_POLICY), project: p }).issues);
     expect(w).toEqual(
       expect.arrayContaining([
         'scenes.1.steps.1: a hook step runs off camera and the edit cuts it: its caption, mark are never shown — put them on the next step',
         'hooks.unused: hook "unused" is run by no `hook: unused` step',
       ]),
     );
-    expect(errs(parseScenario(SCENARIO.replace('http: {method: POST, url: "{{console}}/api/quotes", json: {bags: 1}}', 'http: {method: DELETE, url: "{{console}}/api/quotes/1"}'), { project: p }).issues)).toEqual([
+    expect(errs(parseScenario(SCENARIO.replace('http: {method: POST, url: "{{console}}/api/quotes", json: {bags: 1}}', 'http: {method: DELETE, url: "{{console}}/api/quotes/1"}'), { files: fileFacts(PERSON_POLICY), project: p }).issues)).toEqual([
       expect.stringMatching(/^hooks\.request: destructive hook \(HTTP DELETE\) requires "confirm: true"$/),
     ]);
     // project.yaml's named hooks are checked like its reset hooks.
@@ -120,9 +122,9 @@ describe('hook steps and named hooks (R-FLD-31)', () => {
     expect(writingHooks({ step: stepHookList(sc) }, { trust: 'mcp' }).map((w) => `${w.phase} ${w.index} ${w.name}`)).toEqual(['step 0 request', 'step 1 push', 'step 2 queue']);
     const p = project();
     const bad = parsed(SCENARIO.replace('    http: {method: POST, url: "{{console}}/api/quotes", json: {bags: 1}}', '    sql: {file: scenarios/x.sql, db: main}'));
-    expect(agentTrustProblems(p, bad).join('\n')).toMatch(/hook "request" \(sql file\): scenarios\/x\.sql is a file an agent can write through MCP/);
+    expect(agentTrustProblems(p, bad, { files: nodeFileFacts }).join('\n')).toMatch(/hook "request" \(sql file\): scenarios\/x\.sql is a file an agent can write through MCP/);
     const secret = parsed(SCENARIO.replace('{bags: 1}', '{token: "{{env:API_TOKEN}}"}'));
-    expect(agentTrustProblems(p, secret).join('\n')).toMatch(/the scenario uses \{\{env:API_TOKEN\}\}/);
+    expect(agentTrustProblems(p, secret, { files: nodeFileFacts }).join('\n')).toMatch(/the scenario uses \{\{env:API_TOKEN\}\}/);
     // A step hook's rollback is approved with it (it runs later, after the teardown), as a setup hook's.
     expect(hookApprovalReason({ http: { method: 'POST', url: 'http://localhost:4401/x', rollback: { method: 'DELETE', url: 'http://localhost:4401/x' } } }, 'step')).toMatch(/its rollback: HTTP DELETE/);
   });

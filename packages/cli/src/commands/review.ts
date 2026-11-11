@@ -1,11 +1,12 @@
-import { reviewRender } from '@retake/review';
-import type { Finding, ReviewProgress, ReviewResult } from '@retake/review';
+import type { Finding, ReviewProgress } from '@retake/review';
 import { environmentLine, findingLine, summaryLine } from '@retake/review';
+import { findRenderOf, reviewWork } from '@retake/engine';
+import type { ReviewResult } from '@retake/engine';
+import type { WorkPolicy } from '@retake/core';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { findRenderRecord } from '@retake/editor';
 import { openProject, openWorkspace } from '../workspace.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
@@ -62,10 +63,11 @@ export function printReview(ui: Ui, r: ReviewResult): void {
 /** Run a review with a status line; returns the result. */
 export async function runReview(
   ui: Ui,
-  opts: { project: Parameters<typeof reviewRender>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
+  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
 ): Promise<ReviewResult> {
   try {
-    return await reviewRender({
+    return await reviewWork({
+      policy: opts.policy,
       project: opts.project,
       root: opts.root,
       render: opts.render,
@@ -95,7 +97,7 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   let renderId = render;
   if (render === 'latest') {
     try {
-      renderId = (await findRenderRecord(project, render, opts.scenario)).id;
+      renderId = (await findRenderOf(project, render, opts.scenario)).id;
     } catch (e) {
       throw new CliError((e as Error).message);
     }
@@ -104,7 +106,7 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (gate.waited) ui.info(`reviewing render ${renderId}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, { project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;

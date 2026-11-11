@@ -16,7 +16,7 @@
  * the workspace's sources and the job watch behind the Studio's event stream.
  */
 export { openWorkspace, openProject } from './workspace.js';
-export type { WorkspaceOptions } from './workspace.js';
+export type { OpenedWorkspace, WorkspaceOptions } from './workspace.js';
 export { personaState, personaStateView, projectPersonaStates, scenarioPersonaStates, tildePath } from './auth.js';
 export type { LoginCommandOf, PersonaState, PersonaStateView } from './auth.js';
 export { ENGINE_ERROR_CODES, EngineError, toEngineError } from './errors.js';
@@ -24,14 +24,18 @@ export type { EngineErrorCode } from './errors.js';
 export { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';
 export { LocalStorage, READ_TEXT_MAX_BYTES, checkRef, sha256Hex } from './storage.js';
 export type { Storage, StoredKind, StoredRef, WriteResult } from './storage.js';
-export { README_MAX_CHARS, createProjectFromRequest, firstErrorLine, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';
+export { ProjectStore, fileWriter, personScope } from './store/project-store.js';
+export type { FolderStage, StoreScope, StoreWriteOptions } from './store/project-store.js';
+export { JOURNAL_FILES_MAX, JOURNAL_VERSION, appendJournal, hookEntry, hookRunRecorder, journalFile, journalPath, readJournal } from './store/journal.js';
+export type { HookRunResult, JournalBy, JournalEntry, JournalHook, JournalQuery, JournalWhat, JournalWrite } from './store/journal.js';
+export { README_MAX_CHARS, createProjectFromRequest, writeNewProject, firstErrorLine, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';
 export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary, ProjectView } from './projects.js';
 export { editScenario, getScenario, knownScenarioVersion, prepareScenarioEdit, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
 export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry, timelineView } from './timeline-view.js';
 export type { FieldChoice, TimelineCaptureInfo, TimelineView, TimelineViewRequest, TimelineViewResult } from './timeline-view.js';
 export { FRAME_STYLE_OPTIONS, MULTI_PAGE_OPTIONS, TRANSITION_KIND_OPTIONS, componentUseOf, fieldFitProblem, fieldOptions, videoPages } from './field-options.js';
 export type { FieldOption } from './field-options.js';
-export type { PreparedScenarioEdit, SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
+export type { PreparedScenarioEdit, SaveResult, ScenarioEdit, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
 export { draftFromScript } from './authoring.js';
 export { RECORD_KEEP, RECORD_MAX_ENV, activeRecords, defaultRecordName, newRecordId, pruneRecords, recordDir, recordMaxMs, recordScenario, recordStart, recordsRoot } from './record.js';
 export type { RecordCheck, RecordOutcome, RecordPorts, RecordRequest, RecordStart } from './record.js';
@@ -55,21 +59,51 @@ export type { EditAbility, SceneFacts, ScenarioActions, ScenarioEnvironmentFacts
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, agentTrust, createEngine } from './engine.js';
-export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, ScenarioSessions, WaitOptions } from './engine.js';
+export {
+  ENGINE_TRUST,
+  admits,
+  agentChecks,
+  agentWorkspace,
+  anchorsOnShownRender,
+  callerOf,
+  chainsRecordings,
+  cleansWorkerEnv,
+  drivesRecordScreen,
+  editsThemes,
+  guardsStudioRecordings,
+  needsIfMatch,
+  proposes,
+  refusalChannel,
+  speaksAsPerson,
+  submittedInStudio,
+  submitterChannel,
+} from './caller.js';
+export type { Caller, CallerChannel, CallerTrust } from './caller.js';
+export { EXPORTS_OPEN_MAX, SUBMIT_RULES, admission, confirmWhy, opChain, sessionsToConfirm } from './admission.js';
+export type { Admission, AdmissionDeps, OpChain, PreparedTake, RunAdmit, SessionToConfirm, SessionsView } from './admission.js';
+export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, CompactRunStatus, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, ScenarioSessions, WaitOptions } from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
 export type { InterruptOptions, InterruptPort, InterruptScope } from './interrupts.js';
 export { RunOptionError, SandboxTakeError, checkAllowWrites, checkSandboxEnv, executeRun, pickSandboxEnv, prepareRun, writesSummary } from './execute-run.js';
 export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
+// The pipeline calls a shell makes itself (renderWork / stillWork / exportWork: through the in-process functions below).
+export { defaultStillFile, editorErrorOf, findRenderOf, findRunOf, planWork, reviewWork } from './pipeline.js';
+export { exportInProcess, inspectInProcess, renderInProcess, runInProcess, stillInProcess } from './in-process.js';
+export type { EditOverrides, ExportFormat, ExportProgress, ExportResult, PlannedRun, RenderProgress, RenderRecord, ReviewResult, RunRef } from './pipeline.js';
 export { newJobId } from './jobs/ids.js';
-export { FileJobQueue, jobProject, jobsDir, stateDir } from './jobs/queue.js';
-export type { ClaimRecord, JobFilter } from './jobs/queue.js';
+export type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, JobQueueView, TakeHold, YieldMark } from './jobs/job-queue.js';
+export { jobProject } from './jobs/queue-core.js';
+export { FileJobQueue, JobFiles } from './jobs/queue.js';
+export { jobsDir, stateDir } from './workspace-state.js';
+export { MemoryJobQueue } from './jobs/memory-queue.js';
+export type { MemoryJobQueueOptions } from './jobs/memory-queue.js';
 export { WORKER_CLIENT_RE, WorkerLock, liveWorker, otherCopy, readWorkerLock, workerLockFile, workersDir } from './jobs/lock.js';
 export type { WorkerLockRecord } from './jobs/lock.js';
 export { buildDirs, buildStamp } from './jobs/build.js';
 export { isAlive, processStart, selfIdentity } from './jobs/proc.js';
 export type { ProcessIdentity } from './jobs/proc.js';
-export { PAUSE_MAX_ENV, executeRunJob, finaliseReservedRun, pauseMaxMs, preflightJournal, runBlockers, runCommandLine, submitRunJob } from './jobs/run-job.js';
+export { PAUSE_MAX_ENV, executeRunJob, finaliseReservedRun, pauseMaxMs, preflightJournal, runBlockers, runCommandLine } from './jobs/run-job.js';
 export { LIVE_FILE_VERSION, LIVE_FRAME_MAX_BYTES, LIVE_IDLE_MS, LIVE_PATH, LIVE_SOCKETS_MAX, LIVE_STREAMS_MAX, encodeRecord, openLiveChannel, openLiveFeed, readLiveChannel } from './jobs/live-channel.js';
 export type { LiveChannel, LiveChannelInfo, LiveFeedFrame, LiveFrameHeader } from './jobs/live-channel.js';
 export {
@@ -95,6 +129,9 @@ export type { WorkerEnvOptions } from './jobs/worker-env.js';
 export { runWorker } from './jobs/worker.js';
 export { BEAT_MS, CAP_CARRY_MS, FilmingMarker, FilmingWatch, HELD_FILE, HOLD_MAX_MIN, TakeBeside, heldFile, isTakeOwnerCommand, workerHolds, MARKER_MAX_BYTES, MARKER_NAME_RE, STALE_MS, ancestorPids, capMinutes, capturesDir, capturesLocation, workspaceCaptureId } from './jobs/captures.js';
 export type { FilmingState, FilmingWatchOptions, LiveTake, MarkerRecord, TakeBesideReport } from './jobs/captures.js';
+// What a take reports to its filming callback: the runner's types, re-exported so that the CLI's `retake run` names them
+// without importing the runner (a shell imports no adapter: the import rules' R4, scripts/audit/lib.mjs).
+export type { FilmingEvent, FilmingReport } from '@retake/runner-web';
 export { heldWork, heldWorkWords, yieldWords } from './jobs/held.js';
 export type { HeldWork } from './jobs/held.js';
 export { QosYield, REWALK_MS, parseQosTable, qosTable, taskpolicy, treeOf } from './jobs/yield.js';
@@ -153,13 +190,12 @@ export {
   renderCommandLine,
   renderJobEditText,
   reviewInline,
-  submitRenderJob,
 } from './jobs/render-job.js';
 export type { InlineReview, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
 export { SCENARIO_RENDERS_MAX, failureWords, planPreview, planSignature, renderForWork, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
-export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine, submitExportJob } from './jobs/export-job.js';
+export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine } from './jobs/export-job.js';
 export type { ExportRequest } from './jobs/export-job.js';
 export { REVIEW_IMAGE_BASE64_MAX, REVIEW_IMAGE_MAX_PX, REVIEW_IMAGE_RE, REVIEW_IMAGE_SOURCE_MAX, reviewGet, reviewImage, thumbnail } from './reviews.js';
 export { THEME_PREVIEW_KINDS, executePreviewJob, libraryStatesOf, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';
@@ -212,7 +248,7 @@ export {
 export type { InspectSourceDraft, InspectSubmitRequest, InspectionOptions, InspectionRun, PreparedInspect } from './jobs/inspect-job.js';
 export { RECORD_DRAFT_MAX, executeRecordJob, readRecording, recordCommandLine, recordResult, submitRecordJob } from './jobs/record-job.js';
 export type { RecordJobContext, RecordJobTestHooks, RecordSubmitRequest } from './jobs/record-job.js';
-export { checkComponentId, componentCreate, componentGet, componentList, componentValidate } from './components.js';
+export { checkComponentId, componentCreate, componentWriter, componentGet, componentList, componentValidate } from './components.js';
 export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
 export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';

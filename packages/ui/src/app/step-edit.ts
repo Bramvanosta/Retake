@@ -9,6 +9,8 @@
  *   A version this screen did not make (Claude, an editor, the YAML view) clears the history.
  */
 
+import type { ScenarioEdit } from './data/scenarios.js';
+
 /** A step as a block edit names it (the scenario_blocks key parts and the step's guard). */
 export interface StepRef {
   scene: string;
@@ -19,14 +21,8 @@ export interface StepRef {
 /** A form field's value (scenario_forms). */
 export type FieldValue = string | number | boolean;
 
-export type StepEditOp =
-  | { kind: 'move_step'; from: StepRef; to: { scene: string; index: number } }
-  | { kind: 'delete_step'; at: StepRef }
-  | { kind: 'duplicate_step'; at: StepRef }
-  /** The inspector's form (L4.3 part 3): the fields it changed, each with the value it showed (critique B2). */
-  | { kind: 'set_step'; at: StepRef; changes: Array<{ path: string[]; from?: FieldValue; to?: FieldValue }> }
-  /** The palette: a new step after the step whose guard is `after` (null: at the start of the scene). */
-  | { kind: 'insert_step'; to: { scene: string; index: number }; after: string | null; action: string; values: Record<string, FieldValue> };
+/** A block edit (scenario_edit's step edits: a move, a delete, a copy, the inspector's form, the palette's new step). */
+export type StepEditOp = Extract<ScenarioEdit, { kind: 'move_step' | 'delete_step' | 'duplicate_step' | 'set_step' | 'insert_step' }>;
 
 /** A scene as moves see it: its id, how many steps it has, whether steps can go in or out. */
 export interface SceneSlots {

@@ -22,35 +22,21 @@
 import { readdirSync, statSync } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import {
-  COMPONENT_KINDS,
-  STARTER_TEMPLATES_DIR,
-  StepEditError,
-  TEMPLATE_FILE,
-  THEME_EDIT_MAX_CHARS,
-  THEME_FIELD_PATHS,
-  applyThemeEdit,
-  insideFolder,
-  isTemplateMediaRef,
-  isTemplatePath,
-  listTemplates,
-  loadProjectTemplate,
-  loadTemplate,
-  newHiddenCharProblem,
-  parseTemplateYaml,
-  parseYaml,
-  readPlainFile,
-  realPathOf,
-  verifyEditText,
-} from '@retake/core';
-import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField, WorkspaceConfig } from '@retake/core';
+import { COMPONENT_KINDS, StepEditError, TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit, insideFolder, isTemplateMediaRef, isTemplatePath, newHiddenCharProblem, parseTemplateYaml, parseYaml, realPathOf, verifyEditText, pathInside, projectPath } from '@retake/core';
+import { STARTER_TEMPLATES_DIR, listTemplates, loadProjectTemplate, loadTemplate, readPlainFile, nodeFileFacts, fileFacts } from '@retake/core/io';
+import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField } from '@retake/core';
 import type { PaletteCheck } from '@retake/components';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { components, workspaceRegistry } from './components.js';
+import { callerOf, editsThemes } from './caller.js';
+import type { EngineClient } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { listProjectSummaries, openProjectBySlug } from './projects.js';
-import { LocalStorage, sha256Hex } from './storage.js';
+import { sha256Hex } from './storage.js';
+import { ProjectStore } from './store/project-store.js';
+import type { StoreScope } from './store/project-store.js';
 import { checkTemplateName } from './templates.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** The Retake package (the repository or its install folder): its themes are shipped files, never edited. */
 const PACKAGE_DIR = resolve(STARTER_TEMPLATES_DIR, '..');
@@ -93,28 +79,23 @@ export function knownThemeVersion(realFile: string, hash: string): boolean {
   return versions.get(realFile)?.includes(hash) ?? false;
 }
 
-const isInside = (parent: string, child: string) => {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-};
-
 /** The theme `name` of the workspace (a listed name, never a path) and whether the Studio may edit it. */
-async function locateTheme(ws: WorkspaceConfig, name: string): Promise<ThemeLocation> {
+async function locateTheme(ws: OpenedWorkspace, name: string): Promise<ThemeLocation> {
   checkTemplateName(name);
   const entry = (await listTemplates(ws.root)).find((e) => e.name === name);
   if (!entry) throw new EngineError('not_found', `theme "${name}" not found (the themes list names them)`);
-  const realDir = realPathOf(entry.dir);
-  const realFile = realPathOf(join(entry.dir, TEMPLATE_FILE));
+  const realDir = realPathOf(entry.dir, nodeFileFacts);
+  const realFile = realPathOf(join(entry.dir, TEMPLATE_FILE), nodeFileFacts);
   return { entry, realDir, realFile, editable: await editability(ws, entry, realDir) };
 }
 
 /** Why the Studio may not write this theme (critique B15), or true. */
-async function editability(ws: WorkspaceConfig, entry: TemplateEntry, realDir: string): Promise<ThemeEditable> {
+async function editability(ws: OpenedWorkspace, entry: TemplateEntry, realDir: string): Promise<ThemeEditable> {
   if (entry.source === 'starter') return { why: `${entry.name} is a starter theme shipped with Retake: copy it to edit it` };
-  if (isInside(realPathOf(PACKAGE_DIR), realDir)) return { why: `${entry.name} is a theme shipped with Retake (its folder lies in the Retake package): copy it to edit it` };
-  const realRoot = realPathOf(resolve(ws.root));
-  const realTemplates = realPathOf(resolve(ws.templatesDir));
-  if (!isInside(realRoot, realTemplates)) return { why: `templates_dir lies outside the workspace: the Studio edits themes of the workspace only — edit ${entry.name} by hand` };
+  if (pathInside(realDir, realPathOf(PACKAGE_DIR, nodeFileFacts), { dotDotPrefix: true })) return { why: `${entry.name} is a theme shipped with Retake (its folder lies in the Retake package): copy it to edit it` };
+  const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
+  const realTemplates = realPathOf(resolve(ws.templatesDir), nodeFileFacts);
+  if (!pathInside(realTemplates, realRoot, { dotDotPrefix: true })) return { why: `templates_dir lies outside the workspace: the Studio edits themes of the workspace only — edit ${entry.name} by hand` };
   try {
     const st = await lstat(entry.dir);
     if (st.isSymbolicLink() || !st.isDirectory()) return { why: `${entry.name} is a link to another folder: the Studio edits only real theme folders — edit it by hand` };
@@ -180,7 +161,7 @@ export async function themeFileProblem(realDir: string, rel: string, role: 'logo
       if (st.nlink > 1) return `${rel} has another name (a hard link): a theme serves only its own files`;
     }
   }
-  if (!insideFolder(realDir, p)) return `${rel} lies outside the theme folder`;
+  if (!insideFolder(realDir, p, nodeFileFacts)) return `${rel} lies outside the theme folder`;
   const ext = rel.slice(rel.lastIndexOf('.')).toLowerCase();
   const max = role === 'font' ? FONT_MAX_BYTES : ext === '.svg' ? SVG_MAX_BYTES : IMAGE_MAX_BYTES;
   const r = readPlainFile(p, max);
@@ -277,7 +258,7 @@ let usesMemo: { root: string; sig: string; uses: Map<string, ThemeEditView['used
  * The file-level signature of what themeUses reads (review B L6): the projects folder, each project's project.yaml and
  * scenarios folder, each scenario file — by size, date and inode. Bounded (1,000 projects × 2,000 files).
  */
-function usesSignature(ws: WorkspaceConfig): string {
+function usesSignature(ws: OpenedWorkspace): string {
   const st = (p: string) => {
     try {
       const s = statSync(p);
@@ -296,13 +277,13 @@ function usesSignature(ws: WorkspaceConfig): string {
   const parts = [`${ws.projectsDir} ${st(ws.projectsDir)}`];
   for (const n of list(ws.projectsDir).slice(0, 1000)) {
     const dir = join(ws.projectsDir, n);
-    parts.push(`${n} ${st(join(dir, 'project.yaml'))} ${st(join(dir, 'scenarios'))}`);
-    for (const f of list(join(dir, 'scenarios')).slice(0, 2000)) parts.push(` ${f} ${st(join(dir, 'scenarios', f))}`);
+    parts.push(`${n} ${st(join(dir, 'project.yaml'))} ${st(projectPath(dir, 'scenarios'))}`);
+    for (const f of list(projectPath(dir, 'scenarios')).slice(0, 2000)) parts.push(` ${f} ${st(projectPath(dir, 'scenarios', f))}`);
   }
   return parts.join('\n');
 }
 
-async function themeUses(ws: WorkspaceConfig): Promise<Map<string, ThemeEditView['used_by']>> {
+async function themeUses(ws: OpenedWorkspace): Promise<Map<string, ThemeEditView['used_by']>> {
   const sig = usesSignature(ws);
   if (usesMemo && usesMemo.root === ws.root && usesMemo.sig === sig) return usesMemo.uses;
   const uses = await themeUsesNow(ws);
@@ -310,7 +291,7 @@ async function themeUses(ws: WorkspaceConfig): Promise<Map<string, ThemeEditView
   return uses;
 }
 
-async function themeUsesNow(ws: WorkspaceConfig): Promise<Map<string, ThemeEditView['used_by']>> {
+async function themeUsesNow(ws: OpenedWorkspace): Promise<Map<string, ThemeEditView['used_by']>> {
   THEME_USES_STATS.computed++;
   const out = new Map<string, ThemeEditView['used_by']>();
   const of = (name: string) => {
@@ -328,8 +309,8 @@ async function themeUsesNow(ws: WorkspaceConfig): Promise<Map<string, ThemeEditV
     }
     if (typeof project.config.template === 'string') of(project.config.template).projects.push(p.slug);
     for (const s of project.scenarios) {
-      const r = readPlainFile(join(project.dir, 'scenarios', `${s}.yaml`), SCENARIO_READ_MAX);
-      const r2 = r.ok ? r : readPlainFile(join(project.dir, 'scenarios', `${s}.yml`), SCENARIO_READ_MAX);
+      const r = readPlainFile(projectPath(project.dir, 'scenarios', `${s}.yaml`), SCENARIO_READ_MAX);
+      const r2 = r.ok ? r : readPlainFile(projectPath(project.dir, 'scenarios', `${s}.yml`), SCENARIO_READ_MAX);
       if (!r2.ok) continue;
       const v = parseYaml(r2.bytes.toString('utf8')).value;
       if (isObj(v) && typeof v.template === 'string') of(v.template).scenarios.push({ project: p.slug, scenario: s });
@@ -339,14 +320,14 @@ async function themeUsesNow(ws: WorkspaceConfig): Promise<Map<string, ThemeEditV
 }
 
 /** Projects and scenarios that name the theme (what an edit of it re-renders). */
-async function usedBy(ws: WorkspaceConfig, name: string): Promise<ThemeEditView['used_by']> {
+async function usedBy(ws: OpenedWorkspace, name: string): Promise<ThemeEditView['used_by']> {
   return (await themeUses(ws)).get(name) ?? { projects: [], scenarios: [] };
 }
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** One theme as its editor shows it (see the header); remembers the version shown (undo restores only those). */
-export async function templateView(ws: WorkspaceConfig, name: string): Promise<ThemeEditView> {
+export async function templateView(ws: OpenedWorkspace, name: string): Promise<ThemeEditView> {
   const loc = await locateTheme(ws, name);
   const read = readThemeText(loc);
   const blocker = textBlocker(name, read);
@@ -360,7 +341,7 @@ export async function templateView(ws: WorkspaceConfig, name: string): Promise<T
     for (const k of f.split('.')) cur = isObj(cur) ? cur[k] : undefined;
     if (cur !== undefined && cur !== null) fields[f] = cur;
   }
-  const parsed = read.utf8 ? parseTemplateYaml(read.text, { dir: loc.realDir }) : { issues: [], template: undefined };
+  const parsed = read.utf8 ? parseTemplateYaml(read.text, { dir: loc.realDir, files: fileFacts(ws.policy) }) : { issues: [], template: undefined };
   const issues: string[] = parsed.issues.filter((i) => i.severity === 'error').map((i) => i.message);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);
   const comps = isObj(root.components) ? root.components : {};
@@ -483,8 +464,8 @@ export interface ThemeEditResult {
  * edited through it). Errors: conflict (if_match; a value changed since the page read it: `details.stale`), refused
  * (not editable, a file the theme may not serve, not a known version), invalid (the edit or its value).
  */
-export async function editTemplate(ws: WorkspaceConfig, name: string, req: ThemeEditRequest, o: { client: string }): Promise<ThemeEditResult> {
-  if (o.client === 'mcp') throw new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
+export async function editTemplate(ws: OpenedWorkspace, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope }): Promise<ThemeEditResult> {
+  if (!editsThemes(callerOf(o.client))) throw new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
   const loc = await locateTheme(ws, name);
   if (loc.editable !== true) throw new EngineError('refused', `not saved: ${loc.editable.why}`);
   const base = readThemeText(loc);
@@ -526,7 +507,7 @@ export async function editTemplate(ws: WorkspaceConfig, name: string, req: Theme
   }
   if (text.length > THEME_EDIT_MAX_CHARS) throw new EngineError('invalid', `not saved: the theme would hold more than ${THEME_EDIT_MAX_CHARS.toLocaleString('en')} characters`);
   // The theme as a render will load it: valid, every file it names served from its own folder, every kind resolved.
-  const parsed = parseTemplateYaml(text, { dir: loc.realDir });
+  const parsed = parseTemplateYaml(text, { dir: loc.realDir, files: fileFacts(ws.policy) });
   const errors = parsed.issues.filter((i) => i.severity === 'error');
   if (!parsed.template || errors.length) throw new EngineError('invalid', `not saved: the theme would not validate (${errors.map((i) => `${i.path.join('.') || '(file)'}: ${i.message}`).slice(0, 3).join('; ')})`);
   parsed.template.name ??= name;
@@ -539,9 +520,9 @@ export async function editTemplate(ws: WorkspaceConfig, name: string, req: Theme
   } catch (e) {
     throw new EngineError('invalid', `not saved: ${toEngineError(e).message}`);
   }
-  const realRoot = realPathOf(resolve(ws.root));
+  const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
   const ref = relative(realRoot, loc.realFile).split(sep).join('/');
-  const res = await new LocalStorage(realRoot).writeText(ref, text, { ifMatch: base.sha256 });
+  const res = await new ProjectStore(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
   rememberVersion(loc.realFile, base.sha256);
   rememberVersion(loc.realFile, res.sha256);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -574,7 +555,7 @@ export interface ThemeEditList {
  * editable or read-only with why — decided by real path (critique B15), the starters and anything in the package
  * read-only ("Copy to edit") —, and with a project its own theme folder (read-only: edit it by hand). Path-free.
  */
-export async function themeEditList(ws: WorkspaceConfig, projectSlug?: string): Promise<ThemeEditList> {
+export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): Promise<ThemeEditList> {
   const project = projectSlug !== undefined ? await openProjectBySlug(ws, projectSlug) : undefined;
   const own = typeof project?.config.template === 'string' ? project.config.template : undefined;
   const uses = await themeUses(ws);
@@ -593,7 +574,7 @@ export async function themeEditList(ws: WorkspaceConfig, projectSlug?: string): 
     let t: Template | undefined;
     const issues: string[] = [];
     try {
-      t = (await loadProjectTemplate(project)).template;
+      t = (await loadProjectTemplate(project, undefined, { files: fileFacts(ws.policy) })).template;
     } catch (e) {
       issues.push(toEngineError(e).message);
     }
@@ -610,14 +591,14 @@ export async function themeEditList(ws: WorkspaceConfig, projectSlug?: string): 
   for (const e of await listTemplates(ws.root)) {
     let editable: ThemeEditable;
     try {
-      editable = await editability(ws, e, realPathOf(e.dir));
+      editable = await editability(ws, e, realPathOf(e.dir, nodeFileFacts));
     } catch (err) {
       editable = { why: toEngineError(err).message };
     }
     let t: Template | undefined;
     const issues: string[] = [];
     try {
-      t = (await loadTemplate(e.dir)).template;
+      t = (await loadTemplate(e.dir, undefined, { files: fileFacts(ws.policy) })).template;
     } catch (err) {
       issues.push(toEngineError(err).message);
     }

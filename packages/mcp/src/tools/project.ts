@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
-import { relative, isAbsolute } from 'node:path';
 import { z } from 'zod';
-import { engineLocation, sandboxAdvice, sandboxAdviceText, staleEngine } from '@retake/core';
+import { pathInside, sandboxAdvice, sandboxAdviceText } from '@retake/core';
+import { engineLocation, staleEngine } from '@retake/core/io';
 import { README_MAX_CHARS, formatBytes, heldWork, heldWorkWords, otherCopy } from '@retake/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
@@ -9,17 +9,18 @@ import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 import type { ToolAnnotations } from '../server.js';
 
-/** Whether `p` is `root` or inside it (real paths: macOS /tmp → /private/tmp). */
-function isInside(p: string, root: string): boolean {
-  const real = (x: string) => {
-    try {
-      return realpathSync(x);
-    } catch {
-      return x;
-    }
-  };
-  const rel = relative(real(root), real(p));
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+/**
+ * The real path of `x` (macOS /tmp → /private/tmp; the case as given), or `x` itself when it does not resolve. Kept
+ * instead of core's realPathOf (the native call: the case as stored on disk, a missing tail joined to its real parent)
+ * so that engine_info's "started outside the workspace" answers exactly as before; core test/path-inside.test.ts pins
+ * them.
+ */
+function realOrSame(x: string): string {
+  try {
+    return realpathSync(x);
+  } catch {
+    return x;
+  }
 }
 
 export const engineInfo = defineTool({
@@ -40,7 +41,7 @@ export const engineInfo = defineTool({
     // L5.14: what a filming take holds of this workspace's jobs (fixed words and a kind: no other workspace named).
     const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
     const startedIn = process.cwd();
-    const elsewhere = !isInside(startedIn, info.root);
+    const elsewhere = !pathInside(startedIn, info.root, { real: realOrSame, dotDotPrefix: true });
     // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
     const stale = staleEngine(info.version);
     return {
@@ -102,7 +103,7 @@ export const projectGet = defineTool({
             ]
           : []),
       ].join('\n'),
-      data: { ...(p as unknown as Record<string, unknown>), ...(advice ? { sandbox_advice: advice } : {}) },
+      data: { ...p, ...(advice ? { sandbox_advice: advice } : {}) },
     };
   },
 });
@@ -123,14 +124,14 @@ export const projectCreate = defineTool({
     readme: z.string().max(README_MAX_CHARS).optional().describe('Full README.md content (default: a skeleton).'),
     environments: z.record(envName, pageMap).optional().describe('Environment name → its pages, e.g. {"staging": {"app": "https://app.staging.example.com"}}.'),
     default_env: envName.optional().describe('The environment used when a scenario does not say (one of `environments`; default: the first one).'),
-    template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a template name of the workspace (never a path)').optional().describe('Template (theme) name; default "default".'),
+    template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a theme name of the workspace or a starter theme (never a path)').optional().describe('Theme name (a workspace theme or a starter theme); default "default".'),
   }),
   annotations: WRITE_FILES,
   async run(args, { engine }) {
     const p = await engine.projects.create(args);
     return {
       summary: `Created project ${p.slug} in ${p.dir}. Next: fill README.md (project_update_readme with if_match ${p.readme_hash}), then write scenarios (scenario_validate, scenario_save).`,
-      data: p as unknown as Record<string, unknown>,
+      data: p,
     };
   },
 });
@@ -159,7 +160,7 @@ export const projectPrune = defineTool({
   name: 'project_prune',
   title: 'Free disk space',
   description:
-    "What a project's runs/, renders/ and review/ hold that nothing needs any more, and how much deleting it frees: failed, cancelled and interrupted takes, dry runs, older captures nothing uses, renders beyond the last keep_renders (default 3) of each scenario and variant, failed renders and the reviews of renders that go. Always kept: the last succeeded capture of each scenario, every take a kept render or a comment thread uses, every render a thread was made or resolved on, whatever a queued or running job names; exports/ is never touched. dry_run (default true) only lists. dry_run: false — only when the user asked to free space — asks the user first in an approval form (how many items, how much, by kind, the first 20 listed and how many more, and the `retake prune <project> --yes` command), then deletes the items of that approval — all of them, listed or counted — that can still go at that moment, each with the files it had when listed; a decline is refused and a client that cannot ask gets needs_approval: nothing is deleted, do not retry on your own.",
+    "What a project's runs/, renders/ and review/ hold that nothing needs any more, and how much deleting it frees: failed, cancelled and interrupted captures, dry runs, older captures nothing uses, renders beyond the last keep_renders (default 3) of each scenario and variant, failed renders and the reviews of renders that go. Always kept: the last succeeded capture of each scenario, every capture a kept render or a comment thread uses, every render a thread was made or resolved on, whatever a queued or running job names; exports/ is never touched. dry_run (default true) only lists. dry_run: false — only when the user asked to free space — asks the user first in an approval form (how many items, how much, by kind, the first 20 listed and how many more, and the `retake prune <project> --yes` command), then deletes the items of that approval — all of them, listed or counted — that can still go at that moment, each with the files it had when listed; a decline is refused and a client that cannot ask gets needs_approval: nothing is deleted, do not retry on your own.",
   input: z.strictObject({
     project: projectSlug,
     keep_renders: z.number().int().min(1).max(100).optional().describe('Renders kept per scenario and variant, with their reviews (default 3).'),
@@ -185,9 +186,9 @@ export const projectPrune = defineTool({
         ...(r.not_asked ? [`${plural(r.not_asked, 'item')} that can go now ${r.not_asked === 1 ? 'was' : 'were'} not in the approval: kept`] : []),
         ...r.problems.map((p) => `could not delete ${p}`),
       ].join('\n'),
-      data: r as unknown as Record<string, unknown>,
+      data: r,
     };
   },
 });
 
-export const PROJECT_TOOLS: ToolDef[] = [engineInfo, projectList, projectGet, projectCreate, projectUpdateReadme, projectPrune];
+export const PROJECT_TOOLS = [engineInfo, projectList, projectGet, projectCreate, projectUpdateReadme, projectPrune] as const satisfies readonly ToolDef[];

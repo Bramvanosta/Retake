@@ -75,7 +75,7 @@ describe.skipIf(!can)('review jobs', () => {
     expect(r).toMatchObject({ kind: 'review', render_id: 'quote-v1', dir: join(ws.project.dir, 'review', 'quote-v1') });
     expect(existsSync(r.report)).toBe(true);
     expect(job.progress?.fraction).toBeGreaterThan(0.9);
-    const raw = await readFile(join(queue.dir, job.id, 'job.json'), 'utf8');
+    const raw = await readFile(join(queue.files.dir, job.id, 'job.json'), 'utf8');
     expect(raw.length).toBeLessThan(8000);
     expect(raw).not.toMatch(/base64|\/9j\//);
     const last = (await historyLines()).at(-1);
@@ -212,7 +212,7 @@ describe.skipIf(!can)('export jobs', () => {
     const files = await readdir(dir);
     expect(files.filter((f) => f.startsWith('.'))).toEqual([]);
     expect(files.filter((f) => f.includes('square') || f.endsWith('.webm'))).toEqual([]);
-    expect(existsSync(queue.browserFile(sub.job.id))).toBe(false);
+    expect(existsSync(queue.files.browser(sub.job.id))).toBe(false);
   }, LONG);
 
   it('a render record whose files lie outside the project is refused at submit, and by the worker for a job written by hand', async () => {

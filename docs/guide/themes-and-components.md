@@ -1,14 +1,17 @@
 # Themes, components and media
 
-How a video looks: themes (templates), the components that draw it, and your own media and motion. Part of the [Retake guide](README.md).
+How a video looks: themes, the components that draw it, and your own media and motion. Part of the [Retake guide](README.md).
 
-## Templates (themes)
+## Themes
+
+A theme's files live in `templates/<name>/` (the folder and file keep their earlier name; see the
+[glossary](../GLOSSARY.md)).
 
 `templates/<name>/template.yaml` gives the brand and motion style (colours, fonts, logo, wordmark, background, cursor,
 captions, timings) and picks a default **component per kind**. Every section is optional and merged over the
-defaults; start from a starter template (`templates/README.md`). The starter templates `default`, `editorial` and
+defaults; start from a starter theme (`templates/README.md`). The starter themes `default`, `editorial` and
 `motion` are always available by name, also in a workspace without a `templates/` folder (`retake list` marks them
-"starter"); a workspace template of the same name takes precedence.
+"starter"); a workspace theme of the same name takes precedence.
 
 ```yaml
 # yaml-language-server: $schema=../../packages/core/schema/template.schema.json
@@ -38,7 +41,7 @@ A kind that `components` does not set is mapped from the legacy fields:
 
 An explicit `components` entry is taken as written (legacy params are not merged into it); validation warns when it
 contradicts a legacy field written in the same file. `resolveThemeComponents(template)` (core) returns the resolved
-choice per kind with its source (`theme`, `legacy` or `default`). The starter templates declare both, consistently.
+choice per kind with its source (`theme`, `legacy` or `default`). The starter themes declare both, consistently.
 
 ### Themes from your brand
 
@@ -152,7 +155,7 @@ components/<namespace>/<name>/     # in your workspace (retake.yaml components_d
 resolve from the workspace `components/` folder first, then the built-in library (`studio/…`), then — later — a
 marketplace cache: a workspace component with a built-in id overrides it (`retake components list` warns). The built-in
 library (`packages/components/library/studio/*`) has a component for every id the starter themes and the legacy
-template fields use, plus a tablet layout — every one theme-driven, in the family of the **reference look** of
+fields of `template.yaml` use, plus a tablet layout — every one theme-driven, in the family of the **reference look** of
 `docs/reference/look.md` (the six measured on renders carry the tag `reference-look`), each with its committed preview:
 
 | id | kind | what it draws (main params) |
@@ -177,11 +180,11 @@ Layouts size their screen from the **capture's aspect** (geometry expressions be
 exactly, the phone and the tablet within device proportions (0.42–0.62, 0.62–1.6) — a capture outside them is
 letterboxed / pillarboxed in the device screen with the theme background (`rects.display`), as is a capture of another
 aspect in `raw`. `frame: tablet` (scenario, project, `--frame`) is the tablet layout, like `card`, `browser`, `laptop`,
-`phone` and `raw`. `packages/components/scaffolds/<kind>/` holds one valid, theme-driven template per kind
+`phone` and `raw`. `packages/components/scaffolds/<kind>/` holds one valid, theme-driven scaffold per kind
 (`retake components create` copies it; the renderer draws it as the stand-in of a missing component).
 
-**How a theme picks components.** A template's `components:` map (or its legacy fields, see
-[Templates](#templates-themes)) names the default component and params of each kind; a scenario overrides it per use
+**How a theme picks components.** A theme's `components:` map (or its legacy fields, see
+[Themes](#themes)) names the default component and params of each kind; a scenario overrides it per use
 ([Components in scenarios](scenarios.md#components-in-scenarios)). Params given by the theme or the scenario are merged over the
 component's defaults and validated against its params schema (`registry.resolve`); a typo or an out-of-range value is
 an error naming the param.
@@ -361,7 +364,7 @@ built-ins). The built-in previews are committed and a test fails when one is mis
 
 ## Your own media and motion
 
-Templates never lock you in: the intro, the outro, a card, an interstitial and an overlay can each be **your own file**
+Themes never lock you in: the intro, the outro, a card, an interstitial and an overlay can each be **your own file**
 instead of a provided component — the full guide, with export settings for motion tools, Remotion, Lottie, your own
 components and the output of Claude motion / design skills, is
 **[docs/BRING-YOUR-OWN-MOTION.md](../BRING-YOUR-OWN-MOTION.md)**.

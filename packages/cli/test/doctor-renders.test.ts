@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { probeRenderPath, resolveRenderPolicy } from '@retake/editor';
 import { rendersCheck } from '../src/commands/doctor.js';
 import type { RendersProbe } from '../src/commands/doctor.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const metal = { accelerated: true, renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)' };
 const mac = (o: Parameters<typeof resolveRenderPolicy>[0] = {}) => resolveRenderPolicy({ platform: 'darwin', cpus: 10, ...o });
@@ -54,7 +55,7 @@ describe.skipIf(process.platform !== 'darwin')('the real probe on this Mac', () 
     try {
       process.env.RETAKE_RENDER_GL = 'auto';
       process.env.RETAKE_RENDER_ENCODER = 'auto';
-      const r = await probeRenderPath();
+      const r = await probeRenderPath({ workPolicy: PERSON_POLICY });
       expect(r).toMatchObject({ gl: 'angle', encoder: 'h264_videotoolbox', concurrency: 3, videotoolbox: { ok: true }, gpu: { accelerated: true } });
       const c = rendersCheck(r);
       expect(c.status).toBe('ok');
@@ -66,7 +67,7 @@ describe.skipIf(process.platform !== 'darwin')('the real probe on this Mac', () 
   }, 120_000);
 
   it('the suite pin (software): no browser opened, the software line', async () => {
-    const r = await probeRenderPath({ gpuInfo: async () => expect.unreachable('no browser on the software path') });
+    const r = await probeRenderPath({ workPolicy: PERSON_POLICY, gpuInfo: async () => expect.unreachable('no browser on the software path') });
     expect(r).toMatchObject({ gl: 'software', encoder: 'libx264' });
     expect(r.videotoolbox).toBeUndefined();
     expect(rendersCheck(r).detail).toMatch(/^software · libx264 CRF 16/);

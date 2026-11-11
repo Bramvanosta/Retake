@@ -2,22 +2,24 @@
  * The Remotion bundle of a render: a GENERATED entry + registry module importing the composition (src/remotion) and
  * the implementation of every component the plan uses (built-in library and workspace components alike, resolved by
  * the registry) plus the per-kind scaffolds (stand-ins for missing uses). Bundles are cached under
- * `<workspace>/.retake/cache/remotion-<hash>/`, the hash covering the composition sources, the kit, every
- * component folder bundled and the Remotion version: a render rebuilds only when one of them changed.
+ * `<workspace>/.retake/cache/remotion-<hash>/`, the hash covering the composition sources, the kit, the geometry entry,
+ * every component folder bundled and the Remotion version: a render rebuilds only when one of them changed.
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPONENT_KINDS, bundleInfoOrNull } from '@retake/core';
+import { COMPONENT_KINDS, relativeInside, statePath } from '@retake/core';
+import { bundleInfoOrNull } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core';
 import {
   HASHED_FILE,
   MANIFEST_FILE,
   PREVIEW_ARTIFACTS,
   UNHASHED_DIRS,
+  geometryEntry,
   kitEntry,
   paramDefaults,
   parseManifest,
@@ -118,6 +120,20 @@ function kitFiles(): { entry: string; files: string[] } {
   return { entry, files };
 }
 
+/**
+ * The geometry entry (`@retake/components/geometry`: the frame helpers the composition imports, source when present,
+ * else built) and the files hashed for it: the entry and the modules beside it that it re-exports values from (its
+ * kit modules are the kit's; type re-exports load nothing).
+ */
+export function geometryFiles(): { entry: string; files: string[] } {
+  const entry = geometryEntry();
+  if (!entry) throw new Error('the components geometry entry is missing (packages/components/src or dist/geometry-entry)');
+  const dir = dirname(entry);
+  const ext = entry.slice(entry.lastIndexOf('.'));
+  const own = [...readFileSync(entry, 'utf8').matchAll(/^export \{[^}]*\} from '\.\/(?!kit\/)([^']+)\.js';$/gm)].map((m) => join(dir, `${m[1]}${ext}`));
+  return { entry, files: [...new Set([entry, ...own])].sort() };
+}
+
 /** Every file under `dir` (sorted, absolute), skipping dot entries and the folders UNHASHED_DIRS names. */
 function listFiles(dir: string): string[] {
   const out: string[] = [];
@@ -152,8 +168,8 @@ function packageVersion(name: string): string {
 }
 
 /**
- * The cache key of a bundle: the format, the Remotion versions, the composition sources, the kit and every bundled
- * component folder (code files, manifest, own assets), by content.
+ * The cache key of a bundle: the format, the Remotion versions, the composition sources, the kit, the geometry entry and
+ * every bundled component folder (code files, manifest, own assets), by content.
  */
 export async function bundleHash(components: readonly BundleComponent[]): Promise<string> {
   const h = createHash('sha256');
@@ -168,6 +184,8 @@ export async function bundleHash(components: readonly BundleComponent[]): Promis
   for (const f of comp.files) add(`composition:${relative(EDITOR_DIR, f).split(sep).join('/')}`, await readFile(f));
   const kit = kitFiles();
   for (const f of kit.files) add(`kit:${relative(dirname(kit.entry), f).split(sep).join('/')}`, await readFile(f));
+  const geometry = geometryFiles();
+  for (const f of geometry.files) add(`geometry:${basename(f)}`, await readFile(f));
   for (const c of [...components].sort((a, b) => a.id.localeCompare(b.id))) {
     add(`component:${c.id}:entry`, relative(c.dir, c.entry).split(sep).join('/'));
     add(`component:${c.id}:defaults`, JSON.stringify(c.defaults));
@@ -179,14 +197,15 @@ export async function bundleHash(components: readonly BundleComponent[]): Promis
 let compositionMemo: { stamp: string; hash: string } | undefined;
 
 /**
- * What every bundle shares, by content (16 hex): the bundle format, the Remotion versions, the composition sources and
- * the kit — the part of bundleHash that is not the components. A library preview's cache key (L4.7) covers it: a
+ * What every bundle shares, by content (16 hex): the bundle format, the Remotion versions, the composition sources,
+ * the kit and the geometry entry — the part of bundleHash that is not the components. A library preview's cache key (L4.7) covers it: a
  * change of the composition or the kit is a new preview. Memoised on the files' sizes and mtimes.
  */
 export async function compositionHash(): Promise<string> {
   const comp = compositionFiles();
   const kit = kitFiles();
-  const files = [...comp.files, ...kit.files];
+  const geometry = geometryFiles();
+  const files = [...comp.files, ...kit.files, ...geometry.files];
   const stamp = files.map((f) => {
     const st = statSync(f);
     return `${f}:${st.size}:${st.mtimeMs}`;
@@ -202,6 +221,7 @@ export async function compositionHash(): Promise<string> {
   add('remotion', `${packageVersion('remotion')} ${packageVersion('@remotion/bundler')}`);
   for (const f of comp.files) add(`composition:${relative(EDITOR_DIR, f).split(sep).join('/')}`, await readFile(f));
   for (const f of kit.files) add(`kit:${relative(dirname(kit.entry), f).split(sep).join('/')}`, await readFile(f));
+  for (const f of geometry.files) add(`geometry:${basename(f)}`, await readFile(f));
   const hash = h.digest('hex').slice(0, 16);
   compositionMemo = { stamp, hash };
   return hash;
@@ -317,7 +337,7 @@ export async function registryBundleComponents(registry: ComponentRegistry): Pro
 
 /** <root>/.retake/cache */
 export function bundleCacheDir(root: string): string {
-  return join(resolve(root), '.retake', 'cache');
+  return statePath(resolve(root), 'cache');
 }
 
 async function isComplete(dir: string): Promise<boolean> {
@@ -364,9 +384,9 @@ function realPathOf(p: string): string {
   }
 }
 
+/** `file` relative to `dir` (with `/`) when inside it and not `dir` itself, else undefined. */
 function within(dir: string, file: string): string | undefined {
-  const rel = relative(dir, file);
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : undefined;
+  return relativeInside(file, dir, { self: false, dotDotPrefix: true })?.split(sep).join('/');
 }
 
 /**
@@ -462,6 +482,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
     await mkdir(join(tmp, 'src'), { recursive: true });
     const comp = compositionFiles();
     const kit = kitFiles();
+    const geometry = geometryFiles();
     await writeFile(join(tmp, 'src', 'registry.ts'), registryModuleSource(opts.components));
     await writeFile(join(tmp, 'src', 'entry.ts'), entrySource(comp.root));
     const { bundle } = await import('@remotion/bundler');
@@ -481,6 +502,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
           alias: {
             ...((config.resolve?.alias as Record<string, string> | undefined) ?? {}),
             '@retake/components/kit$': kit.entry,
+            '@retake/components/geometry$': geometry.entry,
           },
           // Workspace sources import siblings as "./x.js" (NodeNext): try the TypeScript file first.
           extensionAlias: { '.js': ['.ts', '.tsx', '.js'] },

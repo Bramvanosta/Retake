@@ -1,7 +1,9 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, assertOutsideBundle, expandHome } from '@retake/core';
+import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome } from '@retake/core';
+import { assertOutsideBundle } from '@retake/core/io';
+import { ProjectStore, personScope } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -37,8 +39,10 @@ export async function initWorkspace(dir: string): Promise<InitResult> {
     if (others.length) throw new CliError(`${root} is not empty and is not a workspace (no ${WORKSPACE_FILE}): choose an empty or new folder, or add a ${WORKSPACE_FILE} yourself`);
   }
   await mkdir(join(root, 'projects'), { recursive: true });
-  await writeFile(join(root, WORKSPACE_FILE), INIT_WORKSPACE_YAML, { flag: 'wx' });
-  if (!existsSync(join(root, '.gitignore'))) await writeFile(join(root, '.gitignore'), `${WORKSPACE_GITIGNORE.join('\n')}\n`, { flag: 'wx' });
+  // Through the project store (each file created, never over one; journaled in the new workspace's journal).
+  const store = new ProjectStore(root, personScope(root));
+  await store.writeText(WORKSPACE_FILE, INIT_WORKSPACE_YAML, { ifMatch: null, what: 'workspace' });
+  if (!existsSync(join(root, '.gitignore'))) await store.writeText('.gitignore', `${WORKSPACE_GITIGNORE.join('\n')}\n`, { ifMatch: null, what: 'workspace' });
   return { root, created: true };
 }
 

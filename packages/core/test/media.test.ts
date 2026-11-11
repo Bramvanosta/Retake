@@ -7,20 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  MEDIA_COMPONENTS,
-  isTemplateMediaRef,
-  mediaFileOf,
-  mediaSegmentUse,
-  overlayUseOf,
-  parseScenario,
-  parseTemplateYaml,
-  readLottieMeta,
-  resolveThemeComponents,
-  videoProbeFromJson,
-  probeVideoFile,
-  DEFAULT_TEMPLATE,
-} from '@retake/core';
+import { MEDIA_COMPONENTS, isTemplateMediaRef, mediaFileOf, mediaSegmentUse, overlayUseOf, parseScenario, parseTemplateYaml, readLottieMeta, resolveThemeComponents, videoProbeFromJson, workPolicyFrom, DEFAULT_TEMPLATE, PERSON_POLICY } from '@retake/core';
+import { probeVideoFile, fileFacts } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { colOf, fakeProject, lineOf, tempDir } from './helpers.js';
 
@@ -124,7 +112,7 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
   }, 60_000);
   afterAll(async () => cleanup?.());
 
-  const check = (yaml: string) => parseScenario(yaml, { project: fakeProject(dir) }).issues;
+  const check = (yaml: string) => parseScenario(yaml, { files: fileFacts(PERSON_POLICY), project: fakeProject(dir) }).issues;
 
   it('accepts the documented forms', () => {
     const text = [
@@ -211,12 +199,47 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
   });
 
   it('probes once per file version (cache) and says when a file is not a video', () => {
-    const p = probeVideoFile(join(dir, 'assets', 'intro.mp4'));
+    const p = probeVideoFile(join(dir, 'assets', 'intro.mp4'), PERSON_POLICY);
     expect(p).toMatchObject({ codec: 'h264', width: 160, height: 90, audio: true, alpha: false });
     expect(p.duration_s).toBeCloseTo(2, 1);
-    expect(probeVideoFile(join(dir, 'assets', 'intro.mp4'))).toBe(p);
-    expect(probeVideoFile(join(dir, 'assets', 'burst.webm'))).toMatchObject({ codec: 'vp9', alpha: true });
-    expect(() => probeVideoFile(join(dir, 'assets', 'dot.json'))).toThrow(/ffprobe cannot read it|no video stream/);
+    expect(probeVideoFile(join(dir, 'assets', 'intro.mp4'), PERSON_POLICY)).toBe(p);
+    expect(probeVideoFile(join(dir, 'assets', 'burst.webm'), PERSON_POLICY)).toMatchObject({ codec: 'vp9', alpha: true });
+    expect(() => probeVideoFile(join(dir, 'assets', 'dot.json'), PERSON_POLICY)).toThrow(/ffprobe cannot read it|no video stream/);
+  });
+
+  it('the cache is per ffprobe: another ffprobe reads the same file again (its answer is its own)', () => {
+    const file = join(dir, 'assets', 'opaque.mp4');
+    expect(probeVideoFile(file, PERSON_POLICY)).toMatchObject({ codec: 'h264' });
+    const broken = join(dir, 'broken-ffprobe');
+    writeFileSync(broken, '#!/bin/sh\necho "this ffprobe reads nothing" >&2\nexit 3\n', { mode: 0o755 });
+    const saved = process.env.RETAKE_FFPROBE;
+    process.env.RETAKE_FFPROBE = broken;
+    try {
+      expect(() => probeVideoFile(file, PERSON_POLICY)).toThrow('ffprobe cannot read it (this ffprobe reads nothing)');
+    } finally {
+      if (saved === undefined) delete process.env.RETAKE_FFPROBE;
+      else process.env.RETAKE_FFPROBE = saved;
+    }
+    expect(probeVideoFile(file, PERSON_POLICY)).toMatchObject({ codec: 'h264' });
+  });
+
+  it("a work's ffprobe its policy refuses: the video is reported as one the renderer cannot read, in the refusal's words", () => {
+    const inside = join(dir, 'bin', 'ffprobe');
+    mkdirSync(join(dir, 'bin'), { recursive: true });
+    writeFileSync(inside, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    const saved = process.env.RETAKE_FFPROBE;
+    process.env.RETAKE_FFPROBE = inside;
+    try {
+      const issues = parseScenario('video: own\nintro: {video: assets/intro.mp4}\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hover: {text: Save}\n', { files: fileFacts(workPolicyFrom([dir])), project: fakeProject(dir) }).issues;
+      expect(issues.filter((i) => i.severity === 'error').map((i) => i.message)).toEqual([
+        expect.stringMatching(/^"assets\/intro\.mp4" is not a video the renderer can read: \$RETAKE_FFPROBE \(.*\/bin\/ffprobe\) lies inside the workspace /),
+      ]);
+      // Under the person's policy the same ffprobe runs.
+      expect(() => probeVideoFile(join(dir, 'assets', 'intro.mp4'), PERSON_POLICY)).toThrow(/ffprobe output not understood|ffprobe cannot read it/);
+    } finally {
+      if (saved === undefined) delete process.env.RETAKE_FFPROBE;
+      else process.env.RETAKE_FFPROBE = saved;
+    }
   });
 
   it("checks a theme's own files against the template folder", () => {
@@ -225,7 +248,7 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
     writeFileSync(join(tdir, 'intro.mp4'), '');
     ffmpeg(['-f', 'lavfi', '-i', 'color=c=black:s=64x36:d=1:r=30', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', join(tdir, 'intro.mp4')]);
     const text = ['components:', '  intro: {video: intro.mp4, from: 4}', '  outro: {image: missing.png}', '  interstitial: studio/interstitial-plain'].join('\n');
-    const { issues } = parseTemplateYaml(text, { dir: tdir });
+    const { issues } = parseTemplateYaml(text, { files: fileFacts(PERSON_POLICY), dir: tdir });
     expect(fmt(issues)).toEqual([
       `error 2:${colOf(text, '4}')} components.intro.from: \`from\` (4 s) is past the end of "intro.mp4" (1 s)`,
       `error 3:${colOf(text, 'missing.png')} components.outro.image: image file "missing.png" not found in the template folder`,

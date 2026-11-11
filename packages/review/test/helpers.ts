@@ -10,15 +10,16 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProject, loadTemplate } from '@retake/core';
+import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { planEdit } from '@retake/editor';
-import type { EditOverrides, EditPlan, RenderRecord } from '@retake/editor';
+import { planEdit } from '@retake/editor/plan';
+import type { EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
 import { segmentSpans } from '../src/spans.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import type { SceneSpec } from '../../editor/test/helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 export { synthTimeline };
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
@@ -43,7 +44,7 @@ export async function workspace(): Promise<Workspace> {
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
   const project = await loadProject('demo', root);
   const registry = await loadComponentRegistry({ root });
-  const editorial = await loadTemplate('editorial', REPO);
+  const editorial = await loadTemplate('editorial', REPO, { files: fileFacts(PERSON_POLICY) });
   return { root, project, registry, editorial, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
 

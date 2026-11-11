@@ -89,7 +89,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.15 | Renders on the GPU with a lighter load | S | **done** — ANGLE + VideoToolbox at concurrency 3 on a Mac with a GPU, today's software path otherwise (2026-11-05; the captures-first acceptance on the GPU path not passed: R-CAP-03) |
 | L5.17 | Hardening before the first release: approvals and agent-written hooks, the URLs a scenario opens, sandboxed capture and render browsers, the release workflow | L | **done**, pending the person's review of the pull request (2026-11-05; the first of two lots, L5.18 next) |
 | L5.18 | Hardening before the first release, the rest: one flag for the processes that serve agents, the programs, browser switches and environment their jobs get, the production guard's addresses, the Studio's token and link, MCP over HTTP's port | M | **done**, pending the person's review of the pull request (2026-11-09; next: the first release v0.2.0) |
-| L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
+| L6.1 – L6.13 | Architecture series after the 2026-11-04 audit (action plan T1 – T14): the import-rules ratchet and glossary, the job queue port, one operation catalogue, admission and one caller in the engine, one project store and journal, the CLI on the engine's pipeline, a pure core with its I/O apart and the work policy passed explicitly, the planner apart from the renderer, the in-page kit from modules, the Studio's typed data layer, the worker in parts | L+, in 13 lots | **done**, pending the person's review of the pull request (2026-11-10; no behaviour change beyond the CHANGELOG's [Unreleased]) |
+| L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
 
@@ -1020,6 +1021,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   checked tarball, pnpm by its hash, a sign job that unpacks and runs only what it checked, the app's version checked
   before anything is signed. Requirements R-SEC-11 – R-SEC-28. Cuts: BL-160, BL-161. Next: L5.18, then the first
   release v0.2.0 (the person tags).
+
+### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
+- **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.
+- **Done (2026-11-10, branch `claude/arch-l6`; pending the person's review of the pull request):** see HANDOFF "State (after the architecture series)" and `docs/audit/target-architecture.md`. Import-rules ratchet 99 → 59 entries (R1 at 0), no import cycle. Open: T15's rest, T16.
 
 ### L5.18 — Hardening before the first release, the rest (M)
 - **Goal:** the rest of the hardening decided on 2026-11-05, before the v0.2.0 tag: work an agent can shape runs no

@@ -2,9 +2,9 @@
  * Review contract (docs/DESIGN-phase2.md §3): what `reviewRender` writes and returns, the findings and the rules
  * (thresholds) of the checks.
  */
-import type { LoadedProject } from '@retake/core';
+import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
-import type { PlanSegment, RenderRecord } from '@retake/editor';
+import type { PlanSegment, RenderRecord } from '@retake/editor/plan';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -130,6 +130,8 @@ export const DEFAULT_RULES: Readonly<ReviewRules> = Object.freeze({
 });
 
 export interface ReviewOptions {
+  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
+  policy: WorkPolicy;
   /** A loaded project, or a project slug / directory (resolved in `root`). */
   project: LoadedProject | string;
   /** Workspace root (when `project` is a slug); default: the project's root. */
@@ -166,6 +168,11 @@ export class ReviewCancelledError extends Error {
   constructor(message = 'review cancelled') {
     super(message);
     this.name = 'ReviewCancelledError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'cancelled';
   }
 }
 

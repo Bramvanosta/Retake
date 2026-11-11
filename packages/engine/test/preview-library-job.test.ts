@@ -11,6 +11,8 @@
  * module load fails alone (the others rendered with their own components), its failed.json carries the registry
  * bundle's hash; once the registry changes the failure reads missing and is rendered again without a Retry.
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -22,6 +24,12 @@ import type { ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
 import { LIBRARY_FILES, createEngine, libraryCacheDir, runWorker } from '../src/index.js';
 import type { Engine, JobRecord, LibraryStatesView, PreviewJobResult, PreviewJobTestHooks } from '../src/index.js';
 import { REPO } from './helpers.js';
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('poster')]);
 const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]);
@@ -39,9 +47,9 @@ beforeAll(async () => {
   const dir = join(root, 'projects', 'demo');
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  await createComponent(root, { id: 'acme/thrower', kind: 'card', description: 'A card that throws.' });
+  await createComponent(root, { write: plainWrite,  id: 'acme/thrower', kind: 'card', description: 'A card that throws.' });
   // A workspace override of a built-in id: never the built-in's committed poster.
-  await createComponent(root, { id: 'studio/card-chart', kind: 'card', description: 'An override.' });
+  await createComponent(root, { write: plainWrite,  id: 'studio/card-chart', kind: 'card', description: 'An override.' });
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
 });
 

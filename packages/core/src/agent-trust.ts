@@ -25,62 +25,25 @@
  *
  * A `retake` command typed by a human (trust `author`) is not concerned.
  */
-import { realpathSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { isAbsolute, resolve, sep } from 'node:path';
 import { sqlSource } from './destructive.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
+import { resolvePersonas } from './auth.js';
 import { collectSandboxRefs, collectSecretRefs } from './templating.js';
-import { canonicalOrigin, scenarioNavigationProblems } from './agent-policy.js';
+import { agentWritable, canonicalOrigin, channelWords, realPathOf, scenarioNavigationProblems } from './agent-policy.js';
+import type { AgentChannel } from './agent-policy.js';
+import { needFiles } from './file-facts.js';
+import type { FileFacts } from './file-facts.js';
 import { formatPath } from './issues.js';
+import { pathInside, relativeInside } from './path-inside.js';
 import type { IssuePath } from './issues.js';
 import { locateOffset, parseYaml } from './validation/yaml-source.js';
-import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
+import type { HookStep, JsHookSpec, LoadedProject, Scenario, SqlHookSpec } from './types.js';
 
-/**
- * The channel agent work comes through, for the wording of a refusal: `mcp` (the MCP server: "through MCP"), `studio`
- * (the Studio web app, L4.2: "from the Studio"). The rules are the same.
- */
-export type AgentChannel = 'mcp' | 'studio';
-
-/** "through MCP" / "from the Studio". */
-export function channelWords(via: AgentChannel | undefined): string {
-  return via === 'studio' ? 'from the Studio' : 'through MCP';
-}
-
-/**
- * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`).
- */
-export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/'];
-
-/**
- * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared
- * without case: the default macOS and Windows file systems ignore it, so `RUNS/…` is `runs/…` there (refusing it on a
- * case-sensitive file system too only errs on the safe side).
- */
-export function agentWritable(rel: string): boolean {
-  const p = rel.split(sep).join('/').replace(/^(?:\.\/)+/, '').toLowerCase();
-  return AGENT_WRITABLE_PATHS.some((w) => (w.endsWith('/') ? p === w.slice(0, -1) || p.startsWith(w) : p === w.toLowerCase()));
-}
-
-/**
- * The real path of `p`: its existing part resolved (symbolic links followed, and the case of each name as it is on
- * disk — `realpathSync.native`), the rest appended.
- */
-export function realPathOf(p: string): string {
-  try {
-    return realpathSync.native(p);
-  } catch {
-    const parent = dirname(p);
-    return parent === p ? p : join(realPathOf(parent), basename(p));
-  }
-}
-const realPath = realPathOf;
-
-/** Whether `p` is `dir` or inside it, once symbolic links are followed on both. */
-export function insideFolder(dir: string, p: string): boolean {
-  const rel = relative(realPathOf(resolve(dir)), realPathOf(resolve(p)));
-  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+/** Whether `p` is `dir` or inside it, once symbolic links are followed on both (pathInside with `real`: realPathOf of each, resolved against the current folder). */
+export function insideFolder(dir: string, p: string, files: FileFacts): boolean {
+  return pathInside(p, dir, { real: (x: string): string => realPathOf(resolve(x), files) });
 }
 
 /**
@@ -88,15 +51,16 @@ export function insideFolder(dir: string, p: string): boolean {
  * project folder; a sandbox seed's: its sandbox.yaml folder) and must stay inside the project folder once symbolic
  * links are followed. `code`: the file is run (or sent to a database) — it must not be one an agent can write.
  */
-export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean; via?: AgentChannel } = {}): string | null {
+export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean; via?: AgentChannel; files: FileFacts }): string | null {
   const through = channelWords(o.via);
   if (isAbsolute(ref) || /^~(?:[\\/]|$)/.test(ref)) {
     return `${ref} is an absolute path: ${through} a file is referenced relative to the project folder, inside it`;
   }
-  const root = realPath(resolve(projectDir));
-  const target = realPath(resolve(o.baseDir ?? projectDir, ref));
-  const rel = relative(root, target);
-  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+  const files = needFiles(o.files, 'projectFileProblem');
+  const root = realPathOf(resolve(projectDir), files);
+  const target = realPathOf(resolve(o.baseDir ?? projectDir, ref), files);
+  const rel = relativeInside(target, root);
+  if (rel === undefined) {
     // Never the target itself: a path outside the project is not the agent's to learn (L4.1 review A).
     return `${ref} resolves outside the project folder: ${through} only files of the project folder are read`;
   }
@@ -202,11 +166,11 @@ export interface RenderFileRef {
  * `..`, no symbolic link out of it), and a Lottie file (code: lottie-web evaluates its expressions) not one an agent
  * can write. One positioned message per file.
  */
-export function renderFileProblems(projectDir: string, refs: readonly RenderFileRef[]): string[] {
+export function renderFileProblems(projectDir: string, refs: readonly RenderFileRef[], files: FileFacts): string[] {
   const out: string[] = [];
   for (const f of refs) {
     const code = LOTTIE_FILE_EXTENSIONS.includes(fileExtension(f.ref));
-    const p = projectFileProblem(projectDir, f.ref, { code });
+    const p = projectFileProblem(projectDir, f.ref, { code, files });
     if (p) out.push(`${f.where}: ${code ? `${p} (a Lottie file is code: its expressions run in the render)` : p}`);
   }
   return out;
@@ -228,13 +192,15 @@ export interface AgentTrustOptions {
    * get the scheme rule of the validation only.
    */
   env?: AgentTrustEnvironment;
+  /** How the files it names are looked at (core FileFacts): real paths. */
+  files: FileFacts;
 }
 
 /**
  * The navigation problems of agent work on a known environment (AgentTrustOptions.env), each with where it is: the part
  * of agentTrustProblems about the URLs it opens (the Studio words them apart: "opens another site").
  */
-export function navigationTrustProblems(sc: Scenario, o: AgentTrustOptions): Array<{ path: IssuePath; message: string }> {
+export function navigationTrustProblems(sc: Scenario, o: Omit<AgentTrustOptions, 'files'>): Array<{ path: IssuePath; message: string }> {
   if (!o.env) return [];
   const origins = [...new Set(Object.values(o.env.pages).map(canonicalOrigin).filter((x): x is string => x !== null))];
   return scenarioNavigationProblems(sc, { origins, pageKeys: Object.keys(o.env.pages), envName: o.env.name, ...(o.via ? { via: o.via } : {}) }).map((p) => ({
@@ -243,13 +209,96 @@ export function navigationTrustProblems(sc: Scenario, o: AgentTrustOptions): Arr
   }));
 }
 
+/** The origins of the pages a persona signs in to on an environment: its `pages`, as that environment's URLs. */
+export function personaPageOrigins(pages: readonly string[], envPages: Readonly<Record<string, string>>): string[] {
+  const out = new Set<string>();
+  for (const k of pages) {
+    const o = Object.hasOwn(envPages, k) ? canonicalOrigin(envPages[k]) : null;
+    if (o) out.add(o);
+  }
+  return [...out];
+}
+
+/**
+ * Trust `mcp`: an http hook acting as a persona (`auth: {persona}`) sends that persona's session only to the persona's
+ * own pages — the origin of `url` must be the origin of a page the persona signs in to (`allowed`: personaPageOrigins).
+ * One sentence when it is not (`url` null: its origin cannot be told before it runs); null when it is.
+ */
+export function personaAuthOriginProblem(persona: string, url: string | null, allowed: readonly string[], via?: AgentChannel): string | null {
+  const origin = url === null ? null : canonicalOrigin(url);
+  if (origin !== null && allowed.includes(origin)) return null;
+  return (
+    `${channelWords(via)} an http hook acting as persona ${persona} (\`auth: {persona}\`) sends its session only to that persona's own pages ` +
+    `(${allowed.join(', ') || 'none'}): ${origin ?? 'its URL\'s origin cannot be told before it runs'}${origin ? ' is not one of them' : ''}`
+  );
+}
+
+const TEMPLATE_TOKEN = /\{\{\s*([^{}]*?)\s*\}\}/g;
+
+/**
+ * The origin a hook URL template has on an environment: its page tokens (`{{app}}`) filled with the environment's URLs;
+ * null when another token could change the origin (a variable in the host) or the result is not an http(s) URL.
+ */
+function templateOrigin(url: string, envPages: Readonly<Record<string, string>>): string | null {
+  const fill = (other: string) => url.replace(TEMPLATE_TOKEN, (_m, expr: string) => (Object.hasOwn(envPages, expr) ? envPages[expr].replace(/\/+$/, '') : other));
+  const a = canonicalOrigin(fill('a'));
+  return a !== null && a === canonicalOrigin(fill('b')) ? a : null;
+}
+
+/**
+ * Agent trust for the http hooks of a scenario that act as a persona (`auth: {persona}`, their rollbacks too): on every
+ * environment of the project (only `o.env`'s when it is known) where the persona is declared, the hook's URL must have
+ * the origin of one of the persona's own pages (personaAuthOriginProblem). Needs the loaded project (its environments
+ * and personas); the hooks runner holds the same rule on the rendered URL.
+ */
+export function personaAuthTrustProblems(
+  project: { dir: string; slug?: string; config?: object },
+  sc: Scenario,
+  o: Omit<AgentTrustOptions, 'files'>,
+): Array<{ path: IssuePath; message: string }> {
+  const full = project as Partial<Pick<LoadedProject, 'slug' | 'config' | 'sandboxes'>> & { dir: string };
+  const environments = full.config && 'environments' in full.config ? full.config.environments : undefined;
+  if (!full.slug || !full.config || !environments) return [];
+  const loaded = full as Pick<LoadedProject, 'slug' | 'dir' | 'config'> & Partial<Pick<LoadedProject, 'sandboxes'>>;
+  const envs = o.env ? [{ name: o.env.name, pages: o.env.pages }] : Object.entries(environments).map(([name, pages]) => ({ name, pages }));
+  const out: Array<{ path: IssuePath; message: string }> = [];
+  const check = (h: unknown, path: IssuePath) => {
+    if (!h || typeof h !== 'object' || !('http' in h)) return;
+    const http = (h as { http: unknown }).http;
+    if (!http || typeof http !== 'object') return;
+    const rb = (http as { rollback?: unknown }).rollback;
+    for (const [req, rp] of [[http, [...path, 'http']], [rb, [...path, 'http', 'rollback']]] as Array<[unknown, IssuePath]>) {
+      if (!req || typeof req !== 'object') continue;
+      const { auth, url } = req as { auth?: { persona?: unknown }; url?: unknown };
+      const persona = auth && typeof auth === 'object' ? auth.persona : undefined;
+      if (typeof persona !== 'string' || typeof url !== 'string') continue;
+      for (const env of envs) {
+        const p = resolvePersonas(loaded, env.name, { home: '/' }).find((x) => x.name === persona);
+        if (!p) continue;
+        const origin = templateOrigin(url, env.pages);
+        const problem = personaAuthOriginProblem(persona, origin, personaPageOrigins(p.pages, env.pages), o.via);
+        if (problem) {
+          out.push({ path: [...rp, 'url'], message: `${formatPath([...rp, 'url'])}: ${problem}${envs.length > 1 ? ` (environment ${env.name})` : ''}` });
+          break;
+        }
+      }
+    }
+  };
+  const list = (v: unknown, path: IssuePath) => (Array.isArray(v) ? v.forEach((h, i) => check(h, [...path, i])) : check(v, path));
+  list(sc.setup ?? [], ['setup']);
+  list(sc.teardown ?? [], ['teardown']);
+  const own = sc.hooks && typeof sc.hooks === 'object' ? (sc.hooks as Record<string, unknown>) : {};
+  for (const [name, v] of Object.entries(own)) list(v, ['hooks', name]);
+  return out;
+}
+
 /**
  * Why a scenario cannot run as work submitted through MCP (trust `mcp`): its secret references, and the files it
  * references outside the project folder or, run as code, in files an agent can write; with the project's config, a
  * theme it names by folder (`template:`); with the environment it runs on (`o.env`), a URL it opens on another origin
  * than the environment's pages. Empty: nothing found.
  */
-export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: AgentTrustOptions = {}): string[] {
+export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: AgentTrustOptions): string[] {
   const problems: string[] = [];
   if (project.config && typeof sc.template === 'string') {
     const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template', o.via);
@@ -258,10 +307,11 @@ export function agentTrustProblems(project: { dir: string; config?: { template?:
   const secrets = secretRefsProblem([...collectSecretRefs(sc), ...collectSandboxRefs(sc)], 'the scenario', o.via);
   if (secrets) problems.push(secrets);
   for (const f of scenarioFileRefs(sc)) {
-    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
+    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}), files: o.files });
     if (p) problems.push(`${f.where}: ${p}`);
   }
   for (const p of navigationTrustProblems(sc, o)) problems.push(p.message);
+  for (const p of personaAuthTrustProblems(project, sc, o)) problems.push(p.message);
   return problems;
 }
 
@@ -286,7 +336,7 @@ function stringLeaves(v: unknown, path: IssuePath, out: Array<{ path: IssuePath;
  * reference at the string that names it, a template folder at `template`. The same rules; a problem that cannot be
  * placed keeps an empty path and no line.
  */
-export function agentTrustProblemsAt(project: { dir: string; config?: { template?: string } }, sc: Scenario, text: string, o: AgentTrustOptions = {}): PositionedTrustProblem[] {
+export function agentTrustProblemsAt(project: { dir: string; config?: { template?: string } }, sc: Scenario, text: string, o: AgentTrustOptions): PositionedTrustProblem[] {
   const parsed = parseYaml(text);
   const at = (message: string, path: IssuePath): PositionedTrustProblem => {
     const off = path.length && parsed.value !== undefined ? locateOffset(parsed.source, path) : undefined;
@@ -314,12 +364,13 @@ export function agentTrustProblemsAt(project: { dir: string; config?: { template
     if (p) out.push({ message: p, path: [] });
   }
   for (const f of scenarioFileRefs(sc)) {
-    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
+    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}), files: o.files });
     if (!p) continue;
     const named = leaves.filter((l) => l.text === f.ref || (l.text.includes(f.ref) && f.ref.length > 2));
     const leaf = named.find((l) => ['path', 'file', 'drop_file', 'eval', 'sql', 'js'].includes(String(l.path[l.path.length - 1]))) ?? named[0];
     out.push(at(`${f.where}: ${p}`, leaf?.path ?? []));
   }
   for (const p of navigationTrustProblems(sc, o)) out.push(at(p.message, p.path));
+  for (const p of personaAuthTrustProblems(project, sc, o)) out.push(at(p.message, p.path));
   return out;
 }

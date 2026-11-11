@@ -4,7 +4,8 @@
  * failure — this process ignores it (as the jobs worker does), the test runner would count it.
  * Args: <workspace root> <component id> <open|guard> <out.mp4>. Prints one JSON line: {ok, error?, warnings}.
  */
-import { loadProject } from '@retake/core';
+import { PERSON_POLICY } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import { planRun, renderPlan } from '@retake/editor';
 import type { RenderNetwork } from '@retake/editor';
 
@@ -13,9 +14,9 @@ process.on('unhandledRejection', (e) => {
 });
 const [root, component, network, out, cacheDir] = process.argv.slice(2);
 const project = await loadProject('demo', root);
-const planned = await planRun({ project, run: 'latest', root, overrides: { intro: true, components: { intro: component } } });
+const planned = await planRun({ workPolicy: PERSON_POLICY, project, run: 'latest', root, overrides: { intro: true, components: { intro: component } } });
 try {
-  const res = await renderPlan({ plan: planned.plan, out, root, cacheDir, network: network as RenderNetwork, frameRange: [0, 5], concurrency: 2 });
+  const res = await renderPlan({ workPolicy: PERSON_POLICY, plan: planned.plan, out, root, cacheDir, network: network as RenderNetwork, frameRange: [0, 5], concurrency: 2 });
   process.stdout.write(`${JSON.stringify({ ok: true, warnings: res.warnings })}\n`);
 } catch (e) {
   process.stdout.write(`${JSON.stringify({ ok: false, error: (e as Error).message, warnings: [] })}\n`);

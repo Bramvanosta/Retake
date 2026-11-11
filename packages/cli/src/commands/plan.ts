@@ -1,18 +1,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import {
-  COMPONENT_ID_RE,
-  FRAME_STYLE_LAYOUTS,
-  MULTI_PAGE_LAYOUTS,
-  loadProjectTemplate,
-  newerRunMessage,
-  parseScenario,
-  readJson,
-  runIdMatchesScenario,
-  scenarioChangedMessage,
-  writeJson,
-} from '@retake/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, parseScenario, runIdMatchesScenario, scenarioChangedMessage, projectPath } from '@retake/core';
+import { loadProjectTemplate, newerRunMessage, readJson, writeJson, fileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import { editOfToday, noteEdit, planEdit, planInputFiles, runEnv, summarizePlan } from '@retake/editor';
@@ -58,7 +48,7 @@ function hasCaptureTimeline(dir: string): boolean {
  * their date, so they sort chronologically.
  */
 export function resolveRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
-  const runsDir = join(project.dir, 'runs');
+  const runsDir = projectPath(project.dir, 'runs');
   if (arg === 'latest') {
     let ids: string[] = [];
     try {
@@ -118,9 +108,9 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   if (captured.mode === 'dry') throw new CliError(`run ${run.id} is a dry run: there is no capture to plan`);
   const env = await runEnv(run.dir);
   // L5.5: the edit of today's scenario file when its filmed part is unchanged since the run, else the run's.
-  const { timeline, edit, warnings } = editOfToday(project, run, captured, env);
+  const { timeline, edit, warnings } = editOfToday(project, run, captured, env, 'auto', undefined, fileFacts(ws.policy));
   const themeRef = opts.theme ?? timeline.video?.template ?? project.config.template;
-  const template = await loadProjectTemplate(project, themeRef);
+  const template = await loadProjectTemplate(project, themeRef, { files: fileFacts(ws.policy) });
   const registry = await loadComponentRegistry({ root: ws.root });
   const overrides: EditOverrides = {};
   if (opts.theme) overrides.theme = template.name;
@@ -136,7 +126,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     scenario: await runScenario(run.dir),
     env,
     overrides,
-    files: await planInputFiles(timeline, project, template),
+    files: await planInputFiles(timeline, project, template, ws.policy),
   });
   if (opts.out) {
     const out = resolve(opts.out);

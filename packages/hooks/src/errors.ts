@@ -1,8 +1,20 @@
+import { GUIDE } from '@retake/core';
+import type { ErrorKind } from '@retake/core';
+
 /** A hook could not be prepared or failed while running. */
 export class HookError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = 'HookError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
   }
 }
 
@@ -19,6 +31,15 @@ export class HookSecurityError extends Error {
     super(message);
     this.name = 'HookSecurityError';
   }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'refused';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.security;
+  }
 }
 
 /** A journal file is unreadable or malformed. */
@@ -29,6 +50,11 @@ export class JournalError extends Error {
   ) {
     super(message);
     this.name = 'JournalError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
   }
 }
 

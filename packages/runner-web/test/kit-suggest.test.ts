@@ -10,6 +10,7 @@ import type { Browser, Page } from 'playwright-core';
 import { kitConfigFor, kitSource, openSession } from '../src/index.js';
 import type { BrowserSession, InventoryElement, KitInventory } from '../src/index.js';
 import { startServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 import type { TestServer } from './helpers.js';
 
 const LAB = `<!doctype html><html><body>
@@ -58,7 +59,7 @@ type Kit = {
 
 beforeAll(async () => {
   server = await startServer({ '/lab.html': LAB });
-  session = await openSession({ width: 1200, height: 900, scale: 1, kit: kitConfigFor(undefined, { hidden: true }) });
+  session = await openSession({ policy: PERSON_POLICY, width: 1200, height: 900, scale: 1, kit: kitConfigFor(undefined, { hidden: true }) });
   page = await session.page('main');
   await page.goto(`${server.url}/lab.html`);
   browser = await chromium.launch({ headless: true });

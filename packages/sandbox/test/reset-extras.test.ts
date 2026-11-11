@@ -11,7 +11,8 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject, parseSandboxYaml } from '@retake/core';
+import { PERSON_POLICY, parseSandboxYaml } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import { openSandbox, probePort } from '@retake/sandbox';
 
 const EMULATOR = `
@@ -100,7 +101,7 @@ describe('a reset puts back a Firebase Auth emulator and runs reset.hooks (hotfi
     await writeFile(join(dir, 'project.yaml'), ['name: Reset extras', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', ''].join('\n'));
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest(port));
     await writeFile(join(dir, 'sandbox', 'emulator.cjs'), EMULATOR);
-    const sb = openSandbox(await loadProject(dir), 'sandbox');
+    const sb = openSandbox(await loadProject(dir), 'sandbox', PERSON_POLICY);
     try {
       const up = await sb.up();
       expect(up.reset).toMatchObject({ seed: { steps: 1 }, firebase_auth: { accounts: 1 }, hooks: { steps: 1 } });

@@ -27,7 +27,7 @@ import { copyFile, cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { firstHiddenChar } from '@retake/core';
+import { firstHiddenChar, PERSON_POLICY } from '@retake/core';
 import { TakeLock } from '@retake/sandbox';
 import {
   FileJobQueue,
@@ -42,10 +42,12 @@ import {
   recordLockFile,
   recordsRoot,
   runWorker,
+  personScope,
   saveRecordedDraft,
 } from '../src/index.js';
 import type { Engine, EngineError, RecordJobResult, RecordJobTestHooks, RecordView } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
+import { fileFacts } from '@retake/core/io';
 
 type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
 
@@ -385,7 +387,7 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
   it('the write path of Save: agent trust refuses a secret reference, with no path in the answer', async () => {
     const p = await project();
     const yaml = `version: 1\nvideo: trust-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - type: {into: {label: Note}, text: "{{env:HOME}}"}\n`;
-    const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab']));
+    const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab'], personScope(p.root), fileFacts(PERSON_POLICY)));
     expect(e.code).toBe('invalid');
     expect(JSON.stringify({ m: e.message, d: e.details })).not.toContain(p.dir);
     expect((e.details as { issues: Array<{ scene?: string; step?: number }> }).issues[0]).toMatchObject({ scene: 'lab', step: 0 });
@@ -504,8 +506,8 @@ describe('discard, cancel and one window at a time', () => {
     await q.write({ ...job0, state: 'running', started_at: now, worker: { pid: process.pid, host: 'h' }, progress: { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: now } });
     const r = keep(await ui.record.stop(PROJECT, pre, { job: job0.id }));
     expect(r.action).toBe('cancelled');
-    expect(await q.stopRequested(job0.id)).toBe(true);
-    expect(await q.cancelRequested(job0.id)).toBe(false);
+    expect(await q.stopOf(job0.id)).toMatchObject({ at: expect.any(String) });
+    expect(await q.cancelOf(job0.id)).toBeUndefined();
     expect(r.view.can.stop).toBe(false);
     await q.write({ ...job0, state: 'cancelled', started_at: now, finished_at: now });
     // The worker takes a job whose stop was asked as it was taken: nothing opens, nothing is kept, no folder.
@@ -605,7 +607,7 @@ describe('after the reviews (trust)', () => {
     const p = await project();
     const rlo = String.fromCharCode(0x202e);
     const yaml = `version: 1\nvideo: hidden-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - click: Save\n      - click: "Cancel${rlo}lecnac"\n`;
-    const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab']));
+    const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab'], personScope(p.root), fileFacts(PERSON_POLICY)));
     expect(e.code).toBe('invalid');
     expect(e.message).toMatch(/scene lab, step 2 holds U\+202E \(a direction control\)/);
     expect(firstHiddenChar(e.message)).toBeUndefined();

@@ -2289,7 +2289,9 @@ and `job_end` lines); what remains:
   a download of our own (or a newer plugin).
 
 ### BL-144 — A CI workflow for pull requests and main
-*S · noted in L5.16e · builds on: L5.16e*
+*S · noted in L5.16e · builds on: L5.16e · partly done (2026-11-10): `.github/workflows/ci.yml` exists (build, guards,
+the shell's rules; the test suite taken out until BL-163); left: the suite back in the CI, the release job waiting for
+main's green run, `actionlint`*
 
 - The repository has only the release workflow (`.github/workflows/release.yml`, on `v*` tags): nothing runs
   `pnpm build` and the test suite on a pull request or a push to main, so the release job checks that the tagged
@@ -2449,6 +2451,26 @@ a Mac shared with other accounts:
   `… bin.js|retake … mcp … --http`. Another program of the same account can copy that command line, so it gets the
   "port busy" answer instead of the rotate-token advice. A challenge (the listener proves it holds the token without
   sending it) would close this; within one account, that program could read the token file anyway.
+
+### BL-163 — A faster, steadier test suite, back in the CI
+*M · noted when the suite left the CI (2026-11-10) · builds on: BL-144, the architecture series*
+
+The default suite (`pnpm test`, about 440 files) takes about 20 minutes on the Mac and about 50 on a shared macOS
+runner (three cores, no GPU), where some timing tests failed on every run — a different set each time (19, 7, then 12
+failures with two files at a time; with two retries, still 4 tests in 2 files: a held tab load in
+`runner-web/test/navigation.test.ts`, three Studio-in-Chromium tests in `ui/test/studio-e2e.test.ts`). One file at
+a time stalled after 62 files and ran past two hours. So `ci.yml` runs the build and the guards only. What to do:
+- **Measure where the time goes**: the slowest files and tests (`vitest --reporter=json` durations), how many browser
+  launches, renders and ffmpeg runs the default suite does, and which of them a cheaper test (a unit test on the
+  function, a shared browser per file, a smaller frame size, fewer frames) would cover as well.
+- **Split the suite**: a fast tier (no browser, no render, no ffmpeg: a few minutes) for every pull request, and the
+  browser / render tier on the Mac or a nightly run; the gated tiers stay opt-in.
+- **Waits, not timings**: a test that asserts a duration or races a paint waits for the event it measures
+  (`expect.poll`, the page's own signal) or keeps its bound to the Mac (`MAC_TIMING`, the eleven files
+  `ci-workflow.test.ts` lists); find the tests that fail under load (run the suite with the cores busy) and fix them.
+- **Why one file at a time stalled**: a test that never ends (a browser or ffprobe left behind, a wait with no
+  limit) — every wait in the suite needs a limit, and a file that outlives it fails with what it was waiting for.
+- Then the suite (or its fast tier) goes back into `ci.yml`, and the release can wait for main's green run (BL-144).
 
 ### BL-166 — The app's native menus, reworked
 *M–L · founder's request (2026-11-11) · builds on: L5.2, L5.9, L5.11a, L5.16c · see BL-126*

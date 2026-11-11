@@ -20,6 +20,7 @@ install it, a first video and where to go next.
 | [Security model](security.md) | what Retake protects, and how |
 | [Development](development.md) | the repository's layout, the test suites, the phase status |
 | [Upgrading](upgrading.md) | a new build on a workspace an older one served |
+| [Glossary](../GLOSSARY.md) | one word per concept, the Studio's labels for them, and the words with several meanings |
 
 Also in `docs/`: [RELEASING.md](../RELEASING.md) (how a release is built and published),
 [BRING-YOUR-OWN-MOTION.md](../BRING-YOUR-OWN-MOTION.md) (your own intro, outro and overlays),
@@ -61,7 +62,7 @@ Environments* means the section of that name below.
 
 ### [Themes, components and media](themes-and-components.md)
 
-- [Templates (themes)](themes-and-components.md#templates-themes)
+- [Themes](themes-and-components.md#themes)
   - [Themes from your brand](themes-and-components.md#themes-from-your-brand)
   - [Themes from a site](themes-and-components.md#themes-from-a-site)
 - [Components](themes-and-components.md#components)

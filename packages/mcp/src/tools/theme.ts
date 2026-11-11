@@ -4,10 +4,10 @@ import { BrandInputSchema } from '@retake/core';
 import type { Engine, JobRecord, SiteJobResult, TemplateDetail, TemplateSummary, ThemeCreated } from '@retake/engine';
 import { projectSlug, templateName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolImage, ToolOutput } from '../result.js';
+import type { ToolImage } from '../result.js';
 import { isSiteWarning } from '@retake/engine';
 import { PREVIEW_JOB, READ, SITE_JOB, THEME_WRITE, defineTool } from './define.js';
-import { jobErrorLine, jobLine } from './jobs.js';
+import { jobErrorLine, jobLine } from './job-lines.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { previewOutput } from './preview.js';
 import { WAIT_MAX_S, waitJob, waitS } from './run.js';
@@ -46,12 +46,12 @@ export const templateList = defineTool({
   async run({ project, template }, { engine }) {
     if (template !== undefined) {
       const d = await engine.templates.get({ template, ...(project ? { project } : {}) });
-      return { summary: detailSummary(d), data: d as unknown as Record<string, unknown> };
+      return { summary: detailSummary(d), data: d };
     }
     const v = await engine.templates.list(project ? { project } : {});
     return {
       summary: [`${plural(v.templates.length, 'theme')}${v.project_theme ? ` (project theme: ${v.project_theme})` : ''}:`, ...v.templates.map(themeLine), 'Details: template_list {template}; stills: template_preview {project, template}.'].join('\n'),
-      data: v as unknown as Record<string, unknown>,
+      data: v,
     };
   },
 });
@@ -97,7 +97,7 @@ export const templateCreateFromBrand = defineTool({
   annotations: THEME_WRITE,
   async run(input, { engine }) {
     const c = await engine.templates.create(input);
-    return { summary: createdSummary(c), data: c as unknown as Record<string, unknown> };
+    return { summary: createdSummary(c), data: c };
   },
 });
 
@@ -131,7 +131,7 @@ const pct = (x: number) => `${Math.round(x * 100)} %`;
  * read back as a file of the workspace (only values of the tool's own shape outside `untrusted`); the screenshot and
  * logo candidates as images of a third-party page; the draft brand input for template_create_from_brand.
  */
-export async function siteOutput(engine: Engine, job: JobRecord, head: string[] = []): Promise<ToolOutput> {
+export async function siteOutput(engine: Engine, job: JobRecord, head: string[] = []) {
   const input = job.input;
   if (input.kind !== 'site') throw new Error(`job ${job.id} is not a site extraction`);
   const lines = [...head, jobLine(job)];
@@ -197,4 +197,4 @@ export const templateFromSite = defineTool({
   },
 });
 
-export const THEME_TOOLS: ToolDef[] = [templateList, templatePreview, templateFromSite, templateCreateFromBrand];
+export const THEME_TOOLS = [templateList, templatePreview, templateFromSite, templateCreateFromBrand] as const satisfies readonly ToolDef[];

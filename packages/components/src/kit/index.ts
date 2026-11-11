@@ -23,6 +23,7 @@ export * from './picture.js';
 export * from './place.js';
 export * from './panes.js';
 export * from './media.js';
+export * from './frame-geometry.js';
 export type {
   ComponentProps,
   ThemeTokens,

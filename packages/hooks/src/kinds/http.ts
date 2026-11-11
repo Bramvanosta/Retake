@@ -1,9 +1,9 @@
 import { STATUS_CODES } from 'node:http';
-import { httpWriteReason, resolvePersonas } from '@retake/core';
+import { httpWriteReason, personaAuthOriginProblem, personaPageOrigins, resolvePersonas } from '@retake/core';
 import type { HttpHookSpec } from '@retake/core';
 import { checkHostAllowed, checkWriteHosts } from '../allow-list.js';
 import { describeHttp } from '../describe.js';
-import { HookError, errorMessage } from '../errors.js';
+import { HookError, HookSecurityError, errorMessage } from '../errors.js';
 import { addSecret, redactText } from '../secrets.js';
 import { checkTokens, hookTemplateContext, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
 import { journalsRollback } from '../types.js';
@@ -70,12 +70,26 @@ function toCall(spec: HttpRequestSpec, ctx: HookContext): HttpCall {
   if (persona !== undefined) {
     const set = Object.keys(headers).find((h) => ['authorization', 'cookie'].includes(h.toLowerCase()));
     if (set) throw new HookError(`http hook: \`auth: {persona: ${persona}}\` sets the ${set} header from the persona's session: remove one of the two`);
-    if (!resolvePersonas(ctx.project, ctx.env.name).some((p) => p.name === persona)) {
-      const names = resolvePersonas(ctx.project, ctx.env.name).map((p) => p.name);
+    // Only the names are read: `home` places the session files, which no name depends on (as core checks/scenario.ts).
+    const names = resolvePersonas(ctx.project, ctx.env.name, { home: '/' }).map((p) => p.name);
+    if (!names.includes(persona)) {
       throw new HookError(`http hook: persona "${persona}" is not declared for environment "${ctx.env.name}" (personas: ${names.join(', ') || 'none'})`);
     }
   }
   return { method, url: url.toString(), display: spec.url, headers, body, expect: spec.expect, ...(persona !== undefined ? { persona } : {}) };
+}
+
+/**
+ * Trust `mcp` (core agent-trust personaAuthOriginProblem): an http hook acting as a persona is sent only to that
+ * persona's own pages' origins — checked on the URL as rendered, when the hook is prepared (before any approval or
+ * request) and again before the session is read.
+ */
+function personaOriginGuard(call: Pick<HttpCall, 'persona' | 'url'>, ctx: HookContext): void {
+  if (call.persona === undefined || ctx.trust !== 'mcp') return;
+  const persona = call.persona;
+  const p = resolvePersonas(ctx.project, ctx.env.name, { home: '/' }).find((x) => x.name === persona);
+  const problem = personaAuthOriginProblem(persona, call.url, personaPageOrigins(p?.pages ?? [], ctx.env.pages), ctx.via);
+  if (problem) throw new HookSecurityError(`http hook: ${problem}`, 'mcp');
 }
 
 /**
@@ -89,6 +103,7 @@ async function withPersona(call: HttpCall, ctx: HookContext): Promise<HttpCall> 
   if (!ctx.personaAuth) {
     throw new HookError(`http hook: \`auth: {persona: ${persona}}\` needs the saved session of the persona, and none exists here (a sandbox seed runs before anyone signs in): sign in with the product's own API and {{accounts.${persona}.password}}`);
   }
+  personaOriginGuard(call, ctx);
   const auth = await ctx.personaAuth(persona, call.url);
   if (!auth.authorization && !auth.cookie) {
     throw new HookError(
@@ -251,6 +266,7 @@ export async function prepareHttp(spec: HttpHookSpec, k: KindEnv): Promise<Prepa
     throw new HookError(`http hook: \`auth: {persona: ${call.persona}}\` is not available in a sandbox seed (no persona is signed in while the data is being built): sign in with the product's own API and {{accounts.${call.persona}.password}}`);
   }
   checkHostAllowed(call.url, ctx.project);
+  personaOriginGuard(call, ctx);
   ignoreRollback(k, rollback !== undefined);
   const rollbackTemplate = journalsRollback(k.phase) ? rollback : undefined;
   if (rollbackTemplate) checkTokens(rollbackTemplate, await hookTemplateContext(ctx, rollbackTemplate), ['response']);
