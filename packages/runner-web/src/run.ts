@@ -65,6 +65,7 @@ import type {
 } from '@retake/core';
 import { snapshotMailbox } from './actions/artefacts.js';
 import { ActivityRecorder, analyzeActivity, clicksOf, slowTransitions } from './activity.js';
+import { LoadingWatch } from './loading-watch.js';
 import { watchNotifications } from './notifications.js';
 import { mergeCapture, mergePacing, projectBrowser } from './config.js';
 import { runFfmpeg } from './encode.js';
@@ -502,6 +503,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   let mainEncoder: StreamEncoder | null = null;
   const activity = new ActivityRecorder();
   let sampler: PerfSampler | null = null;
+  // Hotfix v0.2.6: the loading indicators the filmed page shows (the review's `loading-filmed`).
+  let loadingWatch: LoadingWatch | null = null;
   let gpu: GpuInfo | undefined;
   let perfCpu: RunPerfCpu | undefined;
   let perfMachine: RunPerf['machine'] | undefined;
@@ -813,6 +816,9 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       if (firstPage) await recorder.start(rt.page);
       else await recorder.prepare();
       rt.recorder = recorder;
+      const rec = recorder;
+      loadingWatch = new LoadingWatch(() => rec.recordingPage ?? undefined, () => clock.now(), (p) => session?.idOf(p));
+      loadingWatch.start();
     }
     if (mode === 'capture') {
       // What the take costs (R-FLD-23): Chromium's processes, the encoders, the product's local servers.
@@ -939,6 +945,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     if (filming) {
       filming = false;
       beside = tell(opts.onFilming!, 'stop');
+    }
+    if (loadingWatch) {
+      const spans = loadingWatch.stop();
+      if (spans.length) timeline.loading_ui = spans;
     }
     if (sampler) {
       perfCpu = await sampler.stop().catch(() => undefined);

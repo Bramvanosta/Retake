@@ -55,6 +55,7 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
       break;
     case 'type':
       target(a.into, 'into');
+      if (a.fill === true && a.cps !== undefined) ctx.error([...ap, 'cps'], '`fill` sets the value at once: `cps` (the typing pace) does not apply — keep one');
       break;
     case 'select':
       if (a.combobox === undefined && a.field === undefined) {

@@ -7,7 +7,7 @@ import type {
   RunMode,
   Timeline,
   TimelineEvent,
-  TimelineBusy,
+  TimelineBusy, TimelineLoadingUi,
   TimelineLoading,
   TimelinePause,
   TimelineStall,
@@ -355,6 +355,8 @@ export class TimelineBuilder {
   stalls: TimelineStall[] = [];
   /** Waits the main capture showed after clicks (L5.7, R-FLD-26), set when the run ends. */
   busy: TimelineBusy[] = [];
+  /** Hotfix v0.2.6: loading indicators in the filmed page (LoadingWatch). */
+  loading_ui: TimelineLoadingUi[] = [];
   /** Where the take was paused between steps (L4.4). */
   readonly pauses: TimelinePause[] = [];
   /** The run's environment (L1.7): access, display table, clock; the read-only guard appends to `writes`. */
@@ -448,6 +450,7 @@ export class TimelineBuilder {
       ...(this.loading.length ? { loading: this.loading } : {}),
       ...(this.stalls.length ? { stalls: this.stalls } : {}),
       ...(this.busy.length ? { busy: this.busy } : {}),
+      ...(this.loading_ui.length ? { loading_ui: this.loading_ui } : {}),
       ...(this.pauses.length ? { pauses: this.pauses } : {}),
       ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
       ...(this.tracks.length ? { tracks: this.tracks.map((t) => t.build(end)) } : {}),

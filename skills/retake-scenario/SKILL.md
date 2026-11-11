@@ -109,6 +109,14 @@ in a step, or pass `within`). Ask for `detail: "full"` only when what you need i
   `wait_for` a result rather than a fixed `wait`.
 - Demo data only: showable names and values that the project's README or the user gave, never real customer data.
 - A `mark` at each beat, so the review's key frames show them; the review comes back clean.
+- Never a load on screen: every `open`, reload or submit that changes page goes in an `offscreen` scene that waits for
+  `network_idle`. Show the state, not the path to it: URL parameters, hooks off camera.
+- Overlays never on the last step of a scene. Forms filled fast (`fill: true`), but no scene faster than ×2.
+- One zoom at most, centred on a point, never while the page scrolls. A live update shows in two beats: read the
+  reply, then watch the change arrive.
+- Captions never contradict the UI's text. Before writing, inspect the app's language and theme; dates aim at next
+  month in the calendar. Then look at each render at 2–3 frames a second around transitions
+  ([the rules in full](reference/scenario-language.md#rules-that-hold-for-every-product)).
 
 ## The user shows the flow instead (recorder)
 
