@@ -10,6 +10,10 @@ import { agentTrustProblems, agentTrustProblemsAt, parseSandboxYaml, personaAuth
 import type { Scenario, ValidationIssue } from '@retake/core';
 import { nodeFileFacts } from '@retake/core/io';
 import { errors, fakeProject } from './helpers.js';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const msgs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 
@@ -37,7 +41,7 @@ describe('sandbox references and auth in hooks (hotfix v0.2.3)', () => {
       ],
       hooks: { reply: { http: { method: 'POST', url: '{{console}}/api/replies', auth: { persona: 'buyer' } } } },
     });
-    expect(msgs(validateScenario(sc, { project: project() }))).toEqual([]);
+    expect(msgs(validateScenario(sc, { files: NO_DISK, project: project() }))).toEqual([]);
   });
 
   it('refuses: in a scene, a malformed account reference, an unknown persona, a header beside auth', () => {
@@ -49,7 +53,7 @@ describe('sandbox references and auth in hooks (hotfix v0.2.3)', () => {
         { http: { url: '{{console}}/z', auth: { persona: 'buyer' }, headers: { Authorization: 'Bearer x' } } },
       ],
     });
-    expect(msgs(validateScenario(sc, { project: project() }))).toEqual([
+    expect(msgs(validateScenario(sc, { files: NO_DISK, project: project() }))).toEqual([
       "setup.2.http.headers.Authorization: `auth: {persona}` sets the Authorization header from the persona's session: remove one of the two",
       'setup.0.http.url: unknown template key {{accounts.admin.token}}; a sandbox account is read as {{accounts.<persona>.username}} or {{accounts.<persona>.password}}',
       "scenes.0.steps.0.type.text: {{compose_env:API_KEY}} reads a sandbox's compose env file: it is available in hooks (run on a sandbox environment) and as an account's username or password in sandbox.yaml",

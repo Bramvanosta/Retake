@@ -180,7 +180,7 @@ function ThemeRow({ slug, t, onCopy }: { slug: string; t: ListTheme; onCopy: () 
 }
 
 /** "Copy to edit…" of a listed read-only theme: a kit Sheet asks for the copy's name; theme_copy, then its editor. */
-function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: string | null; taken: string[]; onCancel: () => void }) {
+export function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: string | null; taken: string[]; onCancel: () => void }) {
   // Keyed by the theme to copy (the list's): a new one starts with its free copy name.
   const [name, setName] = useState(() => (from === null ? '' : copyName(from, taken)));
   const [error, setError] = useState<string | null>(null);
@@ -236,7 +236,7 @@ function FormColor({ label, value, set, optional, testId }: { label: string; val
  * replacing a theme): name, base, colours, logo / wordmark among the workspace's image files or a site's candidates,
  * fonts among its font files, brand name and URL. Its palette adjustments and warnings are shown after.
  */
-function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: string; initial: NewThemeForm; taken: string[]; themes: string[]; onClose: () => void; onMade: () => void }) {
+export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: string; initial: NewThemeForm; taken: string[]; themes: string[]; onClose: () => void; onMade: () => void }) {
   const [f, setF] = useState<NewThemeForm>(initial);
   // What the form reads of brand_files (a failed read shows an empty list).
   const [images, setImages] = useState<Pick<BrandFiles, 'files' | 'truncated'> | null>(null);

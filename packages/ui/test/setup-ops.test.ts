@@ -24,6 +24,7 @@ import { OWN_OPS, PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SHELL_LINE_MAX, 
 import type { SetupContext, StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
+import { shellLineReader } from '../../cli/src/commands/ui.js';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'setup-ops-')));
 const ws = join(base, 'ws');
@@ -420,9 +421,23 @@ describe('the rest', () => {
     expect(parseShellLine(`{"type":"cli_folder_cancelled"${' '.repeat(100)}}`)).toEqual({ type: 'cli_folder_cancelled' });
     expect(parseShellLine('{"type":"cli_folder_open"}')).toEqual({ type: 'cli_folder_open' });
     expect(parseShellLine(`{"type":"cli_folder","path":"/${'\u20ac'.repeat(2000)}"}`)).toEqual({ type: 'cli_folder', path: `/${'\u20ac'.repeat(2000)}` });
+    // L7.34: the CLI's reader at this cap — a line of exactly SHELL_LINE_MAX bytes reaches the parser, one byte more is
+    // dropped whole (and the next line is read again), across chunks.
+    const got: string[] = [];
+    const read = shellLineReader((l) => got.push(l), SHELL_LINE_MAX);
+    const at = `{"type":"cli_folder_cancelled"${' '.repeat(SHELL_LINE_MAX - 31)}}`;
+    expect(Buffer.byteLength(at)).toBe(SHELL_LINE_MAX);
+    for (const line of [at, `${at} `, '{"type":"cli_folder_open"}']) {
+      const b = Buffer.from(`${line}\n`);
+      read(b.subarray(0, 5000));
+      read(b.subarray(5000));
+    }
+    expect(got.map((l) => parseShellLine(l))).toEqual([{ type: 'cli_folder_cancelled' }, { type: 'cli_folder_open' }]);
+    // Kept as source checks: the cap is a literal at the call site of a function `retake ui` does not export (stdin of
+    // the supervised process), so only the supervised CLI itself could show it — the number it passes is this cap.
     const cli = await readFile(join(__dirname, '..', '..', 'cli', 'src', 'commands', 'ui.ts'), 'utf8');
-    expect(cli).toContain(`stdinClosed((l) => shellLine(l), ${SHELL_LINE_MAX})`);
-    // L5.16d: the update's state goes through the same reader (update-ops.test.ts).
-    expect(cli).toContain('shellLine = (l) => void applyShellLine(server.setup, root, l, server.update);');
+    expect([...cli.matchAll(/\bstdinClosed\([^;]*?,\s*(\d+)\)/g)].map((m) => Number(m[1]))).toEqual([SHELL_LINE_MAX]);
+    // L5.16d: the update's state goes through the same reader (update-ops.test.ts): the line handler hands it on.
+    expect(cli).toMatch(/\bshellLine = \(\w+\) => void applyShellLine\([^)]*, server\.update\);/);
   });
 });

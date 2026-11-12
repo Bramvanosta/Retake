@@ -14,6 +14,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createElement } from 'react';
+import type { ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   ANY_THEME_NAME_MAX as CORE_ANY_MAX,
@@ -40,8 +43,17 @@ import { NAME_MAX, NEW_THEME_NAME_HINT, NEW_THEME_TOO_LONG, okName, okTheme, the
 import { rawExportCommand } from '../src/app/review/review-words.js';
 import { RENDER_ID as ROUTE_RENDER_ID, hrefTo, parseRoute } from '../src/app/route.js';
 import { EMPTY_FORM, newThemeProblem } from '../src/app/words/theme-words.js';
+import { CopyToEdit } from '../src/app/themes/ThemeEditor.js';
+import { NewTheme, RowCopy } from '../src/app/themes/ThemesScreen.js';
+import { ComponentInspector } from '../src/app/library/LibraryInspector.js';
+import { LibraryContext } from '../src/app/library/LibraryCards.js';
+import type { LibraryCtx } from '../src/app/library/LibraryCards.js';
+import type { LibraryItem, LibraryViewAnswer } from '../src/index.js';
 
 const a = (n: number, ch = 'a') => ch.repeat(n);
+/** The words of a piece of markup (tags dropped, entities read). */
+const text = (html: string) => html.replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').trim();
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const src = (file: string) => readFileSync(fileURLToPath(new URL(`../src/app/${file}`, import.meta.url)), 'utf8');
 
 /** Strings over the characters the grammars turn on, from a fixed seed (the same strings every run). */
@@ -149,14 +161,28 @@ describe('60 characters for a new theme\'s name, wherever the app asks for one (
   it('⚑ the four fields that take a new theme\'s name stop at the cap, by its name, and say the rule under the field', () => {
     // The field stops at 60, so the sentence of a name too long cannot show: the limit is said before it is met.
     expect(NEW_THEME_NAME_HINT).toBe('Lower-case letters, digits and "-", at most 60 characters.');
-    const fields = (file: string) => {
-      const text = src(file);
-      const named = [...text.matchAll(/<TextField label="(Name of the copy|Name)"[^\n]*?maxLength=\{([^}]+)\} hint=\{NEW_THEME_NAME_HINT\}/g)].map((m) => `${m[1]}: ${m[2]}`);
-      return { named, hundred: (text.match(/maxLength=\{100\}/g) ?? []).length };
+    // L7.34: each form rendered (react-dom/server: a sheet's content is in the markup closed or open) — its name field
+    // read as the browser gets it: the input's maxlength, and the hint the input is described by.
+    const fields = (el: ReactElement) => {
+      const html = renderToStaticMarkup(el);
+      return [...html.matchAll(/<label[^>]*\bfor="([^"]+)"[^>]*>([\s\S]*?)<\/label>/g)].flatMap(([, id, label]) => {
+        const words = text(label);
+        if (words !== 'Name of the copy' && words !== 'Name') return [];
+        const input = new RegExp(`<input[^>]*\\bid="${esc(id)}"[^>]*>`).exec(html)?.[0] ?? '';
+        const described = (/aria-describedby="([^"]*)"/.exec(input)?.[1] ?? '').split(' ').filter(Boolean);
+        const said = described.map((d) => text(new RegExp(`<[a-z]+[^>]*\\bid="${esc(d)}"[^>]*>([\\s\\S]*?)</[a-z]+>`).exec(html)?.[1] ?? ''));
+        return [{ label: words, max: Number(/\bmaxlength="(\d+)"/i.exec(input)?.[1] ?? NaN), hinted: said.includes(NEW_THEME_NAME_HINT) }];
+      });
     };
-    expect(fields('themes/ThemeEditor.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX'], hundred: 0 });
-    expect(fields('library/LibraryInspector.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX'], hundred: 0 });
-    expect(fields('themes/ThemesScreen.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX', 'Name: NEW_THEME_NAME_MAX'], hundred: 0 });
-    for (const file of ['themes/ThemeEditor.tsx', 'library/LibraryInspector.tsx', 'themes/ThemesScreen.tsx']) expect(src(file), file).toMatch(/import \{ NEW_THEME_NAME_MAX \} from '\.\.\/id-words\.js';/);
+    const cap = { max: NEW_THEME_NAME_MAX, hinted: true };
+    expect(NEW_THEME_NAME_MAX).toBe(CORE_NEW_MAX);
+    expect(fields(createElement(CopyToEdit, { slug: 'p', theme: 'editorial', why: 'a starter', taken: ['editorial'] }))).toEqual([{ label: 'Name of the copy', ...cap }]);
+    const item = { component: 'acme/card', kind: 'card', version: '1.0.0', source: 'workspace', slots: [], picked_by: [], theme_default: [], poster: { key: 'b'.repeat(32), state: 'missing' }, loop: { key: 'c'.repeat(32), state: 'missing' }, untrusted: { name: 'Card', description: '' } } as unknown as LibraryItem;
+    const view = { project: 'p', theme: { name: 'editorial', project_default: true }, themes: [{ name: 'editorial' }], items: [item] } as unknown as LibraryViewAnswer;
+    const lib = { slug: 'p', theme: 'editorial' } as LibraryCtx;
+    const inspector = createElement(LibraryContext.Provider, { value: lib }, createElement(ComponentInspector, { item, view, d: { state: 'loading' }, playing: false, onCreate: () => undefined, detail: true }));
+    expect(fields(inspector)).toEqual([{ label: 'Name of the copy', ...cap }]);
+    expect(fields(createElement(RowCopy, { slug: 'p', from: 'editorial', taken: ['editorial'], onCancel: () => undefined }))).toEqual([{ label: 'Name of the copy', ...cap }]);
+    expect(fields(createElement(NewTheme, { slug: 'p', initial: EMPTY_FORM, taken: [], themes: ['editorial'], onClose: () => undefined, onMade: () => undefined }))).toEqual([{ label: 'Name', ...cap }]);
   });
 });

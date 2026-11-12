@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { STUDIO_CSP } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
@@ -23,11 +24,10 @@ import type { MarkVariant } from '../src/mark.js';
 import { MARK_INK, UI_COLOURS } from '../src/app/tokens.js';
 import { AppMark } from '../src/app/ui-kit/index.js';
 import { WelcomeScreen } from '../src/app/project/WelcomeScreen.js';
+import { GalleryScreen } from '../src/app/project/GalleryScreen.js';
 
 const ICONS = join(REPO, 'apps', 'desktop', 'icons');
 const sha256 = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
-/** A source without its comments. */
-const code = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 /** A PNG's width and height from its IHDR chunk (after the 8-byte signature). */
 function pngSize(file: string): [number, number] {
@@ -71,6 +71,43 @@ function shapes(svg: string): string[] {
     });
     return `${tag} ${pick.join(' ')}`;
   });
+}
+
+/** A stylesheet's plain rules: selector → its declarations (comments dropped; the last rule of a selector wins). */
+function cssRules(css: string): Map<string, Record<string, string>> {
+  const out = new Map<string, Record<string, string>>();
+  for (const [, sel, body] of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const decls = Object.fromEntries(body.split(';').map((d) => d.trim()).filter(Boolean).map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()]));
+    for (const one of sel.split(',')) out.set(one.trim(), decls);
+  }
+  return out;
+}
+
+/** The shell's AppMark elements as TypeScript reads them: how many, the props of the first, and where it stands. */
+function shellMark(source: string): { marks: number; props: Record<string, unknown>; inHeader: boolean; first: boolean; nameNext: boolean } {
+  const file = ts.createSourceFile('AppShell.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const found: ts.JsxSelfClosingElement[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isJsxSelfClosingElement(n) && n.tagName.getText(file) === 'AppMark') found.push(n);
+    ts.forEachChild(n, visit);
+  };
+  visit(file);
+  const mark = found[0];
+  const props: Record<string, unknown> = {};
+  for (const a of mark?.attributes.properties ?? []) {
+    if (!ts.isJsxAttribute(a) || !a.initializer) continue;
+    const v = a.initializer;
+    const e = ts.isJsxExpression(v) ? v.expression : v;
+    props[a.name.getText(file)] = e && ts.isNumericLiteral(e) ? Number(e.text) : e && ts.isStringLiteral(e) ? e.text : e?.getText(file);
+  }
+  // Its parent element's element children: the mark first, the one after it shows {APP_NAME}.
+  const parent = mark?.parent;
+  const kids = parent && ts.isJsxElement(parent) ? parent.children.filter((c) => ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) : [];
+  let up: ts.Node | undefined = mark;
+  let inHeader = false;
+  for (; up; up = up.parent) if (ts.isJsxElement(up) && up.openingElement.tagName.getText(file) === 'header') inHeader = true;
+  const next = kids[1];
+  return { marks: found.length, props, inHeader, first: kids[0] === mark, nameNext: next !== undefined && /\{APP_NAME\}/.test(next.getText(file)) };
 }
 
 describe('the "two takes" mark: one drawing, three variants (L5.13b, R-REN-03)', () => {
@@ -164,33 +201,46 @@ describe('the favicon and the Studio\'s mark', () => {
       expect(html, v).not.toMatch(/fill=|stroke=|style=|#[0-9a-f]{3,8}\b/i);
       expect([...html.matchAll(/class="(k-appmark-[a-z]+)"/g)].map((m) => m[1]), v).toEqual(MARK[v].map((s) => `k-appmark-${s.paint}`));
     }
-    const kit = readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'ui-kit', 'kit.css'), 'utf8');
+    // L7.34: kit.css read as the browser reads it (its rules, whatever the layout of the text): each part's class paints
+    // with its --ui-mark-* token only, and every token it names is one of tokens.ts's (both appearances).
+    const rules = cssRules(readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'ui-kit', 'kit.css'), 'utf8'));
+    const paints = [...new Set(MARK_VARIANTS.flatMap((v) => MARK[v].map((s) => s.paint)))].sort();
+    expect(paints).toEqual(['back', 'front', 'outline', 'plate', 'play']);
     for (const [cls, decls] of [
-      ['plate', 'fill: var(--ui-mark-plate);'],
-      ['back', 'fill: var(--ui-mark-back);'],
-      ['outline', 'fill: none;\n  stroke: var(--ui-mark-back);'],
-      ['front', 'fill: var(--ui-mark-front);'],
-      ['play', 'fill: var(--ui-mark-plate);\n  stroke: var(--ui-mark-plate);'],
-    ]) {
-      expect(kit, cls).toContain(`.k-appmark-${cls} {\n  ${decls}\n}`);
+      ['plate', { fill: 'var(--ui-mark-plate)' }],
+      ['back', { fill: 'var(--ui-mark-back)' }],
+      ['outline', { fill: 'none', stroke: 'var(--ui-mark-back)' }],
+      ['front', { fill: 'var(--ui-mark-front)' }],
+      ['play', { fill: 'var(--ui-mark-plate)', stroke: 'var(--ui-mark-plate)' }],
+    ] as const) {
+      expect(rules.get(`.k-appmark-${cls}`), cls).toEqual(decls);
+      for (const v of Object.values(decls)) for (const m of v.matchAll(/var\(--ui-([a-z-]+)\)/g)) expect(Object.keys(UI_COLOURS), `${cls}: --ui-${m[1]}`).toContain(m[1]);
     }
   });
 
   it('⚑ the title bar (tiny, 18 px) and Welcome (full, 128 px) render the mark, aria-hidden, beside the name', () => {
-    // The shell reads external stores (no server snapshot): its source is read — the title bar's start, the mark first.
-    const shell = code(readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'shell', 'AppShell.tsx'), 'utf8'));
-    expect(shell).toMatch(/<header className="sh-titlebar">\s*<div className="sh-titlebar-start">\s*<AppMark variant="tiny" size=\{18\} \/>\s*<span className="sh-appname">\{APP_NAME\}<\/span>/);
-    expect(shell.match(/<AppMark\b/g)).toHaveLength(1);
+    // The shell reads external stores (no server snapshot): it cannot render here. L7.34: its one AppMark is found in
+    // its tree (TypeScript's parser: in the title bar, the first element there, the product's name next) and rendered
+    // with the props it is given there.
+    const titleBar = shellMark(readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'shell', 'AppShell.tsx'), 'utf8'));
+    expect(titleBar.marks).toBe(1);
+    expect(titleBar).toMatchObject({ inHeader: true, first: true, nameNext: true });
+    const bar = renderToStaticMarkup(createElement(AppMark, titleBar.props as { variant: MarkVariant; size: number }));
+    expect(bar).toMatch(/^<svg class="k-appmark" viewBox="0 0 100 100" width="18" height="18" aria-hidden="true" focusable="false" data-variant="tiny">/);
     expect(markVariantFor(18)).toBe('tiny');
     const list = { state: 'ready' as const, data: { root: '/w', projects_dir: '/w/projects', projects: [] } };
     const welcome = renderToStaticMarkup(createElement(WelcomeScreen, { list }));
     expect(welcome).toMatch(/<section class="wl-intro" aria-labelledby="wl-h1"><svg class="k-appmark" viewBox="0 0 100 100" width="128" height="128" aria-hidden="true" focusable="false" data-variant="full">[\s\S]*?<\/svg><h1 id="wl-h1"/);
-    // The gallery shows each variant at its sizes with a visible caption naming them (the marks themselves are aria-hidden).
-    const gallery = readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'project/GalleryScreen.tsx'), 'utf8');
-    expect(gallery).toContain("const APP_MARKS: Array<[MarkVariant, number]> = [['full', 128], ['full', 64], ['small', 32], ['tiny', 18], ['tiny', 16]];");
-    const section = /<Section title="App mark">([\s\S]*?)<\/Section>/.exec(gallery)?.[1] ?? '';
-    expect(section).toContain('<AppMark key={`${variant}-${size}`} variant={variant} size={size} />');
-    expect(section).toContain('<span className="gl-lede">{APP_MARKS.map(([variant, size]) => `${variant} ${size} px`).join(\' · \')}</span>');
+    // The gallery shows each variant at its sizes with a visible caption naming them (the marks themselves are aria-hidden):
+    // L7.34: rendered, its "App mark" section read.
+    const gallery = renderToStaticMarkup(createElement(GalleryScreen));
+    const sections = [...gallery.matchAll(/<section class="gl-section"><h3 class="gl-title">App mark<\/h3>([\s\S]*?)<\/section>/g)].map((m) => m[1]);
+    expect(sections.length).toBeGreaterThan(0);
+    for (const section of sections) {
+      const marks = [...section.matchAll(/<svg class="k-appmark" [^>]*width="(\d+)" height="\1" aria-hidden="true" focusable="false" data-variant="([a-z]+)">/g)].map((m) => `${m[2]} ${m[1]} px`);
+      expect(marks).toEqual(['full 128 px', 'full 64 px', 'small 32 px', 'tiny 18 px', 'tiny 16 px']);
+      expect(section).toContain(`<span class="gl-lede">${marks.join(' · ')}</span>`);
+    }
     // The placeholder squares are gone with their rules.
     for (const f of ['shell/shell.css', 'screens.css', 'shell/AppShell.tsx', 'project/WelcomeScreen.tsx']) {
       expect(readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', f), 'utf8'), f).not.toMatch(/sh-appmark|wl-mark/);

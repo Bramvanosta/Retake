@@ -29,6 +29,10 @@ import type { LoadedProject, Scenario, Timeline, ValidationIssue } from '@retake
 import { errors, warnings } from './helpers.js';
 import { fileFacts, nodeFileFacts } from '@retake/core/io';
 import { PERSON_POLICY } from '@retake/core';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -69,7 +73,7 @@ const SCENARIO = [
 ].join('\n');
 
 const parsed = (text: string, p?: LoadedProject): Scenario => {
-  const r = parseScenario(text, p ? { project: p } : {});
+  const r = parseScenario(text, p ? { files: NO_DISK, project: p } : {});
   if (!r.scenario) throw new Error(errs(r.issues).join('\n'));
   return r.scenario;
 };

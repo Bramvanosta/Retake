@@ -112,8 +112,8 @@ function vitestAliases(): Record<string, string> {
   return out;
 }
 
-/** How many expected-error directives the test folders hold (2026-11-11). */
-const EXPECT_ERRORS = 43;
+/** How many expected-error directives the test folders hold (2026-11-12). */
+const EXPECT_ERRORS = 47;
 
 describe('the type check of the test files (tsconfig.test.json)', () => {
   const config = readConfig('tsconfig.test.json');
@@ -251,6 +251,9 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
     // protection of the jobs (twice) and the CLI's trust with one — each over the call, wrong on purpose.
     // L7.28, +3 (40 → 43), packages/engine/test/sandbox-work.test.ts:178, 182, 187: a trust-`mcp` up / reset without
     // the engine's seed trust (twice) and the person's trust with one — each over the call, wrong on purpose.
+    // L7.34, +4 (43 → 47), packages/core/test/file-facts.test.ts:20, 22, 24, 26: a scenario's project, its file, a hook's
+    // project folder and a theme's folder given without the FileFacts the type now requires beside them (FilesWith) —
+    // each over the call, wrong on purpose: the run-time refusal (FileFactsMissingError) is what the test holds.
     expect(count).toBe(EXPECT_ERRORS);
   });
 

@@ -372,7 +372,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
 }
 
 /** "Copy to edit…": a starter or read-only theme copied to a workspace theme (theme_copy, a kit Sheet asks the name), then opened. */
-function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: string; why: string; taken: string[] }) {
+export function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: string; why: string; taken: string[] }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(() => copyName(theme, taken));
   const [state, setState] = useState<{ busy?: boolean; error?: string }>({});

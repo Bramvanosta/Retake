@@ -54,6 +54,10 @@ const SHAPE: Array<string | [string, string[]]> = [
   'thumbnail',
   ['comments', ['list', 'get', 'add', 'reply', 'resolve', 'reopen', 'anchorAt', 'apply', 'proposal', 'counts']],
   ['sandbox', ['status', 'up', 'reset']],
+  // Read-only members, set last: the frozen caller (L7.13) and the Clock port of its composition root (L7.18; the system
+  // clock is a plain object of one method, so it reads as a sub-API here).
+  'caller',
+  ['clock', ['now']],
 ];
 
 describe('the engine façade', () => {

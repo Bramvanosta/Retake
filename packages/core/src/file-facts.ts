@@ -49,6 +49,14 @@ export type WorkFileFacts = FileFacts & VideoProber;
  */
 export type CheckFiles = FileFacts & Partial<VideoProber>;
 
+/**
+ * Options whose `files` is required as soon as one of `At` is given (finding D8, L7.34): the members that make a rule
+ * look at the disk (a file, a folder, a project) come with the port that answers it — a caller that names a place and
+ * no FileFacts is refused by the type checker, not at run time. Without any of them, `files` may be left out (a rule
+ * that reads nothing: a text parsed on its own).
+ */
+export type FilesWith<At extends PropertyKey, F extends FileFacts = FileFacts> = ({ [K in At]?: undefined } & { files?: F }) | { files: F };
+
 /** A rule that needs the disk (or a video probed) was given no FileFacts (no VideoProber): a caller's mistake, never a missing file. */
 export class FileFactsMissingError extends Error {
   constructor(what: string, port: 'FileFacts' | 'VideoProber' = 'FileFacts') {

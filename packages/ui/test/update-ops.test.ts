@@ -118,8 +118,27 @@ describe('who may call them', () => {
       expect(UI_OPS as readonly string[]).toContain(op);
     }
     expect(TOOLS.map((t) => t.name).filter((n) => /update/.test(n) && n.startsWith('desktop'))).toEqual([]);
-    const src = await import('node:fs').then((fs) => fs.readFileSync(join(__dirname, '..', 'src', 'server', 'studio.ts'), 'utf8'));
-    expect(/const NO_NUDGE = new Set<string>\(\[([^\]]*)\]\)/.exec(src)?.[1]).toContain("'desktop_update'");
+    // L7.34: what the job watch hears (onWrite) — an Install the shell takes and a Later write nothing it watches;
+    // a README written through the same server does (the listener is live). The server is the desktop app's for this
+    // check only (the pipe given back after it: the next case is about a server that is not).
+    const pipe = studio.desktop as unknown as { write: ((line: string) => boolean) | undefined };
+    studio.desktop.attach((l) => (lines.push(l), true));
+    let nudges = 0;
+    const off = studio.onWrite(() => nudges++);
+    try {
+      shell(L.available);
+      expect((await call('desktop_update', { action: 'install' })).status).toBe(200);
+      expect((await call('desktop_update', { action: 'later' })).status).toBe(200);
+      expect(lines).toEqual(['{"type":"update","action":"install"}', '{"type":"update","action":"later"}']);
+      expect(nudges).toBe(0);
+      const hash = (await call('project_get', { project: 'northfield-fixture' })).body.data.readme_hash as string;
+      expect((await call('project_update_readme', { project: 'northfield-fixture', markdown: '# Northfield\n', if_match: hash })).status).toBe(200);
+      expect(nudges).toBe(1);
+    } finally {
+      off();
+      pipe.write = undefined;
+      studio.update.last = undefined;
+    }
   });
 
   it('not the desktop app\'s server: status says so, the click is refused — nothing written', async () => {

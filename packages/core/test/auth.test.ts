@@ -12,6 +12,10 @@ import { authFor, isGlobalAuth, loginCommand, loginMatchers, matchLoginUrl, pars
 import { retakeHome, writeTextAtomic } from '@retake/core/io';
 import type { LoadedProject, Scenario, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -516,7 +520,7 @@ describe('validation (R-AUTH-01, R-AUTH-02)', () => {
         '    steps: [{wait: 1}]',
         '',
       ].join('\n'),
-      { project: p },
+      { files: NO_DISK, project: p },
     );
     expect(errs(issues)).toEqual([
       'scenes.0.persona: unknown persona "suplier" (did you mean "supplier"?) (personas: supplier, buyer; or none)',
@@ -524,7 +528,7 @@ describe('validation (R-AUTH-01, R-AUTH-02)', () => {
       'scenes.3.persona: page "shop" is filmed as buyer since scenes[2].page and as supplier here: a page keeps one persona for the whole run — film the other account on a page id of its own (a multi-page scene\'s `pages`) (environment signed-in)',
     ]);
     const bare = parseScenario(['video: demo', 'scenes:', '  - id: a', '    page: console', '    persona: x', '    open: /', '    steps: [{wait: 1}]', ''].join('\n'), {
-      project: project(['name: N', 'environments: {local: {console: "http://localhost:1"}}']),
+      files: NO_DISK, project: project(['name: N', 'environments: {local: {console: "http://localhost:1"}}']),
     });
     expect(errs(bare.issues)).toEqual(['scenes.0.persona: unknown persona "x": project "northfield" declares no personas (auth.personas in project.yaml)']);
   });

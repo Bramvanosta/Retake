@@ -64,7 +64,7 @@ export interface ParseSandboxOptions {
   env?: string;
   /** The project it belongs to (normalised project.yaml, sandboxes not merged yet): see checkSandbox. */
   project?: Pick<LoadedProject, 'config'>;
-  /** How the files it names are looked at (core FileFacts): needed with `file`. */
+  /** How the files it names are looked at (core FileFacts): required with `file` (parseSandboxYaml's overloads). */
   files?: FileFacts;
 }
 
@@ -73,12 +73,15 @@ export interface ParseSandboxOptions {
  * A version above 1 is refused before anything else (made for a newer Retake). `manifest` is returned only when
  * there is no error-level issue.
  */
+export function parseSandboxYaml(text: string, file?: undefined, opts?: ParseSandboxOptions): { manifest?: SandboxManifest; issues: ValidationIssue[] };
+/** With its path: `files` is required (FilesWith, L7.34) — the files it names are looked at through it. */
+export function parseSandboxYaml(text: string, file: string | undefined, opts: ParseSandboxOptions & { files: FileFacts }): { manifest?: SandboxManifest; issues: ValidationIssue[] };
 export function parseSandboxYaml(text: string, file?: string, opts: ParseSandboxOptions = {}): { manifest?: SandboxManifest; issues: ValidationIssue[] } {
   const dir = file ? dirname(resolve(file)) : undefined;
   const { value, issues } = checkYamlDocument(
     text,
     SandboxFileSchema,
-    (val, structural) => checkSandbox(val, structural, { dir, env: opts.env, project: opts.project, ...(opts.files ? { files: opts.files } : {}) }),
+    (val, structural) => checkSandbox(val, structural, { env: opts.env, project: opts.project, ...(dir === undefined ? (opts.files ? { files: opts.files } : {}) : ({ dir, files: opts.files } as { dir: string; files: FileFacts })) }),
     {},
     { formatVersion: { file: SANDBOX_FILE, supported: SANDBOX_VERSION } },
   );

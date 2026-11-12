@@ -39,7 +39,7 @@ import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep 
 import { showHiddenChars } from './printable.js';
 import { isUnder } from './client-path.js';
 import { needFiles } from './file-facts.js';
-import type { FileFacts } from './file-facts.js';
+import type { FileFacts, FilesWith } from './file-facts.js';
 import type { RenderSettings } from './render-settings.js';
 import type { IssuePath } from './issues.js';
 import { scenePageEntries, splitPageOpen } from './pages.js';
@@ -975,16 +975,19 @@ export function passEnvProblem(name: string): string | null {
   return null;
 }
 
-export interface ChildEnvOptions {
+export interface ChildEnvFields {
   /** project.yaml `pass_env:`: more names passed on as they are (a loader variable never: passEnvProblem). */
   pass?: readonly string[];
   /** The programs are `docker` / `docker compose`: DOCKER_CHILD_ENV too. */
   docker?: boolean;
   /** The workspace folders no PATH entry may be inside (default none). */
   folders?: readonly string[];
-  /** How PATH entries are compared with the folders under any spelling (core FileFacts): needed with `folders`. */
+  /** How PATH entries are compared with the folders under any spelling (core FileFacts): required with `folders` (ChildEnvOptions). */
   files?: FileFacts;
 }
+
+/** childEnv's options; `files` is required with `folders` (FilesWith, L7.34). */
+export type ChildEnvOptions = ChildEnvFields & FilesWith<'folders'>;
 
 /**
  * The environment a program a job starts gets of `source` under the agent policy: CHILD_ENV_BASE (DOCKER_CHILD_ENV

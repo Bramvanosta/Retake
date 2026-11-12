@@ -2,7 +2,7 @@ import { basename, dirname, join } from 'node:path';
 import { PERSONA_NONE, authFor, mailPersona, personaEmail, planPersonas, projectPersonaNames, resolvePersonas } from '../auth.js';
 import { scenarioNavigationProblems } from '../agent-policy.js';
 import { needFiles } from '../file-facts.js';
-import type { CheckFiles } from '../file-facts.js';
+import type { CheckFiles, FilesWith } from '../file-facts.js';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
@@ -29,7 +29,10 @@ import { checkWriteRules } from './project.js';
 import { checkTokens, checkVarsValues } from './tokens.js';
 import type { TokenRules } from './tokens.js';
 
-export interface ScenarioCheckOptions {
+/** The options of a scenario's checks; `files` is required with `project` or `file` (FilesWith). */
+export type ScenarioCheckOptions = ScenarioCheckFields & FilesWith<'project' | 'file', CheckFiles>;
+
+export interface ScenarioCheckFields {
   project?: LoadedProject;
   /** Scenario file (enables the video-name check and project inference from projects/<p>/scenarios/x.yaml). */
   file?: string;
@@ -45,7 +48,7 @@ export interface ScenarioCheckOptions {
   filesRead?: Set<string>;
   /**
    * How the files a scenario names are looked at (core FileFacts, and the work's VideoProber for its video files):
-   * needed with `project` or `file`.
+   * required with `project` or `file` (ScenarioCheckOptions).
    */
   files?: CheckFiles;
 }
@@ -187,7 +190,7 @@ class ScenarioChecker {
     ];
     lists.forEach(({ path, hook, rollback }) => {
       if (!isObj(hook) || this.ctx.broken(path)) return;
-      const reason = hookWriteReason(hook as never, { projectDir: this.ctx.projectDir, files: this.ctx.files, rollback });
+      const reason = hookWriteReason(hook as never, { ...this.ctx.hookFiles(), rollback });
       if (!reason) return;
       this.ctx.warning(
         path,

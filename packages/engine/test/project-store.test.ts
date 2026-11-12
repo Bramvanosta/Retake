@@ -7,7 +7,7 @@
  * as its caller's; and no module of the repository writes an authored file around the store.
  */
 import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
-import { appendFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, open, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -214,16 +214,40 @@ describe('the workspace journal', () => {
     const log = readFileSync(join(REPO, 'packages/engine/src/store/append-log.ts'), 'utf8');
     for (const s of [src, log]) expect(s).not.toMatch(/\b(unlink|rm|truncate|ftruncate|writeFile|rename|copyFile)\b\s*\(/);
     expect([...src.matchAll(/\bopen\(/g)]).toHaveLength(0);
-    expect(src).toMatch(/JOURNAL_LOG: AppendLog = \{ file: WORKSPACE_JOURNAL_FILE, lock: 'journal\.lock', mode: 0o600 \}/);
-    expect(src).toContain('await appendLogLine(root, JOURNAL_LOG, line);');
-    // Two opens there: the writer's (append, created owner-only for the journal, never through a link, never truncating) and the reader's.
+    // Two opens there: the writer's and the reader's; never a truncating or read-write mode.
     expect([...log.matchAll(/\bopen\(/g)]).toHaveLength(2);
-    expect(log).toContain('open(logFile(root, log), APPEND_FLAGS, log.mode)');
-    expect(log).toContain("open(file, 'r')");
-    expect(log).toMatch(/APPEND_FLAGS = constants\.O_RDWR \| constants\.O_APPEND \| constants\.O_CREAT \| constants\.O_NOFOLLOW;/);
     expect(log).not.toMatch(/O_TRUNC|'w\+?'|'r\+'/);
-    // Synced before appendJournal returns (the operation replies after it): written whole, then fsync'd.
-    expect(log).toMatch(/await writeWhole\(fh, Buffer\.from\(head \+ line, 'utf8'\)\);\s*await fh\.sync\(\);/);
+    // L7.34 (finding C4): what the two opens do, held by behaviour instead of their statements. A fresh journal is
+    // created owner-only; each line is written whole under the journal's lock (`.retake/locks/journal.lock`) and
+    // synced before appendJournal returns (the operation replies after it); a read changes nothing; the lock is gone
+    // after. (A link in the journal's place is refused: "never appends through a symbolic link"; the lock's discipline
+    // — stale and live holders, torn lines — is the append-log test's, for both logs.)
+    const ws = await mkdtemp(join(tmpdir(), 'retake-journal-open-'));
+    const probe = await open(join(ws, 'probe'), 'w');
+    const handle = Object.getPrototypeOf(probe) as { sync(): Promise<void> };
+    await probe.close();
+    const atSync: Array<{ text: string; locked: boolean }> = [];
+    const realSync = handle.sync;
+    const sync = vi.spyOn(handle, 'sync').mockImplementation(async function (this: unknown) {
+      atSync.push({ text: existsSync(journalFile(ws)) ? readFileSync(journalFile(ws), 'utf8') : '', locked: existsSync(join(ws, '.retake', 'locks', 'journal.lock')) });
+      return realSync.call(this);
+    });
+    try {
+      await appendJournal(ws, { by: { client: 'cli', channel: 'cli', trust: 'author' }, op: 'write', what: 'scenario', path: 'whole', outcome: 'ok' }, systemClock);
+      expect((await stat(journalFile(ws))).mode & 0o777).toBe(0o600);
+      expect(atSync).toEqual([{ text: expect.stringMatching(/^\{.*"path":"whole".*\}\n$/), locked: true }]);
+      expect(existsSync(join(ws, '.retake', 'locks', 'journal.lock'))).toBe(false);
+      expect((await readJournal(ws)).map((e) => ('path' in e ? e.path : ''))).toEqual(['whole']);
+      const bytes = readFileSync(journalFile(ws));
+      const mtime = (await stat(journalFile(ws))).mtimeMs;
+      await readJournal(ws);
+      await readJournal(ws, { limit: 1 });
+      expect([readFileSync(journalFile(ws)).equals(bytes), (await stat(journalFile(ws))).mtimeMs]).toEqual([true, mtime]);
+      expect(sync).toHaveBeenCalledTimes(1);
+    } finally {
+      sync.mockRestore();
+      await rm(ws, { recursive: true, force: true });
+    }
     // The only module naming the journal's file (core's layout names it once).
     const naming = sourceFiles().filter((f) => /WORKSPACE_JOURNAL_FILE|['"]journal\.jsonl['"]/.test(readFileSync(f, 'utf8'))).map((f) => relative(REPO, f));
     expect(naming.sort()).toEqual(['packages/core/src/layout.ts', 'packages/engine/src/store/journal.ts']);

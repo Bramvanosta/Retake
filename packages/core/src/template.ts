@@ -4,7 +4,7 @@ import { checkMediaFields } from './checks/media.js';
 import { isTemplateMediaRef, resolveThemeComponents } from './components.js';
 import { FORMAT_VERSIONS } from './formats.js';
 import type { ThemeComponent } from './components.js';
-import type { CheckFiles } from './file-facts.js';
+import type { CheckFiles, FilesWith } from './file-facts.js';
 import { hasErrors } from './issues.js';
 import { TemplateFileSchema, TemplateSchema } from './schemas/template.js';
 import { DEFAULT_TEMPLATE } from './template-defaults.js';
@@ -138,7 +138,7 @@ function checkTemplateMedia(value: unknown, structural: readonly LocatedIssue[],
  * when there is no error-level issue. With `dir` (the template folder), the theme's own files are checked too (through
  * `files`, and its VideoProber for a video file).
  */
-export function parseTemplateYaml(text: string, opts: { dir?: string; files?: CheckFiles } = {}): { template?: Template; issues: ValidationIssue[] } {
+export function parseTemplateYaml(text: string, opts: { dir?: string } & FilesWith<'dir', CheckFiles> = {}): { template?: Template; issues: ValidationIssue[] } {
   const { value, issues } = checkYamlDocument(text, TemplateFileSchema, (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir, opts.files)], {}, {
     formatVersion: { file: TEMPLATE_FILE, supported: FORMAT_VERSIONS.template },
   });

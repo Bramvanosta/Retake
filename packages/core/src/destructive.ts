@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { needFiles } from './file-facts.js';
-import type { FileFacts } from './file-facts.js';
+import type { FileFacts, FilesWith } from './file-facts.js';
 import { commandName, heredocs, nestedShellScript, shellCommands, shellWords } from './shell-words.js';
 import type { HookKind, HookStep, HttpHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 
@@ -55,10 +55,13 @@ export function sqlSource(spec: string | SqlHookSpec): { file?: string; query?: 
   return { file: spec.file, query: spec.query };
 }
 
-export interface DestructiveOptions {
+/** The options of the destructive-hook rules; `files` is required with `projectDir` unless `readText` reads the files (FilesWith, L7.34). */
+export type DestructiveOptions = DestructiveFields & (FilesWith<'projectDir'> | { readText: (absPath: string) => string | undefined });
+
+export interface DestructiveFields {
   /** Project directory: SQL files are read from it to inspect their statements. */
   projectDir?: string;
-  /** How those files are read (core FileFacts): needed with `projectDir` (unless `readText` reads them). */
+  /** How those files are read (core FileFacts): required with `projectDir` (unless `readText` reads them). */
   files?: FileFacts;
   /** Override file reading (tests); returns undefined when the file cannot be read. */
   readText?: (absPath: string) => string | undefined;

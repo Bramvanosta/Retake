@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, historyFile, jobsDir, runWorker } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
+import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -146,7 +147,14 @@ describe.skipIf(!canRender)('render jobs', () => {
 
   it('cancel mid-render: cancelled, nothing under the final name, no partial file, the lock released', async () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-    const worker = work();
+    // L7.34 (U9): on the in-memory renderer, which draws until the cancel reaches it. What this case holds is the
+    // engine's and the editor's render flow around the renderer: the cancel reaches the renderer (its signal), the job
+    // and the render end cancelled, the version lock is released, nothing is left under the render's name. A partial
+    // file is the renderer's own to remove — the renderer is handed the final name and writes its temporary files
+    // itself (the Remotion driver's `.<id>.partial-*.mp4`, removed by it: render-worker-process.test's cancel and
+    // SIGKILL mid-render, a real browser); "no partial file" here is the in-memory renderer's own cleanup.
+    const renderer = new MemoryRenderer({ duringVideo: (req) => new Promise<void>((done) => (req.signal?.aborted ? done() : req.signal?.addEventListener('abort', () => done(), { once: true }))) });
+    const worker = runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
     for (let i = 0; i < 600; i++) {
       const j = await queue.get(sub.job.id);
       if (j?.state === 'running' && j.progress?.phase === 'rendering') break;
@@ -156,6 +164,9 @@ describe.skipIf(!canRender)('render jobs', () => {
     await worker;
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state).toBe('cancelled');
+    expect(renderer.calls.map((c) => c.op)).toEqual(['video']);
+    const asked = renderer.calls[0]!.req as { out: string; signal?: AbortSignal };
+    expect([asked.out, asked.signal?.aborted]).toEqual([join(renders, `${sub.render_id}.mp4`), true]);
     const files = await rendersFiles();
     expect(files.filter((f) => f.startsWith(sub.render_id) || f.startsWith(`.${sub.render_id}`) || f.endsWith('.lock'))).toEqual([]);
     expect(await engine.renders.status('demo', sub.render_id)).toMatchObject({ status: 'cancelled', finished: true });

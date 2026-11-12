@@ -17,13 +17,22 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExportJobInput, RenderJobInput, ReviewJobInput } from '@retake/core';
 
-const seen = vi.hoisted(() => ({ calls: [] as Array<{ call: string; options: Record<string, unknown> }>, record: undefined as unknown, exportMethod: 'render' as 'render' | 'transcode' }));
+const seen = vi.hoisted(() => ({ calls: [] as Array<{ call: string; options: Record<string, unknown> }>, record: undefined as unknown, exportMethod: 'render' as 'render' | 'transcode', editorLoads: 0 }));
+
+// The engine's loader of the editor, counted (the real one loads it): a renderer refused is refused before any load.
+vi.mock('../src/lazy.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/lazy.js')>();
+  return { ...real, editor: () => ((seen.editorLoads += 1), real.editor()) };
+});
 
 vi.mock('@retake/editor', async (importOriginal) => {
   const real = await importOriginal<typeof import('@retake/editor')>();
   return {
     ...real,
     renderVideo: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderVideo', options: o }), seen.record),
+    renderStill: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderStill', options: o }), '/still.png'),
+    renderComponentPreviews: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderComponentPreviews', options: o }), []),
+    renderComponentLoops: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderComponentLoops', options: o }), { items: [] }),
     exportRender: async (o: Record<string, unknown>) => {
       seen.calls.push({ call: 'exportRender', options: o });
       const formats = o.formats as string[];
@@ -51,7 +60,7 @@ vi.mock('@retake/review', async (importOriginal) => {
 
 import { createEngine, executeExportJob, executeRenderJob, executeReviewJob, exportInProcess, historyFile, openProject, renderInProcess, enginePorts } from '../src/index.js';
 import { exportWork, renderWork } from '../src/pipeline.js';
-import { loopsWork, previewsWork, stillWork } from '../src/render/work.js';
+import { diskFullWork, loopsWork, previewsWork, stillWork } from '../src/render/work.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
@@ -192,6 +201,7 @@ describe('the in-process functions write one history line each; the pipeline non
   it('work asked without a renderer is refused before the editor is called: nothing in the engine picks one', async () => {
     const project = await openProject(engine.workspace, 'demo');
     const bare = { workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO } as unknown as Parameters<typeof renderWork>[0];
+    seen.editorLoads = 0;
     await expect(renderWork(bare)).rejects.toThrow('render: no renderer was handed to the engine');
     await expect(renderInProcess(bare as Parameters<typeof renderInProcess>[0])).rejects.toThrow('no renderer was handed');
     await expect(exportWork({ workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'] } as unknown as Parameters<typeof exportWork>[0])).rejects.toThrow('export: no renderer was handed to the engine');
@@ -207,16 +217,30 @@ describe('the in-process functions write one history line each; the pipeline non
       await expect(loopsWork(o)).rejects.toThrow('preview: no renderer was handed to the engine');
     }
     expect(seen.calls).toEqual([]);
+    // Refused before the editor is even loaded (review fix): the check comes first in the guarded helper.
+    expect(seen.editorLoads).toBe(0);
   });
 
-  it('every use case of the editor is reached through the one guarded helper of render/work.ts', () => {
-    const text = readFileSync(join(SRC, 'engine', 'src', 'render', 'work.ts'), 'utf8');
-    const calls = text.split('\n').filter((l) => /\bed\.\w+\(/.test(l));
-    expect(calls).toHaveLength(5);
-    for (const l of calls) expect(l).toMatch(/^\s*return onRenderer\('(render|still|export|preview)', o, \(ed, on\) => ed\.\w+\(on\)\);$/);
-    // The editor is loaded in the helper, after the check, and to read a failure (diskFullWork): nowhere else.
-    expect(text.match(/await editor\(\)/g)).toHaveLength(2);
-    expect(text.indexOf('rendererOf(o, work)')).toBeLessThan(text.indexOf('await editor()'));
+  it('every use case of the editor is reached through the one guarded helper of render/work.ts', async () => {
+    // L7.34 (finding C4): held by behaviour instead of the helper's five statements — each work of render/work.ts calls
+    // its own use case of the editor once, handing it the renderer it was given (the refusal before the editor loads
+    // is the case above; that the editor's entries are named in work.ts only is the ratchet's `render-call`).
+    const project = await openProject(engine.workspace, 'demo');
+    const o = { workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, render: `${SCENARIO}-v1`, formats: ['webm'], renderer } as never;
+    seen.editorLoads = 0;
+    await renderWork(o);
+    await stillWork(o);
+    await exportWork(o);
+    await previewsWork(o);
+    await loopsWork(o);
+    // One load per use case, through the engine's loader.
+    expect(seen.editorLoads).toBe(5);
+    expect(seen.calls.map((c) => c.call)).toEqual(['renderVideo', 'renderStill', 'exportRender', 'renderComponentPreviews', 'renderComponentLoops']);
+    for (const c of seen.calls) expect(c.options.renderer, c.call).toBe(renderer);
+    // After the request's own fields: what it asked is what the use case got, the renderer beside it.
+    for (const c of seen.calls) expect(c.options, c.call).toMatchObject({ project, root, workPolicy: PERSON_POLICY });
+    // The editor read a failure too (diskFullWork): its own rule.
+    expect([await diskFullWork(Object.assign(new Error('write failed'), { code: 'ENOSPC' })), await diskFullWork(new Error('another'))]).toEqual([true, false]);
   });
 
   it('export: re-rendered formats count (one line), transcodes alone write none; exportWork alone none', async () => {

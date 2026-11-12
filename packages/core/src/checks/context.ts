@@ -36,6 +36,16 @@ export class CheckContext {
     readonly files?: CheckFiles,
   ) {}
 
+  /**
+   * The directory and the port the hook rules read a project file through (DestructiveOptions): none without a
+   * directory; with one, its FileFacts. The entry points require it beside a directory (FilesWith); a caller outside
+   * the type checker that gave none keeps the run-time refusal where a file is first read (readProjectText's
+   * needFiles), as before — hence the cast.
+   */
+  hookFiles(): { projectDir?: undefined } | { projectDir: string; files: CheckFiles } {
+    return this.projectDir === undefined ? {} : ({ projectDir: this.projectDir, files: this.files } as { projectDir: string; files: CheckFiles });
+  }
+
   error(path: IssuePath, message: string, loc?: LocatedIssue['loc']): void {
     this.out.push(issue('error', path, message, loc));
   }

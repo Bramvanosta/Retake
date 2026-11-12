@@ -3,7 +3,7 @@ import { passEnvProblem, sandboxOffArgsProblems } from '../agent-policy.js';
 import { AUTH_KEYS } from '../auth.js';
 import { environmentAccess, environmentHttpCredentials, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
-import type { FileFacts } from '../file-facts.js';
+import type { FilesWith } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
 import { parseRequestPattern } from '../writes.js';
 import { KEY_RE, SLUG_RE } from '../schemas/primitives.js';
@@ -139,11 +139,11 @@ export function checkWorkspace(value: unknown, structural: readonly LocatedIssue
   return ctx.out;
 }
 
-/** Semantic checks of a project.yaml value; `projectDir` resolves hook files. */
+/** Semantic checks of a project.yaml value; `projectDir` resolves hook files (looked at through `files`, required with it). */
 export function checkProject(
   value: unknown,
   structural: readonly LocatedIssue[],
-  opts: { projectDir?: string; files?: FileFacts } = {},
+  opts: { projectDir?: string } & FilesWith<'projectDir'> = {},
 ): LocatedIssue[] {
   if (!isObj(value)) return [];
   const ctx = new CheckContext(structural, opts.projectDir, undefined, opts.files);

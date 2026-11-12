@@ -43,7 +43,7 @@ const STATE_WORDS: Record<PictureState, string> = {
 };
 
 /** base64 → bytes (the frame's JPEG; checked by the server: FF D8 FF, ≤ 512 KiB). */
-function bytesOf(b64: string): Uint8Array<ArrayBuffer> | null {
+export function bytesOf(b64: string): Uint8Array<ArrayBuffer> | null {
   try {
     const bin = atob(b64);
     const out = new Uint8Array(new ArrayBuffer(bin.length));
@@ -63,7 +63,7 @@ interface Decoded {
 /** WebCodecs' ImageDecoder (Chromium), as far as this file uses it. */
 type ImageDecoderLike = new (init: { data: Uint8Array<ArrayBuffer>; type: string }) => { decode(): Promise<{ image: CanvasImageSource & { close(): void } }>; close(): void };
 
-async function decodeJpeg(bytes: Uint8Array<ArrayBuffer>): Promise<Decoded> {
+export async function decodeJpeg(bytes: Uint8Array<ArrayBuffer>): Promise<Decoded> {
   const Decoder = (globalThis as { ImageDecoder?: ImageDecoderLike }).ImageDecoder;
   if (Decoder) {
     try {

@@ -276,7 +276,13 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
       .filter((f) => moduleSpecifiers(readFileSync(join(kitDir, f), 'utf8')).some((s) => s === 'remotion' || s.startsWith('remotion/') || s.startsWith('@remotion/')));
     expect(naming).toEqual(['renderer.ts']);
     const index = stripComments(readFileSync(join(kitDir, 'index.ts'), 'utf8'));
-    expect(index).toContain("export { AbsoluteFill, Img, Sequence, random, useCurrentFrame, useVideoConfig } from './renderer.js';");
+    // L7.34 (finding C4): the primitives held by what the kit hands, not by its export statement — the very objects of
+    // the renderer seam (one copy of the library), and only these six of it.
+    const kit = (await import('../src/kit/index.js')) as unknown as Record<string, unknown>;
+    const seam = (await import('../src/kit/renderer.js')) as unknown as Record<string, unknown>;
+    const primitives = ['AbsoluteFill', 'Img', 'Sequence', 'random', 'useCurrentFrame', 'useVideoConfig'];
+    expect(primitives.filter((n) => kit[n] === undefined || kit[n] !== seam[n])).toEqual([]);
+    expect(Object.keys(seam).filter((n) => n in kit).sort()).toEqual([...primitives].sort());
     expect(index).not.toMatch(/export \* from '\.\/renderer\.js'/);
     const names = await kitExports();
     expect(names).toEqual(KIT_PUBLIC_NAMES);

@@ -73,9 +73,12 @@ export function applyProjectDefaults(file: ProjectFile): ProjectConfig {
  * Validate project.yaml text. `file` (its path) enables hook-file checks relative to the project dir (through `files`).
  * `config` (defaults applied) is returned only when there is no error-level issue.
  */
+export function parseProjectYaml(text: string, file?: undefined, files?: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] };
+/** With its path: `files` is required (FilesWith, L7.34) — the hook files it names are looked at through it. */
+export function parseProjectYaml(text: string, file: string | undefined, files: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] };
 export function parseProjectYaml(text: string, file?: string, files?: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] } {
   const projectDir = file ? dirname(resolve(file)) : undefined;
-  const { value, issues } = checkYamlDocument(text, ProjectFileSchema, (v, structural) => checkProject(v, structural, { projectDir, ...(files ? { files } : {}) }), {}, {
+  const { value, issues } = checkYamlDocument(text, ProjectFileSchema, (v, structural) => checkProject(v, structural, projectDir === undefined ? (files ? { files } : {}) : ({ projectDir, files } as { projectDir: string; files: FileFacts })), {}, {
     formatVersion: { file: PROJECT_FILE, supported: FORMAT_VERSIONS.project },
   });
   if (hasErrors(issues)) return { issues };

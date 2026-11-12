@@ -14,6 +14,8 @@ import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { libraryVersions } from '../src/render/library.js';
 import { COMPOSITIONS, PREVIEW_COMPOSITION, VIDEO_COMPOSITIONS } from '../src/remotion/contract.js';
+import { createRoot } from '../src/remotion/Root.js';
+import type { ReactElement } from 'react';
 import {
   COMPOSITION_DEPS,
   COMPOSITION_IDS,
@@ -154,9 +156,12 @@ describe('generated bundle sources', () => {
       }
     }
     expect(spelled, 'a composition id spelled outside remotion/contract.ts').toEqual([]);
-    const rootSrc = readFileSync(join(dir, 'remotion', 'Root.tsx'), 'utf8');
-    for (const key of ['landscape', 'vertical', 'square', 'preview']) expect(rootSrc).toContain(`id={COMPOSITIONS.${key}}`);
-    expect(rootSrc).toContain("from './contract.js'");
+    // L7.34 (finding C4): the root held by what it registers instead of its statements — the contract's ids, each
+    // once, in the contract's order (the root is called, not mounted: it uses no hook).
+    const Root = createRoot({ components: {}, scaffolds: {} }) as () => ReactElement<{ children: ReactElement<{ id: string }>[] }>;
+    const registered = Root().props.children.map((c) => c.props.id);
+    expect(registered).toEqual([COMPOSITIONS.landscape, COMPOSITIONS.vertical, COMPOSITIONS.square, COMPOSITIONS.preview]);
+    expect(new Set(registered).size).toBe(Object.keys(COMPOSITIONS).length);
   });
 
   it('the library versions in every bundle key keep their form: "<remotion> <@remotion/bundler>", read from the packages the editor resolves', () => {
@@ -171,7 +176,13 @@ describe('generated bundle sources', () => {
     expect(entry).toBe(join(dirname(EDITOR_DIR), 'components', 'src', 'geometry-entry.ts'));
     // Its kit modules are hashed with the kit; type-only re-exports (the registry's) load nothing.
     expect(files.map((f) => basename(f))).toEqual(['data.ts', 'geometry-entry.ts', 'geometry.ts', 'slots.ts', 'theme.ts', 'types.ts']);
-    expect(readFileSync(join(EDITOR_DIR, 'src', 'remotion', 'frames.ts'), 'utf8')).toMatch(/^import \{[^}]+\} from '@retake\/components\/geometry';$/m);
+    // L7.34 (finding C4): what the composition loads of the components package is what the bundle hashes — its geometry
+    // entry (above) and the kit (hashed with the kit), never the package root — read off every module of the
+    // composition (compositionFiles), not off one statement; the frame helpers (frames.ts) take the geometry entry.
+    const loads = (f: string) => [...readFileSync(f, 'utf8').matchAll(/^import (?!type\b)[^;]*? from '(@retake\/components[^']*)';$/gm)].map((m) => m[1]);
+    const composition = compositionFiles().files;
+    expect([...new Set(composition.flatMap(loads))].sort()).toEqual(['@retake/components/geometry', '@retake/components/kit']);
+    expect(loads(composition.find((f) => f.endsWith(join('remotion', 'frames.ts')))!)).toEqual(['@retake/components/geometry']);
   });
 
   it('the bundle hash follows the content of the bundled components (cache key)', async () => {

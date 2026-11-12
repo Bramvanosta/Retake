@@ -148,7 +148,7 @@ describe('scenarioBlocks on the fixture scenarios (goldens)', async () => {
     const text = readFileSync(file, 'utf8');
     const { issues, scenario } = parseScenario(text, { files: fileFacts(PERSON_POLICY), file, project, template });
     expect(issues.filter((i) => i.severity === 'error')).toEqual([]);
-    const b = scenarioBlocks(text, { issues, hookFiles: { projectDir: project.dir } });
+    const b = scenarioBlocks(text, { issues, hookFiles: { projectDir: project.dir, files: fileFacts(PERSON_POLICY) } });
     expect(b.parsed).toBe(true);
     expect(b.issues).toEqual([]);
     expect(b.entries.filter((e) => e.type === 'unknown')).toEqual([]);

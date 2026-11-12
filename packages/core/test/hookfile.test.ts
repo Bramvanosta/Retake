@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { parseHookFile } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { DEFAULT_CAPTURE } from '@retake/core';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const project: LoadedProject = {
   slug: 'demo',
@@ -24,7 +28,7 @@ describe('parseHookFile', () => {
   it('accepts a list of hooks', () => {
     const { hooks, issues } = parseHookFile(
       '- name: seed\n  http: {method: POST, url: "{{app}}/api/seed/{{vars.account}}", rollback: {method: DELETE, url: "{{app}}/api/seed/{{response.json.id}}"}}\n',
-      { project },
+      { files: NO_DISK, project },
     );
     expect(issues).toEqual([]);
     expect(hooks).toHaveLength(1);
@@ -37,7 +41,7 @@ describe('parseHookFile', () => {
       '- shell: {run: "echo hi", timout: 3}', // 3
       '- http: {url: "{{ap}}/x"}', // 4
     ].join('\n');
-    const { hooks, issues } = parseHookFile(text, { project });
+    const { hooks, issues } = parseHookFile(text, { files: NO_DISK, project });
     expect(hooks).toBeUndefined();
     const messages = issues.map((i) => `${i.line}: ${i.message}`);
     expect(messages).toEqual(
@@ -50,7 +54,7 @@ describe('parseHookFile', () => {
   });
 
   it('shell hooks naming a host outside the allow-list are errors, before anything runs (R-SEC-06)', () => {
-    const { hooks, issues } = parseHookFile('- shell: "curl -fsS https://elsewhere.invalid/reset"\n- shell: "curl {{app}}/ok"\n', { project });
+    const { hooks, issues } = parseHookFile('- shell: "curl -fsS https://elsewhere.invalid/reset"\n- shell: "curl {{app}}/ok"\n', { files: NO_DISK, project });
     expect(hooks).toBeUndefined();
     expect(issues.map((i) => `${i.line}: ${i.message}`)).toEqual([
       '1: shell hook names host elsewhere.invalid (URL): it is not allowed: use localhost, an environment host, or add it to allow_hosts (allowed: localhost, 127.0.0.1, ::1, app.staging.example.com)',

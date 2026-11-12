@@ -88,12 +88,19 @@ describe('the launch of a persona\'s profile', () => {
   it('the sign-in window and the recording window check the profile before their launch (static)', () => {
     const src = (f: string) => readFileSync(join(__dirname, '..', 'src', f), 'utf8');
     const login = src('login.ts');
+    // L7.34 (finding C4): kept as an order check of the two headed launches (a behaviour test would sign a persona in
+    // through a visible window), loosened to the calls' names and the profile they are handed — not their statements.
+    // The headless launch's refusal is the behaviour case above.
     const headed = login.slice(login.indexOf('async function headedSession'));
-    expect(headed.indexOf('checkProfileBrowser(userDataDir, major);')).toBeGreaterThan(0);
-    expect(headed.indexOf('checkProfileBrowser(userDataDir, major);')).toBeLessThan(headed.indexOf('chromium.launchPersistentContext('));
-    expect(headed.indexOf('recordProfileBrowser(userDataDir, major);')).toBeGreaterThan(headed.indexOf('chromium.launchPersistentContext('));
+    const launch = headed.indexOf('chromium.launchPersistentContext(userDataDir');
+    // The version argument is pinned (review fix): the major the launch will run, checked and then recorded.
+    const major = headed.search(/\bconst major = launchMajor\(\{ executablePath, channel \}\)/);
+    expect(major).toBeGreaterThan(0);
+    expect(headed.search(/\bcheckProfileBrowser\(userDataDir, major\)/)).toBeGreaterThan(major);
+    expect(headed.search(/\bcheckProfileBrowser\(userDataDir, major\)/)).toBeLessThan(launch);
+    expect(headed.search(/\brecordProfileBrowser\(userDataDir, major\)/)).toBeGreaterThan(launch);
     const rec = src('record-session.ts');
-    expect(rec.indexOf('if (persona) checkProfileBrowser(userDataDir, launchMajor({ executablePath, channel }), persona.name);')).toBeGreaterThan(0);
+    expect(rec).toMatch(/\bif \(persona\) checkProfileBrowser\(userDataDir, launchMajor\(\{ executablePath, channel \}\), persona\.name\)/);
     expect(rec.indexOf('checkProfileBrowser(')).toBeLessThan(rec.indexOf('chromium.launchPersistentContext('));
   });
 });

@@ -8,6 +8,10 @@ import { describe, expect, it } from 'vitest';
 import { agentTrustProblems, agentTrustProblemsAt, canonicalAddress, canonicalIp, canonicalOrigin, isPageOrigin, navigationProblem, pageOrigins, parseScenario, parseYaml, scenarioNavigationRefs } from '@retake/core';
 import { loadProject, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -61,7 +65,7 @@ const ACCEPTED = ['/x', 'quotes/1', '?tab=2', 'about:blank', 'http://localhost:4
 let fixture: LoadedProject | undefined;
 const project = async (): Promise<LoadedProject> => (fixture ??= await loadProject('northfield-fixture', ROOT));
 const errorsAt = (text: string, p: LoadedProject | undefined, path: Array<string | number>) =>
-  parseScenario(text, p ? { project: p } : {}).issues.filter((i) => i.severity === 'error' && JSON.stringify(i.path) === JSON.stringify(path));
+  parseScenario(text, p ? { files: NO_DISK, project: p } : {}).issues.filter((i) => i.severity === 'error' && JSON.stringify(i.path) === JSON.stringify(path));
 
 describe('navigationProblem: the scheme rule', () => {
   it.each(REFUSED)('%j is refused, with what to write instead', (url, why) => {

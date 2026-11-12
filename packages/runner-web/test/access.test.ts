@@ -4,7 +4,7 @@
  * run.json and timeline.json (access, display table, clock).
  */
 import { existsSync } from 'node:fs';
-import { readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AccessError, RunRecordSchema, TimelineSchema, applyProjectDefaults, zodIssues, PERSON_POLICY } from '@retake/core';
@@ -79,6 +79,24 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
     const saved = JSON.parse(await readFile(join(rec.dir, 'run.json'), 'utf8')) as RunRecord;
     expect(zodIssues(RunRecordSchema, saved)).toEqual([]);
     expect(saved.environment).toEqual(rec.environment);
+  });
+
+  it('an sql hook whose statements are in a project file: the file is read and its write listed (L7.34: the run hands the check its FileFacts)', async () => {
+    const p = project();
+    await mkdir(join(p.dir, 'sql'), { recursive: true });
+    await writeFile(join(p.dir, 'sql', 'reset.sql'), 'DELETE FROM quotes;\n');
+    const rec = await runScenario({ policy: PERSON_POLICY,
+      project: p,
+      scenario: makeScenario('refused-sql', { ...WRITING, setup: [{ name: 'wipe', sql: { file: 'sql/reset.sql' } }], teardown: [] }),
+      mode: 'capture',
+      env: 'production',
+      runId: `refused-sql-${Date.now()}`,
+      hookRunner: testHookRunner(),
+      browser: { executable: '/nonexistent/chromium' },
+    });
+    expect(rec.status).toBe('failed');
+    expect(rec.error?.message).toMatch(/^environment production is production, read-only and a hook writes: setup hook 1 "wipe" \(sql\/reset\.sql: SQL DELETE\) — nothing ran\./);
+    expect(rec.hooks).toEqual({ setup: 'none', teardown: 'none' });
   });
 
   it('production that allows writes: a notice, then the same refusal without --allow-writes', async () => {

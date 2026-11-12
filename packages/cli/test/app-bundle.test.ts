@@ -10,11 +10,14 @@ import { createRequire } from 'node:module';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { RETAKE_VERSION, PERSON_POLICY } from '@retake/core';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { RETAKE_VERSION, PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import type { WorkPolicy } from '@retake/core';
 import { BUNDLE_GUARD, BundleError, bundleNodeArgs, overrideBundleInfo, readBundleManifest } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
-import { assertRenderBrowser, renderBrowser, renderBundleRestriction, renderComponentPreviews } from '@retake/editor';
+import { HEADLESS_SHELL_ENV, assertRenderBrowser, ensureBundle, planEdit, renderBrowser, renderBundleRestriction, renderComponentPreviews, renderStills } from '@retake/editor';
+import { loadComponentRegistry } from '@retake/components';
+import { fixtureProject, realTimeline, template } from '../../editor/test/helpers.js';
 import type { RenderPreviewsOptions } from '@retake/editor';
 import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { main, memoryIo } from '../src/index.js';
@@ -23,6 +26,19 @@ import { initWorkspace } from '../src/commands/init.js';
 import { Ui } from '../src/ui.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
+// The bundler stood in for one case (ensureBundle's restriction): the library's own otherwise.
+const bundler = vi.hoisted(() => ({ bundle: undefined as undefined | ((o: never) => Promise<string>) }));
+// The asset servers the editor starts, counted (the render-browser refusal comes before any).
+const servers = vi.hoisted(() => ({ started: 0 }));
+vi.mock('../../editor/src/render/asset-server.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../editor/src/render/asset-server.js')>();
+  return { ...real, startAssetServer: (...a: Parameters<typeof real.startAssetServer>) => ((servers.started += 1), real.startAssetServer(...a)) };
+});
+vi.mock('../../editor/src/render/library.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../editor/src/render/library.js')>();
+  return { ...real, bundlerLibrary: async () => (bundler.bundle ? { bundle: bundler.bundle } : real.bundlerLibrary()) };
+});
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-bundle-cli-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 afterEach(() => overrideBundleInfo(undefined));
@@ -83,8 +99,42 @@ describe('the render browser is checked before the asset server starts (review B
   it('render.ts: renderBrowser / assertRenderBrowser come before startAssetServer() in openSession', () => {
     const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render.ts'), 'utf8');
     const session = code.slice(code.indexOf('async function openSession('));
-    expect(session.indexOf('assertRenderBrowser(browser, opts.workPolicy)')).toBeGreaterThan(0);
-    expect(session.indexOf('assertRenderBrowser(browser, opts.workPolicy)')).toBeLessThan(session.indexOf('startAssetServer()'));
+    // L7.34 (finding C4, review fix): the order of the two calls, the check handed the work's own policy; the
+    // refusal itself is the behaviour case below.
+    const check = /\bassertRenderBrowser\(browser, opts\.workPolicy\)/;
+    expect(session.search(check)).toBeGreaterThan(0);
+    expect(session.search(check)).toBeLessThan(session.search(/\bstartAssetServer\(/));
+  });
+
+  it("an agent's render with a render browser inside the workspace is refused before the asset server starts", async () => {
+    // The bundler stood in (as for ensureBundle's case), $RETAKE_CHROMIUM_HEADLESS_SHELL pointed at a file of the
+    // workspace, the work under an agent policy of that workspace: the still is refused with the policy's words and no
+    // asset server is started; a person's policy takes the same browser past the check (to the server).
+    bundler.bundle = async (o: { outDir: string }) => {
+      mkdirSync(o.outDir, { recursive: true });
+      writeFileSync(join(o.outDir, 'index.html'), '<!doctype html><html><head></head><body></body></html>');
+      return o.outDir;
+    };
+    const ws = realpathSync(mkdtempSync(join(tmp, 'render-agent-')));
+    const shell = join(ws, 'bin', 'headless-shell');
+    mkdirSync(dirname(shell), { recursive: true });
+    writeFileSync(shell, '#!/bin/sh\nexit 1\n');
+    chmodSync(shell, 0o755);
+    const was = process.env[HEADLESS_SHELL_ENV];
+    process.env[HEADLESS_SHELL_ENV] = shell;
+    servers.started = 0;
+    try {
+      const plan = planEdit({ timeline: realTimeline('quote'), template: await template('editorial'), project: await fixtureProject(), registry: await loadComponentRegistry({ root: ws }), captureFile: '/captures/capture.mp4' });
+      const still = (workPolicy: WorkPolicy) => renderStills({ workPolicy, plan, frames: [{ frame: 0, out: join(ws, 'f.png') }], root: ws, cacheDir: join(ws, 'cache') });
+      await expect(still(workPolicyFrom([ws]))).rejects.toThrow(/lies inside the workspace/);
+      expect(servers.started).toBe(0);
+      await expect(still(PERSON_POLICY)).rejects.toThrow();
+      expect(servers.started).toBe(1);
+    } finally {
+      if (was === undefined) delete process.env[HEADLESS_SHELL_ENV];
+      else process.env[HEADLESS_SHELL_ENV] = was;
+      bundler.bundle = undefined;
+    }
   });
 });
 
@@ -521,9 +571,32 @@ describe('the render bundle takes no module from above the app (review A H1, the
     expect(renderBundleRestriction(['/a/ws']).test('/planted/a/ws/x.js')).toBe(false);
   });
 
-  it('ensureBundle passes the restriction to the bundler when Retake runs from an app bundle (only then)', () => {
-    const src = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'bundle.ts'), 'utf8');
-    expect(src).toContain('const app = bundleInfoOrNull();');
-    expect(src).toContain('...(app ? { restrictions: [renderBundleRestriction([app.root, opts.root, cacheDir])] } : {}),');
+  it('ensureBundle passes the restriction to the bundler when Retake runs from an app bundle (only then)', async () => {
+    // L7.34 (finding C4): held by what the bundler is handed instead of the statements that hand it — the bundler is
+    // stood in (it reads the webpack configuration it is given and writes a page), once outside an app, once inside.
+    const seen: Array<Record<string, unknown> | undefined> = [];
+    bundler.bundle = async (o: { outDir: string; webpackOverride: (c: Record<string, unknown>) => { resolve?: Record<string, unknown> } }) => {
+      seen.push(o.webpackOverride({ resolve: {}, plugins: [] }).resolve);
+      mkdirSync(o.outDir, { recursive: true });
+      writeFileSync(join(o.outDir, 'index.html'), '<!doctype html><html><head></head><body></body></html>');
+      return o.outDir;
+    };
+    try {
+      const ws = mkdtempSync(join(tmp, 'bundle-ws-'));
+      await ensureBundle({ root: ws, components: [], cacheDir: join(ws, 'cache-plain') });
+      const app = appBundle();
+      overrideBundleInfo(app);
+      // A cache folder outside the workspace (a test's override): allowed on its own.
+      const cache = mkdtempSync(join(tmp, 'bundle-cache-'));
+      await ensureBundle({ root: ws, components: [], cacheDir: cache });
+      expect(seen).toHaveLength(2);
+      expect(seen[0]).not.toHaveProperty('restrictions');
+      const [only, ...more] = (seen[1]?.restrictions ?? []) as RegExp[];
+      expect(more).toEqual([]);
+      // The app's folder, the workspace and the cache are allowed; a module from above them is not.
+      expect([join(app.root, 'engine', 'x.js'), join(ws, 'components', 'x.js'), join(cache, 'x.js'), join(dirname(app.root), 'x.js')].map((f) => only!.test(f))).toEqual([true, true, true, false]);
+    } finally {
+      bundler.bundle = undefined;
+    }
   });
 });

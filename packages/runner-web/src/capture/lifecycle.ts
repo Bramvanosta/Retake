@@ -303,7 +303,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
     if (access.mode === 'read-only' && hooksMode === 'run') {
-      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
+      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) }, { projectDir: project.dir, files: nodeFileFacts, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
       if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
     }
     await driver.prepare();

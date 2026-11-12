@@ -31,15 +31,21 @@ import { join, posix } from 'node:path';
 import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { contrastRatio } from '@retake/components/kit';
 import { catalogueOperation } from '@retake/engine/catalogue';
+import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
 import type { RecordOptionsAnswer, RecordViewAnswer } from '../src/server/record-ops.js';
 import { RecordingBody } from '../src/app/record/RecordingBody.js';
 import { StartForm } from '../src/app/record/StartScreen.js';
 import { SlotContext } from '../src/app/shell/slots.js';
 import type { RecordingUi } from '../src/app/record/draft.js';
 import { REPO } from '../../engine/test/helpers.js';
+import { bytesOf, decodeJpeg } from '../src/app/shoot/LiveView.js';
+import { PreviewFrame } from '../src/app/edit/PreviewFrame.js';
+import { Jpeg, Picture } from '../src/app/Thumb.js';
+import { setToken } from '../src/app/api.js';
+import { startRun } from '../src/app/shoot/shoot-data.js';
 import { visibleControls } from '../src/app/bits.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
 import { FRAME_URL_RE, previewUrls } from '../src/app/words/timeline-words.js';
@@ -78,8 +84,6 @@ const BANNED: Array<[RegExp, string]> = [
  * on the checked bytes of a frame; no other file decodes an image.
  */
 const LIVE_FILE = 'shoot/LiveView.tsx';
-const LIVE_DECODE = /createImageBitmap\(new Blob\(\[bytes\], \{ type: 'image\/jpeg' \}\)\)/g;
-const LIVE_IMAGE_DECODER = /new Decoder\(\{ data: bytes, type: 'image\/jpeg' \}\)/g;
 
 /**
  * L4.2: the app's one image source — Thumb.tsx renders `<img src={url}` where `url` is built by the checked-address
@@ -91,7 +95,6 @@ const LIVE_IMAGE_DECODER = /new Decoder\(\{ data: bytes, type: 'image\/jpeg' \}\
  */
 const THUMB_FILE = 'Thumb.tsx';
 const THUMB_SRC = /<img src=\{url\} /g;
-const THUMB_URL = /const url = imageDataUrl\(format, base64, max\);/g;
 const JPEG_USE = /<Jpeg\b[^>]*>/g;
 const JPEG_MAX = /\bmax=\{(THUMB_DATA_MAX|SHEET_DATA_MAX)\}/;
 const PICTURE_USE = /<Picture\b[^>]*>/g;
@@ -106,8 +109,10 @@ const PICTURE_JPEG = '<Picture format="jpeg" base64={base64} max={max} width={wi
 const FRAME_FILE = 'edit/PreviewFrame.tsx';
 const FRAME_TAG = /<iframe\b/g;
 const FRAME_SRC = /\bsrc=\{frameSrc\}/g;
-const FRAME_SRC_SET = /const frameSrc = armed \? url : undefined;/g;
-const FRAME_LITERALS = ['sandbox="allow-scripts"', 'referrerPolicy="no-referrer"', 'allow="autoplay"', 'aria-hidden="true"', 'tabIndex={-1}'];
+/** frameSrc is the url prop, only once armed (L7.34: the layout of the statement free). */
+const FRAME_SRC_SET = /\bframeSrc\s*=\s*armed\s*\?\s*url\s*:\s*undefined\b/g;
+/** A page's frame URLs are previewUrls' answer (checked: the L4.5 case below), assigned once. */
+const PREVIEW_URLS = /\burls\s*=[^;]*\bpreviewUrls\(/g;
 /** Sandbox tokens that would loosen the frame, and attributes that would bypass the literal ones: nowhere in the app. */
 const FRAME_LOOSE = /allow-(?:same-origin|top-navigation|popups|forms|downloads|modals|pointer-lock|presentation|storage-access|orientation-lock)|\bsandbox=\{|\bcredentialless\b|\ballowFullScreen\b|\bcsp=/;
 
@@ -294,14 +299,45 @@ describe('the app builds no HTML from data (source lint)', () => {
   it('L4.4: the one image decoder — ImageDecoder, else createImageBitmap of a JPEG Blob, in LiveView.tsx only; no blob: or object URL anywhere', async () => {
     const files = new Map(await appSources());
     const live = code(files.get(LIVE_FILE) ?? '');
-    expect(live.match(LIVE_DECODE)?.length, 'one createImageBitmap(new Blob([bytes], {type: image/jpeg})) in LiveView.tsx').toBe(1);
-    expect(live.match(LIVE_IMAGE_DECODER)?.length, "one new Decoder({ data: bytes, type: 'image/jpeg' }) in LiveView.tsx").toBe(1);
+    // L7.34: what the decoder is handed, by behaviour — the frame's bytes as they are, as a JPEG: to ImageDecoder when
+    // there is one; else (none, or it fails) to createImageBitmap as a Blob of type image/jpeg; no other way.
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+    const bytes = bytesOf(jpeg.toString('base64'))!;
+    expect([...bytes]).toEqual([...jpeg]);
+    expect([bytesOf(Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64')), bytesOf('not base64!'), bytesOf('')]).toEqual([null, null, null]);
+    const decoders: Array<{ data: unknown; type: string }> = [];
+    const bitmaps: Blob[] = [];
+    const image = { close: () => undefined };
+    let fails = false;
+    vi.stubGlobal('ImageDecoder', class {
+      constructor(init: { data: unknown; type: string }) {
+        decoders.push(init);
+        if (fails) throw new Error('no');
+      }
+      decode = async () => ({ image });
+      close = () => undefined;
+    });
+    vi.stubGlobal('createImageBitmap', async (b: Blob) => (bitmaps.push(b), { close: () => undefined }));
+    try {
+      expect((await decodeJpeg(bytes)).image).toBe(image);
+      expect(decoders).toEqual([{ data: bytes, type: 'image/jpeg' }]);
+      expect(decoders[0].data).toBe(bytes);
+      fails = true;
+      await decodeJpeg(bytes);
+      vi.stubGlobal('ImageDecoder', undefined);
+      await decodeJpeg(bytes);
+      expect(bitmaps.map((b) => b.type)).toEqual(['image/jpeg', 'image/jpeg']);
+      for (const b of bitmaps) expect([...new Uint8Array(await b.arrayBuffer())]).toEqual([...jpeg]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    // Each way once in the file; the bytes decoded are bytesOf's (the frame's base64, checked FF D8 FF) only.
     expect(live.match(/createImageBitmap/g)?.length).toBe(1);
     expect(live.match(/new Blob\(/g)?.length).toBe(1);
     expect(live.match(/new Decoder\(/g)?.length).toBe(1);
-    // bytes come from bytesOf (the frame's base64, checked FF D8 FF) only, through decodeJpeg.
-    expect(live.match(/const bytes = bytesOf\(f\.jpeg\);/g)?.length).toBe(1);
-    expect(live.match(/decodeJpeg\(bytes\)/g)?.length).toBe(1);
+    const decoded = [...live.matchAll(/\bdecodeJpeg\((\w+)\)/g)].map((m) => m[1]);
+    expect(decoded).toHaveLength(1);
+    expect(live).toMatch(new RegExp(`\\b${decoded[0]} = bytesOf\\(`));
     for (const [f, text] of files) {
       if (f === LIVE_FILE) continue;
       expect(/createImageBitmap|new\s+Blob\b|\bImageDecoder\b|\bFileReader\b/.test(code(text)), `${f}: decodes an image or builds a Blob`).toBe(false);
@@ -316,28 +352,35 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(frame.match(FRAME_SRC)?.length, 'one src={frameSrc}').toBe(1);
     expect(frame.match(/\bsrc=/g)?.length).toBe(1);
     expect(frame.match(FRAME_SRC_SET)?.length, 'frameSrc set once, from url, only once armed').toBe(1);
+    // L7.34: rendered before its connection listens (react-dom/server runs no effect: not armed) — the attributes are
+    // PREVIEW_FRAME_ATTRS, and the frame has no address yet.
+    const rendered = renderToStaticMarkup(createElement(PreviewFrame, { url: 'http://127.0.0.1:1/s/x/frame', planUrl: 'http://127.0.0.1:1/m/x/plan/y.json', frameRef: { current: 0 }, onMessage: () => undefined, onHello: () => undefined, onStop: () => undefined, onConnection: () => undefined }));
+    const iframes = [...rendered.matchAll(/<iframe\b([^>]*)>/g)].map((m) => Object.fromEntries([...m[1].matchAll(/\s([A-Za-z-]+)="([^"]*)"/g)].map((a) => [a[1].toLowerCase(), a[2]])));
+    expect(iframes).toHaveLength(1);
+    expect(Object.fromEntries(Object.keys(PREVIEW_FRAME_ATTRS).map((k) => [k, iframes[0][k]]))).toEqual(PREVIEW_FRAME_ATTRS);
+    expect(iframes[0]).not.toHaveProperty('src');
     expect(frame.match(/\bframeSrc\s*=/g)?.length).toBe(1);
     // The connection listens before the address is set: connectPreview in the layout effect, then setArmed(true).
     const connect = frame.indexOf('connectPreview(iframe');
     expect(connect).toBeGreaterThan(0);
     expect(frame.indexOf('setArmed(true)')).toBeGreaterThan(connect);
     expect(frame.match(/setArmed\(true\)/g)?.length).toBe(1);
-    // The literal attributes, each once, and they are PREVIEW_FRAME_ATTRS.
+    // The attributes are literals (rendered above: PREVIEW_FRAME_ATTRS), each written once, none from a spread.
     const tag = frame.slice(frame.indexOf('<iframe'), frame.indexOf('/>', frame.indexOf('<iframe')));
-    for (const lit of FRAME_LITERALS) expect(tag.split(lit).length - 1, lit).toBe(1);
+    for (const attr of ['sandbox', 'referrerPolicy', 'allow', 'aria-hidden', 'tabIndex']) expect(tag.match(new RegExp(`\\s${attr}=(?:"[^"]*"|\\{-?\\d+\\})`, 'g'))?.length, attr).toBe(1);
     expect(PREVIEW_FRAME_ATTRS).toEqual({ sandbox: 'allow-scripts', referrerpolicy: 'no-referrer', allow: 'autoplay', 'aria-hidden': 'true', tabindex: '-1' });
     expect(tag).not.toMatch(/\{\.\.\./);
     // Its page passes the URL previewUrls checked, nothing else.
     const screen = code(files.get('edit/TimelineScreen.tsx') ?? '');
     expect(screen.match(/<PreviewFrame\b/g)?.length).toBe(1);
     expect(screen.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
-    expect(screen.match(/const urls = 'frame_url' in v \? previewUrls\(v\.frame_url, v\.plan_url\) : null;/g)?.length).toBe(1);
+    expect(screen.match(PREVIEW_URLS)?.length).toBe(1);
     expect(screen.match(/\burls\s*=/g)?.length).toBe(1);
     // L4.7 part D2: the theme editor's live frame passes its checked URL the same way; no other file mounts a PreviewFrame.
     const themes = code(files.get('themes/ThemeEditor.tsx') ?? '');
     expect(themes.match(/<PreviewFrame\b/g)?.length).toBe(1);
     expect(themes.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
-    expect(themes.match(/const urls = 'frame_url' in v \? previewUrls\(v\.frame_url, v\.plan_url\) : null;/g)?.length).toBe(1);
+    expect(themes.match(PREVIEW_URLS)?.length).toBe(1);
     expect(themes.match(/\burls\s*=/g)?.length).toBe(1);
     for (const [f, text] of files) if (f !== 'edit/TimelineScreen.tsx' && f !== 'themes/ThemeEditor.tsx') expect(/<PreviewFrame\b/.test(code(text)), `${f}: mounts a PreviewFrame`).toBe(false);
     // No other file frames anything, connects a preview or loosens a sandbox; sandbox= appears once in the app.
@@ -383,10 +426,22 @@ describe('the app builds no HTML from data (source lint)', () => {
     const files = new Map(await appSources());
     const thumb = code(files.get(THUMB_FILE) ?? '');
     expect(thumb.match(THUMB_SRC)?.length, 'one <img src={url} in Thumb.tsx').toBe(1);
-    expect(thumb.match(THUMB_URL)?.length, 'url is built by imageDataUrl, once').toBe(1);
     expect(thumb.match(/\burl\s*=/g)?.length, 'url assigned once').toBe(1);
     expect(thumb.match(/\bsrc=/g)?.length).toBe(1);
-    expect(thumb).toMatch(/max: ImageCap;/);
+    // L7.34: rendered — the one <img>'s address is imageDataUrl's answer for its format, base64 and cap; nothing else
+    // renders an image (a payload past its cap, a wrong magic, a cap that is not one: no <img> at all).
+    const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0]).toString('base64');
+    const JPG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5]).toString('base64');
+    const img = (el: ReturnType<typeof createElement>) => [...renderToStaticMarkup(el).matchAll(/<img\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1]);
+    const at = { width: 4, height: 4, alt: '' };
+    expect(img(createElement(Picture, { format: 'png', base64: PNG, max: POSTER_DATA_MAX, ...at }))).toEqual([imageDataUrl('png', PNG, POSTER_DATA_MAX)]);
+    expect(img(createElement(Jpeg, { base64: JPG, max: THUMB_DATA_MAX, ...at }))).toEqual([`data:image/jpeg;base64,${JPG}`]);
+    const atCap = (b64: string, n: number) => b64 + 'A'.repeat(n - b64.length);
+    expect(img(createElement(Picture, { format: 'png', base64: atCap(PNG, POSTER_DATA_MAX), max: POSTER_DATA_MAX, ...at }))).toEqual([imageDataUrl('png', atCap(PNG, POSTER_DATA_MAX), POSTER_DATA_MAX)]);
+    expect(img(createElement(Jpeg, { base64: atCap(JPG, SHEET_DATA_MAX), max: SHEET_DATA_MAX, ...at }))).toHaveLength(1);
+    expect(img(createElement(Picture, { format: 'png', base64: PNG + 'A'.repeat(POSTER_DATA_MAX), max: POSTER_DATA_MAX, ...at }))).toEqual([]);
+    expect(img(createElement(Picture, { format: 'gif', base64: PNG, max: LOOP_DATA_MAX, ...at }))).toEqual([]);
+    expect(img(createElement(Jpeg, { base64: JPG + 'A'.repeat(THUMB_DATA_MAX), max: 9_999_999 as never, ...at }))).toEqual([]);
     for (const [f, text] of files) if (f !== THUMB_FILE) expect(/\bsrc=/.test(linted(f, code(text))), f).toBe(false);
     // L4.5 part E: every use of the one <img> names one of the two caps.
     let uses = 0;
@@ -472,7 +527,8 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
     for (const [f, text] of files) {
       const src = code(text);
       expect(/\bscenario_yaml\b|\bscenario_hash\b/.test(src), `${f}: names a proposal's input`).toBe(false);
-      args += (src.match(/\{ proposal: \{ comment_id: pc, entry_id: pe \} \}/g) ?? []).length;
+      // L7.34: the argument's shape (its two keys), not its statement.
+      args += (src.match(/\{\s*proposal:\s*\{\s*comment_id:\s*[\w.]+,\s*entry_id:\s*[\w.]+\s*\}\s*\}/g) ?? []).length;
     }
     expect(args).toBe(1);
     const timeline = code(files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1]);
@@ -482,8 +538,18 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
     // thread_apply sends the reply and the proposal's hash shown, nothing else (L5.12b: ProposalCard.tsx, M1: the one call
     // of the app — no other file applies).
     const panel = code(files.find(([f]) => f === 'review/ProposalCard.tsx')![1]);
-    const applies = threadCalls(panel).filter((c) => c.op === 'thread_apply');
-    expect(applies.map((c) => c.args)).toEqual(['({ project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch })']);
+    // (L7.34: its argument object's keys, whatever the names of the values.)
+    const applies = opCalls(panel, new Set(['thread_apply']));
+    expect(applies.map((c) => c.keys)).toEqual([['project', 'comment_id', 'entry_id', 'if_match']]);
+    // The version is the one shown, a value of the card's (a name), never a literal, `undefined` or an expression that
+    // could drop it (review fix).
+    const ifMatchOf = (c: { args?: ts.Expression }): string => {
+      const prop = c.args && ts.isObjectLiteralExpression(c.args) ? c.args.properties.find((p) => p.name && ts.isIdentifier(p.name) && p.name.text === 'if_match') : undefined;
+      if (!prop || !ts.isPropertyAssignment(prop)) return '(none)';
+      const v = prop.initializer;
+      return ts.isIdentifier(v) && v.text !== 'undefined' ? 'identifier' : `(${ts.SyntaxKind[v.kind]})`;
+    };
+    expect(apiCalls(panel, { members: true }).filter((c) => c.op === 'thread_apply').map(ifMatchOf)).toEqual(['identifier']);
     const everywhere = files.flatMap(([f, text]) => threadCalls(code(text)).filter((c) => c.op === 'thread_apply').map(() => f));
     expect(everywhere).toEqual(['review/ProposalCard.tsx']);
     // L6.13: data/ names it once (its function); its arguments and result are derived from the op table (data/ops.ts).
@@ -1235,10 +1301,15 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       expect(tokens.get(sans)).toMatch(/sans-serif$/);
       expect(tokens.get(mono)).toMatch(/monospace$/);
     }
-    const fonts = rules.flatMap((r) => r.decls.filter(([k]) => k === 'font' || k === 'font-family').map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
-    // (L5.12d: the page's base, on the kit's tokens: the legacy body's 14px/1.5 is the kit's 13 / 18.)
-    expect(fonts.find((d) => d.startsWith('body '))).toBe('body { font-family: var(--ui-font) }');
-    expect(fonts.find((d) => d.startsWith('code,'))).toBe('code,\nkbd { font-family: var(--ui-mono) }');
+    // (L5.12d: the page's base, on the kit's tokens: the legacy body's 14px/1.5 is the kit's 13 / 18.) L7.34: the family
+    // an element gets, its var() read through the tokens (whatever the rule's layout or the token's name).
+    const family = (el: string) => {
+      const r = rules.find((x) => x.selector.split(',').map((t) => t.trim()).includes(el) && x.decls.some(([k]) => k === 'font-family'));
+      const v = r?.decls.find(([k]) => k === 'font-family')?.[1] ?? '';
+      return v.replace(/var\((--[a-z0-9-]+)\)/g, (_, t: string) => tokens.get(t) ?? '?').split(',')[0].trim();
+    };
+    expect(family('body')).toBe("'Geist'");
+    expect([family('code'), family('kbd')]).toEqual(["'Geist Mono'", "'Geist Mono'"]);
     for (const [f, css] of await kitCss()) {
       for (const r of cssRules(css)) for (const [k, v] of r.decls) if (k === 'font' || k === 'font-family') expect(/var\(--ui-(?:font|mono)\)|^inherit$/.test(v), `${f}: ${r.selector} { ${k}: ${v} }`).toBe(true);
     }
@@ -1292,18 +1363,30 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     const rules = cssRules(await baseCss());
     const ph = rules.filter((r) => /(^|,\s*)::placeholder$/.test(r.selector));
     expect(ph).toHaveLength(1);
-    // (L5.12d: the page's base, every placeholder; the kit's own rules alike.)
+    // (L5.12d: the page's base, every placeholder; the kit's own rules alike.) L7.34: by what the colour is — one of the
+    // kit's text tokens, read at 4.5:1 on a field in both appearances — not by its name.
+    let seen = 0;
     for (const [f, css] of await kitCss()) {
       for (const r of cssRules(css).filter((x) => x.selector.includes('placeholder'))) {
-        expect(new Map(r.decls).get('color'), `${f}: ${r.selector}`).toBe('var(--ui-text-3)');
+        seen++;
+        const colour = /^var\(--ui-([a-z0-9-]+)\)$/.exec(new Map(r.decls).get('color') ?? '')?.[1] ?? '';
+        expect(UI_TEXT, `${f}: ${r.selector}: color`).toContain(colour);
+        for (const a of APPEARANCES) expect(worstRatio(tokensOf(a), `ui-${colour}`, 'ui-field'), `${f}: ${r.selector} (${a})`).toBeGreaterThanOrEqual(4.5);
         expect(new Map(r.decls).get('opacity'), `${f}: ${r.selector}`).toBe('1');
       }
     }
+    expect(seen).toBeGreaterThan(ph.length);
   });
 
   it('⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong / --ui-ring (the skip link\'s target excepted)', async () => {
     // (L5.12d: the page's base ring is --ui-ring, read with the others.)
-    expect(cssRules(await baseCss()).find((r) => r.selector === ':focus-visible')?.decls).toEqual([['outline', '2px solid var(--ui-ring)'], ['outline-offset', '2px']]);
+    // L7.34: by what the ring is — at least 2 px, solid, in a ring token, set off from the control, none of the lint's
+    // findings — not by its statement.
+    const base = cssRules(await baseCss()).find((r) => r.selector === ':focus-visible');
+    expect(focusLint(base ? [base] : [])).toEqual([]);
+    const ring = /^(\d+)px solid var\(--(accent|accent-strong|ui-ring)\)$/.exec(new Map(base?.decls).get('outline') ?? '');
+    expect(Number(ring?.[1])).toBeGreaterThanOrEqual(2);
+    expect(Number.parseFloat(new Map(base?.decls).get('outline-offset') ?? '')).toBeGreaterThan(0);
     // main is focused by the skip link (tabIndex -1) to move the reading point, never to show a control.
     const kit = await kitCss();
     expect(kit.flatMap(([, css]) => focusLint(cssRules(css)))).toEqual(['.sh-main:focus: outline none, no ring in its place']);
@@ -2052,8 +2135,24 @@ describe('L5.11a: Shoot', () => {
     expect(called.filter(([, op]) => !SHOOT_OPS.has(op))).toEqual([]);
     const runs = (await appSources()).flatMap(([f, text]) => opsCalled(text).filter((op) => op === 'scenario_run').map(() => f));
     expect(runs).toEqual(['shoot/shoot-data.ts']);
-    const store = files.find(([f]) => f === 'shoot/shoot-data.ts')![1];
-    expect(store).toMatch(/scenarioRun\(\{ project: o\.slug, name: o\.name, mode: o\.mode, \.\.\.\(o\.hash \? \{ hash: o\.hash \} : \{\}\)/);
+    // L7.34: what startRun sends (the page's request, fetch stood in for): the scenario, the mode and the file shown.
+    const sent: Array<Record<string, unknown>> = [];
+    setToken('t');
+    vi.stubGlobal('fetch', async (path: string, init: RequestInit) => {
+      sent.push({ path, ...(JSON.parse(String(init.body)) as Record<string, unknown>) });
+      return new Response(JSON.stringify({ ok: true, data: { run_id: `r${sent.length}` } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    try {
+      const said = (o: Omit<Parameters<typeof startRun>[0], 'say'>) => new Promise<string>((resolve) => expect(startRun({ ...o, say: resolve })).toBe(true));
+      await said({ slug: 'p', name: 'quote', mode: 'dry', hash: 'a'.repeat(64) });
+      await said({ slug: 'p', name: 'other', mode: 'capture' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(sent).toEqual([
+      { path: '/v1/call/scenario_run', project: 'p', name: 'quote', mode: 'dry', hash: 'a'.repeat(64) },
+      { path: '/v1/call/scenario_run', project: 'p', name: 'other', mode: 'capture' },
+    ]);
   });
 
   it('⚑ the Studio says Rehearse: no "dry run" in a string the page shows (comments, test ids and the one mapping line excepted; a planted label fails it)', async () => {
@@ -2125,6 +2224,8 @@ describe('L5.11b: Record', () => {
     expect(called.length).toBeGreaterThanOrEqual(7);
     expect(called.filter((op) => !RECORD_OPS.has(op))).toEqual([]);
     // The four commands, one owner while the recording goes (a reload included: `live` is true before the view is read).
+    // (L7.34: kept as a source check — the commands register in effects, which only a browser runs: the behaviour is
+    // studio-e2e-record-keys.test.ts's "⌘. is the recording's before its view is read" case.)
     for (const id of ['stop', 'rehearse', 'capture', 'render']) expect(text).toMatch(new RegExp(`useShellCommand\\('${id}', [^,]+, PRIORITY\\.recording, live\\)`));
     expect(text).toMatch(/const live = v \? LIVE_STATES\.has\(v\.state\) : error === null;/);
   });
@@ -2461,9 +2562,13 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
       else expect(w.keys, `${w.f}: ${w.op}`).toContain('if_match');
     }
     // The engine's own input: reply strict and without if_match, the three others requiring it (L7.16: the engine's operations).
-    const ops = await readFile(join(REPO, 'packages', 'engine', 'src', 'operations', 'comment-screen.ts'), 'utf8');
-    expect(ops).toMatch(/const ReplyInput = z\.strictObject\(\{ project, comment_id: commentId, text: text\('The reply'\) \}\);/);
-    for (const input of ['ResolveInput', 'ReopenInput', 'ApplyInput']) expect(ops.slice(ops.indexOf(`const ${input} =`)).split('\n;')[0].split('});')[0]).toContain('if_match: ifMatch');
+    // L7.34: the operations' input schemas themselves (what the engine parses), not their statements.
+    const thread = { project: 'northfield-fixture', comment_id: 'c_01JABCDEFGHJKMNPQRSTVWXYZ0' };
+    const parses = (op: 'thread_reply' | 'thread_resolve' | 'thread_reopen' | 'thread_apply', args: Record<string, unknown>) => OPERATIONS_BY_NAME[op].input.safeParse(args).success;
+    expect([parses('thread_reply', { ...thread, text: 'Yes.' }), parses('thread_reply', { ...thread, text: 'Yes.', if_match: 'a'.repeat(64) })]).toEqual([true, false]);
+    for (const [op, more] of [['thread_resolve', { note: 'Done.' }], ['thread_reopen', {}], ['thread_apply', { entry_id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ0' }]] as const) {
+      expect([parses(op, { ...thread, ...more, if_match: 'a'.repeat(64) }), parses(op, { ...thread, ...more })], op).toEqual([true, false]);
+    }
     // The mutations (review A-M1): a resolve without its version — through the helper, or a direct call.
     expect(threadWrites("send('Resolve', 'thread_resolve', { note, ...(answer ? { render_id: answer } : {}) }, 'Resolved', () => setNote(''));")).toEqual([{ op: 'thread_resolve', keys: ['note', '...'], line: 1 }]);
     expect(threadWrites("call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' })")).toEqual([{ op: 'thread_resolve', keys: ['project', 'comment_id', 'note'], line: 1 }]);
@@ -2629,8 +2734,11 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(scenario.length).toBe(2);
     for (const c of scenario) expect(c.keys).toContain('hash');
     // The engine's own input requires it (L7.17: theme_edit is the engine's operation).
-    const ops = await readFile(join(REPO, 'packages', 'engine', 'src', 'operations', 'themes.ts'), 'utf8');
-    expect(ops.slice(ops.indexOf('const EditInput ='), ops.indexOf('const CopyInput ='))).toMatch(/if_match: sha256/);
+    // (L7.34: its input schema parsed — with a version, then without.)
+    const edit = (args: Record<string, unknown>) => OPERATIONS_BY_NAME.theme_edit.input.safeParse(args);
+    const one = { theme: 'my-theme', edit: { set: { 'palette.accent': '#2357d9' } } };
+    expect(edit({ ...one, if_match: 'a'.repeat(64) }).error?.issues.filter((i) => i.path[0] === 'if_match') ?? []).toEqual([]);
+    expect(edit(one).error?.issues.map((i) => i.path[0])).toContain('if_match');
     // The mutation: a theme_edit without its version.
     expect(opCalls("call('theme_edit', { theme: target, edit: plan.edit })", new Set(['theme_edit']))[0].keys).not.toContain('if_match');
   });

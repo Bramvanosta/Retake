@@ -22,6 +22,10 @@ import {
 } from '@retake/core';
 import type { LoadedProject, Scene, Timeline, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}${i.line ? `@${i.line}` : ''}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -47,7 +51,7 @@ describe('multi-page scenes: syntax (R-MPC-04)', () => {
       '    - on: supplier',
       '      wait_for: {text: Demo Café}',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
     expect(warns(r.issues)).toEqual([]);
     const scene = r.scenario!.scenes[0] as Scene;
@@ -73,7 +77,7 @@ describe('multi-page scenes: syntax (R-MPC-04)', () => {
       '    - on: shop-mobile',
       '      click: Request a quote',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
     const scene = r.scenario!.scenes[0] as Scene;
     expect(scenePageEntries(scene.pages).map((e) => e.id)).toEqual(['shop', 'shop-mobile']);
@@ -132,7 +136,7 @@ describe('multi-page scenes: validation (positioned)', () => {
       '    - {page: shop, open: /coffees}',
       '  steps: [{click: Coffees}]',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     const e = errs(r.issues);
     const has = (path: string, re: RegExp) => expect(e.some((m) => m.startsWith(path) && re.test(m)), `${path} ${re} in\n${e.join('\n')}`).toBe(true);
     has('scenes.0.steps.0.on', /only applies|multi-page scene \(a scene with `pages`\)/);
@@ -166,7 +170,7 @@ describe('multi-page scenes: validation (positioned)', () => {
       '  page: supplier',
       '  steps: [{click: Coffees}]',
     ]);
-    const r = parseScenario(text, { project: project() });
+    const r = parseScenario(text, { files: NO_DISK, project: project() });
     const e = errs(r.issues);
     const has = (path: string, re: RegExp) => expect(e.some((m) => m.startsWith(path) && re.test(m)), `${path} ${re} in\n${e.join('\n')}`).toBe(true);
     has('scenes.0.page', /declares its pages in `pages`/);
@@ -196,12 +200,12 @@ describe('multi-page scenes: validation (positioned)', () => {
       '  steps: [{click: Coffees}]',
     ];
     // A single-page scene without `page` continues on the first page of the multi-page scene before it (1440×900).
-    let r = parseScenario(scenario([...both, '- id: after', '  steps: [{click: Coffees}]']), { project: project() });
+    let r = parseScenario(scenario([...both, '- id: after', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([
       expect.stringMatching(/^scenes\.1@\d+: this scene has no `page`: it continues on page "buyer", filmed at 1440×900 since scenes\[0\]\.pages\.buyer\.viewport: a single-page scene films the capture size \(1920×1080\)/),
     ]);
     // Naming an environment page is fine; naming the mobile page of a multi-page scene is not.
-    r = parseScenario(scenario([...both, '- id: after', '  page: shop', '  steps: [{click: Coffees}]']), { project: project() });
+    r = parseScenario(scenario([...both, '- id: after', '  page: shop', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
     const phone = [
       '- id: both',
@@ -210,9 +214,9 @@ describe('multi-page scenes: validation (positioned)', () => {
       '    - {id: phone, page: shop, open: /, viewport: mobile}',
       '  steps: [{click: Coffees}]',
     ];
-    r = parseScenario(scenario([...phone, '- id: after', '  page: phone', '  steps: [{click: Coffees}]']), { project: project() });
+    r = parseScenario(scenario([...phone, '- id: after', '  page: phone', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([expect.stringMatching(/^scenes\.1\.page@9: this scene films page "phone", filmed at 390×844 \(mobile\) since scenes\[0\]\.pages\[1\]\.viewport/)]);
-    r = parseScenario(scenario([...phone, '- id: after', '  page: shop', '  steps: [{switch_page: phone}]']), { project: project() });
+    r = parseScenario(scenario([...phone, '- id: after', '  page: shop', '  steps: [{switch_page: phone}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([expect.stringMatching(/^scenes\.1\.steps\.0\.switch_page@\d+: `switch_page` goes to page "phone"/)]);
     // The same page id asked at another viewport later.
     r = parseScenario(
@@ -231,13 +235,13 @@ describe('multi-page scenes: validation (positioned)', () => {
         '  pages: [a, b]',
         '  steps: [{click: Coffees}]',
       ]),
-      { project: project() },
+      { files: NO_DISK, project: project() },
     );
     expect(errs(r.issues)).toEqual([
       expect.stringMatching(/^scenes\.1\.pages\.a\.viewport@10: page "a" is filmed at 390×844 \(mobile\) since scenes\[0\]\.pages\.a\.viewport and is asked at 820×1180 \(mobile\) here: a page keeps one viewport/),
     ]);
     // A skipped scene films nothing: it declares no viewport and continues nothing.
-    r = parseScenario(scenario([...both.map((l, i) => (i === 0 ? `${l}\n    skip: true` : l)), '- id: after', '  open: /', '  steps: [{click: Coffees}]']), { project: project() });
+    r = parseScenario(scenario([...both.map((l, i) => (i === 0 ? `${l}\n    skip: true` : l)), '- id: after', '  open: /', '  steps: [{click: Coffees}]']), { files: NO_DISK, project: project() });
     expect(errs(r.issues)).toEqual([]);
   });
 
@@ -250,7 +254,7 @@ describe('multi-page scenes: validation (positioned)', () => {
       '    console: {}',
       '  steps: [{on: console, click: Quote requests}]',
     ]);
-    const w = warns(parseScenario(text, { project: project() }).issues);
+    const w = warns(parseScenario(text, { files: NO_DISK, project: project() }).issues);
     expect(w).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^scenes\.0\.cursor: .*pages\.<id>\.cursor/),

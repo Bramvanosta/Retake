@@ -10,6 +10,10 @@ import { describe, expect, it } from 'vitest';
 import { RunRecordSchema, filmedChanges, mailPersona, parseProjectYaml, parseScenario, personaEmail, sandboxAuth } from '@retake/core';
 import type { LoadedProject, SandboxManifest, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
+import { memoryFileFacts } from '@retake/core';
+
+/** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
+const NO_DISK = memoryFileFacts({});
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -45,7 +49,7 @@ describe('defaults.timeout_s (R-FLD-14)', () => {
     expect(project().config.defaults).toEqual({ timeout_s: 30 });
     const bad = parseProjectYaml([...PROJECT.slice(0, 4), 'defaults: {timeout_s: 0, pacing: 1}', ''].join('\n'));
     expect(errs(bad.issues).map((m) => m.split(':')[0])).toEqual(expect.arrayContaining(['defaults.timeout_s', 'defaults']));
-    const sc = parseScenario(scenario(['wait: 1'], ['env: signed-in', 'defaults: {timeout_s: 45}']), { project: project() });
+    const sc = parseScenario(scenario(['wait: 1'], ['env: signed-in', 'defaults: {timeout_s: 45}']), { files: NO_DISK, project: project() });
     expect(errs(sc.issues)).toEqual([]);
     expect(sc.scenario?.defaults).toEqual({ timeout_s: 45 });
     expect(errs(parseScenario(scenario(['wait: 1'], ['defaults: {timeout_s: -2}'])).issues)).toEqual([expect.stringMatching(/^defaults\.timeout_s: /)]);
@@ -67,7 +71,7 @@ describe('persona mail addresses (R-FLD-15)', () => {
     expect(mailPersona('buyer@cafe.example')).toBeNull();
     expect(mailPersona(undefined)).toBeNull();
     const p = project();
-    const ok = parseScenario(scenario(['wait_for_email: {to: "persona:supplier", subject: Pro forma, as: copy}']), { project: p });
+    const ok = parseScenario(scenario(['wait_for_email: {to: "persona:supplier", subject: Pro forma, as: copy}']), { files: NO_DISK, project: p });
     expect(errs(ok.issues)).toEqual([]);
     const bad = parseScenario(
       scenario([
@@ -75,14 +79,14 @@ describe('persona mail addresses (R-FLD-15)', () => {
         'wait_for_email: {to: "persona:suplier", as: b}',
         'wait_for_email: {to: "persona:", as: c}',
       ]),
-      { project: p },
+      { files: NO_DISK, project: p },
     );
     expect(errs(bad.issues)).toEqual([
       'scenes.0.steps.0.wait_for_email.to: persona "buyer" has no `email` on environment signed-in: add email: <address> to auth.personas.buyer in project.yaml (or to its sandbox account)',
       'scenes.0.steps.1.wait_for_email.to: unknown persona "suplier" (did you mean "supplier"?) (personas of signed-in: supplier, buyer)',
       'scenes.0.steps.2.wait_for_email.to: `persona:` needs a persona name, e.g. persona:buyer',
     ]);
-    const local = parseScenario(scenario(['wait_for_email: {to: "persona:supplier", as: a}'], ['env: local']), { project: p });
+    const local = parseScenario(scenario(['wait_for_email: {to: "persona:supplier", as: a}'], ['env: local']), { files: NO_DISK, project: p });
     expect(errs(local.issues)).toEqual(['scenes.0.steps.0.wait_for_email.to: unknown persona "supplier": no personas on environment local']);
   });
 
@@ -105,7 +109,7 @@ describe('persona mail addresses (R-FLD-15)', () => {
 describe('retry_click and capture.step_shots (R-FLD-12, R-FLD-16)', () => {
   it('retry_click belongs on a click; elsewhere it is ignored with a warning', () => {
     const r = parseScenario(scenario(['{click: Preview, retry_click: true}', '{double_click: Report, retry_click: true}', '{type: {into: {label: Notes}, text: x}, retry_click: true}']), {
-      project: project(),
+      files: NO_DISK, project: project(),
     });
     expect(errs(r.issues)).toEqual([]);
     expect(warns(r.issues)).toEqual(['scenes.0.steps.2.retry_click: `retry_click` applies to click and double_click steps: ignored on a type step']);

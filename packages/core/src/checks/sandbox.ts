@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { parse as parseYamlText } from 'yaml';
 import { sqlSource } from '../destructive.js';
 import { needFiles } from '../file-facts.js';
-import type { FileFacts } from '../file-facts.js';
+import type { FileFacts, FilesWith } from '../file-facts.js';
 import { environmentAccess } from '../env.js';
 import { isHostAllowed, isLoopbackHost } from '../hosts.js';
 import type { IssuePath } from '../issues.js';
@@ -36,10 +36,13 @@ const SYSTEM_DATABASES = new Set(['postgres', 'template0', 'template1']);
 const PROCESS_KEYS = ['command', 'cwd', 'env', 'stop_timeout_s'] as const;
 const DIR_LABEL = 'the sandbox folder';
 
-export interface SandboxCheckOptions {
+/** The options of sandbox.yaml's checks; `files` is required with `dir` (FilesWith, L7.34). */
+export type SandboxCheckOptions = SandboxCheckFields & FilesWith<'dir'>;
+
+export interface SandboxCheckFields {
   /** Folder of sandbox.yaml: its relative paths resolve against it (undefined: files are not checked). */
   dir?: string;
-  /** How its files are looked at (core FileFacts): needed with `dir`. */
+  /** How its files are looked at (core FileFacts): required with `dir`. */
   files?: FileFacts;
   /** The environment name it becomes (messages). */
   env?: string;

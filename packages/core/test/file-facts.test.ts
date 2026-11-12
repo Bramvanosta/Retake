@@ -17,9 +17,13 @@ const errors = (r: { issues: Array<{ severity: string; message: string }> }) => 
 
 describe('FileFacts: the disk a pure rule looks at', () => {
   it('a rule that needs the disk without a FileFacts throws (never "not found"); one that needs none runs without it', () => {
+    // @ts-expect-error — no FileFacts beside a place on purpose (the type refuses it, L7.34): the run-time refusal is held
     expect(() => parseScenario(scenario('data/a.csv'), { project })).toThrow(FileFactsMissingError);
+    // @ts-expect-error — no FileFacts beside a place on purpose (the type refuses it, L7.34): the run-time refusal is held
     expect(() => parseScenario(scenario('data/a.csv'), { file: `${DIR}/scenarios/s.yaml` })).toThrow(/the project of a scenario file needs a FileFacts/);
+    // @ts-expect-error — no FileFacts beside a place on purpose (the type refuses it, L7.34): the run-time refusal is held
     expect(() => destructiveReason({ sql: 'hooks/x.sql' } as unknown as HookStep, { projectDir: DIR })).toThrow(FileFactsMissingError);
+    // @ts-expect-error — no FileFacts beside a place on purpose (the type refuses it, L7.34): the run-time refusal is held
     expect(() => parseTemplateYaml('version: 1\ncomponents:\n  intro: {video: clip.mp4}\n', { dir: '/t' })).toThrow(FileFactsMissingError);
     // No project, no file: nothing to look at.
     expect(errors(parseScenario(scenario('data/a.csv')))).toEqual([]);

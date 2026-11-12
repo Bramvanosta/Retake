@@ -87,13 +87,23 @@ describe('L7.2 the versioned props of a render bundle', () => {
   });
 
   it('the root reads every composition through the readers, and its defaults carry no version; the Node side builds props with the builders only', () => {
+    // L7.34 (finding C4): the root held by what it registers instead of its statements. Its defaults are the readers'
+    // "no payload" (no version); a payload of this version is read back through the reader by every composition (the
+    // refusals of another version are the cases above), and one under a key the reader does not read sizes nothing.
+    const comps = registered();
+    for (const c of comps) expect(c.defaultProps, c.id).toEqual(c.id === COMPOSITIONS.preview ? { preview: null } : { plan: null });
+    expect(comps.filter((c) => 'v' in c.defaultProps).map((c) => c.id)).toEqual([]);
+    const sized = (variant: string) => ({ variant, durationInFrames: 0, fps: 24, width: 720, height: 1280 }) as unknown as EditPlan;
+    for (const variant of ['landscape', 'vertical', 'square'] as const) {
+      const c = comps.find((x) => x.id === COMPOSITIONS[variant])!;
+      expect(c.calculateMetadata({ props: videoProps(sized(variant)) }), variant).toEqual({ durationInFrames: 1, fps: 24, width: 720, height: 1280 });
+      expect(c.calculateMetadata({ props: { v: PROPS_VERSION, preview: sized(variant) } }), variant).toEqual({});
+    }
+    const preview = comps.find((c) => c.id === COMPOSITIONS.preview)!;
+    expect(preview.calculateMetadata({ props: { v: PROPS_VERSION, plan: sized('landscape') } })).toEqual({});
+    // The Node side: the props handed to the bundle are built by the builders, never written out (kept as a lint of
+    // the two render modules: what they hand reaches the bundle's browser only — render-real.test renders through it).
     const src = (rel: string) => readFileSync(join(EDITOR_DIR, 'src', rel), 'utf8');
-    const root = src('remotion/Root.tsx');
-    expect(root).toContain('const plan = readVideoProps(props);');
-    expect(root).toContain('const p = readPreviewProps(props);');
-    expect(root).not.toMatch(/props\.(plan|preview)\b/);
-    expect(root).toContain('const defaultProps: DemoVideoProps = { plan: null };');
-    expect(root).toContain('const previewDefaults: ComponentPreviewProps = { preview: null };');
     for (const rel of ['render/render.ts', 'render/preview.ts']) {
       const s = src(rel);
       expect(s, rel).not.toMatch(/inputProps(:| =) \{/);

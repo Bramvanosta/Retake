@@ -540,7 +540,12 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
     // L7.11: the thumbnails are drawn by the reviewer's frames (run-thumbs.ts names no review entry at all), and the
     // product's frames load the light entry (lazy.ts `thumbs`; ports.test asserts which loader each member calls).
     expect(await readFile(join(REPO, 'packages/engine/src/run-thumbs.ts'), 'utf8')).not.toMatch(/@retake\/review/);
-    expect(await readFile(join(REPO, 'packages/engine/src/lazy.ts'), 'utf8')).toContain("thumbs = () => import('@retake/review/thumbs')");
-    expect(await readFile(join(REPO, 'packages/engine/src/review/review-package.ts'), 'utf8')).toMatch(/at: async \([^)]*\) => \(await thumbs\(\)\)\.videoFramesAt[\s\S]*thumb: async \([^)]*\) => \(await thumbs\(\)\)\.thumbJpeg/);
+    // L7.34 (finding C4): the loader held by what it loads, not by its statement — the light entry's own module, which
+    // holds the frames and the thumbnails and nothing of the package root; that the reviewer's `at` and `thumb` go
+    // through this loader (and the rest through the root's) is ports.test's "the reviewer's frames come from the
+    // thumbnail entry" (each member's loader recorded).
+    const light = await (await import('../src/lazy.js')).thumbs();
+    expect(light).toBe(await import('@retake/review/thumbs'));
+    expect([typeof light.videoFramesAt, typeof light.thumbJpeg, 'reviewRender' in light]).toEqual(['function', 'function', false]);
   });
 });
