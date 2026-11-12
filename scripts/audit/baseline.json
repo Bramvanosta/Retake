@@ -91,7 +91,7 @@
     "packages/engine/src/record.ts → 2 wall-clock reads",
     "packages/engine/src/render-frames.ts → 4 wall-clock reads",
     "packages/engine/src/render/memory-renderer.ts → 2 wall-clock reads",
-    "packages/engine/src/store/journal.ts → 1 wall-clock read"
+    "packages/engine/src/store/append-log.ts → 1 wall-clock read"
    ]
   },
   {

@@ -2,31 +2,34 @@
  * The engine's admission rules: what it checks before it queues a run, a render or an export for the Studio and MCP
  * (caller.ts `admits`), named by the operation catalogue (`admission`, ADMISSION_RULES; SUBMIT_RULES is the table
  * both are held to). Each check and the submit that follows it run one at a time per key in this engine (two tabs, a
- * double click, two calls of a client at once), so the second finds the first one's job:
+ * double click, two calls of a client at once), and — L7.26 — under the job queue's lock of that key (JobQueue
+ * `exclusive`: a lock file of the workspace for the file queue), so the second finds the first one's job also when it
+ * comes from another process (the Studio, an MCP server, another engine of the workspace):
  *
  * - `one_run_per_scenario`: no run of the scenario is queued or running (two dry runs queued, or a capture's hooks
- *   run twice) — `conflict` naming the run and its job. Checked before the submit and again inside it, just before the
- *   run id is reserved (RunAdmit `reserve`): a human's approval of hooks may take minutes, during which another
- *   process (the Studio, another MCP server) may queue one.
+ *   run twice) — `conflict` naming the run and its job. Checked before the submit and again inside it, under the
+ *   queue's lock with the run id's reserve and the enqueue (RunAdmit `reserve`): a human's approval of hooks may take
+ *   minutes — never under the lock —, during which another process may queue one.
  * - `sessions_ack`: a capture whose scenario uses a persona whose saved session is not valid (expired, error, never)
  *   and that no run signs in by itself needs `sessions_ack` naming it — `conflict` with `details.sessions`. Checked
  *   inside the submit on the scenario it parsed and the environment the take uses (a sandbox's accounts sign in by
  *   themselves), after the submit's own refusals of the request (RunAdmit `prepared`). A confirmation against a wasted
  *   take, not a person's presence (a page script or an agent can send it); the run's own preflight stays the authority
  *   and stops before anything is filmed. Dry runs need none.
- * - `one_render_per_scenario`: no render of the scenario is queued or running — `conflict` naming it.
+ * - `one_render_per_scenario`: no render of the scenario is queued or running — `conflict` naming it. The check and the
+ *   whole submit (its plan, its version, the enqueue) under the queue's lock of the scenario's key.
  * - `export_cap`: no export of the render is queued or running, and fewer than EXPORTS_OPEN_MAX exports of the
  *   workspace are (the worker runs one heavy job at a time anyway: the cap keeps a client from queueing an export,
- *   possibly a re-render, of every render) — `conflict`.
+ *   possibly a re-render, of every render) — `conflict`. The checks and the whole submit under the queue's lock of
+ *   the workspace's exports.
  *
  * The refusals are worded per channel (`AdmissionDeps.channel`): the Studio's as its screens say them, MCP's in the
- * glossary's words with the tools that follow up. The keys are this process's: two processes (an MCP server and the
- * Studio) each check, then submit — the rules hold within one process, the run rule's second check narrows the gap.
+ * glossary's words with the tools that follow up. A queue lock another process holds past its wait: `busy`.
  */
 import type { AgentChannel, LoadedProject, LoadedScenario } from '@retake/core';
 import type { AdmissionRule } from './catalogue.js';
 import { EngineError } from './errors.js';
-import type { JobQueueView } from './jobs/job-queue.js';
+import type { JobQueue } from './jobs/job-queue.js';
 
 /** The exports of the workspace queued or running at once that an admitted export still adds to (any client's count). */
 export const EXPORTS_OPEN_MAX = 2;
@@ -116,16 +119,17 @@ export interface PreparedTake {
 /**
  * The checks a run submit makes from inside (engine jobs/run-job.ts submitRunJob), once it knows what a check needs:
  * `prepared` after the scenario is parsed and its environment picked (`sessions_ack` of a capture, on them), `reserve`
- * just before the run id is reserved — after any approval wait — (`one_run_per_scenario` again: another process's run
- * of the scenario may have been queued meanwhile).
+ * after any approval wait: `one_run_per_scenario` again — another process's run of the scenario may have been queued
+ * meanwhile — then `queue` (the run id's reserve and the enqueue), both under the job queue's lock of the scenario.
  */
 export interface RunAdmit {
   prepared(take: PreparedTake): Promise<void>;
-  reserve(): Promise<void>;
+  reserve<T>(queue: () => Promise<T>): Promise<T>;
 }
 
 export interface AdmissionDeps {
-  queue: Pick<JobQueueView, 'list'>;
+  /** The job queue: the open jobs a rule reads, and its lock (`exclusive`) each check and its submit hold. */
+  queue: Pick<JobQueue, 'list' | 'exclusive'>;
   /** The personas a capture of the parsed scenario signs in on that environment, and their state (as engine auth.forScenario reads them). */
   sessions: (take: PreparedTake) => Promise<SessionsView>;
   /** The channel the refusals are worded for (caller.ts refusalChannel): the Studio's words, else MCP's. */
@@ -145,7 +149,9 @@ export interface Admission {
 const holds = (submit: keyof typeof SUBMIT_RULES, rule: AdmissionRule): boolean => (SUBMIT_RULES[submit] as readonly AdmissionRule[]).includes(rule);
 
 export function admission(d: AdmissionDeps): Admission {
-  const chain = opChain();
+  const inProcess = opChain();
+  /** One at a time per key: in this engine (its chain), then across processes (the queue's lock of the key). */
+  const chain = <T>(key: string, fn: () => Promise<T>): Promise<T> => inProcess(key, () => d.queue.exclusive(key, fn));
   const mcp = d.channel === 'mcp';
   const oneRun = async (project: string, scenario: string) => {
     if (!holds('run', 'one_run_per_scenario')) return;
@@ -189,16 +195,23 @@ export function admission(d: AdmissionDeps): Admission {
     return open.length;
   };
   return {
-    run: (req, submit) =>
-      chain(`run\0${req.project}\0${req.scenario}`, async () => {
+    run: (req, submit) => {
+      // The whole submit in this engine's chain; only its reserve under the queue's lock (an approval may take minutes).
+      const key = `run\0${req.project}\0${req.scenario}`;
+      return inProcess(key, async () => {
         await oneRun(req.project, req.scenario);
         return submit({
           prepared: async (take) => {
             if (req.mode === 'capture') await sessionsAck(take, req.sessions_ack ?? []);
           },
-          reserve: () => oneRun(req.project, req.scenario),
+          reserve: (queue) =>
+            d.queue.exclusive(key, async () => {
+              await oneRun(req.project, req.scenario);
+              return queue();
+            }),
         });
-      }),
+      });
+    },
     render: (req, submit) =>
       chain(`render\0${req.project}\0${req.scenario}`, async () => {
         await oneRender(req.project, req.scenario);

@@ -43,9 +43,9 @@ vi.mock('../src/admission.js', async (importOriginal) => {
                 await log('prepared', 'run');
                 return admit.prepared(take);
               },
-              reserve: async () => {
+              reserve: async (queue) => {
                 await log('reserve', 'run');
-                return admit.reserve();
+                return admit.reserve(queue);
               },
             }).then(async (r) => (await log('submit', 'run'), r)),
           );

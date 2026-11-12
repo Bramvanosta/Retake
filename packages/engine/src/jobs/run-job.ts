@@ -287,7 +287,8 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
 /**
  * Check, reserve the run id and queue a `run` job. `admit` (the engine's admission rules, admission.ts, for the callers
  * it admits): `prepared` once the request is opened and its scenario parsed — on the environment the take uses —,
- * `reserve` after the gates (and any human approval they waited for), just before the run id is reserved.
+ * `reserve` after the gates (and any human approval they waited for): the run rule again, then the run id's reserve
+ * and the enqueue, under the job queue's lock of the scenario.
  */
 export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver, admit?: RunAdmit): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
   const s = await prepareSubmit(ctx, req);
@@ -309,47 +310,51 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
       details: { shown: req.expect_sha256, current: sha },
     });
   }
-  await admit?.reserve();
-  const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
-  const queued = queuedRun({
-    version: FORMAT_VERSIONS.run,
-    id: runId,
-    project: project.slug,
-    scenario: prepared.scenario.name,
-    mode: req.mode,
-    started_at: stampOf(ctx.clock),
-    dir,
-    env: env.name,
-    options: { hooks: hooksMode, headed: false, ...(req.until !== undefined ? { until: req.until } : {}) },
-    steps_total: stepsTotal(prepared, req.until),
-    steps_done: 0,
-    screenshots: [],
-    hooks: { setup: 'none', teardown: 'none' },
-    warnings: [],
-  });
-  await writeJson(join(dir, 'run.json'), queued);
-  const input: RunJobInput = {
-    version: JOB_INPUT_VERSION,
-    kind: 'run',
-    project: project.slug,
-    scenario: prepared.scenario.name,
-    scenario_sha256: sha,
-    mode: req.mode,
-    ...(req.env !== undefined ? { env: req.env } : {}),
-    ...(req.until !== undefined ? { until: req.until } : {}),
-    ...(req.hooks !== undefined ? { hooks: req.hooks } : {}),
-    ...(req.sandbox ? { sandbox: true } : {}),
-    run_id: runId,
-    submitted_by: ctx.client,
-    ...(approvals.length ? { approvals } : {}),
+  // The run id's reserve and the enqueue: under the admission's reserve (its run rule again, under the queue's lock) when admitted.
+  const reserveAndQueue = async (): Promise<{ job: JobRecord; runId: string; dir: string }> => {
+    const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
+    const queued = queuedRun({
+      version: FORMAT_VERSIONS.run,
+      id: runId,
+      project: project.slug,
+      scenario: prepared.scenario.name,
+      mode: req.mode,
+      started_at: stampOf(ctx.clock),
+      dir,
+      env: env.name,
+      options: { hooks: hooksMode, headed: false, ...(req.until !== undefined ? { until: req.until } : {}) },
+      steps_total: stepsTotal(prepared, req.until),
+      steps_done: 0,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+    });
+    await writeJson(join(dir, 'run.json'), queued);
+    const input: RunJobInput = {
+      version: JOB_INPUT_VERSION,
+      kind: 'run',
+      project: project.slug,
+      scenario: prepared.scenario.name,
+      scenario_sha256: sha,
+      mode: req.mode,
+      ...(req.env !== undefined ? { env: req.env } : {}),
+      ...(req.until !== undefined ? { until: req.until } : {}),
+      ...(req.hooks !== undefined ? { hooks: req.hooks } : {}),
+      ...(req.sandbox ? { sandbox: true } : {}),
+      run_id: runId,
+      submitted_by: ctx.client,
+      ...(approvals.length ? { approvals } : {}),
+    };
+    let job: JobRecord;
+    try {
+      job = await ctx.queue.enqueue(input);
+    } catch (e) {
+      await finaliseReservedRun(dir, 'failed', `not queued: ${(e as Error).message}`, ctx.clock);
+      throw e;
+    }
+    return { job, runId, dir };
   };
-  let job: JobRecord;
-  try {
-    job = await ctx.queue.enqueue(input);
-  } catch (e) {
-    await finaliseReservedRun(dir, 'failed', `not queued: ${(e as Error).message}`, ctx.clock);
-    throw e;
-  }
+  const { job, runId, dir } = admit ? await admit.reserve(reserveAndQueue) : await reserveAndQueue();
   const warnings = [...prepared.scenario.issues.map((i) => i.message), ...(prepared.templateWarning ? [prepared.templateWarning] : [])];
   if (req.mode === 'dry' && req.hooks === undefined && (sc.setup?.length ?? 0) > 0) {
     warnings.push('dry run without its setup hooks: steps that need prepared data may fail (hooks: "run" executes them)');

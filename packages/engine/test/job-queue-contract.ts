@@ -371,5 +371,34 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       clock.set('2027-01-01T00:00:00.000Z');
       expect((await own.enqueue(RUN_INPUT)).created_at).toBe('2027-01-01T00:00:00.000Z');
     });
+
+    it('exclusive (L7.26): one holder at a time per key, its queues with their own memory too; other keys are not held; a throw releases it', async () => {
+      const { queue: q } = await make('exclusive');
+      const own = q.withOwnMemory();
+      const tick = () => new Promise((r) => setTimeout(r, 5));
+      let inside = 0;
+      let most = 0;
+      const order: string[] = [];
+      let other: string | undefined;
+      const hold = (by: JobQueue, name: string) =>
+        by.exclusive('run\0p\0s', async () => {
+          inside++;
+          most = Math.max(most, inside);
+          order.push(`${name} in`);
+          // Another key is taken while this one is held (were it the same lock, it would wait for this holder).
+          if (name === 'a') other = await Promise.race([q.exclusive('render\0p\0s', async () => 'free'), new Promise<string>((r) => setTimeout(() => r('held'), 2_000))]);
+          await tick();
+          order.push(`${name} out`);
+          inside--;
+          return name;
+        });
+      expect(await Promise.all([hold(q, 'a'), hold(own, 'b'), hold(q, 'c')])).toEqual(['a', 'b', 'c']);
+      expect(most).toBe(1);
+      expect(order).toEqual(['a in', 'a out', 'b in', 'b out', 'c in', 'c out']);
+      expect(other).toBe('free');
+      // A holder that throws releases the lock: its error is the caller's, the next one gets in.
+      await expect(q.exclusive('run\0p\0s', async () => Promise.reject(new EngineError('conflict', 'taken')))).rejects.toMatchObject({ code: 'conflict', message: 'taken' });
+      expect(await q.exclusive('run\0p\0s', async () => 'next')).toBe('next');
+    });
   });
 }

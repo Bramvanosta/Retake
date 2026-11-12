@@ -4,15 +4,17 @@
  * (which run no job: the engine's in-process operations, in-process.ts), per `retake export` that re-rendered a format,
  * and per `retake record` (record.ts) — one writer per kind of line. It counts what was produced —
  * captures, dry runs, renders — for the usage counters a commercial version would need (entitlements.ts) and for the
- * index a later lot builds. Best effort: a line that cannot be written never fails the work it records.
+ * index a later lot builds. Written and read with the journal's discipline (store/append-log.ts, L7.26): each line
+ * appended whole under the history's lock, never through a symbolic link, a torn last line closed first, synced before
+ * the work that wrote it replies. A line that cannot be written never fails the work it records: the failure is said
+ * on stderr, at most once a minute.
  */
-import { HISTORY_FILE } from '@retake/core';
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { HISTORY_FILE, STATE_DIR } from '@retake/core';
 import type { JobClient } from '@retake/core';
 import { stampOf } from './clock.js';
 import type { Clock } from './clock.js';
-import { stateDir } from './workspace-state.js';
+import { appendLogLine, logFile, logWarner, readLogLines } from './store/append-log.js';
+import type { AppendLog } from './store/append-log.js';
 
 export const HISTORY_VERSION = 1;
 
@@ -59,31 +61,32 @@ export interface UsageCounts {
   since?: string;
 }
 
+/** The history as a line log (append-log.ts): a new one is created owner-only, as the journal (an existing file keeps its mode), its lock `history.lock`. */
+const HISTORY_LOG: AppendLog = { file: HISTORY_FILE, lock: 'history.lock', mode: 0o600 };
+
+/** The history's warning when a line cannot be written (stderr, at most once a minute). */
+const warnLost = logWarner(`the job history (${STATE_DIR}/${HISTORY_FILE})`);
+
 export function historyFile(root: string): string {
-  return join(stateDir(root), HISTORY_FILE);
+  return logFile(root, HISTORY_LOG);
 }
 
-/** Append one line (O_APPEND: lines of concurrent writers never interleave), at the entry's own `at` or else the time of `clock`. Never throws. */
+/**
+ * Append one line under the history's lock and sync it (append-log.ts), at the entry's own `at` or else the time of
+ * `clock`. Never throws: a failure is said on stderr (the work it records is done).
+ */
 export async function appendHistory(root: string, entry: Omit<HistoryEntry, 'v' | 'at'> & { at?: string }, clock: Clock): Promise<void> {
   try {
-    await mkdir(stateDir(root), { recursive: true });
-    await appendFile(historyFile(root), `${JSON.stringify({ v: HISTORY_VERSION, at: entry.at ?? stampOf(clock), ...entry })}\n`, { flag: 'a' });
-  } catch {
-    // best effort: the work it records is done
+    await appendLogLine(root, HISTORY_LOG, `${JSON.stringify({ v: HISTORY_VERSION, at: entry.at ?? stampOf(clock), ...entry })}\n`);
+  } catch (e) {
+    warnLost(e);
   }
 }
 
 /** The counters of the whole history (a torn or foreign line is skipped). */
 export async function usageCounts(root: string): Promise<UsageCounts> {
   const out: UsageCounts = { captures: 0, dry_runs: 0, renders: 0, entries: 0 };
-  let text: string;
-  try {
-    text = await readFile(historyFile(root), 'utf8');
-  } catch {
-    return out;
-  }
-  for (const line of text.split('\n')) {
-    if (!line.trim()) continue;
+  for (const line of await readLogLines(historyFile(root))) {
     let e: Partial<HistoryEntry>;
     try {
       e = JSON.parse(line) as Partial<HistoryEntry>;

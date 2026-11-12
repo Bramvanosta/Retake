@@ -118,7 +118,7 @@ async function admissionRefusals(channel: 'mcp' | 'studio'): Promise<string[]> {
     out.push(e!.message);
   };
   const of = (jobs: JobRecord[], personas: Array<{ persona: string; status: string; auto: boolean; has_check: boolean }> = []) =>
-    admission({ channel, queue: { list: async (f) => jobs.filter((j) => !f?.kinds || f.kinds.includes(j.input.kind)) }, sessions: async () => ({ personas }) });
+    admission({ channel, queue: { list: async (f) => jobs.filter((j) => !f?.kinds || f.kinds.includes(j.input.kind)), exclusive: (_key, fn) => fn() }, sessions: async () => ({ personas }) });
   for (const mode of ['dry', 'capture'] as const) {
     await refusal(of([job('j1', { kind: 'run', project: 'p', scenario: 's', mode, run_id: '20261109-120000-s' })]).run({ project: 'p', scenario: 's', mode: 'dry' }, async () => undefined));
   }

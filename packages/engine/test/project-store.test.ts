@@ -209,15 +209,21 @@ describe('the workspace journal', () => {
     // journalLine formats a line (the memory store journals the same shape); appendJournal is the one that writes.
     expect(Object.keys(journalModule).sort()).toEqual(['JOURNAL_FILES_MAX', 'JOURNAL_VERSION', 'appendJournal', 'hookEntry', 'hookRunRecorder', 'journalFile', 'journalLine', 'journalPath', 'readJournal']);
     const src = readFileSync(join(REPO, 'packages/engine/src/store/journal.ts'), 'utf8');
-    expect(src).not.toMatch(/\b(unlink|rm|truncate|ftruncate|writeFile|rename|copyFile)\b\s*\(/);
-    // Two opens: the writer's (append, created owner-only, never through a link, never truncating) and the reader's.
-    expect([...src.matchAll(/\bopen\(/g)]).toHaveLength(2);
-    expect(src).toContain('open(journalFile(root), APPEND_FLAGS, 0o600)');
-    expect(src).toContain("open(file, 'r')");
-    expect(src).toMatch(/APPEND_FLAGS = constants\.O_RDWR \| constants\.O_APPEND \| constants\.O_CREAT \| constants\.O_NOFOLLOW;/);
-    expect(src).not.toMatch(/O_TRUNC|'w\+?'|'r\+'/);
-    // Synced before appendJournal returns (the operation replies after it).
-    expect(src).toMatch(/await fh\.write\(head \+ line\);\s*await fh\.sync\(\);/);
+    // L7.26: the journal appends and reads through the line logs' one discipline (store/append-log.ts), which the
+    // history shares; neither file truncates, rewrites or removes.
+    const log = readFileSync(join(REPO, 'packages/engine/src/store/append-log.ts'), 'utf8');
+    for (const s of [src, log]) expect(s).not.toMatch(/\b(unlink|rm|truncate|ftruncate|writeFile|rename|copyFile)\b\s*\(/);
+    expect([...src.matchAll(/\bopen\(/g)]).toHaveLength(0);
+    expect(src).toMatch(/JOURNAL_LOG: AppendLog = \{ file: WORKSPACE_JOURNAL_FILE, lock: 'journal\.lock', mode: 0o600 \}/);
+    expect(src).toContain('await appendLogLine(root, JOURNAL_LOG, line);');
+    // Two opens there: the writer's (append, created owner-only for the journal, never through a link, never truncating) and the reader's.
+    expect([...log.matchAll(/\bopen\(/g)]).toHaveLength(2);
+    expect(log).toContain('open(logFile(root, log), APPEND_FLAGS, log.mode)');
+    expect(log).toContain("open(file, 'r')");
+    expect(log).toMatch(/APPEND_FLAGS = constants\.O_RDWR \| constants\.O_APPEND \| constants\.O_CREAT \| constants\.O_NOFOLLOW;/);
+    expect(log).not.toMatch(/O_TRUNC|'w\+?'|'r\+'/);
+    // Synced before appendJournal returns (the operation replies after it): written whole, then fsync'd.
+    expect(log).toMatch(/await writeWhole\(fh, Buffer\.from\(head \+ line, 'utf8'\)\);\s*await fh\.sync\(\);/);
     // The only module naming the journal's file (core's layout names it once).
     const naming = sourceFiles().filter((f) => /WORKSPACE_JOURNAL_FILE|['"]journal\.jsonl['"]/.test(readFileSync(f, 'utf8'))).map((f) => relative(REPO, f));
     expect(naming.sort()).toEqual(['packages/core/src/layout.ts', 'packages/engine/src/store/journal.ts']);

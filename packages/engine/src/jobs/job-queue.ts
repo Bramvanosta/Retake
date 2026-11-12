@@ -145,6 +145,15 @@ export interface JobQueue extends JobQueueView {
    * first (by name, created once: a render's edit snapshot), so a worker that sees the job sees them (jobFile).
    */
   enqueue(input: JobInput, opts?: { files?: Record<string, string> }): Promise<JobRecord>;
+  /**
+   * Run `fn` while holding the queue's lock of `key` (L7.26): one holder at a time per key — across processes for the
+   * file queue (the Studio, an MCP server, a terminal on one workspace), within its process for the in-memory one; other
+   * keys are not held. The engine's admission rules (admission.ts) check and submit under it, so two processes cannot
+   * both pass a rule and both enqueue. Released when `fn` settles (a throw too); a holder that died releases it.
+   * Not re-entrant: `fn` must not take `exclusive` again (the same key would wait for itself — in the file queue, until
+   * its wait ends `busy`; another key may wait on a holder that waits on this one).
+   */
+  exclusive<T>(key: string, fn: () => Promise<T>): Promise<T>;
 
   // ── the worker's ──
   /** Take a job: true for exactly one caller. */

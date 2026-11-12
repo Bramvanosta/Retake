@@ -515,6 +515,8 @@ describe('the import-rules ratchet', () => {
       'queue-call packages/mcp/src/tools/a.ts → queue.write',
     ]);
     expect(at('packages/cli/src/commands/a.ts', 'await o.queue.setYield(id, null);\nawait queue.append(id, 0, []);')).toEqual(['queue-call packages/cli/src/commands/a.ts → queue.setYield', 'queue-call packages/cli/src/commands/a.ts → queue.append']);
+    // L7.26: the queue's lock is the engine's admission's, never a shell's.
+    expect(at('packages/ui/src/server/a.ts', 'await engine.queue.exclusive(key, fn);')).toEqual(['queue-call packages/ui/src/server/a.ts → queue.exclusive']);
     // Reads and a client's requests are the view's: fine anywhere; the engine's own modules submit and write.
     expect(at('packages/ui/src/server/a.ts', 'await engine.queue.list({});\nawait queue.cancel(id, by);\nawait queue.withOwnMemory().takeHold();\nawait other.write(x);')).toEqual([]);
     expect(at('packages/engine/src/jobs/a.ts', 'await ctx.queue.enqueue(input);\nawait w.queue.write(rec);')).toEqual([]);

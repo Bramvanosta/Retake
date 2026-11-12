@@ -88,6 +88,9 @@ export abstract class StoredJobQueue implements JobQueue {
 
   abstract withOwnMemory(cli?: string): JobQueue;
 
+  /** `fn` under the queue's lock of `key` (JobQueue.exclusive): the adapter's lock. */
+  abstract exclusive<T>(key: string, fn: () => Promise<T>): Promise<T>;
+
   private async json<T>(id: string, name: string): Promise<T | undefined> {
     const text = await this.entries.read(id, name);
     if (text === undefined) return undefined;

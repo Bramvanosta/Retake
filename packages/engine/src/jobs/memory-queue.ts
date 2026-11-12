@@ -6,6 +6,8 @@
  * behaviour, so nothing of the port may need a path. Approvals are still signed with the Retake home's key for `root`
  * (signing.ts), and the derived states still look at the recorded processes (proc.ts), as the file queue does.
  */
+import { opChain } from '../admission.js';
+import type { OpChain } from '../admission.js';
 import { stampOf, systemClock } from '../clock.js';
 import type { Clock } from '../clock.js';
 import type { JobFileRead, TakeHold } from './job-queue.js';
@@ -98,6 +100,9 @@ export interface MemoryJobQueueOptions {
   clock?: Clock;
 }
 
+/** The locks of the queues on one set of entries (MemoryJobQueue.exclusive). */
+const MEMORY_LOCKS = new WeakMap<JobEntries, OpChain>();
+
 export class MemoryJobQueue extends StoredJobQueue {
   private readonly hold: (() => Promise<TakeHold>) | undefined;
 
@@ -109,6 +114,13 @@ export class MemoryJobQueue extends StoredJobQueue {
   ) {
     super(root, o.cli ?? 'retake', entries, o.clock ?? systemClock);
     this.hold = o.filming?.();
+  }
+
+  /** `fn` under the lock of `key`, shared by the queues on these entries (withOwnMemory): one holder at a time per key, in this process. */
+  exclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    let chain = MEMORY_LOCKS.get(this.entries);
+    if (!chain) MEMORY_LOCKS.set(this.entries, (chain = opChain()));
+    return chain(key, fn);
   }
 
   /** The same jobs (one map), no finished job seen yet and a filming source of its own. */

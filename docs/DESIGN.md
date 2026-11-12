@@ -1962,8 +1962,10 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   engine's `saveScenarioText` checks, the store writes), the README, comment threads, themes (create, copy, edit),
   component scaffolds (components `createComponent` takes the store's writer), new projects (core `planNewProject` names
   the files), `retake init`, sandbox scaffolds (sandbox `initSandbox` takes the store's writer). Each write is journaled
-  in `<workspace>/.retake/journal.jsonl` (`store/journal.ts`, its only writer: O_APPEND, never through a link, a torn
-  last line closed first, fsync before the reply — crash-safe, not power-loss-safe on macOS —, no delete path) — `{v,
+  in `<workspace>/.retake/journal.jsonl` (`store/journal.ts`, its only writer, on the line logs' one discipline
+  `store/append-log.ts` (L7.26) that the history shares: a line written whole under `.retake/locks/journal.lock`,
+  O_APPEND, never through a link, a torn last line closed first, fsync before the reply — crash-safe, not
+  power-loss-safe on macOS —, no delete path) — `{v,
   at, by: {client, channel, trust}, project?, op: write|folder|hook, what, path, if_match?, sha256?, bytes?, files?,
   outcome}` —, its `path` workspace-relative (compared as given and by real paths) or, for a store configured outside
   the workspace, its label and the path inside it (`<project>/…`, `<templates_dir>/…`, `<components_dir>/…`), never
@@ -2352,7 +2354,9 @@ workers/worker.log      what workers print (stderr), appended
   no draft was made; the events streamed so far stay in the recording's folder).
 - The worker's dispatch is a `switch` over the job kinds (exhaustive). Each finished job — and each interrupted one
   the next worker records — appends a line to `<workspace>/.retake/history.jsonl` (`{v, at, job, kind, project,
-  submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `retake run`,
+  submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`; L7.26: the journal's discipline,
+  `store/append-log.ts` — whole under `.retake/locks/history.lock`, O_APPEND, never through a link, a torn last line
+  closed first, fsync before the reply; a line that cannot be written fails nothing and is said on stderr); `retake run`,
   `retake render`, `retake still` and `retake inspect` get theirs (no job) from the engine's in-process operations
   (`in-process.ts`), `retake export` one counting the formats it re-rendered (component previews are not counted), and
   `retake record` from `record.ts`: one writer per kind of line, no shell writes one itself
@@ -2556,7 +2560,11 @@ process (admission.ts): `one_run_per_scenario` (a run of the scenario queued or 
 scenario, on the environment the take uses (the sandbox picked for `sandbox: true`) — so a refused request or a
 scenario that does not parse gets the submit's own answer —, and `one_run_per_scenario` again after the gates, just
 before the run id is reserved (a human's approval of hooks may take minutes, while another process queues a run). The
-rules hold within one process (each has its key in that engine; two processes check apart). A rule applies where
+rules hold across processes (L7.26): each check and what it admits run under the job queue's lock of the rule's key
+(`JobQueue.exclusive`: `<workspace>/.retake/locks/queue-<hash>.lock` for the file queue, after the engine's own chain
+of that key) — the render and export checks with their whole submit, the run's second check with the run id's reserve
+and the enqueue (never the approval wait) —, so two processes submitting at once queue one job and the other gets the
+same 409; a lock another live process holds past 30 s is `busy`. A rule applies where
 `SUBMIT_RULES` lists it for that submit. The refusals are worded per channel: the Studio's words are those it gave when
 the rules were its own; MCP's use the glossary's words and name the tools that follow up (`run_status`, `run_cancel`,
 `auth_login`, `sessions_ack`, `render_status`, `job_cancel`, `job_status`; packages/cli/test/glossary.test.ts). The
