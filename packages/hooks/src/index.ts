@@ -3,6 +3,8 @@ export { HookError, HookSecurityError, JournalError } from './errors.js';
 export { SEED_NO_JS, runHooks } from './run.js';
 export { recordHookRun } from './record.js';
 export { hookFiles, hookFingerprint } from './approval.js';
+export { holdAfter, holdBefore, hookTrustFiles, renderWithVars, scriptTokens, trustedFilesMessage, trustedFilesProblem } from './trusted-files.js';
+export type { HoldPoint } from './trusted-files.js';
 export type { HookPlace } from './approval.js';
 export type { RunHooksOptions, RunHooksResult } from './run.js';
 export {

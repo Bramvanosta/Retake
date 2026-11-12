@@ -4,6 +4,7 @@ import { AGENT_SQL_REASON, shellAlwaysWrites } from '@retake/core/hooks';
 import type { HookKind, HookStep, HttpHookSpec } from '@retake/core/model';
 import { checkWriteHosts } from './allow-list.js';
 import { hookFiles, hookFingerprint } from './approval.js';
+import { holdAfter, holdBefore, trustedFilesMessage, trustedFilesProblem } from './trusted-files.js';
 import { describeHook, hookKindOf, withName } from './describe.js';
 import { HookError, HookSecurityError, errorMessage } from './errors.js';
 import type { Journal } from './journal.js';
@@ -184,6 +185,11 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
       if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
       files = found.files;
     }
+    // L7.39: the files a person checked before the run (their trust, or their yes): a hook whose files are no longer those is refused.
+    if (!ctx.dryRun) {
+      const changed = await trustedFilesProblem(hook, ctx);
+      if (changed.length) throw new HookSecurityError(trustedFilesMessage(changed), 'trust');
+    }
     prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log, ...(agentWritten ? { agentWritten } : {}) });
     description = withName(hook.name, prepared.description);
     if (prepared.rollback) rollbackShown = prepared.rollback.description;
@@ -297,7 +303,10 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
       await rollBack();
       break;
     }
+    // L7.39: a run held to trusted files holds them as this hook leaves them (holdAfter).
+    const point = ctx.trustedFiles && !ctx.dryRun ? await holdBefore(hooks[i] as HookStep, ctx) : undefined;
     const { result, entry } = await runOne(hooks[i], i, hooks.length, ctx, opts, log);
+    if (point) await holdAfter(ctx, point, result.status);
     await recordHookRun(ctx, result);
     results.push(result);
     if (entry?.rollback && entry.status === 'ok') completed.push(entry.seq);

@@ -12,7 +12,7 @@ import { describeLock } from '@retake/core/io';
 import type { ErrorKind } from '@retake/core/base';
 import type { LoadedProject, LoadedScenario, LoadedTemplate, Timeline, ValidationIssue } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { ConfirmHook, HookTrust } from '@retake/core/hooks';
+import type { ConfirmHook, HookTrust, TrustedHookFiles } from '@retake/core/hooks';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 import type { AgentChannel } from './caller.js';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
@@ -186,6 +186,11 @@ export interface ExecuteRunOptions {
   recordAs?: JournalAs;
   /** The channel a trust-`mcp` job came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
   hookVia?: AgentChannel;
+  /**
+   * L7.39: the files a person checked before the run (their trust in an agent's hooks, or their yes): a hook whose files
+   * are no longer those is refused (HookContext.trustedFiles). Absent: none checked.
+   */
+  trustedHookFiles?: TrustedHookFiles;
   /** Approves a hook that needs a human (the worker: the job's approvals). */
   confirmHook?: ConfirmHook;
   /** The live picture's sink (L4.4, the worker's live channel): memory only, from capture time 0 to the scenes' end. */
@@ -280,6 +285,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.hookTrust ? { hookTrust: opts.hookTrust } : {}),
       ...(opts.recordAs ? { recordHookRun: hookRunRecorder(project.root, opts.recordAs, { project: project.slug }) } : {}),
       ...(opts.hookVia ? { hookVia: confinementOf(opts.hookVia) } : {}),
+      ...(opts.trustedHookFiles ? { trustedHookFiles: opts.trustedHookFiles } : {}),
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       ...(opts.live ? { live: opts.live } : {}),
       ...(opts.pause ? { pause: opts.pause } : {}),

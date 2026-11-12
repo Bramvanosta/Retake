@@ -3,6 +3,7 @@ import { formatIssues } from '@retake/core/base';
 import { isAccessError } from '@retake/core/environment';
 import { perfSummary } from '@retake/core/run';
 import { readTimeline } from '@retake/core/io';
+import type { TrustedHookFiles } from '@retake/core/hooks';
 import type { Timeline } from '@retake/core/model';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 import {
@@ -10,7 +11,7 @@ import {
   RunOptionError,
   SandboxTakeError,
   TakeBeside,
-  agentWrittenShellHooks,
+  scenarioHooksCheck,
   callerOf,
   listingContext,
   reserveListedRun,
@@ -115,11 +116,21 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   // they will run — rendered with this run's context, its id reserved for it — and run only on a person's yes (a
   // terminal's, or --yes); listed only when they do not run (the runner's default: run for a capture, skip for --dry).
   let listedRun: Awaited<ReturnType<typeof reserveListedRun>> | undefined;
+  // L7.39: the files the person's check read (a trust, or a yes to the listing): the run's hooks are held to them.
+  let trustedHookFiles: TrustedHookFiles | undefined;
   try {
-    const agentHooks = await agentWrittenShellHooks(ws.root, project, scenario, async () => {
-      listedRun = await reserveListedRun(project, scenario.name);
-      return listingContext(project, scenario.scenario, sandboxEnv ?? opts.env ?? scenario.scenario.env, { id: listedRun.id, dir: listedRun.dir });
-    });
+    const check = await scenarioHooksCheck(
+      ws.root,
+      project,
+      scenario,
+      async () => {
+        listedRun = await reserveListedRun(project, scenario.name);
+        return listingContext(project, scenario.scenario, sandboxEnv ?? opts.env ?? scenario.scenario.env, { id: listedRun.id, dir: listedRun.dir });
+      },
+      cliPorts.hooks,
+    );
+    trustedHookFiles = check.bound;
+    const agentHooks = check.ask;
     if (agentHooks) {
       const hooksRun = (opts.hooks ?? (opts.dry ? 'skip' : 'run')) === 'run';
       const verdict = await askAgentHooks(ui, agentHooks, {
@@ -186,6 +197,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
         loginCommand: loginCommandFor(global),
         // The id the listing of an agent's shell hooks showed (its folder reserved for this run).
         ...(listedRun ? { runId: (listedRun as { id: string }).id } : {}),
+        ...(trustedHookFiles ? { trustedHookFiles } : {}),
         ...(opts.allowWrites ? { allowWrites: true } : {}),
         ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
         ...(opts.dry ? {} : { onFilming }),

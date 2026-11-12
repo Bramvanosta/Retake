@@ -10,7 +10,7 @@
  * re-derived on this side (signed approvals are bound to it).
  */
 import type { HookStep } from '@retake/core/model';
-import type { CaptureHookRunner, HookContext, HookJournal, HookPhase, HookResult, HookRunOptions } from '@retake/core/hooks';
+import type { CaptureHookRunner, HookContext, HookJournal, HookPhase, HookResult, HookRunOptions, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 
 // L7.25: a journal's handle, a run's options and the capture's part of the port are core's (hook-run.ts), shared with
 // runner-web's RunOptions.hookRunner; re-exported here for the engine's modules.
@@ -71,5 +71,7 @@ export interface HookRunner extends CaptureHookRunner {
     fingerprint(hook: HookStep, place: HookPlace): Promise<string>;
     /** The project files `hook` references (their sha256: part of its fingerprint) and those it may not use. */
     files(hook: HookStep, o: { projectDir: string; baseDir?: string; agentWritten?: boolean }): Promise<{ files: Record<string, string>; problems: string[] }>;
+    /** The files `hook` reads as a person's trust binds them (L7.39: code and data, by project path; not a fingerprint's list). */
+    trustFiles(hook: HookStep, place: TrustFilesPlace): Promise<TrustedHookFiles>;
   };
 }

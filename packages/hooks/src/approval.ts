@@ -78,7 +78,8 @@ function shellFileWords(run: string): string[] {
  */
 export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: string; agentWritten?: boolean }): { files: Record<string, string>; problems: string[] } {
   const baseDir = o.baseDir ?? o.projectDir;
-  const files: Record<string, string> = {};
+  // No prototype: a file named `__proto__` is a key like any other.
+  const files: Record<string, string> = Object.create(null) as Record<string, string>;
   const problems: string[] = [];
   for (const { ref, what } of hookFileRefs(hook)) {
     const problem = projectFileProblem(o.projectDir, ref, { baseDir, code: true, files: nodeFileFacts });

@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { collectSandboxRefs, collectSecretRefs } from '@retake/core/base';
 import { projectFileProblem, secretRefsProblem } from '@retake/core/scenario';
 import { nodeFileFacts } from '@retake/core/io';
@@ -98,12 +99,37 @@ export async function readHookFile(ctx: HookContext, baseDir: string, rel: strin
     const problem = projectFileProblem(ctx.project.dir, rel, { baseDir, code: true, files: nodeFileFacts });
     if (problem) throw new HookSecurityError(`${what}: ${problem}`, 'mcp');
   }
-  const text = await readProjectFile(baseDir, rel, what);
+  const text = ctx.trustedFiles ? await readTrustedFile(ctx, baseDir, rel, what) : await readProjectFile(baseDir, rel, what);
   if (ctx.trust === 'mcp') {
     const secrets = secretRefsProblem([...collectSecretRefs(text), ...collectSandboxRefs(text)], `${what} ${rel}`);
     if (secrets) throw new HookSecurityError(secrets, 'mcp');
   }
   return text;
+}
+
+/**
+ * L7.39: a hook file read under a person's check (HookContext.trustedFiles): its bytes, read once, must be the ones
+ * bound as code — other bytes, or a file that was not bound, are refused before any of it runs.
+ */
+async function readTrustedFile(ctx: HookContext, baseDir: string, rel: string, what: string): Promise<string> {
+  const abs = resolve(baseDir, rel);
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(abs);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    throw new HookError(code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${(e as Error).message}`);
+  }
+  const key = relative(ctx.project.dir, abs).split(sep).join('/');
+  const code = ctx.trustedFiles?.code ?? {};
+  const bound = Object.hasOwn(code, key) ? code[key] : undefined;
+  if (bound !== createHash('sha256').update(bytes).digest('hex')) {
+    throw new HookSecurityError(
+      `${what} ${rel} is not as you checked it before the run (${bound === undefined ? 'it was not among the files checked' : 'its bytes changed since'}) — run again to be asked about it`,
+      'trust',
+    );
+  }
+  return bytes.toString('utf8');
 }
 
 /** Logs that a rollback declared on a teardown/reset hook is ignored. */

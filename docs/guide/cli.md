@@ -105,7 +105,8 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   that allows writes).
   A scenario's setup or teardown whose hooks an agent wrote last is listed and asked about as `run` does (`--yes`
   accepts it too; `--dry` lists it without asking). **hooks trust** lists a scenario's shell hooks as a run would and, on your yes
-  (y/N; `--yes`; refused without a terminal), records them as yours: runs no longer ask about them until they change.
+  (y/N; `--yes`; refused without a terminal), records them as yours: runs no longer ask about them until they change,
+  or until a file they read (an sql or js file, a script a shell command runs, another file it names) changes.
   Only in a terminal — no MCP tool or Studio screen does it.
 - **login** signs a persona in and saves its session: a visible browser window (sign in, then close it) or, with
   `--auto`, the persona's `login:` steps, headless; **auth status** lists every persona's session (from the last check,

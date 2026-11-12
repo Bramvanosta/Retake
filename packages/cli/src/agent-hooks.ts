@@ -4,7 +4,8 @@
  * template context (vars, pages, the run), its working folder, each of its environment entries, its rollback; a secret
  * token kept as a token, a value filled from an earlier hook's response said to be unknown until the run, every hidden
  * character written out; an sql hook's statements as they will run (a file's text), its database key and its
- * rollback. Then it asks. `--yes` accepts; a terminal asks (default no: nothing runs); without a terminal
+ * rollback. The same when a person marked them as theirs (`retake hooks trust`) and a file they read changed since, is
+ * newly read, or cannot be read (L7.39): the header names each file. Then it asks. `--yes` accepts; a terminal asks (default no: nothing runs); without a terminal
  * and without `--yes`, one sentence naming the hooks and the flag, and nothing runs. When the hooks are not going to
  * run (a dry run without them, `--hooks skip`), they are listed and nothing is asked.
  */
@@ -23,6 +24,8 @@ export function shellHookLabel(h: ScenarioShellHook): string {
 /** "shell hook(s)", "sql hook(s)" or "shell and sql hooks": the kinds a listing holds. */
 export function hooksNoun(hooks: readonly ScenarioShellHook[], one = hooks.length === 1): string {
   const kinds = [...new Set(hooks.map((h) => h.kind))];
+  // None listed (L7.39: a trust's files changed under hooks that are neither shell nor sql).
+  if (!kinds.length) return 'hooks';
   if (kinds.length === 2) return 'shell and sql hooks';
   return `${kinds[0] ?? 'shell'} hook${one ? '' : 's'}`;
 }
@@ -37,11 +40,19 @@ function whatRuns(hooks: readonly ScenarioShellHook[]): string {
   return !sql ? shellText : !shell ? sqlText : `${shellText}, and its ${sqlText}`;
 }
 
+/** How a file a person trusted is no longer as trusted, as the header says it. */
+const FILE_CHANGE = { changed: 'changed since', added: 'newly read as code', unreadable: 'cannot be read now' } as const;
+
 /** Who wrote them, as the header says it. */
 function header(scenario: string, f: AgentWrittenShellHooks): string {
   const name = showHiddenCharsLine(scenario);
   const n = whatRuns(f.hooks);
   if ('unknown' in f) return `Retake cannot tell who wrote the hooks of scenario ${name} (${showHiddenCharsLine(f.unknown)}): its ${n}`;
+  if ('files' in f) {
+    const files = f.files.map((x) => `${showHiddenCharsLine(x.path)} (${FILE_CHANGE[x.change]})`).join(', ');
+    const head = `the hooks of scenario ${name} were marked as yours (${showHiddenCharsLine(f.at)}), but files they read are not as you trusted them: ${files}`;
+    return f.hooks.length ? `${head}: its ${n}` : head;
+  }
   const at = showHiddenCharsLine(f.at);
   const who =
     f.by.client === 'ui'
@@ -113,15 +124,25 @@ export async function askAgentHooks(ui: Ui, f: AgentWrittenShellHooks, o: AskAge
   }
   const name = showHiddenCharsLine(o.scenario);
   if (!ui.io.canPrompt || !ui.io.confirm) {
-    const whose = 'unknown' in f ? 'whose writer Retake cannot tell' : 'last written by an agent';
+    const whose =
+      'unknown' in f
+        ? 'whose writer Retake cannot tell'
+        : 'files' in f
+          ? `whose files changed since they were marked as yours (${f.files.map((x) => showHiddenCharsLine(x.path)).join(', ')})`
+          : 'last written by an agent';
     return {
       ok: false,
-      message: `refused: the ${hooksNoun(f.hooks, false)} of scenario ${name} (${f.hooks.map(shellHookLabel).join(', ')}), ${whose}, run only once a person says yes — answer in a terminal, or pass --yes`,
+      message: `refused: the ${hooksNoun(f.hooks, false)} of scenario ${name}${f.hooks.length ? ` (${f.hooks.map(shellHookLabel).join(', ')})` : ''}, ${whose}, run only once a person says yes — answer in a terminal, or pass --yes`,
     };
   }
   let yes = false;
   try {
-    yes = await ui.io.confirm(`Run ${f.hooks.length === 1 ? `this ${hooksNoun(f.hooks)}` : `these ${f.hooks.length} ${hooksNoun(f.hooks)}`}, as listed?`);
+    const what = !f.hooks.length
+      ? 'these hooks, with the files as they are now'
+      : f.hooks.length === 1
+        ? `this ${hooksNoun(f.hooks)}, as listed`
+        : `these ${f.hooks.length} ${hooksNoun(f.hooks)}, as listed`;
+    yes = await ui.io.confirm(`Run ${what}?`);
   } catch {
     yes = false; // the input closed: no answer is a no
   }

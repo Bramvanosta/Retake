@@ -31,7 +31,7 @@ import { canonicalJson, listTemplateTokens } from '@retake/core/base';
 import { AGENT_SQL_REASON, journalsRollback } from '@retake/core/hooks';
 import { projectPath, runPath, statePath } from '@retake/core/project';
 import type { HookKind, HookStep } from '@retake/core/model';
-import type { HookContext, HookPhase, HookResult, JournalEntry, RollbackAction } from '@retake/core/hooks';
+import type { HookContext, HookPhase, HookResult, JournalEntry, RollbackAction, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 import { describeHook, describeRollback, hookKindOf } from '@retake/hooks/describe';
 import { EngineError } from '../errors.js';
 import type { HookJournal, HookJournalRollback, HookPlace, HookRunOptions, HookRunner, PendingHookJournal } from './runner.js';
@@ -54,7 +54,8 @@ export type MemoryHookCall =
   | { op: 'journals.open' | 'journals.standaloneFile' | 'journals.find' | 'journals.openPending' | 'journals.rollbackPending' | 'journals.pruneDone'; arg?: string }
   | { op: 'journals.rollback'; files: string[] }
   | { op: 'approval.fingerprint'; hook: HookStep; place: HookPlace }
-  | { op: 'approval.files'; hook: HookStep; o: { projectDir: string; baseDir?: string; agentWritten?: boolean } };
+  | { op: 'approval.files'; hook: HookStep; o: { projectDir: string; baseDir?: string; agentWritten?: boolean } }
+  | { op: 'approval.trustFiles'; hook: HookStep; place: TrustFilesPlace };
 
 /** A hook or rollback the fake would have executed. */
 export interface MemoryExecution {
@@ -76,6 +77,8 @@ export interface MemoryHookRunnerOptions {
   onExecute?: (e: MemoryExecution) => void | Promise<void>;
   /** What `approval.files` answers for a hook (default none, no problem). */
   files?: (hook: HookStep) => { files: Record<string, string>; problems: string[] };
+  /** What `approval.trustFiles` answers (default: none). */
+  trustFiles?: (hook: HookStep) => TrustedHookFiles;
 }
 
 /** The file name of a capture's hooks journal in its run folder (the hooks package's JOURNAL_FILE). */
@@ -414,6 +417,10 @@ export class MemoryHookRunner implements HookRunner {
     files: async (hook: HookStep, o: { projectDir: string; baseDir?: string; agentWritten?: boolean }): Promise<{ files: Record<string, string>; problems: string[] }> => {
       this.calls.push({ op: 'approval.files', hook, o });
       return this.#o.files?.(hook) ?? { files: {}, problems: [] };
+    },
+    trustFiles: async (hook: HookStep, place: TrustFilesPlace): Promise<TrustedHookFiles> => {
+      this.calls.push({ op: 'approval.trustFiles', hook, place });
+      return this.#o.trustFiles?.(hook) ?? { code: {}, data: {} };
     },
   };
 }

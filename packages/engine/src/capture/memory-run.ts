@@ -179,6 +179,7 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
         saved: {},
         ...(req.hookTrust ? { trust: req.hookTrust } : {}),
         ...(req.hookVia ? { via: req.hookVia } : {}),
+        ...(req.trustedHookFiles ? { trustedFiles: req.trustedHookFiles } : {}),
         ...(req.confirmHook ? { confirmDestructive: req.confirmHook } : {}),
         ...(req.recordHookRun ? { recordRun: (r, run) => req.recordHookRun!(r, run ?? runId) } : {}),
       };

@@ -186,7 +186,40 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   hold (from before it, or a line it lost), the workspace journal decides on the exact bytes; when it holds an agent's
   write of the file with other bytes, who brought the hooks cannot be told, and you are asked. For such a scenario an edit by
   hand does not stop the question; `retake hooks trust <project> <scenario>` does — it lists the hooks as a run would,
-  asks, and on your yes records them as yours, so runs no longer ask until they change (a terminal's command only). You are asked as well
+  asks, and on your yes records them as yours, so runs no longer ask until they change (a terminal's command only).
+  That trust also binds the bytes of the files those hooks read. Code is bound strictly — an sql or js file and its
+  rollback's, and in a shell command the script it runs: the command itself when written with a slash (`./seed.sh`),
+  the script given to `sh`, `bash`, `zsh`, `dash`, `node`, `deno`, `bun`, `tsx`, `python`, `python3`, `ruby`, `perl`,
+  `php`, `source` or `.`, psql's `-f`, and what `<` reads; one that changed, one the hooks newly run, or one that cannot
+  be read asks again. Every other file a shell command names (and its `env` values) is data, bound when it exists:
+  one that changed or cannot be read asks again, one that appeared since does not. A word is looked for in the hook's
+  working folder and in every folder an earlier `cd` of the command names; templates are rendered with the vars. When
+  a file is not as trusted, `retake run` and `retake hooks run` ask again, whatever the kinds of the hooks (a js file
+  too), and the listing names each file; the run is then held to the files as they were read — a hook whose files
+  changed since (a teardown or a `hook:` step that runs minutes later, after the capture) is refused, and an sql or js
+  file is checked again as its bytes are read. Files the hooks write are bound like any other, and only a file a hook
+  names as written (a plain `>` target) can become the run's own output: any other held file that changes — between
+  two hooks, or while a hook runs, even by that hook — is refused to the hooks that read it later. So a file written
+  otherwise (`cp`, `tee`, `sed -i`, a script) and read later in the same command is asked about: write it with a plain
+  `>` instead (`cat a > b` for `cp a b`, `… > f` for `… | tee f`). A file a hook writes with a plain `>` is the run's own output only when that hook ran in this
+  command, succeeded and really wrote it (its bytes or its modification time changed; a `>` inside quotes is no
+  redirect): later hooks of the same command read it as written — a script, a data file or a dump one hook writes and
+  a later one reads runs, run after run. The check before the run leaves such a file out only when its writer is due
+  to run before its first reader in the same command; the run then holds it to the trust until its writer writes it.
+  Otherwise — `retake hooks run <scenario>:teardown` alone after its setup, a writer that did not run, wrote nothing
+  (behind a condition) or did not succeed — the file is checked against the trust, and a reader whose writer did not
+  succeed is refused. When such a file is then run as code, its writer's own inputs are bound as code too (`cat n.txt >
+  gen.sh` then `sh gen.sh`: `n.txt` changed or newly there is asked about, under Retake's folders too), and so are the
+  inputs of every writer up a chain of such files (`cat n > a`, `cat a > g.sh`, `sh g.sh`). Not
+  bound: a file reached only through another (a script a bound script runs, an interpreter outside the list such as
+  `awk -f`, what `make` or `npm run` read), a file piped into an interpreter (`cat x.sh | sh`: data, so one that
+  appears later is not looked at, and nothing under Retake's folders), the value of an interpreter's option (in
+  `node --require ./a.js b.js`, `a.js` is taken for the script and `b.js` for data), `$(…)` and glob words
+  (`sh tools/*.sh`), a word with a template other than the vars (`{{run.dir}}`, a secret) or a working folder with
+  one, an absolute or `~` path outside the project and its workspace, a command looked up on PATH, what `>>` appends
+  to, and data under `runs/`, `renders/`, `review/`, `exports/` and `.retake/`; a shell command still reads its script a moment
+  after its check. Files a run writes otherwise belong under `{{run.dir}}`,
+  which is never bound — a `retake run` pattern: `retake hooks run` has no run folder. You are asked as well
   when the record or the journal cannot be read, or when the project lies outside the projects folder of the
   workspaces Retake looks at. The listing shows the commands, not the files they read: a command that runs or reads a
   file an agent can write (a scenario, a theme, a component) runs what that file holds now — read it before you say yes.

@@ -127,6 +127,96 @@ export interface HookContext {
    * container publishing the same port on ::1. Undefined: the URL's host.
    */
   connectAddress?: (host: string, port: number) => string | undefined;
+  /**
+   * L7.39: the files a person checked before this run (their trust in an agent's hooks, `retake hooks trust`, or their
+   * yes to the listing): a hook that reads one of them otherwise is refused — an sql or js file whose bytes differ when
+   * read, a code file that was not there, or any of a hook's files not as bound when it is about to run.
+   */
+  trustedFiles?: TrustedHookFiles;
+}
+
+/**
+ * The files the hooks of a scenario read, by project-relative POSIX path → sha256 of their bytes (`unreadable`: it
+ * could not be read, or is not a regular file), as a person's trust binds them (L7.39). `code`: what runs as code (an
+ * sql / js file and its rollback's; a shell command's own script — argv[0] with a slash, an interpreter's script, psql
+ * `-f`, a `<` target): bound strictly — one changed, newly read or unreadable is not as trusted. `data`: every other
+ * file a shell command names, bound when it existed then: one changed or unreadable is not as trusted, one that
+ * appeared since is not looked at.
+ */
+export interface TrustedHookFiles {
+  code: Record<string, string>;
+  data: Record<string, string>;
+  /**
+   * A hook's own: the files it writes with a plain `>` (or `>|`), by project-relative POSIX path. A scenario's
+   * (engine scenarioHookFiles): those a writer that runs in the command writes before their first reader — the check
+   * before the run does not compare them (the run holds them to the trust until a writer that ran changes them). Never
+   * written into a trust's record.
+   */
+  generated?: string[];
+  /** A hook's own: every path it names in a code position, whether it exists or not. */
+  codeNames?: string[];
+  /** A hook's own: every path it names as data, whether it exists or not. */
+  dataNames?: string[];
+  /** A hook's own: the data it names under Retake's own folders or the run's, compared only as a code writer's inputs. */
+  quiet?: Record<string, string>;
+  /**
+   * A scenario's: the files a hook writes with a plain `>` that a later hook of the command names as code, and — to a
+   * fixed point — those an earlier writer writes that such a writer reads: their writers' inputs are code (changed,
+   * newly read or unreadable is not as trusted), along the whole chain. Never written into a record.
+   */
+  codeOutputs?: string[];
+}
+
+/** Where a hook's files are looked for (trusted files, L7.39), and what its templates render with. */
+export interface TrustFilesPlace {
+  /** The project folder: the keys are relative to it. */
+  projectDir: string;
+  /** The folder its files and working folder are relative to (default `projectDir`). */
+  baseDir?: string;
+  /** The workspace root: an absolute path inside it is bound too. */
+  workspaceDir?: string;
+  /** The vars its templates render with (project.yaml's under the scenario's). */
+  vars: Record<string, unknown>;
+  /** The run's folder: a data file under it is not bound. */
+  runDir?: string;
+}
+
+/** A file not as a person trusted it: its bytes changed, the hooks newly read it as code, or it cannot be read. */
+export interface HookFileChange {
+  /** Project-relative POSIX. */
+  path: string;
+  change: 'changed' | 'added' | 'unreadable';
+}
+
+/** The sha256 a file that cannot be read (or is not a regular file) is bound as. */
+export const UNREADABLE_FILE = 'unreadable';
+
+const own = (m: unknown, k: string): string | undefined =>
+  m && typeof m === 'object' && Object.hasOwn(m, k) && typeof (m as Record<string, unknown>)[k] === 'string' ? ((m as Record<string, string>)[k] as string) : undefined;
+
+/**
+ * The files of `now` not as `trusted` holds them, by path: a code file unreadable, absent from `trusted` (code or data)
+ * or with other bytes; a data file `trusted` holds that is unreadable or has other bytes. A trusted file the hooks no
+ * longer read, and a data file that appeared since, are not looked at. A malformed `trusted` holds nothing.
+ */
+export function trustedFileChanges(trusted: unknown, now: TrustedHookFiles): HookFileChange[] {
+  const t = trusted && typeof trusted === 'object' ? (trusted as Partial<Record<'code' | 'data', unknown>>) : {};
+  const was = (path: string) => own(t.code, path) ?? own(t.data, path);
+  const out = new Map<string, HookFileChange['change']>();
+  for (const [path, hash] of Object.entries(now.code)) {
+    const before = was(path);
+    if (hash === UNREADABLE_FILE) out.set(path, 'unreadable');
+    else if (before === undefined) out.set(path, 'added');
+    else if (before !== hash) out.set(path, 'changed');
+  }
+  for (const [path, hash] of Object.entries(now.data)) {
+    if (out.has(path) || Object.hasOwn(now.code, path)) continue;
+    const before = was(path);
+    if (before === undefined) continue;
+    if (hash === UNREADABLE_FILE) out.set(path, 'unreadable');
+    else if (before !== hash) out.set(path, 'changed');
+  }
+  return [...out].map(([path, change]) => ({ path, change })).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
 /** What a persona's session sends with a request: the cookies it holds for the URL, a bearer token when it has one. */

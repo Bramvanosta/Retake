@@ -243,15 +243,18 @@ export {
   hooksTrustView,
   hooksWrittenBy,
   trustScenarioHooks,
+  listedAuthor,
   listingContext,
   recordScenarioWrite,
   renderForListing,
   reserveListedRun,
+  scenarioHookFiles,
+  scenarioHooksCheck,
   scenarioHookSurface,
   scenarioShellHooks,
   scenarioWritesFile,
 } from './agent-written.js';
-export type { AgentWrittenShellHooks, HooksAuthor, HooksTrustView, ListingContext, RenderedText, ScenarioHookPhases, ScenarioShellHook } from './agent-written.js';
+export type { AgentWrittenShellHooks, HookFileChange, HooksAuthor, ScenarioHooksCheck, HooksTrustView, ListingContext, RenderedText, ScenarioHookPhases, ScenarioShellHook } from './agent-written.js';
 export {
   APPROVAL_FORM_MAX_CHARS,
   APPROVAL_HOOK_MAX_CHARS,

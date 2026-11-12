@@ -22,6 +22,16 @@
  * that file with exactly these bytes decides. Otherwise, when the journals hold an agent's write of that file the
  * record does not, who brought the surface cannot be told apart: asked.
  *
+ * **A person's trust binds the files the hooks read** (`retake hooks trust`, L7.39). Its record line also holds the sha256
+ * of every file the scenario's hooks read — code (an sql / js file and its rollback's, a shell command's own script)
+ * and data (the other files a shell command names, when they exist) — as the hooks package's resolver sorts them
+ * (hookTrustFiles, through the HookRunner port). When that line decides, whatever the kinds of the hooks the command
+ * runs, their files are read again: a code file changed, newly read or unreadable, or a data file changed or
+ * unreadable, makes the hooks asked again, the listing naming each file. The files read then go to the run
+ * (HookContext.trustedFiles), which refuses a hook whose files are no longer those (core trustedFileChanges). A later
+ * line of the person's that leaves the surface as it was and holds no files does not drop that binding. A line without
+ * files (a person's own write) decides as before.
+ *
  * **Asked when it cannot be known** (fails closed): a record or journal that exists but cannot be read, no bytes or no
  * parsed scenario, or — with no line to decide — a project outside the projects folder of every workspace looked at.
  */
@@ -36,11 +46,14 @@ import { hookStepNames, sqlSource, usedNamedHooks } from '@retake/core/hooks';
 import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, projectPath, statePath } from '@retake/core/project';
 import type { TemplateContext } from '@retake/core/base';
 import type { HookStep, LoadedProject, Scenario, WorkFileFacts } from '@retake/core/model';
+import { UNREADABLE_FILE, trustedFileChanges } from '@retake/core/hooks';
+import type { HookFileChange, TrustedHookFiles } from '@retake/core/hooks';
 import { findWorkspaceUpward, loadScenario, loadWorkspaceConfig, reserveRunId } from '@retake/core/io';
 import type { Caller } from './caller.js';
 import { stampOf } from './clock.js';
 import { EngineError } from './errors.js';
 import type { Clock } from './clock.js';
+import type { HookRunner } from './hook-run/runner.js';
 import { journalFile } from './store/journal.js';
 import type { JournalBy } from './store/journal.js';
 
@@ -90,6 +103,11 @@ interface ScenarioWriteLine {
   /** The surface the file had before the write (null: a new file, or one that did not parse). */
   prev_surface: string | null;
   by: JournalBy;
+  /**
+   * A person's trust only (`retake hooks trust`): every file the hooks read, code and data, project-relative POSIX →
+   * sha256 of its bytes (`unreadable` when it could not be read): scenarioHookFiles.
+   */
+  files?: TrustedHookFiles;
 }
 
 /** How often a record that cannot be written is said on stderr. */
@@ -115,7 +133,15 @@ export async function recordScenarioWrite(
 /** The record line of a write (or of a person's trust): appended, or the error that stopped it. */
 async function appendScenarioWrite(
   project: Pick<LoadedProject, 'dir'>,
-  w: { file: string; sha256: string; scenario: SurfaceOf; before?: SurfaceOf | null; caller: Pick<Caller, 'client' | 'channel' | 'trust'>; clock: Clock },
+  w: {
+    file: string;
+    sha256: string;
+    scenario: SurfaceOf;
+    before?: SurfaceOf | null;
+    caller: Pick<Caller, 'client' | 'channel' | 'trust'>;
+    clock: Clock;
+    files?: TrustedHookFiles;
+  },
 ): Promise<void> {
   const line: ScenarioWriteLine = {
     v: 1,
@@ -125,6 +151,7 @@ async function appendScenarioWrite(
     surface: scenarioHookSurface(w.scenario),
     prev_surface: w.before ? scenarioHookSurface(w.before) : null,
     by: { client: w.caller.client, channel: w.caller.channel, trust: w.caller.trust },
+    ...(w.files ? { files: w.files } : {}),
   };
   await mkdir(statePath(project.dir), { recursive: true });
   await appendLine(scenarioWritesFile(project.dir), `${JSON.stringify(line)}\n`);
@@ -171,7 +198,11 @@ export type HooksAuthor =
   | { agent: true; by: JournalBy; at: string }
   /** Cannot be known (a record unreadable, no bytes, a project of no workspace looked at): asked, as an agent's. */
   | { agent: true; unknown: string }
+  /** A person trusted them (`at`), but a file they read changed since, was added, or cannot be read: asked again. */
+  | { agent: true; files: HookFileChange[]; at: string }
   | { agent: false; why: 'record' | 'journal' | 'unjournaled' };
+
+export type { HookFileChange } from '@retake/core/hooks';
 
 interface JournalScenarioWrite {
   at: string;
@@ -189,13 +220,33 @@ function fileOfLine(root: string, project: Pick<LoadedProject, 'slug' | 'dir'>, 
   return join(root, e.path);
 }
 
+/**
+ * The person's trust of `surface` older than `records[from]`, reached through lines that kept the surface (a person's
+ * without files, or an agent's that did not bring it); undefined at the first line that brought it, or none.
+ */
+function olderTrust(records: readonly ScenarioWriteLine[], from: number, surface: string): ScenarioWriteLine | undefined {
+  for (let k = from - 1; k >= 0; k--) {
+    const r = records[k] as ScenarioWriteLine;
+    if (r.surface !== surface) continue;
+    if (r.prev_surface !== surface) return r.by.trust !== 'mcp' && r.files !== undefined ? r : undefined;
+    if (r.by.trust !== 'mcp' && r.files !== undefined) return r;
+  }
+  return undefined;
+}
+
 const isBy = (b: unknown): b is JournalBy => !!b && typeof b === 'object' && typeof (b as JournalBy).trust === 'string';
 
 /**
  * Who wrote the hook surface of `loaded` (the bytes a command read once and runs): see the module comment. `wsRoot`:
- * the workspace the command opened.
+ * the workspace the command opened. `o.files`: the files the hooks the command runs read now (scenarioHookFiles), read
+ * only when a person's trust decides; without it such a trust cannot be checked: asked.
  */
-export async function hooksWrittenBy(wsRoot: string, opened: Pick<LoadedProject, 'slug' | 'dir'>, loaded: { file: string; sha256?: string; scenario?: SurfaceOf }): Promise<HooksAuthor> {
+export async function hooksWrittenBy(
+  wsRoot: string,
+  opened: Pick<LoadedProject, 'slug' | 'dir'>,
+  loaded: { file: string; sha256?: string; scenario?: SurfaceOf },
+  o: { files?: () => Promise<TrustedHookFiles>; trusted?: (files: unknown) => void } = {},
+): Promise<HooksAuthor> {
   if (loaded.sha256 === undefined || !loaded.scenario) return { agent: true, unknown: 'its bytes were not read from a file' };
   // The record of the project that holds the file, whichever project the command opened.
   const project = projectOfFile(loaded.file, opened);
@@ -215,7 +266,22 @@ export async function hooksWrittenBy(wsRoot: string, opened: Pick<LoadedProject,
   for (let i = records.length - 1; i >= 0; i--) {
     const r = records[i];
     if (r.surface !== surface) continue;
-    if (r.by.trust !== 'mcp') return { agent: false, why: 'record' };
+    if (r.by.trust !== 'mcp') {
+      // A person's line that kept the surface and binds no files: an older trust of this surface still binds its files.
+      const trust = r.files === undefined && r.prev_surface === surface ? olderTrust(records, i, surface) : r.files !== undefined ? r : undefined;
+      if (!trust) return { agent: false, why: 'record' };
+      // A person's trust: the files the hooks read now, against those it bound.
+      if (!o.files) return { agent: true, unknown: 'the files its hooks read were not checked against the trust given to them' };
+      let now: TrustedHookFiles;
+      try {
+        now = await o.files();
+      } catch (e) {
+        return { agent: true, unknown: `the files its hooks read cannot be listed (${(e as Error).message})` };
+      }
+      o.trusted?.(trust.files);
+      const changes = trustedFileChanges(trust.files, now);
+      return changes.length ? { agent: true, files: changes, at: trust.at } : { agent: false, why: 'record' };
+    }
     if (r.prev_surface !== surface) return { agent: true, by: r.by, at: r.at };
   }
 
@@ -429,26 +495,195 @@ export function listingContext(project: LoadedProject, sc: Pick<Scenario, 'vars'
   return { pages: resolveEnvironment(project, env).pages, vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) }, run };
 }
 
-/** The shell and sql hooks a person is asked about before they run, and who wrote them. */
-export type AgentWrittenShellHooks = { hooks: ScenarioShellHook[] } & ({ by: JournalBy; at: string } | { unknown: string });
+/**
+ * Every file the hooks a run of `sc` executes in `phases` read — setup, teardown, the named hooks its `hook:` steps run,
+ * of every kind — as the hooks package's resolver sorts them for a person's trust (the HookRunner port's
+ * `approval.trustFiles`: code and data, project-relative POSIX → sha256, `unreadable` kept), rendered with `vars`
+ * (project.yaml's under the scenario's). What a person's trust binds, and what a run checks it against.
+ */
+export async function scenarioHookFiles(
+  sc: Pick<Scenario, 'setup' | 'teardown' | 'scenes' | 'hooks' | 'vars'>,
+  project: Pick<LoadedProject, 'config' | 'dir' | 'root'>,
+  hooks: Pick<HookRunner, 'approval'>,
+  phases: ScenarioHookPhases = ALL_PHASES,
+): Promise<TrustedHookFiles> {
+  const vars = { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) };
+  const out: TrustedHookFiles = { code: Object.create(null) as Record<string, string>, data: Object.create(null) as Record<string, string> };
+  // Every file is bound, a file a hook writes too. Apart: those a writer of this command writes before their first
+  // reader (`generated`), which the check before the run does not compare.
+  const written = new Set<string>();
+  const first = new Set<string>();
+  const generated = new Set<string>();
+  const list: TrustedHookFiles[] = [];
+  for (const { hook, phase } of runOrder(sc, project)) {
+    if (phases.includes(phase)) list.push(await hooks.approval.trustFiles(hook, { projectDir: project.dir, workspaceDir: project.root, vars }));
+  }
+  // A file a hook writes with a plain `>` that a later hook names as code: its writer's inputs are code too — and so,
+  // to a fixed point, are the inputs of every writer up the chain (a writer's input an earlier hook wrote).
+  const codeOutputs = new Set<string>();
+  const writtenBefore: Array<Set<string>> = [];
+  const seen = new Set<string>();
+  for (const f of list) {
+    writtenBefore.push(new Set(seen));
+    for (const path of f.generated ?? []) seen.add(path);
+  }
+  list.forEach((f, k) => {
+    for (const path of f.codeNames ?? []) if (writtenBefore[k]?.has(path)) codeOutputs.add(path);
+  });
+  for (let grown = true; grown; ) {
+    grown = false;
+    list.forEach((f, k) => {
+      if (!(f.generated ?? []).some((p) => codeOutputs.has(p))) return;
+      for (const path of [...(f.dataNames ?? []), ...(f.codeNames ?? [])]) {
+        if (writtenBefore[k]?.has(path) && !codeOutputs.has(path)) {
+          codeOutputs.add(path);
+          grown = true;
+        }
+      }
+    });
+  }
+  for (const listed of list) {
+    const f = (listed.generated ?? []).some((p) => codeOutputs.has(p)) ? inputsAsCode(listed) : listed;
+    for (const [path, hash] of Object.entries(f.code)) {
+      out.code[path] = out.code[path] === UNREADABLE_FILE ? UNREADABLE_FILE : hash;
+      delete out.data[path];
+    }
+    for (const [path, hash] of Object.entries(f.data)) {
+      if (Object.hasOwn(out.code, path)) continue;
+      out.data[path] = out.data[path] === UNREADABLE_FILE ? UNREADABLE_FILE : hash;
+    }
+    // Its reads come before its writes: a hook that reads what it writes reads it first.
+    for (const path of [...Object.keys(f.code), ...Object.keys(f.data)]) {
+      if (first.has(path)) continue;
+      first.add(path);
+      if (written.has(path)) generated.add(path);
+    }
+    for (const path of f.generated ?? []) written.add(path);
+  }
+  if (generated.size) out.generated = [...generated].sort();
+  if (codeOutputs.size) out.codeOutputs = [...codeOutputs].sort();
+  return out;
+}
+
+/** `f` with its data files (and those it names under Retake's folders) moved to code: a writer whose output runs as code. */
+function inputsAsCode(f: TrustedHookFiles): TrustedHookFiles {
+  const code = Object.assign(Object.create(null) as Record<string, string>, f.quiet ?? {}, f.data, f.code);
+  return { ...f, code, data: Object.create(null) as Record<string, string> };
+}
+
+/** `f` without the files of `f.generated`, and without that list. */
+function withoutGenerated(f: TrustedHookFiles): TrustedHookFiles {
+  const skip = new Set(f.generated ?? []);
+  const keep = (m: Record<string, string>) => Object.assign(Object.create(null) as Record<string, string>, Object.fromEntries(Object.entries(m).filter(([p]) => !skip.has(p))));
+  return { code: keep(f.code), data: keep(f.data), ...(f.codeOutputs ? { codeOutputs: f.codeOutputs } : {}) };
+}
+
+/** A trust's own hash of `path` (from its record line: anything else in it is not read). */
+function trustedHash(trusted: unknown, path: string): string | undefined {
+  for (const k of ['code', 'data'] as const) {
+    const m = trusted && typeof trusted === 'object' ? (trusted as Record<string, unknown>)[k] : undefined;
+    if (m && typeof m === 'object' && Object.hasOwn(m, path) && typeof (m as Record<string, unknown>)[path] === 'string') return (m as Record<string, string>)[path];
+  }
+  return undefined;
+}
+
+/** The hooks of every kind a run of `sc` executes, in the order it runs them: setup, the `hook:` steps' named hooks, teardown. */
+function runOrder(sc: Pick<Scenario, 'setup' | 'teardown' | 'scenes' | 'hooks'>, project: Pick<LoadedProject, 'config'>): Array<{ hook: HookStep; phase: ScenarioShellHook['phase'] }> {
+  return [
+    ...(sc.setup ?? []).map((hook) => ({ hook, phase: 'setup' as const })),
+    ...usedNamedHooks(sc, project).flatMap((n) => n.hooks.map((hook) => ({ hook, phase: 'step' as const }))),
+    ...(sc.teardown ?? []).map((hook) => ({ hook, phase: 'teardown' as const })),
+  ];
+}
+
+/** The shell and sql hooks a person is asked about before they run, and who wrote them (or whose trusted files changed). */
+export type AgentWrittenShellHooks = { hooks: ScenarioShellHook[] } & ({ by: JournalBy; at: string } | { unknown: string } | { files: HookFileChange[]; at: string });
+
+/** A listing's "who" from a HooksAuthor that is an agent's. */
+export function listedAuthor(a: Extract<HooksAuthor, { agent: true }>): { by: JournalBy; at: string } | { unknown: string } | { files: HookFileChange[]; at: string } {
+  if ('unknown' in a) return { unknown: a.unknown };
+  if ('files' in a) return { files: a.files, at: a.at };
+  return { by: a.by, at: a.at };
+}
+
+/** What a person's command learns before it runs a scenario's hooks: what to ask about, and the files to hold the run to. */
+export interface ScenarioHooksCheck {
+  /** The hooks to list and ask about, or null: none. */
+  ask: AgentWrittenShellHooks | null;
+  /**
+   * The files the hooks read, as read now, when a person's trust decided or the person is asked: the run refuses a hook
+   * whose files are no longer these (HookContext.trustedFiles). Absent: the person's own hooks, run as before.
+   */
+  bound?: TrustedHookFiles;
+}
 
 /**
- * The shell and sql hooks (in `phases`) of a scenario whose hooks an agent wrote — or whose writer cannot be known — rendered
- * with the context `tpl` gives (asked for only then: a run reserves its id there), or null: no shell or sql hook (nothing
- * else is read), or the person's.
+ * Before a person's command runs the hooks (in `phases`) of a scenario: the shell and sql hooks to ask about — when an
+ * agent wrote them, when their writer cannot be known, or when files they read changed since a person trusted them
+ * (whatever the kinds of the hooks: a js file too) — rendered with the context `tpl` gives (asked for only then: a run
+ * reserves its id there), and the files read now (`runner`), which the run is held to. Nothing is read for a scenario
+ * whose hooks in `phases` are neither shell nor sql and read no file.
  */
+export async function scenarioHooksCheck(
+  wsRoot: string,
+  project: LoadedProject,
+  loaded: { file: string; sha256?: string; scenario: Scenario },
+  tpl: () => Promise<ListingContext>,
+  runner: Pick<HookRunner, 'approval'>,
+  phases: ScenarioHookPhases = ALL_PHASES,
+): Promise<ScenarioHooksCheck> {
+  const listed = scenarioShellHooks(loaded.scenario, project, { pages: {}, vars: {}, run: { id: '' } }, phases).length > 0;
+  let files: TrustedHookFiles | undefined;
+  const read = async () => (files ??= await scenarioHookFiles(loaded.scenario, project, runner, phases));
+  if (!listed) {
+    const f = await read();
+    if (!Object.keys(f.code).length && !Object.keys(f.data).length) return { ask: null };
+  }
+  // The reader is called only when a person's trust decides; it compares all but the files a writer of this command
+  // writes before their first reader.
+  let trust: { files: unknown } | undefined;
+  const author = await hooksWrittenBy(wsRoot, project, loaded, {
+    files: async () => withoutGenerated(await read()),
+    trusted: (t) => void (trust = { files: t }),
+  });
+  if (!author.agent) return trust ? { ask: null, bound: held(await read(), trust.files) } : { ask: null };
+  // An agent's hooks that are neither shell nor sql are not asked about (only a trust's changed files are).
+  if (!listed && !('files' in author)) return { ask: null };
+  const hooks = scenarioShellHooks(loaded.scenario, project, await tpl(), phases);
+  return { ask: { hooks, ...listedAuthor(author) }, bound: held(await read(), trust?.files) };
+}
+
+/**
+ * What a run is held to: the files as read now — but a file a writer of this command writes before its first reader
+ * as the trust holds it (absent when the trust holds none), until a writer that runs changes it. Without a trust (an
+ * agent's hooks the person says yes to): the files as read now.
+ */
+function held(now: TrustedHookFiles, trusted: unknown): TrustedHookFiles {
+  const out = withoutGenerated(now);
+  if (trusted === undefined) {
+    for (const path of now.generated ?? []) {
+      if (Object.hasOwn(now.code, path)) out.code[path] = now.code[path] as string;
+      else if (Object.hasOwn(now.data, path)) out.data[path] = now.data[path] as string;
+    }
+    return out;
+  }
+  for (const path of now.generated ?? []) {
+    const h = trustedHash(trusted, path);
+    if (h !== undefined) out.code[path] = h;
+  }
+  return out;
+}
+
+/** scenarioHooksCheck's `ask`: the hooks to list and ask about, or null. */
 export async function agentWrittenShellHooks(
   wsRoot: string,
   project: LoadedProject,
   loaded: { file: string; sha256?: string; scenario: Scenario },
   tpl: () => Promise<ListingContext>,
+  runner: Pick<HookRunner, 'approval'>,
   phases: ScenarioHookPhases = ALL_PHASES,
 ): Promise<AgentWrittenShellHooks | null> {
-  if (!scenarioShellHooks(loaded.scenario, project, { pages: {}, vars: {}, run: { id: '' } }, phases).length) return null;
-  const author = await hooksWrittenBy(wsRoot, project, loaded);
-  if (!author.agent) return null;
-  const hooks = scenarioShellHooks(loaded.scenario, project, await tpl(), phases);
-  return 'unknown' in author ? { hooks, unknown: author.unknown } : { hooks, by: author.by, at: author.at };
+  return (await scenarioHooksCheck(wsRoot, project, loaded, tpl, runner, phases)).ask;
 }
 
 /**
@@ -470,6 +705,8 @@ export interface HooksTrustView {
   scenario: Scenario;
   /** Every shell and sql hook a run executes, rendered as the run's listing renders them (the run's id and folder not known yet). */
   hooks: ScenarioShellHook[];
+  /** Every file those hooks read, as read now (scenarioHookFiles): what a yes binds. */
+  files: TrustedHookFiles;
   author: HooksAuthor;
 }
 
@@ -480,24 +717,31 @@ const NO_RUN = { id: "<the run's id>", dir: "<the run's folder>" };
  * Read a scenario once (core loadScenario, validated against `env`) for `retake hooks trust`: its shell and sql hooks as the run
  * lists them, and who wrote them (hooksWrittenBy).
  */
-export async function hooksTrustView(wsRoot: string, project: LoadedProject, scenarioRef: string, o: { files: WorkFileFacts; env?: string }): Promise<HooksTrustView> {
+export async function hooksTrustView(
+  wsRoot: string,
+  project: LoadedProject,
+  scenarioRef: string,
+  o: { files: WorkFileFacts; env?: string; hooks: Pick<HookRunner, 'approval'> },
+): Promise<HooksTrustView> {
   const loaded = await loadScenario(project, scenarioRef, { files: o.files, ...(o.env !== undefined ? { env: o.env } : {}) });
   if (loaded.sha256 === undefined) throw new EngineError('invalid', `scenario ${loaded.name} was not read from a file: nothing to trust`);
   const hooks = scenarioShellHooks(loaded.scenario, project, listingContext(project, loaded.scenario, o.env ?? loaded.scenario.env, NO_RUN));
-  const author = await hooksWrittenBy(wsRoot, project, loaded);
-  return { name: loaded.name, file: loaded.file, sha256: loaded.sha256, scenario: loaded.scenario, hooks, author };
+  const files = await scenarioHookFiles(loaded.scenario, project, o.hooks);
+  const author = await hooksWrittenBy(wsRoot, project, loaded, { files: async () => withoutGenerated(files) });
+  return { name: loaded.name, file: loaded.file, sha256: loaded.sha256, scenario: loaded.scenario, hooks, files, author };
 }
 
 /**
  * A person's yes to the hooks of `view` (`retake hooks trust`, a terminal's caller only): one record line by the person
- * — the bytes read and their surface, the surface before the same — in the project holding the file, so a run does
- * not ask again until the hooks change. A line that cannot be written is an error (nothing was settled).
+ * — the bytes read and their surface, the surface before the same, and the sha256 of every file the hooks read
+ * (`view.files`) — in the project holding the file, so a run does not ask again until the hooks or one of those files
+ * change. A line that cannot be written is an error (nothing was settled).
  */
 export async function trustScenarioHooks(project: LoadedProject, view: HooksTrustView, caller: Caller, clock: Clock): Promise<void> {
   if (caller.trust !== 'author' || caller.client !== 'cli') throw new EngineError('refused', 'only a person in a terminal marks hooks as theirs (`retake hooks trust`)');
   const holder = projectOfFile(view.file, project);
   try {
-    await appendScenarioWrite(holder, { file: view.file, sha256: view.sha256, scenario: view.scenario, before: view.scenario, caller, clock });
+    await appendScenarioWrite(holder, { file: view.file, sha256: view.sha256, scenario: view.scenario, before: view.scenario, caller, clock, files: { code: view.files.code, data: view.files.data } });
   } catch (e) {
     throw new EngineError('internal', `the project's record of scenario writes (${STATE_DIR}/${PROJECT_SCENARIO_WRITES_FILE}) could not be written: ${(e as Error).message} — nothing was settled`);
   }

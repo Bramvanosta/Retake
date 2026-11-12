@@ -48,6 +48,7 @@ export function packageHookRunner(): HookRunner {
     approval: {
       fingerprint: async (hook, place) => (await hooks()).hookFingerprint(hook, place),
       files: async (hook, o) => (await hooks()).hookFiles(hook, o),
+      trustFiles: async (hook, place) => (await hooks()).hookTrustFiles(hook, place),
     },
   };
 }

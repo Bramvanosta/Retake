@@ -5,7 +5,19 @@ import { ScenarioError } from '@retake/core/scenario';
 import type { RunAccess } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { HookContext, HookResult } from '@retake/core/hooks';
-import { HooksSourceError, agentWrittenShellHooks, callerOf, envResetWork, hooksRunWork, hooksTrustView, listingContext, rollbackActionLines, rollbackWork, trustScenarioHooks } from '@retake/engine';
+import {
+  HooksSourceError,
+  scenarioHooksCheck,
+  callerOf,
+  envResetWork,
+  hooksRunWork,
+  hooksTrustView,
+  listedAuthor,
+  listingContext,
+  rollbackActionLines,
+  rollbackWork,
+  trustScenarioHooks,
+} from '@retake/engine';
 import type { HookJournal, HookJournalRollback, HookWorkOptions, HooksRunOutcome, PendingHookJournal } from '@retake/engine';
 import { fileFacts } from '@retake/core/io';
 import { agentHooksListing, askAgentHooks, hooksNoun } from '../agent-hooks.js';
@@ -148,14 +160,17 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
       onSelected: async (sel, { runId }) => {
         if (!sel.scenario || sel.file === undefined || (sel.phase !== 'setup' && sel.phase !== 'teardown')) return;
         const sc = sel.scenario;
-        const found = await agentWrittenShellHooks(
+        const check = await scenarioHooksCheck(
           ws.root,
           project,
           { file: sel.file, ...(sel.sha256 !== undefined ? { sha256: sel.sha256 } : {}), scenario: sc },
           async () => listingContext(project, sc, opts.env ?? sel.env, { id: runId }),
+          cliPorts.hooks,
           [sel.phase],
         );
-        if (!found) return;
+        const found = check.ask;
+        const held = check.bound ? { trustedFiles: check.bound } : undefined;
+        if (!found) return held;
         const verdict = await askAgentHooks(ui, found, {
           scenario: sel.label.replace(/-(setup|teardown)$/, ''),
           run: opts.dry ? '--dry' : true,
@@ -170,6 +185,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
           ui.error(verdict.message);
           throw new Printed(EXIT.failure);
         }
+        return held;
       },
       onStart: ({ sel, ctx, access }) => {
         ui.line(
@@ -316,7 +332,7 @@ export interface HooksTrustOptions {
 export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: HooksTrustOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const view = await hooksTrustView(ws.root, project, scenarioArg, { files: fileFacts(ws.policy), ...(opts.env !== undefined ? { env: opts.env } : {}) });
+  const view = await hooksTrustView(ws.root, project, scenarioArg, { files: fileFacts(ws.policy), hooks: cliPorts.hooks, ...(opts.env !== undefined ? { env: opts.env } : {}) });
   const name = showHiddenCharsLine(view.name);
   if (!view.hooks.length) {
     ui.ok(`scenario ${name} has no shell or sql hooks: nothing to trust`);
@@ -326,7 +342,7 @@ export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectAr
     ui.ok(`the hooks of scenario ${name} are already yours: a run does not ask about them`);
     return EXIT.ok;
   }
-  const listing = agentHooksListing(view.name, { hooks: view.hooks, ...('unknown' in view.author ? { unknown: view.author.unknown } : { by: view.author.by, at: view.author.at }) });
+  const listing = agentHooksListing(view.name, { hooks: view.hooks, ...listedAuthor(view.author) });
   ui.warn(listing.header);
   for (const l of listing.lines) ui.line(l);
   const n = view.hooks.length === 1 ? `this ${hooksNoun(view.hooks)}` : `these ${view.hooks.length} ${hooksNoun(view.hooks)}`;

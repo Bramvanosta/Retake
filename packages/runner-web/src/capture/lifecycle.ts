@@ -362,6 +362,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
         running: hookGroups,
         ...(opts.hookTrust ? { trust: opts.hookTrust } : {}),
         ...(opts.hookVia ? { via: opts.hookVia } : {}),
+        ...(opts.trustedHookFiles ? { trustedFiles: opts.trustedHookFiles } : {}),
         ...(opts.hookTrust === 'mcp' && sc.vars && Object.keys(sc.vars).length ? { agentVars: Object.keys(sc.vars) } : {}),
         ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
         ...(opts.recordHookRun ? { recordHookRun: opts.recordHookRun } : {}),

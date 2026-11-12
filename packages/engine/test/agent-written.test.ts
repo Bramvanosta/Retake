@@ -3,7 +3,7 @@
  * journals for writes it does not hold; asked when it cannot be known), which shell hooks a run executes, and how the
  * listing renders them. The CLI's question is held in packages/cli/test/run-agent-hooks.test.ts.
  */
-import { appendFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,12 +15,15 @@ import type { Scenario } from '@retake/core';
 import {
   callerOf,
   createEngine,
+  enginePorts,
   hooksTrustView,
   hooksWrittenBy,
   trustScenarioHooks,
   ManualClock,
   journalFile,
   renderForListing,
+  scenarioHookFiles,
+  scenarioHooksCheck,
   scenarioHookSurface,
   scenarioShellHooks,
   scenarioWritesFile,
@@ -46,10 +49,13 @@ const HOOKED = (v: string, cmd = 'touch a') => `video: ${v}\nsetup:\n  - shell: 
 const parsed = (text: string): Scenario => parseScenario(text, {}).scenario as Scenario;
 const TPL = { pages: { app: 'http://app.example.test' }, vars: { who: 'world' }, run: { id: '20260101-120000-x', dir: '/runs/20260101-120000-x' } };
 
+const HOOKS = enginePorts().hooks;
+
 async function author(name: string) {
   const file = join(projectDir, 'scenarios', `${name}.yaml`);
   const text = await readFile(file, 'utf8');
-  return hooksWrittenBy(ws, PROJECT, { file, sha256: sha(text), scenario: parsed(text) });
+  const scenario = parsed(text);
+  return hooksWrittenBy(ws, PROJECT, { file, sha256: sha(text), scenario }, { files: () => scenarioHookFiles(scenario, { dir: projectDir, root: ws, config: {} as never }, HOOKS) });
 }
 
 /** A journal line as the store writes one (store/journal.ts), for writes from before the project's record. */
@@ -336,7 +342,7 @@ describe('a person’s trust (retake hooks trust)', () => {
     await writeFile(file, `${text}# a note\n`);
     expect(await author('settle')).toMatchObject({ agent: true, unknown: expect.any(String) });
     const project = await loadProject(projectDir, ws);
-    const view = await hooksTrustView(ws, project, 'settle', { files: fileFacts(PERSON_POLICY) });
+    const view = await hooksTrustView(ws, project, 'settle', { files: fileFacts(PERSON_POLICY), hooks: HOOKS });
     expect(view.hooks.map((h) => h.run.shown)).toEqual(['touch a']);
     const clock = new ManualClock(Date.parse('2026-11-12T10:00:00.000Z'));
     await expect(trustScenarioHooks(project, view, callerOf('mcp'), clock)).rejects.toThrow('only a person in a terminal');
@@ -344,5 +350,253 @@ describe('a person’s trust (retake hooks trust)', () => {
     expect(await author('settle')).toMatchObject({ agent: true });
     await trustScenarioHooks(project, view, callerOf('cli'), clock);
     expect(await author('settle')).toEqual({ agent: false, why: 'record' });
+  });
+});
+
+describe('a person’s trust binds the files its hooks read (L7.39)', () => {
+  /** Setup runs a script (one in a folder an agent can write, too) and an sql file with its rollback's; teardown a js file and a script that does not exist yet. */
+  const BOUND = (v: string) =>
+    [
+      `video: ${v}`,
+      'setup:',
+      '  - shell: "sh tools/seed.sh && sh scenarios/helper.sh tools/input.json"',
+      '  - sql: {file: sql/seed.sql, rollback: {file: sql/undo.sql}}',
+      'teardown:',
+      '  - js: {file: tools/after.js}',
+      '  - shell: "sh tools/later.sh || true"',
+      SCENES,
+    ].join('\n');
+  const CODE = ['scenarios/helper.sh', 'sql/seed.sql', 'sql/undo.sql', 'tools/after.js', 'tools/seed.sh'];
+  let project: Awaited<ReturnType<typeof loadProject>>;
+
+  beforeAll(async () => {
+    await mkdir(join(projectDir, 'tools'), { recursive: true });
+    await mkdir(join(projectDir, 'sql'), { recursive: true });
+    await writeFile(join(projectDir, 'tools', 'seed.sh'), 'echo seed\n');
+    await writeFile(join(projectDir, 'tools', 'input.json'), '{}\n');
+    await writeFile(join(projectDir, 'scenarios', 'helper.sh'), 'echo helper\n');
+    await writeFile(join(projectDir, 'sql', 'seed.sql'), 'insert into t values (1);\n');
+    await writeFile(join(projectDir, 'sql', 'undo.sql'), 'delete from t;\n');
+    await writeFile(join(projectDir, 'tools', 'after.js'), 'return 1;\n');
+    project = await loadProject(projectDir, ws);
+  });
+
+  /** What a run of `name` learns before its hooks run, as `retake run` reads it. */
+  async function check(name: string, phases?: Array<'setup' | 'teardown' | 'step'>) {
+    const file = join(projectDir, 'scenarios', `${name}.yaml`);
+    const text = await readFile(file, 'utf8');
+    return scenarioHooksCheck(ws, project, { file, sha256: sha(text), scenario: parsed(text) }, async () => TPL, HOOKS, phases);
+  }
+  const asked = async (name: string, phases?: Array<'setup' | 'teardown' | 'step'>) => (await check(name, phases)).ask;
+  async function trust(name: string) {
+    const view = await hooksTrustView(ws, project, name, { files: fileFacts(PERSON_POLICY), hooks: HOOKS });
+    await trustScenarioHooks(project, view, callerOf('cli'), new ManualClock(Date.parse('2026-11-13T10:00:00.000Z')));
+    return view;
+  }
+
+  it('the files are the hooks package’s trust list, code and data (an agent-writable script too), by project path, per phase', async () => {
+    const files = await scenarioHookFiles(parsed(BOUND('list')), project, HOOKS);
+    expect(Object.keys(files.code).sort()).toEqual(CODE);
+    expect(Object.keys(files.data)).toEqual(['tools/input.json']);
+    expect(files.code['sql/seed.sql']).toBe(sha('insert into t values (1);\n'));
+    expect(Object.keys((await scenarioHookFiles(parsed(BOUND('list')), project, HOOKS, ['teardown'])).code)).toEqual(['tools/after.js']);
+    // An sql file in a folder an agent can write, or outside the project: bound too (a run at a terminal reads it).
+    await writeFile(join(projectDir, 'scenarios', 'extra.sql'), 'select 1;\n');
+    const odd = { setup: [{ sql: { file: 'scenarios/extra.sql' } }, { js: { file: '../outside.js' } }] } as never;
+    expect((await scenarioHookFiles(odd, project, HOOKS)).code).toEqual({ 'scenarios/extra.sql': sha('select 1;\n'), '../outside.js': 'unreadable' });
+  });
+
+  it('trusted, then unchanged: not asked, the run held to the files read; a file changed since: asked again, naming it; trusted again: not asked', async () => {
+    await mcp.scenarios.save('demo', 'bound', BOUND('bound'));
+    expect(await asked('bound')).toMatchObject({ by: { trust: 'mcp' } });
+    const view = await trust('bound');
+    expect(Object.keys(view.files.code).sort()).toEqual(CODE);
+    const line = JSON.parse((await readFile(scenarioWritesFile(projectDir), 'utf8')).trim().split('\n').at(-1)!) as { files: unknown };
+    expect(line.files).toEqual(JSON.parse(JSON.stringify(view.files)));
+    const ok = await check('bound');
+    expect(ok.ask).toBeNull();
+    expect(ok.bound && Object.keys(ok.bound.code).sort()).toEqual(CODE);
+    expect(await author('bound')).toMatchObject({ agent: false, why: 'record' });
+
+    for (const f of ['tools/seed.sh', 'scenarios/helper.sh', 'sql/undo.sql', 'tools/after.js', 'tools/input.json']) {
+      const before = await readFile(join(projectDir, f), 'utf8');
+      await writeFile(join(projectDir, f), `${before}# more\n`);
+      const found = await check('bound');
+      expect(found.ask).toMatchObject({ files: [{ path: f, change: 'changed' }], at: '2026-11-13T10:00:00.000Z' });
+      // The run is then held to the files as they are now (the person's yes is to these).
+      expect(found.bound?.code[f] ?? found.bound?.data[f]).toBe(sha(`${before}# more\n`));
+      await writeFile(join(projectDir, f), before);
+      expect(await asked('bound')).toBeNull();
+    }
+    await writeFile(join(projectDir, 'sql', 'seed.sql'), 'insert into t values (2);\n');
+    const found = await asked('bound');
+    expect(found?.hooks.map((h) => h.kind)).toEqual(['shell', 'sql', 'shell']);
+    expect(found).toMatchObject({ files: [{ path: 'sql/seed.sql', change: 'changed' }] });
+    // Only the files of the hooks the command runs: a teardown-only command does not read the setup's.
+    expect(await asked('bound', ['teardown'])).toBeNull();
+    expect((await hooksTrustView(ws, project, 'bound', { files: fileFacts(PERSON_POLICY), hooks: HOOKS })).author).toMatchObject({ agent: true, files: [{ path: 'sql/seed.sql' }] });
+    await trust('bound');
+    expect(await asked('bound')).toBeNull();
+  });
+
+  it('a script the hooks newly run (one that did not exist when trusted): asked; a data file that appears: not', async () => {
+    await mcp.scenarios.save('demo', 'later', BOUND('later'));
+    await trust('later');
+    expect(await asked('later')).toBeNull();
+    await writeFile(join(projectDir, 'tools', 'later.sh'), 'echo later\n');
+    try {
+      expect(await asked('later')).toMatchObject({ files: [{ path: 'tools/later.sh', change: 'added' }] });
+      expect(await asked('later', ['teardown'])).toMatchObject({ files: [{ path: 'tools/later.sh', change: 'added' }] });
+    } finally {
+      await rm(join(projectDir, 'tools', 'later.sh'), { force: true });
+    }
+    expect(await asked('later')).toBeNull();
+    const input = join(projectDir, 'tools', 'input.json');
+    await rm(input);
+    try {
+      await trust('later');
+      await writeFile(input, '{"made":1}\n');
+      expect(await asked('later')).toBeNull();
+    } finally {
+      await writeFile(input, '{}\n');
+    }
+  });
+
+  it('a file that cannot be read: asked (fails closed), and still asked after trusting it', async () => {
+    await mcp.scenarios.save('demo', 'locked', BOUND('locked'));
+    await trust('locked');
+    const file = join(projectDir, 'sql', 'undo.sql');
+    await chmod(file, 0o000);
+    try {
+      expect(await asked('locked')).toMatchObject({ files: [{ path: 'sql/undo.sql', change: 'unreadable' }] });
+      await trust('locked');
+      expect(await asked('locked')).toMatchObject({ files: [{ path: 'sql/undo.sql', change: 'unreadable' }] });
+    } finally {
+      await chmod(file, 0o644);
+    }
+    expect(await asked('locked')).toMatchObject({ files: [{ path: 'sql/undo.sql', change: 'changed' }] });
+  });
+
+  it('a trust whose files are not checked (no reader given): asked; a person’s own scenario: unchanged, its files never read', async () => {
+    await mcp.scenarios.save('demo', 'unchecked', BOUND('unchecked'));
+    await trust('unchecked');
+    const file = join(projectDir, 'scenarios', 'unchecked.yaml');
+    const text = await readFile(file, 'utf8');
+    expect(await hooksWrittenBy(ws, PROJECT, { file, sha256: sha(text), scenario: parsed(text) })).toMatchObject({ agent: true, unknown: expect.stringContaining('not checked') });
+
+    await person.scenarios.save('demo', 'mine', BOUND('mine'));
+    const before = await readFile(join(projectDir, 'tools', 'seed.sh'), 'utf8');
+    await writeFile(join(projectDir, 'tools', 'seed.sh'), `${before}# mine\n`);
+    try {
+      expect(await check('mine')).toEqual({ ask: null });
+      expect(await author('mine')).toEqual({ agent: false, why: 'record' });
+    } finally {
+      await writeFile(join(projectDir, 'tools', 'seed.sh'), before);
+    }
+  });
+
+  it('a later write of the person’s that keeps the surface does not drop the binding', async () => {
+    await mcp.scenarios.save('demo', 'kept', BOUND('kept'));
+    await trust('kept');
+    const text = await readFile(join(projectDir, 'scenarios', 'kept.yaml'), 'utf8');
+    await person.scenarios.save('demo', 'kept', text.replace('hold: 1', 'hold: 2'), { ifMatch: sha(text) });
+    expect(await asked('kept')).toBeNull();
+    const before = await readFile(join(projectDir, 'tools', 'seed.sh'), 'utf8');
+    await writeFile(join(projectDir, 'tools', 'seed.sh'), `${before}# later\n`);
+    try {
+      expect(await asked('kept')).toMatchObject({ files: [{ path: 'tools/seed.sh', change: 'changed' }] });
+    } finally {
+      await writeFile(join(projectDir, 'tools', 'seed.sh'), before);
+    }
+  });
+
+  it('whatever the kinds: a phase with a js hook only is asked when its trusted file changed, with no hook listed', async () => {
+    const JS = `video: jsonly\nsetup:\n  - js: {file: tools/after.js}\nteardown:\n  - shell: "touch done.txt"\n${SCENES}`;
+    await mcp.scenarios.save('demo', 'jsonly', JS);
+    // An agent's js-only phase is not asked about (R-SEC-38), its file read only to know there is one.
+    expect(await asked('jsonly', ['setup'])).toBeNull();
+    await trust('jsonly');
+    expect(await check('jsonly', ['setup'])).toMatchObject({ ask: null, bound: { code: { 'tools/after.js': sha('return 1;\n') } } });
+    const js = join(projectDir, 'tools', 'after.js');
+    await writeFile(js, 'return 2;\n');
+    try {
+      expect(await asked('jsonly', ['setup'])).toEqual({ hooks: [], files: [{ path: 'tools/after.js', change: 'changed' }], at: '2026-11-13T10:00:00.000Z' });
+    } finally {
+      await writeFile(js, 'return 1;\n');
+    }
+    expect(await asked('jsonly', ['setup'])).toBeNull();
+  });
+
+  it('a file a writer of the command writes before its first reader: bound by the trust, not compared before the run, held to the trust; alone, a reader is checked', async () => {
+    const GEN = `video: gen\nsetup:\n  - shell: "echo echo-gen > gen.sh"\n  - shell: "sh gen.sh"\n  - shell: "date +%N > out.txt"\n  - shell: "cat out.txt"\n  - shell: "echo dump > backup.sql"\nteardown:\n  - shell: "psql -f backup.sql"\n${SCENES}`;
+    await writeFile(join(projectDir, 'gen.sh'), 'echo trusted\n');
+    await writeFile(join(projectDir, 'out.txt'), 'old\n');
+    await writeFile(join(projectDir, 'backup.sql'), 'old\n');
+    await mcp.scenarios.save('demo', 'gen', GEN);
+    const files = await scenarioHookFiles(parsed(GEN), project, HOOKS);
+    expect(files).toEqual({
+      code: { 'gen.sh': sha('echo trusted\n'), 'backup.sql': sha('old\n') },
+      data: { 'out.txt': sha('old\n') },
+      generated: ['backup.sql', 'gen.sh', 'out.txt'],
+      codeOutputs: ['backup.sql', 'gen.sh'],
+    });
+    // The teardown alone: its dump has no writer in the command — read first, compared.
+    expect((await scenarioHookFiles(parsed(GEN), project, HOOKS, ['teardown'])).generated).toBeUndefined();
+    await trust('gen');
+    const line = JSON.parse((await readFile(scenarioWritesFile(projectDir), 'utf8')).trim().split('\n').at(-1)!) as { files: Record<string, unknown> };
+    expect(Object.keys(line.files).sort()).toEqual(['code', 'data']);
+    for (const n of [1, 2]) {
+      // What the run wrote last time.
+      await writeFile(join(projectDir, 'gen.sh'), `echo run-${n}\n`);
+      await writeFile(join(projectDir, 'out.txt'), `${n}\n`);
+      await writeFile(join(projectDir, 'backup.sql'), `dump ${n}\n`);
+      const c = await check('gen');
+      expect(c.ask).toBeNull();
+      // Held to the trust until a writer of the run changes them.
+      expect(c.bound).toEqual({ code: { 'gen.sh': sha('echo trusted\n'), 'backup.sql': sha('old\n'), 'out.txt': sha('old\n') }, data: {}, codeOutputs: ['backup.sql', 'gen.sh'] });
+      expect(await asked('gen', ['teardown'])).toMatchObject({ files: [{ path: 'backup.sql', change: 'changed' }] });
+    }
+  });
+
+  it('a writer whose output a later hook runs as code: its inputs are bound as code — one that appears after the trust asks', async () => {
+    const IN = `video: inputs\nsetup:\n  - shell: "cat n.txt > gen4.sh"\n  - shell: "sh gen4.sh"\n${SCENES}`;
+    await rm(join(projectDir, 'n.txt'), { force: true });
+    await mcp.scenarios.save('demo', 'inputs', IN);
+    await trust('inputs');
+    expect(await asked('inputs')).toBeNull();
+    await writeFile(join(projectDir, 'n.txt'), 'touch pwned\n');
+    try {
+      expect(await asked('inputs')).toMatchObject({ files: [{ path: 'n.txt', change: 'added' }] });
+      const files = await scenarioHookFiles(parsed(IN), project, HOOKS);
+      expect(files.code['n.txt']).toBe(sha('touch pwned\n'));
+      expect(files.codeOutputs).toEqual(['gen4.sh']);
+    } finally {
+      await rm(join(projectDir, 'n.txt'), { force: true });
+    }
+  });
+
+  it('the inputs of every writer up a chain of plain redirects to a code reader are code (two and three writers)', async () => {
+    const TWO = `video: chain2\nsetup:\n  - shell: "cat n1.txt > a1.txt"\n  - shell: "cat a1.txt > g1.sh"\n  - shell: "sh g1.sh"\n${SCENES}`;
+    const THREE = `video: chain3\nsetup:\n  - shell: "cat n1.txt > a1.txt"\n  - shell: "cat a1.txt > b1.txt"\n  - shell: "cat b1.txt > g1.sh"\n  - shell: "sh g1.sh"\n${SCENES}`;
+    // A cycle (each writer reads the other's output) ends.
+    const CYCLE = `video: cycle\nsetup:\n  - shell: "cat c2.txt > c1.txt"\n  - shell: "cat c1.txt > c2.txt"\n  - shell: "sh c2.txt"\n${SCENES}`;
+    expect((await scenarioHookFiles(parsed(TWO), project, HOOKS)).codeOutputs).toEqual(['a1.txt', 'g1.sh']);
+    expect((await scenarioHookFiles(parsed(THREE), project, HOOKS)).codeOutputs).toEqual(['a1.txt', 'b1.txt', 'g1.sh']);
+    expect((await scenarioHookFiles(parsed(CYCLE), project, HOOKS)).codeOutputs).toEqual(['c1.txt', 'c2.txt']);
+    await rm(join(projectDir, 'n1.txt'), { force: true });
+    for (const [name, text] of [
+      ['chain2', TWO],
+      ['chain3', THREE],
+    ] as const) {
+      await mcp.scenarios.save('demo', name, text);
+      await trust(name);
+      expect(await asked(name)).toBeNull();
+    }
+    await writeFile(join(projectDir, 'n1.txt'), 'touch pwned\n');
+    try {
+      for (const name of ['chain2', 'chain3']) expect(await asked(name)).toMatchObject({ files: [{ path: 'n1.txt', change: 'added' }] });
+    } finally {
+      await rm(join(projectDir, 'n1.txt'), { force: true });
+    }
   });
 });

@@ -17,7 +17,7 @@
 import type { HookStep, LoadedProject, ResolvedEnvironment } from '@retake/core/model';
 import type { RunAccess } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { HookContext, HookResult, HookTrust } from '@retake/core/hooks';
+import type { HookContext, HookResult, HookTrust, TrustedHookFiles } from '@retake/core/hooks';
 import type { LoginCommandOf } from './auth.js';
 import type { ENGINE_TRUST } from './caller.js';
 import { EngineError } from './errors.js';
@@ -146,9 +146,10 @@ interface HooksRunWorkBase extends Omit<HookWorkOptions, 'trust'> {
   reads: WorkspaceReads;
   /**
    * After the selection, before anything opens: a person's command asks here about what it is about to run (the CLI's
-   * shell hooks of a scenario an agent wrote, L7.27, rendered with the run's id); what it throws ends the work.
+   * shell hooks of a scenario an agent wrote, L7.27, rendered with the run's id); what it throws ends the work. What it
+   * returns: the files the person checked (L7.39), which the hooks are held to (HookContext.trustedFiles).
    */
-  onSelected?: (sel: HookSelection, s: { runId: string }) => Promise<void>;
+  onSelected?: (sel: HookSelection, s: { runId: string }) => Promise<{ trustedFiles?: TrustedHookFiles } | undefined>;
   onStart?: (s: { sel: HookSelection; ctx: HookContext; access: RunAccess; runId: string; journalFile: string }) => void;
   onResults?: (out: HooksRunOutcome) => void;
 }
@@ -169,7 +170,7 @@ export async function hooksRunWork(project: LoadedProject, source: string, o: Ho
   });
   if (p) await p.check(sel);
   const runId = typeof o.runId === 'function' ? o.runId(sel) : o.runId;
-  await o.onSelected?.(sel, { runId });
+  const checked = await o.onSelected?.(sel, { runId });
   const journalFile = await o.hooks.journals.standaloneFile(project.dir, runId);
   const env = o.env ?? sel.env;
   return inHookContext(
@@ -177,6 +178,7 @@ export async function hooksRunWork(project: LoadedProject, source: string, o: Ho
     { ...o, ...(env !== undefined ? { env } : {}) },
     { runId, ...(sel.vars ? { vars: sel.vars } : {}), ...(sel.scenario ? { scenario: sel.scenario } : {}) },
     async (ctx, access, interrupted) => {
+      if (checked?.trustedFiles) ctx.trustedFiles = checked.trustedFiles;
       o.onStart?.({ sel, ctx, access, runId, journalFile });
       const journal = await o.hooks.journals.open(journalFile);
       // Trust `mcp`: a scenario's hooks are the agent's (the adapter reads this under that trust only).

@@ -9,7 +9,7 @@ import type { TemplateContext } from '@retake/core/base';
 import type { Confinement, HookStep, LoadedProject, Scenario } from '@retake/core/model';
 import type { RunAccess } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { CaptureHookRunner, ConfirmHook, HookContext, HookJournal, HookResult, HookTrust } from '@retake/core/hooks';
+import type { CaptureHookRunner, ConfirmHook, HookContext, HookJournal, HookResult, HookTrust, TrustedHookFiles } from '@retake/core/hooks';
 import type { RunProgress, RunRecord, RunningRun } from '@retake/core/run';
 import { RunnerError, StepError } from '../errors.js';
 import { hookResultFailed, hookResultName, loadHookRunner } from '../hooks-bridge.js';
@@ -52,6 +52,8 @@ export interface SetupDeps extends DriverHooks {
   via?: Confinement;
   /** Trust `mcp`: the scenario's own vars, the agent's (HookContext.agentVars). */
   agentVars?: readonly string[];
+  /** L7.39: the files a person checked before the run (HookContext.trustedFiles). */
+  trustedFiles?: TrustedHookFiles;
   confirmHook?: ConfirmHook;
   recordHookRun?: RunOptions['recordHookRun'];
 }
@@ -85,6 +87,7 @@ export async function openHooks(runner: CaptureHookRunner, d: SetupDeps): Promis
     ...(d.trust ? { trust: d.trust } : {}),
     ...(d.via ? { via: d.via } : {}),
     ...(d.agentVars ? { agentVars: d.agentVars } : {}),
+    ...(d.trustedFiles ? { trustedFiles: d.trustedFiles } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
     ...(d.recordHookRun ? { recordRun: (r: HookResult, run?: string) => d.recordHookRun!(r, run ?? d.runId) } : {}),
     ...(d.personaAuth ? { personaAuth: d.personaAuth } : {}),
