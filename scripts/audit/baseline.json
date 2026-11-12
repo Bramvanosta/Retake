@@ -146,8 +146,8 @@
     "packages/engine/src/catalogue.ts → 3 hand-written layout paths",
     "packages/ui/src/app/GalleryScreen.tsx → 1 hand-written layout path",
     "packages/ui/src/app/ProposalCard.tsx → 1 hand-written layout path",
-    "packages/ui/src/app/RecordScreen.tsx → 1 hand-written layout path",
-    "packages/ui/src/app/TimelineScreen.tsx → 1 hand-written layout path"
+    "packages/ui/src/app/TimelineScreen.tsx → 1 hand-written layout path",
+    "packages/ui/src/app/record/RecordingInspector.tsx → 1 hand-written layout path"
    ]
   },
   {

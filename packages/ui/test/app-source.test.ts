@@ -35,9 +35,10 @@ import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '@retake/components/kit';
 import { catalogueOperation } from '@retake/engine/catalogue';
 import type { RecordOptionsAnswer, RecordViewAnswer } from '../src/server/record-ops.js';
-import { RecordingBody, StartForm } from '../src/app/RecordScreen.js';
+import { RecordingBody } from '../src/app/record/RecordingBody.js';
+import { StartForm } from '../src/app/record/StartScreen.js';
 import { SlotContext } from '../src/app/shell/slots.js';
-import type { RecordingUi } from '../src/app/RecordScreen.js';
+import type { RecordingUi } from '../src/app/record/draft.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { visibleControls } from '../src/app/bits.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
@@ -1014,7 +1015,7 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
   { file: 'ui-kit/frames.tsx', tag: 'li', attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' }, line: '<li', why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard" },
   { file: 'ui-kit/frames.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' }, line: '<p', why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows' },
   { file: 'ui-kit/ChoiceChips.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"k-chips"', onKeyDown: '{rove}' }, line: '<div className="k-chips" role="radiogroup"', why: "L5.12a (was TimelineInspector.tsx's tl-radios): the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop" },
-  { file: 'RecordScreen.tsx', tag: 'form', attrs: { className: '"rc-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
+  { file: 'record/Inserts.tsx', tag: 'form', attrs: { className: '"rc-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
   { file: 'ui-kit/panes.tsx', tag: 'div', attrs: { role: '"toolbar"', onKeyDown: '{rove}' }, line: '<div role="toolbar"', why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop' },
   { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
   { file: 'ui-kit/cards.tsx', tag: 'li', attrs: { role: '"option"', 'data-index': '{n}' }, line: '<li', why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does' },
@@ -2077,14 +2078,21 @@ describe('L5.11a: Shoot', () => {
 
 // ── L5.11b: the Record screen in the shell (R4-Record) ─────────────────────────────────────────────────────────────
 
+/** The Record screen's sources (L7.30: the record/ folder, RecordScreen.tsx and its parts), sorted: [file, text]. */
+async function recordSources(): Promise<Array<[string, string]>> {
+  return (await appSources()).filter(([f]) => f.split('\\').join('/').startsWith('record/') && /\.tsx?$/.test(f)).sort(([a], [b]) => a.localeCompare(b));
+}
+
 /** The ops the Record screen calls itself (the browser's and status bar's reads are the shared stores'). */
 const RECORD_OPS = new Set(['record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save']);
 
 describe('L5.11b: Record', () => {
   it('⚑ every value from data is text: each JSX child of the Record screen goes through Txt / shown / a kit slot (a planted bare issue message fails it)', async () => {
-    const text = (await appSources()).find(([f]) => f === 'RecordScreen.tsx')![1];
-    expect(kitBareText('RecordScreen.tsx', text)).toEqual([]);
-    // The mutations: an issue's message, a placeholder's step rendered bare.
+    // L7.30: the screen is the record/ folder's files (RecordScreen.tsx and its parts).
+    const files = await recordSources();
+    expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
+    // The mutations: an issue's message, a placeholder's step rendered bare (both in the inspector).
+    const text = files.find(([f]) => f === 'record/RecordingInspector.tsx')![1];
     const planted = text.replace('<Txt text={i.message} />\n              </li>', '{i.message}\n              </li>');
     expect(planted).not.toBe(text);
     expect(kitBareText('RecordScreen.tsx', planted)).toEqual([expect.stringContaining('{i.message}')]);
@@ -2096,13 +2104,15 @@ describe('L5.11b: Record', () => {
   it('⚑ kit only: RecordScreen.tsx has no ratchet row and nothing off the kit (−274 legacy controls); its CSS left app.css', async () => {
     const table = await readTable();
     const found = await ratchetFindings();
-    for (const f of ['RecordScreen.tsx', 'ShootBrowser.tsx']) {
+    const files = (await recordSources()).map(([f]) => f);
+    expect(files).toContain('record/RecordScreen.tsx');
+    for (const f of [...files, 'ShootBrowser.tsx']) {
       expect(table[f], f).toBeUndefined();
       expect(found.get(f) ?? [], f).toEqual([]);
     }
     await legacyGone();
     // The mutation: a native radio in the alternatives counts (and RecordScreen.tsx has no row to hold it).
-    const text = (await appSources()).find(([f]) => f === 'RecordScreen.tsx')![1];
+    const text = (await appSources()).find(([f]) => f === 'record/DraftList.tsx')![1];
     const planted = text.replace('<RadioGroup\n        legend={`Ways to find step ${n}`}', '<input type="radio" /><RadioGroup\n        legend={`Ways to find step ${n}`}');
     expect(planted).not.toBe(text);
     const ctx = { tokens: new Set<string>() };
@@ -2110,7 +2120,7 @@ describe('L5.11b: Record', () => {
   });
 
   it('the Record screen calls only the record ops; the Scenario menu\'s commands are held at the recording\'s priority while it goes', async () => {
-    const text = (await appSources()).find(([f]) => f === 'RecordScreen.tsx')![1];
+    const text = (await recordSources()).map(([, t]) => t).join('\n');
     const called = opsCalled(text);
     expect(called.length).toBeGreaterThanOrEqual(7);
     expect(called.filter((op) => !RECORD_OPS.has(op))).toEqual([]);

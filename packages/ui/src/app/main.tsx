@@ -23,7 +23,7 @@ import { CastScreen } from './CastScreen.js';
 import { ProductionsScreen } from './ProductionsScreen.js';
 import { WelcomeScreen } from './WelcomeScreen.js';
 import { ReadmeEditor } from './ReadmeEditor.js';
-import { RecordScreen } from './RecordScreen.js';
+import { RecordScreen } from './record/RecordScreen.js';
 import { ScenarioScreen } from './ScenarioScreen.js';
 import { ShootLive } from './ShootLive.js';
 import { ShootPrepare } from './ShootPrepare.js';

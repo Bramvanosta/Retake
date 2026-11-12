@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import type { RecordInsert } from '@retake/core';
 import type { RecordCheckView, RecordState } from '@retake/engine';
 import { recordEventAction } from '../src/app/events.js';
-import { cursorRow, draftRows } from '../src/app/RecordScreen.js';
+import { cursorRow, draftRows } from '../src/app/record/draft.js';
 import { RECORD_MARK, ShootBrowser, recordStateWord, recordingWords } from '../src/app/ShootBrowser.js';
 import type { RecordViewAnswer } from '../src/server/record-ops.js';
 import {

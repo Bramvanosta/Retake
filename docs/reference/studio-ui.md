@@ -249,7 +249,9 @@ update, the Set-up sheet, the unsaved reports). Each function is typed by `Studi
 results derived from the Studio's op table, types only), so a wrong op, argument or result does not compile; an op that
 takes no argument is called and read without them. The app's parts: `data/` (imports api.ts and data/ only — and, types
 only, the server's op table), `ui-kit/` (the kit and its foundations bits / route only), `shell/` (reached through
-itself, its slots, command bus, announcer and modes), and the screens at the root; outside the app, types only (the
+itself, its slots, command bus, announcer and modes), and the screens at the root — the Record screen in its own
+folder, `record/` (L7.30: the screen, its start form, the draft's rows and cursor, the list, the inserts, the body, the
+inspector, the live view, the changes it sends; the first screen grouped by feature); outside the app, types only (the
 server's answers) but the mark and the preview frame's channel — `test/feature-boundaries.test.ts` holds the boundaries
 (DESIGN §4c).
 

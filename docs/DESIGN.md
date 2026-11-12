@@ -1797,6 +1797,10 @@ retake mcp --http [--port N] [--rotate-token] [--json]   # §4c: the same server
 retake ui [--port N] [--no-open] [--json]     # §4c: the Studio web app on 127.0.0.1 until Ctrl-C; one server per workspace
 retake jobs [list] [--project P] [--state S]… [--limit N] [--json] | status <id> [--json] | cancel <id>   # §4b jobs
 ```
+The program (`packages/cli/src/main.ts` `buildProgram`, L7.30) sets the global options and the `--out` guard, then
+hands each command family its commands (`src/program/`: workspace, capture, edit, environment, look, comment, upkeep,
+sign-in, services, later — in that order, the order `--help` lists them; `ProgramContext` = the program and the action
+wrapper that stores the exit code).
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).
 `--allow-writes` (L1.7) confirms writes on a production environment whose project.yaml sets `access: read-write`; on a
 read-only environment it is a usage error (exit 2). The run header and the hooks commands' header say `production`,
