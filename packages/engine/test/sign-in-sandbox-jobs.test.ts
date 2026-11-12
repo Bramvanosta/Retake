@@ -226,6 +226,14 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(done.state).toBe('failed');
     expect(done.error?.message).toContain('without a human approval');
     await w.exited;
+    // L7.28: the same for an up that seeds (sandbox-work.ts hands the job's seedTrust on): down first, so the data is gone.
+    await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY).down();
+    const up = await queue.enqueue({ version: 1, kind: 'sandbox_up', project: 's', submitted_by: 'test' });
+    const w2 = startWorker();
+    const upDone = await finished(up.id);
+    expect(upDone.state).toBe('failed');
+    expect(upDone.error?.message).toContain('without a human approval');
+    await w2.exited;
   });
 
   it.skipIf(!chromiumAvailable())('auth_login auto: the login steps sign the persona in; the result has no path or cookie; status sees it', async () => {

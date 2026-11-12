@@ -3,8 +3,8 @@
  * core's `SandboxProvider` is a provider's kind, `process` or `docker-compose`): what starts, seeds, resets, stops and
  * reads a project's sandboxes for the engine — the MCP `sandbox_status` answer, the `sandbox_up` / `sandbox_reset`
  * jobs, a run's take on a sandbox (`--sandbox`) and the check of a sandbox environment without it — and what the CLI's
- * `retake sandbox …` commands will need (U8c: the scaffold, the capabilities its usage errors read, the progress of a
- * call, the logs followed, the two-stage Ctrl-C's synchronous kill). The composition roots choose it (ports.ts
+ * `retake sandbox …` commands need (U8c, L7.28, through sandbox-work.ts: the scaffold, the capabilities its usage errors
+ * read, the progress of a call, the logs followed, the two-stage Ctrl-C's synchronous kill). The composition roots choose it (ports.ts
  * `EnginePorts.sandboxes`): the sandbox package with its process and docker-compose providers (`packageSandboxes()`),
  * or an in-memory one in tests (memory-sandboxes.ts). One contract suite holds them (engine
  * test/sandbox-contract.ts).

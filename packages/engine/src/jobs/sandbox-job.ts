@@ -13,7 +13,7 @@ import { approvalChecker, seedApprovalItems, takeApprovals } from '../approvals.
 import type { Approver } from '../approvals.js';
 import { toEngineError } from '../errors.js';
 import { ENGINE_TRUST, callerOf } from '../caller.js';
-import { hookRunRecorder } from '../store/journal.js';
+import { sandboxWork } from '../sandbox-work.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
@@ -107,8 +107,9 @@ function resetView(r: ResetResult): NonNullable<SandboxJobResult['reset']> {
 }
 
 /**
- * Execute a sandbox job under the interrupt port (a cancel stops what the call started; a second signal kills it), the
- * seed with trust `mcp` and the approvals taken at submit. A SandboxError (busy, down, a refused seed…) fails the job.
+ * Execute a sandbox job through the sandbox use cases (sandbox-work.ts: under the interrupt port — a cancel stops what
+ * the call started, a second signal kills it —, the seed run journalled as the submitter), the seed with trust `mcp`
+ * and the approvals taken at submit. A SandboxError (busy, down, a refused seed…) fails the job.
  */
 export async function executeSandboxJob(ctx: SandboxJobContext): Promise<SandboxJobResult> {
   const { input } = ctx;
@@ -118,24 +119,19 @@ export async function executeSandboxJob(ctx: SandboxJobContext): Promise<Sandbox
     if (level !== 'debug') ctx.event({ type: 'log', level, message });
   };
   const seedTrust = { trust: ENGINE_TRUST, confirm: approvalChecker(input.approvals) };
-  const recordSeedRun = hookRunRecorder(project.root, { caller: callerOf(input.submitted_by), clock: ctx.clock }, { project: project.slug });
-  const stop = await ctx.interrupts.open({ message: 'interrupted: stopping what this command started…', onQuitSync: () => sb.killStartedSync() });
+  const recordAs = { caller: callerOf(input.submitted_by), clock: ctx.clock };
   const pages = resolveEnvironment(project, sb.env).pages;
-  try {
-    if (input.kind === 'sandbox_up') {
-      const res = await sb.up({ signal: stop.signal, log, seedTrust, recordSeedRun });
-      return {
-        kind: 'sandbox_up',
-        env: sb.env,
-        provider: sb.kind,
-        services: { started: res.started, kept: res.kept, changed: res.changed, ms: res.ms },
-        reset: res.reset ? resetView(res.reset) : null,
-        pages,
-      };
-    }
-    const res = await sb.reset({ signal: stop.signal, log, seedTrust, recordSeedRun, ...(input.reseed ? { reseed: true } : {}) });
-    return { kind: 'sandbox_reset', env: sb.env, provider: sb.kind, reset: resetView(res), pages };
-  } finally {
-    stop.dispose();
+  if (input.kind === 'sandbox_up') {
+    const res = await sandboxWork.up(project, sb, { trust: ENGINE_TRUST, interrupts: ctx.interrupts, log, seedTrust, recordAs });
+    return {
+      kind: 'sandbox_up',
+      env: sb.env,
+      provider: sb.kind,
+      services: { started: res.started, kept: res.kept, changed: res.changed, ms: res.ms },
+      reset: res.reset ? resetView(res.reset) : null,
+      pages,
+    };
   }
+  const res = await sandboxWork.reset(project, sb, { trust: ENGINE_TRUST, interrupts: ctx.interrupts, log, seedTrust, recordAs, ...(input.reseed ? { reseed: true } : {}) });
+  return { kind: 'sandbox_reset', env: sb.env, provider: sb.kind, reset: resetView(res), pages };
 }

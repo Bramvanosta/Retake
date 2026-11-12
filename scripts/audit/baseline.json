@@ -3,13 +3,12 @@
  "groups": [
   {
    "rule": "R4",
-   "reason": "CLI commands drive the adapters themselves (sandboxes, doctor, sign-in checks) until they run on the engine operations.",
+   "reason": "CLI commands drive the adapters themselves (doctor, sign-in checks) until they run on the engine operations.",
    "entries": [
     "packages/cli/src/commands/auth.ts → @retake/runner-web",
     "packages/cli/src/commands/doctor.ts → @retake/editor",
     "packages/cli/src/commands/doctor.ts → @retake/runner-web",
-    "packages/cli/src/commands/doctor.ts → @retake/sandbox",
-    "packages/cli/src/commands/sandbox.ts → @retake/sandbox"
+    "packages/cli/src/commands/doctor.ts → @retake/sandbox"
    ]
   },
   {

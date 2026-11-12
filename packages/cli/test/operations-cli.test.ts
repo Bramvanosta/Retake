@@ -7,9 +7,10 @@
  * added, changed or removed in the workspace (with the content of the hook journals, the sandbox manifests, the marker
  * files and the workspace components' manifests; the rest by name), and the options of the replaced calls.
  *
- * The heavy calls are replaced at their package boundary: @retake/sandbox's `openSandbox` answers a fake `Sandbox`
- * (the real one's env, kind and paths; up / down / reset / status / logs answer fixed results and journal a seed step as
- * the caller's), @retake/runner-web's `exportCapture` writes a small fake package (its folder and settings from the
+ * The heavy calls are replaced at their boundary: the engine's Sandboxes port (`packageSandboxes`, what `cliPorts`
+ * is made of; L7.28 — before it, @retake/sandbox's `openSandbox`, with the same records) opens a fake handle (the real
+ * one's env, kind, paths and capabilities; up / down / reset / status / logs answer fixed results and journal a seed
+ * step as the caller's), @retake/runner-web's `exportCapture` writes a small fake package (its folder and settings from the
  * runner's own `rawPackageDir` / `rawSettings`; `rawExportRun`, the gate, stays real), and the engine's `editorRenderer`
  * is the memory renderer (no bundle, no browser: 1 × 1 previews). The planner (`planEdit`), the hook runner (harmless
  * `shell: echo …` hooks, run for real in the temp workspace), the hook journals, the sandbox scaffold (`initSandbox`),
@@ -59,11 +60,15 @@ vi.mock('@retake/core', async (importOriginal) => {
   };
 });
 
-vi.mock('@retake/sandbox', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@retake/sandbox')>();
-  /** A Sandbox with the real one's env, kind and paths; its work answers fixed results. */
-  function fakeSandbox(sb: InstanceType<typeof real.Sandbox>): unknown {
-    const key = `${sb.project.slug}/${sb.env}`;
+// The port's adapter as the CLI's composition root builds it (engine ports.ts imports it by this path).
+vi.mock('../../engine/src/sandboxes/package-sandboxes.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../engine/src/sandboxes/package-sandboxes.ts')>();
+  const { SandboxError } = await import('@retake/core');
+  type Handle = import('../../engine/src/sandboxes/sandboxes.ts').SandboxHandle;
+  type Project = Parameters<import('../../engine/src/sandboxes/sandboxes.ts').Sandboxes['open']>[0];
+  /** A handle with the real one's env, kind, paths and capabilities; its work answers fixed results. */
+  function fakeSandbox(project: Project, sb: Handle): Handle {
+    const key = `${project.slug}/${sb.env}`;
     const record = (call: string, options: Record<string, unknown>) => fakes.calls.push({ call: `sandbox.${call}`, options: { env: sb.env, kind: sb.kind, ...options } });
     const resetResult = (steps: number) => ({
       strategy: sb.strategy,
@@ -81,14 +86,13 @@ vi.mock('@retake/sandbox', async (importOriginal) => {
     const seedRun = async (o: Opts) => {
       await o.recordSeedRun?.({ index: 0, name: 'mark', kind: 'shell', phase: 'seed', status: 'ok', ms: 5 });
     };
+    const file = project.sandboxes?.[sb.env]?.file ?? '';
     return {
-      project: sb.project,
-      sandbox: sb.sandbox,
-      policy: sb.policy,
       env: sb.env,
       paths: sb.paths,
       kind: sb.kind,
       strategy: sb.strategy,
+      capabilities: sb.capabilities,
       async up(o: Opts = {}) {
         record('up', o);
         o.progress?.step('services', 'app');
@@ -112,7 +116,7 @@ vi.mock('@retake/sandbox', async (importOriginal) => {
       },
       async reset(o: Opts = {}) {
         record('reset', o);
-        if (fakes.up.get(key) !== true) throw new real.SandboxError(`sandbox ${sb.env} is not running: retake sandbox up ${sb.project.slug}`);
+        if (fakes.up.get(key) !== true) throw new SandboxError(`sandbox ${sb.env} is not running: retake sandbox up ${project.slug}`);
         o.progress?.step('seed', '1 step');
         await seedRun(o);
         return resetResult(1);
@@ -127,7 +131,7 @@ vi.mock('@retake/sandbox', async (importOriginal) => {
         return {
           env: sb.env,
           provider: sb.kind,
-          file: sb.sandbox.file,
+          file,
           state: isUp ? 'up' : 'down',
           services: [
             isUp
@@ -141,7 +145,7 @@ vi.mock('@retake/sandbox', async (importOriginal) => {
       },
       async logs(o: { service?: string; lines?: number } = {}) {
         record('logs', o);
-        if (o.service !== undefined && o.service !== 'app') throw new real.SandboxError(`unknown service "${o.service}" (services: app)`);
+        if (o.service !== undefined && o.service !== 'app') throw new SandboxError(`unknown service "${o.service}" (services: app)`);
         return [{ service: 'app', file: join(sb.paths.logs, 'app.log'), exists: true, text: 'listening\nGET /health 200' }];
       },
       async followLogs(o: Record<string, unknown>) {
@@ -150,16 +154,22 @@ vi.mock('@retake/sandbox', async (importOriginal) => {
       killStartedSync() {
         fakes.calls.push({ call: 'sandbox.killStartedSync', options: {} });
       },
-    };
+    } as unknown as Handle;
   }
   return {
     ...real,
-    // The scaffold is the real one; only the machine's ports are not probed (every port is free: 4600 on).
-    initSandbox: (project: Parameters<typeof real.initSandbox>[0], o: Parameters<typeof real.initSandbox>[1]) => {
-      fakes.calls.push({ call: 'initSandbox', options: { project, ...o } });
-      return real.initSandbox(project, { ...o, isFree: o.isFree ?? (async () => true) });
+    packageSandboxes: () => {
+      const sandboxes = real.packageSandboxes();
+      return {
+        // The real open (its refusals: no sandbox, an unknown env), then the fake handle.
+        open: async (project: Project, env: string | undefined, policy: Parameters<typeof sandboxes.open>[2]) => fakeSandbox(project, await sandboxes.open(project, env, policy)),
+        // The scaffold is the real one; only the machine's ports are not probed (every port is free: 4600 on).
+        init: (project: Project, o: Parameters<typeof sandboxes.init>[1]) => {
+          fakes.calls.push({ call: 'initSandbox', options: { project, ...o } });
+          return sandboxes.init(project, { ...o, isFree: o.isFree ?? (async () => true) });
+        },
+      };
     },
-    openSandbox: (project: Parameters<typeof real.openSandbox>[0], env: string | undefined, policy: Parameters<typeof real.openSandbox>[2]) => fakeSandbox(real.openSandbox(project, env, policy)),
   };
 });
 

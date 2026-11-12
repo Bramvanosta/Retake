@@ -1,13 +1,17 @@
 /**
  * `retake sandbox init | up | down | reset | status | logs` (L1.8) and the sandbox side of `retake run`: `--sandbox` (up if
  * needed, health, reset to the seed, then the capture; the sandbox stays up) and a run on a sandbox environment without
- * it (no reset: the sandbox must be up). The work is @retake/sandbox's; these commands print it.
+ * it (no reset: the sandbox must be up). The work is the engine's sandbox use cases (sandboxWork, L7.28) over the
+ * Sandboxes port (`cliPorts.sandboxes`); these commands print it, with the person's trust (their own seed steps run
+ * without an approval, as a terminal runs them) and their own usage errors.
  */
 import { join } from 'node:path';
-import { resolveEnvironment, sandboxNames } from '@retake/core';
+import { SandboxError, resolveEnvironment, sandboxNames } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
-import type { ResetResult, Sandbox, SandboxLog, SandboxStatus, ServiceStatus } from '@retake/sandbox';
-import { callerOf, fileWriter, hookRunRecorder, personScope, sandboxUpText, storeOf } from '@retake/engine';
+import { describeLock } from '@retake/core/io';
+import type { ProviderCapabilities, ResetResult, SandboxLog, ServiceStatus } from '@retake/sandbox/types';
+import { callerOf, fileWriter, personScope, sandboxUpText, sandboxWork, storeOf } from '@retake/engine';
+import type { InterruptPort, SandboxHandle } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -35,17 +39,12 @@ export interface SandboxCommandOptions {
   force?: boolean;
 }
 
-async function sandboxModule() {
-  return import('@retake/sandbox');
-}
-
 /** The project and its sandbox (`--env`, default the first one declared). */
-async function open(global: GlobalOptions, projectArg: string, env: string | undefined): Promise<{ project: LoadedProject; sb: Sandbox }> {
+async function open(global: GlobalOptions, projectArg: string, env: string | undefined): Promise<{ project: LoadedProject; sb: SandboxHandle }> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const { openSandbox, SandboxError } = await sandboxModule();
   try {
-    return { project, sb: openSandbox(project, env, ws.policy) };
+    return { project, sb: await sandboxWork.open(cliPorts.sandboxes, project, env, ws.policy) };
   } catch (e) {
     if (e instanceof SandboxError && env !== undefined) throw new UsageError(e.message);
     throw e;
@@ -89,29 +88,30 @@ function resetText(r: ResetResult): string {
   return parts.join(' · ');
 }
 
-/** `--build` / `--volumes` / `--follow` are docker-compose flags: a usage error on a process sandbox. */
-function composeOnly(sb: Sandbox, flag: string, why: string): void {
-  if (sb.kind !== 'docker-compose') throw new UsageError(`${flag} is for docker-compose sandboxes: sandbox ${sb.env} is provider ${sb.kind} (${why})`);
+/** `--build` / `--volumes` / `--follow` are docker-compose flags (capabilities of that provider): a usage error on a process sandbox. */
+function composeOnly(sb: SandboxHandle, capability: keyof ProviderCapabilities, flag: string, why: string): void {
+  if (!sb.capabilities[capability]) throw new UsageError(`${flag} is for docker-compose sandboxes: sandbox ${sb.env} is provider ${sb.kind} (${why})`);
 }
 
-/** Run a lock-holding sandbox call under Ctrl-C: the first signal aborts it (what it started is stopped), a second kills. */
-async function interruptible<T>(ui: Ui, sb: Sandbox, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const stop = await onInterrupt(ui, { message: 'interrupted: stopping what this command started…', onQuitSync: () => sb.killStartedSync() });
-  try {
-    return await fn(stop.signal);
-  } finally {
-    stop.dispose();
-  }
+/**
+ * Ctrl-C for a sandbox call: the first signal aborts it (what it started is stopped; sandboxWork's message), a second
+ * kills what it started (sandboxWork's `killStartedSync`) and exits.
+ */
+function interrupts(ui: Ui): InterruptPort {
+  return { open: (o) => onInterrupt(ui, o) };
 }
+
+/** The seed's steps are journalled as the CLI's (the person). */
+const recordAs = () => ({ caller: callerOf('cli'), clock: cliPorts.clock });
 
 export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
-  if (opts.build) composeOnly(sb, '--build', 'its services are programs of this machine');
+  if (opts.build) composeOnly(sb, 'build', '--build', 'its services are programs of this machine');
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} sandbox up ${c.dim(`· ${sb.env} · ${sb.kind}`)}`);
   const steps = new StepDisplay(ui);
   try {
-    const res = await interruptible(ui, sb, (signal) => sb.up({ signal, log: uiLog(ui), progress: steps, recordSeedRun: hookRunRecorder(project.root, { caller: callerOf('cli'), clock: cliPorts.clock }, { project: project.slug }), seed: opts.seed === false ? 'never' : 'auto', build: opts.build }));
+    const res = await sandboxWork.up(project, sb, { trust: 'author', interrupts: interrupts(ui), log: uiLog(ui), progress: steps, recordAs: recordAs(), seed: opts.seed === false ? 'never' : 'auto', build: opts.build });
     steps.close();
     ui.line(`  ${c.dim('services')}  ${sandboxUpText(res)} ${c.dim(`(${formatMs(res.ms)})`)}`);
     if (res.reset) ui.line(`  ${c.dim('seed')}      ${resetText(res.reset)}`);
@@ -129,9 +129,9 @@ export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg
 
 export async function sandboxDownCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
-  if (opts.volumes) composeOnly(sb, '--volumes', 'its data goes with its processes');
+  if (opts.volumes) composeOnly(sb, 'volumes', '--volumes', 'its data goes with its processes');
   try {
-    const res = await interruptible(ui, sb, (signal) => sb.down({ signal, log: uiLog(ui), volumes: opts.volumes }));
+    const res = await sandboxWork.down(sb, { interrupts: interrupts(ui), log: uiLog(ui), volumes: opts.volumes });
     const gone = opts.volumes ? ' · volumes removed (the database and its snapshot: the next up seeds again)' : '';
     if (res.stopped.length) ui.ok(`${project.slug} sandbox ${sb.env} stopped: ${res.stopped.join(', ')}${gone}`);
     else ui.ok(`${project.slug} sandbox ${sb.env} was not running${gone}`);
@@ -146,7 +146,7 @@ export async function sandboxResetCommand(ui: Ui, global: GlobalOptions, project
   const { project, sb } = await open(global, projectArg, opts.env);
   const steps = new StepDisplay(ui);
   try {
-    const res = await interruptible(ui, sb, (signal) => sb.reset({ signal, log: uiLog(ui), progress: steps, reseed: opts.reseed, recordSeedRun: hookRunRecorder(project.root, { caller: callerOf('cli'), clock: cliPorts.clock }, { project: project.slug }) }));
+    const res = await sandboxWork.reset(project, sb, { trust: 'author', interrupts: interrupts(ui), log: uiLog(ui), progress: steps, reseed: opts.reseed, recordAs: recordAs() });
     steps.close();
     ui.ok(`${project.slug} sandbox ${sb.env} reset: ${resetText(res)}`);
     return EXIT.ok;
@@ -180,9 +180,9 @@ function serviceLine(ui: Ui, s: ServiceStatus): string {
 /** `retake sandbox status`: exit 0 when up and healthy, 1 otherwise (scripts). */
 export async function sandboxStatusCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
-  const st: SandboxStatus = await sb.status();
+  const { status: st, pages } = await sandboxWork.status(project, sb);
   if (opts.json) {
-    ui.result(JSON.stringify({ project: project.slug, ...st, pages: resolveEnvironment(project, sb.env).pages }, null, 2));
+    ui.result(JSON.stringify({ project: project.slug, ...st, pages }, null, 2));
     return st.state === 'up' ? EXIT.ok : EXIT.failure;
   }
   const c = ui.c;
@@ -196,7 +196,6 @@ export async function sandboxStatusCommand(ui: Ui, global: GlobalOptions, projec
   ui.line(`  ${c.dim('pages'.padEnd(width))} ${pagesLine(project, sb.env)}`);
   ui.line(`  ${c.dim('seed'.padEnd(width))} ${st.seed ? `${st.seed.hash} · ${since(st.seed.at)}${st.seed.current ? '' : c.yellow(' · sandbox.yaml\'s seed changed since (the next up or reset seeds again)')}` : c.dim('never seeded')}`);
   if (st.last_reset) ui.line(`  ${c.dim('reset'.padEnd(width))} ${st.last_reset.strategy} · ${since(st.last_reset.at)} · ${formatMs(st.last_reset.ms)} · by ${st.last_reset.by}`);
-  const { describeLock } = await sandboxModule();
   ui.line(`  ${c.dim('lock'.padEnd(width))} ${st.lock ? c.yellow(`in use: ${describeLock(st.lock)}`) : 'free'}`);
   ui.line(`  ${c.dim('logs'.padEnd(width))} ${ui.path(st.logs)}`);
   for (const n of st.notes) ui.warn(n);
@@ -208,24 +207,20 @@ export async function sandboxLogsCommand(ui: Ui, global: GlobalOptions, projectA
   const lines = opts.lines === undefined ? 50 : Number(opts.lines);
   if (!Number.isInteger(lines) || lines < 1) throw new UsageError(`--lines must be a positive whole number, got "${opts.lines}"`);
   const { sb } = await open(global, projectArg, opts.env);
-  const { SandboxError } = await sandboxModule();
   if (opts.follow) {
-    composeOnly(sb, '--follow', `its logs are files: tail -f ${ui.path(sb.paths.logs)}/<service>.log`);
-    const stop = await onInterrupt(ui, { message: 'stopped following the logs' });
+    composeOnly(sb, 'followLogs', '--follow', `its logs are files: tail -f ${ui.path(sb.paths.logs)}/<service>.log`);
     try {
-      await sb.followLogs({ service, lines, signal: stop.signal, write: (line) => ui.result(line) });
+      await sandboxWork.followLogs(sb, { service, lines, interrupts: interrupts(ui), write: (line) => ui.result(line) });
     } catch (e) {
       if (e instanceof SandboxError && /^unknown service/.test(e.message)) throw new UsageError(e.message);
       ui.error(errorMessage(e));
       return EXIT.failure;
-    } finally {
-      stop.dispose();
     }
     return EXIT.ok;
   }
   let logs;
   try {
-    logs = await sb.logs({ service, lines });
+    logs = await sandboxWork.logs(sb, { service, lines });
   } catch (e) {
     if (e instanceof SandboxError && /^unknown service/.test(e.message)) throw new UsageError(e.message);
     ui.error(errorMessage(e));
@@ -242,19 +237,16 @@ export async function sandboxLogsCommand(ui: Ui, global: GlobalOptions, projectA
 /** `retake sandbox init`: a docker-compose sandbox scaffold in the project, declared in project.yaml. */
 export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const project = await openProject(await openWorkspace(global), projectArg);
-  const { initSandbox, SandboxError } = await sandboxModule();
-  let res;
+  let view;
   try {
-    res = await initSandbox(project, { env: opts.env, force: opts.force, write: fileWriter(storeOf(project, personScope(project.root, cliPorts)), 'sandbox') });
+    // The result must load as written: the engine reads the project back with its new sandbox (its warnings).
+    view = await sandboxWork.init(cliPorts.sandboxes, project, { env: opts.env, force: opts.force, write: fileWriter(storeOf(project, personScope(project.root, cliPorts)), 'sandbox') });
   } catch (e) {
     if (e instanceof SandboxError) throw new UsageError(e.message);
     throw e;
   }
-  // The result must load as written: the project with its new sandbox.
-  const { loadProject } = await import('@retake/core/io');
-  const reloaded = await loadProject(project.dir);
-  const warnings = reloaded.sandboxes?.[res.env]?.issues ?? [];
-  const envFlag = sandboxNames(reloaded)[0] === res.env ? '' : ` --env ${res.env}`;
+  const { result: res, warnings } = view;
+  const envFlag = view.isDefault ? '' : ` --env ${res.env}`;
   if (opts.json) {
     ui.result(JSON.stringify({ project: project.slug, ...res, warnings }, null, 2));
     return EXIT.ok;

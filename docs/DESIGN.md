@@ -1854,6 +1854,13 @@ hooksRunWork(project, source, o) / rollbackWork(project, o) / envResetWork(proje
   ports, env, dry, trust ('author' | ENGINE_TRUST), confirm, replayUnsigned, log, loginCommand, recordAs, signal?,
   onInterrupt?, contextError?, protection? (jobs only), and callbacks the CLI prints in (onStart, listed, onRollbacks,
   onReset, onResults); the ratchet's `hook-call` keeps createHookContext, hooks.run and the journals' replays in the engine
+sandboxWork.{open, init, up, reset, down, status, logs, followLogs}   // sandbox-work.ts (L7.28): over the Sandboxes port,
+  shared by `retake sandbox …`, the sandbox_up / sandbox_reset jobs and sandboxStatus — up / reset / down under the
+  caller's InterruptPort (first signal aborts, a later one runs the handle's killStartedSync), the call's own options
+  handed on key for key (the CLI's progress / seed / build / reseed / volumes; the job's seedTrust) with the scope's
+  signal last, the seed trust bound to the trust (`SeedTrusted`: `author` with none, ENGINE_TRUST with the engine's —
+  an mcp up / reset without it is EngineError internal), the seed run journalled as `recordAs`; status → {status, pages}; init → {result, warnings, isDefault} (the
+  project read back as written); the refusals stay SandboxErrors, worded by each caller (CLI usage errors, EngineError)
 preflightHooks(project, [{phase, hooks}], {env?, vars?, scenario?, journalFile}) → {env, items, refused}
 takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(approvals) → confirmDestructive
 pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(PruneApprovalRequest, approver?, client?)

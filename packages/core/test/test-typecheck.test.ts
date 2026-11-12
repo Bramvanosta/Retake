@@ -113,7 +113,7 @@ function vitestAliases(): Record<string, string> {
 }
 
 /** How many expected-error directives the test folders hold (2026-11-11). */
-const EXPECT_ERRORS = 40;
+const EXPECT_ERRORS = 43;
 
 describe('the type check of the test files (tsconfig.test.json)', () => {
   const config = readConfig('tsconfig.test.json');
@@ -249,6 +249,8 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
     // L7.12, +1 (36 → 37), packages/runner-web/test/types-entry.test.ts:12: the same import, for the runner's types entry.
     // L7.23, +3 (37 → 40), packages/engine/test/hooks-work.test.ts:165, 168, 173: a trust-`mcp` work without the
     // protection of the jobs (twice) and the CLI's trust with one — each over the call, wrong on purpose.
+    // L7.28, +3 (40 → 43), packages/engine/test/sandbox-work.test.ts:178, 182, 187: a trust-`mcp` up / reset without
+    // the engine's seed trust (twice) and the person's trust with one — each over the call, wrong on purpose.
     expect(count).toBe(EXPECT_ERRORS);
   });
 

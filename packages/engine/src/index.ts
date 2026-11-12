@@ -166,6 +166,8 @@ export { HooksSourceError, createHookContext, hooksAccess, selectHooks } from '.
 export type { HookContextOptions, HookSelection } from './hooks.js';
 export { envResetWork, hooksRunWork, rollbackWork } from './hooks-work.js';
 export type { EnvResetOutcome, EnvResetWorkOptions, HookInterrupt, HookWorkOptions, HooksRunOutcome, HooksRunProtection, HooksRunWorkOptions, Protected, RollbackOutcome, RollbackWorkOptions } from './hooks-work.js';
+export { SANDBOX_INTERRUPT_MESSAGE, sandboxWork } from './sandbox-work.js';
+export type { SandboxDownWorkOptions, SandboxHeldOptions, SandboxInitView, SandboxResetWorkOptions, SandboxSeedingOptions, SandboxUpWorkOptions, SeedTrusted } from './sandbox-work.js';
 export { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, PRUNE_FORM_MAX_LINES, approvalChecker, approvalFormText, approvalItemTitle, preflightHooks, pruneApprovalFormText, pruneApprovalRequest, pruneKindsText, refusedError, takeApprovals, takePruneApproval, takeSiteApproval } from './approvals.js';
 export type { ApprovalItem, ApprovalOutcome, ApprovalRequest, Approver, Preflight, PruneApprovalRequest, SiteApprovalRequest } from './approvals.js';
 export type { RunBlocker, RunBlockerKind, RunSubmitRequest } from './jobs/run-job.js';
