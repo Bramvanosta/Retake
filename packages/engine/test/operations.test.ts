@@ -19,11 +19,14 @@ import type { Engine } from '../src/index.js';
 
 const signal = new AbortController().signal;
 const ELEVEN = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'scenario_validate', 'run_list', 'run_status', 'run_cancel', 'job_list', 'auth_status', 'auth_login'];
+/** L7.14: the read-only queries of runs, renders, reviews and scenarios — MCP's (job_status waits: its answer is three tools' outputs still in MCP) and the Studio's. */
+const QUERIES_MCP = ['scenario_get', 'plan_preview', 'render_status', 'review_get'];
+const QUERIES_STUDIO = ['projects_overview', 'project_board', 'scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms', 'scenario_sessions', 'scenario_renders', 'render_review', 'review_image'];
 
 describe("the engine's operations: one definition, served by the shells as it is", () => {
   it('names operations of the catalogue, each served by MCP or the Studio, in catalogue order: the eleven both serve', () => {
     const names = OPERATIONS.map((o) => o.name);
-    expect(names).toEqual(ELEVEN);
+    expect(names.filter((n) => ELEVEN.includes(n))).toEqual(ELEVEN);
     for (const n of names) {
       const op = catalogueOperation(n);
       expect(op, n).toBeDefined();
@@ -34,6 +37,24 @@ describe("the engine's operations: one definition, served by the shells as it is
     expect([...names].sort((a, b) => order.indexOf(a) - order.indexOf(b))).toEqual(names);
     expect(Object.keys(OPERATIONS_BY_NAME)).toEqual(names);
     for (const o of OPERATIONS) expect(OPERATIONS_BY_NAME[o.name as keyof typeof OPERATIONS_BY_NAME]).toBe(o);
+  });
+
+  it('names the read-only queries too (L7.14): MCP\'s four, then the Studio\'s ten, each a read served by one shell only', () => {
+    const names = OPERATIONS.map((o) => o.name);
+    expect(names.filter((n) => !ELEVEN.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
+    for (const n of [...QUERIES_MCP, ...QUERIES_STUDIO]) {
+      const op = catalogueOperation(n)!;
+      expect(op.effect, n).toBe('read');
+      expect(servedBy(op, 'mcp'), n).toBe(QUERIES_MCP.includes(n));
+      expect(servedBy(op, 'studio'), n).toBe(QUERIES_STUDIO.includes(n));
+      expect(OPERATIONS_BY_NAME[n as keyof typeof OPERATIONS_BY_NAME].annotations.readOnlyHint, n).toBe(true);
+    }
+    // job_status is still the MCP server's (its record, site and inspect answers are tools still defined there).
+    expect(names).not.toContain('job_status');
+    // The Studio's table holds its ten as these very objects (no pin), and MCP's TOOLS none of them.
+    const table = stubTools();
+    for (const n of QUERIES_STUDIO) expect(table.get(n), n).toBe(OPERATIONS_BY_NAME[n as keyof typeof OPERATIONS_BY_NAME]);
+    for (const n of QUERIES_STUDIO) expect(TOOLS.some((t) => t.name === n), n).toBe(false);
   });
 
   it("MCP's TOOLS entry of an engine operation is that very object, at its place in tools/list", () => {

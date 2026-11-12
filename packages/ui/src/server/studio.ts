@@ -55,7 +55,7 @@ import { Live } from './live.js';
 import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
-import { OWN_OPS, boardOp, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { editOps, indexOps, liveOps, renderOps, runOps, timelineOps } from './ops.js';
 import { PreviewLeases } from './preview-leases.js';
 import { libraryOps } from './library-ops.js';
 import { themeOps } from './theme-ops.js';
@@ -199,8 +199,9 @@ export interface StudioServer {
 }
 
 /**
- * The ops of the allow-list: the engine's operation of each name (L7.13: the operations MCP serves too), or one of
- * `own` (the Studio's own ops — which never take an engine operation's or an MCP tool's name).
+ * The ops of the allow-list: the engine's operation of each name (L7.13: the operations MCP serves too; L7.14: the
+ * Studio's read-only queries), or one of `own` (the Studio's own ops — which never take an engine operation's or an
+ * MCP tool's name).
  */
 export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
   const shared = new Map<string, ToolDef>(OPERATIONS.map((t) => [t.name, t]));
@@ -246,9 +247,6 @@ function ownOps(d: StudioToolDeps) {
   const { chain, leases } = d;
   return [
     ...indexOps(d.live),
-    overviewOp(),
-    boardOp(),
-    ...scenarioOps(),
     ...runOps(),
     ...editOps(chain),
     ...liveOps(),

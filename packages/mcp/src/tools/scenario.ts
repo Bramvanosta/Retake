@@ -2,22 +2,10 @@ import { z } from 'zod';
 import { OPERATIONS_BY_NAME, issueLine } from '@retake/engine/contract';
 import { ifMatch, projectSlug, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import { READ, WRITE_FILES, defineTool } from './define.js';
+import { WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 
-const { scenario_validate: scenarioValidate } = OPERATIONS_BY_NAME;
-
-export const scenarioGet = defineTool({
-  name: 'scenario_get',
-  title: 'Read a scenario',
-  description: 'The YAML of a scenario and its hash (the if_match of scenario_save).',
-  input: z.strictObject({ project: projectSlug, name: scenarioName }),
-  annotations: READ,
-  async run({ project, name }, { engine }) {
-    const s = await engine.scenarios.get(project, name);
-    return { summary: `${project}/${s.file} (${s.yaml.length} characters, hash ${s.hash}): the YAML is in "yaml".`, data: { project, ...s } };
-  },
-});
+const { scenario_get: scenarioGet, scenario_validate: scenarioValidate } = OPERATIONS_BY_NAME;
 
 export const scenarioSave = defineTool({
   name: 'scenario_save',

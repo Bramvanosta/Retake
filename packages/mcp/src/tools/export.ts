@@ -3,7 +3,7 @@ import { EXPORT_FORMAT_NAMES } from '@retake/core';
 import type { ExportJobResult, JobRecord } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import { renderLatestData, renderLatestLines } from './render.js';
+import { renderLatestData, renderLatestLines } from '@retake/engine/contract';
 import { RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { jobData, jobLine } from '@retake/engine/contract';

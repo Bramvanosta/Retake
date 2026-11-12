@@ -126,6 +126,66 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.14)
+- **L7.14 done (2026-11-12; branch `claude/arch-l7`)** — U7's second slice: the read-only queries of runs, renders, reviews and scenarios are the engine's operations; no change a client sees.
+  - **The operations** (`packages/engine/src/operations/`, one file per part):
+    - MCP's four: reads.ts (+ scenario_get), renders.ts (plan_preview, render_status), reviews.ts (review_get). The summaries and trusted lines they share with MCP's `render` and `review` moved with them and are exported through the contract: `renderStatusSummary`, `renderStatusOutput` (MCP's `statusOutput`, renamed as a contract name), `latestLines`, `renderLatestLines`, `renderLatestData`, `editLines`, `renderInput`, `reviewSummary`, `reviewOutput`, `reviewRenderRef`, `reviewImages`. `compactReview` moved to the engine's compact.ts (MCP's compact.ts re-exports it).
+    - The Studio's ten: board.ts (projects_overview, project_board), scenario-screen.ts (scenario_blocks, scenario_actions, run_thumbs, scenario_forms, scenario_sessions), render-screen.ts (scenario_renders, render_review, review_image, with `reviewAnswer`, `REVIEW_IMAGES_MAX`, `RenderReviewAnswer`). Their input pieces moved verbatim to studio-schema.ts (`studioProject`, `studioScenario`, `studioRun`, `studioEnv`, `studioRenderId`): they keep the Studio's own words, and ops.ts takes them back for the ops it keeps.
+    - `OPERATIONS` has 25 operations, in catalogue order.
+  - **The shells.**
+    - MCP: tools/scenario.ts, render.ts and review.ts hold the engine's objects in tools/list order; render.ts and review.ts keep only `render` and `review`.
+    - Studio: ops.ts keeps 12 ops (it had 22), and studio.ts's own-op list drops the ten. `uiTools` takes them from `OPERATIONS`, so an own op still cannot take their names. ops.ts and ui index.ts re-export `ProjectOverview`, `RenderReviewAnswer`, `reviewAnswer` and `REVIEW_IMAGES_MAX`: the app's type imports stay where they were. `boardOp`, `overviewOp` and `scenarioOps` are gone from @retake/ui's exports (only studio.ts used them).
+  - **Not moved: job_status (MCP −4, not −5).** For a recording, a site extraction and an inspection, its answer comes from `recordOutput` (authoring.ts, L7.18), `siteOutput` (theme.ts, the parallel lot L7.17's file, fenced here) and `inspectOutput` (inspect.ts, L7.15). The engine cannot import them. Moving job_status now would need a change to theme.ts, or a second `siteOutput` in the engine, which would conflict with L7.17. It moves once those three are the engine's. The characterization already records its answers.
+  - **`timeline_view`'s `usedComponentIds` stays in the Studio** (R4 `ops.ts → @retake/editor` unchanged). timeline_view is not part of this slice, and the list belongs in engine `timeline.view`'s memoised view, which is a change of its own.
+  - **Ratchet.** `shell-op` MCP 34 → 30 (scenario.ts 2→1, render.ts 3→1, review.ts 2→1) and Studio 65 → 55 (ops.ts 22→12). baseline.json was edited by hand, in its two `shell-op` groups only. No file emptied, so there are still 121 entries. R3/R4/R6 unchanged.
+  - **Checked.**
+    - Characterization committed before the move: `packages/mcp/test/query-ops-characterization.test.ts` with `fixtures/query-ops.json`, recorded on `4c45325` in a scratch worktree in the session's scratch folder (since removed).
+      - Calls: 33 through MCP stdio and 45 through the Studio's `/v1/call`, refusals included, plus each shell's answer to an op only the other serves.
+      - Workspace: the fixture project, plus a `demo` project with a real 3 s synthetic take, renders tl-v7 (reviewed by hand: sheets, a linked sheet, a scene sheet, a key frame, a report) and tl-v9 (its review folder links out), and a render and a dry run queued.
+      - Normalised: paths, stamps, job ids, the queued run's id, pids, the Node binary, the repository URL, the `host` / `node` keys (tested before the string branch), base64 images, and an image's `bytes` (its encoder's). Dimensions are kept, and each fixture image has its own size (640×360, 704×396, 320×180, 576×324), so a swapped image shows.
+      - A run blocker's `fix_node` exists only when packages/cli/dist/bin.js is built. It is taken out of the answers and checked apart: present, and the command a person types, exactly when the CLI is built; absent otherwise.
+      - It asserts that no machine path, home folder, host name, Node binary or Node version is left. Two recordings a minute apart were equal.
+      - Fix pass: re-recorded on `4c45325` in a new scratch worktree (since removed). The diff against the first recording was exactly the ten `bytes` values, the two `fix_node` lines and the scene sheet's new size (summary and dimensions).
+    - After the move this characterization and L7.13's both pass unchanged.
+    - `studio-tools-types.test.ts`: new type equalities for the ten Studio ops, type-checked on `4c45325`. They still hold after the move. projects_overview's and render_review's answers are compared with their shapes written out as on `4c45325` (`OverviewShape`, `RenderReviewShape`), not with the moved types, so the check is not of a type against itself.
+    - tool-list.json, op-table.json, shared-ops.json and the CLI golden show no diff (`git diff --exit-code`).
+    - Gates: `tsc -b` 0, `pnpm typecheck` 0, `rules.mjs --check` (121), `--check-cites` on a scratch copy with the edits applied: 0.
+      - On the repository's own docs/requirements.json, `--check-cites` exits 1 until the edits are applied: R-ARCH-27 cites the renamed import-rules title.
+    - `test-guard` exits 1 with one item to explain: the `shell-op` "holds today" title names the counts (34/65 → 30/55), so it was renamed. Its test, assertions and count are unchanged.
+    - Test files, each run alone with a fresh `RETAKE_HOME` and `RETAKE_DISK_WARN=off`, all green (46 files):
+      - mcp: render-latest, render-latest-said, render-status-by-id, compact, operation-catalogue, tool-list-snapshot, skills, both characterizations, stdio, stdio-runs / -review / -render / -inspect / -record / -preview / -comments / -approvals / -site / -theme, admission, job-errors, http.
+      - ui: board-ops, scenario-ops, timeline-ops, studio-ops, server, render-ops, run-ops, op-table-snapshot, operation-catalogue, feature-boundaries, app-source, studio-tools-types, shoot-ops, studio-e2e-board-reads.
+      - engine: operations, operation-catalogue, review-export-jobs, integrations.
+      - cli: glossary, pipeline-cli, operation-catalogue.
+      - core: import-rules.
+    - 19 mutations, all red (13, then 6 in the fix pass):
+      - a summary word on each side (characterization);
+      - `findings_left_out` dropped (compact);
+      - a path kept in render_review's images (characterization);
+      - a copy in RENDER_TOOLS, and a copy in uiTools (operations);
+      - an own op named project_board (server);
+      - the query list (operations);
+      - a widened input (types check; op-table snapshot);
+      - a baseline count (`--check`);
+      - the holds-today count (import-rules);
+      - the Node binary left un-normalised (characterization);
+      - fix pass: image `bytes` not normalised, the `fix_node` presence check inverted, the node command's path changed in the engine, two image sizes made equal (each caught by the characterization); `RenderReviewAnswer` widened and `ProjectOverview` narrowed (the types check).
+  - **Docs.** docs/DESIGN.md names the new places: project_board (board.ts), the render queue and review reads (render-screen.ts), and the Studio's own-op note. The requirement edits repoint R-UI-37's evidence (board.ts) and R-UI-42's (scenario-screen.ts).
+  - **Renames on the move** (the names stay, apart from these):
+    - The `statusOutput` helper became the contract name `renderStatusOutput`.
+    - Studio ops.ts's private `scenarioSessions(engine, a)` helper became `sessionsOf` in scenario-screen.ts, because the operation itself is `scenarioSessions` there.
+    - compactReview calls `cutMessage` by name; MCP's compact.ts called it through its `cut` alias, which stays there for compactElements.
+    - MCP review.ts's local `renderRef` and `images` are now the engine's `reviewRenderRef` and `reviewImages`, imported under the old local names.
+    - The Studio's local `project`, `scenario`, `run`, `env` and `renderId` are `studioProject`, `studioScenario`, `studioRun`, `studioEnv` and `studioRenderId` (imported back under their old names).
+  - **Boy scout.** studio.ts's unused `OWN_OPS` import (noted in L7.13) is gone. engine review-export-jobs.test.ts read `reviewSummary` from MCP's sources; it now reads the engine's.
+  - **Not done.**
+    - **The full suite was not run.**
+    - job_status (above).
+    - The Studio's other 55 own ops and MCP's other 30 tools (L7.15–L7.19).
+    - The contract exports about 20 more names (helpers that render, review and the Studio's kept ops still use) until L7.15.
+    - The characterization has no long poll, no render or review that actually runs, and no record / site / inspect job through job_status (their own tests cover these).
+    - Merge note for L7.17: both lots edit operations/index.ts, contract.ts and baseline.json's `shell-op` groups. These are adjacent lines, so each side keeps its own.
+
 ## State (after L7.13)
 - **L7.13 done (2026-11-12; branch `claude/arch-l7`)** — U7's first slice: `invoke()` in the engine, and the eleven operations the Studio borrowed from MCP are the engine's; no change a client sees.
   - **The call** (`packages/engine/src/operations/invoke.ts`): `invoke(op, engine, args, {shell, signal, progress?, approver?})` never throws. In order: the catalogue serves `op` in `shell` (else `not_found`, before the parse, the engine never asked), the zod parse with callTool's words, the op's `callers` rules with the engine's caller, the handler, the error typed (`toEngineError`, itself guarded: a thrown value `String()` cannot show — no prototype, a throwing `toString` — or an error whose `message` getter throws is `internal`, not a throw). Admission stays inside the submits. `callTool` stays as a `@deprecated` alias for one lot. `Engine.caller` is new and additive (`ENGINE_API_VERSION` stays 1): a non-writable, non-configurable member holding the context's caller, which `callerOf` now freezes (the same object is the store scope's and the worker environment's).

@@ -2585,7 +2585,8 @@ package it takes only the tools it serves as they are and the Set-up sheet's reg
   `scenario_edit` (§4e); since L4.4 the MCP tools `auth_status` and `auth_login` (NARROWED: `mode` headed only, `wait_s`
   0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); L5.10a the own READ op `project_board` (§4l); since L5.2b the own op `unsaved_report`
   (what a tab holds unsaved, kinds and names only: the desktop app's quit question, §4j); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
-  `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
+  `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name; since L7.14 the read-only ones are engine operations in
+  `packages/engine/src/operations/` `board.ts`, `scenario-screen.ts` and `render-screen.ts`) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of this home's token record
   is reused (a new code minted through `/v1/bootstrap` on that record's port with its token), else a server is started,
   ui.json claimed and the token record written; closing releases both. A live holder of ui.json without a token record
@@ -3916,7 +3917,7 @@ blocks no longer read; undo gave back the original bytes (`Buffer.compare` 0) an
 The caption component (studio/caption-below → studio/caption-overlay): the caption band changed (mean difference 10.9 /
 255) while the capture's blocks still read exactly.
 
-**Render, queue, review** (part E, R-UI-26; ui `server/ops.ts` `renderOps`, `app/Renders.tsx`, `render-words.ts`;
+**Render, queue, review** (part E, R-UI-26; ui `server/ops.ts` `renderOps` — since L7.14 `scenario_renders`, `render_review` and `review_image` are engine operations, `packages/engine/src/operations/render-screen.ts` —, `app/Renders.tsx`, `render-words.ts`;
 engine `renders.ofScenario`, `reviews.image`). **`scenario_render {project, name, run, expect_edit_sha256}`** — strict,
 nothing else: no theme, override, variant, review setting or path (400); it calls `renders.submit` with `review: {fps:
 1}` (the review inline, critique B12) and the snapshot of B5, the theme and every option coming from the files.
@@ -5005,7 +5006,7 @@ and R4-Welcome, layout and drawing; the product's name stays `APP_NAME`. Built f
 critique (H1 the board's own read, H2 the cuts, M2 the store's invalidation, M3 the words, M4 every capability's home,
 M5 Disclosure, M6 the listbox, M8 the migration guard, M9 Thumb sizes). Cuts: BL-128.
 
-**`project_board {project}`** (ui `server/ops.ts` boardOp; engine `projects.board`, `project-board.ts`). A Studio-own
+**`project_board {project}`** (engine operation `packages/engine/src/operations/board.ts` since L7.14, before it ui `server/ops.ts` boardOp; engine `projects.board`, `project-board.ts`). A Studio-own
 READ op (in `OWN_OPS`, never an MCP tool), path-free, the video titles under `untrusted` (capped at 200 characters).
 Per scenario of `project_get.scenarios` (at most `BOARD_SCENARIOS_MAX` = 200; past it `truncated`): file facts
 (parsed, ok, errors, warnings, the content counts: scenes, cards, interstitials, steps, hooks; its environment when the

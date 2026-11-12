@@ -1,14 +1,16 @@
 /**
- * Compact results (L5.8, R-FLD-34): the `detail` argument and the run status as run_status returns it by default — the
- * status, where it failed, the paths to read — and, with `detail: "full"`, everything as before (moved from the MCP
- * server's compact.ts in L7.13 with run_status; the review's and the inspection's compacts stay there for now).
- * Nothing the summary says is dropped: run.json keeps the rest.
+ * Compact results (L5.8, R-FLD-34): the `detail` argument, the run status as run_status returns it by default — the
+ * status, where it failed, the paths to read — and the review as review_get returns it, and, with `detail: "full"`,
+ * everything as before (moved from the MCP server's compact.ts: the run's in L7.13 with run_status, the review's in
+ * L7.14 with review_get; the inspection's stays there for now). Nothing the summary says is dropped: run.json and
+ * report.json keep the rest.
  *
  * Trust is unchanged: what the filmed site or the scenario wrote stays under `untrusted` (capUntrusted still applies).
  */
 import { z } from 'zod';
 import { perfSummary } from '@retake/core';
 import type { CompactRunStatus, RunStatusWithJob } from '../facade/types.js';
+import type { ReviewView } from '../reviews.js';
 
 export const detail = z
   .enum(['compact', 'full'])
@@ -73,6 +75,52 @@ export function compactRunStatus(r: RunStatusWithJob): CompactRunStatus {
       ...(r.untrusted.optional_errors?.length ? { optional_errors: r.untrusted.optional_errors.map((m) => cutMessage(m)) } : {}),
       ...(warnings.length ? { warnings: warnings.slice(0, COMPACT_WARNINGS_MAX).map((w) => cutMessage(w)) } : {}),
       ...(warnings.length > COMPACT_WARNINGS_MAX ? { warnings_total: warnings.length } : {}),
+    },
+  };
+}
+
+/**
+ * A review, compact: the verdict, the findings that are not notes (errors first, at most COMPACT_FINDINGS_MAX besides
+ * the errors) with their messages, the contact sheet and report paths; no per-segment durations, per-file key frames or
+ * per-segment diff.
+ */
+export function compactReview(r: ReviewView): Record<string, unknown> {
+  const findings = (r.findings ?? []).map((f, i) => ({ f, message: r.untrusted.messages?.[i] }));
+  const errors = findings.filter((x) => x.f.severity === 'error');
+  const others = findings.filter((x) => x.f.severity === 'warning');
+  const kept = [...errors, ...others.slice(0, COMPACT_FINDINGS_MAX)];
+  const files = r.files;
+  return {
+    project: r.project,
+    render_id: r.render_id,
+    status: r.status,
+    finished: r.finished,
+    ...(r.job ? { job: { id: r.job.id, state: r.job.state, ...(r.job.progress ? { progress: r.job.progress } : {}), ...(r.job.error ? { error: { code: r.job.error.code, ...(r.job.error.fix ? { fix: r.job.error.fix } : {}) } } : {}) } } : {}),
+    ...(r.created_at ? { created_at: r.created_at } : {}),
+    ...(r.fps ? { fps: r.fps } : {}),
+    ...(r.clean !== undefined ? { clean: r.clean } : {}),
+    ...(r.counts ? { counts: r.counts } : {}),
+    ...(r.durations ? { duration_s: r.durations.total_s } : {}),
+    ...(kept.length ? { findings: kept.map((x) => x.f) } : {}),
+    ...(others.length > COMPACT_FINDINGS_MAX ? { findings_left_out: others.length - COMPACT_FINDINGS_MAX } : {}),
+    ...(r.diff ? { diff: { previous: r.diff.previous, compared: r.diff.compared, changed_frames: r.diff.changed_frames, ...(r.diff.duration_s ? { duration_s: r.diff.duration_s } : {}) } } : {}),
+    ...(r.dir ? { dir: r.dir } : {}),
+    ...(files
+      ? {
+          files: {
+            sheets: files.sheets,
+            ...(files.report_md ? { report_md: files.report_md } : {}),
+            report_json: files.report_json,
+            ...(Object.keys(files.keyframes).length ? { keyframes: { dir: `${r.dir}/keyframes`, count: Object.keys(files.keyframes).length } } : {}),
+            // sheet_scene_<scene>.jpg next to the contact sheet, one per scene (several pages for a long one).
+            ...(Object.keys(files.scene_sheets).length ? { scene_sheets: Object.values(files.scene_sheets).flat().length } : {}),
+            ...(files.diff_sheet ? { diff_sheet: files.diff_sheet } : {}),
+          },
+        }
+      : {}),
+    untrusted: {
+      ...(kept.length ? { messages: kept.map((x) => cutMessage(x.message ?? '')) } : {}),
+      ...(r.untrusted.error !== undefined ? { error: r.untrusted.error } : {}),
     },
   };
 }

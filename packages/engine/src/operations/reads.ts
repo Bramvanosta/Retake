@@ -1,11 +1,24 @@
 /**
- * The read operations the shells share (moved from the MCP server in L7.13): scenario_validate.
+ * The scenario reads of the MCP server: scenario_get (L7.14) and scenario_validate (L7.13, which the Studio serves too),
+ * moved from its tools/scenario.ts.
  */
 import { z } from 'zod';
 import { READ } from './annotations.js';
 import { defineOperation } from './define.js';
 import { envName, projectSlug, scenarioName } from './schema.js';
 import { issueLine, plural } from './words.js';
+
+export const scenarioGet = defineOperation({
+  name: 'scenario_get',
+  title: 'Read a scenario',
+  description: 'The YAML of a scenario and its hash (the if_match of scenario_save).',
+  input: z.strictObject({ project: projectSlug, name: scenarioName }),
+  annotations: READ,
+  async run({ project, name }, { engine }) {
+    const s = await engine.scenarios.get(project, name);
+    return { summary: `${project}/${s.file} (${s.yaml.length} characters, hash ${s.hash}): the YAML is in "yaml".`, data: { project, ...s } };
+  },
+});
 
 export const scenarioValidate = defineOperation({
   name: 'scenario_validate',

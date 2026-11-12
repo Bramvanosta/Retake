@@ -16,7 +16,7 @@ import type { CommentEntryView, CommentProposalView, CommentView, Engine } from 
 import { EngineError } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import { renderLatestData, renderLatestLines } from './render.js';
+import { renderLatestData, renderLatestLines } from '@retake/engine/contract';
 import type { ToolImage } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';

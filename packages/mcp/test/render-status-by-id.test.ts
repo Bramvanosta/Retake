@@ -11,10 +11,13 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_RECORD_VERSION, createEngine } from '@retake/engine';
 import type { Engine } from '@retake/engine';
-import { render, renderStatus } from '../src/tools/render.js';
+import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
+import { render } from '../src/tools/render.js';
 import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import { buildRenderState } from '../../core/test/fixtures/records/build-renders.js';
 import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+
+const { render_status: renderStatus } = OPERATIONS_BY_NAME;
 
 let root: string;
 let engine: Engine;

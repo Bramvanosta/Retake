@@ -3,26 +3,14 @@
  * them through the same `invoke` — but they are not MCP tools: Claude reads files, project_get, run_list and job_list
  * instead, and the MCP server never depends on this package.
  *
+ * L7.14: the Studio's read-only queries are the engine's operations (packages/engine/src/operations/): board.ts
+ * (`projects_overview`, `project_board`), scenario-screen.ts (`scenario_blocks`, `scenario_actions`, `run_thumbs`,
+ * `scenario_forms`, `scenario_sessions`), render-screen.ts (`scenario_renders`, `render_review`, `review_image`); the
+ * Studio serves them as they are (studio.ts uiTools). The ops below stay here for now:
+ *
  * - `activity_list`: unfinished jobs, live from the queue (derived states included), then finished jobs and CLI
  *   commands from the history — ids, kinds, states and times only (no product text: history lines carry none).
  * - `search`: projects (name, slug, README), scenarios, runs and renders matching every word as a prefix.
- * - `project_board` (L5.10a): the Project screen's poster grid, smart groups and inspector in one read (boardOp).
- * - `projects_overview`: what the Projects screen's cards show beyond project_list — every project's environment flags
- *   (project_get's) and last run (run_list's) — in one call (review B L2: a card per project made two calls each, at
- *   every focus and reconnection).
- * - `scenario_blocks` (L4.2): the scenario screen in one read — engine scenarios.view: text, hash, blocks, issues
- *   (without agent trust), run blockers worded for the Studio, scene URLs, the runs (picker), the source run and every
- *   step's binding to it; page text under `untrusted`. Memoised by the engine (file hash, runs' files). Plus `hints`:
- *   the scenario language's description of each action the file uses (the inspector's edit hints).
- * - `scenario_actions` (L5.11a): the status bar's read for the scenario in context — engine scenarios.actions: the
- *   file's hash and validity, the run blockers on the chosen location (each with its gate's `kind`), the runs with the
- *   unfinished one's job, the capture a render edits, a render queued or running. Memoised apart from scenario_blocks
- *   (critique H2: it never evicts the open scenario's view). Path-free but the blockers' commands (`fix`, `fix_node`).
- * - `scenario_forms` (L4.3): the step forms (core stepForms: each action's fields derived from its schema, the
- *   modifiers, the palette) — static, read once by the scenario screen.
- * - `run_thumbs` (L4.2): base64 JPEGs (≤ 480 px) of up to 24 steps of one run, by the run's own step keys — shown as
- *   `data:image/jpeg;base64,…` (the CSP's `img-src data:`), never stored. Not MCP tools: Claude reads files, run_status
- *   and review contact sheets.
  * - `scenario_run` (L4.2): the scenario screen's Dry run and Capture — engine runs.submit with pinned arguments: the
  *   mode, the scenario, an environment of the project; the default hooks (none for a dry run, all for a capture), never
  *   a sandbox reset, never `until`, never a wait. It runs under the `ui` client's agent trust with no approver, so what
@@ -36,15 +24,11 @@
  * - `run_pause` (L4.4): Pause / Resume of the Run screen — engine runs.pause (a running run of a job pauses before its
  *   next step, a capture without filming the pause; a queued, stopping or finished run is a 409; a terminal's run is
  *   refused).
- * - `scenario_sessions` (L4.4): the Run screen's preflight panel — engine auth.forScenario (the personas the run signs
- *   in, their stored state, `auto`; no path; the last check's text under `untrusted`) and `confirm`: the personas a
- *   capture's `sessions_ack` must name.
  * - `sign_in_cancel` (L4.4): the Sessions panel's Cancel — engine auth.cancelSignIn (an `auth_login` job only).
  * - `timeline_view` (L4.5): the timeline screen's read — engine timeline.view and the preview's capability URLs on the
  *   player origin (timelineOps); `timeline_leave` (the page left: its project's preview URLs are revoked once no page
  *   holds a lease) and `preview_allow` (the person allows a workspace component to run in the preview, this session).
- * - `scenario_render`, `scenario_renders`, `render_cancel`, `render_review`, `review_image` (L4.5 part E): Render from
- *   the timeline or the scenario screen, the render queue and list, Cancel, the review's report and its contact sheets
+ * - `scenario_render`, `render_cancel` (L4.5 part E): Render from the timeline or the scenario screen, and Cancel
  *   (renderOps). L5.12a: `review_export` — the Review report's Export video (MP4): the existing engine `export` job, one
  *   format, the fixed folder; one at a time per render and at most two exports of the workspace at once are the engine's
  *   admission rules (renderOps).
@@ -58,12 +42,10 @@
  *   critique B5); the scenario_edit answer no longer carries the file's absolute path.
  */
 import { z } from 'zod';
-import { basename, dirname } from 'node:path';
-import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms, zRenderId, zRunId } from '@retake/core';
-import type { ActionName } from '@retake/core';
-import { EXPORTS_OPEN_MAX, EngineError, REVIEW_IMAGE_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine, sessionsToConfirm } from '@retake/engine';
-import type { Engine, EnvironmentView, RenderEditSource, SessionToConfirm, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
-import { defineTool } from '@retake/engine/contract';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, SCENARIO_EDIT_MAX_CHARS, SLUG_RE } from '@retake/core';
+import { EXPORTS_OPEN_MAX, EngineError, firstErrorLine } from '@retake/engine';
+import type { RenderEditSource, TimelineView } from '@retake/engine';
+import { READ, defineTool, plural, studioEnv as env, studioProject as project, studioRenderId as renderId, studioRun as run, studioScenario as scenario } from '@retake/engine/contract';
 import { PreviewLeases } from './preview-leases.js';
 import type { PreviewHeld } from './preview-leases.js';
 import type { Live } from './live.js';
@@ -82,9 +64,6 @@ import { COMPONENT_HASH_RE } from './preview-allow.js';
 import type { PreviewAllowList } from './preview-allow.js';
 import type { ComponentRegistry } from '@retake/components/geometry';
 
-const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
-const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug (project_list names them), never a path');
-
 const ActivityInput = z.strictObject({
   project: project.optional().describe('Only this project.'),
   limit: z.number().int().min(1).max(100).optional().describe('At most this many entries (default 20).'),
@@ -94,33 +73,6 @@ const SearchInput = z.strictObject({
   q: z.string().max(200).describe('Words to find (each one as a prefix): project names and READMEs, scenario names, run and render ids.'),
   project: project.optional().describe('Only this project.'),
   limit: z.number().int().min(1).max(50).optional().describe('At most this many hits (default 20).'),
-});
-
-const scenario = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/<name>.yaml), never a path');
-const run = zRunId('a run id (scenario_blocks lists them), never a path');
-const env = z.string().max(100).regex(SLUG_RE, 'an environment name of the project');
-
-const BlocksInput = z.strictObject({
-  project,
-  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
-  run: run.optional().describe('The run whose pictures to show (default: the newest complete run with pictures).'),
-  env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
-});
-
-const ActionsInput = z.strictObject({
-  project,
-  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
-  env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
-});
-
-const ThumbsInput = z.strictObject({
-  project,
-  run,
-  keys: z
-    .array(z.string().max(130).regex(RUN_KEY_RE, 'a step key of the run: "<scene id>.<step index>"'))
-    .min(1)
-    .max(RUN_THUMBS_MAX_KEYS)
-    .describe(`The run's own step keys (scenario_blocks binds today's steps to them), 1 to ${RUN_THUMBS_MAX_KEYS}.`),
 });
 
 const RunInput = z.strictObject({
@@ -144,12 +96,6 @@ const PauseInput = z.strictObject({
   project,
   run_id: run,
   paused: z.boolean().describe('true: pause before the next step; false: resume.'),
-});
-const SessionsInput = z.strictObject({
-  project,
-  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
-  env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
-  mode: z.enum(['dry', 'capture']).optional().describe('capture (default) counts the personas of the hooks\' tabs too.'),
 });
 const SignInCancelInput = z.strictObject({ job: z.string().regex(JOB_ID_RE, 'a job id (j_…)').describe('The sign-in job (auth_login answered it).') });
 
@@ -246,68 +192,6 @@ const EditInput = z.strictObject({
     .describe('One edit.'),
 });
 
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
-
-const OverviewInput = z.strictObject({});
-const FormsInput = z.strictObject({});
-
-/** A card's extras: environment flags and the last run (or why the project does not open). */
-export interface ProjectOverview {
-  slug: string;
-  environments: Array<Pick<EnvironmentView, 'name' | 'production' | 'access' | 'sandbox'>>;
-  last_run: RunListItem | null;
-  error?: string;
-}
-
-/** projects_overview: engine reads (project_get's environments, run_list's newest run) for every project at once. */
-export function overviewOp() {
-  const op = defineTool({
-    name: 'projects_overview',
-    title: 'Projects overview',
-    description: "Every project's environments (production / read-only / sandbox flags) and last run, for the Projects screen.",
-    input: OverviewInput,
-    annotations: READ,
-    async run(_a, { engine }) {
-      const list = await engine.projects.list();
-      const projects: ProjectOverview[] = await Promise.all(
-        list.map(async (p): Promise<ProjectOverview> => {
-          if (p.error) return { slug: p.slug, environments: [], last_run: null, error: p.error };
-          try {
-            const [view, runs] = await Promise.all([engine.projects.get(p.slug), engine.runs.list(p.slug, { limit: 1 })]);
-            return { slug: p.slug, environments: view.environments.map((e) => ({ name: e.name, production: e.production, access: e.access, sandbox: e.sandbox })), last_run: runs[0] ?? null };
-          } catch (e) {
-            return { slug: p.slug, environments: [], last_run: null, error: firstErrorLine(e instanceof Error ? e.message : String(e)) };
-          }
-        }),
-      );
-      return { summary: plural(projects.length, 'project'), data: { projects } };
-    },
-  });
-  return op;
-}
-
-const BoardInput = z.strictObject({ project });
-
-/**
- * project_board (L5.10a): the Project screen's read — engine projects.board (every scenario's file facts, takes,
- * capture "current", render and review, render job, length, poster), path-free, the video titles under `untrusted`.
- * Its memos are the board's own: reading it never evicts the open scenario screen's view (critique H1).
- */
-export function boardOp() {
-  const op = defineTool({
-    name: 'project_board',
-    title: 'Project board',
-    description: "Every scenario of a project for the Studio's Project screen: file facts, running and last take, capture, render and review, length and poster.",
-    input: BoardInput,
-    annotations: READ,
-    async run(a, { engine }) {
-      const v = await engine.projects.board(a.project);
-      return { summary: `${a.project}: ${plural(v.scenarios.length, 'scenario')}${v.truncated ? ` of ${v.truncated.total}` : ''}`, data: v };
-    },
-  });
-  return op;
-}
-
 /** activity_list and search, served from `live`'s index. */
 export function indexOps(live: Live) {
   const activity = defineTool({
@@ -334,60 +218,6 @@ export function indexOps(live: Live) {
     },
   });
   return [activity, search] as const;
-}
-
-/** scenario_blocks and run_thumbs: the scenario screen's reads (engine scenarios.view, runs.thumbs). */
-export function scenarioOps() {
-  const blocks = defineTool({
-    name: 'scenario_blocks',
-    title: 'Scenario as blocks',
-    description: "A scenario's text, blocks, issues and run blockers, its runs, and each step bound to the source run's pictures.",
-    input: BlocksInput,
-    annotations: READ,
-    async run(a, { engine }) {
-      const v = await engine.scenarios.view(a.project, a.name, { ...(a.run ? { run: a.run } : {}), ...(a.env ? { env: a.env } : {}) });
-      const src = v.source ? `pictures from ${v.source.run}` : 'no run with pictures yet';
-      // The inspector's edit hints: what each action of this file does (the scenario language's own descriptions).
-      const hints: Partial<Record<ActionName, string>> = {};
-      for (const e of v.blocks.entries) if (e.type === 'scene') for (const s of e.steps) if (s.action) hints[s.action] = ACTION_DESCRIPTIONS[s.action];
-      return { summary: `${a.name}: ${plural(v.blocks.step_count, 'step')}, ${plural(v.issues.length, 'issue')}, ${src}`, data: { ...v, hints } };
-    },
-  });
-  const actions = defineTool({
-    name: 'scenario_actions',
-    title: 'Scenario actions',
-    description: "What the Studio's status bar acts on for a scenario: its hash, what would stop a rehearsal or a capture on the location, its runs, the capture a render edits, a render running.",
-    input: ActionsInput,
-    annotations: READ,
-    async run(a, { engine }) {
-      const v = await engine.scenarios.actions(a.project, a.name, { ...(a.env ? { env: a.env } : {}) });
-      const blocked = v.run_blockers.dry.length + v.run_blockers.capture.length;
-      return { summary: `${a.name}: ${v.running ? `a run ${v.running.status}` : 'no run going'}, ${plural(blocked, 'blocker')}`, data: v };
-    },
-  });
-  const thumbs = defineTool({
-    name: 'run_thumbs',
-    title: 'Thumbnails of run steps',
-    description: "JPEG thumbnails (base64, ≤ 480 px) of a run's steps: dry-run screenshots, error screenshots, the frame at a capture step's end.",
-    input: ThumbsInput,
-    annotations: READ,
-    async run(a, { engine, signal }) {
-      const t = await engine.runs.thumbs(a.project, a.run, a.keys, { signal });
-      return { summary: `${plural(t.thumbs.length, 'thumbnail')} of ${a.run}${t.missing.length ? `, ${t.missing.length} without one` : ''}`, data: t };
-    },
-  });
-  const forms = defineTool({
-    name: 'scenario_forms',
-    title: 'Step forms',
-    description: "The inspector's and the palette's forms: each action's fields (from the scenario language's schemas), the modifiers, the palette's actions.",
-    input: FormsInput,
-    annotations: READ,
-    async run() {
-      const f = stepForms();
-      return { summary: `${plural(f.actions.length, 'action')}, ${plural(f.palette.length, 'palette action')}`, data: f };
-    },
-  });
-  return [blocks, actions, thumbs, forms] as const;
 }
 
 /** What scenario_run answers: the run reserved and its job (the screen follows it with run_status and the events). */
@@ -434,11 +264,14 @@ export function runOps() {
 /** The personas a capture's `sessions_ack` must name, and what the capture does with them: the engine's rule. */
 export { confirmWhy, sessionsToConfirm } from '@retake/engine';
 export type { SessionToConfirm } from '@retake/engine';
+/** The read-only queries' answers the app and the tests name (the engine's operations since L7.14). */
+export { REVIEW_IMAGES_MAX, reviewAnswer } from '@retake/engine/contract';
+export type { ProjectOverview, RenderReviewAnswer } from '@retake/engine/contract';
 
 const statusWords = (st: { status: string; paused?: { scene: string; step: number }; job?: { pause_requested_at?: string } }) =>
   st.paused ? `paused before step ${st.paused.step + 1} of ${st.paused.scene}` : st.job?.pause_requested_at ? `${st.status}, pausing before its next step` : st.status;
 
-/** run_pause, scenario_sessions and sign_in_cancel: the Run screen's controls and the Sessions panel (L4.4). */
+/** run_pause and sign_in_cancel: the Run screen's controls and the Sessions panel's Cancel (L4.4; scenario_sessions is the engine's since L7.14). */
 export function liveOps() {
   const pause = defineTool({
     name: 'run_pause',
@@ -449,20 +282,6 @@ export function liveOps() {
     async run(a, { engine }) {
       const st = await engine.runs.pause(a.project, a.run_id, a.paused);
       return { summary: `${a.run_id}: ${statusWords(st)}`, data: st };
-    },
-  });
-  const sessions = defineTool({
-    name: 'scenario_sessions',
-    title: 'Sessions a scenario needs',
-    description: "The personas a run of a scenario signs in on an environment, with their stored state (no browser), whether every run signs them in by itself, and those a capture must confirm (`confirm`).",
-    input: SessionsInput,
-    annotations: READ,
-    async run(a, { engine }) {
-      const s = await scenarioSessions(engine, a);
-      return {
-        summary: `${a.name} on ${s.env}: ${plural(s.personas.length, 'persona')}${s.confirm.length ? `, ${s.confirm.length} to confirm for a capture` : ''}`,
-        data: s,
-      };
     },
   });
   const cancel = defineTool({
@@ -476,13 +295,7 @@ export function liveOps() {
       return { summary: `sign-in ${rec.id}: ${rec.state}${rec.cancel_requested_at && rec.state === 'running' ? ' (stopping)' : ''}`, data: { id: rec.id, kind: rec.kind, state: rec.state, ...(rec.cancel_requested_at ? { cancel_requested_at: rec.cancel_requested_at } : {}) } };
     },
   });
-  return [pause, sessions, cancel] as const;
-}
-
-async function scenarioSessions(engine: Engine, a: z.infer<typeof SessionsInput>): Promise<ScenarioSessions & { confirm: SessionToConfirm[] }> {
-  const mode = a.mode ?? 'capture';
-  const s = await engine.auth.forScenario(a.project, a.name, { ...(a.env ? { env: a.env } : {}), mode });
-  return { ...s, confirm: mode === 'capture' ? sessionsToConfirm(s) : [] };
+  return [pause, cancel] as const;
 }
 
 /**
@@ -645,16 +458,13 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
   return [view, leave, allow] as const;
 }
 
-const renderId = zRenderId('a render id (scenario_renders lists them), never a path');
 const RenderInput = z.strictObject({
   project,
   name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
   run: run.describe('The capture to render (the timeline shows it: timeline_view `run_id`).'),
   expect_edit_sha256: sha256.describe('The scenario file as the screen showed it (timeline_view / scenario_blocks `hash`): refused (409) when it changed since.'),
 });
-const RendersInput = z.strictObject({ project, name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.') });
 const RenderCancelInput = z.strictObject({ project, job: z.string().regex(JOB_ID_RE, 'a job id (j_…)').describe('A render or review job of this project (scenario_renders lists them).') });
-const RenderReviewInput = z.strictObject({ project, render_id: renderId });
 const ReviewExportInput = z.strictObject({ project, render_id: renderId });
 
 /** L5.12a: the one format the Review report exports (the other formats stay `retake export` / Claude's `export`). */
@@ -671,12 +481,6 @@ export interface ReviewExportAnswer {
   /** Where the file lands, in words (never a path). */
   where: string;
 }
-const ReviewImageInput = z.strictObject({
-  project,
-  render_id: renderId,
-  image: z.string().max(140).regex(REVIEW_IMAGE_RE, 'an image of the review (render_review lists them), never a path'),
-});
-
 /** What scenario_render answers: the render reserved and its job (the queue follows it through scenario_renders and the events). */
 export interface ScenarioRenderAnswer extends RenderEditSource {
   render_id: string;
@@ -692,59 +496,6 @@ export interface ScenarioRenderAnswer extends RenderEditSource {
 }
 
 /**
- * What render_review answers: engine reviews.get without a path — the verdict, counts, findings (severity, code, where),
- * durations, the diff's summary, and the contact sheets by file NAME (review_image reads one); the findings' messages
- * and a failed review's message under `untrusted`. No `dir`, no `files`, no filmed environment.
- */
-export interface RenderReviewAnswer {
-  project: string;
-  render_id: string;
-  status: ReviewView['status'];
-  finished: boolean;
-  job?: { id: string; state: string; progress?: { phase?: string; fraction?: number } };
-  created_at?: string;
-  fps?: 1 | 2;
-  clean?: boolean;
-  counts?: { error: number; warning: number; info: number };
-  findings?: ReviewFindingView[];
-  durations?: NonNullable<ReviewView['durations']>;
-  diff?: { previous: string; duration_s?: { previous: number; current: number; delta: number }; compared: number; changed_frames: number };
-  images: Array<{ image: string; label: string }>;
-  untrusted: { messages?: string[]; error?: string };
-}
-
-/** Images a review answer lists, at most (each one a review_image call, one at a time). */
-export const REVIEW_IMAGES_MAX = 24;
-
-/** engine reviews.get → render_review's path-free answer (exported for the tests). */
-export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
-  const images: RenderReviewAnswer['images'] = [];
-  for (const i of v.images) {
-    if (images.length >= REVIEW_IMAGES_MAX) break;
-    // By its name in the review folder (a key frame: keyframes/<name>.png), never a path.
-    const name = basename(i.file);
-    const image = basename(dirname(i.file)) === 'keyframes' ? `keyframes/${name}` : name;
-    if (REVIEW_IMAGE_RE.test(image)) images.push({ image, label: i.label });
-  }
-  return {
-    project: v.project,
-    render_id: v.render_id,
-    status: v.status,
-    finished: v.finished,
-    ...(v.job ? { job: { id: v.job.id, state: v.job.state, ...(v.job.progress ? { progress: { ...(v.job.progress.phase ? { phase: v.job.progress.phase } : {}), ...(v.job.progress.fraction !== undefined ? { fraction: v.job.progress.fraction } : {}) } } : {}) } } : {}),
-    ...(v.created_at ? { created_at: v.created_at } : {}),
-    ...(v.fps ? { fps: v.fps } : {}),
-    ...(v.clean !== undefined ? { clean: v.clean } : {}),
-    ...(v.counts ? { counts: v.counts } : {}),
-    ...(v.findings ? { findings: v.findings } : {}),
-    ...(v.durations ? { durations: v.durations } : {}),
-    ...(v.diff ? { diff: { previous: v.diff.previous, ...(v.diff.duration_s ? { duration_s: v.diff.duration_s } : {}), compared: v.diff.compared, changed_frames: v.diff.changed_frames } } : {}),
-    images,
-    untrusted: { ...(v.untrusted.messages ? { messages: v.untrusted.messages } : {}), ...(v.untrusted.error !== undefined ? { error: v.untrusted.error } : {}) },
-  };
-}
-
-/**
  * The Studio's render ops (L4.5 part E, R-UI-26):
  * - `scenario_render`: Render from the timeline (or the scenario screen) — engine renders.submit with pinned arguments:
  *   the project, the scenario and the capture shown; the theme and every override come from the files (none can be
@@ -752,13 +503,11 @@ export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
  *   and the scenario text is snapshotted with the job. `expect_edit_sha256` (the view's `hash`) makes a changed file a
  *   409 before anything is reserved; a render of the scenario already queued or running makes another a 409 naming it
  *   (the engine's admission rule, the same for MCP). Not an MCP tool: Claude has `render` (with every option).
- * - `scenario_renders`: engine renders.ofScenario — the queue (queued with what runs first / running with phase,
- *   fraction and eta / reviewing) and the renders with their review verdict, path-free.
  * - `render_cancel`: a render or review job of THIS project only (another project's job, or another kind, is refused
  *   403: job_cancel stays out of the Studio). A cancel during the inline review keeps the render.
- * - `render_review`: the review without any path (reviewAnswer).
- * - `review_image`: one contact sheet as a base64 JPEG (≤ 1600 px, ≤ 2,000,000 characters), by its file name in the
- *   review folder, read without following a link (engine reviews.image).
+ * - `review_export`: the Review report's Export video (L5.12a).
+ * The render queue and the review's reads (scenario_renders, render_review, review_image) are the engine's operations
+ * since L7.14 (operations/render-screen.ts).
  */
 export function renderOps(oneAtATime: OpChain = opChain()) {
   // The Studio passes the chain thread_apply and scenario_edit share.
@@ -790,17 +539,6 @@ export function renderOps(oneAtATime: OpChain = opChain()) {
       return { summary: `render ${sub.render_id} queued (job ${sub.job.id})`, data: data };
     },
   });
-  const renders = defineTool({
-    name: 'scenario_renders',
-    title: "A scenario's renders",
-    description: "A scenario's render queue (queued, running with its progress, reviewing) and its renders, newest first, each with its review's verdict.",
-    input: RendersInput,
-    annotations: READ,
-    async run(a, { engine }) {
-      const v = await engine.renders.ofScenario(a.project, a.name);
-      return { summary: `${a.name}: ${plural(v.renders.length, 'render')}, ${v.jobs.length} queued or running`, data: v };
-    },
-  });
   const cancel = defineTool({
     name: 'render_cancel',
     title: 'Cancel a render',
@@ -821,30 +559,6 @@ export function renderOps(oneAtATime: OpChain = opChain()) {
       };
     },
   });
-  const review = defineTool({
-    name: 'render_review',
-    title: "A render's review",
-    description: "A render's review without any path: verdict, counts, findings (messages as untrusted data), durations, and its contact sheets by name.",
-    input: RenderReviewInput,
-    annotations: READ,
-    async run(a, { engine }) {
-      // Every image the review kept (contact sheets, scene sheets, key frames, the diff), within REVIEW_IMAGES_MAX.
-      const v = reviewAnswer(await engine.reviews.get(a.project, a.render_id, { images: 'all' }));
-      const verdict = v.counts ? `${plural(v.counts.error, 'error')}, ${plural(v.counts.warning, 'warning')}` : v.status;
-      return { summary: `review of ${a.render_id}: ${verdict}`, data: v };
-    },
-  });
-  const image = defineTool({
-    name: 'review_image',
-    title: 'A contact sheet of a review',
-    description: "One contact sheet of a render's review as a base64 JPEG (≤ 1600 px), by its name (render_review lists them).",
-    input: ReviewImageInput,
-    annotations: READ,
-    async run(a, { engine }) {
-      const v = await engine.reviews.image(a.project, a.render_id, a.image);
-      return { summary: `${a.image} of ${a.render_id} (${v.width}×${v.height})`, data: v };
-    },
-  });
   const exportOp = defineTool({
     name: 'review_export',
     title: 'Export a render as MP4 from the Studio',
@@ -859,10 +573,10 @@ export function renderOps(oneAtATime: OpChain = opChain()) {
       return { summary: `export of ${sub.render_id} queued (job ${sub.job.id}): ${sub.formats.join(', ')}`, data: data };
     },
   });
-  return [render, renders, cancel, review, image, exportOp] as const;
+  return [render, cancel, exportOp] as const;
 }
 
-/** The names of the Studio's own ops (not MCP tools). */
+/** The names of the Studio's own ops (not MCP tools; the read-only queries among them are the engine's operations since L7.14). */
 export const TIMELINE_OPS = ['timeline_view', 'timeline_leave', 'preview_allow'] as const;
 export const RENDER_OPS = ['scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image', 'review_export'] as const;
 export const INDEX_OPS = ['activity_list', 'search'] as const;

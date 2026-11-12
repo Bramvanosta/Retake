@@ -151,8 +151,8 @@ describe.skipIf(!can)('review jobs', () => {
     expect(v.diff!.previous).toBe('unknown');
     expect(untrusted.diff_previous).toBe(`${INJECTION} (previous)`);
     for (const img of v.images) expect(img.label).not.toContain('IGNORE');
-    // The MCP summary only prints what passed.
-    const { reviewSummary } = await import('../../mcp/src/tools/review.js');
+    // The MCP summary (review_get's, the engine's operation since L7.14) only prints what passed.
+    const { reviewSummary } = await import('../src/operations/reviews.js');
     expect(reviewSummary(v)).not.toContain('IGNORE');
     await engine.reviews.submit({ project: 'demo', render_id: 'quote-v1' });
     await work();

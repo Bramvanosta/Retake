@@ -159,7 +159,7 @@
   },
   {
    "rule": "shell-op",
-   "reason": "The MCP server's tools not yet moved into the engine's operations (U7: 34 of 45 on 2026-11-12, after L7.13 moved the eleven the Studio shares): they move family by family (L7.14–L7.19) and the group goes.",
+   "reason": "The MCP server's tools not yet moved into the engine's operations (U7: 30 of 45 on 2026-11-12, after L7.13 moved the eleven the Studio shares and L7.14 four read-only queries; job_status waits for the record, site and inspect outputs it answers with): they move family by family (L7.15–L7.19) and the group goes.",
    "entries": [
     "packages/mcp/src/tools/authoring.ts → 2 operations defined",
     "packages/mcp/src/tools/comments.ts → 3 operations defined",
@@ -170,21 +170,21 @@
     "packages/mcp/src/tools/inspect.ts → 1 operation defined",
     "packages/mcp/src/tools/jobs.ts → 2 operations defined",
     "packages/mcp/src/tools/project.ts → 2 operations defined",
-    "packages/mcp/src/tools/render.ts → 3 operations defined",
-    "packages/mcp/src/tools/review.ts → 2 operations defined",
+    "packages/mcp/src/tools/render.ts → 1 operation defined",
+    "packages/mcp/src/tools/review.ts → 1 operation defined",
     "packages/mcp/src/tools/run.ts → 2 operations defined",
-    "packages/mcp/src/tools/scenario.ts → 2 operations defined",
+    "packages/mcp/src/tools/scenario.ts → 1 operation defined",
     "packages/mcp/src/tools/theme.ts → 4 operations defined"
    ]
   },
   {
    "rule": "shell-op",
-   "reason": "The Studio's own ops (65 on 2026-11-12): those of a use case the engine serves move into its operations (L7.14–L7.18); the ones that hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe: 18 in 6 files) stay here.",
+   "reason": "The Studio's own ops (55 on 2026-11-12, after L7.14 moved its ten read-only queries): those of a use case the engine serves move into its operations (L7.15–L7.18); the ones that hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe: 18 in 6 files) stay here.",
    "entries": [
     "packages/ui/src/server/comment-ops.ts → 12 operations defined",
     "packages/ui/src/server/desktop.ts → 1 operation defined",
     "packages/ui/src/server/library-ops.ts → 4 operations defined",
-    "packages/ui/src/server/ops.ts → 22 operations defined",
+    "packages/ui/src/server/ops.ts → 12 operations defined",
     "packages/ui/src/server/record-ops.ts → 7 operations defined",
     "packages/ui/src/server/setup-ops.ts → 8 operations defined",
     "packages/ui/src/server/theme-ops.ts → 8 operations defined",

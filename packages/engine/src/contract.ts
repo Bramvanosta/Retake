@@ -50,6 +50,15 @@ export { jobData, jobErrorLine, jobLine, previewImages, untrustedError } from '.
 export type { JobData } from './operations/job-lines.js';
 export { runOutput, runStatusSummary } from './operations/runs.js';
 export { environmentJobSummary, jobOutput } from './operations/auth.js';
+// L7.14: what the MCP server's render and review still share with plan_preview, render_status and review_get, and the
+// Studio's input pieces and review answer its own ops still use.
+export { compactReview } from './operations/compact.js';
+export { editLines, latestLines, renderInput, renderLatestData, renderLatestLines, renderStatusOutput, renderStatusSummary } from './operations/renders.js';
+export { reviewImages, reviewOutput, reviewRenderRef, reviewSummary } from './operations/reviews.js';
+export { studioEnv, studioProject, studioRenderId, studioRun, studioScenario } from './operations/studio-schema.js';
+export { REVIEW_IMAGES_MAX, reviewAnswer } from './operations/render-screen.js';
+export type { RenderReviewAnswer } from './operations/render-screen.js';
+export type { ProjectOverview } from './operations/board.js';
 
 /** Longest untrusted string a result carries. */
 export const UNTRUSTED_MAX = 2000;

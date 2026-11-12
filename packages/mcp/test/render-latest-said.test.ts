@@ -12,11 +12,13 @@ import { createEngine } from '@retake/engine';
 import type { Engine } from '@retake/engine';
 import { commentsList } from '../src/tools/comments.js';
 import { exportTool } from '../src/tools/export.js';
-import { renderLatestLines, renderStatus } from '../src/tools/render.js';
+import { OPERATIONS_BY_NAME, renderLatestLines } from '@retake/engine/contract';
 import { reviewTool } from '../src/tools/review.js';
 import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import { buildRenderState } from '../../core/test/fixtures/records/build-renders.js';
 import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+
+const { render_status: renderStatus } = OPERATIONS_BY_NAME;
 
 let root: string;
 let engine: Engine;

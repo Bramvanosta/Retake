@@ -6,10 +6,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Engine, PlanPreviewView, RenderStatusView } from '@retake/engine';
-import { latestLines, planPreview, render } from '../src/tools/render.js';
-import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
+import { render } from '../src/tools/render.js';
+import { OPERATIONS_BY_NAME, latestLines } from '@retake/engine/contract';
 
-const { run_list: runList } = OPERATIONS_BY_NAME;
+const { plan_preview: planPreview, run_list: runList } = OPERATIONS_BY_NAME;
 
 const RUN = '20261001-100000-quote';
 /** A folder name that is a run id and reads as an instruction. */
