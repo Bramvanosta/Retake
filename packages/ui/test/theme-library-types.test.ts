@@ -54,7 +54,12 @@ export type Checks = [
   Holds<Exact<Data<'library_view'>, LibraryViewAnswer>>,
   Holds<Exact<Args<'library_images'>, { project: string; keys?: string[] | undefined; committed?: string[] | undefined }>>,
   Holds<Exact<Data<'library_images'>, LibraryImagesAnswer>>,
-  Holds<Exact<Args<'library_render'>, { project: string; theme?: string | undefined; items: Array<{ component: string; poster?: string | undefined; loop?: string | undefined }>; retry?: boolean | undefined }>>,
+  Holds<
+    Exact<
+      Args<'library_render'>,
+      { project: string; theme?: string | undefined; items: Array<{ component: string; poster?: string | undefined; loop?: string | undefined }>; retry?: boolean | undefined }
+    >
+  >,
   Holds<Exact<Data<'library_render'>, LibraryRenderAnswer>>,
   Holds<Exact<Args<'library_component'>, { project: string; component: string }>>,
   Holds<Exact<Data<'library_component'>, LibraryComponentAnswer>>,

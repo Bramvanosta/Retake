@@ -27,7 +27,22 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { APPROVALS_USED_DIR, FileJobQueue, MARKER_NAME_RE, buildDirs, buildStamp, capturesDir, createEngine, heldFile, historyFile, processStart, readWorkerLock, runWorker, signApprovals, workspaceCaptureId } from '../src/index.js';
+import {
+  APPROVALS_USED_DIR,
+  FileJobQueue,
+  MARKER_NAME_RE,
+  buildDirs,
+  buildStamp,
+  capturesDir,
+  createEngine,
+  heldFile,
+  historyFile,
+  processStart,
+  readWorkerLock,
+  runWorker,
+  signApprovals,
+  workspaceCaptureId,
+} from '../src/index.js';
 import type { JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
 
@@ -94,7 +109,10 @@ function work(root: string, modes: Record<string, string>, extra: Partial<Parame
     ports: {
       ...extra.ports,
       processes: {
-        command: (j) => ({ command: process.execPath, args: [fakeBin, '--job', j.id, '--kind', j.kind, '--root', j.root, '--build', j.build, '--supervisor', String(j.supervisor), '--mode', modes[j.id] ?? 'succeed'] }),
+        command: (j) => ({
+          command: process.execPath,
+          args: [fakeBin, '--job', j.id, '--kind', j.kind, '--root', j.root, '--build', j.build, '--supervisor', String(j.supervisor), '--mode', modes[j.id] ?? 'succeed'],
+        }),
         kill,
         ...extra.ports?.processes,
       },
@@ -206,7 +224,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     await waitFor('the new worker gone', async () => (await readWorkerLock(root)) === null || undefined, 30_000);
   }, 120_000);
 
-  it('review B M1: the approvals a claim took are given back with the job (exit 3): the next worker\'s claim takes them, the job is not refused', async () => {
+  it("review B M1: the approvals a claim took are given back with the job (exit 3): the next worker's claim takes them, the job is not refused", async () => {
     const { root, queue } = await workspace('exit3-approvals');
     const job = await review(queue, 'approved-v1');
     // A job carrying a signed approval (as a submit writes it), so that its claim takes it.
@@ -257,7 +275,16 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     changed = true;
     await waitFor('the build change seen', () => logs.some((l) => /the code changed since this worker started: no new job here/.test(l)));
     // A capture-class job queued now (a dry run): never claimed by this worker of the old build.
-    const take = await queue.enqueue({ version: 1, kind: 'run', project: 'w', scenario: 's', scenario_sha256: 'a'.repeat(64), run_id: '20261104-150000-s', mode: 'dry', submitted_by: 'test' } as never);
+    const take = await queue.enqueue({
+      version: 1,
+      kind: 'run',
+      project: 'w',
+      scenario: 's',
+      scenario_sha256: 'a'.repeat(64),
+      run_id: '20261104-150000-s',
+      mode: 'dry',
+      submitted_by: 'test',
+    } as never);
     await new Promise((r) => setTimeout(r, 1500));
     expect(await queue.claimOf(take.id)).toBeUndefined();
     // Cancelled before the old worker ends (no new worker is started for it), then the running job ends.
@@ -304,7 +331,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     }
   }, 60_000);
 
-  it('exit 1 before `running`: interrupted, the worker\'s state / result events numbered after the child\'s; exit 4: failed (invalid)', async () => {
+  it("exit 1 before `running`: interrupted, the worker's state / result events numbered after the child's; exit 4: failed (invalid)", async () => {
     const { root, queue } = await workspace('exit1');
     const one = await review(queue, 'a-v1');
     const four = await review(queue, 'b-v1');
@@ -343,7 +370,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect(alive(run.worker!.pid)).toBe(false);
   }, 60_000);
 
-  it('the worker\'s first SIGTERM reaches its job process (before any QoS release); the worker exits once it ended', async () => {
+  it("the worker's first SIGTERM reaches its job process (before any QoS release); the worker exits once it ended", async () => {
     const { root, queue } = await workspace('first-signal');
     const job = await review(queue);
     const logs: string[] = [];
@@ -404,7 +431,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect((await queue.stored(job.id))?.state).toBe('interrupted');
   }, 30_000);
 
-  it('review A M1: recovery signals only a job process provably that job\'s (before any claim); decoys and pids 0 / 1 / -1 are left alone, their jobs interrupted', async () => {
+  it("review A M1: recovery signals only a job process provably that job's (before any claim); decoys and pids 0 / 1 / -1 are left alone, their jobs interrupted", async () => {
     const { root, queue } = await workspace('recover');
     const dead = deadPid();
     const supervisor = { pid: dead, started_at: new Date(Date.now() - 60_000).toISOString(), host: hostname() };
@@ -414,7 +441,10 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     };
     // The real orphan: a job process of this job and this workspace, its start time recorded.
     const orphanJob = await review(queue, 'orphan-v1');
-    const orphan = spawn(process.execPath, [fakeBin, '--job', orphanJob.id, '--kind', 'review', '--root', root, '--build', 'x', '--supervisor', String(dead), '--mode', 'orphan'], { stdio: 'ignore', detached: true });
+    const orphan = spawn(process.execPath, [fakeBin, '--job', orphanJob.id, '--kind', 'review', '--root', root, '--build', 'x', '--supervisor', String(dead), '--mode', 'orphan'], {
+      stdio: 'ignore',
+      detached: true,
+    });
     children.push(orphan);
     await waitFor('the orphan started', () => existsSync(join(queue.files.job(orphanJob.id), 'fake-started')));
     const orphanStart = await processStart(orphan.pid!);
@@ -454,7 +484,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect((await queue.stored(later.id))?.state).toBe('succeeded');
   }, 60_000);
 
-  it('review A M2: a record whose kind is not its input\'s ends failed on its first claim; the honest job behind it runs; the worker idles out', async () => {
+  it("review A M2: a record whose kind is not its input's ends failed on its first claim; the honest job behind it runs; the worker idles out", async () => {
     const { root, queue } = await workspace('mismatch');
     const forged = await review(queue, 'forged-v1');
     await queue.write({ ...forged, kind: 'run' });
@@ -474,8 +504,8 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
 /** The listeners a worker adds to the process (what it must remove once it returns). */
 const listening = () => ({ int: process.listenerCount('SIGINT'), term: process.listenerCount('SIGTERM'), rejection: process.listenerCount('unhandledRejection') });
 
-describe('the order of the worker\'s side effects (characterization of runWorker, before its split)', () => {
-  it('refusals before serving: a workspace that cannot be opened → 1, said, nothing written; a live holder of the lock → 0, said, its lock and the process\'s listeners untouched', async () => {
+describe("the order of the worker's side effects (characterization of runWorker, before its split)", () => {
+  it("refusals before serving: a workspace that cannot be opened → 1, said, nothing written; a live holder of the lock → 0, said, its lock and the process's listeners untouched", async () => {
     const logs: string[] = [];
     const broken = join(base, 'broken-workspace');
     await mkdir(broken, { recursive: true });
@@ -498,7 +528,7 @@ describe('the order of the worker\'s side effects (characterization of runWorker
     expect(await first).toBe(0);
   }, 30_000);
 
-  it('a job process that writes its own end: serving, then running; no line of the worker\'s own; once idle its lock and every listener it added are gone', async () => {
+  it("a job process that writes its own end: serving, then running; no line of the worker's own; once idle its lock and every listener it added are gone", async () => {
     const { root, queue } = await workspace('own-end');
     const job = await review(queue);
     const before = listening();
@@ -528,7 +558,10 @@ describe('the order of the worker\'s side effects (characterization of runWorker
       logs.push(m);
       if (m.startsWith(`job ${job.id}: interrupted (`)) {
         const rec = JSON.parse(readFileSync(queue.files.record(job.id), 'utf8')) as JobRecord;
-        const events = readFileSync(join(queue.files.job(job.id), 'events.jsonl'), 'utf8').trim().split('\n').map((l) => (JSON.parse(l) as { type: string }).type);
+        const events = readFileSync(join(queue.files.job(job.id), 'events.jsonl'), 'utf8')
+          .trim()
+          .split('\n')
+          .map((l) => (JSON.parse(l) as { type: string }).type);
         const history = existsSync(historyFile(root)) ? readFileSync(historyFile(root), 'utf8').trim().split('\n') : [];
         seen.push({ state: rec.state, events, history });
       }
@@ -577,7 +610,7 @@ describe('the order of the worker\'s side effects (characterization of runWorker
     expect(process.listeners('unhandledRejection').filter((l) => !before.includes(l))).toEqual([]);
   }, 30_000);
 
-  it('a second signal quits at once: the job process\'s tree SIGKILLed after its first SIGTERM, the lock released, exit 130 on the next tick', async () => {
+  it("a second signal quits at once: the job process's tree SIGKILLed after its first SIGTERM, the lock released, exit 130 on the next tick", async () => {
     const { root, queue } = await workspace('second-signal');
     const job = await review(queue);
     const before = process.listeners('SIGTERM');
@@ -679,10 +712,34 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     const project = join(root, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(join(project, 'project.yaml'), ['name: W', 'environments:', '  local:', `    app: http://127.0.0.1:${port}`, ''].join('\n'));
-    await writeFile(join(project, 'scenarios', 'busy.yaml'), ['video: busy', 'setup:', '  - name: busy', '    http: {method: POST, url: "{{app}}/busy"}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.5', ''].join('\n'));
+    await writeFile(
+      join(project, 'scenarios', 'busy.yaml'),
+      [
+        'video: busy',
+        'setup:',
+        '  - name: busy',
+        '    http: {method: POST, url: "{{app}}/busy"}',
+        'scenes:',
+        '  - id: one',
+        '    page: app',
+        '    open: /',
+        '    steps:',
+        '      - hold: 0.5',
+        '',
+      ].join('\n'),
+    );
     const engine = await createEngine({ root, client: 'test', autoStartWorker: false });
     const hooks = await engine.hooks.submit({ project: 'w', source: 'busy:setup', dry: false }, { approver: { approve: async () => ({ approved: true as const }) } });
-    const take = await queue.enqueue({ version: 1, kind: 'run', project: 'w', scenario: 'busy', scenario_sha256: 'a'.repeat(64), run_id: '20261104-120000-busy', mode: 'capture', submitted_by: 'test' } as never);
+    const take = await queue.enqueue({
+      version: 1,
+      kind: 'run',
+      project: 'w',
+      scenario: 'busy',
+      scenario_sha256: 'a'.repeat(64),
+      run_id: '20261104-120000-busy',
+      mode: 'capture',
+      submitted_by: 'test',
+    } as never);
     await queue.cancel(take.id, 'test');
     const heavy = await review(queue);
     releaseBusy = undefined;
@@ -696,15 +753,31 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     expect((await queue.stored(take.id))?.state).toBe('cancelled');
   }, 60_000);
 
-  it('a render starts during the take\'s setup hooks, yields once it films, goes back to normal while it is paused and after it', async () => {
+  it("a render starts during the take's setup hooks, yields once it films, goes back to normal while it is paused and after it", async () => {
     const { root, queue } = await workspace('live');
     const port = (server.address() as { port: number }).port;
     const project = join(root, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
-    await writeFile(join(project, 'project.yaml'), ['name: W', 'environments:', '  local:', `    app: http://127.0.0.1:${port}`, 'capture: {width: 640, height: 360, scale: 1, fps: 30}', 'template: default', ''].join('\n'));
+    await writeFile(
+      join(project, 'project.yaml'),
+      ['name: W', 'environments:', '  local:', `    app: http://127.0.0.1:${port}`, 'capture: {width: 640, height: 360, scale: 1, fps: 30}', 'template: default', ''].join('\n'),
+    );
     await writeFile(
       join(project, 'scenarios', 'gated.yaml'),
-      ['video: gated', 'setup:', '  - name: gate', '    http: {method: POST, url: "{{app}}/hold"}', 'pacing: {scene_start_still: 0.2}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', ...Array.from({ length: 12 }, () => '      - hold: 0.5'), ''].join('\n'),
+      [
+        'video: gated',
+        'setup:',
+        '  - name: gate',
+        '    http: {method: POST, url: "{{app}}/hold"}',
+        'pacing: {scene_start_still: 0.2}',
+        'scenes:',
+        '  - id: one',
+        '    page: app',
+        '    open: /',
+        '    steps:',
+        ...Array.from({ length: 12 }, () => '      - hold: 0.5'),
+        '',
+      ].join('\n'),
     );
     const engine = await createEngine({ root, client: 'test', autoStartWorker: false });
     const take = await engine.runs.submit({ project: 'w', scenario: 'gated', mode: 'capture', hooks: 'run' }, { approver: { approve: async () => ({ approved: true as const }) } });
@@ -731,10 +804,14 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     await engine.runs.pause('w', take.run_id, false);
     await waitFor('held again on resume', () => existsSync(yieldFile), 30_000);
     // Its end: normal priority again.
-    await waitFor('the take finished', async () => {
-      const j = await queue.get(take.job.id);
-      return j && j.state !== 'queued' && j.state !== 'running' ? j : undefined;
-    }, 60_000);
+    await waitFor(
+      'the take finished',
+      async () => {
+        const j = await queue.get(take.job.id);
+        return j && j.state !== 'queued' && j.state !== 'running' ? j : undefined;
+      },
+      60_000,
+    );
     await waitFor('normal priority after the take', () => !existsSync(yieldFile));
     await writeFile(join(queue.files.job(heavy.id), 'fake-finish'), '');
     expect(await worker).toBe(0);

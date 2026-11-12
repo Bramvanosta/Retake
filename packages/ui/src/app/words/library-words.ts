@@ -101,7 +101,10 @@ export function kindCounts(items: readonly Pick<LibraryItem, 'kind' | 'kinds'>[]
  * The kind filter's labels for what the other filters (source, words) keep: a chip counts what choosing it shows, so
  * "Intros (4)" is what the Intros filter lists — the components of that kind plus those that can also serve as one.
  */
-export function filterCounts<T extends Pick<LibraryItem, 'component' | 'kind' | 'kinds' | 'source' | 'untrusted'>>(items: readonly T[], f: LibraryFilter): { all: number; kinds: Record<string, number> } {
+export function filterCounts<T extends Pick<LibraryItem, 'component' | 'kind' | 'kinds' | 'source' | 'untrusted'>>(
+  items: readonly T[],
+  f: LibraryFilter,
+): { all: number; kinds: Record<string, number> } {
   const kept = filterItems(items, { ...f, kind: 'all' });
   return { all: kept.length, kinds: kindCounts(kept) };
 }
@@ -166,11 +169,7 @@ export function libraryEventAction(e: StudioEvent, slug: string, o: { busy: bool
 /** theme_edit's `set_component` edit (its input's), as the Library sets a default: a component always, its params dropped. */
 export type SetComponentEdit = Extract<ThemeEditInput, { kind: 'set_component' }> & { readonly id: string; readonly params: 'drop' };
 
-export type SetDefaultPlan =
-  | { edit: SetComponentEdit; replaces: string | null; drops: string[] }
-  | { already: true }
-  | { copy: string }
-  | { why: string };
+export type SetDefaultPlan = { edit: SetComponentEdit; replaces: string | null; drops: string[] } | { already: true } | { copy: string } | { why: string };
 
 /**
  * "Set as theme default" of component `id` as `kind` in a theme (its theme_view): one `set_component` (the old entry's
@@ -257,11 +256,7 @@ const PROMPT_HIDDEN = /[\p{Cc}\p{Cf}\u2028-\u202e\u2060-\u206f\u{E0000}-\u{E007F
  * spaces made one space, double quotes made single (the prompt quotes the words), capped.
  */
 export function cleanWords(text: string): string {
-  const out = text
-    .replace(PROMPT_HIDDEN, ' ')
-    .replace(/"/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+  const out = text.replace(PROMPT_HIDDEN, ' ').replace(/"/g, "'").replace(/\s+/g, ' ').trim();
   return out.length > PROMPT_WORDS_MAX ? `${out.slice(0, PROMPT_WORDS_MAX)}…` : out;
 }
 
@@ -290,7 +285,9 @@ export function createPrompt(p: PromptInput): { prompt: string; command: string 
   if (p.like !== undefined && okId(p.like)) parts.push(`, starting from \`${p.like}\``);
   parts.push(words ? `. What it should do, in my words: "${words}".` : '.');
   parts.push(" It is a workspace component (this workspace's components folder), not a built-in.");
-  parts.push(` Preview it${p.theme !== undefined && okTheme(p.theme) ? ` in theme \`${p.theme}\`` : ''} with component_preview and validate it with component_validate; ask me before you edit its code.`);
+  parts.push(
+    ` Preview it${p.theme !== undefined && okTheme(p.theme) ? ` in theme \`${p.theme}\`` : ''} with component_preview and validate it with component_validate; ask me before you edit its code.`,
+  );
   return { prompt: parts.join(''), command: `retake components create ${p.id} --kind ${p.kind}` };
 }
 

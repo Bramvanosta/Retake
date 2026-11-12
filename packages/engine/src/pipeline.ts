@@ -31,7 +31,21 @@ import type {
 import type { ReviewResult } from '@retake/review/checks';
 import { editor } from './lazy.js';
 
-export type { EditOverrides, ExportFormat, ExportProgress, ExportRenderOptions, ExportResult, FoundRender, PlannedRun, RenderProgress, RenderRecord, RenderStillOptions, RenderVideoOptions, ReviewResult, RunRef };
+export type {
+  EditOverrides,
+  ExportFormat,
+  ExportProgress,
+  ExportRenderOptions,
+  ExportResult,
+  FoundRender,
+  PlannedRun,
+  RenderProgress,
+  RenderRecord,
+  RenderStillOptions,
+  RenderVideoOptions,
+  ReviewResult,
+  RunRef,
+};
 
 // ── the pipeline ──
 

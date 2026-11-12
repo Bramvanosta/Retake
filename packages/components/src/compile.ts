@@ -40,7 +40,12 @@ function moduleExports(): Promise<Map<string, string[] | null>> {
     for (const name of STUBBED) {
       try {
         const mod = (await import(name)) as Record<string, unknown>;
-        out.set(name, Object.keys(mod).filter((k) => k !== 'default' && IDENT.test(k)).sort());
+        out.set(
+          name,
+          Object.keys(mod)
+            .filter((k) => k !== 'default' && IDENT.test(k))
+            .sort(),
+        );
       } catch {
         out.set(name, null);
       }
@@ -271,13 +276,7 @@ export interface EntryCheck {
 function sortIssues(issues: ComponentIssue[]): ComponentIssue[] {
   return issues
     .map((issue, i) => ({ issue, i }))
-    .sort(
-      (a, b) =>
-        a.issue.file.localeCompare(b.issue.file) ||
-        (a.issue.line ?? Infinity) - (b.issue.line ?? Infinity) ||
-        (a.issue.col ?? 0) - (b.issue.col ?? 0) ||
-        a.i - b.i,
-    )
+    .sort((a, b) => a.issue.file.localeCompare(b.issue.file) || (a.issue.line ?? Infinity) - (b.issue.line ?? Infinity) || (a.issue.col ?? 0) - (b.issue.col ?? 0) || a.i - b.i)
     .map((x) => x.issue);
 }
 
@@ -307,7 +306,9 @@ export function kitExports(): Promise<string[]> {
         outdir: 'out',
         external: ['react', 'react/*', 'remotion', ...KIT_EXTERNALS],
       });
-      return Object.values(r.metafile.outputs).flatMap((o) => o.exports ?? []).sort();
+      return Object.values(r.metafile.outputs)
+        .flatMap((o) => o.exports ?? [])
+        .sort();
     } catch {
       return [];
     }
@@ -393,7 +394,11 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
         const real = realPath(args.path);
         if (kitDir !== undefined && pathInside(real, kitDir, { dotDotPrefix: true })) return undefined;
         if (!pathInside(real, absDir, { dotDotPrefix: true })) {
-          return { errors: [{ text: `${basename(real)} lies outside the component folder (reached through a package.json or a link): a component may only import its own files, react, remotion and ${KIT_MODULE}` }] };
+          return {
+            errors: [
+              { text: `${basename(real)} lies outside the component folder (reached through a package.json or a link): a component may only import its own files, react, remotion and ${KIT_MODULE}` },
+            ],
+          };
         }
         const rel = relative(absDir, real).split(sep).join('/');
         const hidden = unhashedFileProblem(rel);

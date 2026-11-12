@@ -40,12 +40,14 @@ export async function generateTestTrack(out: string, opts: { seconds?: number; f
   const e = testTrackExpression();
   const tmp = `${out}.tmp-${process.pid}.m4a`;
   const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=exprs='${e}|${e}':s=48000:d=${seconds}`, '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', tmp];
-  await runMediaTool(ffmpegBin(opts.workPolicy, opts.ffmpeg), args).then((r) => {
-    if (r.error) throw new Error(`ffmpeg could not make the test track: ${stderrLines(r.stderr, 1, 'first') || r.error.message}`);
-  }).catch(async (e: unknown) => {
-    await rm(tmp, { force: true });
-    throw e;
-  });
+  await runMediaTool(ffmpegBin(opts.workPolicy, opts.ffmpeg), args)
+    .then((r) => {
+      if (r.error) throw new Error(`ffmpeg could not make the test track: ${stderrLines(r.stderr, 1, 'first') || r.error.message}`);
+    })
+    .catch(async (e: unknown) => {
+      await rm(tmp, { force: true });
+      throw e;
+    });
   await rename(tmp, out);
   return out;
 }

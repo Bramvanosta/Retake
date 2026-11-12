@@ -68,21 +68,64 @@ async function writeThread(id: string, o: { render: string; created: string; fra
   await writeFile(
     join(d, `${id}.json`),
     JSON.stringify({
-      version: 1, id, scenario: SCENARIO,
+      version: 1,
+      id,
+      scenario: SCENARIO,
       render: { id: o.render, created_at: o.created, run_id: o.run ?? RUN, variant: 'landscape', fps: 30, frames: 300, width: 1920, height: 1080 },
-      frame: o.frame, time_s: o.frame / 30, text: 'Look here', author: { via: 'cli', name: 'Reviewer' }, created_at: '2026-01-01T13:05:00.000Z', anchor: o.anchor, entries: [],
+      frame: o.frame,
+      time_s: o.frame / 30,
+      text: 'Look here',
+      author: { via: 'cli', name: 'Reviewer' },
+      created_at: '2026-01-01T13:05:00.000Z',
+      anchor: o.anchor,
+      entries: [],
     }),
   );
 }
 
 function encode(file: string, gop?: number): void {
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=30', '-t', '4', '-c:v', 'libx264', '-preset', 'veryfast', ...(gop ? ['-g', String(gop), '-bf', '0'] : []), '-pix_fmt', 'yuv420p', file]);
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc2=size=320x180:rate=30',
+    '-t',
+    '4',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    ...(gop ? ['-g', String(gop), '-bf', '0'] : []),
+    '-pix_fmt',
+    'yuv420p',
+    file,
+  ]);
 }
 
 async function runJson(runDir: string, id: string, scenario: string): Promise<void> {
   await writeFile(
     join(runDir, 'run.json'),
-    JSON.stringify({ version: 1, id, project: 'demo', scenario, mode: 'capture', status: 'succeeded', started_at: '2026-01-01T12:00:00.000Z', finished_at: '2026-01-01T12:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 2, steps_done: 2, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id,
+      project: 'demo',
+      scenario,
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      finished_at: '2026-01-01T12:01:00.000Z',
+      dir: runDir,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 2,
+      steps_done: 2,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+    }),
   );
 }
 
@@ -123,11 +166,19 @@ afterAll(async () => {
 });
 
 describe('timeline view (L4.5)', () => {
-  it('tracks, edit source and the inspector\'s choices, each option usable or disabled with why', async () => {
+  it("tracks, edit source and the inspector's choices, each option usable or disabled with why", async () => {
     clearTimelineViewMemo();
     const r = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const { view: v, plan } = r;
-    expect(v).toMatchObject({ project: 'demo', scenario: SCENARIO, run_id: RUN, theme: 'editorial', hash: sha(TEXT), editable: true, source: { edit: 'scenario', scenario_changed: false, edit_sha256: sha(TEXT) } });
+    expect(v).toMatchObject({
+      project: 'demo',
+      scenario: SCENARIO,
+      run_id: RUN,
+      theme: 'editorial',
+      hash: sha(TEXT),
+      editable: true,
+      source: { edit: 'scenario', scenario_changed: false, edit_sha256: sha(TEXT) },
+    });
     // Beside the view (part D): the file's text, what the Studio's undo restores.
     expect(r.text).toBe(TEXT);
     expect(v.model.segments.map((s) => [s.id, s.kind])).toEqual(plan.segments.map((s) => [s.id, s.kind]));
@@ -192,7 +243,10 @@ describe('timeline view (L4.5)', () => {
       const choice = (await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).view.choices.segments.a.find((c) => c.field === 'speed')!;
       const to = Math.round((1.1 + i * 0.1) * 10) / 10;
       const s0 = performance.now();
-      const w = await engine.scenarios.edit('demo', SCENARIO, { hash, edit: { kind: 'set_field', at: choice.at, field: 'speed', ...(choice.current !== undefined ? { from: choice.current } : {}), to } });
+      const w = await engine.scenarios.edit('demo', SCENARIO, {
+        hash,
+        edit: { kind: 'set_field', at: choice.at, field: 'speed', ...(choice.current !== undefined ? { from: choice.current } : {}), to },
+      });
       const after = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
       times.push(performance.now() - s0);
       expect(after.memo).toBeUndefined();
@@ -227,7 +281,10 @@ describe('timeline view (L4.5)', () => {
     await writeFile(scenarioFile(), TEXT.replace('outro: false', 'outro: {tagline: Order in two clicks}'));
     const { view: v } = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const outro = v.choices.segments.outro;
-    expect(outro.find((c) => c.field === 'outro')).toMatchObject({ current: true, editable: { why: "the outro has its own tagline here: turn it off or back to the theme's in the YAML view (a switch would drop it)" } });
+    expect(outro.find((c) => c.field === 'outro')).toMatchObject({
+      current: true,
+      editable: { why: "the outro has its own tagline here: turn it off or back to the theme's in the YAML view (a switch would drop it)" },
+    });
     // Its component and duration still switch (they keep the tagline).
     expect(outro.find((c) => c.field === 'outro.component')?.editable).toBe(true);
     await writeFile(scenarioFile(), TEXT);
@@ -257,14 +314,20 @@ describe('timeline view (L4.5)', () => {
     // hand-made file of the version, the id, the creation time, the theme hash and the plan was taken.)
     const record = async (plan: unknown, theme: string, o: Record<string, unknown> = {}, file = 'tl-v1') => {
       await mkdir(join(dir, 'renders'), { recursive: true });
-      await writeFile(join(dir, 'renders', `${file}.json`), JSON.stringify({ version: 1, id: 'tl-v1', scenario: SCENARIO, status: 'succeeded', created_at: '2026-01-01T13:00:00.000Z', template_sha256: theme, plan, ...o }));
+      await writeFile(
+        join(dir, 'renders', `${file}.json`),
+        JSON.stringify({ version: 1, id: 'tl-v1', scenario: SCENARIO, status: 'succeeded', created_at: '2026-01-01T13:00:00.000Z', template_sha256: theme, plan, ...o }),
+      );
     };
     await record(JSON.parse(JSON.stringify(r.plan)), r.view.theme_sha256);
     await writeThread('c_01JBBBBBBBBBBBBBBBBBBBBBBB', { render: 'tl-v1', created: '2026-01-01T13:00:00.000Z', frame, anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0 } });
     const same = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(same.view.pins.placed).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame, by: 'frame' }]);
     // A render of another plan (other options), or of other theme files: the step's first frame, not its frame.
-    for (const [plan, theme] of [[{ ...JSON.parse(JSON.stringify(r.plan)), fps: 25 }, r.view.theme_sha256], [JSON.parse(JSON.stringify(r.plan)), '0123456789abcdef']] as const) {
+    for (const [plan, theme] of [
+      [{ ...JSON.parse(JSON.stringify(r.plan)), fps: 25 }, r.view.theme_sha256],
+      [JSON.parse(JSON.stringify(r.plan)), '0123456789abcdef'],
+    ] as const) {
       clearTimelineViewMemo();
       await record(plan, theme);
       const other = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
@@ -287,11 +350,17 @@ describe('timeline view (L4.5)', () => {
       // (which the signature leaves out) over the cap.
       ['over the cap', async () => record({ ...(plan as Record<string, unknown>), notes: ['x'.repeat(17 * 1024 * 1024)] }, theme)],
       // A plan nested deeper than a signature can be written: no signature, no match — the view is answered, never a failed view.
-      ['a plan nested 20 000 deep', async () => {
-        await mkdir(join(dir, 'renders'), { recursive: true });
-        const deep = `${'{"a":'.repeat(20_000)}1${'}'.repeat(20_000)}`;
-        await writeFile(join(dir, 'renders', 'tl-v1.json'), `{"version":1,"id":"tl-v1","scenario":"${SCENARIO}","status":"succeeded","created_at":"2026-01-01T13:00:00.000Z","template_sha256":"${theme}","plan":${deep}}`);
-      }],
+      [
+        'a plan nested 20 000 deep',
+        async () => {
+          await mkdir(join(dir, 'renders'), { recursive: true });
+          const deep = `${'{"a":'.repeat(20_000)}1${'}'.repeat(20_000)}`;
+          await writeFile(
+            join(dir, 'renders', 'tl-v1.json'),
+            `{"version":1,"id":"tl-v1","scenario":"${SCENARIO}","status":"succeeded","created_at":"2026-01-01T13:00:00.000Z","template_sha256":"${theme}","plan":${deep}}`,
+          );
+        },
+      ],
       [
         'a link',
         async () => {
@@ -314,7 +383,13 @@ describe('timeline view (L4.5)', () => {
     await record(plan, theme);
     expect((await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).view.pins.placed).toEqual([{ id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', status: 'open', frame, by: 'frame' }]);
     // A thread made on that very render but said to be of another take is never pinned at its frame on this one.
-    await writeThread('c_01JCCCCCCCCCCCCCCCCCCCCCCC', { render: 'tl-v1', created: '2026-01-01T13:00:00.000Z', frame, anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0 }, run: '20260101-120000-other' });
+    await writeThread('c_01JCCCCCCCCCCCCCCCCCCCCCCC', {
+      render: 'tl-v1',
+      created: '2026-01-01T13:00:00.000Z',
+      frame,
+      anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0 },
+      run: '20260101-120000-other',
+    });
     clearTimelineViewMemo();
     const both = (await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }))).view.pins;
     expect(both.placed.filter((p) => p.by === 'frame').map((p) => p.id)).toEqual(['c_01JBBBBBBBBBBBBBBBBBBBBBBB']);
@@ -369,8 +444,8 @@ describe('timeline view (L4.5)', () => {
   });
 });
 
-describe('timeline view of the fixture\'s quote (critique B13: measured)', () => {
-  it('plans the real take\'s timeline cold, then from the memo', async () => {
+describe("timeline view of the fixture's quote (critique B13: measured)", () => {
+  it("plans the real take's timeline cold, then from the memo", async () => {
     const ws = await mkdtemp(join(tmpdir(), 'ds-timeline-quote-'));
     try {
       await fixtureWorkspace(ws);
@@ -383,7 +458,27 @@ describe('timeline view of the fixture\'s quote (critique B13: measured)', () =>
       await writeFile(join(runDir, 'timeline.json'), JSON.stringify(tl));
       await writeFile(join(runDir, 'scenario.yaml'), readFileSync(join(p, 'scenarios', 'quote.yaml')));
       await writeFile(join(runDir, 'capture.mp4'), 'not read');
-      await writeFile(join(runDir, 'run.json'), JSON.stringify({ version: 1, id, project: 'northfield-fixture', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-20T08:00:00.000Z', finished_at: '2026-10-20T08:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }));
+      await writeFile(
+        join(runDir, 'run.json'),
+        JSON.stringify({
+          version: 1,
+          id,
+          project: 'northfield-fixture',
+          scenario: 'quote',
+          mode: 'capture',
+          status: 'succeeded',
+          started_at: '2026-10-20T08:00:00.000Z',
+          finished_at: '2026-10-20T08:01:00.000Z',
+          dir: runDir,
+          env: 'local',
+          options: { hooks: 'run', headed: false },
+          steps_total: 1,
+          steps_done: 1,
+          screenshots: [],
+          hooks: { setup: 'ok', teardown: 'ok' },
+          warnings: [],
+        }),
+      );
       const e = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
       clearTimelineViewMemo();
       const t0 = performance.now();
@@ -392,7 +487,9 @@ describe('timeline view of the fixture\'s quote (critique B13: measured)', () =>
       const t1 = performance.now();
       expect((await view(e.timeline.view({ project: 'northfield-fixture', scenario: 'quote' }))).memo).toBe(true);
       const hitMs = performance.now() - t1;
-      console.log(`quote timeline view: cold ${coldMs.toFixed(0)} ms (planning ${cold.view.ms.planning} ms), memo ${hitMs.toFixed(1)} ms, ${cold.view.model.segments.length} segments, view ${JSON.stringify(cold.view).length} B, plan ${JSON.stringify(cold.plan).length} B`);
+      console.log(
+        `quote timeline view: cold ${coldMs.toFixed(0)} ms (planning ${cold.view.ms.planning} ms), memo ${hitMs.toFixed(1)} ms, ${cold.view.model.segments.length} segments, view ${JSON.stringify(cold.view).length} B, plan ${JSON.stringify(cold.plan).length} B`,
+      );
       expect(cold.view.model.steps.length).toBeGreaterThan(20);
       expect(Object.keys(cold.view.choices.segments)).toEqual(expect.arrayContaining(['discover', 'request', 'chapter-request']));
     } finally {
@@ -434,18 +531,23 @@ describe('timeline view of a 4-minute take (critique B13: measured)', () => {
     for (let i = 0; i < 5; i++) {
       const choice = (await view(engine.timeline.view({ project: 'demo', scenario: 'long' }))).view.choices.segments.s3.find((c) => c.field === 'speed')!;
       const s0 = performance.now();
-      const w = await engine.scenarios.edit('demo', 'long', { hash, edit: { kind: 'set_field', at: choice.at, field: 'speed', ...(choice.current !== undefined ? { from: choice.current } : {}), to: 1.2 + i * 0.2 } });
+      const w = await engine.scenarios.edit('demo', 'long', {
+        hash,
+        edit: { kind: 'set_field', at: choice.at, field: 'speed', ...(choice.current !== undefined ? { from: choice.current } : {}), to: 1.2 + i * 0.2 },
+      });
       expect((await view(engine.timeline.view({ project: 'demo', scenario: 'long' }))).memo).toBeUndefined();
       times.push(performance.now() - s0);
       hash = w.hash;
     }
     const sorted = [...times].sort((a, b) => a - b);
-    console.log(`4-minute timeline view: cold ${coldMs.toFixed(0)} ms (planning ${cold.view.ms.planning} ms), ${cold.plan.durationInFrames} frames, view ${JSON.stringify(cold.view).length} B, plan ${JSON.stringify(cold.plan).length} B; switch median ${sorted[2].toFixed(0)} ms, max ${sorted[4].toFixed(0)} ms`);
+    console.log(
+      `4-minute timeline view: cold ${coldMs.toFixed(0)} ms (planning ${cold.view.ms.planning} ms), ${cold.plan.durationInFrames} frames, view ${JSON.stringify(cold.view).length} B, plan ${JSON.stringify(cold.plan).length} B; switch median ${sorted[2].toFixed(0)} ms, max ${sorted[4].toFixed(0)} ms`,
+    );
     expect(sorted[4]).toBeLessThan(3000);
   }, 60_000);
 });
 
-describe.skipIf(!canProbe)('the capture\'s codec and keyframes (critique B14)', () => {
+describe.skipIf(!canProbe)("the capture's codec and keyframes (critique B14)", () => {
   it('libx264 defaults: keyframes seconds apart, B-frames (slow scrub); a 12-frame GOP: fast; a link is not followed', async () => {
     const d = await mkdtemp(join(tmpdir(), 'ds-gop-'));
     try {

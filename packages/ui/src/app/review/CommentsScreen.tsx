@@ -168,7 +168,17 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
     <div className="cm-screen" data-testid="comments-screen">
       <ReviewChrome slug={slug} name={name} current="comments" x={shownRender} rr={rr} />
       <ShellSlot name="browser">
-        <ThreadList slug={slug} name={name} filter={filter} setFilter={setFilter} onlyRender={onlyRender} setOnlyRender={setOnlyRender} render={shown?.render_id ?? null} current={thread} tick={tick} />
+        <ThreadList
+          slug={slug}
+          name={name}
+          filter={filter}
+          setFilter={setFilter}
+          onlyRender={onlyRender}
+          setOnlyRender={setOnlyRender}
+          render={shown?.render_id ?? null}
+          current={thread}
+          tick={tick}
+        />
       </ShellSlot>
       <h1 className="k-sr">
         <Txt text={name} />
@@ -212,7 +222,10 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
             value={shown ? renderKey(shown) : ''}
             options={[
               ...(shown && !succeeded.some((r) => renderKey(r) === renderKey(shown)) ? [{ value: renderKey(shown), label: renderWords(shown.render_id) }] : []),
-              ...succeeded.map((r) => ({ value: renderKey(r), label: `${renderWords(r.render_id)} · ${r.width}×${r.height} · ${new Date(r.created_at).toLocaleString('en', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` })),
+              ...succeeded.map((r) => ({
+                value: renderKey(r),
+                label: `${renderWords(r.render_id)} · ${r.width}×${r.height} · ${new Date(r.created_at).toLocaleString('en', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+              })),
             ]}
             onChange={(v) => {
               const r = succeeded.find((x) => renderKey(x) === v);
@@ -241,7 +254,14 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
         </Callout>
       )}
       {renders.loaded.state === 'ready' && succeeded.length === 0 && (
-        <EmptyState title="No finished render yet" actions={<LinkButton size="sm" to={{ name: 'timeline', slug, scenario: name }}>Open in Edit</LinkButton>}>
+        <EmptyState
+          title="No finished render yet"
+          actions={
+            <LinkButton size="sm" to={{ name: 'timeline', slug, scenario: name }}>
+              Open in Edit
+            </LinkButton>
+          }
+        >
           <p data-testid="no-render">No finished render of this scenario yet: render it from Edit (or the status bar's Render), then comment its frames here.</p>
         </EmptyState>
       )}

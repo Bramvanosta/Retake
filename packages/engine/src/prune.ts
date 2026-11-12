@@ -179,7 +179,7 @@ async function pruneSaid(dir: string): Promise<PruneSaid | PruneNewer | null> {
   try {
     const st = await stat(file);
     if (!st.isFile() || st.size > RUN_RECORD_MAX) return null;
-    const r = JSON.parse(await readFile(file, 'utf8')) as ({ scenario?: unknown; mode?: unknown; status?: unknown; id?: unknown } | null);
+    const r = JSON.parse(await readFile(file, 'utf8')) as { scenario?: unknown; mode?: unknown; status?: unknown; id?: unknown } | null;
     if (newerFormatMessage(r, { file: 'run.json', supported: FORMAT_VERSIONS.run }) !== undefined) return { newer: true, ...(typeof r?.scenario === 'string' ? { scenario: r.scenario } : {}) };
     return r && typeof r.id === 'string' && typeof r.status === 'string' ? { scenario: r.scenario, mode: r.mode, status: r.status } : null;
   } catch {
@@ -256,8 +256,16 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     return any;
   };
   const sameName = (a: unknown, s: string): boolean => typeof a === 'string' && a.toLowerCase() === s.toLowerCase();
-  const unreadRender = (r: { id: string; scenario: string }) => unreadBy((s) => sameName(r.scenario, s), (s) => sameName(parseRenderId(r.id)?.scenario, s));
-  const unreadRun = (r: { id: string; scenario: string }) => unreadBy((s) => sameName(r.scenario, s), (s) => runIdOfScenario(r.id, s));
+  const unreadRender = (r: { id: string; scenario: string }) =>
+    unreadBy(
+      (s) => sameName(r.scenario, s),
+      (s) => sameName(parseRenderId(r.id)?.scenario, s),
+    );
+  const unreadRun = (r: { id: string; scenario: string }) =>
+    unreadBy(
+      (s) => sameName(r.scenario, s),
+      (s) => runIdOfScenario(r.id, s),
+    );
 
   // Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names — core's rule
   // (renderKeeper), fed every `*.json` of renders/ as the one reader answers it. A record file that is a link was not
@@ -371,10 +379,13 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   if (req.only) {
     const only = req.only;
     const now = new Set(items.map(pruneKey));
-    skipped = [...only.keys()].filter((k) => !now.has(k)).sort().map((k) => {
-      const at = k.indexOf(':');
-      return { kind: k.slice(0, at) as PruneItem['kind'], id: k.slice(at + 1) };
-    });
+    skipped = [...only.keys()]
+      .filter((k) => !now.has(k))
+      .sort()
+      .map((k) => {
+        const at = k.indexOf(':');
+        return { kind: k.slice(0, at) as PruneItem['kind'], id: k.slice(at + 1) };
+      });
     const unasked = items.filter((i) => !only.has(pruneKey(i)));
     notAsked = unasked.length;
     for (const i of unasked) {
@@ -411,7 +422,10 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     if (reason) reason.count++;
     else aloneReasons.push({ why: a.why, count: 1, reason: renderNotWords(a.why) });
   }
-  const rendersUnread = keeps.too_big > 0 ? `${keeps.too_big} ${keeps.too_big === 1 ? 'file' : 'files'} of ${projectRef('renders')}/ ${keeps.too_big === 1 ? 'is' : 'are'} too big to read: every render, review and take is kept` : undefined;
+  const rendersUnread =
+    keeps.too_big > 0
+      ? `${keeps.too_big} ${keeps.too_big === 1 ? 'file' : 'files'} of ${projectRef('renders')}/ ${keeps.too_big === 1 ? 'is' : 'are'} too big to read: every render, review and take is kept`
+      : undefined;
   return {
     project: project.slug,
     dry_run: dry,

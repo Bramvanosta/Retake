@@ -77,7 +77,13 @@ function shapes(svg: string): string[] {
 function cssRules(css: string): Map<string, Record<string, string>> {
   const out = new Map<string, Record<string, string>>();
   for (const [, sel, body] of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const decls = Object.fromEntries(body.split(';').map((d) => d.trim()).filter(Boolean).map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()]));
+    const decls = Object.fromEntries(
+      body
+        .split(';')
+        .map((d) => d.trim())
+        .filter(Boolean)
+        .map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()]),
+    );
     for (const one of sel.split(',')) out.set(one.trim(), decls);
   }
   return out;
@@ -125,7 +131,11 @@ describe('the "two takes" mark: one drawing, three variants (L5.13b, R-REN-03)',
     expect(markSvg('small', MARK_INK)).toContain('stroke-width="8"');
     expect(shapes(markSvg('tiny', MARK_INK))).toEqual(['rect x=2 y=2 width=96 height=96 rx=22', 'rect x=12 y=16 width=56 height=40 rx=7', 'rect x=32 y=40 width=56 height=42 rx=7']);
     expect(markSvg('tiny', MARK_INK)).not.toMatch(/stroke/);
-    for (const v of ['small', 'tiny'] as const) expect(MARK[v].some((s) => s.kind === 'path'), v).toBe(false);
+    for (const v of ['small', 'tiny'] as const)
+      expect(
+        MARK[v].some((s) => s.kind === 'path'),
+        v,
+      ).toBe(false);
     expect([16, 18, 20, 24, 32, 48, 63, 64, 128, 1024].map(markVariantFor)).toEqual(['tiny', 'tiny', 'tiny', 'small', 'small', 'small', 'small', 'full', 'full', 'full']);
     // The colours are the palette's only: the ink one for the icon and the favicon, the tokens in the page.
     expect(MARK_INK).toEqual({ plate: '#141823', back: '#3d7bff', front: '#f4f5f7' });
@@ -133,14 +143,18 @@ describe('the "two takes" mark: one drawing, three variants (L5.13b, R-REN-03)',
     expect(UI_COLOURS['mark-back']).toEqual({ dark: '#3d7bff', light: '#3d7bff' });
     expect(UI_COLOURS['mark-front']).toEqual({ dark: '#f4f5f7', light: '#f4f5f7' });
     const swapped = { plate: '#000001', back: '#000002', front: '#000003' };
-    for (const v of MARK_VARIANTS) expect([...markSvg(v, swapped).matchAll(/#[0-9a-f]{3,8}\b/gi)].map((m) => m[0]).filter((c) => !Object.values(swapped).includes(c)), v).toEqual([]);
+    for (const v of MARK_VARIANTS)
+      expect(
+        [...markSvg(v, swapped).matchAll(/#[0-9a-f]{3,8}\b/gi)].map((m) => m[0]).filter((c) => !Object.values(swapped).includes(c)),
+        v,
+      ).toEqual([]);
     // A palette value is a #rrggbb colour, nothing else reaches an attribute.
     for (const bad of ['red', '#fff', '#3d7bff"', '#3d7bff" onload="x', 'url(#a)', '', '#3d7bffcc']) {
       expect(() => markSvg('full', { ...MARK_INK, back: bad }), bad).toThrow(/#rrggbb/);
     }
   });
 
-  it('on macOS\'s icon grid: the plate 824 wide at 100 on a 1024 canvas', () => {
+  it("on macOS's icon grid: the plate 824 wide at 100 on a 1024 canvas", () => {
     const svg = markSvg('full', MARK_INK, { iconGrid: true });
     expect(svg.split('\n')[0]).toBe('<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">');
     const [, tx, ty, k] = /<g transform="translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)">/.exec(svg)!.map(Number);
@@ -151,7 +165,7 @@ describe('the "two takes" mark: one drawing, three variants (L5.13b, R-REN-03)',
   });
 });
 
-describe('the desktop icon files are gen:mark\'s output (pnpm -F @retake/ui gen:mark)', () => {
+describe("the desktop icon files are gen:mark's output (pnpm -F @retake/ui gen:mark)", () => {
   it('⚑ icon.svg is the full mark on the icon grid, icon.json holds its hash, icon.png is 1024² and shows that SVG', async () => {
     const svg = readFileSync(join(ICONS, 'icon.svg'), 'utf8');
     expect(svg, 'apps/desktop/icons/icon.svg is stale: run pnpm -F @retake/ui gen:mark').toBe(markSvg('full', MARK_INK, { iconGrid: true }));
@@ -181,8 +195,8 @@ describe('the desktop icon files are gen:mark\'s output (pnpm -F @retake/ui gen:
   });
 });
 
-describe('the favicon and the Studio\'s mark', () => {
-  it('⚑ the favicon is the tiny mark on its ink plate, a data: URL in the document — the CSP\'s img-src as it was (self and data:)', () => {
+describe("the favicon and the Studio's mark", () => {
+  it("⚑ the favicon is the tiny mark on its ink plate, a data: URL in the document — the CSP's img-src as it was (self and data:)", () => {
     const links = [...INDEX_HTML.matchAll(/<link rel="icon"[^>]*>/g)].map((m) => m[0]);
     expect(links).toEqual([`<link rel="icon" type="image/svg+xml" href="${FAVICON_URL}">`]);
     const prefix = 'data:image/svg+xml,';
@@ -193,13 +207,16 @@ describe('the favicon and the Studio\'s mark', () => {
     expect(STUDIO_CSP.split('; ').filter((d) => d.startsWith('img-src'))).toEqual(["img-src 'self' data:"]);
   });
 
-  it('⚑ AppMark draws mark.ts\'s geometry, aria-hidden, painted by classes on the --ui-mark-* tokens (no colour of its own)', () => {
+  it("⚑ AppMark draws mark.ts's geometry, aria-hidden, painted by classes on the --ui-mark-* tokens (no colour of its own)", () => {
     for (const v of MARK_VARIANTS) {
       const html = renderToStaticMarkup(createElement(AppMark, { variant: v, size: 40 }));
       expect(html, v).toMatch(/^<svg class="k-appmark" viewBox="0 0 100 100" width="40" height="40" aria-hidden="true" focusable="false" data-variant="[a-z]+">/);
       expect(shapes(html), v).toEqual(shapes(markSvg(v, MARK_INK)));
       expect(html, v).not.toMatch(/fill=|stroke=|style=|#[0-9a-f]{3,8}\b/i);
-      expect([...html.matchAll(/class="(k-appmark-[a-z]+)"/g)].map((m) => m[1]), v).toEqual(MARK[v].map((s) => `k-appmark-${s.paint}`));
+      expect(
+        [...html.matchAll(/class="(k-appmark-[a-z]+)"/g)].map((m) => m[1]),
+        v,
+      ).toEqual(MARK[v].map((s) => `k-appmark-${s.paint}`));
     }
     // L7.34: kit.css read as the browser reads it (its rules, whatever the layout of the text): each part's class paints
     // with its --ui-mark-* token only, and every token it names is one of tokens.ts's (both appearances).
@@ -230,7 +247,9 @@ describe('the favicon and the Studio\'s mark', () => {
     expect(markVariantFor(18)).toBe('tiny');
     const list = { state: 'ready' as const, data: { root: '/w', projects_dir: '/w/projects', projects: [] } };
     const welcome = renderToStaticMarkup(createElement(WelcomeScreen, { list }));
-    expect(welcome).toMatch(/<section class="wl-intro" aria-labelledby="wl-h1"><svg class="k-appmark" viewBox="0 0 100 100" width="128" height="128" aria-hidden="true" focusable="false" data-variant="full">[\s\S]*?<\/svg><h1 id="wl-h1"/);
+    expect(welcome).toMatch(
+      /<section class="wl-intro" aria-labelledby="wl-h1"><svg class="k-appmark" viewBox="0 0 100 100" width="128" height="128" aria-hidden="true" focusable="false" data-variant="full">[\s\S]*?<\/svg><h1 id="wl-h1"/,
+    );
     // The gallery shows each variant at its sizes with a visible caption naming them (the marks themselves are aria-hidden):
     // L7.34: rendered, its "App mark" section read.
     const gallery = renderToStaticMarkup(createElement(GalleryScreen));

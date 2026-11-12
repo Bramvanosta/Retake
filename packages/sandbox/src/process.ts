@@ -115,16 +115,19 @@ export class ProcessProvider implements Provider {
     const file = serviceLog(ctx.paths, service);
     const tail = tailLines(file, LOG_TAIL_LINES);
     const shown = shownPath(file);
-    return tail ? `${message} — last lines of ${shown}:\n${tail.split('\n').map((l) => `    ${l}`).join('\n')}` : `${message} (log: ${shown})`;
+    return tail
+      ? `${message} — last lines of ${shown}:\n${tail
+          .split('\n')
+          .map((l) => `    ${l}`)
+          .join('\n')}`
+      : `${message} (log: ${shown})`;
   }
 
   /** Refuse to start a service whose ports something already listens on, naming it. */
   private async checkFree(ctx: ProviderContext, service: string): Promise<void> {
     const busy = await busyPorts(this.ports(ctx, service));
     if (!busy.length) return;
-    const lines = busy.map(({ port, by }) =>
-      `${portLabel(port)} is in use by ${by ? `another program (${describeListeners(by)})` : 'another program (lsof cannot see it: another user\'s?)'}`,
-    );
+    const lines = busy.map(({ port, by }) => `${portLabel(port)} is in use by ${by ? `another program (${describeListeners(by)})` : "another program (lsof cannot see it: another user's?)"}`);
     throw new SandboxError(`sandbox ${ctx.sandbox.env}: ${lines.join('; ')} — stop it or change the port in ${shownPath(ctx.sandbox.file)}`, 'port');
   }
 
@@ -294,7 +297,8 @@ export class ProcessProvider implements Provider {
             await waitHealthy(health, { signal: ctx.signal, gone });
             await this.checkOwned(ctx, name, entry.pid, Math.max(0, health.timeoutMs - (Date.now() - t0)), gone);
           } catch (e) {
-            if (e instanceof SandboxError && e.code === 'unhealthy') throw new SandboxError(this.withLog(ctx, name, `sandbox ${ctx.sandbox.env}: ${e.message} (it was already running, pid ${entry.pid})`), 'unhealthy');
+            if (e instanceof SandboxError && e.code === 'unhealthy')
+              throw new SandboxError(this.withLog(ctx, name, `sandbox ${ctx.sandbox.env}: ${e.message} (it was already running, pid ${entry.pid})`), 'unhealthy');
             throw e;
           }
           entry.status = 'running';

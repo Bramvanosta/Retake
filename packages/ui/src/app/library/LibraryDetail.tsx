@@ -35,12 +35,20 @@ function About({ d, item }: { d: LibraryComponentAnswer; item: LibraryItem }) {
           label: 'Kit',
           value: (
             <span data-testid="lib-kit">
-              <Txt text={`Kit API ${d.kit.needs}: ${d.kit.compatible ? `works with this ${APP_NAME} (kit API ${d.kit.provided})` : `this ${APP_NAME} provides kit API ${d.kit.provided} — it does not load`}`} />
+              <Txt
+                text={`Kit API ${d.kit.needs}: ${d.kit.compatible ? `works with this ${APP_NAME} (kit API ${d.kit.provided})` : `this ${APP_NAME} provides kit API ${d.kit.provided} — it does not load`}`}
+              />
             </span>
           ),
         },
         ...(d.duration
-          ? [{ key: 'duration', label: 'Duration', value: <Txt text={`${d.duration.default} s${d.duration.min !== undefined || d.duration.max !== undefined ? ` (from ${d.duration.min ?? '—'} to ${d.duration.max ?? '—'} s)` : ''}`} /> }]
+          ? [
+              {
+                key: 'duration',
+                label: 'Duration',
+                value: <Txt text={`${d.duration.default} s${d.duration.min !== undefined || d.duration.max !== undefined ? ` (from ${d.duration.min ?? '—'} to ${d.duration.max ?? '—'} s)` : ''}`} />,
+              },
+            ]
           : []),
         { key: 'formats', label: 'Formats', value: <Txt text={d.variants.join(', ')} /> },
         { key: 'used', label: 'Used by', value: item.picked_by.length ? <Txt text={item.picked_by.join(', ')} /> : 'no theme of this project picks it' },
@@ -100,7 +108,11 @@ function Params({ d }: { d: LibraryComponentAnswer }) {
           <Txt key="n" className="k-mono" text={p.name} />,
           p.type ? <Txt key="t" text={p.type} /> : null,
           p.default !== undefined ? <Txt key="d" className="k-mono" text={p.default} /> : null,
-          p.enum ? <Txt key="e" className="k-mono" text={p.enum.join(' | ')} /> : p.minimum !== undefined || p.maximum !== undefined ? <Txt key="r" text={`${p.minimum ?? '…'} to ${p.maximum ?? '…'}`} /> : null,
+          p.enum ? (
+            <Txt key="e" className="k-mono" text={p.enum.join(' | ')} />
+          ) : p.minimum !== undefined || p.maximum !== undefined ? (
+            <Txt key="r" text={`${p.minimum ?? '…'} to ${p.maximum ?? '…'}`} />
+          ) : null,
           p.description ? <Txt key="w" text={p.description} /> : null,
         ],
       }))}

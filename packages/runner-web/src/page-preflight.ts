@@ -53,7 +53,7 @@ function fetchFailure(e: unknown): string {
   if (code === 'ECONNREFUSED') return 'connection refused (nothing listens on that port)';
   if (code === 'ENOTFOUND') return 'unknown host';
   if (code) return code;
-  return (cause?.message || errorMessage(e)) || 'no answer';
+  return cause?.message || errorMessage(e) || 'no answer';
 }
 
 /** The refusal of a take whose pages do not all answer: each page and URL, and what to do. */

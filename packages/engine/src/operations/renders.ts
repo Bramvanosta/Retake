@@ -37,7 +37,10 @@ export function renderStatusSummary(r: RenderStatusView): string {
   const p = job?.progress;
   // L5.14: slowed during a take (background priority), said with its progress.
   const slowed = job?.yield?.state === 'background' ? ` · ${yieldWords(job.yield)}` : '';
-  const running = r.status === 'running' && p ? `running: ${p.phase ?? ''}${pct(p.fraction)}${p.steps_total ? ` · ${p.steps_done}/${p.steps_total} frames` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}${slowed}` : undefined;
+  const running =
+    r.status === 'running' && p
+      ? `running: ${p.phase ?? ''}${pct(p.fraction)}${p.steps_total ? ` · ${p.steps_done}/${p.steps_total} frames` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}${slowed}`
+      : undefined;
   const rec = r.record;
   const lines = [
     `render ${r.render_id}${r.scenario ? ` of ${r.scenario}` : ''}: ${waiting ?? running ?? r.status}`,
@@ -45,7 +48,9 @@ export function renderStatusSummary(r: RenderStatusView): string {
     ...(rec ? [`${rec.duration_s} s, ${rec.width}×${rec.height} @ ${rec.fps} fps, theme ${rec.template}, ${rec.variant}, ${(rec.size_bytes / 1048576).toFixed(1)} MB`] : []),
     ...(r.file && r.status === 'succeeded' ? [`video: ${r.file}`, ...(r.record_file ? [`record: ${r.record_file}`] : [])] : []),
     // The video a record names elsewhere than renders/<id>.mp4 is the file's text: never in this line.
-    ...(!r.file && rec && r.status === 'succeeded' ? [`video: its record names a file other than renders/${r.render_id}.mp4 ("untrusted.record.file")`, ...(r.record_file ? [`record: ${r.record_file}`] : [])] : []),
+    ...(!r.file && rec && r.status === 'succeeded'
+      ? [`video: its record names a file other than renders/${r.render_id}.mp4 ("untrusted.record.file")`, ...(r.record_file ? [`record: ${r.record_file}`] : [])]
+      : []),
     ...(r.status === 'interrupted' && job?.error ? [`${job.error.message}${job.error.fix ? ` — a human runs: ${job.error.fix}` : ''}`] : []),
     ...(r.status === 'cancelled' ? ['cancelled: nothing was written under this id (the next render of the scenario may reuse it)'] : []),
     ...(r.status === 'failed' ? ['failed: nothing was written under this id (the next render of the scenario may reuse it); the message is in "untrusted.error"'] : []),
@@ -99,9 +104,15 @@ export function renderLatestLines(p: { renders_passed_over?: number; renders_not
 }
 
 /** The members an answer carries on from a `latest` of renders: the counts as data, the names under `untrusted`. */
-export function renderLatestData(p: { renders_passed_over?: number; renders_not_considered?: number; untrusted?: { renders_passed_over?: unknown } }): { data: Record<string, unknown>; untrusted: Record<string, unknown> } {
+export function renderLatestData(p: { renders_passed_over?: number; renders_not_considered?: number; untrusted?: { renders_passed_over?: unknown } }): {
+  data: Record<string, unknown>;
+  untrusted: Record<string, unknown>;
+} {
   return {
-    data: { ...(p.renders_passed_over !== undefined ? { renders_passed_over: p.renders_passed_over } : {}), ...(p.renders_not_considered !== undefined ? { renders_not_considered: p.renders_not_considered } : {}) },
+    data: {
+      ...(p.renders_passed_over !== undefined ? { renders_passed_over: p.renders_passed_over } : {}),
+      ...(p.renders_not_considered !== undefined ? { renders_not_considered: p.renders_not_considered } : {}),
+    },
     untrusted: p.untrusted?.renders_passed_over ? { renders_passed_over: p.untrusted.renders_passed_over } : {},
   };
 }
@@ -111,7 +122,11 @@ export function renderLatestData(p: { renders_passed_over?: number; renders_not_
  * capture (re-capture to film it), or today's edit was re-planned on the run. They name only the scenario (a checked
  * name), the run id and the parts that changed (keys, scene ids, step keys: core filmedChanges / replanEdit).
  */
-export function editLines(project: string, scenario: string, p: { run_id: string; edit: 'scenario' | 'run'; scenario_changed?: boolean; filmed_changes?: string[]; edit_changes?: string[] }): string[] {
+export function editLines(
+  project: string,
+  scenario: string,
+  p: { run_id: string; edit: 'scenario' | 'run'; scenario_changed?: boolean; filmed_changes?: string[]; edit_changes?: string[] },
+): string[] {
   if (p.scenario_changed) return [scenarioChangedMessage(scenario, p.run_id, `run_capture {project: "${project}", scenario: "${scenario}"}`, p.filmed_changes)];
   if (p.edit === 'scenario' && p.edit_changes?.length) {
     const list = p.edit_changes.slice(0, 12).join(', ') + (p.edit_changes.length > 12 ? `, and ${p.edit_changes.length - 12} more` : '');

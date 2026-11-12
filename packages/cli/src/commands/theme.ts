@@ -38,7 +38,11 @@ function printCreated(ui: Ui, c: ThemeCreated): void {
   const k = ui.c;
   ui.ok(`${c.replaced ? 'replaced' : 'created'} theme ${k.bold(c.name)} over ${c.base} (${c.palette.tone}) in ${ui.path(c.dir)}`);
   ui.line(k.dim(`  files: ${c.files.join(', ')}`));
-  ui.line(`  colours: ${Object.entries(c.palette.colors).map(([n, v]) => `${n} ${v}`).join(', ')}`);
+  ui.line(
+    `  colours: ${Object.entries(c.palette.colors)
+      .map(([n, v]) => `${n} ${v}`)
+      .join(', ')}`,
+  );
   ui.line(`  contrast: ${c.palette.checks.map((x) => `${x.check} ${x.ratio}${x.ok ? '' : ` (< ${x.min})`}`).join(', ')}`);
   for (const a of c.palette.adjusted) ui.line(`  adjusted ${a.key}${a.given ? ' (given)' : ''} ${a.from} → ${a.to} (${a.check} ${a.ratio_before} → ${a.ratio_after})`);
   if (c.palette.suggestions.accent) ui.line(`  suggested accent (not applied): ${c.palette.suggestions.accent}`);
@@ -65,9 +69,7 @@ export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: st
     ...(opts.adjust === false ? { adjust: false } : {}),
     logo: opts.logo,
     ...(opts.wordmark ? { wordmark: opts.wordmark } : {}),
-    ...(opts.displayFont || opts.bodyFont?.length
-      ? { fonts: { ...(opts.displayFont ? { display: opts.displayFont } : {}), ...(opts.bodyFont?.length ? { body: opts.bodyFont } : {}) } }
-      : {}),
+    ...(opts.displayFont || opts.bodyFont?.length ? { fonts: { ...(opts.displayFont ? { display: opts.displayFont } : {}), ...(opts.bodyFont?.length ? { body: opts.bodyFont } : {}) } } : {}),
     ...(opts.brandName || opts.brandUrl ? { brand: { ...(opts.brandName ? { name: opts.brandName } : {}), ...(opts.brandUrl ? { url: opts.brandUrl } : {}) } } : {}),
     ...(opts.replace ? { replace: true } : {}),
   };
@@ -104,9 +106,17 @@ function printSite(ui: Ui, r: SiteJobResult): void {
   if (fonts) ui.line(k.dim(`  fonts seen (names from the page): display ${names(fonts.display)}; body ${names(fonts.body)} — give the font files yourself (--display-font / --body-font)`));
   for (const c of r.candidates) ui.line(`  logo candidate ${c.ref}: ${c.file} (${c.width}×${c.height}, ${c.source})`);
   if (r.screenshot) ui.line(`  screenshot: ${ui.path(r.screenshot)}`);
-  const blocked = Object.entries(r.network.blocked).map(([why, n]) => `${n} ${why}`).join(', ');
-  const refused = Object.entries(r.network.refused).map(([why, n]) => `${n} ${why}`).join(', ');
-  ui.line(k.dim(`  network: ${r.network.requests} requests, ${r.network.tunnels} connections, ${Math.round(r.network.bytes / 1024)} KB${blocked ? `; blocked: ${blocked}` : ''}${refused ? `; refused connections: ${refused}` : ''}`));
+  const blocked = Object.entries(r.network.blocked)
+    .map(([why, n]) => `${n} ${why}`)
+    .join(', ');
+  const refused = Object.entries(r.network.refused)
+    .map(([why, n]) => `${n} ${why}`)
+    .join(', ');
+  ui.line(
+    k.dim(
+      `  network: ${r.network.requests} requests, ${r.network.tunnels} connections, ${Math.round(r.network.bytes / 1024)} KB${blocked ? `; blocked: ${blocked}` : ''}${refused ? `; refused connections: ${refused}` : ''}`,
+    ),
+  );
   for (const w of r.warnings) ui.warn(w);
   if (r.draft) {
     const d = r.draft.brand_input as { name: string; base: string; colors: Record<string, string>; logo?: string; brand?: { url?: string } };

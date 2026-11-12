@@ -39,7 +39,11 @@ async function serve(port: number, handle: (req: IncomingMessage, res: ServerRes
 }
 
 const challenge = (res: ServerResponse, cors?: string) => {
-  res.writeHead(401, { 'www-authenticate': 'Basic realm="staging"', 'content-type': 'text/plain', ...(cors ? { 'access-control-allow-origin': cors, 'access-control-allow-credentials': 'true' } : {}) });
+  res.writeHead(401, {
+    'www-authenticate': 'Basic realm="staging"',
+    'content-type': 'text/plain',
+    ...(cors ? { 'access-control-allow-origin': cors, 'access-control-allow-credentials': 'true' } : {}),
+  });
   res.end('sign in');
 };
 
@@ -78,7 +82,8 @@ describe('an environment page URL with sign-in details', () => {
   it('opens the page, signed in to its origin only; the details are nowhere in what the run writes', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: other.url });
     const events: unknown[] = [];
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('staging', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait_for: { text: 'Signed in to staging' } }, { wait: 0.8 }] as never }] }),
       mode: 'dry',
@@ -135,7 +140,8 @@ describe('an environment page URL with sign-in details', () => {
   it('details on two origins are refused before any browser opens, without showing them', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: `http://other-user:other-pass@127.0.0.1:${other.port}` });
     const before = app.auth.length + other.auth.length;
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('two', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait: 0.1 }] as never }] }),
       mode: 'dry',

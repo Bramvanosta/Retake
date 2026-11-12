@@ -3,13 +3,7 @@
  * reads it — in the editor's types: the states of core render-record.ts with an edit plan, and the ONE place a plan read
  * from a disk is given that type (`withPlan`). Reading the files is core/io render-folder.ts. No I/O.
  */
-import type {
-  FinishedRender as CoreFinishedRender,
-  RenderAttempt as CoreRenderAttempt,
-  StoredPlan,
-  StoredRenderRecord,
-  UnknownStatusRender,
-} from '@retake/core/render';
+import type { FinishedRender as CoreFinishedRender, RenderAttempt as CoreRenderAttempt, StoredPlan, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
 import type { EditOverrides, EditPlan } from './plan-types.js';
 
 /** A render that ended well, as this package writes it: its plan an edit plan. */

@@ -22,14 +22,13 @@ export const scenarioName = z
   .regex(SLUG_RE, 'a scenario name: letters, digits, "-" or "_" (scenarios/<name>.yaml), never a path')
   .describe('Scenario name: the file scenarios/<name>.yaml of the project.');
 
-export const runId = zRunId('a run id such as 20261017-142233-quote (run_list names them), never a path')
-  .describe('Run id (a folder of runs/, from run_list).');
+export const runId = zRunId('a run id such as 20261017-142233-quote (run_list names them), never a path').describe('Run id (a folder of runs/, from run_list).');
 
-export const renderId = zRenderId('a render id such as quote-v3 or quote-v3-vertical (render returns it), never a path')
-  .describe('Render id (renders/<id>.mp4): what render returned.');
+export const renderId = zRenderId('a render id such as quote-v3 or quote-v3-vertical (render returns it), never a path').describe('Render id (renders/<id>.mp4): what render returned.');
 
-export const templateName = zThemeName('a theme name such as editorial (a folder of templates/), never a path')
-  .describe("Theme (template) name for this render instead of the run's, e.g. editorial or motion.");
+export const templateName = zThemeName('a theme name such as editorial (a folder of templates/), never a path').describe(
+  "Theme (template) name for this render instead of the run's, e.g. editorial or motion.",
+);
 
 export const componentId = z
   .string()

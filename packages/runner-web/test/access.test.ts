@@ -48,7 +48,10 @@ function project(): LoadedProject {
 
 const WRITING: Omit<Scenario, 'video'> = {
   pacing: FAST,
-  setup: [{ name: 'reset', http: { method: 'POST', url: '{{app}}/api/reset' } }, { name: 'health', http: { url: '{{app}}/home.html' } }],
+  setup: [
+    { name: 'reset', http: { method: 'POST', url: '{{app}}/api/reset' } },
+    { name: 'health', http: { url: '{{app}}/home.html' } },
+  ],
   teardown: [{ optional: true, shell: 'echo done' }],
   // A secret no environment holds: the refusal comes before the secrets are read.
   scenes: [{ id: 'home', page: 'app', open: '/home.html', steps: [{ type: { text: '{{env:RETAKE_L17_NOT_SET}}', into: { css: 'h1' } } }] }],
@@ -57,7 +60,8 @@ const WRITING: Omit<Scenario, 'video'> = {
 describe('a read-only run refuses its writing hooks before anything runs (R-ENV-04)', () => {
   it('fails at once, listing the hooks; no browser (an unusable executable is never launched), no secret, no hook', async () => {
     const events: RunProgress[] = [];
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: project(),
       scenario: makeScenario('refused', WRITING),
       mode: 'capture',
@@ -85,7 +89,8 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
     const p = project();
     await mkdir(join(p.dir, 'sql'), { recursive: true });
     await writeFile(join(p.dir, 'sql', 'reset.sql'), 'DELETE FROM quotes;\n');
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: p,
       scenario: makeScenario('refused-sql', { ...WRITING, setup: [{ name: 'wipe', sql: { file: 'sql/reset.sql' } }], teardown: [] }),
       mode: 'capture',
@@ -101,7 +106,8 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
 
   it('production that allows writes: a notice, then the same refusal without --allow-writes', async () => {
     const events: RunProgress[] = [];
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: project(),
       scenario: makeScenario('live-refused', WRITING),
       mode: 'capture',
@@ -112,11 +118,18 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
       onProgress: (e) => events.push(e),
     });
     expect(rec.error?.message).toMatch(/^environment live is production, read-only without --allow-writes and 2 hooks write: .* or pass --allow-writes to write to production;/);
-    expect(events).toContainEqual(expect.objectContaining({ type: 'log', level: 'warn', message: expect.stringContaining('environment live is production and project.yaml allows writes (access: read-write), but this run is read-only') }));
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'log',
+        level: 'warn',
+        message: expect.stringContaining('environment live is production and project.yaml allows writes (access: read-write), but this run is read-only'),
+      }),
+    );
   });
 
   it('--hooks skip runs no hook, so nothing is refused (here the browser launch fails instead)', async () => {
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: project(),
       scenario: makeScenario('skipped', { ...WRITING, scenes: [{ id: 'home', page: 'app', open: '/home.html', steps: [{ wait: 0.1 }] }] }),
       mode: 'dry',
@@ -138,7 +151,8 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
     expect(existsSync(join(dir, 'runs', runId))).toBe(false);
 
     const events: RunProgress[] = [];
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: project(),
       scenario: makeScenario('flag-live', { ...WRITING, setup: [], teardown: [] }),
       mode: 'dry',
@@ -156,7 +170,8 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
 
 describe('environment blocks of the run files (R-ENV-01/02/05 data)', () => {
   it('timeline.environment holds the access, the display table and the clock; URLs elsewhere stay real', async () => {
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: project(),
       scenario: makeScenario('blocks', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/home.html', steps: [{ hover: { text: 'Request a quote' } }] }] }),
       mode: 'dry',

@@ -70,7 +70,8 @@ afterAll(() => {
 });
 
 /** The runs of the list, in its order: `NEW:failed OLD:succeeded`. */
-const listed = (b: BuiltState, runs: ReadonlyArray<{ id: string; status?: string; newer?: string; unread?: string }>): string => runs.map((r) => `${who(b, r.id)}:${r.newer ? 'newer' : r.unread ? 'unread' : (r.status ?? '?')}`).join(' ') || '-';
+const listed = (b: BuiltState, runs: ReadonlyArray<{ id: string; status?: string; newer?: string; unread?: string }>): string =>
+  runs.map((r) => `${who(b, r.id)}:${r.newer ? 'newer' : r.unread ? 'unread' : (r.status ?? '?')}`).join(' ') || '-';
 
 const sites = {
   list: (b: BuiltState) => answer(b, async () => listed(b, await engine.runs.list(b.slug))),
@@ -85,10 +86,11 @@ const sites = {
       if ('view' in r) return `${who(b, r.view.run_id)} of [${r.view.runs.map((id) => who(b, id)).join(' ')}]`;
       return `blocked ${who(b, r.run_id)}: ${r.blocked.problems.join('; ').replaceAll(root, '<root>').replaceAll(b.new, 'NEW')}`;
     }),
-  prune: (b: BuiltState) => answer(b, async () => {
-    const r = await engine.projects.prune(b.slug, { dry_run: true });
-    return `${r.items.map((i) => `${i.kind} ${who(b, i.id)} (${i.reason})${i.paths.length ? '' : ' no file'}`).join('; ') || 'nothing'} | kept ${r.kept.runs}`;
-  }),
+  prune: (b: BuiltState) =>
+    answer(b, async () => {
+      const r = await engine.projects.prune(b.slug, { dry_run: true });
+      return `${r.items.map((i) => `${i.kind} ${who(b, i.id)} (${i.reason})${i.paths.length ? '' : ' no file'}`).join('; ') || 'nothing'} | kept ${r.kept.runs}`;
+    }),
 };
 
 type Row = { [K in keyof typeof sites]?: string } & { list: string };
@@ -517,7 +519,11 @@ describe('the engine, state by state and site by site', () => {
       'invalid: no capture run of scenario "quote" in <root>/projects/s-f-no-film/runs: capture one with `retake run s-f-no-film quote` — 1 capture of it cannot be edited: its film is missing (1)',
     );
     // A failed NEW beside OLD: OLD is the last capture by its record with or without its film (the same list); OLD gone is another.
-    expect([await sites.prune(state('c')), await sites.prune(state('c', 'no-film')), await sites.prune(state('c', 'none'))]).toEqual(['run NEW (failed take) | kept 1', 'run NEW (failed take) | kept 1', 'run NEW (failed take) | kept 0']);
+    expect([await sites.prune(state('c')), await sites.prune(state('c', 'no-film')), await sites.prune(state('c', 'none'))]).toEqual([
+      'run NEW (failed take) | kept 1',
+      'run NEW (failed take) | kept 1',
+      'run NEW (failed take) | kept 0',
+    ]);
   }, 120_000);
 
   it("NEW alone: what the Studio's Render edits, the board's capture and the timeline's default", async () => {
@@ -529,7 +535,11 @@ describe('the engine, state by state and site by site', () => {
     expect(await alone('h')).toEqual(['NEW', 'NEW', 'NEW of [NEW]']);
     expect(await alone('m')).toEqual(['NEW', 'NEW', 'NEW of [NEW]']);
     // D-6: the timeline's error stays the "update Retake" sentence; through the engine it names no run that was not picked.
-    expect(await alone('o')).toEqual(['-', '-', 'invalid: the newest capture of scenario "quote": this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake']);
+    expect(await alone('o')).toEqual([
+      '-',
+      '-',
+      'invalid: the newest capture of scenario "quote": this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+    ]);
   }, 120_000);
 });
 
@@ -572,7 +582,14 @@ describe('the lists and the default take', () => {
   it('a record a later version of the same format wrote: listed with its words as text, usable, and what `latest` takes', async () => {
     const b = state('v');
     const s = await engine.runs.status(b.slug, b.new);
-    expect([s.status, s.options.hooks, s.hooks, s.environment, s.stopped_at, s.perf]).toEqual(['succeeded', 'partial', { setup: 'ok', teardown: 'deferred', steps: 'retried' }, { production: false, access: 'read-audit', sandbox: 'local' }, { scene: 'one', step: 2, reason: 'budget' }, undefined]);
+    expect([s.status, s.options.hooks, s.hooks, s.environment, s.stopped_at, s.perf]).toEqual([
+      'succeeded',
+      'partial',
+      { setup: 'ok', teardown: 'deferred', steps: 'retried' },
+      { production: false, access: 'read-audit', sandbox: 'local' },
+      { scene: 'one', step: 2, reason: 'budget' },
+      undefined,
+    ]);
     const a = await engine.scenarios.actions(b.slug, STATES.scenario);
     expect([who(b, a.capture?.id), a.runs.map((r) => `${who(b, r.id)}:${r.take}`)]).toEqual(['NEW', ['NEW:true', 'OLD:true']]);
     const p = await engine.renders.plan({ project: b.slug, scenario: STATES.scenario });
@@ -660,7 +677,11 @@ describe('the lists and the default take', () => {
       writeRunFolder(join(b.runs, id), id, b.slug, STATES.states[n % 2 ? 'c' : 'e'], film);
     }
     const p = await engine.renders.plan({ project: b.slug, scenario: STATES.scenario });
-    expect([who(b, p.run_id), p.passed_over, p.untrusted.passed_over?.map((x) => `${x.run_id.slice(6, 8)} ${x.why}`)]).toEqual(['OLD', 7, ['07 cancelled', '06 failed', '05 cancelled', '04 failed', '03 cancelled']]);
+    expect([who(b, p.run_id), p.passed_over, p.untrusted.passed_over?.map((x) => `${x.run_id.slice(6, 8)} ${x.why}`)]).toEqual([
+      'OLD',
+      7,
+      ['07 cancelled', '06 failed', '05 cancelled', '04 failed', '03 cancelled'],
+    ]);
   }, 60_000);
 
   it('runs/ itself a link to another disk (small point 3.2): through the engine neither `latest` nor a named run reads a run outside the project', async () => {
@@ -672,17 +693,23 @@ describe('the lists and the default take', () => {
     const plan = (run_id?: string) => answer(b, async () => who(b, (await engine.renders.plan({ project: b.slug, scenario: STATES.scenario, ...(run_id ? { run_id } : {}) })).run_id));
     // Through the engine neither reads a run outside the project (before L7.6a's close `latest` planned NEW there while
     // naming NEW was refused): `latest` passes both captures over and says how many, in the rule's fixed words.
-    expect(await plan()).toBe('invalid: no capture run of scenario "quote" in <root>/projects/l-linked-runs/runs: capture one with `retake run l-linked-runs quote` — 2 captures of it cannot be edited: it lies outside the project (2)');
-    expect(await plan(b.new)).toBe('refused: refused through MCP:\n- run NEW lies outside the project (its folder, or a folder above it, is a link): through MCP a render reads only the runs inside it');
+    expect(await plan()).toBe(
+      'invalid: no capture run of scenario "quote" in <root>/projects/l-linked-runs/runs: capture one with `retake run l-linked-runs quote` — 2 captures of it cannot be edited: it lies outside the project (2)',
+    );
+    expect(await plan(b.new)).toBe(
+      'refused: refused through MCP:\n- run NEW lies outside the project (its folder, or a folder above it, is a link): through MCP a render reads only the runs inside it',
+    );
     // The lists read each run folder, not its parent; the Studio offers no take of a run that lies outside the project
     // (its confined reads show none of its pictures either: as before the lot), and its timeline, which asks the same
     // rule as Render, finds none and says why (before: it took NEW by default, then refused it as "a link").
     expect([await sites.list(b), await sites.choices(b), await sites.render(b), await sites.board(b)]).toEqual(['NEW:succeeded OLD:succeeded', 'NEW:succeeded:none OLD:succeeded:none', '-', '-']);
-    expect(await sites.timeline(b)).toBe('invalid: no capture run of scenario "quote" in <root>/projects/l-linked-runs/runs: capture one with `retake run l-linked-runs quote` — 2 captures of it cannot be edited: it lies outside the project (2)');
+    expect(await sites.timeline(b)).toBe(
+      'invalid: no capture run of scenario "quote" in <root>/projects/l-linked-runs/runs: capture one with `retake run l-linked-runs quote` — 2 captures of it cannot be edited: it lies outside the project (2)',
+    );
   }, 60_000);
 });
 
-describe('the engine\'s other readers of a run folder go through the one parse boundary', () => {
+describe("the engine's other readers of a run folder go through the one parse boundary", () => {
   it('the run data of the scenario screen: a record or a timeline that does not read is absent, never taken as it stands', async () => {
     const held = async (b: BuiltState) => {
       const data = await new RunDataCache().get(b.dir, b.new);
@@ -725,10 +752,16 @@ describe('the engine\'s other readers of a run folder go through the one parse b
 describe('prune and renders renamed by hand', () => {
   const render = (b: BuiltState, id: string, run: string, at: string, file = id) => {
     mkdirSync(join(b.dir, 'renders'), { recursive: true });
-    writeFileSync(join(b.dir, 'renders', `${file}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: run, status: 'succeeded', created_at: at, variant: 'landscape', template: 'editorial', plan: {} }));
+    writeFileSync(
+      join(b.dir, 'renders', `${file}.json`),
+      JSON.stringify({ version: 1, id, scenario: 'quote', run_id: run, status: 'succeeded', created_at: at, variant: 'landscape', template: 'editorial', plan: {} }),
+    );
     writeFileSync(join(b.dir, 'renders', `${file}.mp4`), 'mp4');
   };
-  const files = async (b: BuiltState) => (await engine.projects.prune(b.slug, { dry_run: true })).items.map((i) => `${i.kind} ${who(b, i.id)} (${i.reason}): ${i.paths.map((p) => p.slice(b.dir.length + 1).replaceAll(b.old, 'OLD')).join(' ') || 'no file'}`);
+  const files = async (b: BuiltState) =>
+    (await engine.projects.prune(b.slug, { dry_run: true })).items.map(
+      (i) => `${i.kind} ${who(b, i.id)} (${i.reason}): ${i.paths.map((p) => p.slice(b.dir.length + 1).replaceAll(b.old, 'OLD')).join(' ') || 'no file'}`,
+    );
   const project = (slug: string) => buildState(root, 'ctl', { film, slug });
 
   // (The title is the one the row was pinned under before the lot — "then its take goes and a line without a file is
@@ -741,7 +774,11 @@ describe('prune and renders renamed by hand', () => {
     // moved: row 2 — the renamed record is left alone and keeps its take, however many newer renders there are.
     expect((await files(b)).sort()).toEqual([]);
     const r = await engine.projects.prune(b.slug, { dry_run: true });
-    expect([r.renders_alone, r.untrusted, (r.kept_takes ?? []).map((k) => `${who(b, k.id)} ${k.why}`)]).toEqual([{ count: 1, reasons: [{ why: 'renamed', count: 1, reason: 'its record says another id' }] }, { renders_alone: [{ file: 'quote-final.json', why: 'renamed' }] }, ['OLD render-file']]);
+    expect([r.renders_alone, r.untrusted, (r.kept_takes ?? []).map((k) => `${who(b, k.id)} ${k.why}`)]).toEqual([
+      { count: 1, reasons: [{ why: 'renamed', count: 1, reason: 'its record says another id' }] },
+      { renders_alone: [{ file: 'quote-final.json', why: 'renamed' }] },
+      ['OLD render-file'],
+    ]);
   });
 
   it("the same once a new render took the number: the line is listed twice, each time with the new render's files", async () => {
@@ -764,7 +801,16 @@ describe('prune and renders renamed by hand', () => {
 // ── Past shapes, read by today's code ───────────────────────────────────────
 
 describe('records as older builds wrote them', () => {
-  const PAST = ['run-0.1.0/run.json', 'run-phase1.json', 'run-queued.json', 'run-closed-from-queued.json', 'run-running.json', 'run-closed-from-running.json', 'run-closed-from-paused.json', 'run-dry.json'];
+  const PAST = [
+    'run-0.1.0/run.json',
+    'run-phase1.json',
+    'run-queued.json',
+    'run-closed-from-queued.json',
+    'run-running.json',
+    'run-closed-from-running.json',
+    'run-closed-from-paused.json',
+    'run-dry.json',
+  ];
   /** A project whose one run is `value` (a record), with the base timeline and a film. */
   function projectOf(slug: string, id: string, value: Record<string, unknown>): BuiltState {
     const b = buildState(root, 'k3', { old: 'none', slug });
@@ -780,7 +826,8 @@ describe('records as older builds wrote them', () => {
       const b = projectOf(`past-${n}`, `2026101${n}-090000-quote`, value);
       const st = await engine.runs.status(b.slug, b.new);
       const data = await new RunDataCache().get(b.dir, b.new);
-      got[rel] = `${listed(b, await engine.runs.list(b.slug))} | ${st.status}${st.finished ? ' finished' : ''}${st.current ? ' current' : ''}${st.paused ? ' paused' : ''}${st.pauses ? ' pauses' : ''}${st.perf ? ' perf' : ''} | ${data?.record ? 'record' : 'no record'}`;
+      got[rel] =
+        `${listed(b, await engine.runs.list(b.slug))} | ${st.status}${st.finished ? ' finished' : ''}${st.current ? ' current' : ''}${st.paused ? ' paused' : ''}${st.pauses ? ' pauses' : ''}${st.perf ? ' perf' : ''} | ${data?.record ? 'record' : 'no record'}`;
     }
     expect(got).toEqual({
       'run-0.1.0/run.json': 'NEW:succeeded | succeeded finished perf | record',
@@ -802,7 +849,18 @@ describe('records as older builds wrote them', () => {
       value.perf.cpu[key] = 1.5;
       const b = projectOf(`key-${n}`, '20261028-083636-quote', value);
       const st = await engine.runs.status(b.slug, b.new);
-      expect([key, listed(b, await engine.runs.list(b.slug)), await sites.render(b), await sites.board(b), await sites.timeline(b), (st.perf?.cpu as Record<string, unknown> | undefined)?.[key], st.perf?.cpu?.retake], key).toEqual([key, 'NEW:succeeded', 'NEW', 'NEW', 'NEW of [NEW]', 1.5, undefined]);
+      expect(
+        [
+          key,
+          listed(b, await engine.runs.list(b.slug)),
+          await sites.render(b),
+          await sites.board(b),
+          await sites.timeline(b),
+          (st.perf?.cpu as Record<string, unknown> | undefined)?.[key],
+          st.perf?.cpu?.retake,
+        ],
+        key,
+      ).toEqual([key, 'NEW:succeeded', 'NEW', 'NEW', 'NEW of [NEW]', 1.5, undefined]);
     }
   }, 120_000);
 });
@@ -815,8 +873,33 @@ describe('the records the engine writes', () => {
     const sub = await engine.runs.submit({ project: b.slug, scenario: 'quote', mode: 'dry', until: 'one.0' });
     const text = readFileSync(join(b.runs, sub.run_id, 'run.json'), 'utf8');
     const record = JSON.parse(text) as Record<string, unknown>;
-    expect(Object.keys(record)).toEqual(['version', 'id', 'project', 'scenario', 'mode', 'status', 'started_at', 'dir', 'env', 'options', 'steps_total', 'steps_done', 'screenshots', 'hooks', 'warnings']);
-    expect(record).toMatchObject({ version: 1, id: sub.run_id, status: 'queued', mode: 'dry', options: { hooks: 'skip', headed: false, until: 'one.0' }, steps_total: 1, steps_done: 0, hooks: { setup: 'none', teardown: 'none' } });
+    expect(Object.keys(record)).toEqual([
+      'version',
+      'id',
+      'project',
+      'scenario',
+      'mode',
+      'status',
+      'started_at',
+      'dir',
+      'env',
+      'options',
+      'steps_total',
+      'steps_done',
+      'screenshots',
+      'hooks',
+      'warnings',
+    ]);
+    expect(record).toMatchObject({
+      version: 1,
+      id: sub.run_id,
+      status: 'queued',
+      mode: 'dry',
+      options: { hooks: 'skip', headed: false, until: 'one.0' },
+      steps_total: 1,
+      steps_done: 0,
+      hooks: { setup: 'none', teardown: 'none' },
+    });
     expect(text).toBe(`${JSON.stringify(record, null, 2)}\n`);
     await engine.runs.cancel(b.slug, sub.run_id);
   });
@@ -870,40 +953,99 @@ describe('the render records, state by state and site by site', () => {
     return rb.get(id)!;
   };
   /** The id a caller names in each state (default: quote-v2). */
-  const ASK: Record<string, string> = { ctl: 'quote-v1', 'renamed-newest': 'quote-v2', 'renamed-fixed': 'quote-v2', 'renamed-old': 'quote-v0', 'renamed-reused': 'quote-v1', copy: 'quote-v1', 'copy-backup': 'quote-v1', 'out-name': 'quote-final', 'empty-id': 'x', 'keep-json': 'quote-v1', 'keep-json-without': 'quote-v1', 'final-files': 'quote-v1' };
+  const ASK: Record<string, string> = {
+    ctl: 'quote-v1',
+    'renamed-newest': 'quote-v2',
+    'renamed-fixed': 'quote-v2',
+    'renamed-old': 'quote-v0',
+    'renamed-reused': 'quote-v1',
+    copy: 'quote-v1',
+    'copy-backup': 'quote-v1',
+    'out-name': 'quote-final',
+    'empty-id': 'x',
+    'keep-json': 'quote-v1',
+    'keep-json-without': 'quote-v1',
+    'final-files': 'quote-v1',
+  };
   const ask = (id: string) => ASK[id] ?? 'quote-v2';
   const rsites = {
-    latest: (b: BuiltRenders) => answer(b, async () => {
-      const v = await engine.renders.status(b.slug, 'latest', { scenario: 'quote' });
-      return `${v.render_id}:${v.status}${v.record ? '' : ' (no record)'}`;
-    }),
-    byId: (b: BuiltRenders) => answer(b, async () => {
-      const v = await engine.renders.status(b.slug, ask(b.state));
-      return `${v.render_id}:${v.status}${v.record ? '' : ' (no record)'}`;
-    }),
+    latest: (b: BuiltRenders) =>
+      answer(b, async () => {
+        const v = await engine.renders.status(b.slug, 'latest', { scenario: 'quote' });
+        return `${v.render_id}:${v.status}${v.record ? '' : ' (no record)'}`;
+      }),
+    byId: (b: BuiltRenders) =>
+      answer(b, async () => {
+        const v = await engine.renders.status(b.slug, ask(b.state));
+        return `${v.render_id}:${v.status}${v.record ? '' : ' (no record)'}`;
+      }),
     work: (b: BuiltRenders) => answer(b, async () => `taken ${(await renderForWork(await loadProject(b.slug, root), ask(b.state))).id}`),
     workLatest: (b: BuiltRenders) => answer(b, async () => `taken ${(await renderForWork(await loadProject(b.slug, root), 'latest', { scenario: 'quote' })).id}`),
-    studio: (b: BuiltRenders) => answer(b, async () => (await engine.renders.ofScenario(b.slug, 'quote')).renders.map((r) => `${r.render_id}:${r.status}:${r.variant}:${r.run_id === b.old ? 'OLD' : r.run_id === b.new ? 'NEW' : r.run_id}`).join(' ') || '-'),
-    board: (b: BuiltRenders) => answer(b, async () => {
-      const s = (await engine.projects.board(b.slug)).scenarios.find((x) => x.name === 'quote');
-      return `${s?.render ? `${s.render.render_id}:${s.render.status}` : '-'}${s?.render_failed ? ` failed ${s.render_failed.render_id}` : ''}`;
-    }),
+    studio: (b: BuiltRenders) =>
+      answer(
+        b,
+        async () =>
+          (await engine.renders.ofScenario(b.slug, 'quote')).renders
+            .map((r) => `${r.render_id}:${r.status}:${r.variant}:${r.run_id === b.old ? 'OLD' : r.run_id === b.new ? 'NEW' : r.run_id}`)
+            .join(' ') || '-',
+      ),
+    board: (b: BuiltRenders) =>
+      answer(b, async () => {
+        const s = (await engine.projects.board(b.slug)).scenarios.find((x) => x.name === 'quote');
+        return `${s?.render ? `${s.render.render_id}:${s.render.status}` : '-'}${s?.render_failed ? ` failed ${s.render_failed.render_id}` : ''}`;
+      }),
     index: (b: BuiltRenders) => answer(b, async () => (await renderIndex(b.dir)).map((r) => r.id).join(' ') || '-'),
     commentsLatest: (b: BuiltRenders) => answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: 'latest', scenario: 'quote' })).total}`),
     // L7.6c: the search index's rows of the project (id:status), in the order of ids.
-    search: (b: BuiltRenders) => answer(b, async () => (await readRenders(b.dir)).map((r) => `${r.id}:${r.status ?? '-'}`).sort().join(' ') || '-'),
+    search: (b: BuiltRenders) =>
+      answer(
+        b,
+        async () =>
+          (await readRenders(b.dir))
+            .map((r) => `${r.id}:${r.status ?? '-'}`)
+            .sort()
+            .join(' ') || '-',
+      ),
     // L7.6c: the timeline's version matcher on the id asked, at the creation times of quote-v1 (09:01) and quote-v2
     // (09:02), against the plan of NEW and the fixture's theme hash: the times it says are this version.
-    matcher: (b: BuiltRenders) => answer(b, async () => {
-      const plan = JSON.parse(JSON.stringify(RENDER_STATES.record.plan).replaceAll('$RUN', b.new).replaceAll('$PROJECT', b.slug)) as unknown;
-      const at = ['2026-10-02T09:01:00.000Z', '2026-10-02T09:02:00.000Z'];
-      const got = await versionMatches(b.dir, planSignature(plan)!, '0123456789abcdef', at.map((created_at) => ({ id: ask(b.state), created_at })));
-      return at.filter((_a, i) => got[i]).map((a) => a.slice(11, 16)).join(' ') || 'none';
-    }),
-    prune: (b: BuiltRenders) => answer(b, async () => {
-      const r = await engine.projects.prune(b.slug, { dry_run: true });
-      return `${r.items.map((i) => `${i.kind} ${who(b, i.id)} (${i.reason}): ${i.paths.map((p) => p.slice(b.dir.length + 1).replaceAll(b.old, 'OLD').replaceAll(b.new, 'NEW')).join(' ') || 'no file'}`).join('; ') || 'nothing'} | kept ${r.kept.runs} runs, ${r.kept.renders} renders`;
-    }),
+    matcher: (b: BuiltRenders) =>
+      answer(b, async () => {
+        const plan = JSON.parse(JSON.stringify(RENDER_STATES.record.plan).replaceAll('$RUN', b.new).replaceAll('$PROJECT', b.slug)) as unknown;
+        const at = ['2026-10-02T09:01:00.000Z', '2026-10-02T09:02:00.000Z'];
+        const got = await versionMatches(
+          b.dir,
+          planSignature(plan)!,
+          '0123456789abcdef',
+          at.map((created_at) => ({ id: ask(b.state), created_at })),
+        );
+        return (
+          at
+            .filter((_a, i) => got[i])
+            .map((a) => a.slice(11, 16))
+            .join(' ') || 'none'
+        );
+      }),
+    prune: (b: BuiltRenders) =>
+      answer(b, async () => {
+        const r = await engine.projects.prune(b.slug, { dry_run: true });
+        return `${
+          r.items
+            .map(
+              (i) =>
+                `${i.kind} ${who(b, i.id)} (${i.reason}): ${
+                  i.paths
+                    .map((p) =>
+                      p
+                        .slice(b.dir.length + 1)
+                        .replaceAll(b.old, 'OLD')
+                        .replaceAll(b.new, 'NEW'),
+                    )
+                    .join(' ') || 'no file'
+                }`,
+            )
+            .join('; ') || 'nothing'
+        } | kept ${r.kept.runs} runs, ${r.kept.renders} renders`;
+      }),
   };
   type RRow = Record<keyof typeof rsites, string>;
   const RTABLE: Record<string, RRow> = {
@@ -1382,7 +1524,6 @@ describe('the render records, state by state and site by site', () => {
       matcher: 'none',
       prune: 'run OLD (older capture nothing uses): runs/OLD; render quote-v1 (older render): renders/quote-v1.json renders/quote-v1.mp4 | kept 1 runs, 4 renders',
     },
-
   };
 
   const CTABLE: Record<string, { list: string; anchor: string; outline: string; asRead: string }> = {
@@ -1480,17 +1621,19 @@ describe('the render records, state by state and site by site', () => {
       outline: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
       asRead: 'refused: the video of render quote-v2 (/etc/hosts) is outside the project folder: through MCP a render is read only from the project',
     },
-
   };
 
-  it('a record whose plan is nested deeper than a signature can be written is listed without its plan\'s signature, never a failed list (L7.6c fix pass; before: the Studio\'s list of the scenario threw)', async () => {
+  it("a record whose plan is nested deeper than a signature can be written is listed without its plan's signature, never a failed list (L7.6c fix pass; before: the Studio's list of the scenario threw)", async () => {
     const b = buildRenderState(root, 'v2', { film, runFilm: film, slug: 'r-deep-plan' });
     const file = join(b.renders, 'quote-v2.json');
     const rec = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
     const deep = `${'{"a":'.repeat(20_000)}1${'}'.repeat(20_000)}`;
     writeFileSync(file, JSON.stringify({ ...rec, plan: '@@PLAN@@' }).replace('"@@PLAN@@"', deep));
     const list = await engine.renders.ofScenario(b.slug, 'quote');
-    expect(list.renders.map((r) => [r.render_id, r.plan_sha256 === undefined ? 'no signature' : 'signed'])).toEqual([['quote-v2', 'no signature'], ['quote-v1', 'signed']]);
+    expect(list.renders.map((r) => [r.render_id, r.plan_sha256 === undefined ? 'no signature' : 'signed'])).toEqual([
+      ['quote-v2', 'no signature'],
+      ['quote-v1', 'signed'],
+    ]);
   });
 
   it('every state of the renders table at every site', async () => {
@@ -1504,7 +1647,7 @@ describe('the render records, state by state and site by site', () => {
     expect(got).toEqual(RTABLE);
   }, 240_000);
 
-  it('the comments and the frame service on a render named by its id: the list on it, a new comment\'s anchor, the viewer\'s outline', async () => {
+  it("the comments and the frame service on a render named by its id: the list on it, a new comment's anchor, the viewer's outline", async () => {
     const sites = {
       // The comment list on one render (the comment index: readers 1 + recordShapeOk).
       list: (b: BuiltRenders) => answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: ask(b.state) })).total}`),
@@ -1516,14 +1659,29 @@ describe('the render records, state by state and site by site', () => {
       asRead: (b: BuiltRenders) => answer(b, async () => `frames ${(await engine.renders.outline(b.slug, { render_id: ask(b.state), created_at: '2026-10-02T09:02:00.000Z' })).frames}`),
     };
     const got: Record<string, Record<keyof typeof sites, string>> = {};
-    for (const id of ['v2', 'no-created', 'renamed-reused', 'scenario-other', 'scenario-7', 'no-variant', 'paused', 'variant-cube', 'version-2', 'link', 'out-name', 'no-plan', 'cut-short', 'file-outside']) {
+    for (const id of [
+      'v2',
+      'no-created',
+      'renamed-reused',
+      'scenario-other',
+      'scenario-7',
+      'no-variant',
+      'paused',
+      'variant-cube',
+      'version-2',
+      'link',
+      'out-name',
+      'no-plan',
+      'cut-short',
+      'file-outside',
+    ]) {
       const b = rstate(id);
       got[id] = { list: await sites.list(b), anchor: await sites.anchor(b), outline: await sites.outline(b), asRead: await sites.asRead(b) };
     }
     expect(got).toEqual(CTABLE);
   }, 240_000);
 
-  it('an export submitted of a record whose variant this version does not write is refused in one sentence (row 22; before the lot: a raw TypeError from the export\'s sizes)', async () => {
+  it("an export submitted of a record whose variant this version does not write is refused in one sentence (row 22; before the lot: a raw TypeError from the export's sizes)", async () => {
     const b = buildRenderState(root, 'variant-cube', { slug: 'r-cube-export', film, runFilm: film });
     const e = await engine.exports.submit({ project: b.slug, render_id: 'quote-v2', formats: ['mp4_1080p', 'square_1x1'] }).catch((x: unknown) => x);
     // (Fix pass) Through MCP in fixed words: the word is text anyone who can write renders/ chose — never in the
@@ -1545,7 +1703,7 @@ describe('the render records, state by state and site by site', () => {
     expect(await answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: 'latest', scenario: 'quote' })).total}`)).toBe('listed 0');
   }, 120_000);
 
-  it('what the engine\'s `latest` passed over is said: a count, the file names under `untrusted` only — render_status, a review and an export submitted, the comment list; a render named by its id says nothing', async () => {
+  it("what the engine's `latest` passed over is said: a count, the file names under `untrusted` only — render_status, a review and an export submitted, the comment list; a render named by its id says nothing", async () => {
     // L7.6b (rows 7 and 14): a record renamed by hand, newer than the newest render of its own file.
     const b = buildRenderState(root, 'renamed-newest', { slug: 'r-said', film, runFilm: film });
     const passed = [{ file: 'quote-final.json', why: 'renamed' }];
@@ -1572,7 +1730,7 @@ describe('the render records, state by state and site by site', () => {
     expect([many.render_id, many.renders_passed_over, many.untrusted.renders_passed_over?.length]).toEqual(['quote-v1', 8, 5]);
   });
 
-  it('the Studio\'s list says what it does not show: a count by reason, fixed words, never a file name', async () => {
+  it("the Studio's list says what it does not show: a count by reason, fixed words, never a file name", async () => {
     const shown = async (id: string) => (await engine.renders.ofScenario(rstate(id).slug, 'quote')).not_shown;
     expect(await shown('v2')).toBeUndefined();
     expect(await shown('paused')).toEqual({ count: 1, reasons: [{ why: 'unknown-status', count: 1 }] });
@@ -1585,7 +1743,7 @@ describe('the render records, state by state and site by site', () => {
     expect([await shown('failed'), await shown('renamed-newest'), await shown('out-name')]).toEqual([undefined, undefined, undefined]);
   });
 
-  it('records as older builds wrote them (fixtures written by hand from the type of their commit): a status by id, the Studio\'s list, the board', async () => {
+  it("records as older builds wrote them (fixtures written by hand from the type of their commit): a status by id, the Studio's list, the board", async () => {
     const b = buildRenderState(root, 'ctl', { slug: 'r-past', film, runFilm: film });
     rmSync(join(b.renders, 'quote-v1.json'));
     const got: Record<string, string> = {};
@@ -1597,8 +1755,15 @@ describe('the render records, state by state and site by site', () => {
       // (L7.8, decision ii; before: as `record`); `record` holds its checked members: what is left out is text of the file.
       const { plan: _plan, warnings: _warnings, ...rest } = value as Record<string, unknown>;
       const out = (a: Record<string, unknown>, b: Record<string, unknown> | undefined, at = ''): string[] =>
-        Object.keys(a).flatMap((k) => (b === undefined || !(k in b) ? [`${at}${k}`] : a[k] && typeof a[k] === 'object' && !Array.isArray(a[k]) && k !== 'overrides' ? out(a[k] as Record<string, unknown>, b[k] as Record<string, unknown>, `${at}${k}.`) : []));
-      got[f] = `${v.status} ${JSON.stringify(v.untrusted.record) === JSON.stringify(rest) ? 'the record as written' : 'ANOTHER RECORD'}; not trusted: ${out(rest, v.record as unknown as Record<string, unknown>).join(' ')}`;
+        Object.keys(a).flatMap((k) =>
+          b === undefined || !(k in b)
+            ? [`${at}${k}`]
+            : a[k] && typeof a[k] === 'object' && !Array.isArray(a[k]) && k !== 'overrides'
+              ? out(a[k] as Record<string, unknown>, b[k] as Record<string, unknown>, `${at}${k}.`)
+              : [],
+        );
+      got[f] =
+        `${v.status} ${JSON.stringify(v.untrusted.record) === JSON.stringify(rest) ? 'the record as written' : 'ANOTHER RECORD'}; not trusted: ${out(rest, v.record as unknown as Record<string, unknown>).join(' ')}`;
     }
     expect(got).toEqual({
       // `project`: the fixtures name another project than the one asked; the rest: paths and sentences (L7.8).

@@ -122,15 +122,13 @@ describe('retake plan', () => {
       await writeFile(join(dir, 'run.json'), JSON.stringify({ version: 2, id: '20261011-182524-catalogue', env: 'local' }));
       const newer = await retake('plan', 'demo', '20261011-182524-catalogue');
       expect(newer.code).toBe(EXIT.failure);
-      expect(newer.err).toContain(
-        'run 20261011-182524-catalogue: this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
-      );
+      expect(newer.err).toContain('run 20261011-182524-catalogue: this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake');
     } finally {
       await writeFile(join(dir, 'run.json'), record('20261011-182524-catalogue', 'catalogue'));
     }
   });
 
-  it('warns when the filmed part of the scenario changed since the run was captured: the plan is the run\'s (L3.8, L5.5; stderr, --json too)', async () => {
+  it("warns when the filmed part of the scenario changed since the run was captured: the plan is the run's (L3.8, L5.5; stderr, --json too)", async () => {
     const run = '20261011-182706-quote';
     const snapshot = 'video: quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
     const file = join(ws, 'projects', 'demo', 'scenarios', 'quote.yaml');

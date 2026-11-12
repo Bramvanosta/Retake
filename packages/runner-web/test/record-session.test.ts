@@ -102,7 +102,8 @@ async function record(drive: (page: Page) => Promise<void>, over: Partial<Record
   const file = join(dir, `events-${randomBytes(4).toString('hex')}.jsonl`);
   const logs: string[] = [];
   const project = over.project ?? projectWith();
-  const r = await recordSession({ policy: PERSON_POLICY,
+  const r = await recordSession({
+    policy: PERSON_POLICY,
     project,
     env: resolveEnvironment(project, 'test'),
     url: `${fixture.urls.shop}/record-lab`,
@@ -159,7 +160,10 @@ describe('recordSession: what is recorded', () => {
       await page.getByRole('button', { name: 'Save address' }).click();
       await page.waitForTimeout(400);
       // A row's menu, an item that asks to confirm, the confirmation.
-      await page.getByRole('row', { name: /Cerro Alto/ }).getByRole('button', { name: 'Row actions' }).click();
+      await page
+        .getByRole('row', { name: /Cerro Alto/ })
+        .getByRole('button', { name: 'Row actions' })
+        .click();
       await page.waitForTimeout(400);
       await page.getByRole('menuitem', { name: 'Archive' }).click();
       await page.waitForTimeout(400);
@@ -186,7 +190,12 @@ describe('recordSession: what is recorded', () => {
       expect(RecordedEventSchema.safeParse(e).success).toBe(true);
       expect(e.seq).toBe(i);
     });
-    expect(bytes.trim().split('\n').map((l) => JSON.parse(l) as RecordedEvent)).toEqual(r.events);
+    expect(
+      bytes
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as RecordedEvent),
+    ).toEqual(r.events);
     expect(statSync(file).mode & 0o777).toBe(0o600);
     expect(r.counts.dropped).toEqual({ sign_in: 0, frame: 0, invalid: 0, new_page: 0 });
     // The lab's script set the Email field before the person typed in it: that initial value is never sent.
@@ -419,7 +428,15 @@ describe('recordSession: secrets', () => {
     expect(looksLikeToken('https://shop.example/coffees')).toBe(false);
     expect(looksLikeToken('a fine sentence with spaces in it')).toBe(false);
     // Path segments and query values: credentials and addresses, not slugs or ids.
-    for (const v of ['eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJub2EifQ.Q7xLm2Rt9KfZp4Vw8NcY3sJd', 'Q7xLm2Rt9KfZp4Vw8NcY3sJd', '0f8e2b6c4a1d4e7f9b3c5a7d1e2f3a4b', '3f2c7a9e-1b4d-4c8e-9f0a-6d5e4c3b2a1f', 'noa@cafe.example', 'noa%40cafe.example', 'a8f3k2j9d0s8f7g6h5j4k3l2']) {
+    for (const v of [
+      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJub2EifQ.Q7xLm2Rt9KfZp4Vw8NcY3sJd',
+      'Q7xLm2Rt9KfZp4Vw8NcY3sJd',
+      '0f8e2b6c4a1d4e7f9b3c5a7d1e2f3a4b',
+      '3f2c7a9e-1b4d-4c8e-9f0a-6d5e4c3b2a1f',
+      'noa@cafe.example',
+      'noa%40cafe.example',
+      'a8f3k2j9d0s8f7g6h5j4k3l2',
+    ]) {
       expect(looksLikeSecretSegment(v), v).toBe(true);
     }
     for (const v of ['products', 'single-origin-ethiopia-yirgacheffe-2024', 'how-to-brew-coffee-2024', '12345', 'Selowa_Ridge', 'lots']) expect(looksLikeSecretSegment(v), v).toBe(false);
@@ -658,7 +675,8 @@ describe('recordSession: how it ends', () => {
     const cancel = new AbortController();
     const file = join(dir, 'cancelled.jsonl');
     const project = projectWith();
-    const p = recordSession({ policy: PERSON_POLICY,
+    const p = recordSession({
+      policy: PERSON_POLICY,
       project,
       env: resolveEnvironment(project, 'test'),
       url: `${fixture.urls.shop}/record-lab`,

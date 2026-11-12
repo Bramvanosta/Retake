@@ -26,8 +26,11 @@ const savedHome = process.env.RETAKE_HOME;
 
 const project = (name: string, envs: string[]) => ['name: ' + name, 'environments:', ...envs, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n');
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n      - hold: 0.3\n';
-const LEAK = SHORT.replace('video: short', 'video: leak').replace('      - hold: 0.2', "      - eval: {js: \"throw new Error(btoa('{{env:HOME}}'))\"}");
-const PLAIN_HOOK = SHORT.replace('video: short', 'video: plain').replace('scenes:', 'setup:\n  - http: {method: POST, url: "{{console}}/x", rollback: {method: DELETE, url: "{{console}}/x"}}\nscenes:');
+const LEAK = SHORT.replace('video: short', 'video: leak').replace('      - hold: 0.2', '      - eval: {js: "throw new Error(btoa(\'{{env:HOME}}\'))"}');
+const PLAIN_HOOK = SHORT.replace('video: short', 'video: plain').replace(
+  'scenes:',
+  'setup:\n  - http: {method: POST, url: "{{console}}/x", rollback: {method: DELETE, url: "{{console}}/x"}}\nscenes:',
+);
 const BROKEN = 'video: broken\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - clik: Save\n';
 
 beforeAll(async () => {
@@ -35,7 +38,16 @@ beforeAll(async () => {
   process.env.RETAKE_HOME = join(ws, '.home');
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   const files: Record<string, string> = {
-    'prod/project.yaml': project('Prod', ['  production:', '    production: true', '    pages:', '      console: http://127.0.0.1:4999', '  frozen:', '    access: read-only', '    pages:', '      console: https://frozen.example.com']),
+    'prod/project.yaml': project('Prod', [
+      '  production:',
+      '    production: true',
+      '    pages:',
+      '      console: http://127.0.0.1:4999',
+      '  frozen:',
+      '    access: read-only',
+      '    pages:',
+      '      console: https://frozen.example.com',
+    ]),
     'prod/scenarios/armed.yaml': PLAIN_HOOK.replace('video: plain', 'video: armed\nenv: frozen'),
     'twin/project.yaml': project('Twin', ['  staging:', '    console: http://localhost:4999']),
     'twin/scenarios/short.yaml': SHORT.replace('video: short', 'video: short\nenv: staging'),
@@ -104,7 +116,16 @@ describe('scenarios.actions: the status bar’s read', () => {
   it('the hash, the location, the counts, no run; a queued rehearsal is `running` with its job (critique M4), and it carries no path but the commands', async () => {
     const check = await ui.scenarios.check('w', 'short');
     const a = await ui.scenarios.actions('w', 'short');
-    expect(a).toMatchObject({ project: 'w', name: 'short', hash: check.hash, ok: true, environment: { name: 'local', production: false, access: 'read-write', sandbox: false }, content: { scenes: 1, steps: 2 }, runs: [], running: null });
+    expect(a).toMatchObject({
+      project: 'w',
+      name: 'short',
+      hash: check.hash,
+      ok: true,
+      environment: { name: 'local', production: false, access: 'read-write', sandbox: false },
+      content: { scenes: 1, steps: 2 },
+      runs: [],
+      running: null,
+    });
     expect(a.capture).toBeUndefined();
     expect(a.render_job).toBeUndefined();
     const sub = await ui.runs.submit({ project: 'w', scenario: 'short', mode: 'dry' });
@@ -125,7 +146,7 @@ describe('scenarios.actions: the status bar’s read', () => {
     expect(c.runs[0].job).toBeUndefined();
   });
 
-  it('⚑ a terminal\'s run and a Studio job unfinished together: `running` is the job\'s run (Stop reaches it), however new the terminal\'s is', async () => {
+  it("⚑ a terminal's run and a Studio job unfinished together: `running` is the job's run (Stop reaches it), however new the terminal's is", async () => {
     const term = '20991231-000000-short';
     await writeRun(join(ws, 'projects', 'w'), { id: term, scenario: 'short', mode: 'dry', status: 'running', noTimeline: true, steps_total: 2, events: [] });
     const sub = await ui.runs.submit({ project: 'w', scenario: 'short', mode: 'dry' });

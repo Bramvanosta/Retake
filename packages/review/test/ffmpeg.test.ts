@@ -18,9 +18,18 @@ beforeAll(async () => {
   ramp = join(dir, 'ramp.mkv');
   // Lossless 64×36 video, 750 frames at 30 fps: every pixel of frame n is grey n mod 256.
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y', '-f', 'lavfi',
-    '-i', "nullsrc=s=64x36:r=30:d=25,format=gbrp,geq=r='mod(N\\,256)':g='mod(N\\,256)':b='mod(N\\,256)'",
-    '-c:v', 'ffv1', '-pix_fmt', 'gbrp', ramp,
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    "nullsrc=s=64x36:r=30:d=25,format=gbrp,geq=r='mod(N\\,256)':g='mod(N\\,256)':b='mod(N\\,256)'",
+    '-c:v',
+    'ffv1',
+    '-pix_fmt',
+    'gbrp',
+    ramp,
   ]);
 });
 
@@ -33,10 +42,14 @@ describe('extractFrames', () => {
     expect(selectExpr([])).toBe('0');
     expect(selectExpr([4])).toBe('eq(n\\,4)');
     expect(selectExpr([1, 2, 3])).toBe('(eq(n\\,1)+(eq(n\\,2)+eq(n\\,3)))');
-    const depth = (s: string) => [...s].reduce((acc, c) => {
-      const d = acc.d + (c === '(' ? 1 : c === ')' ? -1 : 0);
-      return { d, max: Math.max(acc.max, d) };
-    }, { d: 0, max: 0 }).max;
+    const depth = (s: string) =>
+      [...s].reduce(
+        (acc, c) => {
+          const d = acc.d + (c === '(' ? 1 : c === ')' ? -1 : 0);
+          return { d, max: Math.max(acc.max, d) };
+        },
+        { d: 0, max: 0 },
+      ).max;
     expect(depth(selectExpr(Array.from({ length: 1000 }, (_, i) => i)))).toBeLessThanOrEqual(11); // 10 levels + eq()
   });
 

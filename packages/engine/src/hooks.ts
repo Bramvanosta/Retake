@@ -89,7 +89,12 @@ export function scenarioOfHooksSource(spec: string): string | undefined {
  * inside the project — never an absolute path or one relative to the current folder. `expectSha256`: the scenario of
  * `<scenario>:setup|teardown` is read once and parsed only when its bytes have that sha256 (core ScenarioChangedError).
  */
-export async function selectHooks(project: LoadedProject, spec: string, envOpt: string | undefined, o: { projectFilesOnly?: boolean; expectSha256?: string; files: WorkFileFacts }): Promise<HookSelection> {
+export async function selectHooks(
+  project: LoadedProject,
+  spec: string,
+  envOpt: string | undefined,
+  o: { projectFilesOnly?: boolean; expectSha256?: string; files: WorkFileFacts },
+): Promise<HookSelection> {
   if (spec === 'reset') {
     const hooks = project.config.reset ?? [];
     if (!hooks.length) throw new HooksSourceError(`project "${project.slug}" declares no reset hooks (add \`reset:\` to project.yaml)`, false);

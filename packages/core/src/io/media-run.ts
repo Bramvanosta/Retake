@@ -93,20 +93,15 @@ export function runMediaTool(program: string, args: readonly string[], o?: Media
 export function runMediaTool(program: string, args: readonly string[], o: MediaRunOptions = {}): Promise<MediaRunResult<string | Buffer>> {
   return new Promise((done) => {
     let timedOut = false;
-    const child = execFile(
-      program,
-      [...args],
-      { encoding: o.encoding === 'buffer' ? 'buffer' : 'utf8', ...(o.maxBuffer !== undefined ? { maxBuffer: o.maxBuffer } : {}) },
-      (err, stdout, stderr) => {
-        if (timer) clearTimeout(timer);
-        o.signal?.removeEventListener('abort', onAbort);
-        const text = String(stderr ?? '');
-        const out = o.encoding === 'buffer' ? (stdout as unknown as Buffer) : String(stdout ?? '');
-        if (!err) return done({ code: 0, stdout: out, stderr: text, error: null });
-        const error = runError(program, err, text, o, timedOut);
-        done({ code: error.code, stdout: out, stderr: text, error });
-      },
-    );
+    const child = execFile(program, [...args], { encoding: o.encoding === 'buffer' ? 'buffer' : 'utf8', ...(o.maxBuffer !== undefined ? { maxBuffer: o.maxBuffer } : {}) }, (err, stdout, stderr) => {
+      if (timer) clearTimeout(timer);
+      o.signal?.removeEventListener('abort', onAbort);
+      const text = String(stderr ?? '');
+      const out = o.encoding === 'buffer' ? (stdout as unknown as Buffer) : String(stdout ?? '');
+      if (!err) return done({ code: 0, stdout: out, stderr: text, error: null });
+      const error = runError(program, err, text, o, timedOut);
+      done({ code: error.code, stdout: out, stderr: text, error });
+    });
     // execFile's own `timeout`, as it does it: the signal, the error then marked `killed`.
     const timer =
       o.timeoutMs !== undefined

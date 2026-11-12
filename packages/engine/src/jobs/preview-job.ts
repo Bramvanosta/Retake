@@ -343,7 +343,18 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
         const slot = byComponent.get(r.id)!;
         if (slot.poster && r.poster) {
           await commitLibraryEntry(cacheDir, slot.poster.key!, slot.poster.tmp!, {
-            meta: { format: LIBRARY_PREVIEW_FORMAT, key: slot.poster.key!, kind: 'poster', component: r.id, theme, at: at(), state: 'ok', bytes: r.poster.bytes, width: r.poster.width, height: r.poster.height },
+            meta: {
+              format: LIBRARY_PREVIEW_FORMAT,
+              key: slot.poster.key!,
+              kind: 'poster',
+              component: r.id,
+              theme,
+              at: at(),
+              state: 'ok',
+              bytes: r.poster.bytes,
+              width: r.poster.width,
+              height: r.poster.height,
+            },
           });
           slot.poster.state = 'written';
         }
@@ -352,7 +363,21 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
           const meta =
             'too_large' in l
               ? ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'too_large', bytes: l.bytes } as const)
-              : ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'ok', bytes: l.bytes, width: l.width, height: l.height, fps: l.fps, frames: l.frames, duration_s: l.duration_s } as const);
+              : ({
+                  format: LIBRARY_PREVIEW_FORMAT,
+                  key: slot.loop.key!,
+                  kind: 'loop',
+                  component: r.id,
+                  theme,
+                  at: at(),
+                  state: 'ok',
+                  bytes: l.bytes,
+                  width: l.width,
+                  height: l.height,
+                  fps: l.fps,
+                  frames: l.frames,
+                  duration_s: l.duration_s,
+                } as const);
           await commitLibraryEntry(cacheDir, slot.loop.key!, slot.loop.tmp!, { meta });
           slot.loop.state = 'too_large' in l ? 'too_large' : 'written';
         }
@@ -369,8 +394,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
         signal: ctx.signal,
         onBrowser: (b) => ctx.browser(b),
         onItem: commit,
-        onProgress: (n, of) =>
-          ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: at() }),
+        onProgress: (n, of) => ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: at() }),
       });
       bundle = done.bundle;
       warnings = done.warnings;
@@ -385,7 +409,9 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
           // A fresh temporary folder becomes its failed.json entry (the editor removed the item's files).
           await rm(w.tmp!, { recursive: true, force: true });
           w.tmp = await stageLibraryEntry(cacheDir, w.key!);
-          await commitLibraryEntry(cacheDir, w.key!, w.tmp, { failure: { format: LIBRARY_PREVIEW_FORMAT, key: w.key!, kind: w.kind, component: f.id, theme, at: at(), reason, bundle: await keys.registryHash() } });
+          await commitLibraryEntry(cacheDir, w.key!, w.tmp, {
+            failure: { format: LIBRARY_PREVIEW_FORMAT, key: w.key!, kind: w.kind, component: f.id, theme, at: at(), reason, bundle: await keys.registryHash() },
+          });
           w.state = 'failed';
         }
       }

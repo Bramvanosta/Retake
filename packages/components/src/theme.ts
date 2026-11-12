@@ -11,7 +11,11 @@ export interface ThemeUrls {
 
 /** CSS font-family names under which the host composition registers the template fonts. */
 export function themeFontFamilies(templateName: string): { display: string; body: string } {
-  const slug = templateName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'theme';
+  const slug =
+    templateName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'theme';
   return { display: `ds-${slug}-display`, body: `ds-${slug}-body` };
 }
 
@@ -34,7 +38,9 @@ function lastPart(file: string): string {
 
 /** Font weight and style from a font file name ("Inter-SemiBold.ttf" → 600 normal; default 400). */
 export function fontFileFace(file: string): { weight: number; style: 'normal' | 'italic' } {
-  const name = lastPart(file).replace(/\.[^.]+$/, '').toLowerCase();
+  const name = lastPart(file)
+    .replace(/\.[^.]+$/, '')
+    .toLowerCase();
   const style = /italic|oblique/.test(name) ? 'italic' : 'normal';
   for (const [re, weight] of WEIGHTS) if (re.test(name)) return { weight, style };
   return { weight: 400, style };

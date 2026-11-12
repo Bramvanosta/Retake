@@ -2,18 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  JOURNAL_FILE,
-  JOURNALS_DIR,
-  Journal,
-  JournalError,
-  findJournal,
-  findPendingJournals,
-  journalId,
-  rollbackPendingJournals,
-  runHooks,
-  standaloneJournalFile,
-} from '@retake/hooks';
+import { JOURNAL_FILE, JOURNALS_DIR, Journal, JournalError, findJournal, findPendingJournals, journalId, rollbackPendingJournals, runHooks, standaloneJournalFile } from '@retake/hooks';
 import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
 
@@ -105,7 +94,9 @@ describe('Journal', () => {
         (e: unknown) => e,
       );
       expect(thrown, why).toBeInstanceOf(JournalError);
-      expect((thrown as Error).message).toBe(`hooks journal ${file} is malformed: entries[1] (#2) ${why.startsWith('has ') ? why : `has a malformed ${(rollback as { kind: string }).kind} rollback: ${why}`}`);
+      expect((thrown as Error).message).toBe(
+        `hooks journal ${file} is malformed: entries[1] (#2) ${why.startsWith('has ') ? why : `has a malformed ${(rollback as { kind: string }).kind} rollback: ${why}`}`,
+      );
     }
 
     // A journal Retake signed, with a malformed entry added by hand: nothing of it is replayed, the error names it.
@@ -126,10 +117,53 @@ describe('Journal', () => {
     const old = {
       version: 1,
       entries: [
-        { seq: 1, kind: 'http', phase: 'setup', description: 'POST x', started_at: at, finished_at: at, status: 'ok', rolled_back: false, rollback: { kind: 'http', request: { method: 'DELETE', url: 'http://localhost:1/x', expect: [200, 204] }, description: 'DELETE x', data: { pages: { app: 'http://localhost:1' } }, note: 'kept' } },
-        { seq: 2, kind: 'sql', phase: 'setup', description: 'sql', started_at: at, finished_at: at, status: 'ok', rollback: { kind: 'sql', db: 'main', query: 'DELETE FROM t', description: 'sql', data: {} } },
-        { seq: 3, kind: 'shell', phase: 'step', description: 'sh', started_at: at, finished_at: at, status: 'ok', rollback: { kind: 'shell', run: 'true', timeout: 5, agent: true, env: { A: 'b' }, description: 'sh', data: {} } },
-        { seq: 4, kind: 'js', phase: 'setup', description: 'js', started_at: at, finished_at: at, status: 'rolled_back', rollback: { kind: 'js', code: '1', page: 'app', description: 'js', data: {} } },
+        {
+          seq: 1,
+          kind: 'http',
+          phase: 'setup',
+          description: 'POST x',
+          started_at: at,
+          finished_at: at,
+          status: 'ok',
+          rolled_back: false,
+          rollback: {
+            kind: 'http',
+            request: { method: 'DELETE', url: 'http://localhost:1/x', expect: [200, 204] },
+            description: 'DELETE x',
+            data: { pages: { app: 'http://localhost:1' } },
+            note: 'kept',
+          },
+        },
+        {
+          seq: 2,
+          kind: 'sql',
+          phase: 'setup',
+          description: 'sql',
+          started_at: at,
+          finished_at: at,
+          status: 'ok',
+          rollback: { kind: 'sql', db: 'main', query: 'DELETE FROM t', description: 'sql', data: {} },
+        },
+        {
+          seq: 3,
+          kind: 'shell',
+          phase: 'step',
+          description: 'sh',
+          started_at: at,
+          finished_at: at,
+          status: 'ok',
+          rollback: { kind: 'shell', run: 'true', timeout: 5, agent: true, env: { A: 'b' }, description: 'sh', data: {} },
+        },
+        {
+          seq: 4,
+          kind: 'js',
+          phase: 'setup',
+          description: 'js',
+          started_at: at,
+          finished_at: at,
+          status: 'rolled_back',
+          rollback: { kind: 'js', code: '1', page: 'app', description: 'js', data: {} },
+        },
         { seq: 5, kind: 'shell', phase: 'teardown', description: 'no rollback', started_at: at, finished_at: at, status: 'ok' },
       ],
     };
@@ -164,11 +198,10 @@ describe('Journal', () => {
   it('a failed rollback stays pending with its error and is retried next time', async () => {
     const { ctx } = makeContext(makeProject(tmp.dir));
     const journal = await Journal.open(runFile('r1'));
-    await runHooks(
-      [hook('a'), { name: 'flaky', shell: { run: 'true', rollback: 'test -f fixed || { echo "not yet" >&2; exit 1; }; echo undo-flaky >> order.log' } }],
-      ctx,
-      { phase: 'setup', journal },
-    );
+    await runHooks([hook('a'), { name: 'flaky', shell: { run: 'true', rollback: 'test -f fixed || { echo "not yet" >&2; exit 1; }; echo undo-flaky >> order.log' } }], ctx, {
+      phase: 'setup',
+      journal,
+    });
     const first = await journal.rollbackAll(ctx);
     expect(first.map((r) => [r.name, r.status])).toEqual([
       ['flaky', 'failed'],
@@ -195,11 +228,7 @@ describe('findPendingJournals', () => {
     await runHooks([hook('t')], ctx, { phase: 'teardown', journal: teardownOnly });
     await writeFiles(tmp.dir, { 'runs/20261008-090000-broken/hooks-journal.json': 'oops', 'runs/20261011-130000-nohooks/run.json': '{}' });
 
-    expect(await findPendingJournals(tmp.dir)).toEqual([
-      runFile('20261011-090000-catalogue'),
-      runFile('20261009-090000-catalogue'),
-      runFile('20261008-090000-broken'),
-    ]);
+    expect(await findPendingJournals(tmp.dir)).toEqual([runFile('20261011-090000-catalogue'), runFile('20261009-090000-catalogue'), runFile('20261008-090000-broken')]);
     expect(await findPendingJournals(join(tmp.dir, 'missing'))).toEqual([]);
 
     const rolled = await rollbackPendingJournals(tmp.dir, ctx);

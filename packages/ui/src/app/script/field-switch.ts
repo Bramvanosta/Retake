@@ -127,7 +127,8 @@ export function switchOptions(c: Choice, inherited?: string): SwitchOption[] {
   if (kind === 'speed') {
     const out: SwitchOption[] = [{ key: 'default', value: null, label: 'Normal (1×)', usable: true, checked: cur === undefined }];
     for (const s of SPEED_CHIPS) out.push({ key: `v:${s}`, value: s, label: speedWords(s), usable: true, checked: cur === s });
-    if (cur !== undefined && !SPEED_CHIPS.includes(cur as (typeof SPEED_CHIPS)[number])) out.push({ key: 'written', value: undefined, label: typeof cur === 'number' ? `${speedWords(cur)} (as written)` : `${String(cur)} (as written)`, usable: true, checked: true });
+    if (cur !== undefined && !SPEED_CHIPS.includes(cur as (typeof SPEED_CHIPS)[number]))
+      out.push({ key: 'written', value: undefined, label: typeof cur === 'number' ? `${speedWords(cur)} (as written)` : `${String(cur)} (as written)`, usable: true, checked: true });
     return out;
   }
   const out: SwitchOption[] = c.options.map((o) => {

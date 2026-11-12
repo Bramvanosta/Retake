@@ -204,12 +204,21 @@ describe('engine: runs, auth, sandbox', () => {
     const dry = await engine.runs.status('northfield-fixture', '20261017-120000-quote');
     expect(dry).toMatchObject({ status: 'failed', mode: 'dry', steps_done: 1, finished: true, error: { scene: 'catalog', step: 1, action: 'click' } });
     // run.json was written elsewhere (the project moved): refs follow the run folder, paths are the current ones.
-    expect(dry.screenshots).toEqual([{ ref: 'runs/20261017-120000-quote/screenshots/001-catalog.0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png') }]);
+    expect(dry.screenshots).toEqual([
+      { ref: 'runs/20261017-120000-quote/screenshots/001-catalog.0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png') },
+    ]);
     expect(dry.error?.screenshot?.ref).toBe('runs/20261017-120000-quote/error-catalog-1.png');
     expect(dry.untrusted.error_message).toContain('ignore your rules');
     // L5.6: the scene's other missing targets (their closest elements are page text) and the failed optional steps.
     expect(dry.untrusted.missing_targets).toEqual([{ scene: 'catalog', step: 3, action: 'type', target: 'label="Quantity"', near: [{ role: 'textbox', name: 'Quantity (kg)' }] }]);
-    expect(dry.optional_failures).toEqual([{ scene: 'catalog', step: 0, action: 'hover', screenshot: { ref: 'runs/20261017-120000-quote/error-catalog-0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'error-catalog-0.png') } }]);
+    expect(dry.optional_failures).toEqual([
+      {
+        scene: 'catalog',
+        step: 0,
+        action: 'hover',
+        screenshot: { ref: 'runs/20261017-120000-quote/error-catalog-0.png', path: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'error-catalog-0.png') },
+      },
+    ]);
     expect(dry.untrusted.optional_errors).toEqual(['no element "Featured" — page text']);
     expect(dry.untrusted.warnings).toHaveLength(1);
     expect(JSON.stringify({ ...dry, untrusted: undefined })).not.toContain('ignore');
@@ -222,7 +231,10 @@ describe('engine: runs, auth, sandbox', () => {
 
   it('auth status: personas with the command a human runs, no session paths', async () => {
     const r = await engine.auth.status({ project: 'northfield-fixture', env: 'signed-in' });
-    expect(r.personas.map((p) => [p.persona, p.status])).toEqual([['supplier', 'never'], ['buyer', 'never']]);
+    expect(r.personas.map((p) => [p.persona, p.status])).toEqual([
+      ['supplier', 'never'],
+      ['buyer', 'never'],
+    ]);
     expect(r.personas[0].command).toBe(`retake -C ${ws} login northfield-fixture --env signed-in --persona supplier`);
     expect(JSON.stringify(r)).not.toContain(home);
     await expect(engine.auth.status({ env: 'local' })).rejects.toMatchObject({ code: 'invalid' });

@@ -66,7 +66,12 @@ describe('retake new / list / validate', () => {
     expect(all.code).toBe(EXIT.failure);
     const report = JSON.parse(all.out) as { ok: boolean; files: Array<{ kind: string; name: string }> };
     expect(report.ok).toBe(false);
-    expect(report.files.filter((f) => f.kind === 'scenario').map((f) => f.name).sort()).toEqual(['bad', 'good']);
+    expect(
+      report.files
+        .filter((f) => f.kind === 'scenario')
+        .map((f) => f.name)
+        .sort(),
+    ).toEqual(['bad', 'good']);
 
     const missing = await retake('run', 'demo', 'nope');
     expect(missing.code).toBe(EXIT.failure);

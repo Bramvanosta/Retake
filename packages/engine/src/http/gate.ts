@@ -49,9 +49,7 @@ export interface GateRequest {
 
 export type GateStatus = 400 | 401 | 403 | 404 | 405 | 413 | 415 | 421;
 
-export type GateResult =
-  | { ok: true; path: string; route: RouteSpec }
-  | { ok: false; status: GateStatus; code: string; message: string; allow?: string };
+export type GateResult = { ok: true; path: string; route: RouteSpec } | { ok: false; status: GateStatus; code: string; message: string; allow?: string };
 
 export interface GateOptions {
   /** The port the server listens on. */

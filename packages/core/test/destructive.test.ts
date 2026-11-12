@@ -30,9 +30,7 @@ describe('destructive hook detection', () => {
     expect(destructiveReason({ shell: { run: "psql -Atc 'truncate imports' demo" } })).toBe('psql -c TRUNCATE');
     expect(destructiveReason({ shell: "psql demo <<'SQL'\nUPDATE offers SET paused = true;\nSQL" })).toBe('psql heredoc UPDATE');
     expect(destructiveReason({ shell: 'echo "DROP TABLE t" | psql demo' })).toBe('SQL piped to psql: DROP');
-    expect(destructiveReason({ shell: 'psql -f hooks/clean.sql' }, { projectDir: '/p', readText: () => 'DELETE FROM t;' })).toBe(
-      'psql -f hooks/clean.sql contains DELETE',
-    );
+    expect(destructiveReason({ shell: 'psql -f hooks/clean.sql' }, { projectDir: '/p', readText: () => 'DELETE FROM t;' })).toBe('psql -f hooks/clean.sql contains DELETE');
     expect(destructiveReason({ shell: 'psql -c "SELECT count(*) FROM offers"' })).toBeNull();
   });
 
@@ -42,9 +40,7 @@ describe('destructive hook detection', () => {
     expect(destructiveReason({ sql: 'TRUNCATE offers' })).toBe('SQL TRUNCATE');
     expect(destructiveReason({ sql: { query: 'select 1' } })).toBeNull();
     expect(destructiveReason({ js: 'localStorage.clear()', destructive: true })).toBe('declared destructive');
-    expect(
-      destructiveReason({ sql: 'hooks/reset.sql' }, { projectDir: '/p', readText: () => 'DELETE FROM t' }),
-    ).toBe('hooks/reset.sql contains DELETE');
+    expect(destructiveReason({ sql: 'hooks/reset.sql' }, { projectDir: '/p', readText: () => 'DELETE FROM t' })).toBe('hooks/reset.sql contains DELETE');
     expect(destructiveReason({ sql: 'hooks/reset.sql' })).toBeNull();
   });
 });

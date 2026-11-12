@@ -136,7 +136,13 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
-      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project), hooks: ctx.hooks, pages: ctx.capture.hookPages });
+      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], {
+        policy: ctx.ws.policy,
+        ...(req.env !== undefined ? { env: req.env } : {}),
+        journalFile: preflightJournal(project),
+        hooks: ctx.hooks,
+        pages: ctx.capture.hookPages,
+      });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
     }

@@ -14,7 +14,11 @@ export function transactionControl(sql: string): string | null {
   const statements = maskSql(sql).split(';');
   let atomicBody = false;
   for (const stmt of statements) {
-    const words = stmt.trim().toUpperCase().match(/[A-Z_]+/g) ?? [];
+    const words =
+      stmt
+        .trim()
+        .toUpperCase()
+        .match(/[A-Z_]+/g) ?? [];
     if (atomicBody) {
       if (words[0] === 'END') atomicBody = false;
       continue;

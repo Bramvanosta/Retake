@@ -107,7 +107,9 @@ describe('hooksRunWork: select → context → journal → run, for the CLI and 
     const h = new MemoryHookRunner();
     const mapped = new Error('mapped');
     await expect(hooksRunWork(p, 'nope', { ...base(h), runId: 'x', selectError: () => mapped })).rejects.toBe(mapped);
-    const e = await hooksRunWork(p, 'hooks/in.yaml', { ...base(h), env: 'live', allowWrites: true, runId: 'x', contextError: (x) => new Error(`usage: ${(x as Error).message}`) }).catch((x: unknown) => x);
+    const e = await hooksRunWork(p, 'hooks/in.yaml', { ...base(h), env: 'live', allowWrites: true, runId: 'x', contextError: (x) => new Error(`usage: ${(x as Error).message}`) }).catch(
+      (x: unknown) => x,
+    );
     expect((e as Error).message).toMatch(/^usage: environment live is read-only in project\.yaml \(production: true\)/);
     // Without the mapper the access error itself.
     await expect(hooksRunWork(p, 'hooks/in.yaml', { ...base(h), env: 'live', allowWrites: true, runId: 'x' })).rejects.toBeInstanceOf(AccessError);
@@ -157,7 +159,7 @@ describe('hooksRunWork: select → context → journal → run, for the CLI and 
   });
 });
 
-describe("trust `mcp` needs the protection of the jobs", () => {
+describe('trust `mcp` needs the protection of the jobs', () => {
   it('is refused without it, by type and at run time, before anything is read or opened (both works)', async () => {
     const p = await project();
     const h = new MemoryHookRunner();
@@ -202,7 +204,11 @@ describe('rollbackWork: one journal, or every pending one, listed before the rep
   it("one run's journal: missing (where it looked), nothing pending (listed empty), or replayed", async () => {
     const p = await project();
     const h = new MemoryHookRunner();
-    expect(await rollbackWork(p, { ...base(h), id: 'hooks-none' })).toMatchObject({ kind: 'missing', id: 'hooks-none', looked: [join(p.dir, 'runs', 'hooks-none', 'hooks-journal.json'), join(p.dir, '.retake', 'journals', 'hooks-none.json')] });
+    expect(await rollbackWork(p, { ...base(h), id: 'hooks-none' })).toMatchObject({
+      kind: 'missing',
+      id: 'hooks-none',
+      looked: [join(p.dir, 'runs', 'hooks-none', 'hooks-journal.json'), join(p.dir, '.retake', 'journals', 'hooks-none.json')],
+    });
     await hooksRunWork(p, 'hooks/in.yaml', { ...base(h), runId: 'hooks-in-5' });
     const lists: number[] = [];
     const one = await rollbackWork(p, { ...base(h), id: 'hooks-in-5', listed: (list) => lists.push(list.length) });

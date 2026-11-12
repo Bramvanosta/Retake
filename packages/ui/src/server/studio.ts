@@ -84,10 +84,12 @@ export type UiOp = OperationName;
  */
 export const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = Object.fromEntries(
   UI_OPS.flatMap((op) => {
-    const status = Object.fromEntries(ENGINE_ERROR_CODES.flatMap((code) => {
-      const s = studioStatus(op, code);
-      return s === undefined ? [] : [[code, s]];
-    }));
+    const status = Object.fromEntries(
+      ENGINE_ERROR_CODES.flatMap((code) => {
+        const s = studioStatus(op, code);
+        return s === undefined ? [] : [[code, s]];
+      }),
+    );
     return Object.keys(status).length ? [[op, status]] : [];
   }),
 );
@@ -114,7 +116,19 @@ const ROUTES: Record<string, RouteSpec> = {
   '/v1/live': { methods: ['POST'], token: true, api: true, maxBody: SMALL_BODY_MAX },
 };
 /** Ops that write but never nudge the job watch: the tabs' unsaved reports, the page's word to the desktop shell. */
-const NO_NUDGE = new Set<string>(['unsaved_report', 'desktop_answer', 'setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done', 'desktop_update']);
+const NO_NUDGE = new Set<string>([
+  'unsaved_report',
+  'desktop_answer',
+  'setup_status',
+  'setup_cli_install',
+  'setup_cli_choose',
+  'setup_cli_remove',
+  'setup_claude_code_run',
+  'setup_claude_desktop_add',
+  'setup_notifications',
+  'setup_done',
+  'desktop_update',
+]);
 const CALL: RouteSpec = { methods: ['POST'], token: true, api: true, maxBody: CALL_BODY_MAX };
 const CALL_PREFIX = '/v1/call/';
 
@@ -208,12 +222,14 @@ export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
     const op = catalogueOperation(name);
     if (op && servedBy(op, 'mcp')) throw new Error(`UI op ${name} would shadow the MCP tool of that name`);
   }
-  return new Map(UI_OPS.map((op) => {
-    const t = shared.get(op) ?? mine.get(op);
-    if (!t) throw new Error(`UI op ${op} is not a tool`);
-    const pins = studioPins(op);
-    return [op, pins.length ? pinArguments(t as ToolDef<z.ZodObject>, pins) : t];
-  }));
+  return new Map(
+    UI_OPS.map((op) => {
+      const t = shared.get(op) ?? mine.get(op);
+      if (!t) throw new Error(`UI op ${op} is not a tool`);
+      const pins = studioPins(op);
+      return [op, pins.length ? pinArguments(t as ToolDef<z.ZodObject>, pins) : t];
+    }),
+  );
 }
 
 /** What the Studio's own ops close over: the server's live state, built once per server. */
@@ -304,7 +320,20 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const setupState = new SetupState();
   const updateState = new UpdateState();
   const setupContext = o.setup ?? (() => systemSetupContext());
-  const tools = studioTools({ live, player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases, unsaved, desktop, setupState, updateState, setupContext, workspace: engine.workspace.root });
+  const tools = studioTools({
+    live,
+    player: playerNow,
+    forbid,
+    allow: previewAllow,
+    registry: async () => (await memoRegistry(engine.workspace)).registry,
+    leases,
+    unsaved,
+    desktop,
+    setupState,
+    updateState,
+    setupContext,
+    workspace: engine.workspace.root,
+  });
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
@@ -393,8 +422,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       if (typeof body.code === 'string' && codes.redeem(body.code)) {
         sessions++;
         send(res, 200, { ok: true, token });
-      }
-      else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run retake ui again');
+      } else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run retake ui again');
       return;
     }
     if (g.path === '/v1/bootstrap') {
@@ -429,7 +457,13 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
       // one the screen already shows before the click.
       const root = engine.workspace.root;
-      const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.docs ? { docs: e.docs } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
+      const error = {
+        code: e.code,
+        message: pathFree(e.message, root),
+        ...(e.fix ? { fix: e.fix } : {}),
+        ...(e.docs ? { docs: e.docs } : {}),
+        ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}),
+      };
       send(res, status, { ok: false, error }, 'api', status === 429 ? { 'Retry-After': '1' } : {});
       return;
     }

@@ -57,8 +57,7 @@ const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const P = 'northfield-fixture';
 const posix = process.platform !== 'win32';
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
-const plain = (video: string, extra = '') =>
-  [`video: ${video}`, ...(extra ? [extra] : []), 'scenes:', '  - id: a', '    page: console', '    open: /', '    steps:', '      - hold: 1', ''].join('\n');
+const plain = (video: string, extra = '') => [`video: ${video}`, ...(extra ? [extra] : []), 'scenes:', '  - id: a', '    page: console', '    open: /', '    steps:', '      - hold: 1', ''].join('\n');
 const EDIT_ME = plain('edit-me');
 const EDITED = plain('edited', 'title: {text: Edited}');
 /** A scenario file is agent-writable: its shell hook must be plain words (no redirection). */
@@ -104,7 +103,14 @@ const MCP: Call[] = [
   { op: 'scenario_from_script', args: { project: P, script_markdown: SCRIPT_ISSUES } },
   { op: 'scenario_from_script', args: { project: P, script_markdown: SCRIPT, env: 'nowhere' } },
   // project_create
-  { op: 'project_create', args: { name: 'Made Here', environments: { staging: { app: 'https://app.staging.example.com', site: { url: 'https://www.staging.example.com', display: 'www.example.com' } } }, default_env: 'staging' } },
+  {
+    op: 'project_create',
+    args: {
+      name: 'Made Here',
+      environments: { staging: { app: 'https://app.staging.example.com', site: { url: 'https://www.staging.example.com', display: 'www.example.com' } } },
+      default_env: 'staging',
+    },
+  },
   { op: 'project_create', args: { name: 'Made Here' } },
   { op: 'project_create', args: { name: 'Near Production', slug: 'near-production', environments: { local: { console: 'http://localhost:4401' } } } },
   { op: 'project_create', args: { name: 'Wrong Default', slug: 'wrong-default', environments: { staging: { app: 'https://app.staging.example.com' } }, default_env: 'elsewhere' } },
@@ -209,29 +215,65 @@ const INVOKED: Array<{ client: EngineClient; op: string; args: Record<string, un
 ];
 
 /** A finished recording job written by hand (claimed, then closed as a worker would). */
-async function finishedRecording(ws: string, o: { rec_id: string; env?: string; persona?: string; state: 'succeeded' | 'failed'; result?: Record<string, unknown>; error?: { code: string; message: string; fix?: string } }): Promise<string> {
+async function finishedRecording(
+  ws: string,
+  o: { rec_id: string; env?: string; persona?: string; state: 'succeeded' | 'failed'; result?: Record<string, unknown>; error?: { code: string; message: string; fix?: string } },
+): Promise<string> {
   const q = new FileJobQueue(ws, 'retake', systemClock);
-  const job = await q.enqueue({ version: 1, kind: 'record', project: P, rec_id: o.rec_id, ...(o.env ? { env: o.env } : {}), ...(o.persona ? { persona: o.persona } : {}), source: { page: 'shop', path: '/' }, check: true, submitted_by: 'mcp' });
+  const job = await q.enqueue({
+    version: 1,
+    kind: 'record',
+    project: P,
+    rec_id: o.rec_id,
+    ...(o.env ? { env: o.env } : {}),
+    ...(o.persona ? { persona: o.persona } : {}),
+    source: { page: 'shop', path: '/' },
+    check: true,
+    submitted_by: 'mcp',
+  });
   const me = await selfIdentity();
   expect(await q.claim(job.id, me)).toBe(true);
   const rec = (await q.get(job.id)) as JobRecord;
   const at = '2026-01-02T10:00:00.000Z';
-  await q.write({ ...rec, state: o.state, started_at: at, finished_at: at, worker: { ...me, host: hostname() }, ...(o.result ? { result: o.result } : {}), ...(o.error ? { error: o.error } : {}) } as JobRecord);
+  await q.write({
+    ...rec,
+    state: o.state,
+    started_at: at,
+    finished_at: at,
+    worker: { ...me, host: hostname() },
+    ...(o.result ? { result: o.result } : {}),
+    ...(o.error ? { error: o.error } : {}),
+  } as JobRecord);
   return job.id;
 }
 
 /** A recording's result as the worker writes it, with what the case changes. */
 function recordResult(dir: string, rec: string, o: Record<string, unknown>): Record<string, unknown> {
   return {
-    kind: 'record', rec_id: rec, dir, draft: join(dir, 'draft.yaml'), name: 'recorded-by-hand', saved: null, env: 'local', persona: null, access: 'read-write', stop: 'closed', ms: 83_000,
-    window: { width: 1400, height: 1000 }, capture: { width: 1920, height: 1080 },
+    kind: 'record',
+    rec_id: rec,
+    dir,
+    draft: join(dir, 'draft.yaml'),
+    name: 'recorded-by-hand',
+    saved: null,
+    env: 'local',
+    persona: null,
+    access: 'read-write',
+    stop: 'closed',
+    ms: 83_000,
+    window: { width: 1400, height: 1000 },
+    capture: { width: 1920, height: 1080 },
     counts: { events: 12, actions: 4, writes: 1, redacted: 1, dropped: {} },
     stats: { scenes: 1, steps: 4, actions: 4, noise: 0, secrets: 1, fallbacks: 0 },
     issues: { error: 0, warning: 1, info: 1, codes: ['secret_field', 'fallback_target'] },
     warnings: ['the window was resized while recording'],
     writes: { total: 1, by_steps: 1, ambient: 0 },
     check: { status: 'passed', scope: 'until_write', steps_passed: 2, steps_total: 4 },
-    untrusted: { scenes: [{ id: 'record-lab', steps: 4, opens: true }], issues: [{ severity: 'warning', code: 'secret_field', message: 'a password field', scene: 'record-lab', step: 1 }], check: { until: 'record-lab.2' } },
+    untrusted: {
+      scenes: [{ id: 'record-lab', steps: 4, opens: true }],
+      issues: [{ severity: 'warning', code: 'secret_field', message: 'a password field', scene: 'record-lab', step: 1 }],
+      check: { until: 'record-lab.2' },
+    },
     ...o,
   };
 }
@@ -247,20 +289,48 @@ async function workspace(name: string, recordings: boolean): Promise<{ ws: strin
   const state: State = {};
   if (recordings) {
     const failed = newRecordId();
-    state.failedJob = await finishedRecording(ws, { rec_id: failed, env: 'signed-in', persona: 'supplier', state: 'failed', error: { code: 'refused', message: 'persona supplier is not signed in (env signed-in): sign it in first', fix: `retake -C ${ws} login ${P} --env signed-in --persona supplier` } });
+    state.failedJob = await finishedRecording(ws, {
+      rec_id: failed,
+      env: 'signed-in',
+      persona: 'supplier',
+      state: 'failed',
+      error: { code: 'refused', message: 'persona supplier is not signed in (env signed-in): sign it in first', fix: `retake -C ${ws} login ${P} --env signed-in --persona supplier` },
+    });
     const nothing = newRecordId();
-    state.nothingJob = await finishedRecording(ws, { rec_id: nothing, state: 'succeeded', result: { ...recordResult(join(project, '.retake', 'records', nothing), nothing, {}), dir: null, draft: null, not_saved: 'nothing_recorded', counts: { events: 1, actions: 0, writes: 0, redacted: 0, dropped: {} }, check: { status: 'skipped', scope: null, reason: 'nothing_recorded', steps_passed: 0, steps_total: 0 } } });
+    state.nothingJob = await finishedRecording(ws, {
+      rec_id: nothing,
+      state: 'succeeded',
+      result: {
+        ...recordResult(join(project, '.retake', 'records', nothing), nothing, {}),
+        dir: null,
+        draft: null,
+        not_saved: 'nothing_recorded',
+        counts: { events: 1, actions: 0, writes: 0, redacted: 0, dropped: {} },
+        check: { status: 'skipped', scope: null, reason: 'nothing_recorded', steps_passed: 0, steps_total: 0 },
+      },
+    });
     const saved = newRecordId();
     const savedDir = join(project, '.retake', 'records', saved);
     await mkdir(savedDir, { recursive: true });
     await writeFile(join(savedDir, 'draft.yaml'), `${plain('recorded-by-hand')}# typed: two bags of the washed lot\n`);
-    state.savedJob = await finishedRecording(ws, { rec_id: saved, state: 'succeeded', result: recordResult(savedDir, saved, { saved: { file: 'scenarios/recorded-by-hand.yaml', path: join(project, 'scenarios', 'recorded-by-hand.yaml'), hash: sha('saved') } }) });
+    state.savedJob = await finishedRecording(ws, {
+      rec_id: saved,
+      state: 'succeeded',
+      result: recordResult(savedDir, saved, { saved: { file: 'scenarios/recorded-by-hand.yaml', path: join(project, 'scenarios', 'recorded-by-hand.yaml'), hash: sha('saved') } }),
+    });
     const taken = newRecordId();
     const takenDir = join(project, '.retake', 'records', taken);
     state.takenJob = await finishedRecording(ws, {
       rec_id: taken,
       state: 'succeeded',
-      result: recordResult(takenDir, taken, { name: 'quote', not_saved: 'name_taken', access: 'read-only', stop: 'max_duration', check: { status: 'failed', scope: 'all', steps_passed: 1, steps_total: 4 }, untrusted: { scenes: [], issues: [], check: { failed_at: { scene: 'record-lab', step: 1, action: 'click' }, error: 'no element "Send"' } } }),
+      result: recordResult(takenDir, taken, {
+        name: 'quote',
+        not_saved: 'name_taken',
+        access: 'read-only',
+        stop: 'max_duration',
+        check: { status: 'failed', scope: 'all', steps_passed: 1, steps_total: 4 },
+        untrusted: { scenes: [], issues: [], check: { failed_at: { scene: 'record-lab', step: 1, action: 'click' }, error: 'no element "Send"' } },
+      }),
     });
   }
   // This process holds the worker lock: a submit finds a live worker, so none is started and every job stays queued.
@@ -383,7 +453,13 @@ async function viaMcp(): Promise<Answers> {
     const args = typeof c.args === 'function' ? c.args(state) : c.args;
     const a = await one(c.op, args);
     kept(c, JSON.stringify(a), state);
-    out.push({ op: c.op, ...(c.client ? { client: c.client } : {}), args: normalise(args, n), answer: normalise(a, n), ...(asked.length > before ? { asked: normalise(asked.slice(before), n) } : {}) });
+    out.push({
+      op: c.op,
+      ...(c.client ? { client: c.client } : {}),
+      args: normalise(args, n),
+      answer: normalise(a, n),
+      ...(asked.length > before ? { asked: normalise(asked.slice(before), n) } : {}),
+    });
   }
   workerLogs.push(existsSync(join(workersDir(ws), 'worker.log')));
   return out;
@@ -443,7 +519,9 @@ async function viaInvoke(): Promise<Answers> {
   for (const c of INVOKED) {
     if (!engines.has(c.client)) engines.set(c.client, await createEngine({ root: ws, client: c.client, autoStartWorker: false }));
     const r = await invoke(tools.get(c.op)!, engines.get(c.client)!, c.args, { shell: 'studio', signal: new AbortController().signal });
-    const answer = r.ok ? { ok: true, data: r.output.data } : { ok: false, error: { code: r.error.code, message: r.error.message, ...(r.error.fix ? { fix: r.error.fix } : {}), ...(r.error.details ? { details: r.error.details } : {}) } };
+    const answer = r.ok
+      ? { ok: true, data: r.output.data }
+      : { ok: false, error: { code: r.error.code, message: r.error.message, ...(r.error.fix ? { fix: r.error.fix } : {}), ...(r.error.details ? { details: r.error.details } : {}) } };
     out.push({ op: `${c.client}: ${c.op}`, args: normalise(c.args, n), answer: normalise(answer, n) });
   }
   return out;
@@ -474,12 +552,24 @@ describe.skipIf(!posix)('authoring, recording, project writes and job_status thr
       const x = a.answer as { isError?: boolean; status?: number; twice?: Array<{ isError?: boolean; status?: number }> };
       return x.twice ? x.twice.some((y) => y.isError === false || y.status === 200) : x.isError === false || x.status === 200;
     };
-    for (const op of ['scenario_save', 'scenario_from_script', 'scenario_record', 'project_create', 'project_prune', 'job_status']) expect(mcpAnswers.some((a) => a.op === op && ok(a)), op).toBe(true);
-    for (const op of ['scenario_edit', 'record_options', 'record_start', 'record_view', 'record_stop', 'record_discard']) expect(studioAnswers.some((a) => a.op === op && ok(a)), op).toBe(true);
+    for (const op of ['scenario_save', 'scenario_from_script', 'scenario_record', 'project_create', 'project_prune', 'job_status'])
+      expect(
+        mcpAnswers.some((a) => a.op === op && ok(a)),
+        op,
+      ).toBe(true);
+    for (const op of ['scenario_edit', 'record_options', 'record_start', 'record_view', 'record_stop', 'record_discard'])
+      expect(
+        studioAnswers.some((a) => a.op === op && ok(a)),
+        op,
+      ).toBe(true);
     // The approval was asked of the two clients that can answer, and only them.
     expect(mcpAnswers.filter((a) => a.asked).map((a) => a.client)).toEqual(['decline', 'accept']);
     // Two calls at once on one key: one answered, one 409 (the scenario chain; the recordings' chain).
-    for (const a of studioAnswers.filter((x) => (x.answer as { twice?: unknown }).twice)) expect(((a.answer as { twice: Array<{ status: number }> }).twice).map((y) => y.status), a.op).toEqual([200, 409]);
+    for (const a of studioAnswers.filter((x) => (x.answer as { twice?: unknown }).twice))
+      expect(
+        (a.answer as { twice: Array<{ status: number }> }).twice.map((y) => y.status),
+        a.op,
+      ).toEqual([200, 409]);
   });
 
   it('the fixture names nothing of this machine: no host name, account, home, temp folder or repository path', () => {

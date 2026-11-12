@@ -17,7 +17,20 @@ import type { WorkPolicy } from '@retake/core/policy';
 import type { SandboxPaths } from '@retake/core/project';
 import { describeLock, seedHash } from '@retake/core/io';
 import type { LockRecord } from '@retake/core/io';
-import type { DownResult, InitSandboxOptions, InitSandboxResult, ProviderCapabilities, ResetResult, SandboxCallOptions, SandboxLogs, SandboxStatus, SandboxUpResult, ServiceStatus, Take, UpResult } from '@retake/sandbox/types';
+import type {
+  DownResult,
+  InitSandboxOptions,
+  InitSandboxResult,
+  ProviderCapabilities,
+  ResetResult,
+  SandboxCallOptions,
+  SandboxLogs,
+  SandboxStatus,
+  SandboxUpResult,
+  ServiceStatus,
+  Take,
+  UpResult,
+} from '@retake/sandbox/types';
 import { ManualClock, stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
 import type { SandboxHandle, Sandboxes } from './sandboxes.js';
@@ -179,7 +192,10 @@ class MemorySandbox implements SandboxHandle {
   private requireUp(): void {
     const stopped = this.services.filter((s) => !this.#state.running.has(s));
     if (stopped.length) {
-      throw new SandboxError(`sandbox ${this.env} is not running (${stopped.map((s) => `${s} is not running`).join(', ')}): retake sandbox up ${this.project.slug} --env ${this.env}, or run with --sandbox`, 'down');
+      throw new SandboxError(
+        `sandbox ${this.env} is not running (${stopped.map((s) => `${s} is not running`).join(', ')}): retake sandbox up ${this.project.slug} --env ${this.env}, or run with --sandbox`,
+        'down',
+      );
     }
   }
 

@@ -301,6 +301,11 @@ export async function closePage(page: Page): Promise<void> {
 export async function unloadPages(context: BrowserContext): Promise<void> {
   const armed = armedContexts.get(context);
   if (!armed) return;
-  await Promise.all(context.pages().filter((p) => !p.isClosed()).map((p) => toBlank(p)));
+  await Promise.all(
+    context
+      .pages()
+      .filter((p) => !p.isClosed())
+      .map((p) => toBlank(p)),
+  );
   await drained(armed, 60, 300);
 }

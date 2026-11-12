@@ -88,7 +88,8 @@ export class UnsavedBoard {
     const dir = join(this.projectsDir, item.project);
     if (!(await exists(join(dir, 'project.yaml')))) return out;
     out.project = item.project;
-    if (item.scenario !== undefined && item.scenario.length <= NAME_MAX && SLUG_RE.test(item.scenario) && (await exists(projectPath(dir, 'scenarios', `${item.scenario}.yaml`)))) out.scenario = item.scenario;
+    if (item.scenario !== undefined && item.scenario.length <= NAME_MAX && SLUG_RE.test(item.scenario) && (await exists(projectPath(dir, 'scenarios', `${item.scenario}.yaml`))))
+      out.scenario = item.scenario;
     return out;
   }
 

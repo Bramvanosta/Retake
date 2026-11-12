@@ -19,7 +19,8 @@ function own(h: Hooks, journal: HookJournal): Journal {
   throw new EngineError('internal', 'a hooks journal opened by another hook runner was handed to the package runner');
 }
 
-const pendingOf = (h: Hooks, list: readonly PendingHookJournal[]) => list.map((p) => ({ file: p.file, ...(p.journal ? { journal: own(h, p.journal) } : {}), ...(p.error !== undefined ? { error: p.error } : {}) }));
+const pendingOf = (h: Hooks, list: readonly PendingHookJournal[]) =>
+  list.map((p) => ({ file: p.file, ...(p.journal ? { journal: own(h, p.journal) } : {}), ...(p.error !== undefined ? { error: p.error } : {}) }));
 
 export function packageHookRunner(): HookRunner {
   return {

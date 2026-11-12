@@ -54,7 +54,9 @@ function passedWords(pick: LatestPick, trust: 'author' | 'mcp'): string {
     parts.push(`${total} capture${total === 1 ? '' : 's'} of it cannot be edited: ${reasons.join(', ')}`);
   }
   if (pick.without_record > 0) {
-    parts.push(`${pick.without_record} run folder${pick.without_record === 1 ? '' : 's'} without a readable run.json ${pick.without_record === 1 ? 'was' : 'were'} not considered (${NAME_ONE[trust]})`);
+    parts.push(
+      `${pick.without_record} run folder${pick.without_record === 1 ? '' : 's'} without a readable run.json ${pick.without_record === 1 ? 'was' : 'were'} not considered (${NAME_ONE[trust]})`,
+    );
   }
   return parts.length ? ` — ${parts.join('; ')}` : '';
 }

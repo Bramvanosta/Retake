@@ -105,7 +105,19 @@ export function exportSchedule(source: FrameSource, duration: number, fps: numbe
 }
 
 /** ffmpeg arguments of a clip encoded from a numbered frame sequence. */
-export function clipArgs(opts: { seq: string; ext: string; jpeg: boolean; fps: number; frames: number; width: number; height: number; format: RawFormat; timecode: string; out: string; h264?: H264Encoder }): string[] {
+export function clipArgs(opts: {
+  seq: string;
+  ext: string;
+  jpeg: boolean;
+  fps: number;
+  frames: number;
+  width: number;
+  height: number;
+  format: RawFormat;
+  timecode: string;
+  out: string;
+  h264?: H264Encoder;
+}): string[] {
   const enc = RAW_ENCODING[opts.format];
   const w = Math.max(2, Math.round(opts.width / 2) * 2);
   const h = opts.format === 'mp4' ? Math.max(2, Math.round(opts.height / 2) * 2) : opts.height;
@@ -114,13 +126,37 @@ export function clipArgs(opts: { seq: string; ext: string; jpeg: boolean; fps: n
   const tags = ['-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709'];
   const codec =
     opts.format === 'mp4'
-      ? [...h264CodecArgs(opts.h264 ?? 'libx264', ['-c:v', 'libx264', '-profile:v', 'high', '-preset', RAW_ENCODING.mp4.preset, '-crf', String(RAW_ENCODING.mp4.crf)]), '-g', String(opts.fps), '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+      ? [
+          ...h264CodecArgs(opts.h264 ?? 'libx264', ['-c:v', 'libx264', '-profile:v', 'high', '-preset', RAW_ENCODING.mp4.preset, '-crf', String(RAW_ENCODING.mp4.crf)]),
+          '-g',
+          String(opts.fps),
+          '-pix_fmt',
+          'yuv420p',
+          '-movflags',
+          '+faststart',
+        ]
       : ['-c:v', 'prores_ks', '-profile:v', '3', '-vendor', 'apl0', '-pix_fmt', 'yuv422p10le'];
   return [
-    '-y', '-hide_banner', '-loglevel', 'error',
-    '-framerate', String(opts.fps), '-start_number', '0', '-i', join(opts.seq, `%06d.${opts.ext}`),
-    '-vf', vf, ...codec, ...tags,
-    '-timecode', opts.timecode, '-frames:v', String(opts.frames), '-an', opts.out,
+    '-y',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-framerate',
+    String(opts.fps),
+    '-start_number',
+    '0',
+    '-i',
+    join(opts.seq, `%06d.${opts.ext}`),
+    '-vf',
+    vf,
+    ...codec,
+    ...tags,
+    '-timecode',
+    opts.timecode,
+    '-frames:v',
+    String(opts.frames),
+    '-an',
+    opts.out,
   ];
 }
 
@@ -148,7 +184,23 @@ export async function encodeClip(opts: {
   try {
     const bin = ffmpegBin(opts.policy, opts.ffmpeg);
     const h264 = opts.format === 'mp4' ? await h264Encoder(bin) : undefined;
-    await runFfmpeg(bin, clipArgs({ seq, ext: opts.source.ext, jpeg: opts.source.jpeg, fps: opts.fps, frames: opts.files.length, width: opts.width, height: opts.height, format: opts.format, timecode: opts.timecode, out: opts.out, ...(h264 ? { h264 } : {}) }), opts.signal);
+    await runFfmpeg(
+      bin,
+      clipArgs({
+        seq,
+        ext: opts.source.ext,
+        jpeg: opts.source.jpeg,
+        fps: opts.fps,
+        frames: opts.files.length,
+        width: opts.width,
+        height: opts.height,
+        format: opts.format,
+        timecode: opts.timecode,
+        out: opts.out,
+        ...(h264 ? { h264 } : {}),
+      }),
+      opts.signal,
+    );
     return h264;
   } finally {
     await rm(seq, { recursive: true, force: true }).catch(() => undefined);
@@ -160,7 +212,11 @@ export async function concatClips(files: readonly string[], out: string, tmp: st
   const list = join(tmp, 'selects.txt');
   await writeFile(list, files.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join('\n') + '\n');
   const faststart = out.endsWith('.mp4') ? ['-movflags', '+faststart'] : [];
-  await runFfmpeg(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-map', '0:v:0', '-c', 'copy', ...faststart, '-timecode', '00:00:00:00', '-an', out], signal);
+  await runFfmpeg(
+    ffmpeg,
+    ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-map', '0:v:0', '-c', 'copy', ...faststart, '-timecode', '00:00:00:00', '-an', out],
+    signal,
+  );
 }
 
 /** What ffprobe says about a video's picture stream (core's reader: clipProbeFromJson). */

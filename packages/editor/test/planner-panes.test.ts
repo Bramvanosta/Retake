@@ -47,7 +47,8 @@ const frameAt = (p: EditPlan, c: ClipSegment, t: number) => {
   return i < 0 ? c.srcFrames.length - 1 : i;
 };
 const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-const inside = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
+const inside = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+  a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
 
 beforeAll(async () => {
   registry = await loadComponentRegistry({ root: REPO });
@@ -136,9 +137,17 @@ describe('multi-page clips: split screen (live-quote)', () => {
     }
     const arrives = clipOf(p, 'arrives');
     expect(arrives.overlays.filter((o) => o.tutorial === 'steps').every((o) => o.pane === 1)).toBe(true);
-    expect(clipOf(p, 'request').overlays.filter((o) => o.tutorial === 'steps').every((o) => o.pane === 0)).toBe(true);
+    expect(
+      clipOf(p, 'request')
+        .overlays.filter((o) => o.tutorial === 'steps')
+        .every((o) => o.pane === 0),
+    ).toBe(true);
     // Numbering per scene across both pages.
-    expect(clipOf(p, 'proposal').overlays.filter((o) => o.tutorial === 'steps').map((o) => o.component.slots.number)).toEqual(['1', '2']);
+    expect(
+      clipOf(p, 'proposal')
+        .overlays.filter((o) => o.tutorial === 'steps')
+        .map((o) => o.component.slots.number),
+    ).toEqual(['1', '2']);
   });
 
   it('badges are numbered in time order when a scene’s steps go back and forth between its pages (per scene and per video)', async () => {
@@ -233,7 +242,10 @@ describe('multi-page clips: picture in picture (phone-and-desktop)', () => {
     const r = insetRectAt(c, 40, p.fps)!;
     const hole = insetHole(p, c, { pane: 0 }, 40)!;
     expect(hole).toMatch(/^path\(evenodd, 'M0 0H1920V1080H0Z M[\d.]+ [\d.]+h[\d.]+v[\d.]+h-[\d.]+Z'\)$/);
-    const [x, y] = hole.match(/Z M([\d.]+) ([\d.]+)h/)!.slice(1).map(Number);
+    const [x, y] = hole
+      .match(/Z M([\d.]+) ([\d.]+)h/)!
+      .slice(1)
+      .map(Number);
     expect(x).toBeLessThan(r.x);
     expect(y).toBeLessThan(r.y);
     expect(insetHole(p, c, { pane: 1 }, 40)).toBeUndefined(); // the inset's own overlays
@@ -302,8 +314,17 @@ describe('multi-page clips: picture in picture (phone-and-desktop)', () => {
     const fps = 30;
     const ev = (step: number, page: string, t0: number, t1: number, tc: number, bbox: { x: number; y: number; w: number; h: number }): TimelineEvent =>
       ({ scene: 's', scene_index: 0, step, action: 'click', t_start: t0, t_end: t1, t_click: tc, page, status: 'ok', target: { desc: 'x', bbox } }) as TimelineEvent;
-    const steps = [ev(0, 'phone', 0, 2, 1.5, { x: 100, y: 300, w: 120, h: 40 }), ev(1, 'phone', 2, 4, 3.5, { x: 100, y: 500, w: 120, h: 40 }), ev(2, 'desk', 4.5, 6, 5.5, { x: 1600, y: 600, w: 120, h: 40 })];
-    const mapMain = (_f: number, b: { x: number; y: number; w: number; h: number }) => ({ x: main.x + (b.x * main.w) / 1920, y: main.y + (b.y * main.h) / 1080, w: (b.w * main.w) / 1920, h: (b.h * main.h) / 1080 });
+    const steps = [
+      ev(0, 'phone', 0, 2, 1.5, { x: 100, y: 300, w: 120, h: 40 }),
+      ev(1, 'phone', 2, 4, 3.5, { x: 100, y: 500, w: 120, h: 40 }),
+      ev(2, 'desk', 4.5, 6, 5.5, { x: 1600, y: 600, w: 120, h: 40 }),
+    ];
+    const mapMain = (_f: number, b: { x: number; y: number; w: number; h: number }) => ({
+      x: main.x + (b.x * main.w) / 1920,
+      y: main.y + (b.y * main.h) / 1080,
+      w: (b.w * main.w) / 1920,
+      h: (b.h * main.h) / 1080,
+    });
     const out = planInsetTrack({ steps, mainPage: 'desk', insetPage: 'phone', rel: (t) => Math.round(t * fps), n: 200, fps, mapMain, corners, preferred: 'bottom-right', grow: 1, clearance: 14 });
     expect(out.track.map((k) => [k.at, k.corner])).toEqual([
       [0, 'bottom-right'],

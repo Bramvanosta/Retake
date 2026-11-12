@@ -149,9 +149,10 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const tl = TimelineSchema.parse(JSON.parse(await readFile(join(run.dir, 'timeline.json'), 'utf8'))) as Timeline;
 
     // Video and timeline agree: duration, size, frame rate.
-    const probe = JSON.parse(
-      (await execFileP('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=width,height,avg_frame_rate', '-of', 'json', run.capture!])).stdout,
-    ) as { format: { duration: string }; streams: Array<{ width: number; height: number; avg_frame_rate: string }> };
+    const probe = JSON.parse((await execFileP('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=width,height,avg_frame_rate', '-of', 'json', run.capture!])).stdout) as {
+      format: { duration: string };
+      streams: Array<{ width: number; height: number; avg_frame_rate: string }>;
+    };
     expect(probe.streams[0]).toMatchObject({ width: 1280, height: 720, avg_frame_rate: '30/1' });
     expect(Math.abs(Number(probe.format.duration) - tl.capture.duration)).toBeLessThanOrEqual(1 / 30 + 0.001);
     expect(tl.capture.frames).toBeGreaterThan(10);
@@ -301,7 +302,8 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const out = join(ws, 'raw-waited');
     try {
       const start = await new Promise<string>((resolve) => {
-        const tryRead = () => execFile('ps', ['-o', 'lstart=', '-p', String(sib.pid)], { env: { ...process.env, LC_ALL: 'C' } }, (_e, o) => (String(o).trim() ? resolve(String(o).trim()) : setTimeout(tryRead, 50)));
+        const tryRead = () =>
+          execFile('ps', ['-o', 'lstart=', '-p', String(sib.pid)], { env: { ...process.env, LC_ALL: 'C' } }, (_e, o) => (String(o).trim() ? resolve(String(o).trim()) : setTimeout(tryRead, 50)));
         tryRead();
       });
       const file = join(dir, 'k_01KA00000000000000000000RW.json');
@@ -340,7 +342,13 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const runsBefore = await runs();
     const r = await retake('inspect', 'e2e', 'shop', '--path', '/inspect-lab', '--json', '--target', '{role: button, name: Publish}');
     expect(r.code, r.err).toBe(EXIT.ok);
-    const report = JSON.parse(r.out) as { status: string; file: string; marked: string; elements: Array<{ verified: boolean; untrusted: { target_yaml: string | null } }>; targets_checked: Array<{ count: number }> };
+    const report = JSON.parse(r.out) as {
+      status: string;
+      file: string;
+      marked: string;
+      elements: Array<{ verified: boolean; untrusted: { target_yaml: string | null } }>;
+      targets_checked: Array<{ count: number }>;
+    };
     expect(report.status).toBe('ok');
     expect(report.file.startsWith(join(ws, 'projects', 'e2e', '.retake', 'inspect'))).toBe(true);
     expect(existsSync(report.marked)).toBe(true);

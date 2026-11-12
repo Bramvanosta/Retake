@@ -133,10 +133,7 @@ export function pinnedAddress(url: string, addresses: ReadonlyMap<number, string
  * URL's). Answers its status and, when `read`, its body (redirects are not followed). Rejects like fetch does on a
  * network error (`code` ECONNREFUSED…), or with a TimeoutError.
  */
-export function pinnedRequest(
-  url: string,
-  opts: { address: string; method?: string; headers?: Record<string, string>; timeoutMs: number; read?: boolean },
-): Promise<{ status: number; body: string }> {
+export function pinnedRequest(url: string, opts: { address: string; method?: string; headers?: Record<string, string>; timeoutMs: number; read?: boolean }): Promise<{ status: number; body: string }> {
   const u = new URL(url);
   const family = isIP(opts.address) === 6 ? 6 : 4;
   const lookup: LookupFunction = (_host, o, cb) => {

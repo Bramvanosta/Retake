@@ -59,9 +59,7 @@ export interface JobPosition {
 }
 
 /** What the worker of a running heavy job says while the job yields to a filming take (cleared with null). */
-export type YieldMark =
-  | { state: 'background'; since: string; cause: 'here' | 'elsewhere' }
-  | { state: 'past_cap'; since: string; cause: 'here' | 'elsewhere'; cap_min: number };
+export type YieldMark = { state: 'background'; since: string; cause: 'here' | 'elsewhere' } | { state: 'past_cap'; since: string; cause: 'here' | 'elsewhere'; cap_min: number };
 
 /** `hold`: what holds heavy work now, read once for a whole list (takeHold). */
 export interface DeriveOptions {

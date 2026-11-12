@@ -52,7 +52,13 @@ export function readOnlyGuard(
     ...(policy.mocks.length ? [`${policy.mocks.length} mock${policy.mocks.length === 1 ? '' : 's'}`] : []),
     ...(policy.allow.length ? [`${policy.allow.length} allow entr${policy.allow.length === 1 ? 'y' : 'ies'}`] : []),
   ];
-  const foreign = [...new Set(policy.protected.map((p) => p.env))].map((e) => `${e} (${policy.protected.filter((p) => p.env === e).map((p) => p.host).join(', ')})`);
+  const foreign = [...new Set(policy.protected.map((p) => p.env))].map(
+    (e) =>
+      `${e} (${policy.protected
+        .filter((p) => p.env === e)
+        .map((p) => p.host)
+        .join(', ')})`,
+  );
   if (policy.readOnly) {
     o.log('info', `read-only run: writes to ${policy.hosts.includes('*') ? 'every host' : policy.hosts.join(', ')} are stopped${rules.length ? ` (${rules.join(', ')})` : ''}`);
   }
@@ -100,10 +106,7 @@ export function readOnlyGuard(
     },
     onWebSocket: (host, page) => {
       const id = o.pageId(page);
-      warnOnce(
-        `ws ${host}`,
-        `${id ? `page ${id}: ` : ''}a WebSocket to ${host} is open — the read-only guard does not check its messages: writes sent over it are NOT stopped`,
-      );
+      warnOnce(`ws ${host}`, `${id ? `page ${id}: ` : ''}a WebSocket to ${host} is open — the read-only guard does not check its messages: writes sent over it are NOT stopped`);
     },
   };
 }
@@ -240,7 +243,13 @@ export function hookPersonaAuth(
     if (!session.hasRealm(name)) throw new RunnerError(`persona ${name}: this run has no browser signed in as it (its hook is not one the run planned)`);
     let read = readers.get(name);
     if (!read) {
-      read = personaAuthReader({ persona, context: () => session.contextOf(name), envPages: env.pages, relogin: command(name), ...(ownPagesOnly ? { origins: personaPageOrigins(persona.pages, env.pages) } : {}) });
+      read = personaAuthReader({
+        persona,
+        context: () => session.contextOf(name),
+        envPages: env.pages,
+        relogin: command(name),
+        ...(ownPagesOnly ? { origins: personaPageOrigins(persona.pages, env.pages) } : {}),
+      });
       readers.set(name, read);
     }
     return read(url);

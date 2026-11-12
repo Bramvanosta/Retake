@@ -12,16 +12,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedTemplate } from '@retake/core';
-import {
-  PREVIEW_MAX_BYTES,
-  PREVIEW_SIZE,
-  README_BEGIN,
-  createComponent,
-  loadComponentRegistry,
-  pngSize,
-  previewStatus,
-  themeTokens,
-} from '@retake/components';
+import { PREVIEW_MAX_BYTES, PREVIEW_SIZE, README_BEGIN, createComponent, loadComponentRegistry, pngSize, previewStatus, themeTokens } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples, loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
 import type { PreviewSamples } from '@retake/editor';
@@ -176,11 +167,18 @@ describe.skipIf(!canRender)('component previews rendered with Remotion', () => {
       expect(png.length).toBeGreaterThan(10_000);
 
       // In place, on a workspace component (the layout scaffold), with the motion theme.
-      const created = await createComponent(root, { write: plainWrite,  id: 'acme/frame', kind: 'layout', description: 'A test frame.' });
+      const created = await createComponent(root, { write: plainWrite, id: 'acme/frame', kind: 'layout', description: 'A test frame.' });
       await writeFile(join(created.dir, 'README.md'), '# acme/frame\n\nHand-written notes.\n');
       const motion = await loadTemplate('motion', root, { files: fileFacts(PERSON_POLICY) });
       const reg2 = await loadComponentRegistry({ root });
-      const [p] = await renderComponentPreviews({ workPolicy: PERSON_POLICY, root, registry: reg2, template: motion, targets: [{ id: 'acme/frame', dir: created.dir, entry: created.entry, manifest: created.manifest }], cacheDir: SHARED_CACHE });
+      const [p] = await renderComponentPreviews({
+        workPolicy: PERSON_POLICY,
+        root,
+        registry: reg2,
+        template: motion,
+        targets: [{ id: 'acme/frame', dir: created.dir, entry: created.entry, manifest: created.manifest }],
+        cacheDir: SHARED_CACHE,
+      });
       expect(p.file).toBe(join(created.dir, 'preview.png'));
       expect(pngSize(p.file)).toEqual(PREVIEW_SIZE);
       expect(previewStatus(created.dir, { theme: 'motion' }).state).toBe('fresh');

@@ -51,13 +51,11 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
     anchorAt: async (slug, req) => anchorAt(await project(slug), req),
     apply: async (slug, id, req) => {
       refuse(proposalApplyRefused(caller, req.if_match));
-      return applyProposal(
-        await project(slug),
-        id,
-        { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) },
-        commentAuthor(),
-        { registry: async () => (await memoRegistry(ws)).registry, scope, files: ctx.files },
-      );
+      return applyProposal(await project(slug), id, { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) }, commentAuthor(), {
+        registry: async () => (await memoRegistry(ws)).registry,
+        scope,
+        files: ctx.files,
+      });
     },
     proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry, files: ctx.files }),
     counts: async (slug, o = {}) => commentIndex.counts(await project(slug), o),

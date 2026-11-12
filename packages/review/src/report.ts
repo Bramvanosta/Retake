@@ -13,7 +13,9 @@ export function reportMarkdown(r: Omit<ReviewResult, 'thumbnails'>, tl: OutputTi
   const L: string[] = [];
   L.push(`# Review — ${r.render.id}`);
   L.push('');
-  L.push(`${r.render.scenario} · ${r.render.duration_s.toFixed(2)} s · ${r.render.frames} frames @ ${r.render.fps} fps · ${r.render.width}×${r.render.height} · theme ${r.render.template} · run ${r.render.run_id}`);
+  L.push(
+    `${r.render.scenario} · ${r.render.duration_s.toFixed(2)} s · ${r.render.frames} frames @ ${r.render.fps} fps · ${r.render.width}×${r.render.height} · theme ${r.render.template} · run ${r.render.run_id}`,
+  );
   L.push('');
   // L1.7: the environment the run filmed — production, its access, the writes a read-only run saw, the clock.
   if (r.environment) {
@@ -35,7 +37,9 @@ export function reportMarkdown(r: Omit<ReviewResult, 'thumbnails'>, tl: OutputTi
   L.push('| # | segment | kind | start | end | duration | speed | component |');
   L.push('|---|---|---|---|---|---|---|---|');
   r.durations.segments.forEach((d, i) => {
-    L.push(`| ${i + 1} | ${d.id} | ${d.kind} | ${timecode(d.from_s)} | ${timecode(d.to_s)} | ${d.duration_s.toFixed(2)} s | ${d.speed !== undefined ? `${d.speed.toFixed(2)}×` : ''} | ${d.component} |`);
+    L.push(
+      `| ${i + 1} | ${d.id} | ${d.kind} | ${timecode(d.from_s)} | ${timecode(d.to_s)} | ${d.duration_s.toFixed(2)} s | ${d.speed !== undefined ? `${d.speed.toFixed(2)}×` : ''} | ${d.component} |`,
+    );
   });
   L.push(`|  | **total** |  |  |  | **${r.durations.total_s.toFixed(2)} s** |  |  |`);
   L.push('');
@@ -56,16 +60,25 @@ export function reportMarkdown(r: Omit<ReviewResult, 'thumbnails'>, tl: OutputTi
     const d = r.diff;
     L.push(`## Changes since ${d.previous}`);
     L.push('');
-    L.push(`Duration ${d.duration_s.previous.toFixed(2)} s → ${d.duration_s.current.toFixed(2)} s (${d.duration_s.delta >= 0 ? '+' : ''}${d.duration_s.delta.toFixed(2)} s).${d.template ? ` Theme ${d.template.previous} → ${d.template.current}.` : ''}${d.run ? ` Run ${d.run.previous} → ${d.run.current}.` : ''}`);
+    L.push(
+      `Duration ${d.duration_s.previous.toFixed(2)} s → ${d.duration_s.current.toFixed(2)} s (${d.duration_s.delta >= 0 ? '+' : ''}${d.duration_s.delta.toFixed(2)} s).${d.template ? ` Theme ${d.template.previous} → ${d.template.current}.` : ''}${d.run ? ` Run ${d.run.previous} → ${d.run.current}.` : ''}`,
+    );
     L.push('');
     L.push('| segment | status | duration | changes |');
     L.push('|---|---|---|---|');
     for (const s of d.segments) {
-      const dur = s.status === 'removed' ? `${s.previous_duration_s?.toFixed(2)} s` : s.previous_duration_s !== undefined ? `${s.previous_duration_s.toFixed(2)} → ${s.duration_s?.toFixed(2)} s` : `${s.duration_s?.toFixed(2)} s`;
+      const dur =
+        s.status === 'removed'
+          ? `${s.previous_duration_s?.toFixed(2)} s`
+          : s.previous_duration_s !== undefined
+            ? `${s.previous_duration_s.toFixed(2)} → ${s.duration_s?.toFixed(2)} s`
+            : `${s.duration_s?.toFixed(2)} s`;
       L.push(`| ${s.id} | ${s.status} | ${dur} | ${s.changes.join('; ')} |`);
     }
     L.push('');
-    L.push(`${d.changed_frames.length} of ${d.compared} sample frames changed visibly${d.changed_frames.length ? `: ${d.changed_frames.map((f) => `${timecode(f.time)} (${f.segment}, ${Math.round(f.changed * 100)} %)`).join(', ')}` : ''}.${d.sheet ? ` Side by side: \`${rel(d.sheet)}\`.` : ''}`);
+    L.push(
+      `${d.changed_frames.length} of ${d.compared} sample frames changed visibly${d.changed_frames.length ? `: ${d.changed_frames.map((f) => `${timecode(f.time)} (${f.segment}, ${Math.round(f.changed * 100)} %)`).join(', ')}` : ''}.${d.sheet ? ` Side by side: \`${rel(d.sheet)}\`.` : ''}`,
+    );
     L.push('');
   }
   L.push('## Files');

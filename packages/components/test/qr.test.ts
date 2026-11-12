@@ -9,7 +9,10 @@ import type { QrLevel } from '@retake/components/kit';
 
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode') as {
-  create(data: Array<{ data: string | Uint8Array; mode: 'byte' }>, opts: { errorCorrectionLevel: QrLevel; version?: number; maskPattern?: number }): {
+  create(
+    data: Array<{ data: string | Uint8Array; mode: 'byte' }>,
+    opts: { errorCorrectionLevel: QrLevel; version?: number; maskPattern?: number },
+  ): {
     modules: { size: number; get(row: number, col: number): number };
     version: number;
     maskPattern: number;
@@ -23,13 +26,7 @@ function reference(text: string, level: QrLevel, version: number, mask: number):
 }
 
 describe('qrEncode (byte mode) matches the qrcode package', () => {
-  const texts = [
-    'https://northfield.example/start',
-    'HELLO',
-    'https://shop.northfield.example/signup?ref=video&utm_source=retake&utm_medium=qr',
-    'Café Lumen — 12,50 € ✓',
-    'x'.repeat(300),
-  ];
+  const texts = ['https://northfield.example/start', 'HELLO', 'https://shop.northfield.example/signup?ref=video&utm_source=retake&utm_medium=qr', 'Café Lumen — 12,50 € ✓', 'x'.repeat(300)];
   for (const text of texts) {
     for (const level of ['L', 'M', 'Q', 'H'] as QrLevel[]) {
       it(`${JSON.stringify(text.slice(0, 24))} at ${level}`, () => {

@@ -25,7 +25,11 @@ describe('the Run screen state (applyEvent)', () => {
     expect(s.log.at(-1)!.text).toBe(`line ${LOG_KEEP + 249} <img src=x onerror=alert(1)>`);
     expect(new Set(s.log.map((l) => l.key)).size).toBe(LOG_KEEP);
     // Worker notes and the Studio's own notes are lines too, said as such.
-    const t = fold([{ type: 'job_log', level: 'warn', untrusted: { message: 'sandbox reset' } }, { type: 'note', message: 'a line longer than 64 KiB was skipped' }, { type: 'job_state', state: 'running' }]);
+    const t = fold([
+      { type: 'job_log', level: 'warn', untrusted: { message: 'sandbox reset' } },
+      { type: 'note', message: 'a line longer than 64 KiB was skipped' },
+      { type: 'job_state', state: 'running' },
+    ]);
     expect(t.log.map((l) => [l.from, l.level, l.text])).toEqual([
       ['worker', 'warn', 'sandbox reset'],
       ['studio', 'warn', 'a line longer than 64 KiB was skipped'],
@@ -36,7 +40,14 @@ describe('the Run screen state (applyEvent)', () => {
   it('outline, steps, sessions, pauses, hooks (the phase marker goes when its first hook reports), the end', () => {
     const s = fold([
       { type: 'run_start', status: 'running', mode: 'dry', env: 'local', steps_total: 2, ts: '2026-10-26T12:00:00.000Z' },
-      { type: 'outline', steps: [{ scene: 'a', step: 0, action: 'click', desc: 'click "<b>Go</b>"' }, { scene: 'a', step: 1, action: 'hold', desc: 'hold 1 s' }, { scene: 7, step: 'x' }] },
+      {
+        type: 'outline',
+        steps: [
+          { scene: 'a', step: 0, action: 'click', desc: 'click "<b>Go</b>"' },
+          { scene: 'a', step: 1, action: 'hold', desc: 'hold 1 s' },
+          { scene: 7, step: 'x' },
+        ],
+      },
       { type: 'session', persona: 'owner', status: 'signed_in_auto', untrusted: { detail: 'Welcome back' } },
       { type: 'hook', phase: 'setup', name: 'setup', status: 'start', untrusted: { message: '1 hook(s)' } },
       { type: 'hook', phase: 'setup', name: 'reset', status: 'ok', untrusted: { message: '200 OK' } },
@@ -68,7 +79,15 @@ describe('the Run screen state (applyEvent)', () => {
   });
 
   it('ignores malformed and unknown events (the state object is unchanged)', () => {
-    for (const ev of [{}, { type: 'frame' }, { type: 'run_start', status: 'running' }, { type: 'step_end', scene: 'a', step: -1, status: 'ok' }, { type: 'session', persona: 3 }, { type: 'pause', state: 'paused' }, { type: '__proto__' }]) {
+    for (const ev of [
+      {},
+      { type: 'frame' },
+      { type: 'run_start', status: 'running' },
+      { type: 'step_end', scene: 'a', step: -1, status: 'ok' },
+      { type: 'session', persona: 3 },
+      { type: 'pause', state: 'paused' },
+      { type: '__proto__' },
+    ]) {
       expect(applyEvent(EMPTY, 'log', 1, ev)).toBe(EMPTY);
     }
   });
@@ -92,10 +111,22 @@ describe('the step rows after review (stepStatus, stepCounts) and the other revi
   ]);
 
   it('a stop: only the step it interrupted says "stopped here"; an optional step that failed before stays failed (B M2)', () => {
-    const s = fold([{ type: 'step_end', scene: 'a', step: 2, action: 'hook', status: 'failed', ms: 5, ts: ts(6) }, { type: 'run_end', status: 'cancelled', steps_total: 4, steps_done: 3, warnings: 0, ts: ts(7) }], started);
+    const s = fold(
+      [
+        { type: 'step_end', scene: 'a', step: 2, action: 'hook', status: 'failed', ms: 5, ts: ts(6) },
+        { type: 'run_end', status: 'cancelled', steps_total: 4, steps_done: 3, warnings: 0, ts: ts(7) },
+      ],
+      started,
+    );
     expect(rows.map((r) => stepStatus(s, r, true))).toEqual(['failed', 'dry', 'stopped', 'not_reached']);
     // Stopped between steps (the last one ended well): nothing says "stopped here".
-    const between = fold([{ type: 'step_end', scene: 'a', step: 2, action: 'hook', status: 'ok', ms: 5 }, { type: 'run_end', status: 'cancelled', steps_total: 4, warnings: 0 }], started);
+    const between = fold(
+      [
+        { type: 'step_end', scene: 'a', step: 2, action: 'hook', status: 'ok', ms: 5 },
+        { type: 'run_end', status: 'cancelled', steps_total: 4, warnings: 0 },
+      ],
+      started,
+    );
     expect(rows.map((r) => stepStatus(between, r, true))).not.toContain('stopped');
   });
 
@@ -128,7 +159,7 @@ describe('the step rows after review (stepStatus, stepCounts) and the other revi
     expect(stepCounts(run, rows, true)).toEqual({ done: 1, skipped: 0 });
   });
 
-  it('the log in time order whatever file a line came from; the job\'s state is never the run\'s outcome; the pause\'s maximum (B L5, L7, L9)', () => {
+  it("the log in time order whatever file a line came from; the job's state is never the run's outcome; the pause's maximum (B L5, L7, L9)", () => {
     const s = fold([
       { type: 'log', level: 'info', untrusted: { message: 'run 1' }, ts: ts(1) },
       { type: 'log', level: 'info', untrusted: { message: 'run 3' }, ts: ts(3) },

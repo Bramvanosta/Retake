@@ -156,11 +156,7 @@ function wallEpoch(at: string, p: ClockParts, timeZone: string): number {
  * `timezone` either way. Throws ClockError on an unusable value, an unknown time zone, or a wall time the zone skips or
  * shows twice (a DST change: write an offset).
  */
-export function resolveClock(
-  scenario: ClockSpec | false | undefined,
-  project: ClockSpec | undefined,
-  opts: { timezone?: string } = {},
-): ResolvedClock | undefined {
+export function resolveClock(scenario: ClockSpec | false | undefined, project: ClockSpec | undefined, opts: { timezone?: string } = {}): ResolvedClock | undefined {
   const spec = scenario === false ? undefined : (scenario ?? project);
   if (spec === undefined) return undefined;
   const at = typeof spec === 'string' ? spec : spec.at;
@@ -171,12 +167,7 @@ export function resolveClock(
     throw new ClockError(`clock: browser.timezone "${opts.timezone}" is not a time zone (e.g. Europe/Paris, America/New_York)`);
   }
   const tz = p.offset === null ? (opts.timezone ?? machineZone()) : undefined;
-  const epoch =
-    p.offset !== null
-      ? utc(p) - p.offset * 60_000
-      : tz !== undefined
-        ? wallEpoch(at.trim(), p, tz)
-        : new Date(p.y, p.mo - 1, p.d, p.h, p.mi, p.s, p.ms).getTime();
+  const epoch = p.offset !== null ? utc(p) - p.offset * 60_000 : tz !== undefined ? wallEpoch(at.trim(), p, tz) : new Date(p.y, p.mo - 1, p.d, p.h, p.mi, p.s, p.ms).getTime();
   return {
     at: at.trim(),
     epoch_ms: epoch,

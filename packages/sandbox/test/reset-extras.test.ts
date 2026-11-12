@@ -90,12 +90,23 @@ async function state(): Promise<{ emails: string[]; hooks: number }> {
 
 describe('a reset puts back a Firebase Auth emulator and runs reset.hooks (hotfix v0.2.5)', () => {
   it('validates: reset.hooks are checked as seed steps; the emulator is on this machine', () => {
-    const bad = parseSandboxYaml(manifest(port).replace('http: {method: POST, url: "{{app}}/test/hook"}', 'exec: {service: auth, command: "true"}').replace(`firebase_auth: {url: "http://127.0.0.1:${port}"`, 'firebase_auth: {url: "https://auth.example.test"'), undefined, { env: "sandbox" });
+    const bad = parseSandboxYaml(
+      manifest(port)
+        .replace('http: {method: POST, url: "{{app}}/test/hook"}', 'exec: {service: auth, command: "true"}')
+        .replace(`firebase_auth: {url: "http://127.0.0.1:${port}"`, 'firebase_auth: {url: "https://auth.example.test"'),
+      undefined,
+      { env: 'sandbox' },
+    );
     const msgs = bad.issues.filter((i) => i.severity === 'error').map((i) => `${i.path.join('.')}: ${i.message}`);
-    expect(msgs).toEqual(expect.arrayContaining([expect.stringMatching(/^reset\.hooks\.0\.exec: `exec` runs a command inside a compose service/), expect.stringMatching(/^reset\.firebase_auth\.url: the Firebase Auth emulator auth\.example\.test is not on this machine/)]));
+    expect(msgs).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^reset\.hooks\.0\.exec: `exec` runs a command inside a compose service/),
+        expect.stringMatching(/^reset\.firebase_auth\.url: the Firebase Auth emulator auth\.example\.test is not on this machine/),
+      ]),
+    );
   });
 
-  it('the seed starts on an empty emulator; a take\'s account is gone after the reset, the seeded one is back after the restart; the hooks ran', async () => {
+  it("the seed starts on an empty emulator; a take's account is gone after the reset, the seeded one is back after the restart; the hooks ran", async () => {
     const dir = join(root, 'p');
     await mkdir(join(dir, 'sandbox'), { recursive: true });
     await writeFile(join(dir, 'project.yaml'), ['name: Reset extras', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', ''].join('\n'));

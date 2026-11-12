@@ -18,7 +18,8 @@ import { findPrevious, findRender } from '../src/load.js';
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const lib = (await import(new URL('../../../scripts/audit/lib.mjs', import.meta.url).href)) as any;
 const rule = (id: string) => lib.RULES.filter((r: { id: string }) => r.id === id);
-const hits = (id: string, fileImports: Record<string, string[]>) => lib.ruleHits(ROOT, fileImports, rule(id)).map((h: { rule: string; file: string; spec: string }) => `${h.rule} ${h.file} → ${h.spec}`);
+const hits = (id: string, fileImports: Record<string, string[]>) =>
+  lib.ruleHits(ROOT, fileImports, rule(id)).map((h: { rule: string; file: string; spec: string }) => `${h.rule} ${h.file} → ${h.spec}`);
 
 describe('the review imports the editor through its planner entry only (R8)', () => {
   it('flags the editor root and any other sub-path from the review, nothing else', () => {
@@ -41,11 +42,13 @@ describe('the review imports the editor through its planner entry only (R8)', ()
   });
 
   it('keeps the planner steps renderer-free (R7 covers packages/editor/src/planner/*)', () => {
-    expect(hits('R7', { 'packages/editor/src/planner/segments.ts': ['node:fs', '@retake/core'], 'packages/editor/src/plan-entry.ts': ['remotion'], 'packages/editor/src/render-record.ts': ['node:fs/promises'] })).toEqual([
-      'R7 packages/editor/src/planner/segments.ts → node:fs',
-      'R7 packages/editor/src/plan-entry.ts → remotion',
-      'R7 packages/editor/src/render-record.ts → node:fs/promises',
-    ]);
+    expect(
+      hits('R7', {
+        'packages/editor/src/planner/segments.ts': ['node:fs', '@retake/core'],
+        'packages/editor/src/plan-entry.ts': ['remotion'],
+        'packages/editor/src/render-record.ts': ['node:fs/promises'],
+      }),
+    ).toEqual(['R7 packages/editor/src/planner/segments.ts → node:fs', 'R7 packages/editor/src/plan-entry.ts → remotion', 'R7 packages/editor/src/render-record.ts → node:fs/promises']);
     const { fileImports } = lib.scan(ROOT);
     expect(Object.keys(fileImports).filter((f) => f.startsWith('packages/editor/src/planner/')).length).toBeGreaterThanOrEqual(15);
     expect(hits('R7', fileImports)).toEqual([]);
@@ -56,7 +59,17 @@ describe('the renders of a project, as the review finds them', () => {
   let tmp: string;
   let project: LoadedProject;
   const rec = (id: string, at: string, extra: Record<string, unknown> = {}) =>
-    JSON.stringify({ version: 1, id, scenario: id.replace(/-v\d+.*$/, ''), variant: 'landscape', status: 'succeeded', created_at: at, file: join(tmp, 'renders', `${id}.mp4`), plan: { version: 1 }, ...extra });
+    JSON.stringify({
+      version: 1,
+      id,
+      scenario: id.replace(/-v\d+.*$/, ''),
+      variant: 'landscape',
+      status: 'succeeded',
+      created_at: at,
+      file: join(tmp, 'renders', `${id}.mp4`),
+      plan: { version: 1 },
+      ...extra,
+    });
 
   beforeAll(async () => {
     tmp = await mkdtemp(join(tmpdir(), 'retake-review-renders-'));
@@ -119,7 +132,9 @@ describe.skipIf(!hasFfmpeg)('probeVideo', () => {
   });
 
   it('refuses a file ffprobe cannot read, and a missing one', async () => {
-    await expect(probeVideo(join(dir, 'not-a-video.mp4'), PERSON_POLICY)).rejects.toThrow(`cannot read the video ${join(dir, 'not-a-video.mp4')} (ffprobe failed: is ffmpeg installed and the file a video?)`);
+    await expect(probeVideo(join(dir, 'not-a-video.mp4'), PERSON_POLICY)).rejects.toThrow(
+      `cannot read the video ${join(dir, 'not-a-video.mp4')} (ffprobe failed: is ffmpeg installed and the file a video?)`,
+    );
     await expect(probeVideo(join(dir, 'missing.mp4'), PERSON_POLICY)).rejects.toThrow(/ffprobe failed/);
   });
 });

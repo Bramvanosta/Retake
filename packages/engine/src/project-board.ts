@@ -330,7 +330,12 @@ export class ProjectBoards {
       if (g.capture) {
         const current = f.yaml !== undefined && f.hash ? await this.current(p, g.capture.id, f.yaml, f.hash) : null;
         const fin = iso(g.capture.record.finished_at);
-        s.capture = { id: g.capture.id, env: typeof g.capture.record.env === 'string' && g.capture.record.env.length <= 100 && SLUG_RE.test(g.capture.record.env) ? g.capture.record.env : 'unknown', ...(fin ? { finished_at: fin } : {}), current };
+        s.capture = {
+          id: g.capture.id,
+          env: typeof g.capture.record.env === 'string' && g.capture.record.env.length <= 100 && SLUG_RE.test(g.capture.record.env) ? g.capture.record.env : 'unknown',
+          ...(fin ? { finished_at: fin } : {}),
+          current,
+        };
       }
       if (g.dry) {
         const fin = iso(g.dry.record.finished_at);
@@ -364,7 +369,12 @@ export class ProjectBoards {
       }
       const open = mine.find((j) => !FINISHED_JOB_STATES.has(j.state));
       if (open) {
-        s.render_job = { job: open.id, state: open.state === 'running' ? 'running' : 'queued', reviewing: open.state === 'running' && (open.progress?.phase ?? '').startsWith('review:'), ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}) };
+        s.render_job = {
+          job: open.id,
+          state: open.state === 'running' ? 'running' : 'queued',
+          reviewing: open.state === 'running' && (open.progress?.phase ?? '').startsWith('review:'),
+          ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}),
+        };
         shownJobs.add(open.id);
       }
       for (const j of reviewJobs) if (j.input.kind === 'review' && recs.some((r) => r.id === (j.input as { render_id: string }).render_id)) shownJobs.add(j.id);
@@ -401,7 +411,16 @@ export class ProjectBoards {
     if (run) {
       // A failed take: the error screenshot of the step it failed at (run_thumbs serves it under that key, either mode).
       const err = run.record?.status === 'failed' ? run.record.error : undefined;
-      if (err && typeof err.scene === 'string' && SLUG_RE.test(err.scene) && typeof err.step === 'number' && Number.isInteger(err.step) && err.step >= 0 && run.screenshots.has(errorScreenshotName(err.scene, err.step))) found = `${err.scene}.${err.step}`;
+      if (
+        err &&
+        typeof err.scene === 'string' &&
+        SLUG_RE.test(err.scene) &&
+        typeof err.step === 'number' &&
+        Number.isInteger(err.step) &&
+        err.step >= 0 &&
+        run.screenshots.has(errorScreenshotName(err.scene, err.step))
+      )
+        found = `${err.scene}.${err.step}`;
       const seen = new Map<string, ThumbSource | null>();
       const events = [...run.events.values()];
       for (let i = events.length - 1; i >= 0 && found === null; i--) {
@@ -603,7 +622,11 @@ export class ProjectBoards {
       for (const [name, h] of head) {
         const o = groups.get(name) ?? {};
         // The head is newer: its last take and capture win; a dry run counts only when no newer capture exists.
-        groups.set(name, { ...(h.last ?? o.last ? { last: h.last ?? o.last } : {}), ...(h.capture ?? o.capture ? { capture: h.capture ?? o.capture } : {}), ...(h.dry ? { dry: h.dry } : !h.capture && o.dry ? { dry: o.dry } : {}) });
+        groups.set(name, {
+          ...((h.last ?? o.last) ? { last: h.last ?? o.last } : {}),
+          ...((h.capture ?? o.capture) ? { capture: h.capture ?? o.capture } : {}),
+          ...(h.dry ? { dry: h.dry } : !h.capture && o.dry ? { dry: o.dry } : {}),
+        });
       }
     } else groups = await this.summed(p, ids);
     remember(this.older, p.dir, { ids: [...ids], groups }, OLDER_MEMO_MAX);

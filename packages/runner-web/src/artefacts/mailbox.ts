@@ -57,7 +57,11 @@ export function parseAddress(v: unknown): MailAddress {
 export function parseAddressList(v: unknown): MailAddress[] {
   if (v === undefined || v === null || v === '') return [];
   if (Array.isArray(v)) return v.map(parseAddress).filter((a) => a.address !== '');
-  if (typeof v === 'string' && v.includes(',') && !v.includes('<')) return v.split(',').map(parseAddress).filter((a) => a.address !== '');
+  if (typeof v === 'string' && v.includes(',') && !v.includes('<'))
+    return v
+      .split(',')
+      .map(parseAddress)
+      .filter((a) => a.address !== '');
   return [parseAddress(v)].filter((a) => a.address !== '');
 }
 

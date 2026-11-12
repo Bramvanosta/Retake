@@ -309,4 +309,3 @@ export function writesSummary(tl: Pick<Timeline, 'environment'> | undefined): { 
   if (n.passed) parts.push(`${n.passed} to unguarded hosts`);
   return { text: `${parts.join(', ')} (read-only)`, stopped: n.blocked };
 }
-

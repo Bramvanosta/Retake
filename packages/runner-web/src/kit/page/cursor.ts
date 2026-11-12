@@ -112,10 +112,13 @@ function updateKind(force: boolean): void {
   const now = RT.performance.now();
   if (!force && now - lastKind < 50) {
     // Throttled: make sure the icon is re-evaluated once the pointer settles.
-    kindTimer ??= RT.setTimeout(() => {
-      kindTimer = null;
-      updateKind(true);
-    }, 50 - (now - lastKind));
+    kindTimer ??= RT.setTimeout(
+      () => {
+        kindTimer = null;
+        updateKind(true);
+      },
+      50 - (now - lastKind),
+    );
     return;
   }
   lastKind = now;
@@ -167,8 +170,21 @@ export const cursorApi = {
 };
 
 const EXT_COLORS: Record<string, string> = {
-  xlsx: '#1f8a4c', xls: '#1f8a4c', csv: '#6b7280', tsv: '#6b7280', pdf: '#d93a2b', docx: '#2b5fb8', doc: '#2b5fb8',
-  pptx: '#d2602a', ppt: '#d2602a', zip: '#b8892b', png: '#7a4fc9', jpg: '#7a4fc9', jpeg: '#7a4fc9', json: '#4b5563', txt: '#6b7280',
+  xlsx: '#1f8a4c',
+  xls: '#1f8a4c',
+  csv: '#6b7280',
+  tsv: '#6b7280',
+  pdf: '#d93a2b',
+  docx: '#2b5fb8',
+  doc: '#2b5fb8',
+  pptx: '#d2602a',
+  ppt: '#d2602a',
+  zip: '#b8892b',
+  png: '#7a4fc9',
+  jpg: '#7a4fc9',
+  jpeg: '#7a4fc9',
+  json: '#4b5563',
+  txt: '#6b7280',
 };
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
@@ -176,7 +192,7 @@ function esc(s: string): string {
 export const ghost = {
   show(name: string, detail: string): void {
     if (!ghostEl) return;
-    const ext = (name.includes('.') ? name.split('.').pop() ?? '' : '').toLowerCase().slice(0, 4);
+    const ext = (name.includes('.') ? (name.split('.').pop() ?? '') : '').toLowerCase().slice(0, 4);
     const color = EXT_COLORS[ext] ?? '#64748b';
     ghostEl.innerHTML =
       `<div class="b"><svg width="36" height="44" viewBox="0 0 36 44"><path d="M4 0 H24 L36 12 V40 A4 4 0 0 1 32 44 H4 A4 4 0 0 1 0 40 V4 A4 4 0 0 1 4 0 Z" fill="${color}"/>` +

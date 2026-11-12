@@ -255,7 +255,12 @@ export function RendersList({ r, slug, name, shown, limit, current }: { r: Rende
   return (
     <div className="ed-renders" data-testid="renders">
       {d.last_failed && (
-        <Callout state={d.last_failed.state === 'cancelled' ? 'warn' : 'fail'} role="note" title={`${versionWords(d.last_failed.render_id)} ${failedWords(d.last_failed.state)}`} testId="render-failed">
+        <Callout
+          state={d.last_failed.state === 'cancelled' ? 'warn' : 'fail'}
+          role="note"
+          title={`${versionWords(d.last_failed.render_id)} ${failedWords(d.last_failed.state)}`}
+          testId="render-failed"
+        >
           {d.untrusted.error && (
             <p className="ed-pre">
               <Txt text={d.untrusted.error} />
@@ -298,5 +303,18 @@ export function RendersList({ r, slug, name, shown, limit, current }: { r: Rende
 export function useReportEntry(slug: string, name: string, r: RendersState): void {
   const d = r.loaded.state === 'ready' ? r.loaded.data : null;
   const newest = d?.renders.find((x) => x.status === 'succeeded');
-  usePaletteGroup('report', d ? [{ id: 'report', label: 'Review report', hint: reportHint(newest, d.renders.length), icon: 'report', run: () => (location.hash = hrefTo({ name: 'review', slug, scenario: name, ...(newest ? { render: newest.render_id } : {}) })) }] : null);
+  usePaletteGroup(
+    'report',
+    d
+      ? [
+          {
+            id: 'report',
+            label: 'Review report',
+            hint: reportHint(newest, d.renders.length),
+            icon: 'report',
+            run: () => (location.hash = hrefTo({ name: 'review', slug, scenario: name, ...(newest ? { render: newest.render_id } : {}) })),
+          },
+        ]
+      : null,
+  );
 }

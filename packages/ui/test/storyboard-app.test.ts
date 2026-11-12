@@ -49,7 +49,7 @@ describe('the storyboard keys (L5.10b, plan §4.2, critique L3)', () => {
   });
 });
 
-describe('L5.10b fixes: the board\'s and the inspector\'s words', () => {
+describe("L5.10b fixes: the board's and the inspector's words", () => {
   it("A-L4: a skipped scene's height uses the board's measured columns and row height (two columns at 1100, one at 900)", () => {
     expect(sceneIntrinsicPx(100, 2, 200)).toBe(120 + 50 * 200);
     expect(sceneIntrinsicPx(100, 1, 300)).toBe(120 + 100 * 300);
@@ -70,7 +70,7 @@ describe('L5.10b fixes: the board\'s and the inspector\'s words', () => {
     expect(sceneLengthWords(undefined, 'capture')).toBe('not captured');
     expect(sceneLengthWords(undefined, undefined)).toBe('not shot yet');
   });
-  it('B-L4: a form field\'s label is words, not the schema\'s key', () => {
+  it("B-L4: a form field's label is words, not the schema's key", () => {
     expect(fieldLabel('text')).toBe('Text');
     expect(fieldLabel('ms')).toBe('Milliseconds');
     expect(fieldLabel('move ms')).toBe('Move time (ms)');

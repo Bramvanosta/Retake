@@ -77,7 +77,9 @@ beforeAll(async () => {
   await writeFile(join(project, 'hooks', 'mark.yaml'), '- name: mark\n  shell: {run: "printf x >> marks.log", rollback: "printf u >> undo.log"}\n');
   await writeFile(
     join(project, 'scenarios', 'short.yaml'),
-    ['video: short', 'setup:', '  - name: ping', '    http: {method: GET, url: "{{app}}/ping"}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.2', ''].join('\n'),
+    ['video: short', 'setup:', '  - name: ping', '    http: {method: GET, url: "{{app}}/ping"}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.2', ''].join(
+      '\n',
+    ),
   );
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
   queue = new FileJobQueue(root);

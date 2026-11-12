@@ -99,7 +99,10 @@ beforeAll(async () => {
   // Its theme folder's hash as a render writes it (the timeline's "from this version" compares plan and theme files).
   // (L5.12a fixes, review B-L2: the oldest of the four, so the list reads v4, v3, v2, v1 — newest first.)
   const rec = JSON.parse(await readFile(join(dir, 'renders', 'bits-v1.json'), 'utf8')) as Record<string, unknown>;
-  await writeFile(join(dir, 'renders', 'bits-v1.json'), JSON.stringify({ ...rec, template_sha256: v.view.theme_sha256, created_at: '2026-01-01T11:00:00.000Z', finished_at: '2026-01-01T11:00:00.000Z' }));
+  await writeFile(
+    join(dir, 'renders', 'bits-v1.json'),
+    JSON.stringify({ ...rec, template_sha256: v.view.theme_sha256, created_at: '2026-01-01T11:00:00.000Z', finished_at: '2026-01-01T11:00:00.000Z' }),
+  );
   fps = v.view.model.fps;
   stepA1 = v.view.model.steps.filter((s) => s.key === 'a.1').sort((a, b) => a.from - b.from)[0].from;
   // bits-v1's review, by hand: two sheets, three findings (one message with markup: text, never markup).
@@ -131,15 +134,38 @@ beforeAll(async () => {
   await mkdir(join(dir, 'review', 'bits-v4'), { recursive: true });
   await writeFile(
     join(dir, 'review', 'bits-v4', 'report.json'),
-    JSON.stringify({ version: 1, clean: false, counts: { error: 0, warning: 1, info: 0 }, review: { created_at: '2026-01-01T12:46:00.000Z', fps: 1 }, findings: [{ severity: 'warning', code: 'caption-too-long', message: 'long', at: { frame: stepA1 + 5, segment: 'a', scene: 'a', step: 1 } }], files: { sheets: [], keyframes: {} } }),
+    JSON.stringify({
+      version: 1,
+      clean: false,
+      counts: { error: 0, warning: 1, info: 0 },
+      review: { created_at: '2026-01-01T12:46:00.000Z', fps: 1 },
+      findings: [{ severity: 'warning', code: 'caption-too-long', message: 'long', at: { frame: stepA1 + 5, segment: 'a', scene: 'a', step: 1 } }],
+      files: { sheets: [], keyframes: {} },
+    }),
   );
   await queue.enqueue({ version: 1, kind: 'review', project: 'demo', render_id: 'bits-v2', fps: 1, submitted_by: 'test' });
   const failed = await queue.enqueue({ version: 1, kind: 'review', project: 'demo', render_id: 'bits-v3', fps: 1, submitted_by: 'test' });
-  await queue.write({ ...(await queue.get(failed.id))!, state: 'failed', finished_at: '2026-01-01T12:31:00.000Z', error: { code: 'internal', message: 'Error: the review <i>crashed</i>' } } as JobRecord);
+  await queue.write({
+    ...(await queue.get(failed.id))!,
+    state: 'failed',
+    finished_at: '2026-01-01T12:31:00.000Z',
+    error: { code: 'internal', message: 'Error: the review <i>crashed</i>' },
+  } as JobRecord);
   // A thread with Claude's proposal (its preview is Edit on a proposal route).
-  await writeThread(dir, { id: THREAD, scenario: 'bits', run: RUN, frames: v.plan.durationInFrames, text: 'The caption could be plainer', anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 } });
+  await writeThread(dir, {
+    id: THREAD,
+    scenario: 'bits',
+    run: RUN,
+    frames: v.plan.durationInFrames,
+    text: 'The caption could be plainer',
+    anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 },
+  });
   const mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
-  entry = (await mcp.comments.reply('demo', THREAD, 'A plainer caption.', { proposal: { scenario_yaml: BITS_TEXT.replace('caption: Every frame carries its number.', 'caption: Every frame shows its number.'), scenario_hash: sha(BITS_TEXT) } })).entry;
+  entry = (
+    await mcp.comments.reply('demo', THREAD, 'A plainer caption.', {
+      proposal: { scenario_yaml: BITS_TEXT.replace('caption: Every frame carries its number.', 'caption: Every frame shows its number.'), scenario_hash: sha(BITS_TEXT) },
+    })
+  ).entry;
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
@@ -231,7 +257,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);
   }, 120_000);
 
-  it('⚑ Show in Edit opens the take at the finding\'s frame (the same plan as the timeline\'s)', async () => {
+  it("⚑ Show in Edit opens the take at the finding's frame (the same plan as the timeline's)", async () => {
     await page.getByRole('listbox').focus();
     await page.keyboard.press('ArrowDown');
     await page.getByTestId('review-show-in-edit').click();
@@ -303,7 +329,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await card.getByTestId('open-review-report').getAttribute('href')).toBe('#/p/demo/s/bits/review');
   }, 60_000);
 
-  it('the screens at 1440, 1280 and 900, dark and light: the status bar\'s Render in sight, nothing scrolls sideways (shots)', async () => {
+  it("the screens at 1440, 1280 and 900, dark and light: the status bar's Render in sight, nothing scrolls sideways (shots)", async () => {
     const check = async (name: string) => {
       for (const [scheme, widths] of [
         ['dark', [1440, 1280, 900]],
@@ -333,7 +359,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await check('review-check');
   }, 120_000);
 
-  it('⚑ H2: Render — the report\'s and Edit\'s own (the menu\'s ⌘B is their button); on a proposal ⌘B renders nothing; a changed file is refused and read again', async () => {
+  it("⚑ H2: Render — the report's and Edit's own (the menu's ⌘B is their button); on a proposal ⌘B renders nothing; a changed file is refused and read again", async () => {
     // The report: Render renders the scenario's latest capture with the file on disk.
     await page.goto(`${studio.url}#/p/demo/s/other/review`);
     await page.getByTestId('review-empty').waitFor(POLL);
@@ -341,7 +367,14 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await command('render');
     await expect.poll(async () => (await openJobs('render')).length, POLL).toBe(1);
     const job = (await openJobs('render'))[0];
-    expect(job.input).toMatchObject({ kind: 'render', scenario: 'other', run_id: '20260101-110000-other', edit_sha256: sha(BITS_TEXT.replace('video: Bits', 'video: Other')), review: { fps: 1 }, submitted_by: 'ui' });
+    expect(job.input).toMatchObject({
+      kind: 'render',
+      scenario: 'other',
+      run_id: '20260101-110000-other',
+      edit_sha256: sha(BITS_TEXT.replace('video: Bits', 'video: Other')),
+      review: { fps: 1 },
+      submitted_by: 'ui',
+    });
     // One render of a scenario at a time: the button off, ⌘B says why and queues nothing.
     await expect.poll(() => page.getByTestId('render').isDisabled(), POLL).toBe(true);
     await command('render');
@@ -386,14 +419,16 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(consoleErrors).toEqual([]);
   }, 120_000);
 
-  it('⚑ A-M1: on a proposal\'s preview Render is refused before the view is read and on an error — ⌘B and the status bar\'s Render queue nothing', async () => {
+  it("⚑ A-M1: on a proposal's preview Render is refused before the view is read and on an error — ⌘B and the status bar's Render queue nothing", async () => {
     // The view held back: Edit is still loading (not mounted), the status bar's own Render shows.
     const held: Route[] = [];
     await page.route('**/v1/call/timeline_view', (r) => void held.push(r));
     await page.goto(`${studio.url}#/p/demo/s/bits/proposal/${THREAD}/${entry}`);
     await page.getByText('Loading the timeline…').waitFor(POLL);
     await expect.poll(() => page.getByTestId('run-render').isDisabled(), POLL).toBe(true);
-    expect(await page.locator(`#${await page.getByTestId('run-render').getAttribute('aria-describedby')}`).innerText()).toBe('Render: Previewing a proposal: apply it (Apply and re-render renders it)');
+    expect(await page.locator(`#${await page.getByTestId('run-render').getAttribute('aria-describedby')}`).innerText()).toBe(
+      'Render: Previewing a proposal: apply it (Apply and re-render renders it)',
+    );
     await command('render');
     await expect.poll(said, POLL).toBe('Render of bits: Previewing a proposal: apply it (Apply and re-render renders it)');
     expect(await openJobs('render')).toEqual([]);
@@ -434,7 +469,9 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await page.getByRole('listbox').focus();
     await page.keyboard.press('ArrowDown');
     await expect.poll(() => page.getByTestId('review-check-message').innerText(), POLL).toBe(HOSTILE);
-    await page.route('**/v1/call/timeline_view', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'not_found', message: 'No capture of bits' } }) }));
+    await page.route('**/v1/call/timeline_view', (r) =>
+      r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'not_found', message: 'No capture of bits' } }) }),
+    );
     await page.getByTestId('review-show-in-edit').click();
     await page.getByTestId('timeline-error').waitFor(POLL);
     expect(await page.locator('.sh-app').getAttribute('data-browser')).toBe('none');
@@ -446,7 +483,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await page.getByTestId('edit-seek-note').count()).toBe(0);
   }, 90_000);
 
-  it('Edit: the status line in plain words (B-L3); the inspector\'s general hint last, no blank band (B-L4); ⚑ the transport leaves the arrows to the playhead after a click (B-L5); [ ] and Shift+← → on the scrubber (A-L2); every track item a 24 px target (A-L3)', async () => {
+  it("Edit: the status line in plain words (B-L3); the inspector's general hint last, no blank band (B-L4); ⚑ the transport leaves the arrows to the playhead after a click (B-L5); [ ] and Shift+← → on the scrubber (A-L2); every track item a 24 px target (A-L3)", async () => {
     await page.goto(`${studio.url}#/p/demo/s/bits/timeline`);
     await page.getByTestId('tracks').waitFor(POLL);
     const frame = async () => Number(await page.getByTestId('preview').getAttribute('data-frame'));
@@ -457,7 +494,9 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await page.getByTestId('edit-state').innerText()).not.toMatch(/ {2}/);
     // B-L4: the selected segment first (right under the pane's top), the general hint last.
     await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
-    const band = await page.evaluate(() => document.querySelector('[data-testid="inspector-segment"]')!.getBoundingClientRect().top - document.querySelector('.sh-inspector')!.getBoundingClientRect().top);
+    const band = await page.evaluate(
+      () => document.querySelector('[data-testid="inspector-segment"]')!.getBoundingClientRect().top - document.querySelector('.sh-inspector')!.getBoundingClientRect().top,
+    );
     expect(band).toBeLessThanOrEqual(16);
     expect(await page.locator('.ed-inspector > :last-child').getAttribute('data-testid')).toBe('inspector-general');
     // B-L5: a click on Next frame (no blur), then → and End are the playhead's, not the toolbar's.
@@ -481,11 +520,13 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await page.keyboard.press('[');
     await expect.poll(frame, POLL).toBe(seg);
     // A-L3: every track item is at least 24 px tall; a tick 24 px wide; a span narrower has a 24 px hit area.
-    const sizes = await page.locator('.k-trackitem-button').evaluateAll((els) => els.map((e) => {
-      const r = e.getBoundingClientRect();
-      const hit = Math.max(r.width, parseFloat(getComputedStyle(e, '::before').width) || 0);
-      return { h: r.height, hit, tick: e.parentElement!.classList.contains('is-tick') };
-    }));
+    const sizes = await page.locator('.k-trackitem-button').evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        const hit = Math.max(r.width, parseFloat(getComputedStyle(e, '::before').width) || 0);
+        return { h: r.height, hit, tick: e.parentElement!.classList.contains('is-tick') };
+      }),
+    );
     expect(sizes.length).toBeGreaterThan(5);
     for (const z of sizes) {
       expect(z.h).toBeGreaterThanOrEqual(24);

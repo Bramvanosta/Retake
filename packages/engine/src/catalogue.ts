@@ -140,12 +140,12 @@ const RENDER_RULES: readonly AdmissionRule[] = ['one_render_per_scenario'];
 const EXPORT_RULES: readonly AdmissionRule[] = ['export_cap'];
 
 // Reasons several operations share.
-const NO_HOOKS_IN_STUDIO = no('the Studio runs hooks only inside a capture, and refuses one whose hooks need a person (a page\'s script cannot be told from a person\'s click): a terminal runs them');
+const NO_HOOKS_IN_STUDIO = no("the Studio runs hooks only inside a capture, and refuses one whose hooks need a person (a page's script cannot be told from a person's click): a terminal runs them");
 const NO_SANDBOX_IN_STUDIO = no("no Studio screen manages a sandbox (the Studio's runs never start or reset one): `retake sandbox` in a terminal");
 const COMMENT_PAGE = no('a page is never Claude: the Studio answers threads through its own thread ops (the channel studio, never a proposal)');
 const DESKTOP_ONLY = no("the desktop app's own server only: between its window and its shell");
-const SETUP_ONLY = no('the installed app\'s Set-up sheet only: no MCP tool can install the command or register Retake with Claude');
-const SCREEN_READ = no('a read shaped for one Studio screen: a terminal shows the files and the commands\' own output');
+const SETUP_ONLY = no("the installed app's Set-up sheet only: no MCP tool can install the command or register Retake with Claude");
+const SCREEN_READ = no("a read shaped for one Studio screen: a terminal shows the files and the commands' own output");
 const PREVIEW_FRAME = no("the Studio's sandboxed preview frame: a terminal renders stills and videos instead");
 const RECORD_PANEL = no("the Record screen's control panel of the window the Studio opened: Claude asks for a recording with scenario_record and follows it with job_status");
 const RECORD_CLI = no('`retake record` runs the whole recording in the terminal: its window, its draft and its check');
@@ -162,9 +162,12 @@ const TERMINAL_ONLY_STUDIO = no('a command a person runs in a terminal: no Studi
 // job_cancel is what render_cancel and sign_in_cancel narrow to one kind of job each — since a use case holds one name
 // per shell; a submit and the read of what it made (template_from_site / site_list); and the reads one shell does in
 // two calls (theme_view, review_image, library_images), which serve a screen, not another shell's operation.
-const THREAD_REPLY_APART = 'the Studio answers its path-free view of the thread (its last 100 entries, entries_total, still) under its own summary (MCP\'s says it wrote as mcp), and chains a thread\'s writes one at a time (threadKey); MCP answers the compact thread with its project and id, unchained';
-const THREAD_RESOLVE_APART = "the Studio's render_id is a render id only (MCP's also latest, with what it passed over), it answers the written entry without the compact thread, its summary is its own, and it chains a thread's writes one at a time (threadKey); MCP's is unchained";
-const THEME_CREATE_APART = "the Studio never replaces a theme (a write; MCP's replace: true makes its tool destructive), answers without the theme's folder (no workspace path on the wire) under its own summary, and chains per theme with theme_edit and theme_copy (themeKey)";
+const THREAD_REPLY_APART =
+  "the Studio answers its path-free view of the thread (its last 100 entries, entries_total, still) under its own summary (MCP's says it wrote as mcp), and chains a thread's writes one at a time (threadKey); MCP answers the compact thread with its project and id, unchained";
+const THREAD_RESOLVE_APART =
+  "the Studio's render_id is a render id only (MCP's also latest, with what it passed over), it answers the written entry without the compact thread, its summary is its own, and it chains a thread's writes one at a time (threadKey); MCP's is unchained";
+const THEME_CREATE_APART =
+  "the Studio never replaces a theme (a write; MCP's replace: true makes its tool destructive), answers without the theme's folder (no workspace path on the wire) under its own summary, and chains per theme with theme_edit and theme_copy (themeKey)";
 
 // Every operation, MCP tools first (in the order tools/list gives them), then the Studio's own ops, then the CLI's own.
 const ENTRIES = [
@@ -179,7 +182,14 @@ const ENTRIES = [
   { name: 'scenario_validate', ...R, cli: ['validate'], mcp: true, studio: STUDIO },
   { name: 'scenario_save', useCase: 'scenario.save', ...W, cli: no('a person edits scenarios/<name>.yaml'), mcp: true, studio: no('one Studio write path for a scenario: scenario_edit') },
   { name: 'page_inspect', ...JOB, cli: ['inspect'], mcp: true, studio: AGENT_ONLY },
-  { name: 'scenario_record', useCase: 'recording.start', ...JOB, cli: ['record'], mcp: true, studio: no('a recording from the Studio is record_start, pinned (page and path, no --allow-writes, the check on), and is stopped, discarded and saved through its own ops only') },
+  {
+    name: 'scenario_record',
+    useCase: 'recording.start',
+    ...JOB,
+    cli: ['record'],
+    mcp: true,
+    studio: no('a recording from the Studio is record_start, pinned (page and path, no --allow-writes, the check on), and is stopped, discarded and saved through its own ops only'),
+  },
   { name: 'scenario_from_script', ...R, cli: no('an aid for Claude, who rewrites the skeleton into real steps'), mcp: true, studio: AGENT_ONLY },
   { name: 'run_list', ...R, cli: no('runs/ holds them; the commands name a run by its id or `latest`'), mcp: true, studio: STUDIO },
   {
@@ -191,30 +201,95 @@ const ENTRIES = [
     studio: { pins: [{ arg: 'wait_s', value: 0, absent: 'optional', description: 'Always 0 from the Studio (no long-poll).' }] },
   },
   { name: 'run_dry', ...JOB_PROJECT, admission: DRY_RUN_RULES, cli: ['run'], mcp: true, studio: no("the Studio's dry run is scenario_run, with pinned arguments: no sandbox, no until, no wait") },
-  { name: 'run_capture', useCase: 'scenario.run', ...JOB_PROJECT, admission: CAPTURE_RULES, cli: ['run'], mcp: true, studio: no("the Studio's capture is scenario_run, with pinned arguments: no sandbox, no until, no wait") },
+  {
+    name: 'run_capture',
+    useCase: 'scenario.run',
+    ...JOB_PROJECT,
+    admission: CAPTURE_RULES,
+    cli: ['run'],
+    mcp: true,
+    studio: no("the Studio's capture is scenario_run, with pinned arguments: no sandbox, no until, no wait"),
+  },
   { name: 'run_cancel', ...W, cli: no('Ctrl-C stops `retake run`; `retake jobs cancel` stops a job'), mcp: true, studio: STUDIO },
   { name: 'plan_preview', useCase: 'plan.view', ...R, cli: ['plan'], mcp: true, studio: no('the timeline screen shows the plan through timeline_view') },
-  { name: 'render', useCase: 'render.queue', ...JOB_WORKSPACE, admission: RENDER_RULES, cli: ['render'], mcp: true, studio: no("the Studio's render is scenario_render, with the theme and options of the files") },
+  {
+    name: 'render',
+    useCase: 'render.queue',
+    ...JOB_WORKSPACE,
+    admission: RENDER_RULES,
+    cli: ['render'],
+    mcp: true,
+    studio: no("the Studio's render is scenario_render, with the theme and options of the files"),
+  },
   { name: 'render_status', useCase: 'render.status', ...R, cli: no('`retake render` renders in the foreground'), mcp: true, studio: no("the Studio's render queue and list are scenario_renders") },
   { name: 'review', ...JOB, cli: ['review'], mcp: true, studio: no("the Studio's render is reviewed after it (scenario_render)") },
-  { name: 'review_get', useCase: 'review.read', ...R, cli: no('`retake review` prints the verdict; review/<render>/ holds the report'), mcp: true, studio: no('the Studio reads a review without paths (render_review) and its contact sheets (review_image)') },
-  { name: 'export', useCase: 'export.queue', ...JOB_WORKSPACE, admission: EXPORT_RULES, cli: ['export'], mcp: true, studio: no("the Studio's export is review_export (MP4 1080p in its fixed folder)") },
+  {
+    name: 'review_get',
+    useCase: 'review.read',
+    ...R,
+    cli: no('`retake review` prints the verdict; review/<render>/ holds the report'),
+    mcp: true,
+    studio: no('the Studio reads a review without paths (render_review) and its contact sheets (review_image)'),
+  },
+  {
+    name: 'export',
+    useCase: 'export.queue',
+    ...JOB_WORKSPACE,
+    admission: EXPORT_RULES,
+    cli: ['export'],
+    mcp: true,
+    studio: no("the Studio's export is review_export (MP4 1080p in its fixed folder)"),
+  },
   { name: 'comments_list', useCase: 'comments.list', ...R, cli: ['comment list'], mcp: true, studio: COMMENT_PAGE },
   { name: 'comment_reply', useCase: 'comments.reply', ...W, cli: ['comment reply'], mcp: true, studio: COMMENT_PAGE },
   { name: 'comment_resolve', useCase: 'comments.resolve', ...W, cli: ['comment resolve'], mcp: true, studio: COMMENT_PAGE },
   { name: 'template_list', useCase: 'themes.list', ...R, cli: ['list'], mcp: true, studio: no('the theme screens list themes through theme_list') },
-  { name: 'template_preview', useCase: 'themes.preview', ...JOB_WORKSPACE, cli: no('`retake still --theme` renders a frame of a video with a theme'), mcp: true, studio: no("the theme editor's live preview is theme_preview, in the sandboxed frame") },
+  {
+    name: 'template_preview',
+    useCase: 'themes.preview',
+    ...JOB_WORKSPACE,
+    cli: no('`retake still --theme` renders a frame of a video with a theme'),
+    mcp: true,
+    studio: no("the theme editor's live preview is theme_preview, in the sandboxed frame"),
+  },
   { name: 'template_from_site', ...JOB, cli: ['theme from-site'], mcp: true, studio: no("a site extraction needs a person's approval of the URL: the Studio shows the command (site_list)") },
-  { name: 'template_create_from_brand', useCase: 'themes.create', ...D('a theme it made through MCP that nobody edited (replace: true)'), cli: ['theme create'], mcp: true, studio: no('the theme editor makes a new theme through theme_create, never replacing one') },
+  {
+    name: 'template_create_from_brand',
+    useCase: 'themes.create',
+    ...D('a theme it made through MCP that nobody edited (replace: true)'),
+    cli: ['theme create'],
+    mcp: true,
+    studio: no('the theme editor makes a new theme through theme_create, never replacing one'),
+  },
   { name: 'component_list', useCase: 'components.list', ...R, cli: ['components list'], mcp: true, studio: no('the library screen lists components through library_view') },
-  { name: 'component_get', useCase: 'components.get', ...R, cli: no("`retake components list` lists them; a component's folder holds its manifest and README"), mcp: true, studio: no("the library screen shows a component's detail through library_component") },
+  {
+    name: 'component_get',
+    useCase: 'components.get',
+    ...R,
+    cli: no("`retake components list` lists them; a component's folder holds its manifest and README"),
+    mcp: true,
+    studio: no("the library screen shows a component's detail through library_component"),
+  },
   { name: 'component_validate', ...R, cli: ['components validate'], mcp: true, studio: no('no Studio screen checks a component: `retake components validate` in a terminal') },
-  { name: 'component_preview', useCase: 'components.preview', ...JOB_WORKSPACE, cli: ['components preview'], mcp: true, studio: no('the library shows posters and loops the worker rendered (library_images, library_render), never component code in the Studio\'s origin') },
-  { name: 'component_create', ...W, cli: ['components create'], mcp: true, studio: no('component code is the person\'s: `retake components create` scaffolds one') },
+  {
+    name: 'component_preview',
+    useCase: 'components.preview',
+    ...JOB_WORKSPACE,
+    cli: ['components preview'],
+    mcp: true,
+    studio: no("the library shows posters and loops the worker rendered (library_images, library_render), never component code in the Studio's origin"),
+  },
+  { name: 'component_create', ...W, cli: ['components create'], mcp: true, studio: no("component code is the person's: `retake components create` scaffolds one") },
   { name: 'job_list', ...R, cli: ['jobs list'], mcp: true, studio: STUDIO },
   { name: 'job_status', ...R, cli: ['jobs status'], mcp: true, studio: no('the Studio follows jobs through its event stream, run_status and scenario_renders') },
   // A cancel stops a job; one case discards: a recording whose window is open (what the person performed in it).
-  { name: 'job_cancel', ...D('a recording whose window is open (its draft is never made)'), cli: ['jobs cancel'], mcp: true, studio: no('the Studio cancels a job of its own kind only: run_cancel, render_cancel, sign_in_cancel and the record ops') },
+  {
+    name: 'job_cancel',
+    ...D('a recording whose window is open (its draft is never made)'),
+    cli: ['jobs cancel'],
+    mcp: true,
+    studio: no('the Studio cancels a job of its own kind only: run_cancel, render_cancel, sign_in_cancel and the record ops'),
+  },
   { name: 'hooks_run', ...JOB_PROJECT_DESTRUCTIVE(HOOK_DATA), cli: ['hooks run'], mcp: true, studio: NO_HOOKS_IN_STUDIO },
   { name: 'env_reset', ...JOB_PROJECT_DESTRUCTIVE('what the hooks did to an environment: its pending rollbacks and its reset hooks'), cli: ['env reset'], mcp: true, studio: NO_HOOKS_IN_STUDIO },
   { name: 'auth_status', ...R, cli: ['auth status'], mcp: true, studio: STUDIO },
@@ -237,11 +312,23 @@ const ENTRIES = [
   { name: 'sandbox_reset', ...JOB_PROJECT_DESTRUCTIVE("a sandbox's data, put back to its seed"), cli: ['sandbox reset'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
 
   // The Studio's own ops.
-  { name: 'activity_list', ...R, cli: no('the workspace index is the Studio\'s cache: `retake jobs list` lists jobs'), mcp: no('the workspace index is the Studio\'s cache for its activity feed: Claude lists with job_list and run_list'), studio: STUDIO },
-  { name: 'search', ...R, cli: no('the workspace index is the Studio\'s cache: `retake list` lists projects and scenarios'), mcp: no("the workspace index is the Studio's cache for its search: Claude lists with project_list and run_list"), studio: STUDIO },
-  { name: 'projects_overview', ...R, cli: SCREEN_READ, mcp: no('the Projects screen\'s cards in one call: Claude reads project_list and project_get'), studio: STUDIO },
+  {
+    name: 'activity_list',
+    ...R,
+    cli: no("the workspace index is the Studio's cache: `retake jobs list` lists jobs"),
+    mcp: no("the workspace index is the Studio's cache for its activity feed: Claude lists with job_list and run_list"),
+    studio: STUDIO,
+  },
+  {
+    name: 'search',
+    ...R,
+    cli: no("the workspace index is the Studio's cache: `retake list` lists projects and scenarios"),
+    mcp: no("the workspace index is the Studio's cache for its search: Claude lists with project_list and run_list"),
+    studio: STUDIO,
+  },
+  { name: 'projects_overview', ...R, cli: SCREEN_READ, mcp: no("the Projects screen's cards in one call: Claude reads project_list and project_get"), studio: STUDIO },
   { name: 'project_board', ...R, cli: SCREEN_READ, mcp: no("the Project screen's board: Claude reads project_get, run_list and render_status"), studio: STUDIO },
-  { name: 'scenario_blocks', useCase: 'scenario.read', ...R, cli: SCREEN_READ, mcp: no('the scenario screen\'s blocks: Claude reads scenario_get and scenario_validate'), studio: STUDIO },
+  { name: 'scenario_blocks', useCase: 'scenario.read', ...R, cli: SCREEN_READ, mcp: no("the scenario screen's blocks: Claude reads scenario_get and scenario_validate"), studio: STUDIO },
   { name: 'scenario_actions', ...R, cli: SCREEN_READ, mcp: no("the scenario screen's status bar: Claude's run tools say what stops them"), studio: STUDIO },
   { name: 'run_thumbs', ...R, cli: SCREEN_READ, mcp: no('thumbnails for the scenario screen: Claude reads the screenshots run_status names'), studio: STUDIO },
   { name: 'scenario_forms', ...R, cli: SCREEN_READ, mcp: no("the inspector's and the palette's forms: Claude writes the YAML"), studio: STUDIO },
@@ -250,27 +337,76 @@ const ENTRIES = [
   { name: 'run_pause', ...W, cli: no('`retake run` films in the foreground: no pause'), mcp: no("a pause is the person's, on the Run screen"), studio: STUDIO },
   { name: 'scenario_sessions', ...R, cli: no('`retake auth status` lists the sessions'), mcp: no('Claude reads the sessions with auth_status'), studio: STUDIO },
   { name: 'sign_in_cancel', ...W, cli: no('`retake jobs cancel` stops a job'), mcp: no('Claude cancels a job with job_cancel'), studio: STUDIO },
-  { name: 'timeline_view', useCase: 'plan.view', ...R, cli: no('`retake plan` prints the plan of a capture'), mcp: no('the timeline screen with its preview frame: Claude reads the plan with plan_preview'), studio: STUDIO },
+  {
+    name: 'timeline_view',
+    useCase: 'plan.view',
+    ...R,
+    cli: no('`retake plan` prints the plan of a capture'),
+    mcp: no('the timeline screen with its preview frame: Claude reads the plan with plan_preview'),
+    studio: STUDIO,
+  },
   { name: 'timeline_leave', ...W, cli: PREVIEW_FRAME, mcp: PREVIEW_FRAME, studio: STUDIO },
-  { name: 'preview_allow', ...W, cli: PREVIEW_FRAME, mcp: no('only the person allows a workspace component to run in the Studio\'s preview'), studio: STUDIO },
+  { name: 'preview_allow', ...W, cli: PREVIEW_FRAME, mcp: no("only the person allows a workspace component to run in the Studio's preview"), studio: STUDIO },
   { name: 'scenario_render', useCase: 'render.queue', ...JOB_WORKSPACE, admission: RENDER_RULES, cli: ['render'], mcp: no('Claude renders with render, then review'), studio: STUDIO },
-  { name: 'scenario_renders', useCase: 'render.status', ...R, cli: no('renders/ holds them; `retake jobs list` lists the queue'), mcp: no('Claude follows a render with render_status'), studio: STUDIO },
+  {
+    name: 'scenario_renders',
+    useCase: 'render.status',
+    ...R,
+    cli: no('renders/ holds them; `retake jobs list` lists the queue'),
+    mcp: no('Claude follows a render with render_status'),
+    studio: STUDIO,
+  },
   { name: 'render_cancel', ...W, cli: no('`retake jobs cancel` stops a job'), mcp: no('Claude cancels a job with job_cancel'), studio: STUDIO },
-  { name: 'render_review', useCase: 'review.read', ...R, cli: no('`retake review` prints the verdict; review/<render>/ holds the report'), mcp: no('Claude reads a review with review_get'), studio: STUDIO },
+  {
+    name: 'render_review',
+    useCase: 'review.read',
+    ...R,
+    cli: no('`retake review` prints the verdict; review/<render>/ holds the report'),
+    mcp: no('Claude reads a review with review_get'),
+    studio: STUDIO,
+  },
   { name: 'review_image', ...R, cli: no('review/<render>/ holds the contact sheets'), mcp: no('review_get returns the contact sheets as images'), studio: STUDIO },
   { name: 'review_export', useCase: 'export.queue', ...JOB_WORKSPACE, admission: EXPORT_RULES, cli: ['export'], mcp: no('Claude exports with export'), studio: STUDIO },
   { name: 'threads_list', useCase: 'comments.list', ...R, cli: ['comment list'], mcp: no('Claude reads threads with comments_list'), studio: STUDIO },
   { name: 'threads_counts', ...R, cli: THREAD_CLI_READ, mcp: no('Claude reads threads with comments_list'), studio: STUDIO },
   { name: 'thread_get', ...R, cli: THREAD_CLI_READ, mcp: no('Claude reads a thread with comments_list {comment_id}'), studio: STUDIO },
   { name: 'thread_still', ...R, cli: THREAD_CLI_READ, mcp: no("comments_list returns each thread's still"), studio: STUDIO },
-  { name: 'render_outline', ...R, cli: SCREEN_READ, mcp: no('the comment screen\'s outline of a render: Claude reads render_status and comments_list'), studio: STUDIO },
-  { name: 'render_frame', ...R, cli: no('`retake still` renders one frame of the planned video'), mcp: no("the comment screen's frames: Claude reads review_get's key frames"), studio: { status: { busy: 429 } } },
+  { name: 'render_outline', ...R, cli: SCREEN_READ, mcp: no("the comment screen's outline of a render: Claude reads render_status and comments_list"), studio: STUDIO },
+  {
+    name: 'render_frame',
+    ...R,
+    cli: no('`retake still` renders one frame of the planned video'),
+    mcp: no("the comment screen's frames: Claude reads review_get's key frames"),
+    studio: { status: { busy: 429 } },
+  },
   { name: 'frame_anchor', ...R, cli: no('`retake comment add` stores the anchor it computes'), mcp: no("comments_list returns each thread's anchor"), studio: STUDIO },
   { name: 'thread_add', ...W, cli: ['comment add'], mcp: no('only people create threads: in the Studio or with `retake comment add`'), studio: STUDIO },
-  { name: 'thread_reply', useCase: 'comments.reply', narrows: { of: 'comment_reply', apart: THREAD_REPLY_APART }, ...W, cli: ['comment reply'], mcp: no('Claude replies with comment_reply'), studio: STUDIO },
-  { name: 'thread_resolve', useCase: 'comments.resolve', narrows: { of: 'comment_resolve', apart: THREAD_RESOLVE_APART }, ...W, cli: ['comment resolve'], mcp: no('Claude resolves with comment_resolve'), studio: STUDIO },
+  {
+    name: 'thread_reply',
+    useCase: 'comments.reply',
+    narrows: { of: 'comment_reply', apart: THREAD_REPLY_APART },
+    ...W,
+    cli: ['comment reply'],
+    mcp: no('Claude replies with comment_reply'),
+    studio: STUDIO,
+  },
+  {
+    name: 'thread_resolve',
+    useCase: 'comments.resolve',
+    narrows: { of: 'comment_resolve', apart: THREAD_RESOLVE_APART },
+    ...W,
+    cli: ['comment resolve'],
+    mcp: no('Claude resolves with comment_resolve'),
+    studio: STUDIO,
+  },
   { name: 'thread_reopen', ...W, cli: ['comment reopen'], mcp: no('only people reopen threads: in the Studio or with `retake comment reopen`'), studio: STUDIO },
-  { name: 'thread_apply', ...W, cli: no("a proposal is applied by the person in the Studio, where it is previewed"), mcp: no("only the person applies Claude's proposal, in the Studio"), studio: STUDIO },
+  {
+    name: 'thread_apply',
+    ...W,
+    cli: no('a proposal is applied by the person in the Studio, where it is previewed'),
+    mcp: no("only the person applies Claude's proposal, in the Studio"),
+    studio: STUDIO,
+  },
   { name: 'library_view', useCase: 'components.list', ...R, cli: no('`retake components list` lists the components'), mcp: LIBRARY_MCP, studio: STUDIO },
   { name: 'library_images', ...R, cli: no("a component's folder holds its preview.png"), mcp: LIBRARY_MCP, studio: STUDIO },
   { name: 'library_render', useCase: 'components.preview', ...JOB_WORKSPACE, cli: no('`retake components preview` renders previews'), mcp: LIBRARY_MCP, studio: STUDIO },
@@ -279,9 +415,17 @@ const ENTRIES = [
   { name: 'theme_view', ...R, cli: no('a person reads templates/<name>/template.yaml'), mcp: no('Claude reads themes with template_list'), studio: STUDIO },
   { name: 'theme_edit', ...W, cli: no('a person edits templates/<name>/template.yaml'), mcp: THEME_EDIT_MCP, studio: STUDIO },
   { name: 'theme_copy', ...W, cli: no('a person copies a theme folder'), mcp: THEME_EDIT_MCP, studio: STUDIO },
-  { name: 'theme_create', useCase: 'themes.create', narrows: { of: 'template_create_from_brand', apart: THEME_CREATE_APART }, ...W, cli: ['theme create'], mcp: no('Claude makes a new theme with template_create_from_brand'), studio: STUDIO },
+  {
+    name: 'theme_create',
+    useCase: 'themes.create',
+    narrows: { of: 'template_create_from_brand', apart: THEME_CREATE_APART },
+    ...W,
+    cli: ['theme create'],
+    mcp: no('Claude makes a new theme with template_create_from_brand'),
+    studio: STUDIO,
+  },
   { name: 'brand_files', ...R, cli: no('a person names the files to `retake theme create`'), mcp: no("Claude asks the user for the brand's files"), studio: STUDIO },
-  { name: 'site_list', ...R, cli: no('`retake theme from-site` prints what it extracted'), mcp: no('Claude reads an extraction from template_from_site\'s job'), studio: STUDIO },
+  { name: 'site_list', ...R, cli: no('`retake theme from-site` prints what it extracted'), mcp: no("Claude reads an extraction from template_from_site's job"), studio: STUDIO },
   { name: 'theme_preview', useCase: 'themes.preview', ...R, cli: PREVIEW_FRAME, mcp: no('Claude previews a theme with template_preview (stills)'), studio: STUDIO },
   { name: 'record_options', ...R, cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
   { name: 'record_start', useCase: 'recording.start', ...JOB, cli: ['record'], mcp: RECORD_PANEL, studio: STUDIO },
@@ -307,16 +451,46 @@ const ENTRIES = [
   { name: 'workspace_init', ...W, cli: ['init'], mcp: TERMINAL_ONLY_MCP, studio: TERMINAL_ONLY_STUDIO },
   { name: 'raw_export', ...W, cli: ['export-capture'], mcp: no('a raw package is for another editing tool: a person exports it in a terminal'), studio: TERMINAL_ONLY_STUDIO },
   { name: 'still', ...WORKSPACE, cli: ['still'], mcp: no('Claude sees frames through review_get and template_preview'), studio: no('the comment screen shows frames of a render (render_frame)') },
-  { name: 'hooks_rollback', ...PROJECT_DESTRUCTIVE("what a capture's or a hook run's hooks did (their pending rollbacks)"), cli: ['hooks rollback'], mcp: no('env_reset replays pending rollbacks first'), studio: NO_HOOKS_IN_STUDIO },
+  {
+    name: 'hooks_rollback',
+    ...PROJECT_DESTRUCTIVE("what a capture's or a hook run's hooks did (their pending rollbacks)"),
+    cli: ['hooks rollback'],
+    mcp: no('env_reset replays pending rollbacks first'),
+    studio: NO_HOOKS_IN_STUDIO,
+  },
   { name: 'hooks_trust', ...W, cli: ['hooks trust'], mcp: no("a person marks an agent's shell and sql hooks as theirs, after reading them, in a terminal: never Claude"), studio: NO_HOOKS_IN_STUDIO },
   { name: 'sandbox_init', ...W, cli: ['sandbox init'], mcp: no("sandbox.yaml is the person's file, never written through MCP"), studio: NO_SANDBOX_IN_STUDIO },
-  { name: 'sandbox_down', ...PROJECT_DESTRUCTIVE("a sandbox's services, and with --volumes its data"), cli: ['sandbox down'], mcp: no('Claude starts and resets a sandbox; a person stops it'), studio: NO_SANDBOX_IN_STUDIO },
+  {
+    name: 'sandbox_down',
+    ...PROJECT_DESTRUCTIVE("a sandbox's services, and with --volumes its data"),
+    cli: ['sandbox down'],
+    mcp: no('Claude starts and resets a sandbox; a person stops it'),
+    studio: NO_SANDBOX_IN_STUDIO,
+  },
   { name: 'sandbox_logs', ...R, cli: ['sandbox logs'], mcp: no("sandbox_status says a sandbox's state; its logs are read in a terminal"), studio: NO_SANDBOX_IN_STUDIO },
-  { name: 'doctor', ...R, cli: ['doctor'], mcp: no("engine_info says what Claude needs; the machine's checks are the person's"), studio: no("the Set-up sheet shows the installed app's state (setup_status)") },
-  { name: 'journal', ...R, cli: ['journal'], mcp: no("the journal is the person's record of who changed what: Claude reads the files themselves"), studio: no('no Studio screen shows the journal: `retake journal` in a terminal') },
-  { name: 'schema_print', ...R, cli: ['schema'], mcp: no('each tool publishes its input schema; scenario_validate checks a scenario'), studio: no('the scenario screen\'s forms come from the same schemas (scenario_forms)') },
+  {
+    name: 'doctor',
+    ...R,
+    cli: ['doctor'],
+    mcp: no("engine_info says what Claude needs; the machine's checks are the person's"),
+    studio: no("the Set-up sheet shows the installed app's state (setup_status)"),
+  },
+  {
+    name: 'journal',
+    ...R,
+    cli: ['journal'],
+    mcp: no("the journal is the person's record of who changed what: Claude reads the files themselves"),
+    studio: no('no Studio screen shows the journal: `retake journal` in a terminal'),
+  },
+  {
+    name: 'schema_print',
+    ...R,
+    cli: ['schema'],
+    mcp: no('each tool publishes its input schema; scenario_validate checks a scenario'),
+    studio: no("the scenario screen's forms come from the same schemas (scenario_forms)"),
+  },
   { name: 'mcp_serve', ...SERVES, cli: ['mcp'], mcp: no('the MCP server itself'), studio: no('the Set-up sheet registers it with Claude (setup_claude_code_run, setup_claude_desktop_add)') },
-  { name: 'studio_serve', ...SERVES, cli: ['ui'], mcp: no('the Studio is the person\'s: Claude never opens it or calls its routes'), studio: no('the Studio\'s server itself') },
+  { name: 'studio_serve', ...SERVES, cli: ['ui'], mcp: no("the Studio is the person's: Claude never opens it or calls its routes"), studio: no("the Studio's server itself") },
   { name: 'worker_run', ...SERVES, cli: ['worker'], mcp: no('the MCP server starts the worker in the background'), studio: no('the Studio starts the worker in the background') },
 ] as const satisfies readonly Operation[];
 

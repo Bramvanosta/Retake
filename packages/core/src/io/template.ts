@@ -107,9 +107,7 @@ async function resolveTemplateDir(nameOrDir: string, root: string | undefined, b
     throw new ConfigError(`template "${nameOrDir}": no ${TEMPLATE_FILE} in ${f.dir} (a workspace folder of that name takes precedence over the starter template)`);
   }
   const available = (await listTemplates(f.wsRoot!)).map((t) => t.name);
-  throw new ConfigError(
-    `template "${nameOrDir}" not found in ${f.templatesDir} or the starter templates${suggestion(nameOrDir, available)} (available: ${available.join(', ') || 'none'})`,
-  );
+  throw new ConfigError(`template "${nameOrDir}" not found in ${f.templatesDir} or the starter templates${suggestion(nameOrDir, available)} (available: ${available.join(', ') || 'none'})`);
 }
 
 /** The starter id's mark: `relative()` never answers a path that starts with `/`, so no folder's path is a starter's id. */
@@ -186,9 +184,7 @@ async function loadTemplateDir(dir: string, files: WorkFileFacts): Promise<Loade
     body: template.fonts.body.map(abs),
   };
   if (template.wordmark) assets.wordmark = abs(template.wordmark);
-  const declared = [template.logo, template.wordmark, template.fonts.display, ...template.fonts.body].filter(
-    (p): p is string => p !== undefined,
-  );
+  const declared = [template.logo, template.wordmark, template.fonts.display, ...template.fonts.body].filter((p): p is string => p !== undefined);
   const missing = [...new Set(declared)].filter((p) => !isFile(abs(p)));
   if (missing.length > 0) {
     throw new ConfigError(

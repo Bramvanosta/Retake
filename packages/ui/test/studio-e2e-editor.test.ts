@@ -195,7 +195,11 @@ describe('the Projects screen (review B L2)', () => {
     await page.goto(`${studio.url}#/`);
     const cards = page.getByTestId('project-card');
     await expect.poll(() => cards.count(), POLL).toBe(6);
-    await cards.filter({ hasText: 'Northfield (fixture)' }).getByText(/production/).first().waitFor(POLL);
+    await cards
+      .filter({ hasText: 'Northfield (fixture)' })
+      .getByText(/production/)
+      .first()
+      .waitFor(POLL);
     expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toMatch(/Last rehearsal failed\s*·\s*quote/);
     // The flag words exactly, not the environment's name (review B-M3).
     expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toContain('production: production · read-only');
@@ -319,7 +323,8 @@ describe('the editor and the live updates when things go wrong (review B M4)', (
     // While no stream is open (the page waits 1 s before it reconnects): change the file, and let the server's index
     // take the change in (two refreshes: one may already be running) — no stream hears of it.
     await writeFile(readme(FIXTURE), '# Northfield\n\nChanged while the stream was down.\n');
-    for (let i = 0; i < 2; i++) expect((await raw(studio.port, 'POST', '/v1/call/search', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, '{"q":"down"}')).status).toBe(200);
+    for (let i = 0; i < 2; i++)
+      expect((await raw(studio.port, 'POST', '/v1/call/search', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, '{"q":"down"}')).status).toBe(200);
     await expect.poll(() => textarea().inputValue(), POLL).toBe('# Northfield\n\nChanged while the stream was down.\n');
     await expect.poll(() => page.getByTestId('connection').getAttribute('data-updates'), POLL).toBe('stream');
   });

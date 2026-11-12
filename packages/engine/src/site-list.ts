@@ -65,7 +65,10 @@ export async function siteList(ws: OpenedWorkspace): Promise<SiteList> {
   } catch {
     return { sites: [] };
   }
-  const ids = names.filter((n) => SITE_ID_RE.test(n)).sort().reverse();
+  const ids = names
+    .filter((n) => SITE_ID_RE.test(n))
+    .sort()
+    .reverse();
   const lib = await components();
   const sites: SiteListEntry[] = [];
   for (const id of ids) {

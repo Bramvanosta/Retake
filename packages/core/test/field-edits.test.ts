@@ -124,8 +124,27 @@ describe('set_field: the allow-list (⚑ no hook, var, env, capture, pacing or s
   });
 
   it('every path of the allow-list is an edit value: no filmed change (core filmedChanges)', () => {
-    const values: Record<string, FieldValue> = { frame: 'laptop', transition: 'cut', speed: 1.5, 'card.component': 'studio/card-cta', 'card.duration': 4, 'card.transition': 'fade-black', 'interstitial.component': 'studio/interstitial-plain', 'interstitial.duration': 2, 'intro.component': 'studio/intro-minimal', 'intro.duration': 2, 'outro.component': 'studio/outro-minimal', 'outro.duration': 2, caption_component: 'studio/caption-overlay' };
-    const ats: Record<keyof typeof FIELD_PATHS, FieldAt> = { top: { entry: 'top' }, scene: atOf(BASE, 'scene', 'request'), card: atOf(BASE, 'card', 'c1'), interstitial: atOf(BASE, 'interstitial', 'interstitial-3') };
+    const values: Record<string, FieldValue> = {
+      frame: 'laptop',
+      transition: 'cut',
+      speed: 1.5,
+      'card.component': 'studio/card-cta',
+      'card.duration': 4,
+      'card.transition': 'fade-black',
+      'interstitial.component': 'studio/interstitial-plain',
+      'interstitial.duration': 2,
+      'intro.component': 'studio/intro-minimal',
+      'intro.duration': 2,
+      'outro.component': 'studio/outro-minimal',
+      'outro.duration': 2,
+      caption_component: 'studio/caption-overlay',
+    };
+    const ats: Record<keyof typeof FIELD_PATHS, FieldAt> = {
+      top: { entry: 'top' },
+      scene: atOf(BASE, 'scene', 'request'),
+      card: atOf(BASE, 'card', 'c1'),
+      interstitial: atOf(BASE, 'interstitial', 'interstitial-3'),
+    };
     let n = 0;
     for (const [entry, fields] of Object.entries(FIELD_PATHS) as Array<[keyof typeof FIELD_PATHS, readonly string[]]>) {
       for (const field of fields) {
@@ -216,7 +235,10 @@ describe('set_field: placement and forms', () => {
   it('a flow map takes `, key: value`; a removal takes the key and its comma', () => {
     const at = atOf(BASE, 'card', 'c1');
     const d = applied(BASE, { kind: 'set_field', at, field: 'card.duration', to: 4 });
-    expect(changedLines(BASE, d.text)).toEqual({ removed: ['  - card: {component: studio/card-title, slots: {title: Hi}}'], added: ['  - card: {component: studio/card-title, slots: {title: Hi}, duration: 4}'] });
+    expect(changedLines(BASE, d.text)).toEqual({
+      removed: ['  - card: {component: studio/card-title, slots: {title: Hi}}'],
+      added: ['  - card: {component: studio/card-title, slots: {title: Hi}, duration: 4}'],
+    });
     const back = applied(d.text, { kind: 'set_field', at: atOf(d.text, 'card', 'c1'), field: 'card.duration', from: 4 });
     expect(back.text).toBe(BASE);
   });
@@ -232,8 +254,11 @@ describe('set_field: placement and forms', () => {
     expect(changedLines(off.text, theme.text)).toEqual({ removed: ['intro: false'], added: [] });
   });
 
-  it('review B H2: the intro / outro switch never drops the map\'s own text or files (refused: the YAML tab)', () => {
-    const t = BASE.replace('intro:\n  component: studio/intro-stack\n  duration: 3\n', 'intro:\n  component: studio/intro-stack\n  duration: 3\noutro:\n  tagline: Order in two clicks\n  image: assets/logo.png\n');
+  it("review B H2: the intro / outro switch never drops the map's own text or files (refused: the YAML tab)", () => {
+    const t = BASE.replace(
+      'intro:\n  component: studio/intro-stack\n  duration: 3\n',
+      'intro:\n  component: studio/intro-stack\n  duration: 3\noutro:\n  tagline: Order in two clicks\n  image: assets/logo.png\n',
+    );
     for (const edit of [
       { kind: 'set_field', at: { entry: 'top' }, field: 'outro', from: true, to: false },
       { kind: 'set_field', at: { entry: 'top' }, field: 'outro', from: true },
@@ -305,7 +330,8 @@ const POOL: Record<string, FieldValue[]> = {
   duration: [2, 4.5, 6, 12],
   component: ['studio/card-cta', 'acme/thing-2', 'studio/caption-overlay', 'x/y'],
 };
-const poolOf = (field: string) => (field === 'frame' ? POOL.frame : field.endsWith('transition') ? POOL.transition : field === 'speed' ? POOL.speed : field.endsWith('duration') ? POOL.duration : POOL.component);
+const poolOf = (field: string) =>
+  field === 'frame' ? POOL.frame : field.endsWith('transition') ? POOL.transition : field === 'speed' ? POOL.speed : field.endsWith('duration') ? POOL.duration : POOL.component;
 
 describe('set_field on the fixture scenarios (goldens)', () => {
   const names = readdirSync(SCENARIOS).filter((f) => f.endsWith('.yaml'));

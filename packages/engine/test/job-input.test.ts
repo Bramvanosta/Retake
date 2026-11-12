@@ -183,12 +183,27 @@ describe('preview job input', () => {
   it('a library target (L4.7): 1–12 registry ids once each, each with the keys it asks for (32 hex), never a path or a slot', () => {
     const k = 'a'.repeat(32);
     const ok = (t: Record<string, unknown>) => PreviewJobInputSchema.safeParse(preview({ target: { kind: 'library', ...t } })).success;
-    expect(ok({ items: [{ component: 'studio/card-title', poster: k }, { component: 'acme/card', loop: k, poster: k }], retry: true })).toBe(true);
+    expect(
+      ok({
+        items: [
+          { component: 'studio/card-title', poster: k },
+          { component: 'acme/card', loop: k, poster: k },
+        ],
+        retry: true,
+      }),
+    ).toBe(true);
     expect(ok({ items: Array.from({ length: LIBRARY_JOB_MAX }, (_, i) => ({ component: `acme/c${i}`, poster: k })) })).toBe(true);
     expect(ok({ items: Array.from({ length: LIBRARY_JOB_MAX + 1 }, (_, i) => ({ component: `acme/c${i}`, poster: k })) })).toBe(false);
     expect(ok({ items: [] })).toBe(false);
     expect(ok({ items: [{ component: 'studio/card-title' }] })).toBe(false);
-    expect(ok({ items: [{ component: 'studio/card-title', poster: k }, { component: 'studio/card-title', loop: k }] })).toBe(false);
+    expect(
+      ok({
+        items: [
+          { component: 'studio/card-title', poster: k },
+          { component: 'studio/card-title', loop: k },
+        ],
+      }),
+    ).toBe(false);
     expect(ok({ items: [{ component: '../x', poster: k }] })).toBe(false);
     expect(ok({ items: [{ component: 'studio/card-title', poster: '../../etc' }] })).toBe(false);
     expect(ok({ items: [{ component: 'studio/card-title', poster: k.toUpperCase() }] })).toBe(false);
@@ -215,7 +230,14 @@ describe('inspect job input (L3.3)', () => {
     expect(JOB_KINDS).toContain('inspect');
     expect(JobInputSchema.parse(inspect()).kind).toBe('inspect');
     const sha = 'a'.repeat(64);
-    expect(ok({ source: { kind: 'scenario', scenario: 'quote', scenario_sha256: sha, until: 'request.3' }, targets: ['Save', { role: 'button', name: 'Save', in: 'dialog' }], within: { css: '#main' }, limit: 300 })).toBe(true);
+    expect(
+      ok({
+        source: { kind: 'scenario', scenario: 'quote', scenario_sha256: sha, until: 'request.3' },
+        targets: ['Save', { role: 'button', name: 'Save', in: 'dialog' }],
+        within: { css: '#main' },
+        limit: 300,
+      }),
+    ).toBe(true);
     expect(INSPECT_ID_RE.test('i_01JABCDEFGHJKMNPQRSTVWXYZ0')).toBe(true);
   });
 

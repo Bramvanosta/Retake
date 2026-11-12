@@ -37,7 +37,10 @@ function context(): MetricsCtx | null {
   if (ctx !== undefined) return ctx;
   ctx = null;
   try {
-    const g = globalThis as { OffscreenCanvas?: new (w: number, h: number) => { getContext(id: '2d'): MetricsCtx | null }; document?: { createElement(tag: 'canvas'): { getContext(id: '2d'): MetricsCtx | null } } };
+    const g = globalThis as {
+      OffscreenCanvas?: new (w: number, h: number) => { getContext(id: '2d'): MetricsCtx | null };
+      document?: { createElement(tag: 'canvas'): { getContext(id: '2d'): MetricsCtx | null } };
+    };
     // A document canvas first: it resolves the fonts registered on the document (FontFace API); OffscreenCanvas only
     // where there is no document (workers).
     if (g.document) ctx = g.document.createElement('canvas').getContext('2d');

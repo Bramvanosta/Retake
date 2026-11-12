@@ -99,7 +99,10 @@ describe("the raw export's gate: the reader's stricter answers and the rule's or
   /** NEW of a control state with its files rewritten, through the gate. */
   async function gateOf(slug: string, files: { record?: (r: Record<string, unknown>) => unknown; timeline?: (t: Record<string, unknown>) => unknown }): Promise<string> {
     const b = buildState(root, 'ctl', { slug });
-    for (const [name, change] of [['run.json', files.record], ['timeline.json', files.timeline]] as const) {
+    for (const [name, change] of [
+      ['run.json', files.record],
+      ['timeline.json', files.timeline],
+    ] as const) {
       if (!change) continue;
       const file = join(b.newDir, name);
       writeFileSync(file, JSON.stringify(change(JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>)));
@@ -129,8 +132,12 @@ describe("the raw export's gate: the reader's stricter answers and the rule's or
   });
 
   it('the sentences name the run as its timeline does, the folder when the timeline does not read', async () => {
-    expect(await gateOf('gate-name-dry', { timeline: (t) => ({ ...t, mode: 'dry', run_id: 'as-the-timeline-says' }) })).toBe('RawExportError: run as-the-timeline-says is a dry run: it has no capture to export');
-    expect(await gateOf('gate-name-newer', { record: (r) => ({ ...r, version: 2 }), timeline: (t) => ({ ...t, run_id: 'as-the-timeline-says' }) })).toBe(NEWER.replace('run NEW', 'run as-the-timeline-says'));
+    expect(await gateOf('gate-name-dry', { timeline: (t) => ({ ...t, mode: 'dry', run_id: 'as-the-timeline-says' }) })).toBe(
+      'RawExportError: run as-the-timeline-says is a dry run: it has no capture to export',
+    );
+    expect(await gateOf('gate-name-newer', { record: (r) => ({ ...r, version: 2 }), timeline: (t) => ({ ...t, run_id: 'as-the-timeline-says' }) })).toBe(
+      NEWER.replace('run NEW', 'run as-the-timeline-says'),
+    );
   });
 
   it('what the package says of the run comes from its record, whatever its status: a failed take exports as `failed`', async () => {
@@ -140,7 +147,13 @@ describe("the raw export's gate: the reader's stricter answers and the rule's or
       return r === undefined ? 'none' : `${r.status}/${r.env}`;
     };
     // The manifest's `run.status` and `run.env` (and the display table's environment for a run of before L1.7).
-    expect([await said('ctl'), await said('c'), await said('e'), await said('t7'), await said('i')]).toEqual(['succeeded/local', 'failed/local', 'cancelled/local', 'running/local', 'succeeded/local']);
+    expect([await said('ctl'), await said('c'), await said('e'), await said('t7'), await said('i')]).toEqual([
+      'succeeded/local',
+      'failed/local',
+      'cancelled/local',
+      'running/local',
+      'succeeded/local',
+    ]);
     // A status Retake never writes is still what the record says.
     expect(await said('r')).toBe('done/local');
     // No record, a record cut short, a file that is no record: the package names no status and no environment.
@@ -161,7 +174,14 @@ describe('the record a run ends with (a real dry run per outcome)', () => {
   const START = ['version', 'id', 'project', 'scenario', 'mode', 'status', 'started_at', 'dir', 'env', 'options', 'steps_total', 'steps_done', 'screenshots', 'hooks', 'warnings', 'environment'];
   function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
     const dir = join(root, 'runner');
-    return runScenario({ policy: PERSON_POLICY, project: makeProject(dir, { app: server.url }), scenario: makeScenario(name, { pacing: FAST, ...scenario }), mode: 'dry', runId: `${name}-1`, ...opts });
+    return runScenario({
+      policy: PERSON_POLICY,
+      project: makeProject(dir, { app: server.url }),
+      scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+      mode: 'dry',
+      runId: `${name}-1`,
+      ...opts,
+    });
   }
   /** run.json as written: a state of the written record (the schema refuses any other). */
   const onDisk = (rec: RunRecord) => {
@@ -170,14 +190,19 @@ describe('the record a run ends with (a real dry run per outcome)', () => {
     return value;
   };
   const ends = (rec: RunRecord) => {
-    const lines = readFileSync(join(rec.dir, 'log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { type: string; run?: Record<string, unknown> });
+    const lines = readFileSync(join(rec.dir, 'log.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { type: string; run?: Record<string, unknown> });
     return [lines[0].type, lines[0].run?.status, lines[lines.length - 1].type, lines[lines.length - 1].run?.status];
   };
 
   it('a pre-assigned run id that is no run id is refused before any folder is made (L7.6a)', async () => {
     // Before the lot any text was taken as the folder's name, a path included.
     for (const id of ['../elsewhere', 'a/b', '.hidden', '', 'a'.repeat(201)]) {
-      await expect(run('never', { scenes: [{ id: 'one', open: '/dry.html', steps: [{ click: 'Other' }] }] }, { runId: id }), id).rejects.toThrow(/is not a run id \(a folder name of runs\/: letters, digits, "\.", "_" and "-", never a path\)/);
+      await expect(run('never', { scenes: [{ id: 'one', open: '/dry.html', steps: [{ click: 'Other' }] }] }, { runId: id }), id).rejects.toThrow(
+        /is not a run id \(a folder name of runs\/: letters, digits, "\.", "_" and "-", never a path\)/,
+      );
     }
     expect(existsSync(join(root, 'runner', 'runs'))).toBe(false);
     expect(existsSync(join(root, 'elsewhere'))).toBe(false);

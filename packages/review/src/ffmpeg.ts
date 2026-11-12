@@ -68,12 +68,7 @@ export function selectExpr(frames: number[]): string {
  * Decode `frames` (output frame numbers; sorted and de-duplicated here) of `file` in one ffmpeg pass and hand each
  * to `onFrame` in increasing order. Returns the frames delivered (fewer than asked when some lie past the end).
  */
-export async function extractFrames(
-  file: string,
-  frames: number[],
-  opts: ExtractOptions,
-  onFrame: (frame: number, img: RgbImage) => Promise<void> | void,
-): Promise<number[]> {
+export async function extractFrames(file: string, frames: number[], opts: ExtractOptions, onFrame: (frame: number, img: RgbImage) => Promise<void> | void): Promise<number[]> {
   const wanted = [...new Set(frames.filter((f) => Number.isInteger(f) && f >= 0))].sort((a, b) => a - b);
   if (wanted.length === 0) return [];
   const filters = [`select='${selectExpr(wanted)}'`];

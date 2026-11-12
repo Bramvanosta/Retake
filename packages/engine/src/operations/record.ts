@@ -289,7 +289,7 @@ async function recordOptions(engine: Engine, slug: string): Promise<RecordOption
           status: st?.status ?? null,
           ...(st?.checked_at ? { checked_at: st.checked_at } : {}),
           in_use: !!st?.in_use,
-          ...(st?.command ?? st?.fix ? { command: (st.command ?? st.fix) as string } : {}),
+          ...((st?.command ?? st?.fix) ? { command: (st.command ?? st.fix) as string } : {}),
           ...(st?.untrusted ? { untrusted: st.untrusted } : {}),
         };
       }),
@@ -335,7 +335,8 @@ const out = <T>(engine: Engine, data: T) => recordPathFree(data, root(engine)) a
 export const recordOptionsOp = defineOperation({
   name: 'record_options',
   title: 'Recording: start form',
-  description: "What the Record screen's start form shows: environments, pages, personas with their stored sessions, defaults, warnings, the recording open in the workspace and the project's recent recordings.",
+  description:
+    "What the Record screen's start form shows: environments, pages, personas with their stored sessions, defaults, warnings, the recording open in the workspace and the project's recent recordings.",
   input: OptionsInput,
   annotations: READ,
   // The Record screen's (the Studio's and tests'): any other caller is refused, in the façade's words.
@@ -352,7 +353,8 @@ export const recordOptionsOp = defineOperation({
 export const recordStartOp = defineOperation({
   name: 'record_start',
   title: 'Recording: open the window',
-  description: 'Queue a recording: a headed window opens on this machine at a page of the environment, for the person to click in. Page and path only, the environment\'s own access, the check replay always on; refused while another recording is open in the workspace.',
+  description:
+    "Queue a recording: a headed window opens on this machine at a page of the environment, for the person to click in. Page and path only, the environment's own access, the check replay always on; refused while another recording is open in the workspace.",
   input: StartInput,
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   async run(a, { engine }) {
@@ -377,7 +379,10 @@ export const recordStartOp = defineOperation({
       warnings: sub.warnings,
       ...(sub.worker ? { worker: sub.worker } : {}),
     };
-    return { summary: `recording ${sub.rec_id} queued (job ${sub.job.id}): a window opens at ${sub.page} ${sub.path} (env ${sub.env}${sub.persona ? `, as ${sub.persona}` : ', signed out'})`, data: out(engine, data) };
+    return {
+      summary: `recording ${sub.rec_id} queued (job ${sub.job.id}): a window opens at ${sub.page} ${sub.path} (env ${sub.env}${sub.persona ? `, as ${sub.persona}` : ', signed out'})`,
+      data: out(engine, data),
+    };
   },
 });
 
@@ -397,7 +402,8 @@ export const recordView = defineOperation({
 export const recordAnnotate = defineOperation({
   name: 'record_annotate',
   title: 'Recording: arrange the draft',
-  description: 'One change to a Studio recording\'s draft at the revision the view returned: choose a target alternative, insert (hold, wait, caption, mark, camera) after a step or at the end, or remove an insert.',
+  description:
+    "One change to a Studio recording's draft at the revision the view returned: choose a target alternative, insert (hold, wait, caption, mark, camera) after a step or at the end, or remove an insert.",
   input: AnnotateInput,
   annotations: WRITE,
   callers: (c) => recordScreenRefused(c, 'record_annotate'),
@@ -421,14 +427,18 @@ export const recordStop = defineOperation({
   async run(a, { engine }) {
     const r = await engine.record.stop(a.project, a.rec_id, a.job ? { job: a.job } : {});
     const v = recordViewAnswer(r.view);
-    return { summary: `${a.rec_id}: ${r.action === 'stopping' ? 'stopping (the window closes, then the draft and the check)' : r.action === 'cancelled' ? 'cancelled before the window opened' : 'nothing to stop'}`, data: out(engine, { action: r.action, view: v }) };
+    return {
+      summary: `${a.rec_id}: ${r.action === 'stopping' ? 'stopping (the window closes, then the draft and the check)' : r.action === 'cancelled' ? 'cancelled before the window opened' : 'nothing to stop'}`,
+      data: out(engine, { action: r.action, view: v }),
+    };
   },
 });
 
 export const recordDiscard = defineOperation({
   name: 'record_discard',
   title: 'Recording: discard',
-  description: 'Discard a recording started from the Studio: its folder is removed (an open window is cancelled first; during the draft or the check, once its job is over). A scenario saved from it is never touched.',
+  description:
+    'Discard a recording started from the Studio: its folder is removed (an open window is cancelled first; during the draft or the check, once its job is over). A scenario saved from it is never touched.',
   input: StopInput,
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   callers: (c) => recordScreenRefused(c, 'record_discard'),
@@ -441,7 +451,8 @@ export const recordDiscard = defineOperation({
 export const recordSave = defineOperation({
   name: 'record_save',
   title: 'Recording: save as a scenario',
-  description: 'Save a finished Studio recording\'s draft as a NEW scenarios/<name>.yaml (a taken name is refused, never overwritten) — only the draft the person saw (`draft`) — under the rules a scenario saved from the Studio follows.',
+  description:
+    "Save a finished Studio recording's draft as a NEW scenarios/<name>.yaml (a taken name is refused, never overwritten) — only the draft the person saw (`draft`) — under the rules a scenario saved from the Studio follows.",
   input: SaveInput,
   annotations: WRITE,
   callers: (c) => recordScreenRefused(c, 'record_save'),

@@ -4,7 +4,24 @@
  * The same rules over the whole table of states, read from real folders: run-folder.test.ts.
  */
 import { describe, expect, it } from 'vitest';
-import { PASSED_OVER_MAX, isFilmName, latestTake, namedRunProblem, orderRuns, parseRunId, parseRunRecord, parseTimeline, parseTimelineHead, pruneKeeper, pruneKeptWords, takeNeedsTimeline, takeOf, takeWords, timelineProblem, untilStep } from '../src/index.js';
+import {
+  PASSED_OVER_MAX,
+  isFilmName,
+  latestTake,
+  namedRunProblem,
+  orderRuns,
+  parseRunId,
+  parseRunRecord,
+  parseTimeline,
+  parseTimelineHead,
+  pruneKeeper,
+  pruneKeptWords,
+  takeNeedsTimeline,
+  takeOf,
+  takeWords,
+  timelineProblem,
+  untilStep,
+} from '../src/index.js';
 import type { NotUsable, PruneNewer, PruneSaid, RunFolderFacts, RunId, TakeVerdict } from '../src/index.js';
 import { recordFixture } from './fixtures/records/build.js';
 import { STATES, recordText } from './fixtures/records/build.js';
@@ -66,7 +83,11 @@ describe('takeOf: a usable capture', () => {
       ['a status Retake never writes', facts({ record: record({ status: 'done' }) }), 'unknown-status capture of quote'],
       ['a dry run', facts({ record: record({ mode: 'dry' }), timeline: head({ mode: 'dry', capture: { file: '' } }), film: 'missing' }), 'dry-run of quote'],
       ['a record of a capture over a dry timeline', facts({ timeline: head({ mode: 'dry' }) }), 'dry-run capture of quote'],
-      ['queued', facts({ record: record({ status: 'queued' }, ['finished_at', 'capture', 'timeline']), timeline: { ok: false, problem: 'missing' }, film: 'missing' }), 'not-finished capture of quote'],
+      [
+        'queued',
+        facts({ record: record({ status: 'queued' }, ['finished_at', 'capture', 'timeline']), timeline: { ok: false, problem: 'missing' }, film: 'missing' }),
+        'not-finished capture of quote',
+      ],
       ['running, with its timeline and its film', facts({ record: record({ status: 'running' }, ['finished_at']) }), 'not-finished capture of quote'],
       ['failed, with its film', facts({ record: record(FAILED) }), 'failed capture of quote'],
       ['cancelled', facts({ record: record({ status: 'cancelled', error: { message: 'cancelled' } }), film: 'missing' }), 'cancelled capture of quote'],
@@ -125,7 +146,16 @@ describe('namedRunProblem: a run named by its id or its folder', () => {
   };
 
   it('works whatever the record says: failed, running, of an unknown status, absent, unreadable, of another scenario', () => {
-    for (const r of [record(FAILED), record({ status: 'running' }, ['finished_at']), record({ status: 'queued' }, ['finished_at', 'capture', 'timeline']), record({ status: 'done' }), record({ scenario: 'other' }), parseRunRecord([]), { ok: false as const, problem: 'missing' as const }, { ok: false as const, problem: 'not-json' as const }]) {
+    for (const r of [
+      record(FAILED),
+      record({ status: 'running' }, ['finished_at']),
+      record({ status: 'queued' }, ['finished_at', 'capture', 'timeline']),
+      record({ status: 'done' }),
+      record({ scenario: 'other' }),
+      parseRunRecord([]),
+      { ok: false as const, problem: 'missing' as const },
+      { ok: false as const, problem: 'not-json' as const },
+    ]) {
       expect(at(facts({ record: r }), { scenario: 'quote' })).toBe('works');
     }
   });
@@ -203,7 +233,7 @@ describe('namedRunProblem: a run named by its id or its folder', () => {
     expect(at(facts({ film: 'link', timeline: head({ scenario: 'other' }) }), { trust: 'mcp', scenario: 'quote' })).toBe(LINKS);
   });
 
-  it('a timeline made by hand: a named run works without its run id and its film\'s name (the film is capture.mp4), as it always has', () => {
+  it("a timeline made by hand: a named run works without its run id and its film's name (the film is capture.mp4), as it always has", () => {
     for (const trust of ['author', 'mcp'] as const) {
       expect(at(facts({ timeline: head({}, ['run_id']) }), { trust, scenario: 'quote' }), trust).toBe('works');
       expect(at(facts({ timeline: head({ capture: {} }) }), { trust, scenario: 'quote' }), trust).toBe('works');
@@ -213,13 +243,16 @@ describe('namedRunProblem: a run named by its id or its folder', () => {
     expect(why(facts({ timeline: head({}, ['run_id']) }))).toBe('timeline-unreadable capture of quote');
   });
 
-  it('timelineProblem: the one mapping from a timeline that did not read to the named run\'s refusal', () => {
+  it("timelineProblem: the one mapping from a timeline that did not read to the named run's refusal", () => {
     expect(timelineProblem(head())).toBeNull();
     expect(timelineProblem({ ok: false, problem: 'missing' })).toEqual({ why: 'no-timeline' });
     for (const problem of ['unreadable', 'too-big', 'not-a-file', 'not-json', 'invalid'] as const) expect(timelineProblem({ ok: false, problem })).toEqual({ why: 'timeline-unreadable', problem });
     expect(timelineProblem({ ok: false, problem: 'not-read' })).toEqual({ why: 'timeline-unreadable', problem: 'unreadable' });
     // A whole timeline whose head reads and whose lists are none.
-    expect(timelineProblem(parseTimeline({ version: 1, run_id: NAME, scenario: 'quote', mode: 'capture', capture: { file: '' }, events: {} }))).toEqual({ why: 'timeline-unreadable', problem: 'invalid' });
+    expect(timelineProblem(parseTimeline({ version: 1, run_id: NAME, scenario: 'quote', mode: 'capture', capture: { file: '' }, events: {} }))).toEqual({
+      why: 'timeline-unreadable',
+      problem: 'invalid',
+    });
   });
 
   it('a text a file holds is said printable, on one line, and cut short: never as the file has it', () => {
@@ -242,7 +275,24 @@ describe('namedRunProblem: a run named by its id or its folder', () => {
 
 describe('takeWords: the words of a reason', () => {
   it('a closed list of fixed words', () => {
-    const all: NotUsable[] = ['not-a-run-id', 'linked', 'outside', 'no-record', 'record-unreadable', 'newer-format', 'unknown-status', 'dry-run', 'not-finished', 'failed', 'cancelled', 'no-timeline', 'timeline-unreadable', 'scenario-mismatch', 'film-outside', 'no-film'];
+    const all: NotUsable[] = [
+      'not-a-run-id',
+      'linked',
+      'outside',
+      'no-record',
+      'record-unreadable',
+      'newer-format',
+      'unknown-status',
+      'dry-run',
+      'not-finished',
+      'failed',
+      'cancelled',
+      'no-timeline',
+      'timeline-unreadable',
+      'scenario-mismatch',
+      'film-outside',
+      'no-film',
+    ];
     expect(all.map((w) => takeWords(w, { run: 'r', verb: 'render' }))).toEqual([
       'it is not a run folder',
       'its files are links',
@@ -278,7 +328,13 @@ describe('orderRuns: one order of runs', () => {
     expect(orderRuns(['my-take-quote', 'zz-quote', '2026101-142233-quote'])).toEqual(['zz-quote', 'my-take-quote', '2026101-142233-quote']);
     expect(orderRuns(['Take.1-quote', '20261001-100000-quote', 'zz-quote', '20991231-235959-quote'])).toEqual(['20991231-235959-quote', '20261001-100000-quote', 'zz-quote', 'Take.1-quote']);
     // A stamped name is dated whatever follows the stamp.
-    expect(orderRuns(['20261017-142233-', '20261017-142235-quote-', '20261017-142233-Quote', '20261017-142234-quote.bak', 'zz'])).toEqual(['20261017-142235-quote-', '20261017-142234-quote.bak', '20261017-142233-Quote', '20261017-142233-', 'zz']);
+    expect(orderRuns(['20261017-142233-', '20261017-142235-quote-', '20261017-142233-Quote', '20261017-142234-quote.bak', 'zz'])).toEqual([
+      '20261017-142235-quote-',
+      '20261017-142234-quote.bak',
+      '20261017-142233-Quote',
+      '20261017-142233-',
+      'zz',
+    ]);
   });
 
   it('only run ids of at most 200 characters', () => {
@@ -298,7 +354,13 @@ describe('orderRuns: one order of runs', () => {
 describe('latestTake: the run `latest` names', () => {
   const id = (s: string): RunId => parseRunId(s)!;
   const usable = (run: string, scenario = 'quote'): TakeVerdict => ({ usable: true, take: { run: id(run), scenario, film: 'capture.mp4', finished_at: 't' } });
-  const not = (w: NotUsable, o: { scenario?: string; capture?: boolean; message?: string } = {}): TakeVerdict => ({ usable: false, why: w, capture: o.capture ?? true, ...(o.scenario !== undefined ? { scenario: o.scenario } : { scenario: 'quote' }), ...(o.message ? { message: o.message } : {}) });
+  const not = (w: NotUsable, o: { scenario?: string; capture?: boolean; message?: string } = {}): TakeVerdict => ({
+    usable: false,
+    why: w,
+    capture: o.capture ?? true,
+    ...(o.scenario !== undefined ? { scenario: o.scenario } : { scenario: 'quote' }),
+    ...(o.message ? { message: o.message } : {}),
+  });
   const noRecord: TakeVerdict = { usable: false, why: 'no-record', capture: false };
   /** `latest` over runs r9 (newest) … r1, each with its verdict; the ids looked at. */
   async function pick(verdicts: Record<string, TakeVerdict>, scenario: string | null = 'quote') {
@@ -312,7 +374,13 @@ describe('latestTake: the run `latest` names', () => {
 
   it('the first usable take of the scenario; nothing older is looked at', async () => {
     const { r, looked } = await pick({ r5: not('failed'), r4: usable('r4', 'other'), r3: usable('r3'), r2: usable('r2'), r1: not('failed') });
-    expect(r).toEqual({ take: { run: 'r3', scenario: 'quote', film: 'capture.mp4', finished_at: 't' }, passed: [{ run: 'r5', why: 'failed' }], passed_more: 0, reasons: [{ why: 'failed', count: 1 }], without_record: 0 });
+    expect(r).toEqual({
+      take: { run: 'r3', scenario: 'quote', film: 'capture.mp4', finished_at: 't' },
+      passed: [{ run: 'r5', why: 'failed' }],
+      passed_more: 0,
+      reasons: [{ why: 'failed', count: 1 }],
+      without_record: 0,
+    });
     expect(looked).toEqual(['r5', 'r4', 'r3']);
   });
 
@@ -333,11 +401,33 @@ describe('latestTake: the run `latest` names', () => {
       r2: { usable: false, why: 'not-a-run-id', capture: false },
       r1: usable('r1'),
     });
-    expect(r).toEqual({ take: expect.objectContaining({ run: 'r1' }), passed: [{ run: 'r9', why: 'failed' }, { run: 'r3', why: 'no-film' }], passed_more: 0, reasons: [{ why: 'failed', count: 1 }, { why: 'no-film', count: 1 }], without_record: 2 });
+    expect(r).toEqual({
+      take: expect.objectContaining({ run: 'r1' }),
+      passed: [
+        { run: 'r9', why: 'failed' },
+        { run: 'r3', why: 'no-film' },
+      ],
+      passed_more: 0,
+      reasons: [
+        { why: 'failed', count: 1 },
+        { why: 'no-film', count: 1 },
+      ],
+      without_record: 2,
+    });
   });
 
   it(`names at most ${PASSED_OVER_MAX} passed-over runs, counts the others, and goes on to the take`, async () => {
-    const { r, looked } = await pick({ r9: not('failed'), r8: not('cancelled'), r7: not('not-finished'), r6: not('no-film'), r5: not('timeline-unreadable'), r4: not('unknown-status'), r3: not('failed'), r2: usable('r2'), r1: usable('r1') });
+    const { r, looked } = await pick({
+      r9: not('failed'),
+      r8: not('cancelled'),
+      r7: not('not-finished'),
+      r6: not('no-film'),
+      r5: not('timeline-unreadable'),
+      r4: not('unknown-status'),
+      r3: not('failed'),
+      r2: usable('r2'),
+      r1: usable('r1'),
+    });
     expect([r.take?.run, r.passed.map((p) => p.run), r.passed_more, looked.length]).toEqual(['r2', ['r9', 'r8', 'r7', 'r6', 'r5'], 2, 8]);
     // Every capture passed over is counted by its reason — the named ones and the others —, in the order the reasons were met.
     expect(r.reasons).toEqual([
@@ -352,13 +442,27 @@ describe('latestTake: the run `latest` names', () => {
   });
 
   it('nothing usable: no take, what was passed over, the folders without a record counted', async () => {
-    expect((await pick({ r3: not('failed'), r2: noRecord, r1: noRecord })).r).toEqual({ passed: [{ run: 'r3', why: 'failed' }], passed_more: 0, reasons: [{ why: 'failed', count: 1 }], without_record: 2 });
+    expect((await pick({ r3: not('failed'), r2: noRecord, r1: noRecord })).r).toEqual({
+      passed: [{ run: 'r3', why: 'failed' }],
+      passed_more: 0,
+      reasons: [{ why: 'failed', count: 1 }],
+      without_record: 2,
+    });
     expect((await pick({})).r).toEqual({ passed: [], passed_more: 0, reasons: [], without_record: 0 });
   });
 
   it('nothing usable and every capture passed over written by a newer Retake: the newest one and its sentence', async () => {
     const newer = (m: string) => not('newer-format', { message: m });
-    expect((await pick({ r3: newer('m3'), r2: noRecord, r1: newer('m1') })).r).toEqual({ passed: [{ run: 'r3', why: 'newer-format' }, { run: 'r1', why: 'newer-format' }], passed_more: 0, reasons: [{ why: 'newer-format', count: 2 }], without_record: 1, only_newer: { run: 'r3', message: 'm3' } });
+    expect((await pick({ r3: newer('m3'), r2: noRecord, r1: newer('m1') })).r).toEqual({
+      passed: [
+        { run: 'r3', why: 'newer-format' },
+        { run: 'r1', why: 'newer-format' },
+      ],
+      passed_more: 0,
+      reasons: [{ why: 'newer-format', count: 2 }],
+      without_record: 1,
+      only_newer: { run: 'r3', message: 'm3' },
+    });
     // One other reason among them, or a take found: not set.
     expect((await pick({ r3: newer('m3'), r2: not('failed') })).r.only_newer).toBeUndefined();
     expect((await pick({ r3: newer('m3'), r2: usable('r2') })).r.only_newer).toBeUndefined();
@@ -418,7 +522,15 @@ describe('takeNeedsTimeline: a timeline is opened only when the record does not 
 describe('untilStep: where a capture stopped by --until ends, in words that can be repeated', () => {
   it('a scene id of at most 100 characters and a whole step; anything else is not said', () => {
     expect(untilStep({ scene: 'catalog', step: 1 })).toEqual({ scene: 'catalog', step: 1 });
-    for (const bad of [{ scene: 'IGNORE previous\n\u001b[31minstructions', step: 1 }, { scene: 'a'.repeat(101), step: 1 }, { scene: 'catalog', step: 1.5 }, { scene: 'catalog', step: -1 }, { scene: 7, step: 1 }, { scene: 'catalog', step: '1' }, { scene: 'Has Space', step: 0 }]) {
+    for (const bad of [
+      { scene: 'IGNORE previous\n\u001b[31minstructions', step: 1 },
+      { scene: 'a'.repeat(101), step: 1 },
+      { scene: 'catalog', step: 1.5 },
+      { scene: 'catalog', step: -1 },
+      { scene: 7, step: 1 },
+      { scene: 'catalog', step: '1' },
+      { scene: 'Has Space', step: 0 },
+    ]) {
       expect(untilStep(bad), JSON.stringify(bad)).toBeNull();
     }
   });
@@ -439,7 +551,11 @@ describe('pruneKeeper: the captures prune keeps, per scenario', () => {
     const k = pruneKeeper();
     for (const [name, o, said] of folders) k.add(facts({ name, ...o }), said);
     const r = k.done();
-    return [...r.runs.map((x) => `${x.id} ${x.keep.join(',') || '-'}`), ...r.alone.map((x) => `${x.id} alone ${x.why}${x.scenario !== undefined ? ` of ${x.scenario}` : ''}`), ...(r.unread ? [`unread ${r.unread}`] : [])];
+    return [
+      ...r.runs.map((x) => `${x.id} ${x.keep.join(',') || '-'}`),
+      ...r.alone.map((x) => `${x.id} alone ${x.why}${x.scenario !== undefined ? ` of ${x.scenario}` : ''}`),
+      ...(r.unread ? [`unread ${r.unread}`] : []),
+    ];
   };
 
   it('one good capture is the last by its record, the last that can be edited and the last complete one; an older one is none', () => {
@@ -451,7 +567,12 @@ describe('pruneKeeper: the captures prune keeps, per scenario', () => {
       expect(kept([['new', lost], ['old'], ['older']]), JSON.stringify(lost)).toEqual(['new last-capture', 'old editable,complete', 'older -']);
     }
     // Nothing can be edited: the record's last capture alone.
-    expect(kept([['new', GONE], ['old', GONE]])).toEqual(['new last-capture', 'old -']);
+    expect(
+      kept([
+        ['new', GONE],
+        ['old', GONE],
+      ]),
+    ).toEqual(['new last-capture', 'old -']);
   });
 
   it('a capture stopped by --until is the last that can be edited; the newest complete one stays beside it (U-1)', () => {
@@ -459,7 +580,12 @@ describe('pruneKeeper: the captures prune keeps, per scenario', () => {
     // The three reasons on three runs.
     expect(kept([['new', GONE], ['mid', { record: record(UNTIL) }], ['old'], ['older']])).toEqual(['new last-capture', 'mid editable', 'old complete', 'older -']);
     // No complete capture at all: an older stopped one is kept by nothing.
-    expect(kept([['new', { record: record(UNTIL) }], ['old', { record: record(UNTIL) }]])).toEqual(['new last-capture,editable', 'old -']);
+    expect(
+      kept([
+        ['new', { record: record(UNTIL) }],
+        ['old', { record: record(UNTIL) }],
+      ]),
+    ).toEqual(['new last-capture,editable', 'old -']);
   });
 
   it('per scenario, as the record names it', () => {
@@ -472,7 +598,10 @@ describe('pruneKeeper: the captures prune keeps, per scenario', () => {
     const newer = { record: parseRunRecord({ version: 2, id: NAME, scenario: 'quote', mode: 'capture', status: 'succeeded' }) };
     expect(kept([['link', link], ['newer', newer], ['old'], ['older']])).toEqual(['old last-capture,editable,complete', 'older -', 'link alone linked', 'newer alone newer-format of quote']);
     // A failed record of a newer Retake too.
-    expect(kept([['newer', { record: parseRunRecord({ version: 2, id: NAME, scenario: 'quote', mode: 'capture', status: 'failed' }) }], ['old']])).toEqual(['old last-capture,editable,complete', 'newer alone newer-format of quote']);
+    expect(kept([['newer', { record: parseRunRecord({ version: 2, id: NAME, scenario: 'quote', mode: 'capture', status: 'failed' }) }], ['old']])).toEqual([
+      'old last-capture,editable,complete',
+      'newer alone newer-format of quote',
+    ]);
   });
 
   it('a run that is no capture, did not succeed or has a status Retake never writes is decided on by its words, and keeps nothing', () => {
@@ -481,7 +610,12 @@ describe('pruneKeeper: the captures prune keeps, per scenario', () => {
     got.add(facts({ name: 'failed', record: record(FAILED) }));
     got.add(facts({ name: 'running', record: record({ status: 'running' }, ['finished_at']) }));
     got.add(facts({ name: 'odd', record: record({ status: 'interrupted' }) }));
-    expect(got.done().runs.map((r) => `${r.id} ${String(r.mode)} ${r.status} ${String(r.scenario)} [${r.keep.join(',')}]`)).toEqual(['dry dry succeeded quote []', 'failed capture failed quote []', 'running capture running quote []', 'odd capture interrupted quote []']);
+    expect(got.done().runs.map((r) => `${r.id} ${String(r.mode)} ${r.status} ${String(r.scenario)} [${r.keep.join(',')}]`)).toEqual([
+      'dry dry succeeded quote []',
+      'failed capture failed quote []',
+      'running capture running quote []',
+      'odd capture interrupted quote []',
+    ]);
   });
 
   it('a run.json the reader does not take: with what the file says it is a run as before (and may be the last capture by its record); without, it is only counted', () => {
@@ -490,20 +624,39 @@ describe('pruneKeeper: the captures prune keeps, per scenario', () => {
     expect(kept([['bare', invalid, { scenario: 'quote', mode: 'capture', status: 'succeeded' }], ['old']])).toEqual(['bare last-capture', 'old editable,complete']);
     expect(kept([['bare', invalid, { scenario: 'quote', mode: 'capture', status: 'failed' }], ['old']])).toEqual(['bare -', 'old last-capture,editable,complete']);
     // A scenario that is no text groups with nothing else (two numbers are two scenarios, as two Map keys were).
-    expect(kept([['a', invalid, { scenario: 5, mode: 'capture', status: 'succeeded' }], ['b', invalid, { scenario: 6, mode: 'capture', status: 'succeeded' }], ['c', invalid, { scenario: 5, mode: 'capture', status: 'succeeded' }]])).toEqual(['a last-capture', 'b last-capture', 'c -']);
+    expect(
+      kept([
+        ['a', invalid, { scenario: 5, mode: 'capture', status: 'succeeded' }],
+        ['b', invalid, { scenario: 6, mode: 'capture', status: 'succeeded' }],
+        ['c', invalid, { scenario: 5, mode: 'capture', status: 'succeeded' }],
+      ]),
+    ).toEqual(['a last-capture', 'b last-capture', 'c -']);
     // Nothing said: no run.json, not JSON, a plain file under a run's name, an entry gone.
-    expect(kept([['none', { record: { ok: false, problem: 'missing' } }], ['cut', { record: { ok: false, problem: 'not-json' } }, null], ['file', { folder: 'other' }], ['gone', { folder: 'gone' }], ['old']])).toEqual(['old last-capture,editable,complete', 'unread 4']);
+    expect(
+      kept([
+        ['none', { record: { ok: false, problem: 'missing' } }],
+        ['cut', { record: { ok: false, problem: 'not-json' } }, null],
+        ['file', { folder: 'other' }],
+        ['gone', { folder: 'gone' }],
+        ['old'],
+      ]),
+    ).toEqual(['old last-capture,editable,complete', 'unread 4']);
     // What a file says never makes a linked folder or a newer record a run.
     expect(kept([['link', { folder: 'link' }, { scenario: 'quote', mode: 'capture', status: 'failed' }]])).toEqual(['link alone linked']);
   });
 
-  it('a record of a newer Retake that only prune\'s own read could open (a linked run.json, one over the cap) is left alone like any other', () => {
+  it("a record of a newer Retake that only prune's own read could open (a linked run.json, one over the cap) is left alone like any other", () => {
     const refused = { record: { ok: false as const, problem: 'not-a-file' as const }, recordLink: true };
     // Whatever it says: never a run to delete, never the last capture — the newest other capture is.
     expect(kept([['newer', refused, { newer: true, scenario: 'quote' }], ['old'], ['older']])).toEqual(['old last-capture,editable,complete', 'older -', 'newer alone newer-format of quote']);
     expect(kept([['big', { record: { ok: false, problem: 'too-big' } }, { newer: true }], ['old']])).toEqual(['old last-capture,editable,complete', 'big alone newer-format']);
     // Only for a run.json the reader did not take: a record it read, or a status it does not know, is what the reader says.
-    expect(kept([['read', {}, { newer: true }], ['odd', { record: record({ status: 'interrupted' }) }, { newer: true }]])).toEqual(['read last-capture,editable,complete', 'odd -']);
+    expect(
+      kept([
+        ['read', {}, { newer: true }],
+        ['odd', { record: record({ status: 'interrupted' }) }, { newer: true }],
+      ]),
+    ).toEqual(['read last-capture,editable,complete', 'odd -']);
     expect(kept([['link', { folder: 'link' }, { newer: true }]])).toEqual(['link alone linked']);
   });
 
@@ -530,7 +683,12 @@ describe('pruneKeeper: the captures prune keeps, per scenario', () => {
 
   it('needsTimeline: only a capture that succeeded, of a scenario whose complete take is not found yet', () => {
     const k = pruneKeeper();
-    expect([k.needsTimeline(record()), k.needsTimeline(record(FAILED)), k.needsTimeline(record({ mode: 'dry' })), k.needsTimeline({ ok: false, problem: 'missing' })]).toEqual([true, false, false, false]);
+    expect([k.needsTimeline(record()), k.needsTimeline(record(FAILED)), k.needsTimeline(record({ mode: 'dry' })), k.needsTimeline({ ok: false, problem: 'missing' })]).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
     // A capture stopped by --until is found: the complete one is still looked for.
     k.add(facts({ name: 'new', record: record(UNTIL) }));
     expect(k.needsTimeline(record())).toBe(true);

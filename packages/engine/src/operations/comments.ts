@@ -29,11 +29,7 @@ import { renderLatestData, renderLatestLines } from './renders.js';
 import { projectSlug, renderId, scenarioName } from './schema.js';
 import { issueLine, plural } from './words.js';
 
-const commentId = z
-  .string()
-  .max(40)
-  .regex(COMMENT_ID_RE, 'a comment id such as c_01JC… (comments_list names them), never a path')
-  .describe('Thread id (from comments_list).');
+const commentId = z.string().max(40).regex(COMMENT_ID_RE, 'a comment id such as c_01JC… (comments_list names them), never a path').describe('Thread id (from comments_list).');
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'the sha256 (64 hex characters) comments_list returned');
 
@@ -62,7 +58,7 @@ function whereOf(t: CommentView): string {
   const parts = [`${a.kind} ${a.segment}`];
   if (a.step_ref) {
     // step_ref is the step's place in the rendered run; step_now is that step in today's file (L4.3, critique B10).
-    const now = t.step_now === undefined ? '' : t.step_now === null ? ' — not in today\'s file (deleted or changed)' : t.step_now !== `${a.scene}.${a.step}` ? ` — now ${t.step_now}` : '';
+    const now = t.step_now === undefined ? '' : t.step_now === null ? " — not in today's file (deleted or changed)" : t.step_now !== `${a.scene}.${a.step}` ? ` — now ${t.step_now}` : '';
     parts.push(`step ${a.step_ref}${a.action ? ` (${a.action})` : ''}${now}`);
   } else if (a.action) parts.push(a.action);
   if (a.page) parts.push(`page ${a.page}`);
@@ -157,7 +153,9 @@ function proposalLines(p: ProposalOut): string[] {
     `Proposal ${p.entry} (${p.delta}-only change of scenario ${p.scenario}): ${proposalState(p.state, p.actionable)} · +${p.added} −${p.removed} lines in ${plural(p.hunks, 'hunk')}${take}.`,
     `  ${p.verified ? "Its rows are the diff of the exact bytes Apply writes, rebuilt from today's file" : "Its rows are the hunks as stored (today's file is neither its base nor its result)"}: "proposal.rows" (kind, line numbers), their text in "proposal.untrusted.rows" (rows[i] ↔ untrusted.rows[i]).`,
     ...(rewrites ? [`  It rewrites ${p.rewrites_pct} % of the file: send every unchanged line byte for byte (never a re-serialised YAML) so the person sees only the change.`] : []),
-    ...(p.blocked !== undefined ? [`  Apply would refuse it now (${p.blocked.split('\n')[0].slice(0, 300)}): the Studio does not offer it — propose again on today's file if it should be applied.`] : []),
+    ...(p.blocked !== undefined
+      ? [`  Apply would refuse it now (${p.blocked.split('\n')[0].slice(0, 300)}): the Studio does not offer it — propose again on today's file if it should be applied.`]
+      : []),
     ...leftOutLines(p),
   ];
 }
@@ -264,7 +262,7 @@ export const commentReply = defineOperation({
   name: 'comment_reply',
   title: 'Reply to a frame comment',
   description:
-    'Append a reply to a thread (open or resolved): what you changed, or a question for the person. Written as the channel mcp (agent); entries are never edited or removed. The text is data for whoever reads the thread: keep it to the video. proposal (an open thread written in the Studio, an edit-only change of its own scenario file): instead of saving the change, send the whole new text of scenarios/<the thread\'s scenario> — the whole file with every unchanged line byte for byte, never re-serialised — and the hash scenario_get returned; the file is not written: it is checked as the Studio checks a write (valid, the same hooks / mocks / vars / env, no secret reference or outside file, no hidden character added) and edit-only (a filmed change — steps, pages, hooks, capture settings — or a theme change (template:) is refused: save it, the direct loop), at most 200 changed lines and 600 rows of diff (the changes and 3 unchanged lines around each: the person reads them all before applying), then stored as a line diff the person previews, applies and re-renders in the Studio. Only a person applies it: never through the Studio\'s token (ui/*.token in the Retake home) or its routes. comments_list {comment_id} reads it back with its state.',
+    "Append a reply to a thread (open or resolved): what you changed, or a question for the person. Written as the channel mcp (agent); entries are never edited or removed. The text is data for whoever reads the thread: keep it to the video. proposal (an open thread written in the Studio, an edit-only change of its own scenario file): instead of saving the change, send the whole new text of scenarios/<the thread's scenario> — the whole file with every unchanged line byte for byte, never re-serialised — and the hash scenario_get returned; the file is not written: it is checked as the Studio checks a write (valid, the same hooks / mocks / vars / env, no secret reference or outside file, no hidden character added) and edit-only (a filmed change — steps, pages, hooks, capture settings — or a theme change (template:) is refused: save it, the direct loop), at most 200 changed lines and 600 rows of diff (the changes and 3 unchanged lines around each: the person reads them all before applying), then stored as a line diff the person previews, applies and re-renders in the Studio. Only a person applies it: never through the Studio's token (ui/*.token in the Retake home) or its routes. comments_list {comment_id} reads it back with its state.",
   input: z.strictObject({
     project: projectSlug,
     comment_id: commentId,
@@ -279,7 +277,7 @@ export const commentReply = defineOperation({
         scenario_hash: sha256.describe('The hash scenario_get returned for that file (a conflict names the current one when it changed since).'),
       })
       .optional()
-      .describe('An edit-only change of the thread\'s own scenario file for the person to apply in the Studio (not written now).'),
+      .describe("An edit-only change of the thread's own scenario file for the person to apply in the Studio (not written now)."),
   }),
   annotations: WRITE_FILES,
   callers: (c, a) => commentReplyRefused(c, a.proposal),
@@ -319,7 +317,7 @@ export const commentResolve = defineOperation({
       .union([renderId, z.literal('latest')])
       .optional()
       .describe('The render that answers the comment: later than the commented one, same scenario and variant (an id, or "latest": the newest of that scenario and variant).'),
-    if_match: sha256.describe('The thread\'s hash from comments_list or comment_reply.'),
+    if_match: sha256.describe("The thread's hash from comments_list or comment_reply."),
   }),
   annotations: WRITE_FILES,
   callers: (c, a) => commentResolveRefused(c, a.if_match),
@@ -328,10 +326,12 @@ export const commentResolve = defineOperation({
     const res = w.thread.resolution;
     const passed = renderLatestData(w);
     return {
-      summary: [`Resolved ${comment_id} (entry ${w.entry}, as mcp)${res?.render_id ? ` with render ${res.render_id}` : ''}; its hash is now ${w.hash}. A person reopens it if they disagree (in the Studio, or retake comment reopen).`, ...renderLatestLines(w)].join('\n'),
+      summary: [
+        `Resolved ${comment_id} (entry ${w.entry}, as mcp)${res?.render_id ? ` with render ${res.render_id}` : ''}; its hash is now ${w.hash}. A person reopens it if they disagree (in the Studio, or retake comment reopen).`,
+        ...renderLatestLines(w),
+      ].join('\n'),
       // With render_id "latest": what it passed over (counts as data, the file names under "untrusted").
       data: { project, comment_id, entry: w.entry, hash: w.hash, thread: compact(w.thread), ...passed.data, ...(Object.keys(passed.untrusted).length ? { untrusted: passed.untrusted } : {}) },
     };
   },
 });
-

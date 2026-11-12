@@ -6,7 +6,7 @@ import type { ProgramContext } from './context.js';
 export function registerSignInCommands({ program, action }: ProgramContext): void {
   program
     .command('login')
-    .description("sign a persona in and save its session (a browser window; --auto: its login steps, headless)")
+    .description('sign a persona in and save its session (a browser window; --auto: its login steps, headless)')
     .argument('<project>', 'project slug or directory')
     .option('--env <name>', 'environment (default: the project default)')
     .option('--persona <name>', 'persona to sign in (needed when the environment has several)')

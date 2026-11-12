@@ -83,7 +83,9 @@ describe('editAgain: an edit on a newer version ("Apply it to the new version")'
     const v1 = view(T0.replace('      - click: One\n', '      - hold: 1\n      - click: One\n').replace('caption: Old', 'caption: New'));
     const again = editAgain(op, anchor, v1);
     expect(again).toEqual({ op: { ...op, at: { scene: 'a', index: 2, guard: scene(v1).steps[2].guard } } });
-    expect(editAgain(op, anchor, view(T0.replace('{text: Light}', '{text: Other}')))).toEqual({ why: 'the step it changes is no longer in the file as it was, or its scene now has more or fewer steps like it' });
+    expect(editAgain(op, anchor, view(T0.replace('{text: Light}', '{text: Other}')))).toEqual({
+      why: 'the step it changes is no longer in the file as it was, or its scene now has more or fewer steps like it',
+    });
   });
 
   it('a new step goes after the same step as before (by its guard); moves go as they were (their guard decides)', () => {

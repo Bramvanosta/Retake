@@ -141,14 +141,24 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect(bad).toEqual([expect.stringMatching(/^scene quote, card \(lottie file\): scenarios\/anim\.json is a file an agent can write .*a Lottie file is code/)]);
     expect(preReadProblems(p, withCard('assets/anim.json'), undefined, { project: p })).toEqual([]);
     // An image there is data: fine.
-    expect(preReadProblems(p, timeline({}, (t) => (t.scenes[0].card = { image: 'scenarios/shot.png' })), undefined, { project: p })).toEqual([]);
+    expect(
+      preReadProblems(
+        p,
+        timeline({}, (t) => (t.scenes[0].card = { image: 'scenarios/shot.png' })),
+        undefined,
+        { project: p },
+      ),
+    ).toEqual([]);
   });
 
   it("gate 1: a theme is named — a folder only when it is project.yaml's own template", async () => {
     const p = await project(timeline({}, (t) => (t.video!.template = '../../outside')));
     expect((await refusal(mcp(p))).problems[0]).toMatch(/^the run's theme \(the scenario's template:\) is a folder \(\.\.\/\.\.\/outside\)/);
     expect((await refusal(mcp(p, { template: './x' }))).problems[0]).toMatch(/^the theme asked is a folder/);
-    const own = await project(timeline({}, (t) => (t.video!.template = './template')), './template');
+    const own = await project(
+      timeline({}, (t) => (t.video!.template = './template')),
+      './template',
+    );
     await cp(join(TEMPLATES, 'editorial'), join(own.dir, 'template'), { recursive: true });
     await expect(mcp(own)).resolves.toMatchObject({ template: { dir: join(own.dir, 'template') } });
   });
@@ -158,11 +168,15 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect((await refusal(mcp(p))).problems).toEqual([expect.stringMatching(/^scene quote, card slot avatar: https:\/\/example\.com\/a\.png is a remote URL/)]);
   });
 
-  it('gate 1 (hotfix v0.2.5): an address a component only shows or encodes is no remote file — a CTA\'s url and QR code', async () => {
-    const p = await project(timeline({ component: 'studio/card-cta', slots: { title: 'Open an account', url: 'https://shop.example.test/sign-up', qr: 'https://shop.example.test/sign-up?src=video' } }));
+  it("gate 1 (hotfix v0.2.5): an address a component only shows or encodes is no remote file — a CTA's url and QR code", async () => {
+    const p = await project(
+      timeline({ component: 'studio/card-cta', slots: { title: 'Open an account', url: 'https://shop.example.test/sign-up', qr: 'https://shop.example.test/sign-up?src=video' } }),
+    );
     await expect(mcp(p)).resolves.toMatchObject({ plan: expect.anything() });
     // Without the manifests (no registry), or a card whose component the theme picks: counted as loaded, as before.
-    expect(preReadProblems(p, timeline({ component: 'studio/card-cta', slots: { title: 'x', qr: 'https://shop.example.test/q' } }), undefined, { project: p })).toEqual([expect.stringMatching(/card slot qr: .* is a remote URL/)]);
+    expect(preReadProblems(p, timeline({ component: 'studio/card-cta', slots: { title: 'x', qr: 'https://shop.example.test/q' } }), undefined, { project: p })).toEqual([
+      expect.stringMatching(/card slot qr: .* is a remote URL/),
+    ]);
   });
 
   it('gate 2: an image slot without an extension, outside, is caught where the plan serves it', async () => {
@@ -176,13 +190,18 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     await link(join(outside, 'logo.svg'), join(p.dir, 'assets', 'logo.svg'));
     // Every check on paths passes (inside assets/, no symbolic link): only its link count tells.
     expect(preReadProblems(p, timeline({ component: 'studio/card-testimonial', slots: { logo: 'assets/logo.svg' } }), undefined, { project: p })).toEqual([]);
-    expect((await refusal(mcp(p))).problems).toEqual([expect.stringMatching(/^the plan serves image-.* from .*assets\/logo\.svg, a file with more than one name \(a hard link\): through MCP a render serves none$/)]);
+    expect((await refusal(mcp(p))).problems).toEqual([
+      expect.stringMatching(/^the plan serves image-.* from .*assets\/logo\.svg, a file with more than one name \(a hard link\): through MCP a render serves none$/),
+    ]);
     // The CLI (trust author) is unchanged.
     expect((await planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root })).plan.durationInFrames).toBeGreaterThan(0);
   });
 
   it("gate 2: a theme's logo that leaves its folder (and the project) is refused", async () => {
-    const own = await project(timeline({}, (t) => (t.video!.template = './template')), './template');
+    const own = await project(
+      timeline({}, (t) => (t.video!.template = './template')),
+      './template',
+    );
     await cp(join(TEMPLATES, 'editorial'), join(own.dir, 'template'), { recursive: true });
     const yaml = join(own.dir, 'template', 'template.yaml');
     await writeFile(yaml, (await readFile(yaml, 'utf8')).replace(/^logo: .*$/m, 'logo: ../../../outside/logo.svg'));
@@ -304,9 +323,13 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     // Through MCP `latest` takes no run that lies outside the project either (before L7.6a's close: 'planned', while
     // naming that very run was refused): it is passed over and counted, in the rule's fixed words.
     expect(await message(mcp(p))).toMatch(/^RenderError: no capture run in .*`retake run p\d+ <scenario>` — 1 capture of it cannot be edited: it lies outside the project \(1\)$/);
-    expect(await message(mcp(p, { scenario: 'synthetic' }))).toMatch(/^RenderError: no capture run of scenario "synthetic" in .* — 1 capture of it cannot be edited: it lies outside the project \(1\)$/);
+    expect(await message(mcp(p, { scenario: 'synthetic' }))).toMatch(
+      /^RenderError: no capture run of scenario "synthetic" in .* — 1 capture of it cannot be edited: it lies outside the project \(1\)$/,
+    );
     // Named: refused in its own words — the folder is no link itself, a folder above it is.
-    expect(await message(mcp(p, { run: RUN }))).toBe(`PlanTrustError: refused through MCP:\n- run ${RUN} lies outside the project (its folder, or a folder above it, is a link): through MCP a render reads only the runs inside it`);
+    expect(await message(mcp(p, { run: RUN }))).toBe(
+      `PlanTrustError: refused through MCP:\n- run ${RUN} lies outside the project (its folder, or a folder above it, is a link): through MCP a render reads only the runs inside it`,
+    );
   });
 
   it('a timeline made by hand — no run id in it, no film named — still plans when its run is named, at a terminal and through MCP; `latest` wants a complete one', async () => {
@@ -327,7 +350,7 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     }
   });
 
-  it('the files of a named run through MCP are its folder\'s own: a run.json, a timeline.json or a film that is a link is refused; at a terminal it plans', async () => {
+  it("the files of a named run through MCP are its folder's own: a run.json, a timeline.json or a film that is a link is refused; at a terminal it plans", async () => {
     const LINKS = `PlanTrustError: refused through MCP:\n- run ${RUN}: its files are links: through MCP a render reads only the files of the run folder itself`;
     for (const file of ['run.json', 'timeline.json', 'capture.mp4']) {
       const p = await project(timeline());
@@ -339,7 +362,8 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
       expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: RUN, root })), file).toBe('planned');
       expect(await message(mcp(p, { run: RUN })), file).toBe(LINKS);
       // And such a run is never `latest`, for a person or an agent.
-      for (const trust of ['author', 'mcp'] as const) expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust })), `${file} ${trust}`).toMatch(/^RenderError: no capture run in /);
+      for (const trust of ['author', 'mcp'] as const)
+        expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root, trust })), `${file} ${trust}`).toMatch(/^RenderError: no capture run in /);
     }
   });
 
@@ -355,7 +379,9 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     expect(said).not.toContain(RUN);
     // A folder without its run.json: how to name one, in the words of who asked.
     await rm(join(dir, 'run.json'));
-    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root }))).toMatch(/ — 1 run folder without a readable run\.json was not considered \(name one with `--run <id>`\)$/);
+    expect(await message(planRun({ workPolicy: PERSON_POLICY, project: p, run: 'latest', root }))).toMatch(
+      / — 1 run folder without a readable run\.json was not considered \(name one with `--run <id>`\)$/,
+    );
     const through = await message(mcp(p));
     expect(through).toMatch(/ — 1 run folder without a readable run\.json was not considered \(name one with `run_id`\)$/);
     expect(through).not.toContain(RUN);

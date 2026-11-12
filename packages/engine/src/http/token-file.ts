@@ -33,7 +33,13 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{32,512}$/;
 /** Why `st` is not a file private to this user (a link, not a regular file, another owner, group / other bits), or undefined. */
 export function privateFileProblem(st: Stats): string | undefined {
   const uid = process.getuid?.();
-  return !st.isFile() ? 'is not a regular file' : uid !== undefined && st.uid !== uid ? 'belongs to another user' : (st.mode & 0o077) !== 0 ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)` : undefined;
+  return !st.isFile()
+    ? 'is not a regular file'
+    : uid !== undefined && st.uid !== uid
+      ? 'belongs to another user'
+      : (st.mode & 0o077) !== 0
+        ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)`
+        : undefined;
 }
 
 /**

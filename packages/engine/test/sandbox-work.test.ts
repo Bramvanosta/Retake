@@ -30,12 +30,17 @@ import { openWorkspace } from '../src/workspace.js';
 let root = '';
 let project: LoadedProject;
 
-const MANIFEST = ['version: 1', 'provider: process', 'services:', '  app:', '    command: [node, service.mjs]', '    url: http://localhost:4790', '    pages: {app: "http://localhost:4790"}', ''].join('\n');
+const MANIFEST = ['version: 1', 'provider: process', 'services:', '  app:', '    command: [node, service.mjs]', '    url: http://localhost:4790', '    pages: {app: "http://localhost:4790"}', ''].join(
+  '\n',
+);
 
 async function writeProject(dir: string, sandboxes: string[]): Promise<void> {
   await mkdir(join(dir, 'sandbox'), { recursive: true });
   await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), MANIFEST);
-  await writeFile(join(dir, 'project.yaml'), ['name: S', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', ...sandboxes.map((n) => `  ${n}: sandbox/sandbox.yaml`), 'default_env: local', ''].join('\n'));
+  await writeFile(
+    join(dir, 'project.yaml'),
+    ['name: S', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', ...sandboxes.map((n) => `  ${n}: sandbox/sandbox.yaml`), 'default_env: local', ''].join('\n'),
+  );
 }
 
 beforeAll(async () => {
@@ -74,7 +79,18 @@ function recordingHandle(o: { refuse?: boolean } = {}) {
   const calls: Array<{ op: string; keys: string[]; opts: Record<string, unknown> }> = [];
   let kills = 0;
   const seen = (op: string, opts: Record<string, unknown> = {}) => calls.push({ op, keys: Object.keys(opts).sort(), opts });
-  const resetResult = { strategy: 'reseed', restored: false, ms: 1, hash: 'h', at: '2026-11-12T12:00:00.000Z', seed: { steps: 1, ms: 1 }, mailbox: 'none', restarted: [], superseded: 0, hooks: { steps: 0, ms: 0 } };
+  const resetResult = {
+    strategy: 'reseed',
+    restored: false,
+    ms: 1,
+    hash: 'h',
+    at: '2026-11-12T12:00:00.000Z',
+    seed: { steps: 1, ms: 1 },
+    mailbox: 'none',
+    restarted: [],
+    superseded: 0,
+    hooks: { steps: 0, ms: 0 },
+  };
   const seeding = async (opts: Record<string, unknown>) => {
     await (opts.recordSeedRun as ((r: Record<string, unknown>) => Promise<void>) | undefined)?.({ index: 0, name: 'mark', kind: 'shell', phase: 'seed', status: 'ok', ms: 2 });
     if (o.refuse) throw new SandboxError('sandbox sandbox is in use: refused on purpose', 'busy');
@@ -201,7 +217,13 @@ describe('sandboxWork (L7.28)', () => {
     const h = recordingHandle();
     const ir = recordingInterrupts();
     await sandboxWork.up(project, h.sb, { trust: 'author', interrupts: ir.port, log, recordAs: { caller: callerOf('cli'), clock: new ManualClock('2026-11-12T10:00:00.000Z') } });
-    await sandboxWork.reset(project, h.sb, { trust: 'mcp', seedTrust: { trust: 'mcp' }, interrupts: ir.port, log, recordAs: { caller: callerOf('mcp'), clock: new ManualClock('2026-11-12T11:00:00.000Z') } });
+    await sandboxWork.reset(project, h.sb, {
+      trust: 'mcp',
+      seedTrust: { trust: 'mcp' },
+      interrupts: ir.port,
+      log,
+      recordAs: { caller: callerOf('mcp'), clock: new ManualClock('2026-11-12T11:00:00.000Z') },
+    });
     const entries = (await readJournal(project.root, { project: project.slug })).slice(-2);
     expect(entries.map((e) => ({ at: e.at, client: e.by?.client, trust: e.by?.trust, project: e.project, hook: (e as { hook?: string }).hook }))).toEqual([
       { at: '2026-11-12T10:00:00.000Z', client: 'cli', trust: callerOf('cli').trust, project: project.slug, hook: 'mark' },
@@ -238,7 +260,8 @@ describe('sandboxWork (L7.28)', () => {
     const dir = join(root, 'i');
     await writeProject(dir, ['sandbox']);
     const before = await loadProject(dir);
-    const result = (env: string) => ({ env, dir: join(dir, 'sandbox'), manifest: join(dir, 'sandbox', 'sandbox.yaml'), files: [], projectYaml: 'added', ports: { app: 1, db: 2, mailpit: 3 } }) as unknown as InitSandboxResult;
+    const result = (env: string) =>
+      ({ env, dir: join(dir, 'sandbox'), manifest: join(dir, 'sandbox', 'sandbox.yaml'), files: [], projectYaml: 'added', ports: { app: 1, db: 2, mailpit: 3 } }) as unknown as InitSandboxResult;
     const given: unknown[] = [];
     const sandboxes: Sandboxes = {
       open: () => Promise.reject(new Error('not opened')),

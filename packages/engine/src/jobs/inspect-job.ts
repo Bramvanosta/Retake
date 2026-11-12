@@ -103,7 +103,11 @@ export async function pruneInspections(project: LoadedProject, keep = INSPECT_KE
   } catch {
     return [];
   }
-  const old = names.sort().reverse().slice(keep).filter((n) => !except.includes(n));
+  const old = names
+    .sort()
+    .reverse()
+    .slice(keep)
+    .filter((n) => !except.includes(n));
   for (const n of old) await rm(join(inspectRoot(project), n), { recursive: true, force: true }).catch(() => undefined);
   return old;
 }
@@ -148,7 +152,10 @@ export function pageOfUrl(url: string, pages: Record<string, string>, envName: s
   if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new EngineError('refused', `url: only http(s) URLs of environment ${envName}'s pages are inspected (not ${u.protocol})`);
   if (u.username || u.password) throw new EngineError('refused', 'url: a URL with credentials is never opened through an inspection');
   if (!isPageOrigin(url, pages)) {
-    throw new EngineError('refused', `url: its origin is not one of environment ${envName}'s pages (${pageOrigins(pages).join(', ') || 'none'}): an inspection opens only the environment's own origins — another port of localhost is another app`);
+    throw new EngineError(
+      'refused',
+      `url: its origin is not one of environment ${envName}'s pages (${pageOrigins(pages).join(', ') || 'none'}): an inspection opens only the environment's own origins — another port of localhost is another app`,
+    );
   }
   let best: { page: string; base: string } | null = null;
   for (const [page, base] of Object.entries(pages)) {
@@ -242,7 +249,10 @@ export async function prepareInspect(ws: OpenedWorkspace, project: LoadedProject
 }
 
 /** Check, reserve the inspection's folder and queue an `inspect` job. */
-export async function submitInspectJob(ctx: SubmitContext, req: InspectSubmitRequest): Promise<{ job: JobRecord; inspect_id: string; dir: string; env: string; source: InspectJobInput['source']; warnings: string[] }> {
+export async function submitInspectJob(
+  ctx: SubmitContext,
+  req: InspectSubmitRequest,
+): Promise<{ job: JobRecord; inspect_id: string; dir: string; env: string; source: InspectJobInput['source']; warnings: string[] }> {
   checkProjectSlug(req.project);
   const project = await openProjectBySlug(ctx.ws, req.project);
   let env: ReturnType<typeof resolveEnvironment>;
@@ -369,9 +379,7 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
  * over (a modal over the page) — their number would sit on the cover, on what a click there would really hit.
  */
 export function markBoxes(r: Pick<InspectReport, 'elements' | 'scale'>): Array<{ mark: number; x: number; y: number; w: number; h: number }> {
-  return r.elements
-    .filter((e) => e.in_view && !e.state.covered)
-    .map((e) => ({ mark: e.mark, x: e.bbox.x * r.scale, y: e.bbox.y * r.scale, w: e.bbox.w * r.scale, h: e.bbox.h * r.scale }));
+  return r.elements.filter((e) => e.in_view && !e.state.covered).map((e) => ({ mark: e.mark, x: e.bbox.x * r.scale, y: e.bbox.y * r.scale, w: e.bbox.w * r.scale, h: e.bbox.h * r.scale }));
 }
 
 /** The job's result from an inspection (counts and booleans; page text only under `untrusted`). */

@@ -74,7 +74,7 @@ describe('js hooks outside a capture: their pages', () => {
     expect(pages.opened.every((b) => b.closed)).toBe(true);
   });
 
-  it('a tab that lands on its persona\'s sign-in page fails with the command that signs it in again', async () => {
+  it("a tab that lands on its persona's sign-in page fails with the command that signs it in again", async () => {
     const pages = new MemoryHookPages({ landing: (page, _p, url) => (page === 'app' ? `${url}/sign-in?next=%2F` : url) });
     const { ctx, closeSessions } = await context(pages);
     await expect(ctx.evalInPage!('app', 'return 1')).rejects.toThrow(
@@ -88,7 +88,9 @@ describe("an http hook's `auth: {persona}` outside a capture", () => {
   it("trust mcp: the persona's session reaches its own pages only — refused elsewhere before its browser opens", async () => {
     const pages = new MemoryHookPages({ cookies: { ada: 'sid=ada-session' } });
     const { ctx, closeSessions } = await context(pages, 'mcp');
-    await expect(ctx.personaAuth!('ada', `${SHOP}/api/orders`)).rejects.toThrow(/an http hook acting as persona ada \(`auth: \{persona\}`\) sends its session only to that persona's own pages \(http:\/\/127\.0\.0\.1:4901\)/);
+    await expect(ctx.personaAuth!('ada', `${SHOP}/api/orders`)).rejects.toThrow(
+      /an http hook acting as persona ada \(`auth: \{persona\}`\) sends its session only to that persona's own pages \(http:\/\/127\.0\.0\.1:4901\)/,
+    );
     expect(pages.opened).toEqual([]);
     expect(await ctx.personaAuth!('ada', `${APP}/api/orders`)).toEqual({ cookie: 'sid=ada-session' });
     // The browser its js hooks would use: one, opened on first read.

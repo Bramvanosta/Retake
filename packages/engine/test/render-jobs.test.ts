@@ -19,7 +19,7 @@ import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRec
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
 const SCENARIO = 'Synth_Up';
-const RUN = "20260101-120000-synth-up"; // run ids carry the scenario as a lower-case slug
+const RUN = '20260101-120000-synth-up'; // run ids carry the scenario as a lower-case slug
 
 let root: string;
 let renders: string;
@@ -90,87 +90,102 @@ describe.skipIf(!canRender)('render jobs', () => {
     expect(await rendersFiles()).toEqual([]);
   });
 
-  it('submit reserves the id at once (upper-case scenario name); the worker renders it; render_status and the history follow', async () => {
-    const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-    expect(sub.render_id).toBe(`${SCENARIO}-v1`);
-    expect(sub.run_id).toBe(RUN);
-    expect(await readFile(join(renders, `.${SCENARIO}-v1.lock`), 'utf8')).toContain('submitted by test');
-    const queued = await engine.renders.status('demo', sub.render_id);
-    expect(queued).toMatchObject({ status: 'queued', finished: false, job: { id: sub.job.id, state: 'queued', queue: { ahead: 0 } } });
+  it(
+    'submit reserves the id at once (upper-case scenario name); the worker renders it; render_status and the history follow',
+    async () => {
+      const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+      expect(sub.render_id).toBe(`${SCENARIO}-v1`);
+      expect(sub.run_id).toBe(RUN);
+      expect(await readFile(join(renders, `.${SCENARIO}-v1.lock`), 'utf8')).toContain('submitted by test');
+      const queued = await engine.renders.status('demo', sub.render_id);
+      expect(queued).toMatchObject({ status: 'queued', finished: false, job: { id: sub.job.id, state: 'queued', queue: { ahead: 0 } } });
 
-    expect(await work()).toBe(0);
-    const job = await engine.jobs.get(sub.job.id);
-    expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
-    expect(job.result).toMatchObject({ kind: 'render', render_id: sub.render_id, variant: 'landscape', width: 960, height: 540 });
-    expect(job.progress?.fraction).toBeGreaterThan(0.9);
-    expect(await rendersFiles()).toEqual([`${SCENARIO}-v1.json`, `${SCENARIO}-v1.mp4`]);
-    expect(existsSync(queue.files.browser(sub.job.id))).toBe(false);
-    const done = await engine.renders.status('demo', sub.render_id);
-    expect(done).toMatchObject({ status: 'succeeded', finished: true, file: join(renders, `${SCENARIO}-v1.mp4`), record: { id: sub.render_id, template: 'editorial', status: 'succeeded' } });
-    expect(done.record).not.toHaveProperty('plan');
-    expect(done.record).toMatchObject({ concurrency: 2, policy: { concurrency_source: 'retake.yaml', gl: { used: 'software' }, encoder: { used: 'libx264' } } });
-    expect(await engine.renders.status('demo', 'latest', { scenario: SCENARIO })).toMatchObject({ render_id: sub.render_id });
-    const lines = (await readFile(historyFile(root), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
-    expect(lines.at(-1)).toMatchObject({ kind: 'render', project: 'demo', state: 'succeeded', render: { id: sub.render_id, scenario: SCENARIO, variant: 'landscape' }, counted: { renders: 1 } });
-    expect((await engine.usage()).renders).toBe(1);
-  }, LONG);
+      expect(await work()).toBe(0);
+      const job = await engine.jobs.get(sub.job.id);
+      expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
+      expect(job.result).toMatchObject({ kind: 'render', render_id: sub.render_id, variant: 'landscape', width: 960, height: 540 });
+      expect(job.progress?.fraction).toBeGreaterThan(0.9);
+      expect(await rendersFiles()).toEqual([`${SCENARIO}-v1.json`, `${SCENARIO}-v1.mp4`]);
+      expect(existsSync(queue.files.browser(sub.job.id))).toBe(false);
+      const done = await engine.renders.status('demo', sub.render_id);
+      expect(done).toMatchObject({ status: 'succeeded', finished: true, file: join(renders, `${SCENARIO}-v1.mp4`), record: { id: sub.render_id, template: 'editorial', status: 'succeeded' } });
+      expect(done.record).not.toHaveProperty('plan');
+      expect(done.record).toMatchObject({ concurrency: 2, policy: { concurrency_source: 'retake.yaml', gl: { used: 'software' }, encoder: { used: 'libx264' } } });
+      expect(await engine.renders.status('demo', 'latest', { scenario: SCENARIO })).toMatchObject({ render_id: sub.render_id });
+      const lines = (await readFile(historyFile(root), 'utf8'))
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as Record<string, unknown>);
+      expect(lines.at(-1)).toMatchObject({ kind: 'render', project: 'demo', state: 'succeeded', render: { id: sub.render_id, scenario: SCENARIO, variant: 'landscape' }, counted: { renders: 1 } });
+      expect((await engine.usage()).renders).toBe(1);
+    },
+    LONG,
+  );
 
-  it('a failed render releases its id: the next render reuses it, render_status shows the newest job, the old job stays failed', async () => {
-    const first = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-    expect(first.render_id).toBe(`${SCENARIO}-v2`);
-    const original = await readFile(timelineFile, 'utf8');
-    await writeFile(timelineFile, `${original}\n`); // the run changed after the submit
-    await work();
-    const failed = await engine.jobs.get(first.job.id);
-    expect(failed).toMatchObject({ state: 'failed', error: { code: 'conflict' } });
-    expect(await rendersFiles()).toEqual([`${SCENARIO}-v1.json`, `${SCENARIO}-v1.mp4`]);
-    expect(await engine.renders.status('demo', first.render_id)).toMatchObject({ status: 'failed', finished: true, job: { id: first.job.id } });
+  it(
+    'a failed render releases its id: the next render reuses it, render_status shows the newest job, the old job stays failed',
+    async () => {
+      const first = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+      expect(first.render_id).toBe(`${SCENARIO}-v2`);
+      const original = await readFile(timelineFile, 'utf8');
+      await writeFile(timelineFile, `${original}\n`); // the run changed after the submit
+      await work();
+      const failed = await engine.jobs.get(first.job.id);
+      expect(failed).toMatchObject({ state: 'failed', error: { code: 'conflict' } });
+      expect(await rendersFiles()).toEqual([`${SCENARIO}-v1.json`, `${SCENARIO}-v1.mp4`]);
+      expect(await engine.renders.status('demo', first.render_id)).toMatchObject({ status: 'failed', finished: true, job: { id: first.job.id } });
 
-    const again = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5, variant: 'vertical' } });
-    expect(again.render_id).toBe(`${SCENARIO}-v2-vertical`);
-    const third = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-    expect(third.render_id).toBe(`${SCENARIO}-v3`);
-    // A cancel before the worker starts them: never rendered, their locks released.
-    for (const s of [again, third]) await engine.jobs.cancel(s.job.id);
-    await work();
-    await work();
-    for (const s of [again, third]) expect((await engine.jobs.get(s.job.id)).state).toBe('cancelled');
-    expect((await rendersFiles()).filter((f) => f.endsWith('.lock'))).toEqual([]);
-    const reused = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-    expect(reused.render_id).toBe(first.render_id);
-    const st = await engine.renders.status('demo', reused.render_id);
-    expect(st).toMatchObject({ status: 'queued', job: { id: reused.job.id } });
-    expect((await engine.jobs.get(first.job.id)).state).toBe('failed');
-    await engine.jobs.cancel(reused.job.id);
-    await work();
-  }, LONG);
+      const again = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5, variant: 'vertical' } });
+      expect(again.render_id).toBe(`${SCENARIO}-v2-vertical`);
+      const third = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+      expect(third.render_id).toBe(`${SCENARIO}-v3`);
+      // A cancel before the worker starts them: never rendered, their locks released.
+      for (const s of [again, third]) await engine.jobs.cancel(s.job.id);
+      await work();
+      await work();
+      for (const s of [again, third]) expect((await engine.jobs.get(s.job.id)).state).toBe('cancelled');
+      expect((await rendersFiles()).filter((f) => f.endsWith('.lock'))).toEqual([]);
+      const reused = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+      expect(reused.render_id).toBe(first.render_id);
+      const st = await engine.renders.status('demo', reused.render_id);
+      expect(st).toMatchObject({ status: 'queued', job: { id: reused.job.id } });
+      expect((await engine.jobs.get(first.job.id)).state).toBe('failed');
+      await engine.jobs.cancel(reused.job.id);
+      await work();
+    },
+    LONG,
+  );
 
-  it('cancel mid-render: cancelled, nothing under the final name, no partial file, the lock released', async () => {
-    const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
-    // L7.34 (U9): on the in-memory renderer, which draws until the cancel reaches it. What this case holds is the
-    // engine's and the editor's render flow around the renderer: the cancel reaches the renderer (its signal), the job
-    // and the render end cancelled, the version lock is released, nothing is left under the render's name. A partial
-    // file is the renderer's own to remove — the renderer is handed the final name and writes its temporary files
-    // itself (the Remotion driver's `.<id>.partial-*.mp4`, removed by it: render-worker-process.test's cancel and
-    // SIGKILL mid-render, a real browser); "no partial file" here is the in-memory renderer's own cleanup.
-    const renderer = new MemoryRenderer({ duringVideo: (req) => new Promise<void>((done) => (req.signal?.aborted ? done() : req.signal?.addEventListener('abort', () => done(), { once: true }))) });
-    const worker = runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
-    for (let i = 0; i < 600; i++) {
-      const j = await queue.get(sub.job.id);
-      if (j?.state === 'running' && j.progress?.phase === 'rendering') break;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    await engine.jobs.cancel(sub.job.id);
-    await worker;
-    const job = await engine.jobs.get(sub.job.id);
-    expect(job.state).toBe('cancelled');
-    expect(renderer.calls.map((c) => c.op)).toEqual(['video']);
-    const asked = renderer.calls[0]!.req as { out: string; signal?: AbortSignal };
-    expect([asked.out, asked.signal?.aborted]).toEqual([join(renders, `${sub.render_id}.mp4`), true]);
-    const files = await rendersFiles();
-    expect(files.filter((f) => f.startsWith(sub.render_id) || f.startsWith(`.${sub.render_id}`) || f.endsWith('.lock'))).toEqual([]);
-    expect(await engine.renders.status('demo', sub.render_id)).toMatchObject({ status: 'cancelled', finished: true });
-  }, LONG);
+  it(
+    'cancel mid-render: cancelled, nothing under the final name, no partial file, the lock released',
+    async () => {
+      const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+      // L7.34 (U9): on the in-memory renderer, which draws until the cancel reaches it. What this case holds is the
+      // engine's and the editor's render flow around the renderer: the cancel reaches the renderer (its signal), the job
+      // and the render end cancelled, the version lock is released, nothing is left under the render's name. A partial
+      // file is the renderer's own to remove — the renderer is handed the final name and writes its temporary files
+      // itself (the Remotion driver's `.<id>.partial-*.mp4`, removed by it: render-worker-process.test's cancel and
+      // SIGKILL mid-render, a real browser); "no partial file" here is the in-memory renderer's own cleanup.
+      const renderer = new MemoryRenderer({ duringVideo: (req) => new Promise<void>((done) => (req.signal?.aborted ? done() : req.signal?.addEventListener('abort', () => done(), { once: true }))) });
+      const worker = runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
+      for (let i = 0; i < 600; i++) {
+        const j = await queue.get(sub.job.id);
+        if (j?.state === 'running' && j.progress?.phase === 'rendering') break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      await engine.jobs.cancel(sub.job.id);
+      await worker;
+      const job = await engine.jobs.get(sub.job.id);
+      expect(job.state).toBe('cancelled');
+      expect(renderer.calls.map((c) => c.op)).toEqual(['video']);
+      const asked = renderer.calls[0]!.req as { out: string; signal?: AbortSignal };
+      expect([asked.out, asked.signal?.aborted]).toEqual([join(renders, `${sub.render_id}.mp4`), true]);
+      const files = await rendersFiles();
+      expect(files.filter((f) => f.startsWith(sub.render_id) || f.startsWith(`.${sub.render_id}`) || f.endsWith('.lock'))).toEqual([]);
+      expect(await engine.renders.status('demo', sub.render_id)).toMatchObject({ status: 'cancelled', finished: true });
+    },
+    LONG,
+  );
 
   it('refusals at submit leave no lock and no job: a theme folder, a path in the overrides, a file outside through a link', async () => {
     const before = (await queue.ids()).length;
@@ -268,7 +283,12 @@ describe.skipIf(!canRender)('render jobs', () => {
       scenario: 'gpu-story',
       status: 'succeeded',
       created_at: '2026-11-04T10:00:00.000Z',
-      policy: { gl: { asked: 'auto', source: 'default', resolved: 'angle', used: 'software' }, encoder: { asked: 'auto', source: 'default', used: 'libx264' }, concurrency_source: 'default', fallback: { reason } },
+      policy: {
+        gl: { asked: 'auto', source: 'default', resolved: 'angle', used: 'software' },
+        encoder: { asked: 'auto', source: 'default', used: 'libx264' },
+        concurrency_source: 'default',
+        fallback: { reason },
+      },
       warnings: [`the render failed on the GPU path (${reason}) and was rendered again in software`],
       plan: {},
     };
@@ -295,7 +315,12 @@ describe.skipIf(!canRender)('render jobs', () => {
       scenario: 'own-ffmpeg-story',
       status: 'succeeded',
       created_at: '2026-11-10T10:00:00.000Z',
-      policy: { gl: { asked: 'auto', source: 'default', resolved: 'angle', used: 'software' }, encoder: { asked: 'auto', source: 'default', used: 'libx264' }, concurrency_source: 'default', ffmpeg: { asked: 'auto', source: 'default', used: 'library', version: '7.1.1', failed } },
+      policy: {
+        gl: { asked: 'auto', source: 'default', resolved: 'angle', used: 'software' },
+        encoder: { asked: 'auto', source: 'default', used: 'libx264' },
+        concurrency_source: 'default',
+        ffmpeg: { asked: 'auto', source: 'default', used: 'library', version: '7.1.1', failed },
+      },
       warnings: [`the encode failed with this machine's ffmpeg (${failed}) and the video was rendered again in software with the rendering library's`],
       plan: {},
     };
@@ -305,10 +330,19 @@ describe.skipIf(!canRender)('render jobs', () => {
       const view = await engine.renders.status('demo', id);
       expect(view.untrusted.ffmpeg_failed).toBe(failed);
       expect(view.untrusted.fallback_reason).toBeUndefined();
-      expect(view.record?.policy?.ffmpeg).toEqual({ asked: 'auto', source: 'default', used: 'library', version: '7.1.1', failed: "this machine's ffmpeg failed at the encode: its words are untrusted.ffmpeg_failed" });
+      expect(view.record?.policy?.ffmpeg).toEqual({
+        asked: 'auto',
+        source: 'default',
+        used: 'library',
+        version: '7.1.1',
+        failed: "this machine's ffmpeg failed at the encode: its words are untrusted.ffmpeg_failed",
+      });
       expect(JSON.stringify(view.record)).not.toContain('IGNORE');
       // A record whose ffmpeg did not fail is given as it is.
-      await writeFile(join(renders, `${id}.json`), JSON.stringify({ ...record, warnings: [], policy: { ...record.policy, ffmpeg: { asked: 'auto', source: 'default', used: 'own', version: '7.1.1' } } }));
+      await writeFile(
+        join(renders, `${id}.json`),
+        JSON.stringify({ ...record, warnings: [], policy: { ...record.policy, ffmpeg: { asked: 'auto', source: 'default', used: 'own', version: '7.1.1' } } }),
+      );
       const fine = await engine.renders.status('demo', id);
       expect(fine.record?.policy?.ffmpeg).toEqual({ asked: 'auto', source: 'default', used: 'own', version: '7.1.1' });
       expect(fine.untrusted.ffmpeg_failed).toBeUndefined();

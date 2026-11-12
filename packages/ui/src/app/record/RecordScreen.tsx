@@ -130,7 +130,14 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
   const counts = v ? `${plural(v.counts.actions, 'action')}${u ? ` · ${plural(u.inserts.length, 'insert')} · draft updated ${agoWords(changedAt, Math.max(now, changedAt))}` : ''}` : '';
   return (
     <div className="sc-screen rc-screen">
-      <RecordBrowser slug={slug} recordings={{ items: opts.state === 'ready' ? opts.data.recent : null, current: rec, live: v ? ({ rec_id: rec, state: v.state, actions: v.counts.actions } as Pick<RecordListItem, 'rec_id' | 'state' | 'actions'>) : null }} />
+      <RecordBrowser
+        slug={slug}
+        recordings={{
+          items: opts.state === 'ready' ? opts.data.recent : null,
+          current: rec,
+          live: v ? ({ rec_id: rec, state: v.state, actions: v.counts.actions } as Pick<RecordListItem, 'rec_id' | 'state' | 'actions'>) : null,
+        }}
+      />
       {live && (
         <ShellSlot name="actions">
           <span className="sh-scenario" data-testid="status-recording" data-state={v?.state ?? 'loading'}>
@@ -169,7 +176,17 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
           </Callout>
         </>
       )}
-      {v && <RecordingBody slug={slug} v={v} cursor={cursor} setCursor={setCursor} ui={{ busy, note, taken, discarding: discarding && v.state !== 'discarded', confirming, now, inApp }} act={act} titleRef={title} />}
+      {v && (
+        <RecordingBody
+          slug={slug}
+          v={v}
+          cursor={cursor}
+          setCursor={setCursor}
+          ui={{ busy, note, taken, discarding: discarding && v.state !== 'discarded', confirming, now, inApp }}
+          act={act}
+          titleRef={title}
+        />
+      )}
     </div>
   );
 }

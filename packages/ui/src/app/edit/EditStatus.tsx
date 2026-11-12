@@ -68,7 +68,25 @@ function ReviewLink({ v, mine, slug, name }: { v: ScenarioRendersView; mine: Rea
   );
 }
 
-export function EditStatus({ slug, name, source, r, target, shown, ed, inApp }: { slug: string; name: string; source: EditSource; r: RendersState; target: RenderTarget; shown: ShownVersion; ed: SwitchEditor; inApp: boolean }) {
+export function EditStatus({
+  slug,
+  name,
+  source,
+  r,
+  target,
+  shown,
+  ed,
+  inApp,
+}: {
+  slug: string;
+  name: string;
+  source: EditSource;
+  r: RendersState;
+  target: RenderTarget;
+  shown: ShownVersion;
+  ed: SwitchEditor;
+  inApp: boolean;
+}) {
   const v = r.loaded.state === 'ready' ? r.loaded.data : null;
   const job = v?.jobs[0];
   const off = renderOff(r, target);
@@ -115,10 +133,28 @@ export function EditStatus({ slug, name, source, r, target, shown, ed, inApp }: 
           {stopping ? 'Stopping…' : job.reviewing ? 'Stop the review' : 'Cancel the render'}
         </Button>
       )}
-      <Button size="sm" variant="ghost" icon="undo" data-testid="tl-undo" disabled={!ed.enabled || ed.undoLabel === null} aria-keyshortcuts="Meta+Z Control+Z" aria-describedby="ed-undo-what" onClick={ed.undo}>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="undo"
+        data-testid="tl-undo"
+        disabled={!ed.enabled || ed.undoLabel === null}
+        aria-keyshortcuts="Meta+Z Control+Z"
+        aria-describedby="ed-undo-what"
+        onClick={ed.undo}
+      >
         Undo
       </Button>
-      <Button size="sm" variant="ghost" icon="redo" data-testid="tl-redo" disabled={!ed.enabled || ed.redoLabel === null} aria-keyshortcuts="Shift+Meta+Z Shift+Control+Z Control+Y" aria-describedby="ed-redo-what" onClick={ed.redo}>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="redo"
+        data-testid="tl-redo"
+        disabled={!ed.enabled || ed.redoLabel === null}
+        aria-keyshortcuts="Shift+Meta+Z Shift+Control+Z Control+Y"
+        aria-describedby="ed-redo-what"
+        onClick={ed.redo}
+      >
         Redo
       </Button>
       <span className="k-sr">
@@ -132,7 +168,15 @@ export function EditStatus({ slug, name, source, r, target, shown, ed, inApp }: 
           <Txt text={off ? `Render: ${off}` : `Render the capture ${'why' in target ? '' : target.run} of ${name} with the file as shown`} />
         </span>
       </span>
-      <Button size="sm" variant="primary" data-testid="render" disabled={off !== null || r.sending} aria-describedby="ed-render-why" kbd={inApp ? ['⌘', 'B'] : undefined} onClick={() => !('why' in target) && r.render(target)}>
+      <Button
+        size="sm"
+        variant="primary"
+        data-testid="render"
+        disabled={off !== null || r.sending}
+        aria-describedby="ed-render-why"
+        kbd={inApp ? ['⌘', 'B'] : undefined}
+        onClick={() => !('why' in target) && r.render(target)}
+      >
         <Txt text={label} />
       </Button>
     </>

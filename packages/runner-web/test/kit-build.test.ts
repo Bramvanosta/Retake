@@ -13,7 +13,9 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { RunnerError } from '../src/errors.js';
 import { KIT_PAGE_DIR, buildKitBundle, kitBundle, kitConfigFor, kitSource } from '../src/kit/source.js';
 
-const MODULES = readdirSync(KIT_PAGE_DIR).filter((f) => f.endsWith('.ts')).sort();
+const MODULES = readdirSync(KIT_PAGE_DIR)
+  .filter((f) => f.endsWith('.ts'))
+  .sort();
 
 interface ModuleInfo {
   /** Relative modules imported for their values (file names). */
@@ -184,7 +186,7 @@ describe('the in-page kit, built from modules', () => {
   it('the side-effect-free rule refuses a call, a global, an element created or an assignment at load', () => {
     const impure = (text: string) => moduleInfo('probe.ts', text).impure;
     expect(impure("const t = setInterval(() => {}, 1000);\nconst el = document.createElement('div');\nconst w = window;\nconst x = (() => 1)();\n")).toEqual(['t', 'el', 'w', 'x']);
-    expect(impure("let n = 0;\nconst m = (n = 2);\nconst o = { a: f() };\nconst s = new Set([g()]);\nconst d = new Date();\nconst q = `${h()}`;\n")).toEqual(['m', 'o', 's', 'd', 'q']);
+    expect(impure('let n = 0;\nconst m = (n = 2);\nconst o = { a: f() };\nconst s = new Set([g()]);\nconst d = new Date();\nconst q = `${h()}`;\n')).toEqual(['m', 'o', 's', 'd', 'q']);
     // What the page script's wrapper defines is the environment too.
     expect(impure('declare const __outside: { a: number };\nconst c = __outside;\nconst k = [...Object.keys(c)];\n')).toEqual(['c', 'k']);
     expect(

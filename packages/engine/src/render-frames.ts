@@ -137,7 +137,15 @@ export interface RenderFramesOptions {
 
 /** ffprobe of an open descriptor (the fd protocol only); null when it cannot be read. */
 async function probeFd(fd: number, o: { ffprobe?: string; policy: WorkPolicy; signal: AbortSignal; timeoutMs: number }): Promise<VideoProbe | null> {
-  const tool = startMediaTool(ffprobeBin(o.policy, o.ffprobe), openVideoArgs(), { stdio: ['ignore', 'pipe', 'ignore', fd], signal: o.signal, cancelSignal: 'SIGKILL', abortedAtStart: 'run', timeoutMs: o.timeoutMs, timeoutSignal: 'SIGKILL', settle: 'exit' });
+  const tool = startMediaTool(ffprobeBin(o.policy, o.ffprobe), openVideoArgs(), {
+    stdio: ['ignore', 'pipe', 'ignore', fd],
+    signal: o.signal,
+    cancelSignal: 'SIGKILL',
+    abortedAtStart: 'run',
+    timeoutMs: o.timeoutMs,
+    timeoutSignal: 'SIGKILL',
+    settle: 'exit',
+  });
   let out = '';
   tool.child.stdout?.on('data', (c: Buffer) => {
     if (out.length < 64 * 1024) out += c.toString();
@@ -231,7 +239,8 @@ export class RenderFrames {
     if (!d || d.isSymbolicLink() || !d.isDirectory()) throw new EngineError('refused', `${PROJECT_DIRS.renders}/ is not a real folder of the project: its videos are not shown`);
     const file = join(dir, `${renderId}.mp4`);
     const [realFile, realRecord] = await Promise.all([realpath(file).catch(() => null), realpath(record.file).catch(() => null)]);
-    if (!realFile || realFile !== realRecord) throw new EngineError('refused', `${projectRef('renders', `${renderId}.json`)} names another file than ${projectRef('renders', `${renderId}.mp4`)}: not shown`);
+    if (!realFile || realFile !== realRecord)
+      throw new EngineError('refused', `${projectRef('renders', `${renderId}.json`)} names another file than ${projectRef('renders', `${renderId}.mp4`)}: not shown`);
     let fd: number;
     try {
       fd = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
@@ -292,7 +301,10 @@ export class RenderFrames {
     }
     if (!probe) throw new EngineError('invalid', `the video of render ${record.id} cannot be read (ffprobe): not shown`);
     if (typeof record.fps !== 'number' || Math.abs(record.fps - probe.fps) > 1e-3 || record.plan?.fps !== record.fps) {
-      throw new EngineError('refused', `${projectRef('renders', `${record.id}.json`)} says ${String(record.fps).slice(0, 20)} fps but its video holds ${probe.fps} fps: its frames cannot be told apart, not shown`);
+      throw new EngineError(
+        'refused',
+        `${projectRef('renders', `${record.id}.json`)} says ${String(record.fps).slice(0, 20)} fps but its video holds ${probe.fps} fps: its frames cannot be told apart, not shown`,
+      );
     }
     // A frame is found by its time (F − 0.5) / fps: only a video that starts at 0 with a constant frame rate maps times
     // to frame numbers the way the still's frame select does (review B L4; a hand-replaced mp4).
@@ -300,7 +312,10 @@ export class RenderFrames {
       throw new EngineError('refused', `the video of render ${record.id} starts at ${probe.start_s} s, not 0: its frames cannot be told apart, not shown`);
     }
     if (probe.avg_fps !== undefined && Math.abs(probe.avg_fps - probe.fps) > 1e-3) {
-      throw new EngineError('refused', `the video of render ${record.id} has a variable frame rate (${probe.avg_fps} fps on average, ${probe.fps} nominal): its frames cannot be told apart, not shown`);
+      throw new EngineError(
+        'refused',
+        `the video of render ${record.id} has a variable frame rate (${probe.avg_fps} fps on average, ${probe.fps} nominal): its frames cannot be told apart, not shown`,
+      );
     }
     const frames = Math.min(record.frames, record.plan.durationInFrames, probe.frames ?? Number.POSITIVE_INFINITY);
     if (!Number.isInteger(frames) || frames < 1) throw new EngineError('invalid', `render ${record.id} has no frame to show`);
@@ -311,7 +326,8 @@ export class RenderFrames {
     const why = signal.reason as string | undefined;
     if (why === 'superseded') return new EngineError('cancelled', `a newer frame of render ${renderId} was asked: this one was dropped`, { details: { reason: 'superseded' } });
     // A timeout is not a full queue (review B L3): its own code, which the page says after a retry.
-    if (why === 'timeout') return new EngineError('unavailable', `the frame of render ${renderId} took longer than ${(this.o.timeoutMs ?? RENDER_FRAME_TIMEOUT_MS) / 1000} s`, { details: { reason: 'timeout' } });
+    if (why === 'timeout')
+      return new EngineError('unavailable', `the frame of render ${renderId} took longer than ${(this.o.timeoutMs ?? RENDER_FRAME_TIMEOUT_MS) / 1000} s`, { details: { reason: 'timeout' } });
     return new EngineError('cancelled', 'cancelled');
   }
 
@@ -402,7 +418,8 @@ export class RenderFrames {
       if (!png) throw new EngineError('not_found', `frame ${req.frame} of render ${record.id} is not in its video`);
       const jpeg = await this.o.frames.thumb(png, { maxPx: RENDER_FRAME_MAX_PX, quality: RENDER_FRAME_QUALITY });
       const img = { base64: jpeg.data.toString('base64'), width: jpeg.width, height: jpeg.height };
-      if (img.base64.length > RENDER_FRAME_BASE64_MAX) throw new EngineError('refused', `frame ${req.frame} of render ${record.id} is larger than ${RENDER_FRAME_BASE64_MAX} base64 characters: not shown`);
+      if (img.base64.length > RENDER_FRAME_BASE64_MAX)
+        throw new EngineError('refused', `frame ${req.frame} of render ${record.id} is larger than ${RENDER_FRAME_BASE64_MAX} base64 characters: not shown`);
       this.cache.set(cacheKey, img);
       return view(img);
     } finally {
@@ -416,7 +433,8 @@ export class RenderFrames {
 
   /** What the viewer's slider needs of a render (see RenderOutlineView); the same checks and bounds as `frame`. */
   async outline(project: LoadedProject, req: RenderOutlineRequest): Promise<RenderOutlineView> {
-    if (req.created_at !== undefined && typeof req.created_at !== 'string') throw new EngineError('invalid', 'created_at is the created_at of the render as read', { details: { argument: 'created_at' } });
+    if (req.created_at !== undefined && typeof req.created_at !== 'string')
+      throw new EngineError('invalid', 'created_at is the created_at of the render as read', { details: { argument: 'created_at' } });
     const timeoutMs = this.o.timeoutMs ?? RENDER_FRAME_TIMEOUT_MS;
     const ctl = new AbortController();
     // Bounded like the frames (review A N4): it holds a place of the queue while it reads and probes.

@@ -33,7 +33,6 @@ vi.mock('../src/jobs/inspect-job.js', () => ({ executeInspectJob: answer('inspec
 vi.mock('../src/jobs/record-job.js', () => ({ executeRecordJob: answer('record') }));
 vi.mock('../src/jobs/site-job.js', () => ({ executeSiteJob: answer('site') }));
 
-
 function jobRun(over: Partial<JobRun> = {}, aborted = false): JobRun {
   const controller = new AbortController();
   if (aborted) controller.abort();
@@ -89,7 +88,12 @@ describe('one handler per job kind (L7.29): the state each kind ends with, as th
   it('an export cancelled between formats: cancelled, what was written in its result and its words; else succeeded', async () => {
     answers.export = { outputs: [{ format: 'a' }] };
     expect(await handle({ kind: 'export', formats: ['a', 'b'] })).toEqual({ result: answers.export, state: 'succeeded', progress: true });
-    expect(await handle({ kind: 'export', formats: ['a', 'b'] }, jobRun({}, true))).toEqual({ result: answers.export, state: 'cancelled', error: { code: 'cancelled', message: 'export cancelled: 1 of 2 formats written' }, progress: true });
+    expect(await handle({ kind: 'export', formats: ['a', 'b'] }, jobRun({}, true))).toEqual({
+      result: answers.export,
+      state: 'cancelled',
+      error: { code: 'cancelled', message: 'export cancelled: 1 of 2 formats written' },
+      progress: true,
+    });
   });
 
   it('render, review, preview, inspect, record, site: succeeded with their progress kept; the renderer, the free space and the record window handed on only when given', async () => {

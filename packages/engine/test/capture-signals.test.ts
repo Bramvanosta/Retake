@@ -29,7 +29,7 @@ function workerOn(captureRunner: MemoryCaptureRunner, order: string[]) {
 }
 
 describe("a worker's signals, through its capture runner", () => {
-  it('cancels with the runner\'s cancel on the first signal, removes the session copies first on the second', async () => {
+  it("cancels with the runner's cancel on the first signal, removes the session copies first on the second", async () => {
     const order: string[] = [];
     const runner = new MemoryCaptureRunner();
     // As runWorker: loaded before it listens to signals.

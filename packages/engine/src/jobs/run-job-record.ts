@@ -78,20 +78,17 @@ export function shellQuote(s: string): string {
 export function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
   const r = job.result;
   const run = r?.kind === 'run' && job.input.kind === 'run' ? { id: r.run_id, scenario: job.input.scenario, mode: r.mode, status: r.status } : undefined;
-  const render =
-    job.input.kind === 'render' ? { id: job.input.render_id, scenario: job.input.scenario, ...(r?.kind === 'render' ? { variant: r.variant } : {}) } : undefined;
+  const render = job.input.kind === 'render' ? { id: job.input.render_id, scenario: job.input.scenario, ...(r?.kind === 'render' ? { variant: r.variant } : {}) } : undefined;
   const review = job.input.kind === 'review' ? { render: job.input.render_id, ...(r?.kind === 'review' ? { clean: r.clean } : {}) } : undefined;
   // An export counts the formats it re-rendered through the planner (as `retake export` does); transcodes do not count.
-  const exported = job.input.kind === 'export' ? { render: job.input.render_id, formats: r?.kind === 'export' ? r.outputs.map((o) => o.format) : [], rendered: r?.kind === 'export' ? r.rendered : 0 } : undefined;
+  const exported =
+    job.input.kind === 'export' ? { render: job.input.render_id, formats: r?.kind === 'export' ? r.outputs.map((o) => o.format) : [], rendered: r?.kind === 'export' ? r.rendered : 0 } : undefined;
   const preview =
     job.input.kind === 'preview'
       ? { id: job.input.preview_id, target: job.input.target.kind === 'component' ? job.input.target.component : job.input.target.kind, ...(r?.kind === 'preview' ? { theme: r.theme } : {}) }
       : undefined;
   // An inspection counts nothing (a dry replay to read a page, not a dry run of the scenario).
-  const inspect =
-    job.input.kind === 'inspect'
-      ? { id: job.input.inspect_id, source: job.input.source.kind, ...(r?.kind === 'inspect' ? { status: r.status, reported: r.reported } : {}) }
-      : undefined;
+  const inspect = job.input.kind === 'inspect' ? { id: job.input.inspect_id, source: job.input.source.kind, ...(r?.kind === 'inspect' ? { status: r.status, reported: r.reported } : {}) } : undefined;
   // A recording counts nothing (its check replay is a check, not a dry run of a saved scenario).
   const record = job.input.kind === 'record' ? { id: job.input.rec_id, steps: r?.kind === 'record' ? r.stats.steps : 0, saved: r?.kind === 'record' && r.saved !== null } : undefined;
   // A site extraction counts nothing (workspace-level: no project).
@@ -115,9 +112,7 @@ export function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
     ...(record ? { record } : {}),
     ...(site ? { site } : {}),
     // A render counts once it wrote its video (the Remotion usage a licence would track); an export, its re-renders.
-    counted: run
-      ? runCounted(run.mode, run.status)
-      : { captures: 0, dry_runs: 0, renders: render && job.state === 'succeeded' && r?.kind === 'render' ? 1 : (exported?.rendered ?? 0) },
+    counted: run ? runCounted(run.mode, run.status) : { captures: 0, dry_runs: 0, renders: render && job.state === 'succeeded' && r?.kind === 'render' ? 1 : (exported?.rendered ?? 0) },
   };
 }
 
@@ -154,7 +149,8 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
             root,
             own: () => marker?.name,
             ...(c.heavySlowed ? { slowed: c.heavySlowed } : {}),
-            onFirst: (where) => event({ type: 'log', level: 'warn', message: `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine` }),
+            onFirst: (where) =>
+              event({ type: 'log', level: 'warn', message: `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine` }),
           });
           beside.start();
         } else if (state === 'pause' || state === 'resume') {
@@ -193,7 +189,10 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       await chain;
       const final: JobRecord = { ...rec, finished_at: stampOf(clock), ...(error ? { error } : {}) };
       await writeOrExit(final);
-      append([{ type: 'state', state: final.state }, { type: 'result', ...(final.result ? { result: final.result } : {}), ...(error ? { error } : {}) }]);
+      append([
+        { type: 'state', state: final.state },
+        { type: 'result', ...(final.result ? { result: final.result } : {}), ...(error ? { error } : {}) },
+      ]);
       await chain;
       done.add(id);
       await appendHistory(root, historyOf(final), clock);
@@ -214,7 +213,10 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     if (unknown) {
       await finish(
         { ...stored, state: 'failed' },
-        { code: 'invalid', message: `refused without running: this worker (Retake ${RETAKE_VERSION}, build ${build}) does not know job ${unknown} — submit it again once the client and the worker run the same build` },
+        {
+          code: 'invalid',
+          message: `refused without running: this worker (Retake ${RETAKE_VERSION}, build ${build}) does not know job ${unknown} — submit it again once the client and the worker run the same build`,
+        },
       );
       return;
     }
@@ -293,7 +295,10 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       const recordBrowser = (b: { pid: number; user_data_dir?: string }) => {
         chain = chain.then(async () => {
           const t = await processStart(b.pid).catch(() => null);
-          await writeFile(files.browser(id), `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`).catch(() => undefined);
+          await writeFile(
+            files.browser(id),
+            `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`,
+          ).catch(() => undefined);
         });
       };
       const outcome = await handleJob(job, {

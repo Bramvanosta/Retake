@@ -81,7 +81,12 @@ export function parseSandboxYaml(text: string, file?: string, opts: ParseSandbox
   const { value, issues } = checkYamlDocument(
     text,
     SandboxFileSchema,
-    (val, structural) => checkSandbox(val, structural, { env: opts.env, project: opts.project, ...(dir === undefined ? (opts.files ? { files: opts.files } : {}) : ({ dir, files: opts.files } as { dir: string; files: FileFacts })) }),
+    (val, structural) =>
+      checkSandbox(val, structural, {
+        env: opts.env,
+        project: opts.project,
+        ...(dir === undefined ? (opts.files ? { files: opts.files } : {}) : ({ dir, files: opts.files } as { dir: string; files: FileFacts })),
+      }),
     {},
     { formatVersion: { file: SANDBOX_FILE, supported: SANDBOX_VERSION } },
   );
@@ -155,9 +160,7 @@ export function mergeSandboxes(config: ProjectConfig, sandboxes: Record<string, 
   const settings: Record<string, EnvironmentSettings> = { ...(config.environment_settings ?? {}) };
   let auth: Record<string, AuthConfig> | undefined;
   if (config.auth !== undefined) {
-    auth = isGlobalAuth(config.auth)
-      ? Object.fromEntries(Object.keys(config.environments).map((env) => [env, config.auth as AuthConfig]))
-      : { ...(config.auth as Record<string, AuthConfig>) };
+    auth = isGlobalAuth(config.auth) ? Object.fromEntries(Object.keys(config.environments).map((env) => [env, config.auth as AuthConfig])) : { ...(config.auth as Record<string, AuthConfig>) };
   }
   for (const s of Object.values(sandboxes)) {
     const { pages, display } = sandboxPages(s.manifest);

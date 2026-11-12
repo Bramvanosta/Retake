@@ -41,18 +41,7 @@ import { zRunId } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { JOB_STATES } from '@retake/engine';
 import type { JobState } from '@retake/engine';
-import {
-  ERROR_STATUS,
-  EngineError,
-  FINISHED_JOB_STATES,
-  RunFolder,
-  openLiveFeed,
-  openProjectBySlug,
-  readLiveChannel,
-  readPlainRange,
-  securityHeaders,
-  toEngineError,
-} from '@retake/engine';
+import { ERROR_STATUS, EngineError, FINISHED_JOB_STATES, RunFolder, openLiveFeed, openProjectBySlug, readLiveChannel, readPlainRange, securityHeaders, toEngineError } from '@retake/engine';
 import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
 import { sseText } from './live.js';
 
@@ -268,7 +257,12 @@ export function maskUrls(text: string): string {
     const rest = q < 0 ? '' : url.slice(q);
     const authority = head.replace(/^([a-z][a-z0-9+.-]*:\/\/[^\s/:@]*:)[^\s/@]+@/i, `$1${URL_MASK}@`);
     const m = /^([a-z][a-z0-9+.-]*:\/\/[^/]*)(.*)$/i.exec(authority);
-    const path = m ? `${m[1]}${m[2].split('/').map((seg) => (seg && secretSegment(seg) ? URL_MASK : seg)).join('/')}` : authority;
+    const path = m
+      ? `${m[1]}${m[2]
+          .split('/')
+          .map((seg) => (seg && secretSegment(seg) ? URL_MASK : seg))
+          .join('/')}`
+      : authority;
     if (!rest) return path;
     const hash = rest.indexOf('#');
     const query = hash < 0 ? rest : rest.slice(0, hash);

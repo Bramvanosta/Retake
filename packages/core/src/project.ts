@@ -78,9 +78,15 @@ export function parseProjectYaml(text: string, file?: undefined, files?: FileFac
 export function parseProjectYaml(text: string, file: string | undefined, files: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] };
 export function parseProjectYaml(text: string, file?: string, files?: FileFacts): { config?: ProjectConfig; issues: ValidationIssue[] } {
   const projectDir = file ? dirname(resolve(file)) : undefined;
-  const { value, issues } = checkYamlDocument(text, ProjectFileSchema, (v, structural) => checkProject(v, structural, projectDir === undefined ? (files ? { files } : {}) : ({ projectDir, files } as { projectDir: string; files: FileFacts })), {}, {
-    formatVersion: { file: PROJECT_FILE, supported: FORMAT_VERSIONS.project },
-  });
+  const { value, issues } = checkYamlDocument(
+    text,
+    ProjectFileSchema,
+    (v, structural) => checkProject(v, structural, projectDir === undefined ? (files ? { files } : {}) : ({ projectDir, files } as { projectDir: string; files: FileFacts })),
+    {},
+    {
+      formatVersion: { file: PROJECT_FILE, supported: FORMAT_VERSIONS.project },
+    },
+  );
   if (hasErrors(issues)) return { issues };
   return { config: applyProjectDefaults(value as ProjectFile), issues };
 }
@@ -140,10 +146,7 @@ export function readmeEnvironmentLine(line: string): { env: string; pages: strin
  * pages whose URL the section does not mention; `gone`: lines in the skeleton's own form (`- env · page: url`) for an
  * environment or a page that no longer exists. Null when there is no such section, or nothing to say.
  */
-export function readmeEnvironmentsDrift(
-  readme: string,
-  pages: ReadonlyArray<{ env: string; page: string; url: string; display?: string }>,
-): { missing: string[]; gone: string[] } | null {
+export function readmeEnvironmentsDrift(readme: string, pages: ReadonlyArray<{ env: string; page: string; url: string; display?: string }>): { missing: string[]; gone: string[] } | null {
   const lines = readme.split(/\r?\n/);
   const start = lines.findIndex((l) => /^##\s+Environments\b/i.test(l));
   if (start < 0) return null;
@@ -166,11 +169,7 @@ export function readmeEnvironmentsDrift(
  * README.md skeleton: what an agent needs to write good scenarios for the product. `settings` (ProjectConfig
  * environment_settings) adds the display URL a page is shown as.
  */
-export function readmeSkeleton(
-  name: string,
-  environments: ProjectConfig['environments'] = {},
-  settings: ProjectConfig['environment_settings'] = {},
-): string {
+export function readmeSkeleton(name: string, environments: ProjectConfig['environments'] = {}, settings: ProjectConfig['environment_settings'] = {}): string {
   const links = Object.entries(environments).flatMap(([env, pages]) =>
     Object.entries(pages).map(([page, url]) => {
       return environmentLink(env, page, url, settings[env]?.display?.[page]);

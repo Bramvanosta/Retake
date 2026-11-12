@@ -137,7 +137,8 @@ const fileEvents = async (id: string) =>
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l) as { seq: number; kind: string; el?: { label?: string | null } });
-const studioJson = async (id: string) => JSON.parse(await readFile(join(await recDir(id), 'studio.json'), 'utf8')) as { rev: number; inserts: Array<{ id: string; after_seq: number; kind: string }>; choices: Record<string, number> };
+const studioJson = async (id: string) =>
+  JSON.parse(await readFile(join(await recDir(id), 'studio.json'), 'utf8')) as { rev: number; inserts: Array<{ id: string; after_seq: number; kind: string }>; choices: Record<string, number> };
 const mode = (f: string) => statSync(f).mode & 0o777;
 
 /** A `record` job of the Studio (or `by`) for a recording, in a final or running state (no worker runs it). */
@@ -252,10 +253,12 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
       await page.getByLabel('Note').click();
       await page.keyboard.type('Two');
       // The screen polls: the draft so far, while the window is open.
-      const v1 = keep(await until(async () => {
-        const v = await ui.record.view(PROJECT, sub.rec_id);
-        return v.state === 'recording' && v.counts.actions >= 3 ? v : null;
-      }, 'the live draft'));
+      const v1 = keep(
+        await until(async () => {
+          const v = await ui.record.view(PROJECT, sub.rec_id);
+          return v.state === 'recording' && v.counts.actions >= 3 ? v : null;
+        }, 'the live draft'),
+      );
       expect(v1.can).toMatchObject({ annotate: true, save: false, discard: true, stop: true });
       expect(v1.untrusted?.yaml).toContain('{{vars.password_1}}');
       beforeBlur = Math.max(...(await fileEvents(sub.rec_id)).map((e) => e.seq));
@@ -266,10 +269,12 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
       caption = keep(await ui.record.annotate(PROJECT, sub.rec_id, { rev: 0, change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } } }));
       expect(caption.rev).toBe(1);
       await page.getByRole('button', { name: 'Forgery target' }).click();
-      const pick = keep(await until(async () => {
-        const v = await ui.record.view(PROJECT, sub.rec_id);
-        return v.untrusted?.alternatives.find((a) => a.options.some((o) => JSON.stringify(o.target).includes('#lab-forge-target')));
-      }, 'the button\'s alternatives'));
+      const pick = keep(
+        await until(async () => {
+          const v = await ui.record.view(PROJECT, sub.rec_id);
+          return v.untrusted?.alternatives.find((a) => a.options.some((o) => JSON.stringify(o.target).includes('#lab-forge-target')));
+        }, "the button's alternatives"),
+      );
       expect(pick.chosen).toBe(0);
       expect(pick.options[0].index).toBe(0);
       const css = pick.options.find((o) => JSON.stringify(o.target).includes('#lab-forge-target'))!;
@@ -475,7 +480,13 @@ describe('discard, cancel and one window at a time', () => {
     const id = newRecordId();
     const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: id, source: { page: 'shop', path: '/record-lab' }, check: true, submitted_by: 'ui' });
     const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
-    await q.write({ ...job, state: 'running', started_at: new Date().toISOString(), worker: { pid: dead, host: 'h' }, progress: { steps_done: 0, steps_total: 0, phase: 'recording · 4 actions', updated_at: new Date().toISOString() } });
+    await q.write({
+      ...job,
+      state: 'running',
+      started_at: new Date().toISOString(),
+      worker: { pid: dead, host: 'h' },
+      progress: { steps_done: 0, steps_total: 0, phase: 'recording · 4 actions', updated_at: new Date().toISOString() },
+    });
     const dir = await recDir(id);
     await mkdir(dir, { recursive: true, mode: 0o700 });
     const from = await recDir(lab.rec);
@@ -618,7 +629,7 @@ describe('after the reviews (trust)', () => {
     expect(existsSync(join(p.dir, 'scenarios', 'hidden-check.yaml'))).toBe(false);
   });
 
-  it('A-L1: a recording is the person\'s only when its job (the Studio\'s) is the one meta.json names — else read-only', async () => {
+  it("A-L1: a recording is the person's only when its job (the Studio's) is the one meta.json names — else read-only", async () => {
     const p = await project();
     // meta.json says ui, with no job.
     const orphan = await cloneRecording(lab.rec, { job: false });
@@ -655,9 +666,26 @@ describe('after the reviews (trust)', () => {
       await mkdir(recs, { recursive: true });
       await mkdir(dir, { recursive: true });
       await writeFile(join(dir, 'project.yaml'), 'name: Linky\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');
-      const lines = (await readFile(join(await recDir(lab.rec), 'events.jsonl'), 'utf8'));
+      const lines = await readFile(join(await recDir(lab.rec), 'events.jsonl'), 'utf8');
       await writeFile(join(recs, 'events.jsonl'), lines);
-      await writeFile(join(recs, 'meta.json'), JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'cli', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: 1 } }));
+      await writeFile(
+        join(recs, 'meta.json'),
+        JSON.stringify({
+          v: 1,
+          rec_id: id,
+          job_id: null,
+          submitted_by: 'cli',
+          name: 'x',
+          env: 'local',
+          persona: null,
+          access: 'read-write',
+          page: 'app',
+          path: '/',
+          started_at: new Date().toISOString(),
+          max_ms: null,
+          owner: { pid: 1 },
+        }),
+      );
       if (which === 'records') {
         await mkdir(join(dir, '.retake'), { recursive: true });
         await symlink(outside, join(dir, '.retake', 'records'));
@@ -675,7 +703,7 @@ describe('after the reviews (trust)', () => {
 });
 
 describe('after the reviews (the screen)', () => {
-  it('B-M3: the zoom under the project theme\'s max_zoom — the default saved draws no validation warning; above it refused', async () => {
+  it("B-M3: the zoom under the project theme's max_zoom — the default saved draws no validation warning; above it refused", async () => {
     const id = await interruptedCopy(lab.rec, 'studio-zoom');
     const v = keep(await ui.record.view(PROJECT, id));
     expect(v.zoom).toEqual({ max: 1.4, options: [1.25, 1.4], default: 1.4 });
@@ -690,7 +718,7 @@ describe('after the reviews (the screen)', () => {
     expect(checked.issues.filter((i) => /max_zoom|clamp/.test(i.message))).toEqual([]);
   });
 
-  it('B-M4: the check\'s failing step is shown on its row — an insert before it moves it; a step that is gone is not on screen', async () => {
+  it("B-M4: the check's failing step is shown on its row — an insert before it moves it; a step that is gone is not on screen", async () => {
     const id = await cloneRecording(lab.rec);
     await rm(join(await recDir(id), 'studio.json'));
     const rj = join(await recDir(id), 'record.json');
@@ -726,14 +754,32 @@ describe('folders', () => {
     await writeFile(join(other, 'project.yaml'), 'name: Prune\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');
     const p = await openProject(ws, 'prune-me');
     const meta = (id: string, extra: Record<string, unknown> = {}) =>
-      JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'ui', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: 1 }, ...extra });
+      JSON.stringify({
+        v: 1,
+        rec_id: id,
+        job_id: null,
+        submitted_by: 'ui',
+        name: 'x',
+        env: 'local',
+        persona: null,
+        access: 'read-write',
+        page: 'app',
+        path: '/',
+        started_at: new Date().toISOString(),
+        max_ms: null,
+        owner: { pid: 1 },
+        ...extra,
+      });
     const [locked, fresh, old, savedOne, cli] = [newRecordId(), newRecordId(), newRecordId(), newRecordId(), newRecordId()];
     for (const id of [locked, fresh, old, savedOne, cli]) await mkdir(join(recordsRoot(p), id), { recursive: true });
     await new Promise((r) => setTimeout(r, 10)); // the newer folders' ids sort after these
     await writeFile(join(recordsRoot(p), fresh, 'meta.json'), meta(fresh));
     await writeFile(join(recordsRoot(p), old, 'meta.json'), meta(old, { started_at: new Date(Date.now() - 8 * 86_400_000).toISOString() }));
     await writeFile(join(recordsRoot(p), savedOne, 'meta.json'), meta(savedOne));
-    await writeFile(join(recordsRoot(p), savedOne, 'studio.json'), JSON.stringify({ v: 1, rev: 1, choices: {}, inserts: [], saved: { name: 'x', file: 'scenarios/x.yaml', hash: 'a'.repeat(64), at: new Date().toISOString() } }));
+    await writeFile(
+      join(recordsRoot(p), savedOne, 'studio.json'),
+      JSON.stringify({ v: 1, rev: 1, choices: {}, inserts: [], saved: { name: 'x', file: 'scenarios/x.yaml', hash: 'a'.repeat(64), at: new Date().toISOString() } }),
+    );
     await writeFile(join(recordsRoot(p), cli, 'meta.json'), meta(cli, { submitted_by: 'cli' }));
     for (let i = 0; i < RECORD_KEEP; i++) await mkdir(join(recordsRoot(p), newRecordId()), { recursive: true });
     const lock = TakeLock.acquire(recordLockFile(p.dir, locked), 'record annotate', 'test');
@@ -757,7 +803,24 @@ describe('folders', () => {
     const outside = join(root, 'outside-records');
     const id = newRecordId();
     await mkdir(join(outside, id), { recursive: true });
-    await writeFile(join(outside, id, 'meta.json'), JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'ui', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: spawnSync(process.execPath, ['-e', '0']).pid! } }));
+    await writeFile(
+      join(outside, id, 'meta.json'),
+      JSON.stringify({
+        v: 1,
+        rec_id: id,
+        job_id: null,
+        submitted_by: 'ui',
+        name: 'x',
+        env: 'local',
+        persona: null,
+        access: 'read-write',
+        page: 'app',
+        path: '/',
+        started_at: new Date().toISOString(),
+        max_ms: null,
+        owner: { pid: spawnSync(process.execPath, ['-e', '0']).pid! },
+      }),
+    );
     await writeFile(join(outside, id, 'events.jsonl'), '');
     await symlink(outside, join(linky, '.retake', 'records'));
     await openProject(ws, 'linky');

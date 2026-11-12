@@ -104,7 +104,10 @@ function keyTarget(t: EventTarget | null): KeyTarget {
 /** A random lease id (22 base64url characters) for timeline_view / timeline_leave. */
 function newLease(): string {
   const b = crypto.getRandomValues(new Uint8Array(16));
-  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(String.fromCharCode(...b))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 /** The proposal a timeline previews (the thread and the reply holding it). */
@@ -177,7 +180,7 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
               <LinkButton size="sm" variant="ghost" to={{ name: 'comments', slug, scenario: name, thread: proposal.comment_id }} testId="banner-back">
                 Back to the comment
               </LinkButton>
-              {': a proposal is previewed while it is the thread\'s newest, not yet applied, and the scenario is still the file it was proposed on.'}
+              {": a proposal is previewed while it is the thread's newest, not yet applied, and the scenario is still the file it was proposed on."}
             </p>
           )}
         </Callout>
@@ -458,7 +461,8 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
     }
     const first = handoff.step ? m.steps.filter((s) => s.key === handoff.step).sort((a, b) => a.from - b.from)[0] : undefined;
     if (first) seek(first.from);
-    if (differs) setSeekNote(`${versionWords(handoff.render_id)} was made from another version of the edit: its frame is not this preview's${first ? ', so the preview shows the step it points at' : ''}.`);
+    if (differs)
+      setSeekNote(`${versionWords(handoff.render_id)} was made from another version of the edit: its frame is not this preview's${first ? ', so the preview shows the step it points at' : ''}.`);
   }, [handoff, renders.loaded, shownVersion, m.steps, seek]);
 
   // Keys.
@@ -514,7 +518,13 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   // the theme editor — the palette never sets one) and the Review report with the last render's words.
   usePaletteGroup(
     'scenes',
-    m.segments.map((s) => ({ id: `segment-${s.id}`, label: s.kind === 'clip' ? `Scene ${s.id}` : segmentWords(s), hint: timecode(landingOf(s), m.fps), icon: 'scene' as const, run: () => onSelect(s.id, landingOf(s)) })),
+    m.segments.map((s) => ({
+      id: `segment-${s.id}`,
+      label: s.kind === 'clip' ? `Scene ${s.id}` : segmentWords(s),
+      hint: timecode(landingOf(s), m.fps),
+      icon: 'scene' as const,
+      run: () => onSelect(s.id, landingOf(s)),
+    })),
   );
   usePaletteGroup('themes', [{ id: v.theme, label: v.theme, hint: 'set for this scenario', icon: 'theme', run: () => (location.hash = hrefTo({ name: 'themes', slug, theme: v.theme })) }]);
   useReportEntry(slug, name, renders);
@@ -548,7 +558,16 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
         <TimelineInspector v={v} segment={segment} ed={ed} fps={m.fps} stepsOf={stepsOf} />
       </ShellSlot>
       <ShellSlot name="actions">
-        <EditStatus slug={slug} name={name} source={{ proposal: proposal !== undefined, edit: v.source.edit, run: v.run_id, ...(v.source.edit_changes ? { changes: v.source.edit_changes } : {}) }} r={renders} target={renderTarget} shown={shownVersion} ed={ed} inApp={inApp} />
+        <EditStatus
+          slug={slug}
+          name={name}
+          source={{ proposal: proposal !== undefined, edit: v.source.edit, run: v.run_id, ...(v.source.edit_changes ? { changes: v.source.edit_changes } : {}) }}
+          r={renders}
+          target={renderTarget}
+          shown={shownVersion}
+          ed={ed}
+          inApp={inApp}
+        />
       </ShellSlot>
       <div className="ed-top">
         {proposal && <ProposalBanner slug={slug} name={name} proposal={proposal} shown={v.proposal?.shown} />}
@@ -597,7 +616,9 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
         zoom={zoom}
         onZoom={setZoom}
       >
-        {previewOn && <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />}
+        {previewOn && (
+          <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />
+        )}
       </EditPreview>
       <section className="ed-tracks" aria-label="Tracks">
         <div className="ed-scroll" ref={scroller} data-testid="timeline-scroll" data-zoom={zoom}>

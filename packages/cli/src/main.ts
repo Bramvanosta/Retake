@@ -105,7 +105,10 @@ export function commandPaths(): string[] {
       else out.push(path);
     }
   };
-  walk(buildProgram(memoryIo(), () => {}), '');
+  walk(
+    buildProgram(memoryIo(), () => {}),
+    '',
+  );
   return out;
 }
 

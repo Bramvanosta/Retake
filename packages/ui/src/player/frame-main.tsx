@@ -249,7 +249,13 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
     missing: missing.slice(0, LIST_MAX).map((id) => clip(id, 128)),
     warnings: missing
       .slice(0, LIST_MAX)
-      .map((id) => clip(HELD.has(id) ? `workspace component ${id} is not run in the preview until you allow it in the Studio: its kind's stand-in draws instead` : `component ${id} is not in the preview: its kind's stand-in draws instead`)),
+      .map((id) =>
+        clip(
+          HELD.has(id)
+            ? `workspace component ${id} is not run in the preview until you allow it in the Studio: its kind's stand-in draws instead`
+            : `component ${id} is not in the preview: its kind's stand-in draws instead`,
+        ),
+      ),
   });
   settle(frame);
 }

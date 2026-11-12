@@ -95,7 +95,11 @@ function useEngineInfo(): EngineInfoAnswer | null {
   });
   useEffect(() => {
     let live = true;
-    const load = () => engineInfo().then((d) => live && set(d), () => undefined);
+    const load = () =>
+      engineInfo().then(
+        (d) => live && set(d),
+        () => undefined,
+      );
     load();
     const t = window.setInterval(load, 15_000);
     return () => {
@@ -126,7 +130,11 @@ const MAC = typeof navigator !== 'undefined' && /^(?:mac|iphone|ipad)/i.test((na
 
 /** A field that takes typed text (its own Ctrl+K, if any, stays its own). */
 function inTextField(t: EventTarget | null): boolean {
-  return t instanceof HTMLElement && (t.isContentEditable || t.matches('textarea, select, input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"], [type="range"])'));
+  return (
+    t instanceof HTMLElement &&
+    (t.isContentEditable ||
+      t.matches('textarea, select, input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"], [type="range"])'))
+  );
 }
 
 const PROJECT_ROUTES = new Set<Route['name']>(['project', 'group', 'location', 'cast', 'readme', 'scenario', 'run', 'timeline', 'comments', 'proposal', 'review', 'library', 'themes', 'record']);
@@ -186,7 +194,10 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
       key: 'library',
       heading: 'Library',
       label: 'Library',
-      items: [row('library', { name: 'library', slug }, 'Components', route.name === 'library', { icon: 'components', testId: 'library-link' }), row('themes', { name: 'themes', slug }, 'Themes', route.name === 'themes', { icon: 'theme' })],
+      items: [
+        row('library', { name: 'library', slug }, 'Components', route.name === 'library', { icon: 'components', testId: 'library-link' }),
+        row('themes', { name: 'themes', slug }, 'Themes', route.name === 'themes', { icon: 'theme' }),
+      ],
     },
     {
       key: 'locations',
@@ -195,7 +206,10 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
       items: view
         ? view.environments.map((e) => {
             const flags = envFlagWord(e, e.name === view.default_env);
-            return row(`loc-${e.name}`, { name: 'location', slug, env: e.name }, <Txt text={e.name} />, route.name === 'location' && route.env === e.name, { icon: 'location', ...(flags ? { flag: flags } : {}) });
+            return row(`loc-${e.name}`, { name: 'location', slug, env: e.name }, <Txt text={e.name} />, route.name === 'location' && route.env === e.name, {
+              icon: 'location',
+              ...(flags ? { flag: flags } : {}),
+            });
           })
         : [],
     },
@@ -211,7 +225,11 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
           children: personas.map((p) => {
             const c = castState(p);
             // Several locations: each one under its persona's name, on a line that wraps (review B-L1: never cut off).
-            return row(`p-${p.env}-${p.persona}`, { name: 'cast', slug }, <Txt text={p.persona} />, false, { quiet: true, flag: <StatusMark state={c.state} word={c.word} />, ...(manyEnvs ? { detail: <Txt text={p.env} /> } : {}) });
+            return row(`p-${p.env}-${p.persona}`, { name: 'cast', slug }, <Txt text={p.persona} />, false, {
+              quiet: true,
+              flag: <StatusMark state={c.state} word={c.word} />,
+              ...(manyEnvs ? { detail: <Txt text={p.env} /> } : {}),
+            });
           }),
         }),
       ],
@@ -392,17 +410,37 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     // Commands. L5.11b fixes (review A-M2 / A-L1): a live recording's own entries (Stop recording, Discard…, named after
     // it) take the Scenario menu's place — with or without a scenario in context, never naming that scenario.
     const recording = screen('scenario');
-    if (recording) for (const c of recording) add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'record', ...(inApp && c.id === 'record-stop' ? { kbd: ['⌘', '.'] } : {}), run: c.run });
+    if (recording)
+      for (const c of recording)
+        add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'record', ...(inApp && c.id === 'record-stop' ? { kbd: ['⌘', '.'] } : {}), run: c.run });
     // L5.11a: the Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
-    else if (ctx) for (const c of SCENARIO_COMMANDS) add('Commands', { id: c.id, label: c.label, hint: ctx.scenario, icon: c.icon, ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
+    else if (ctx)
+      for (const c of SCENARIO_COMMANDS)
+        add('Commands', { id: c.id, label: c.label, hint: ctx.scenario, icon: c.icon, ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
     for (const c of screen('review') ?? []) add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'plus', run: c.run });
-    if (hasInspector) add('Commands', { id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', icon: 'inspector', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
+    if (hasInspector)
+      add('Commands', { id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', icon: 'inspector', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
     // Go to: the modes, the Review report, the project's pages, the workspace.
-    if (ctx) for (const m of MODES) add('Go to', { id: `mode-${m.mode}`, label: m.label, hint: ctx.scenario, icon: MODE_ICON[m.mode], ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}), run: go(modeTarget(m.mode, ctx)) });
+    if (ctx)
+      for (const m of MODES)
+        add('Go to', {
+          id: `mode-${m.mode}`,
+          label: m.label,
+          hint: ctx.scenario,
+          icon: MODE_ICON[m.mode],
+          ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}),
+          run: go(modeTarget(m.mode, ctx)),
+        });
     if (ctx) {
       // The report's entry with the last render's words when a screen holds the renders (never "passed": review-words).
       const report = screen('report')?.[0];
-      add('Go to', { id: 'go-report', label: 'Review report', hint: report?.hint ?? ctx.scenario, icon: 'report', run: report ? report.run : go({ name: 'review', slug: ctx.slug, scenario: ctx.scenario }) });
+      add('Go to', {
+        id: 'go-report',
+        label: 'Review report',
+        hint: report?.hint ?? ctx.scenario,
+        icon: 'report',
+        run: report ? report.run : go({ name: 'review', slug: ctx.slug, scenario: ctx.scenario }),
+      });
     }
     if (project) {
       const slug = project.slug;
@@ -433,7 +471,9 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
       if (own && !seen.has(own)) add('Themes', { id: `theme-${own}`, label: own, hint: "the project's theme", icon: 'theme', run: go({ name: 'themes', slug, theme: own }) });
       add('Themes', { id: 'page-themes', label: 'All themes', hint: project.name, icon: 'theme', run: go({ name: 'themes', slug }) });
     }
-    if (project) for (const name of project.scenarios) add('Scenarios', { id: `open-${name}`, label: `Open ${name}`, hint: 'scenario', icon: 'scene', run: go({ name: 'scenario', slug: project.slug, scenario: name, tab: 'blocks' }) });
+    if (project)
+      for (const name of project.scenarios)
+        add('Scenarios', { id: `open-${name}`, label: `Open ${name}`, hint: 'scenario', icon: 'scene', run: go({ name: 'scenario', slug: project.slug, scenario: name, tab: 'blocks' }) });
     for (const p of projects) add('Projects', { id: `project-${p.slug}`, label: p.name, hint: 'project', icon: 'folder', run: go({ name: 'project', slug: p.slug }) });
     return PALETTE_GROUPS.flatMap((g) => out.filter((c) => c.group === g));
     // slotVersion: a screen's group changed (the entries are read from the registry above).
@@ -480,7 +520,11 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
             )}
           </div>
           <div className="sh-titlebar-centre">
-            <SegmentedLinks label="Mode" hint="Open a scenario to choose a mode" items={MODES.map((m) => ({ key: m.mode, label: m.label, to: ctx ? modeTarget(m.mode, ctx) : null, current: mode === m.mode }))} />
+            <SegmentedLinks
+              label="Mode"
+              hint="Open a scenario to choose a mode"
+              items={MODES.map((m) => ({ key: m.mode, label: m.label, to: ctx ? modeTarget(m.mode, ctx) : null, current: mode === m.mode }))}
+            />
           </div>
           <div className="sh-titlebar-end">
             <div className="sh-slot-context" ref={slotRefs.context} />

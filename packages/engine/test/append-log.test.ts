@@ -63,7 +63,9 @@ describe('the journal and the history: one append discipline (L7.26)', () => {
     const clock = new ManualClock('2026-03-04T05:06:07.008Z');
     await appendJournal(root, journalEntry('p/a'), clock);
     await appendJournal(root, { ...journalEntry('p/b'), project: 'p', if_match: null, sha256: 'a'.repeat(64), bytes: 3 }, clock);
-    expect(await readFile(journalFile(root), 'utf8')).toBe(journalLine(journalEntry('p/a'), clock) + journalLine({ ...journalEntry('p/b'), project: 'p', if_match: null, sha256: 'a'.repeat(64), bytes: 3 }, clock));
+    expect(await readFile(journalFile(root), 'utf8')).toBe(
+      journalLine(journalEntry('p/a'), clock) + journalLine({ ...journalEntry('p/b'), project: 'p', if_match: null, sha256: 'a'.repeat(64), bytes: 3 }, clock),
+    );
     expect(await readFile(journalFile(root), 'utf8')).toBe(
       '{"v":1,"at":"2026-03-04T05:06:07.008Z","by":{"client":"test","channel":"cli","trust":"author"},"op":"write","what":"scenario","path":"p/a","outcome":"ok"}\n' +
         `{"v":1,"at":"2026-03-04T05:06:07.008Z","by":{"client":"test","channel":"cli","trust":"author"},"op":"write","what":"scenario","path":"p/b","outcome":"ok","project":"p","if_match":null,"sha256":"${'a'.repeat(64)}","bytes":3}\n`,
@@ -131,7 +133,7 @@ describe('the journal and the history: one append discipline (L7.26)', () => {
     }, 60_000);
   }
 
-  it('processes appending at once after a torn line: every line whole and once, each writer\'s in order, the torn line closed once (no empty line)', async () => {
+  it("processes appending at once after a torn line: every line whole and once, each writer's in order, the torn line closed once (no empty line)", async () => {
     const root = await workspace();
     await mkdir(join(root, '.retake'), { recursive: true });
     await writeFile(journalFile(root), '{"v":1,"at":"2026-');

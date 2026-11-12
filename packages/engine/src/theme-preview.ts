@@ -65,7 +65,14 @@ function withDraft(t: LoadedTemplate, draft: ThemePreviewDraft | undefined): Loa
     ...t,
     template: {
       ...tpl,
-      colors: { ...tpl.colors, ...Object.fromEntries(Object.entries(draft.colors ?? {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, (v as string).toLowerCase()])) },
+      colors: {
+        ...tpl.colors,
+        ...Object.fromEntries(
+          Object.entries(draft.colors ?? {})
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, (v as string).toLowerCase()]),
+        ),
+      },
       ...(draft.background ? { background: { ...draft.background } } : {}),
     },
   } as LoadedTemplate;
@@ -119,11 +126,13 @@ export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequ
   samplesMemo.catch(() => (samplesMemo = undefined));
   const samples = await samplesMemo;
   // Every file the spec names is served by the shell under the project's capability, from its own folder only.
-  const serve = (within: string) => (file: string): string => {
-    const url = register(file, [within]);
-    if (url === undefined) throw new ed.PreviewPlanError(`a file of ${within === loaded.dir ? `theme ${loaded.name}` : 'the preview samples'} cannot be served (a link, or not a plain file)`);
-    return url;
-  };
+  const serve =
+    (within: string) =>
+    (file: string): string => {
+      const url = register(file, [within]);
+      if (url === undefined) throw new ed.PreviewPlanError(`a file of ${within === loaded.dir ? `theme ${loaded.name}` : 'the preview samples'} cannot be served (a link, or not a plain file)`);
+      return url;
+    };
   const themeUrl = serve(loaded.dir);
   let built;
   try {

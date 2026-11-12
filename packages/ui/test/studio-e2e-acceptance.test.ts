@@ -108,13 +108,19 @@ async function check(name: string, wide = false): Promise<void> {
 
 /** The share (%) of pixels that changed (a channel by more than 24 levels) between two PNG pictures of the preview, over their common top-left area (the frame may settle a pixel taller). */
 function pictureDiff(a: Buffer, b: Buffer): number {
-  const size = (png: Buffer) => execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png }).toString().trim().split(',').map(Number);
+  const size = (png: Buffer) =>
+    execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png })
+      .toString()
+      .trim()
+      .split(',')
+      .map(Number);
   const [wa, ha] = size(a);
   const [wb, hb] = size(b);
   const w = Math.min(wa, wb);
   const h = Math.min(ha, hb);
   expect(Math.abs(wa - wb) + Math.abs(ha - hb)).toBeLessThanOrEqual(4);
-  const rgb = (png: Buffer) => execFileSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-vf', `crop=${w}:${h}:0:0`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { input: png, maxBuffer: 64 * 1024 * 1024 });
+  const rgb = (png: Buffer) =>
+    execFileSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-vf', `crop=${w}:${h}:0:0`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { input: png, maxBuffer: 64 * 1024 * 1024 });
   const A = rgb(a);
   const B = rgb(b);
   let changed = 0;
@@ -176,7 +182,11 @@ afterAll(async () => {
     }
   }
   await fixture?.close();
-  for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author], ['RETAKE_DISK_WARN', saved.disk]] as const) {
+  for (const [k, val] of [
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_AUTHOR', saved.author],
+    ['RETAKE_DISK_WARN', saved.disk],
+  ] as const) {
     if (val === undefined) delete process.env[k];
     else process.env[k] = val;
   }
@@ -222,7 +232,16 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
       await expect.poll(() => page.getByTestId('live-canvas').evaluate((c) => Number((c as HTMLCanvasElement).dataset.frames ?? 0)), LONG).toBeGreaterThan(3);
       await check('run-live');
       await shot('3-dry-live');
-      await expect.poll(() => page.getByTestId('run-outcome').getAttribute('data-status').catch(() => null), LONG).toBe('succeeded');
+      await expect
+        .poll(
+          () =>
+            page
+              .getByTestId('run-outcome')
+              .getAttribute('data-status')
+              .catch(() => null),
+          LONG,
+        )
+        .toBe('succeeded');
     });
     await check('run-succeeded');
     await shot('4-dry-succeeded');
@@ -234,13 +253,22 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
       await page.getByTestId('start-capture').click();
       await expect.poll(() => page.url(), POLL).toMatch(/\/run\/\d{8}-\d{6}-highlights$/);
       ids.capture = /\/run\/(\d{8}-\d{6}-highlights)$/.exec(page.url())![1];
-      await expect.poll(() => page.getByTestId('run-outcome').getAttribute('data-status').catch(() => null), LONG).toBe('succeeded');
+      await expect
+        .poll(
+          () =>
+            page
+              .getByTestId('run-outcome')
+              .getAttribute('data-status')
+              .catch(() => null),
+          LONG,
+        )
+        .toBe('succeeded');
     });
     expect((await studio.engine.runs.status(P, ids.capture)).status).toBe('succeeded');
     await shot('5-capture-succeeded');
   }, 900_000);
 
-  it('Open timeline → the quotes segment\'s layout switched (one line, other pixels, same frame); ⌘Z; kept → Render → the verdict', async () => {
+  it("Open timeline → the quotes segment's layout switched (one line, other pixels, same frame); ⌘Z; kept → Render → the verdict", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/${S}`);
     // L5.11a: the Edit mode opens the newest capture's timeline (the strip's Open timeline went).
     await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Edit' }).click();
@@ -300,10 +328,22 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
     // Render: the Studio's worker renders and reviews it; the verdict inline.
     await timed('render + review (click → verdict)', async () => {
       await page.getByTestId('render').click();
-      await expect.poll(() => page.getByTestId('render-job').getAttribute('data-state').catch(() => null), POLL).not.toBeNull();
+      await expect
+        .poll(
+          () =>
+            page
+              .getByTestId('render-job')
+              .getAttribute('data-state')
+              .catch(() => null),
+          POLL,
+        )
+        .not.toBeNull();
       // L5.12a: Edit's status bar says the render this tab queued once its review is written (the report holds the rows).
       const reviewed = async () => {
-        const text = await page.getByTestId('render-status').innerText({ timeout: 500 }).catch(() => '');
+        const text = await page
+          .getByTestId('render-status')
+          .innerText({ timeout: 500 })
+          .catch(() => '');
         const m = /^v1 reviewed · (clean|\d+ warnings?|\d+ errors?) · /.exec(text);
         return m ? (m[1] === 'clean' ? 'clean' : /warning/.test(m[1]) ? 'warnings' : 'errors') : null;
       };
@@ -322,7 +362,14 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
           since = Date.now();
           timings.push(`render job: ${now} at ${((Date.now() - t0) / 1000).toFixed(1)} s`);
         }
-        const words = `${review ?? 'no row'}; job ${job?.id ?? '?'} ${now}; ${(await page.getByTestId('render-job').innerText({ timeout: 500 }).catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)}`;
+        const words = `${review ?? 'no row'}; job ${job?.id ?? '?'} ${now}; ${(
+          await page
+            .getByTestId('render-job')
+            .innerText({ timeout: 500 })
+            .catch(() => '')
+        )
+          .replace(/\s+/g, ' ')
+          .slice(0, 160)}`;
         if (job?.state === 'running' && !(await liveWorker(root))) throw new Error(`the render job runs but no worker is alive: ${words}`);
         if (Date.now() - since > RENDER_STALL_MS) throw new Error(`no progress for ${RENDER_STALL_MS / 1000} s: ${words}`);
         return words;
@@ -352,14 +399,20 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
     }
   }, 1_500_000);
 
-  it('Comment at the playhead → a region in the four fields → Post; the proposal\'s diff → Apply (exact bytes) → Resolve', async () => {
+  it("Comment at the playhead → a region in the four fields → Post; the proposal's diff → Apply (exact bytes) → Resolve", async () => {
     const comment = page.getByTestId('comment-here');
     await expect.poll(() => comment.getAttribute('href'), POLL).toMatch(new RegExp(`#/p/${P}/s/${S}/comments/at/${S}-v1/\\d+$`));
     ids.frame = Number(/\/(\d+)$/.exec((await comment.getAttribute('href'))!)![1]);
     await comment.click();
     await page.waitForURL(`**#/p/${P}/s/${S}/comments/at/${S}-v1/${ids.frame}`);
     await expect.poll(() => page.getByTestId('viewer').getAttribute('data-shown'), POLL).toBe(String(ids.frame));
-    for (const [k, v] of [['x', '55'], ['y', '30'], ['w', '30'], ['h', '25']] as const) await page.getByTestId(`region-${k}`).fill(v);
+    for (const [k, v] of [
+      ['x', '55'],
+      ['y', '30'],
+      ['w', '30'],
+      ['h', '25'],
+    ] as const)
+      await page.getByTestId(`region-${k}`).fill(v);
     await expect.poll(() => page.getByTestId('region-words').innerText(), POLL).toContain('from 55 % left');
     await page.getByTestId('comment-text').fill('The quotes list could breathe more on this layout.');
     await check('comment-composer', true);

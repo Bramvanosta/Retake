@@ -112,7 +112,11 @@ export function hookRunnerContract(adapter: string, make: (name: string) => Prom
       expect(await c.ran()).toEqual(['d']);
 
       const requests: Array<{ reason: string; fingerprint: string; phase: string; index: number }> = [];
-      const mcp = await c.runner.run([c.ok('m')], c.ctx({ trust: 'mcp', confirmDestructive: (_d, reason, r) => (requests.push({ reason, fingerprint: r.fingerprint, phase: r.phase, index: r.index }), false) }), { phase: 'teardown', journal });
+      const mcp = await c.runner.run(
+        [c.ok('m')],
+        c.ctx({ trust: 'mcp', confirmDestructive: (_d, reason, r) => (requests.push({ reason, fingerprint: r.fingerprint, phase: r.phase, index: r.index }), false) }),
+        { phase: 'teardown', journal },
+      );
       expect(statuses(mcp.results)).toEqual([['teardown', 'm', 'refused']]);
       expect(requests).toEqual([{ reason: 'a shell command (runs local code)', fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/), phase: 'teardown', index: 0 }]);
       expect(mcp.results[0].approval).toEqual({ reason: 'a shell command (runs local code)', fingerprint: requests[0].fingerprint });

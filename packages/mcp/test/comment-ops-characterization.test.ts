@@ -322,9 +322,15 @@ async function viaMcp(): Promise<Answers> {
   const n = { paths: pathsOf(ws), ids: new Map<string, string>() };
   for (const c of MCP_CALLS) {
     const args = typeof c.args === 'function' ? c.args(s) : c.args;
-    const r = (await client.callTool({ name: c.op, arguments: args }, undefined, { timeout: 120_000 })) as { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
+    const r = (await client.callTool({ name: c.op, arguments: args }, undefined, { timeout: 120_000 })) as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      structuredContent?: Record<string, unknown>;
+      isError?: boolean;
+    };
     remember(s, r.structuredContent, c.op);
-    const blocks = r.content.map((b) => (b.type === 'image' ? { type: 'image', mimeType: b.mimeType, data: b.data } : b.type === 'text' ? { type: 'text', chars: (b.text ?? '').length > 0 } : { type: b.type }));
+    const blocks = r.content.map((b) =>
+      b.type === 'image' ? { type: 'image', mimeType: b.mimeType, data: b.data } : b.type === 'text' ? { type: 'text', chars: (b.text ?? '').length > 0 } : { type: b.type },
+    );
     const texts = r.content.filter((b) => b.type === 'text').map((b) => b.text);
     out.push({ op: c.op, args: normalise(args, n), answer: normalise({ isError: r.isError ?? false, text: texts[0], labels: texts.slice(2), blocks, data: r.structuredContent }, n) });
   }
@@ -379,14 +385,22 @@ async function viaStudio(): Promise<{ studio: Answers; callers: Answers; busy: u
     ['comment_reply with a proposal by a Studio engine', mcpOp('comment_reply'), 'mcp', ui, { project: P, comment_id: D, text: 'x', proposal }],
     ['comment_reply with a proposal by a CLI engine', mcpOp('comment_reply'), 'mcp', cli, { project: P, comment_id: D, text: 'x', proposal }],
     ['comment_reply with a proposal by a Studio engine, a project that does not exist', mcpOp('comment_reply'), 'mcp', ui, { project: 'no-such-project', comment_id: D, text: 'x', proposal }],
-    ['comment_reply with a proposal by a Studio engine, invalid arguments', mcpOp('comment_reply'), 'mcp', ui, { project: P, comment_id: D, text: 'x', proposal: { ...proposal, scenario_hash: 'nope' } }],
+    [
+      'comment_reply with a proposal by a Studio engine, invalid arguments',
+      mcpOp('comment_reply'),
+      'mcp',
+      ui,
+      { project: P, comment_id: D, text: 'x', proposal: { ...proposal, scenario_hash: 'nope' } },
+    ],
     ['comment_reply by a CLI engine, a thread that does not exist', mcpOp('comment_reply'), 'mcp', cli, { project: P, comment_id: MISSING_THREAD, text: 'x' }],
     ['comment_resolve by a Studio engine (no rule but if_match)', mcpOp('comment_resolve'), 'mcp', ui, { project: P, comment_id: D, note: 'x', if_match: STALE }],
   ];
   const callers: Answers = [];
   for (const [label, op, shell, engine, args] of cases) {
     const r = await invoke(op, engine, args, { shell, signal: new AbortController().signal });
-    const answer = r.ok ? { ok: true, summary: r.output.summary } : { ok: false, code: r.error.code, message: r.error.message, ...(r.error.details ? { details: r.error.details } : {}), status: statusOf(op.name, r.error.code) };
+    const answer = r.ok
+      ? { ok: true, summary: r.output.summary }
+      : { ok: false, code: r.error.code, message: r.error.message, ...(r.error.details ? { details: r.error.details } : {}), status: statusOf(op.name, r.error.code) };
     callers.push({ op: label, args: normalise(args, n), answer: normalise(answer, n) });
   }
   return { studio: out, callers, busy };
@@ -404,7 +418,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const f of cleanup) await f().catch(() => undefined);
-  for (const [k, v] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
+  for (const [k, v] of [
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_AUTHOR', saved.author],
+  ] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
@@ -416,7 +433,20 @@ describe.skipIf(!canRun)('the comment operations through their shells (character
     if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect([...new Set(mcpAnswers.map((a) => a.op))].sort()).toEqual(['comment_reply', 'comment_resolve', 'comments_list']);
-    const studio = ['threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply'];
+    const studio = [
+      'threads_list',
+      'threads_counts',
+      'thread_get',
+      'thread_still',
+      'render_outline',
+      'render_frame',
+      'frame_anchor',
+      'thread_add',
+      'thread_reply',
+      'thread_resolve',
+      'thread_reopen',
+      'thread_apply',
+    ];
     expect([...new Set(studioAnswers.map((a) => a.op))].sort()).toEqual([...studio].sort());
     // The two renders' images keep their own sizes (a swapped image would show).
     expect(text).toContain('jpeg 480x270');

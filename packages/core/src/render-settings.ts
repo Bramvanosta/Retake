@@ -57,7 +57,8 @@ export function renderSettingsFromEnv(env: Record<string, string | undefined>): 
   const concurrency = env[RENDER_ENV.concurrency]?.trim();
   if (concurrency) {
     const n = Number(concurrency);
-    if (!/^\d+$/.test(concurrency) || n < 1 || n > RENDER_CONCURRENCY_MAX) throw new RenderSettingsError(`$${RENDER_ENV.concurrency} is "${concurrency}": use a whole number from 1 to ${RENDER_CONCURRENCY_MAX}`);
+    if (!/^\d+$/.test(concurrency) || n < 1 || n > RENDER_CONCURRENCY_MAX)
+      throw new RenderSettingsError(`$${RENDER_ENV.concurrency} is "${concurrency}": use a whole number from 1 to ${RENDER_CONCURRENCY_MAX}`);
     out.concurrency = n;
   }
   const ffmpeg = env[RENDER_ENV.ffmpeg]?.trim();

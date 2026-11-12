@@ -157,7 +157,11 @@ export function RecordingInspector({
       )}
       {v.check && w && (
         <InspectorSection title="Check" testId="record-check-section">
-          <Callout state={v.check.status === 'passed' && w.tone === 'info' ? 'ok' : TONE_MARK[w.tone]} role="note" title={v.check.events_changed ? `Stale: ${w.title.charAt(0).toLowerCase()}${w.title.slice(1)}` : w.title}>
+          <Callout
+            state={v.check.status === 'passed' && w.tone === 'info' ? 'ok' : TONE_MARK[w.tone]}
+            role="note"
+            title={v.check.events_changed ? `Stale: ${w.title.charAt(0).toLowerCase()}${w.title.slice(1)}` : w.title}
+          >
             <p data-testid="record-check" data-status={v.check.status}>
               {shown(w.detail)}
             </p>

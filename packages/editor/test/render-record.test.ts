@@ -33,7 +33,7 @@ describe('withPlan', () => {
     for (const plan of [[1], null, 'x']) expect(withPlan({ ...stored(), plan } as unknown as StoredRenderRecord)).toEqual({ ok: false, detail: 'plan' });
   });
 
-  it('the names of the states: the flat record is still a finished render\'s members, and a stored render compares with one (the seam of the review)', () => {
+  it("the names of the states: the flat record is still a finished render's members, and a stored render compares with one (the seam of the review)", () => {
     const written = stored() as unknown as RenderRecord;
     const finished: Pick<FinishedRender, 'id' | 'status'> = { id: written.id, status: 'succeeded' };
     const attempt: Pick<RenderAttempt, 'status' | 'error'> = { status: 'failed', error: 'x' };

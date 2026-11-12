@@ -117,7 +117,21 @@ export function ShootBrowser({ slug, name, runs, current, recordings }: { slug: 
       current: recordings?.current === r.rec_id,
       detail: <StatusMark state={RECORD_MARK[live.state] ?? 'idle'} word={<Txt text={recordingWords(live)} />} />,
       testId: 'record-recent-item',
-      ...(r.saved ? { children: [{ key: `${r.rec_id}-saved`, to: { name: 'scenario' as const, slug, scenario: r.saved.name, tab: 'blocks' as const }, label: <Txt text={`Open ${r.saved.name}`} />, current: false, quiet: true, testId: 'record-recent-saved' }], childrenLabel: 'Its scenario' } : {}),
+      ...(r.saved
+        ? {
+            children: [
+              {
+                key: `${r.rec_id}-saved`,
+                to: { name: 'scenario' as const, slug, scenario: r.saved.name, tab: 'blocks' as const },
+                label: <Txt text={`Open ${r.saved.name}`} />,
+                current: false,
+                quiet: true,
+                testId: 'record-recent-saved',
+              },
+            ],
+            childrenLabel: 'Its scenario',
+          }
+        : {}),
     };
   };
   // Newest first (record_options' order): the one open in the workspace is the first while it goes.
@@ -125,7 +139,10 @@ export function ShootBrowser({ slug, name, runs, current, recordings }: { slug: 
   const onRecord = recordings !== undefined;
   const groups: SourceGroup[] = [];
   if (name !== null) {
-    groups.push({ key: 'prepare', items: [{ key: 'prepare', to: { name: 'run', slug, scenario: name }, label: 'Prepare', current: !onRecord && current === null, icon: 'check', testId: 'shoot-prepare' }] });
+    groups.push({
+      key: 'prepare',
+      items: [{ key: 'prepare', to: { name: 'run', slug, scenario: name }, label: 'Prepare', current: !onRecord && current === null, icon: 'check', testId: 'shoot-prepare' }],
+    });
     groups.push({ key: 'runs', heading: 'Runs', label: 'Runs', items: runs === null ? [] : [...going, ...done].map(row) });
   }
   // (No recording yet: no empty heading — Record a scenario follows.)

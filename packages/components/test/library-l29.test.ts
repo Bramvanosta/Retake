@@ -35,7 +35,10 @@ beforeAll(async () => {
   }
 });
 
-function render(id: string, opts: { params?: Record<string, unknown>; slots?: Record<string, string>; media?: Record<string, MediaValue>; at?: number; variant?: Variant; extra?: Partial<ComponentProps> } = {}): string {
+function render(
+  id: string,
+  opts: { params?: Record<string, unknown>; slots?: Record<string, string>; media?: Record<string, MediaValue>; at?: number; variant?: Variant; extra?: Partial<ComponentProps> } = {},
+): string {
   const m = manifests[id];
   const variant = opts.variant ?? 'landscape';
   frame.current = opts.at ?? 60;
@@ -55,9 +58,32 @@ function render(id: string, opts: { params?: Record<string, unknown>; slots?: Re
   return renderToString(createElement(modules[id].default as ComponentType<ComponentProps>, props));
 }
 
-const EMAIL: MediaValue = { kind: 'email', name: 'welcome', from: 'hello@northfield.example', from_name: 'Northfield', to: ['noa@cafe-lumen.example'], subject: 'Confirm your email', date: '2026-10-12T09:41:00.000Z', preview: 'Welcome aboard.', image: { url: 'http://a/email.png', width: 1200, height: 3000 } };
-const DOC: MediaValue = { kind: 'document', name: 'quote', file_name: 'Quote.pdf', pages: [1, 2, 3].map((n) => ({ url: `http://a/p${n}.png`, width: 1587, height: 2245, width_pt: 595.28, height_pt: 841.89, number: n })) };
-const NOTE: MediaValue = { kind: 'notification', name: 'quote-request', title: 'New quote request', body: 'Café Lumen asks for 3 bags', app: 'console.example', time: '2026-10-12T09:41:00.000Z', icon: { url: 'http://a/icon.png', width: 192, height: 192 } };
+const EMAIL: MediaValue = {
+  kind: 'email',
+  name: 'welcome',
+  from: 'hello@northfield.example',
+  from_name: 'Northfield',
+  to: ['noa@cafe-lumen.example'],
+  subject: 'Confirm your email',
+  date: '2026-10-12T09:41:00.000Z',
+  preview: 'Welcome aboard.',
+  image: { url: 'http://a/email.png', width: 1200, height: 3000 },
+};
+const DOC: MediaValue = {
+  kind: 'document',
+  name: 'quote',
+  file_name: 'Quote.pdf',
+  pages: [1, 2, 3].map((n) => ({ url: `http://a/p${n}.png`, width: 1587, height: 2245, width_pt: 595.28, height_pt: 841.89, number: n })),
+};
+const NOTE: MediaValue = {
+  kind: 'notification',
+  name: 'quote-request',
+  title: 'New quote request',
+  body: 'Café Lumen asks for 3 bags',
+  app: 'console.example',
+  time: '2026-10-12T09:41:00.000Z',
+  icon: { url: 'http://a/icon.png', width: 192, height: 192 },
+};
 
 describe('tap targets (manifest anchor) match the drawing', () => {
   const screen: LayoutRects = { screen: { x: 180, y: 40, w: 1560, h: 878 }, frame: { x: 180, y: 40, w: 1560, h: 878 }, radius: 18 };
@@ -69,9 +95,10 @@ describe('tap targets (manifest anchor) match the drawing', () => {
           for (const variant of ['landscape', 'vertical', 'square'] as const) {
             const [w, h] = SIZES[variant];
             const rects = variant === 'landscape' ? screen : { screen: { x: 40, y: 200, w: w - 80, h: h - 600 }, frame: { x: 40, y: 200, w: w - 80, h: h - 600 }, radius: 18 };
-            const content = id === 'studio/notification'
-              ? { title: 'New quote request', body: 'Café Lumen asks for 10 × 5 kg of Selowa Ridge, delivered in January.', app: 'Atelier' }
-              : { title: 'Northfield Roasters', subtitle: 'Confirm your email address', body: 'Welcome to Northfield! One click and your café account is ready.', app: 'Mail' };
+            const content =
+              id === 'studio/notification'
+                ? { title: 'New quote request', body: 'Café Lumen asks for 10 × 5 kg of Selowa Ridge, delivered in January.', app: 'Atelier' }
+                : { title: 'Northfield Roasters', subtitle: 'Confirm your email address', body: 'Welcome to Northfield! One click and your café account is ready.', app: 'Mail' };
             const layout = layoutNotification(style, content, LIGHT, 1);
             const box = notificationBox(layout, place, w, h, rects);
             const a = evalAnchor(m.anchor!, { style, place }, { enums: paramEnums(m.params), frame: { w, h }, screen: rects.screen });
@@ -163,8 +190,14 @@ describe('media and scenario values', () => {
     const { groupsAfter } = modules['studio/phone-lockscreen'] as { groupsAfter: (items: Array<{ app: string }>, k: number) => Array<{ app: string; items: number[] }> };
     const items = [{ app: 'A' }, { app: 'Mail' }, { app: 'A' }];
     expect(groupsAfter(items, 1)).toEqual([{ app: 'A', items: [0] }]);
-    expect(groupsAfter(items, 2)).toEqual([{ app: 'Mail', items: [1] }, { app: 'A', items: [0] }]);
-    expect(groupsAfter(items, 3)).toEqual([{ app: 'A', items: [0, 2] }, { app: 'Mail', items: [1] }]);
+    expect(groupsAfter(items, 2)).toEqual([
+      { app: 'Mail', items: [1] },
+      { app: 'A', items: [0] },
+    ]);
+    expect(groupsAfter(items, 3)).toEqual([
+      { app: 'A', items: [0, 2] },
+      { app: 'Mail', items: [1] },
+    ]);
     const params = { notifications: [{ app: 'Atelier', title: 'First one', body: 'x' }], start: 0.5, interval: 1 };
     expect(render('studio/phone-lockscreen', { params, at: 5 })).not.toContain('First one');
     expect(render('studio/phone-lockscreen', { params, at: 30 })).toContain('First one');
@@ -200,10 +233,29 @@ describe('media and scenario values', () => {
 
   it('render in dark themes and every format', () => {
     frame.current = 20;
-    for (const id of IDS) for (const variant of ['landscape', 'vertical', 'square'] as const) {
-      const html = renderToString(createElement(modules[id].default as ComponentType<ComponentProps>, { theme: DARK, direction: 'exiting', screen: createElement('i'), slots: {}, params: applyParamDefaults(manifests[id].params as never, {}), unit: 1, width: SIZES[variant][0], height: SIZES[variant][1], fps: 30, durationInFrames: 120, variant, media: { email: EMAIL, document: DOC, notification: NOTE } } as ComponentProps));
-      expect(html.length, `${id} ${variant}`).toBeGreaterThan(100);
-    }
+    for (const id of IDS)
+      for (const variant of ['landscape', 'vertical', 'square'] as const) {
+        const html = renderToString(
+          createElement(
+            modules[id].default as ComponentType<ComponentProps>,
+            {
+              theme: DARK,
+              direction: 'exiting',
+              screen: createElement('i'),
+              slots: {},
+              params: applyParamDefaults(manifests[id].params as never, {}),
+              unit: 1,
+              width: SIZES[variant][0],
+              height: SIZES[variant][1],
+              fps: 30,
+              durationInFrames: 120,
+              variant,
+              media: { email: EMAIL, document: DOC, notification: NOTE },
+            } as ComponentProps,
+          ),
+        );
+        expect(html.length, `${id} ${variant}`).toBeGreaterThan(100);
+      }
   });
 });
 

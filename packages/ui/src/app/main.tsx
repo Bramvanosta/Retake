@@ -52,7 +52,26 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Shoot', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', review: 'Review report', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', setup: 'Set up', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = {
+  projects: 'Welcome',
+  project: 'Productions',
+  group: 'Productions',
+  location: 'Location',
+  cast: 'Cast',
+  readme: 'README',
+  scenario: 'Scenario',
+  run: 'Shoot',
+  timeline: 'Timeline',
+  comments: 'Comments',
+  proposal: 'Proposal preview',
+  review: 'Review report',
+  library: 'Components',
+  themes: 'Themes',
+  record: 'Record',
+  ui: 'UI gallery',
+  setup: 'Set up',
+  'not-found': 'Not found',
+};
 
 function Studio() {
   const route = useRoute();
@@ -90,7 +109,12 @@ function Studio() {
         <TimelineScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.run ? { run: route.run } : {})} {...(route.step ? { step: route.step } : {})} />
       )}
       {route.name === 'proposal' && (
-        <TimelineScreen key={`${route.slug}/${route.scenario}/proposal/${route.thread}/${route.entry}`} slug={route.slug} name={route.scenario} proposal={{ comment_id: route.thread, entry_id: route.entry }} />
+        <TimelineScreen
+          key={`${route.slug}/${route.scenario}/proposal/${route.thread}/${route.entry}`}
+          slug={route.slug}
+          name={route.scenario}
+          proposal={{ comment_id: route.thread, entry_id: route.entry }}
+        />
       )}
       {route.name === 'review' && <ReviewScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.render ? { render: route.render } : {})} />}
       {route.name === 'comments' && (

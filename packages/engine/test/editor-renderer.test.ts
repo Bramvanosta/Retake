@@ -41,7 +41,7 @@ beforeEach(() => {
   Object.assign(state, { loads: 0, failNext: 0, made: 0, backends: [], asked: [] });
 });
 
-describe('the editor\'s driver behind the port', () => {
+describe("the editor's driver behind the port", () => {
   it('loads nothing before the first request, then makes the driver once for every request', async () => {
     const r = editorRenderer();
     expect(state.loads).toBe(0);
@@ -75,7 +75,7 @@ describe('the editor\'s driver behind the port', () => {
 });
 
 describe('a renderer with its previews on a preview backend', () => {
-  it('draws previews with the editor\'s driver of that backend (made once, on first use) and everything else with the renderer', async () => {
+  it("draws previews with the editor's driver of that backend (made once, on first use) and everything else with the renderer", async () => {
     const backend = { bundle: async () => ({}), open: async () => ({}) };
     const r = withPreviewBackend(editorRenderer(), backend as never);
     expect(state.backends).toEqual([]);

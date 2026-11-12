@@ -15,10 +15,7 @@ export const hookCommonShape = {
   confirm: z.boolean().describe('Required (true) for destructive hooks.').optional(),
   destructive: z.boolean().describe('Declare the hook destructive explicitly (also auto-detected).').optional(),
   optional: z.boolean().describe('Continue even if this hook fails.').optional(),
-  writes: z
-    .boolean()
-    .describe('Shell hooks only: false declares that the command only reads, so it may run on a read-only environment.')
-    .optional(),
+  writes: z.boolean().describe('Shell hooks only: false declares that the command only reads, so it may run on a read-only environment.').optional(),
 };
 
 export const HOOK_COMMON_KEYS = Object.keys(hookCommonShape);
@@ -45,13 +42,8 @@ const httpRequestShape = {
 
 export const HttpHookSchema = z.strictObject({
   ...httpRequestShape,
-  save_as: keyString('save_as')
-    .describe('Store the response as {{hooks.<save_as>.status|body|json.<path>}}.')
-    .optional(),
-  rollback: z
-    .strictObject(httpRequestShape)
-    .describe('Request that undoes this one (templated after the request: {{response.json.id}}).')
-    .optional(),
+  save_as: keyString('save_as').describe('Store the response as {{hooks.<save_as>.status|body|json.<path>}}.').optional(),
+  rollback: z.strictObject(httpRequestShape).describe('Request that undoes this one (templated after the request: {{response.json.id}}).').optional(),
 });
 
 export const SqlHookSchema = z.union([
@@ -89,9 +81,7 @@ const JsHookSchema = z.union([
 ]);
 
 export const hookBranch = <K extends string, S extends z.ZodType>(kind: K, schema: S, description: string) =>
-  z
-    .strictObject({ [kind]: schema, ...hookCommonShape } as { [P in K]: S } & typeof hookCommonShape)
-    .meta({ title: kind, description });
+  z.strictObject({ [kind]: schema, ...hookCommonShape } as { [P in K]: S } & typeof hookCommonShape).meta({ title: kind, description });
 
 /** One setup / teardown / reset hook: exactly one of http, sql, shell, js. */
 export const HookStepSchema = keyedUnion(

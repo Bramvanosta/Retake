@@ -72,7 +72,16 @@ describe('retake jobs', () => {
 
   it('L5.14a fixes (review B M4): a review a queued take holds says "waiting for a take to finish", not "next"', async () => {
     const q = new FileJobQueue(ws);
-    const take = await q.enqueue({ version: 1, kind: 'run', project: 'northfield-fixture', scenario: 'quote', scenario_sha256: 'a'.repeat(64), run_id: '20261017-150000-quote', mode: 'capture', submitted_by: 'test' } as never);
+    const take = await q.enqueue({
+      version: 1,
+      kind: 'run',
+      project: 'northfield-fixture',
+      scenario: 'quote',
+      scenario_sha256: 'a'.repeat(64),
+      run_id: '20261017-150000-quote',
+      mode: 'capture',
+      submitted_by: 'test',
+    } as never);
     const review = await q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: 'quote-v1', fps: 1, submitted_by: 'test' } as never);
     const status = await retake('jobs', 'status', review.id);
     expect(status.code, status.err).toBe(EXIT.ok);

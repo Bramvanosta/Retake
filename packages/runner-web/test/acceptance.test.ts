@@ -34,7 +34,8 @@ describe('acceptance: 1920×1080 capture with the debug cursor', () => {
 
   it('captures a multi-step scenario to capture.mp4 + timeline.json', async () => {
     const project = makeProject(dir, { console: server.url }, { width: W, height: H });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       template: debugTemplate(),
       mode: 'capture',

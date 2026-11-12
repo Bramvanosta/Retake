@@ -50,7 +50,8 @@ const CASES: Case[] = [
 
 async function capture(c: Case): Promise<{ rec: RunRecord; tl: Timeline }> {
   const project = makeProject(dir, { app: server.url }, { width: c.width, height: c.height });
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project,
     template: debugTemplate(),
     mode: 'capture',
@@ -86,9 +87,9 @@ describe('capture at 2560×1440, 4K (scale 2) and a phone (390×844 at scale 2):
       const H = c.height * c.scale;
       expect(tl.capture).toMatchObject({ file: 'capture.mp4', width: c.width, height: c.height, scale: c.scale, fps: 30 });
       expect(tl.warnings.filter((w) => /screencast frames stay/.test(w))).toEqual([]);
-      const probe = JSON.parse(
-        (await execFileP('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height,avg_frame_rate', '-of', 'json', rec.capture!])).stdout,
-      ) as { streams: Array<{ width: number; height: number; avg_frame_rate: string }> };
+      const probe = JSON.parse((await execFileP('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height,avg_frame_rate', '-of', 'json', rec.capture!])).stdout) as {
+        streams: Array<{ width: number; height: number; avg_frame_rate: string }>;
+      };
       expect(probe.streams[0]).toMatchObject({ width: W, height: H, avg_frame_rate: '30/1' });
 
       // R-REC-06: keep_frames: false removes frames/ once capture.mp4 is encoded; the default keeps every frame, each
@@ -125,7 +126,10 @@ describe('capture at 2560×1440, 4K (scale 2) and a phone (390×844 at scale 2):
         .map((l) => (JSON.parse(l) as { t: number }).t)
         .filter((t) => t >= click.t_start && t <= click.t_click!)
         .sort((x, y) => x - y);
-      const gaps = times.slice(1).map((t, i) => t - times[i]).sort((x, y) => x - y);
+      const gaps = times
+        .slice(1)
+        .map((t, i) => t - times[i])
+        .sort((x, y) => x - y);
       const median = gaps[Math.floor(gaps.length / 2)] * 1000;
       if (process.platform === 'darwin') {
         console.log(`capture ${W}×${H}: ${times.length} frames during the approach, median interval ${median.toFixed(1)} ms, worst ${(gaps[gaps.length - 1] * 1000).toFixed(0)} ms`);

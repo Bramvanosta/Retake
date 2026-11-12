@@ -28,7 +28,10 @@ export function checkPersonaPaths(auth: unknown, ctx: CheckContext): void {
         ctx.error(
           [...path, 'personas', name, k],
           `a persona's session is never a path in project.yaml (it would only exist on this computer): \`retake login\` keeps it in ~/.retake/profiles/<project>/<env>/${name} ` +
-            '(RETAKE_HOME moves it) — remove `' + k + '`' + (k === 'storage_state' ? ' and set `session: storage_state`' : ''),
+            '(RETAKE_HOME moves it) — remove `' +
+            k +
+            '`' +
+            (k === 'storage_state' ? ' and set `session: storage_state`' : ''),
         );
       }
     }
@@ -146,13 +149,7 @@ function hookTokens(v: unknown, path: IssuePath, ctx: CheckContext): void {
  * only exists on one computer) never mixed with personas; persona names, their pages (an environment page belongs to
  * at most one persona), their check and sign-in patterns, and their login steps (no literal password, no hook result).
  */
-export function checkAuth(
-  auth: unknown,
-  envs: Record<string, unknown>,
-  ctx: CheckContext,
-  scope: { vars: ReadonlySet<string> },
-  opts: AuthCheckOptions = {},
-): void {
+export function checkAuth(auth: unknown, envs: Record<string, unknown>, ctx: CheckContext, scope: { vars: ReadonlySet<string> }, opts: AuthCheckOptions = {}): void {
   if (!isObj(auth) || ctx.broken(['auth'])) return;
   const envNames = Object.keys(envs);
   const pagesOf = (env: string): string[] => (isObj(envs[env]) ? Object.keys(envs[env] as object) : []);
@@ -242,7 +239,7 @@ export function checkAuth(
             ctx.warning(
               [...pp, 'login', i, 'type', 'text'],
               opts.accounts
-                ? 'a password written in a login step: write {{account.password}} (the account\'s password is masked in logs)'
+                ? "a password written in a login step: write {{account.password}} (the account's password is masked in logs)"
                 : 'a password written in project.yaml: use {{env:VAR}} or {{keychain:service/account}}',
             );
           }

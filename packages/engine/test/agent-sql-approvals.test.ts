@@ -74,11 +74,17 @@ beforeAll(async () => {
   await mkdir(join(project, 'hooks'), { recursive: true });
   await writeFile(join(project, 'hooks', 'tidy.sql'), "SELECT 'tidy';\n");
   await writeFile(join(project, 'hooks', 'add.sql'), "INSERT INTO users (name) VALUES ('{{vars.name}}');\n");
-  await writeFile(join(project, 'scenarios', 'sql-vars.yaml'), `version: 1\nvideo: sql-vars\nvars:\n  name: "x'); SELECT ('y"\nscenes:\n  - id: list\n    page: console\n    open: /products\n    steps:\n      - hook: add\n      - wait_for: {text: Products}\n`);
+  await writeFile(
+    join(project, 'scenarios', 'sql-vars.yaml'),
+    `version: 1\nvideo: sql-vars\nvars:\n  name: "x'); SELECT ('y"\nscenes:\n  - id: list\n    page: console\n    open: /products\n    steps:\n      - hook: add\n      - wait_for: {text: Products}\n`,
+  );
   await writeFile(join(project, 'hooks', 'mine.yaml'), '- name: mine\n  sql: "SELECT 1"\n');
   await writeFile(join(project, 'scenarios', 'sql-hooks.yaml'), SCENARIO);
   // Its database is not declared: the dry run cannot prepare it, the backstop (its file) still asks.
-  await writeFile(join(project, 'scenarios', 'sql-other-db.yaml'), SCENARIO.replace('video: sql-hooks', 'video: sql-other-db').replace("sql: hooks/tidy.sql", "sql: {query: \"SELECT 'tidy'\", db: reports}"));
+  await writeFile(
+    join(project, 'scenarios', 'sql-other-db.yaml'),
+    SCENARIO.replace('video: sql-hooks', 'video: sql-other-db').replace('sql: hooks/tidy.sql', 'sql: {query: "SELECT \'tidy\'", db: reports}'),
+  );
   engine = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
   fake = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false, ports: { hooks: memory } });
 });

@@ -21,7 +21,9 @@ export function readFfprobeJson(text: string): unknown {
 
 /** A `num/den` rate rounded to 3 decimals; 0 when it has no denominator (the summary's and the open video's). */
 function roundedRate(v: unknown): number {
-  const [num, den] = String(v ?? '0/1').split('/').map(Number);
+  const [num, den] = String(v ?? '0/1')
+    .split('/')
+    .map(Number);
   return den ? Math.round((num / den) * 1000) / 1000 : 0;
 }
 
@@ -125,7 +127,18 @@ export interface ClipProbe {
 
 /** ffprobe's arguments for a clip's picture stream (`count`: decode and count every frame instead of trusting the container). */
 export function clipProbeArgs(file: string, count = false): string[] {
-  return ['-v', 'error', ...(count ? ['-count_frames'] : []), '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,profile,pix_fmt,width,height,r_frame_rate,nb_frames,nb_read_frames,duration:stream_tags=timecode,alpha_mode:format=duration,size:format_tags=timecode', '-of', 'json', file];
+  return [
+    '-v',
+    'error',
+    ...(count ? ['-count_frames'] : []),
+    '-select_streams',
+    'v:0',
+    '-show_entries',
+    'stream=codec_name,profile,pix_fmt,width,height,r_frame_rate,nb_frames,nb_read_frames,duration:stream_tags=timecode,alpha_mode:format=duration,size:format_tags=timecode',
+    '-of',
+    'json',
+    file,
+  ];
 }
 
 /** The clip in ffprobe's answer to `clipProbeArgs` (`count`: as asked there); null when it has no picture stream. */
@@ -133,7 +146,9 @@ export function clipProbeFromJson(json: unknown, count = false): ClipProbe | nul
   const j = json as { streams?: Array<Record<string, unknown> & { tags?: Record<string, string> }>; format?: { duration?: string; size?: string; tags?: Record<string, string> } };
   const s = j.streams?.[0];
   if (!s) return null;
-  const [a, b] = String(s.r_frame_rate ?? '0/1').split('/').map(Number);
+  const [a, b] = String(s.r_frame_rate ?? '0/1')
+    .split('/')
+    .map(Number);
   const frames = Number(count ? s.nb_read_frames : s.nb_frames);
   return {
     codec: String(s.codec_name),
@@ -144,7 +159,7 @@ export function clipProbeFromJson(json: unknown, count = false): ClipProbe | nul
     fps: b ? a / b : a,
     frames: Number.isFinite(frames) ? frames : 0,
     duration_s: Number(s.duration ?? j.format?.duration ?? 0),
-    ...(s.tags?.timecode ?? j.format?.tags?.timecode ? { timecode: s.tags?.timecode ?? j.format?.tags?.timecode } : {}),
+    ...((s.tags?.timecode ?? j.format?.tags?.timecode) ? { timecode: s.tags?.timecode ?? j.format?.tags?.timecode } : {}),
     alpha: /^(yuva|rgba|argb|bgra|abgr|gbrap|ya)/.test(String(s.pix_fmt)) || s.tags?.alpha_mode === '1',
     size_bytes: Number(j.format?.size ?? 0),
   };
@@ -164,7 +179,23 @@ export interface OpenVideoProbe {
 
 /** ffprobe's arguments for an mp4 open on the child's descriptor 3 (the fd protocol only: it opens no path). */
 export function openVideoArgs(): string[] {
-  return ['-v', 'error', '-protocol_whitelist', 'fd', '-f', 'mp4', '-fd', '3', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate,avg_frame_rate,start_time,nb_frames,width,height', '-of', 'json', 'fd:'];
+  return [
+    '-v',
+    'error',
+    '-protocol_whitelist',
+    'fd',
+    '-f',
+    'mp4',
+    '-fd',
+    '3',
+    '-select_streams',
+    'v:0',
+    '-show_entries',
+    'stream=r_frame_rate,avg_frame_rate,start_time,nb_frames,width,height',
+    '-of',
+    'json',
+    'fd:',
+  ];
 }
 
 /** The open video in ffprobe's answer to `openVideoArgs`; null without a frame rate and a size. */
@@ -200,7 +231,26 @@ export function pictureSizeFromJson(json: unknown): { width: number; height: num
 
 /** ffprobe's arguments for a take's codec, B-frames and packets over its first `seconds`, from descriptor 3 (no path). */
 export function packetsArgs(seconds: number): string[] {
-  return ['-v', 'error', '-protocol_whitelist', 'fd', '-f', 'mp4', '-fd', '3', '-i', 'fd:', '-select_streams', 'v:0', '-read_intervals', `%+${seconds}`, '-show_entries', 'stream=codec_name,has_b_frames:packet=pts_time,flags', '-of', 'json'];
+  return [
+    '-v',
+    'error',
+    '-protocol_whitelist',
+    'fd',
+    '-f',
+    'mp4',
+    '-fd',
+    '3',
+    '-i',
+    'fd:',
+    '-select_streams',
+    'v:0',
+    '-read_intervals',
+    `%+${seconds}`,
+    '-show_entries',
+    'stream=codec_name,has_b_frames:packet=pts_time,flags',
+    '-of',
+    'json',
+  ];
 }
 
 /** The stream and the packets of ffprobe's answer to `packetsArgs`. */

@@ -100,7 +100,21 @@ export interface TabWalk {
 }
 
 /** The status families: every `:root` token named so, or starting with the name and a dash. */
-export const STATUS_TOKENS = ['--danger', '--warning', '--info', '--success', '--online', '--ui-ok', '--ui-warn', '--ui-fail', '--ui-record', '--ui-recording', '--ui-danger', '--ui-idle', '--ui-waiting'];
+export const STATUS_TOKENS = [
+  '--danger',
+  '--warning',
+  '--info',
+  '--success',
+  '--online',
+  '--ui-ok',
+  '--ui-warn',
+  '--ui-fail',
+  '--ui-record',
+  '--ui-recording',
+  '--ui-danger',
+  '--ui-idle',
+  '--ui-waiting',
+];
 /** The Tab walk's default cap: nearly four times the largest screen measured (the library: 104 stops). */
 export const WALK_MAX = 400;
 
@@ -129,13 +143,19 @@ function install(): void {
     }
     const srgb = /^color\(srgb\s+([^)]+)\)$/.exec(s);
     if (srgb) {
-      const p = srgb[1].split(/[\s/]+/).filter(Boolean).map(Number);
+      const p = srgb[1]
+        .split(/[\s/]+/)
+        .filter(Boolean)
+        .map(Number);
       if (p.length < 3 || p.some((v) => Number.isNaN(v))) return null;
       return [p[0] * 255, p[1] * 255, p[2] * 255, p.length > 3 ? p[3] : 1];
     }
     const m = /^rgba?\(([^)]+)\)$/.exec(s);
     if (!m) return null;
-    const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+    const p = m[1]
+      .split(/[\s,/]+/)
+      .filter(Boolean)
+      .map(Number);
     if (p.length < 3 || p.some((v) => Number.isNaN(v))) return null;
     return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
   };
@@ -183,7 +203,25 @@ function install(): void {
     return r.width > 0 && r.height > 0;
   };
   const NATIVE_CONTROL = 'button, input, select, textarea, option, optgroup';
-  const ROLE_CONTROL = new Set(['button', 'link', 'textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'slider', 'spinbutton', 'switch', 'tab', 'menuitem', 'menuitemradio', 'menuitemcheckbox', 'option', 'treeitem', 'gridcell']);
+  const ROLE_CONTROL = new Set([
+    'button',
+    'link',
+    'textbox',
+    'searchbox',
+    'combobox',
+    'checkbox',
+    'radio',
+    'slider',
+    'spinbutton',
+    'switch',
+    'tab',
+    'menuitem',
+    'menuitemradio',
+    'menuitemcheckbox',
+    'option',
+    'treeitem',
+    'gridcell',
+  ]);
   /** Text of an inactive control itself (a disabled button, input, option, label of a disabled field, an aria-disabled control). */
   const inactive = (el: Element) => {
     for (let e: Element | null = el; e; e = e.parentElement) {
@@ -353,7 +391,13 @@ function install(): void {
         }
       }
       const op = opacityOf(el);
-      if (worst < min) out.push({ rule: 'contrast', el: desc(el) + (pseudo ? '::pseudo' : ''), text: sample.slice(0, 40), detail: `${round(worst)}:1 < ${min}:1 (${cs.color} on ${css(worstBg)}${c.overMedia ? ', over media' : ''}${op < 1 ? `, opacity ${round(op)}` : ''}, ${cs.fontSize})` });
+      if (worst < min)
+        out.push({
+          rule: 'contrast',
+          el: desc(el) + (pseudo ? '::pseudo' : ''),
+          text: sample.slice(0, 40),
+          detail: `${round(worst)}:1 < ${min}:1 (${cs.color} on ${css(worstBg)}${c.overMedia ? ', over media' : ''}${op < 1 ? `, opacity ${round(op)}` : ''}, ${cs.fontSize})`,
+        });
     };
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
@@ -414,8 +458,16 @@ function install(): void {
   const DOT = /[\u25cf\u2022\u2b24\u25c9]/;
   /** The state words a status colour may stand beside (the badges' and notices' vocabulary; L5.11b: a recording's
    * "recorded" and "discarded"; L5.12a fixes, review B-L1: a render's "rendered", beside the report's neutral mark). */
-  const STATE_WORDS = new Set('failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid recorded discarded rendered playing'.split(' '));
-  const saysState = (text: string) => text.toLowerCase().split(/[^\p{L}-]+/u).some((wd) => STATE_WORDS.has(wd));
+  const STATE_WORDS = new Set(
+    'failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid recorded discarded rendered playing'.split(
+      ' ',
+    ),
+  );
+  const saysState = (text: string) =>
+    text
+      .toLowerCase()
+      .split(/[^\p{L}-]+/u)
+      .some((wd) => STATE_WORDS.has(wd));
   const startsWithSign = (text: string) => SIGN.test(text.trim().split(/\s+/)[0] ?? '');
 
   /** The selected / current / pressed state of an element, or null. */
@@ -458,7 +510,11 @@ function install(): void {
     parts.push(cur);
     return parts.map((p) => {
       const colour = p.match(COLOUR_FN)?.[0] ?? null;
-      const nums = p.replace(COLOUR_FN, ' ').match(/-?[\d.]+px/g)?.map(parseFloat) ?? [];
+      const nums =
+        p
+          .replace(COLOUR_FN, ' ')
+          .match(/-?[\d.]+px/g)
+          ?.map(parseFloat) ?? [];
       return { c: colour ? parse(colour) : null, x: nums[0] ?? 0, y: nums[1] ?? 0, blur: nums[2] ?? 0, spread: nums[3] ?? 0, inset: /\binset\b/.test(p) };
     });
   };
@@ -533,7 +589,12 @@ function install(): void {
       const c = parse(pc.color);
       const ch = chainOf(el, el.getBoundingClientRect());
       if (!c || 'unparseable' in ch) {
-        out.push({ rule: 'placeholder', el: desc(el), text: f.placeholder.slice(0, 40), detail: `unmeasured: ${!c ? `the colour ${pc.color}` : (ch as { unparseable: string }).unparseable} cannot be read` });
+        out.push({
+          rule: 'placeholder',
+          el: desc(el),
+          text: f.placeholder.slice(0, 40),
+          detail: `unmeasured: ${!c ? `the colour ${pc.color}` : (ch as { unparseable: string }).unparseable} cannot be read`,
+        });
         continue;
       }
       if ('unmeasured' in ch) {
@@ -557,7 +618,24 @@ function install(): void {
     }
 
     // Reachable: an interactive role the keyboard cannot reach.
-    const ROLES = ['button', 'link', 'tab', 'radio', 'checkbox', 'switch', 'option', 'slider', 'menuitem', 'menuitemradio', 'menuitemcheckbox', 'spinbutton', 'textbox', 'searchbox', 'combobox', 'treeitem'];
+    const ROLES = [
+      'button',
+      'link',
+      'tab',
+      'radio',
+      'checkbox',
+      'switch',
+      'option',
+      'slider',
+      'menuitem',
+      'menuitemradio',
+      'menuitemcheckbox',
+      'spinbutton',
+      'textbox',
+      'searchbox',
+      'combobox',
+      'treeitem',
+    ];
     const ITEM = '[role="radio"], [role="option"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="treeitem"], [role="gridcell"], [role="row"]';
     const COMPOSITE = '[role="radiogroup"], [role="tablist"], [role="listbox"], [role="menu"], [role="menubar"], [role="tree"], [role="grid"]';
     for (const el of document.querySelectorAll(ROLES.map((r) => `[role="${r}"]`).join(','))) {
@@ -575,7 +653,13 @@ function install(): void {
         // aria-activedescendant at all, the listbox itself the tab stop (its arrows select the first option).
         if (group.tabIndex >= 0 && group.getAttribute('role') === 'listbox' && !group.hasAttribute('aria-activedescendant') && !group.querySelector('[aria-selected="true"]')) continue;
         // … or a focusable combobox controlling the listbox with an active descendant (the focus stays in its input).
-        if (group.id && [...document.querySelectorAll('[role="combobox"][aria-activedescendant]')].some((c) => (c as HTMLElement).tabIndex >= 0 && (c.getAttribute('aria-controls') ?? '').split(/\s+/).includes(group.id) && shown(c))) continue;
+        if (
+          group.id &&
+          [...document.querySelectorAll('[role="combobox"][aria-activedescendant]')].some(
+            (c) => (c as HTMLElement).tabIndex >= 0 && (c.getAttribute('aria-controls') ?? '').split(/\s+/).includes(group.id) && shown(c),
+          )
+        )
+          continue;
         // Composites of one family (same role and class, each focusable by script) sharing one tab stop: the scenes'
         // step lists; familyWalk proves the arrows cross them.
         if (group.hasAttribute('tabindex') && typeof group.className === 'string' && group.className.trim()) {
@@ -586,7 +670,12 @@ function install(): void {
           }
         }
       }
-      out.push({ rule: 'reachable', el: desc(el), text: (el.textContent ?? '').trim().slice(0, 40), detail: `role ${el.getAttribute('role')} with no tab stop (tabIndex ${h.tabIndex}) and no composite whose own item holds one` });
+      out.push({
+        rule: 'reachable',
+        el: desc(el),
+        text: (el.textContent ?? '').trim().slice(0, 40),
+        detail: `role ${el.getAttribute('role')} with no tab stop (tabIndex ${h.tabIndex}) and no composite whose own item holds one`,
+      });
     }
 
     // Colour-only: the status families on a mark with no state word, or on rows that differ by it alone. The token
@@ -639,12 +728,17 @@ function install(): void {
       const look = (cs: CSSStyleDeclaration, glyph: boolean) => {
         const add = (f: string | undefined) => f && hits.add(f);
         add(famOf(cs.backgroundColor));
-        for (const s of SIDES) if (parseFloat(cs.getPropertyValue(`border-${s}-width`)) > 0 && cs.getPropertyValue(`border-${s}-style`) !== 'none') add(famOf(cs.getPropertyValue(`border-${s}-color`)));
+        for (const s of SIDES)
+          if (parseFloat(cs.getPropertyValue(`border-${s}-width`)) > 0 && cs.getPropertyValue(`border-${s}-style`) !== 'none') add(famOf(cs.getPropertyValue(`border-${s}-color`)));
         if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) add(famOf(cs.outlineColor));
         for (const s of shadowsOf(cs.boxShadow)) if (s.c && s.c[3] > 0.1) add(tokens.get(css(s.c)));
         if (glyph) add(famOf(cs.color));
       };
-      const text = [...el.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.nodeValue ?? '').join('').trim();
+      const text = [...el.childNodes]
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.nodeValue ?? '')
+        .join('')
+        .trim();
       // An <svg> mark draws in its colour (currentColor paths: review A-L7) — a glyph, like a sign in text; inside a
       // control it is the control's icon (its words say what it does, as a badge's or a button's own words do).
       const svgMark = el.tagName.toLowerCase() === 'svg' && !el.closest('button, a[href], [role="button"], [role="link"], [role="menuitem"], [role="option"], [role="tab"]');
@@ -696,7 +790,8 @@ function install(): void {
         if (!parent || !el.matches('tr, li, [role="row"], [role="option"], [role="listitem"]')) continue;
         const sig = signature(el);
         const differs = [...parent.children].some((s) => s !== el && signature(s) === sig && shown(s) && hitsCached(s).all !== hits.all);
-        if (differs && !startsWithSign(text) && !saysState(text)) out.push({ rule: 'colour-only', el: desc(el), text: text.slice(0, 40), detail: `${hits.all}: differs from its siblings by colour only (no sign, no state word)` });
+        if (differs && !startsWithSign(text) && !saysState(text))
+          out.push({ rule: 'colour-only', el: desc(el), text: text.slice(0, 40), detail: `${hits.all}: differs from its siblings by colour only (no sign, no state word)` });
       }
     }
     // The status colours watched, in every appearance scope the page holds (review A-L7: not the root's alone).
@@ -705,7 +800,9 @@ function install(): void {
     stats.statusTokens = new Set([...scopeMaps.values()].flatMap((m) => [...m.keys()])).size;
 
     // Selected / current / pressed: more than colour against an unselected peer.
-    for (const el of document.querySelectorAll('[aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-current]:not([aria-current="false"]), .selected, .is-selected, .current, .is-current, .is-checked')) {
+    for (const el of document.querySelectorAll(
+      '[aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-current]:not([aria-current="false"]), .selected, .is-selected, .current, .is-current, .is-checked',
+    )) {
       if (!selectedState(el) || !shown(el) || el.closest('.sr-only')) continue;
       // aria-current on plain text (a breadcrumb's last crumb, after the links): its place says it, not a look.
       if (selectedState(el)!.startsWith('aria-current') && !el.matches('a[href], button, [role="link"], [role="tab"], [role="option"], [role="menuitem"], [role="treeitem"]')) continue;
@@ -716,7 +813,13 @@ function install(): void {
         continue;
       }
       stats.selected++;
-      if (!cueOf(el, peer, 0)) out.push({ rule: 'selected', el: desc(el), text: visibleText(el).slice(0, 40), detail: `${selectedState(el)} differs from its peer ${desc(peer)} by colour only (no weight, mark ≥ 2 px at 3:1, fill at 3:1 or marker)` });
+      if (!cueOf(el, peer, 0))
+        out.push({
+          rule: 'selected',
+          el: desc(el),
+          text: visibleText(el).slice(0, 40),
+          detail: `${selectedState(el)} differs from its peer ${desc(peer)} by colour only (no weight, mark ≥ 2 px at 3:1, fill at 3:1 or marker)`,
+        });
     }
 
     // Headings: one level-1 heading, no level skipped downwards (hidden ones not counted).
@@ -738,16 +841,27 @@ function install(): void {
     // Overflow: no sideways scroll.
     const se = document.scrollingElement ?? document.documentElement;
     if (se.scrollWidth > document.documentElement.clientWidth + 1) {
-      const wide = [...document.querySelectorAll('body *')].filter((e) => shown(e) && e.getBoundingClientRect().right > document.documentElement.clientWidth + 1).slice(-3).map(desc);
+      const wide = [...document.querySelectorAll('body *')]
+        .filter((e) => shown(e) && e.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+        .slice(-3)
+        .map(desc);
       out.push({ rule: 'overflow', el: 'document', detail: `scrollWidth ${se.scrollWidth} > ${document.documentElement.clientWidth} (${wide.join(', ')})` });
     }
     const main = document.querySelector('main');
-    if (main && getComputedStyle(main).overflowX !== 'visible' && main.scrollWidth > main.clientWidth + 1) out.push({ rule: 'overflow', el: desc(main), detail: `main scrolls sideways: ${main.scrollWidth} > ${main.clientWidth}` });
+    if (main && getComputedStyle(main).overflowX !== 'visible' && main.scrollWidth > main.clientWidth + 1)
+      out.push({ rule: 'overflow', el: desc(main), detail: `main scrolls sideways: ${main.scrollWidth} > ${main.clientWidth}` });
     return { findings: out, stats };
   };
 
   /** A box's looks for the focus-ring verdict: its outline, shadows, borders and the colours under and around it. */
-  type Looks = { outline: { w: number; style: string; c: RGBA | null; offset: number }; shadows: Shadow[]; shadowText: string; borders: Array<{ w: number; style: string; c: RGBA | null }>; bg: RGBA[] | null; around: RGBA[] | null };
+  type Looks = {
+    outline: { w: number; style: string; c: RGBA | null; offset: number };
+    shadows: Shadow[];
+    shadowText: string;
+    borders: Array<{ w: number; style: string; c: RGBA | null }>;
+    bg: RGBA[] | null;
+    around: RGBA[] | null;
+  };
   let boxes: Element[] = [];
   let focusedLooks: Looks[] = [];
   const looks = (e: Element): Looks => {
@@ -756,7 +870,11 @@ function install(): void {
       outline: { w: parseFloat(cs.outlineWidth) || 0, style: cs.outlineStyle, c: parse(cs.outlineColor), offset: parseFloat(cs.outlineOffset) || 0 },
       shadows: shadowsOf(cs.boxShadow),
       shadowText: cs.boxShadow,
-      borders: SIDES.map((s) => ({ w: parseFloat(cs.getPropertyValue(`border-${s}-width`)) || 0, style: cs.getPropertyValue(`border-${s}-style`), c: parse(cs.getPropertyValue(`border-${s}-color`)) })),
+      borders: SIDES.map((s) => ({
+        w: parseFloat(cs.getPropertyValue(`border-${s}-width`)) || 0,
+        style: cs.getPropertyValue(`border-${s}-style`),
+        c: parse(cs.getPropertyValue(`border-${s}-color`)),
+      })),
       bg: bgOf(e),
       around: bgOf(e.parentElement),
     };
@@ -819,7 +937,13 @@ function install(): void {
     if (r.width < 1 || r.height < 1 || r.bottom <= 0 || r.right <= 0 || r.top >= innerHeight || r.left >= innerWidth) return null;
     const ix = Math.min(4, r.width / 4);
     const iy = Math.min(4, r.height / 4);
-    const points: Array<[number, number]> = [[(r.left + r.right) / 2, (r.top + r.bottom) / 2], [r.left + ix, r.top + iy], [r.right - ix, r.top + iy], [r.left + ix, r.bottom - iy], [r.right - ix, r.bottom - iy]];
+    const points: Array<[number, number]> = [
+      [(r.left + r.right) / 2, (r.top + r.bottom) / 2],
+      [r.left + ix, r.top + iy],
+      [r.right - ix, r.top + iy],
+      [r.left + ix, r.bottom - iy],
+      [r.right - ix, r.bottom - iy],
+    ];
     let cover: Element | null = null;
     for (const [x, y] of points) {
       if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return null;
@@ -1010,7 +1134,13 @@ export async function tabWalk(page: Page, o: { max?: number } = {}): Promise<Tab
     for (const f of s.contrast ?? []) if (!findings.some((x) => x.el === f.el && x.text === f.text)) findings.push(f);
     if (s.obscured) findings.push({ rule: 'focus-ring', el: s.stop, text: s.text, detail: `entirely covered by ${s.obscured} when focused` });
     const v = await page.evaluate(() => window.__a11y.ringVerdict());
-    if (!v.ok) findings.push({ rule: 'focus-ring', el: s.stop, text: s.text, detail: v.why.length ? v.why.join('; ') : (s.boxes ?? []).length ? `no visible change on focus (boxes: ${(s.boxes ?? []).join(', ')})` : 'no visible box to draw a ring on' });
+    if (!v.ok)
+      findings.push({
+        rule: 'focus-ring',
+        el: s.stop,
+        text: s.text,
+        detail: v.why.length ? v.why.join('; ') : (s.boxes ?? []).length ? `no visible change on focus (boxes: ${(s.boxes ?? []).join(', ')})` : 'no visible box to draw a ring on',
+      });
   }
   if (!done) findings.push({ rule: 'walk', el: 'document', detail: `Tab walk truncated at ${max} stops: it never came back to its first stop (raise the station's cap)` });
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -1024,10 +1154,13 @@ export async function tabWalk(page: Page, o: { max?: number } = {}): Promise<Tab
  */
 export async function familyWalk(page: Page, family: string): Promise<Finding[]> {
   // L5.12b fixes (review B-L6): a family behind an open modal dialog is inert (nothing to walk: no keyboard reaches it).
-  if (await page.evaluate((f) => {
-    const m = document.querySelector('dialog:modal');
-    return m !== null && [...document.querySelectorAll(f)].every((g) => !m.contains(g));
-  }, family)) return [];
+  if (
+    await page.evaluate((f) => {
+      const m = document.querySelector('dialog:modal');
+      return m !== null && [...document.querySelectorAll(f)].every((g) => !m.contains(g));
+    }, family)
+  )
+    return [];
   const groups = await page.locator(family).count();
   const items = await page.locator(`${family} [role]`).count();
   await page.locator(`${family}[tabindex="0"]`).first().focus();
@@ -1046,7 +1179,9 @@ export async function familyWalk(page: Page, family: string): Promise<Finding[]>
   }
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const missed = [...Array(groups).keys()].filter((k) => !visited.has(k));
-  return missed.length ? [{ rule: 'reachable', el: family, detail: `the shared tab stop's arrows never reach group${missed.length > 1 ? 's' : ''} ${missed.map((k) => k + 1).join(', ')} of ${groups}` }] : [];
+  return missed.length
+    ? [{ rule: 'reachable', el: family, detail: `the shared tab stop's arrows never reach group${missed.length > 1 ? 's' : ''} ${missed.map((k) => k + 1).join(', ')} of ${groups}` }]
+    : [];
 }
 
 /** A native dialog's keyboard contract: opened from `opener`, it is modal and focus is inside it; Escape closes it; focus is back on the opener. */
@@ -1055,13 +1190,18 @@ export async function dialogCheck(page: Page, opener: Locator, open: () => Promi
   await opener.focus();
   await open();
   await page.locator('dialog[open]').first().waitFor({ timeout: 15_000 });
-  if (!(await page.evaluate(() => [...document.querySelectorAll('dialog[open]')].some((d) => d.matches(':modal'))))) problems.push('the dialog is not modal (show(), not showModal(): the page behind stays live)');
+  if (!(await page.evaluate(() => [...document.querySelectorAll('dialog[open]')].some((d) => d.matches(':modal')))))
+    problems.push('the dialog is not modal (show(), not showModal(): the page behind stays live)');
   if (!(await page.evaluate(() => Boolean(document.activeElement?.closest('dialog[open]'))))) problems.push('focus is not inside the open dialog');
   await page.keyboard.press('Escape');
-  await page.locator('dialog[open]').waitFor({ state: 'detached', timeout: 3_000 }).catch(async () => {
-    if ((await page.locator('dialog[open]').count()) > 0) problems.push('Escape did not close the dialog');
-  });
-  if (!(await opener.evaluate((el) => el === document.activeElement))) problems.push(`focus did not return to the opener (it is on ${await page.evaluate(() => document.activeElement?.tagName ?? 'nothing')})`);
+  await page
+    .locator('dialog[open]')
+    .waitFor({ state: 'detached', timeout: 3_000 })
+    .catch(async () => {
+      if ((await page.locator('dialog[open]').count()) > 0) problems.push('Escape did not close the dialog');
+    });
+  if (!(await opener.evaluate((el) => el === document.activeElement)))
+    problems.push(`focus did not return to the opener (it is on ${await page.evaluate(() => document.activeElement?.tagName ?? 'nothing')})`);
   return problems;
 }
 
@@ -1069,7 +1209,9 @@ export async function dialogCheck(page: Page, opener: Locator, open: () => Promi
 function stillLoading(toured: string | null): string[] {
   const busy = [...document.querySelectorAll('[aria-busy="true"], [data-loading="yes"]')].filter((e) => !toured || !e.matches(toured));
   const loading = [...document.querySelectorAll('[role="status"]')].filter((e) => /^\s*Loading\b/.test(e.textContent ?? ''));
-  return [...busy, ...loading].map((e) => `${e.tagName.toLowerCase()}${e.getAttribute('data-testid') ? `[data-testid=${e.getAttribute('data-testid')}]` : ''} "${(e.textContent ?? '').trim().slice(0, 40)}"`);
+  return [...busy, ...loading].map(
+    (e) => `${e.tagName.toLowerCase()}${e.getAttribute('data-testid') ? `[data-testid=${e.getAttribute('data-testid')}]` : ''} "${(e.textContent ?? '').trim().slice(0, 40)}"`,
+  );
 }
 
 /**

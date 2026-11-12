@@ -35,7 +35,8 @@ function realOrSame(x: string): string {
 export const engineInfo = defineOperation({
   name: 'engine_info',
   title: 'Retake engine',
-  description: "Version, workspace root and features of this Retake engine, its jobs worker (the background process that runs dry runs, captures and the other jobs) and the usage counters of the workspace (captures, dry runs, renders), and started_in: the folder the client started this server in (Claude Code: the session's folder). Call it first to check the server is connected to the right workspace: a started_in outside the workspace root means the registration names another folder than this session's.",
+  description:
+    "Version, workspace root and features of this Retake engine, its jobs worker (the background process that runs dry runs, captures and the other jobs) and the usage counters of the workspace (captures, dry runs, renders), and started_in: the folder the client started this server in (Claude Code: the session's folder). Call it first to check the server is connected to the right workspace: a started_in outside the workspace root means the registration names another folder than this session's.",
   input: z.strictObject({}),
   annotations: READ,
   async run(_args, { engine }) {
@@ -55,7 +56,17 @@ export const engineInfo = defineOperation({
     const stale = staleEngine(info.version);
     return {
       summary: `${stale ? `STALE: this server runs Retake ${stale.running}, but ${stale.installed} is installed now — it stops after this answer so that the client starts it again on ${stale.installed}. ` : ''}Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${held ? ` Captures first: ${heldWorkWords(held)}.` : ''}${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
-      data: { ...info, stale, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage, held: held ?? null, ...(other ? { untrusted: { worker_other_copy: other } } : {}) },
+      data: {
+        ...info,
+        stale,
+        started_in: startedIn,
+        started_outside_workspace: elsewhere,
+        projects: projects.length,
+        worker,
+        usage,
+        held: held ?? null,
+        ...(other ? { untrusted: { worker_other_copy: other } } : {}),
+      },
     };
   },
 });
@@ -68,9 +79,13 @@ export const projectList = defineOperation({
   annotations: READ,
   async run(_args, { engine }) {
     const projects = await engine.projects.list();
-    const lines = projects.map((p) => `- ${p.slug} (${p.name}): ${p.error ? `does not load: ${p.error}` : `${plural(p.scenarios.length, 'scenario')}${p.scenarios.length ? ` — ${p.scenarios.join(', ')}` : ''}`}`);
+    const lines = projects.map(
+      (p) => `- ${p.slug} (${p.name}): ${p.error ? `does not load: ${p.error}` : `${plural(p.scenarios.length, 'scenario')}${p.scenarios.length ? ` — ${p.scenarios.join(', ')}` : ''}`}`,
+    );
     return {
-      summary: projects.length ? `${plural(projects.length, 'project')} in ${engine.workspace.projectsDir}:\n${lines.join('\n')}` : `No project yet in ${engine.workspace.projectsDir}: create one with project_create.`,
+      summary: projects.length
+        ? `${plural(projects.length, 'project')} in ${engine.workspace.projectsDir}:\n${lines.join('\n')}`
+        : `No project yet in ${engine.workspace.projectsDir}: create one with project_create.`,
       data: { root: engine.root, projects_dir: engine.workspace.projectsDir, projects },
     };
   },
@@ -87,13 +102,20 @@ export const projectGet = defineOperation({
     const p = await engine.projects.get(project);
     const found = sandboxAdvice(p);
     const advice = found ? sandboxAdviceText(found, p.slug) : null;
-    const envs = p.environments.map((e) => `${e.name}${e.production ? ' (production' + (e.access === 'read-only' ? ', read-only)' : ')') : e.access === 'read-only' ? ' (read-only)' : ''}${e.sandbox ? ' (sandbox)' : ''}: pages ${Object.keys(e.pages).join(', ') || 'none'}${e.personas.length ? `; personas ${e.personas.map((x) => x.name).join(', ')}` : ''}`);
+    const envs = p.environments.map(
+      (e) =>
+        `${e.name}${e.production ? ' (production' + (e.access === 'read-only' ? ', read-only)' : ')') : e.access === 'read-only' ? ' (read-only)' : ''}${e.sandbox ? ' (sandbox)' : ''}: pages ${Object.keys(e.pages).join(', ') || 'none'}${e.personas.length ? `; personas ${e.personas.map((x) => x.name).join(', ')}` : ''}`,
+    );
     return {
       summary: [
         `${p.name} (${p.slug}) · ${p.dir}`,
         `scenarios: ${p.scenarios.join(', ') || 'none yet'}`,
         `environments:${envs.length ? `\n${envs.map((l) => `- ${l}`).join('\n')}` : ' none'}`,
-        p.readme_error ? `README.md: ${p.readme_error}` : p.readme === null ? 'README.md: missing (project_update_readme writes it)' : `README.md: ${p.readme.length} characters (readme_hash ${p.readme_hash})`,
+        p.readme_error
+          ? `README.md: ${p.readme_error}`
+          : p.readme === null
+            ? 'README.md: missing (project_update_readme writes it)'
+            : `README.md: ${p.readme.length} characters (readme_hash ${p.readme_hash})`,
         ...(p.readme_environments
           ? [
               `README.md › "Environments & links" is out of date (it was written when the project was created): ${[
@@ -120,11 +142,13 @@ export const projectGet = defineOperation({
 export const projectUpdateReadme = defineOperation({
   name: 'project_update_readme',
   title: 'Replace a project README',
-  description:
-    "Replace a project's README.md. if_match is required when the README exists: the readme_hash project_get returned (a conflict names the current hash when the file changed meanwhile).",
+  description: "Replace a project's README.md. if_match is required when the README exists: the readme_hash project_get returned (a conflict names the current hash when the file changed meanwhile).",
   input: z.strictObject({
     project: projectSlug,
-    markdown: z.string().max(README_MAX_CHARS).describe(`The full new README.md (${README_MAX_CHARS.toLocaleString('en')} characters at most, the final line break included).`),
+    markdown: z
+      .string()
+      .max(README_MAX_CHARS)
+      .describe(`The full new README.md (${README_MAX_CHARS.toLocaleString('en')} characters at most, the final line break included).`),
     if_match: ifMatch.describe('readme_hash from project_get; null or absent only when the project has no README.md.'),
   }),
   annotations: WRITE_FILES,
@@ -150,7 +174,9 @@ export const projectCreate = defineOperation({
     readme: z.string().max(README_MAX_CHARS).optional().describe('Full README.md content (default: a skeleton).'),
     environments: z.record(envName, pageMap).optional().describe('Environment name → its pages, e.g. {"staging": {"app": "https://app.staging.example.com"}}.'),
     default_env: envName.optional().describe('The environment used when a scenario does not say (one of `environments`; default: the first one).'),
-    template: zThemeName('a theme name of the workspace or a starter theme (never a path)', { nonEmpty: true }).optional().describe('Theme name (a workspace theme or a starter theme); default "default".'),
+    template: zThemeName('a theme name of the workspace or a starter theme (never a path)', { nonEmpty: true })
+      .optional()
+      .describe('Theme name (a workspace theme or a starter theme); default "default".'),
   }),
   annotations: WRITE_FILES,
   async run(args, { engine }) {
@@ -214,10 +240,21 @@ export const projectPrune = defineOperation({
         // The takes that stay for a reason the list does not show: the engine's fixed words and a count (their names: data.kept_takes).
         ...keptLines(r.kept_takes ?? []),
         // The files of renders/ left alone: a count (their names are text anyone who can write renders/ chose: data.untrusted.renders_alone).
-        ...(r.renders_alone ? [((one: boolean) => `${plural(r.renders_alone!.count, 'file')} of renders/ left alone (no render of ${one ? 'its' : 'their'} own name, or a record that lacks a member), with the renders and the takes ${one ? 'it names' : 'they name'} ("untrusted.renders_alone" names ${one ? 'it' : 'them'})`)(r.renders_alone.count === 1)] : []),
+        ...(r.renders_alone
+          ? [
+              ((one: boolean) =>
+                `${plural(r.renders_alone!.count, 'file')} of renders/ left alone (no render of ${one ? 'its' : 'their'} own name, or a record that lacks a member), with the renders and the takes ${one ? 'it names' : 'they name'} ("untrusted.renders_alone" names ${one ? 'it' : 'them'})`)(
+                r.renders_alone.count === 1,
+              ),
+            ]
+          : []),
         // A file of renders/ too big to read: everything stays (the engine's fixed sentence, with a count).
         ...(r.renders_unread ? [r.renders_unread] : []),
-        ...(r.skipped?.length ? [`${plural(r.skipped.length, 'approved item')} kept: something uses ${r.skipped.length === 1 ? 'it' : 'them'} now, or ${r.skipped.length === 1 ? 'it is' : 'they are'} gone (${r.skipped.map((i) => `${i.kind} ${i.id}`).join(', ')})`] : []),
+        ...(r.skipped?.length
+          ? [
+              `${plural(r.skipped.length, 'approved item')} kept: something uses ${r.skipped.length === 1 ? 'it' : 'them'} now, or ${r.skipped.length === 1 ? 'it is' : 'they are'} gone (${r.skipped.map((i) => `${i.kind} ${i.id}`).join(', ')})`,
+            ]
+          : []),
         ...(r.not_asked ? [`${plural(r.not_asked, 'item')} that can go now ${r.not_asked === 1 ? 'was' : 'were'} not in the approval: kept`] : []),
         // Comment threads that could not be read: what stayed for it (the engine's sentence: the slug, scenario names, an error code).
         ...(r.threads_unread ? [r.threads_unread] : []),

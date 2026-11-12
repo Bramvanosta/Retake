@@ -101,15 +101,7 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
     project.config.environments = { ...project.config.environments, local: { console: fixture.urls.console, shop: fixture.urls.shop } };
     const scenario = await loadScenario(project, 'catalogue', { files: fileFacts(PERSON_POLICY) });
     expect(scenario.issues.filter((i) => i.severity === 'error')).toEqual([]);
-    rec = await runScenario({ policy: PERSON_POLICY,
-      project,
-      scenario,
-      env: 'local',
-      template: debugTemplate(),
-      mode: 'capture',
-      runsDir: join(tmp, 'runs'),
-      onProgress: (e) => events.push(e),
-    });
+    rec = await runScenario({ policy: PERSON_POLICY, project, scenario, env: 'local', template: debugTemplate(), mode: 'capture', runsDir: join(tmp, 'runs'), onProgress: (e) => events.push(e) });
     expect(rec.error?.message ?? '').toBe('');
     expect(rec.status).toBe('succeeded');
     expect(rec.hooks).toEqual({ setup: 'ok', teardown: 'ok' });

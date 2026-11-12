@@ -137,7 +137,8 @@ export function importsOf(file: string, text: string): Import[] {
     }
   }
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && ts.isStringLiteral(n.arguments[0])) out.push({ ...at(n.arguments[0].text), names: ['*'], typeOnly: false });
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && ts.isStringLiteral(n.arguments[0]))
+      out.push({ ...at(n.arguments[0].text), names: ['*'], typeOnly: false });
     ts.forEachChild(n, visit);
   };
   visit(src);
@@ -183,11 +184,24 @@ function appSources(): Array<[string, string]> {
     .map((f) => [f, readFileSync(join(APP, f), 'utf8')]);
 }
 
-describe('L6.13: the Studio app\'s feature boundaries', () => {
-  it('only data/ imports the API\'s call / useCall (request is api.ts\'s own); data/ holds a module per feature, each importing only api.ts and data/', () => {
+describe("L6.13: the Studio app's feature boundaries", () => {
+  it("only data/ imports the API's call / useCall (request is api.ts's own); data/ holds a module per feature, each importing only api.ts and data/", () => {
     const files = appSources();
     const data = files.filter(([f]) => f.startsWith('data/')).map(([f]) => f);
-    expect(data).toEqual(['data/client.ts', 'data/comments.ts', 'data/desktop.ts', 'data/edit.ts', 'data/library.ts', 'data/ops.ts', 'data/projects.ts', 'data/record.ts', 'data/renders.ts', 'data/scenarios.ts', 'data/shoot.ts', 'data/themes.ts']);
+    expect(data).toEqual([
+      'data/client.ts',
+      'data/comments.ts',
+      'data/desktop.ts',
+      'data/edit.ts',
+      'data/library.ts',
+      'data/ops.ts',
+      'data/projects.ts',
+      'data/record.ts',
+      'data/renders.ts',
+      'data/scenarios.ts',
+      'data/shoot.ts',
+      'data/themes.ts',
+    ]);
     const api = files.flatMap(([f, text]) => findings(f, text)).filter((x) => x.includes(' -> api: '));
     expect(api).toEqual([]);
     // Who imports call / useCall at all: the client, and the data function whose op is an argument (threadWrite;
@@ -206,9 +220,13 @@ describe('L6.13: the Studio app\'s feature boundaries', () => {
     expect(findings('review/Renders.tsx', "import { CallError, errorText, useConnection } from '../api.js';\nimport type { Loaded } from '../api.js';")).toEqual([]);
   });
 
-  it('outside the app the app imports types only (the server\'s answers and op table: `import type`), save the browser-safe modules listed with their reason', () => {
+  it("outside the app the app imports types only (the server's answers and op table: `import type`), save the browser-safe modules listed with their reason", () => {
     const files = appSources();
-    const outside = files.flatMap(([f, text]) => importsOf(f, text).filter((i) => i.outside !== null).map((i) => ({ f, ...i })));
+    const outside = files.flatMap(([f, text]) =>
+      importsOf(f, text)
+        .filter((i) => i.outside !== null)
+        .map((i) => ({ f, ...i })),
+    );
     // The walk sees the server's types (the screens' answers, the op table data/ops.ts derives StudioOps from).
     expect(outside.filter((i) => i.outside!.startsWith('server/')).length).toBeGreaterThan(15);
     expect(outside.some((i) => i.f === 'data/ops.ts' && i.outside === 'server/studio' && i.typeOnly)).toBe(true);
@@ -225,18 +243,23 @@ describe('L6.13: the Studio app\'s feature boundaries', () => {
     expect(findings('bits.ts', "export { UI_OPS } from '../server/studio.js';")).toEqual(['bits.ts -> server/studio: value']);
     expect(findings('review/Renders.tsx', "const m = await import('../../server/ops.js');")).toEqual(['review/Renders.tsx -> server/ops: value']);
     expect(findings('review/Renders.tsx', "import { buildUi } from '../../bundle.js';")).toEqual(['review/Renders.tsx -> bundle: value']);
-    expect(findings('review/ReviewScreen.tsx', "import type { RenderReviewAnswer } from '../../server/ops.js';\nimport { type ThreadAnswer } from '../../server/comment-ops.js';\nexport type { ThemeListAnswer } from '../../server/theme-ops.js';")).toEqual([]);
+    expect(
+      findings(
+        'review/ReviewScreen.tsx',
+        "import type { RenderReviewAnswer } from '../../server/ops.js';\nimport { type ThreadAnswer } from '../../server/comment-ops.js';\nexport type { ThemeListAnswer } from '../../server/theme-ops.js';",
+      ),
+    ).toEqual([]);
     expect(findings('ui-kit/AppMark.tsx', "import { MARK } from '../../mark.js';")).toEqual([]);
     expect(findings('edit/PreviewFrame.tsx', "import { connectPreview } from '../../player/parent.js';\nimport type { FrameMessage } from '../../player/protocol.js';")).toEqual([]);
   });
 
-  it('the parts import each other only through their public faces: data/ nothing but api.ts, the kit nothing but its foundations, the kit and the shell reached through their public modules (today\'s exceptions listed, each with its reason)', () => {
+  it("the parts import each other only through their public faces: data/ nothing but api.ts, the kit nothing but its foundations, the kit and the shell reached through their public modules (today's exceptions listed, each with its reason)", () => {
     const files = appSources();
     expect(files.length).toBeGreaterThan(100);
     const found = files.flatMap(([f, text]) => findings(f, text));
     const unlisted = found.filter((x) => !(x in EXCEPTIONS));
     const stale = Object.keys(EXCEPTIONS).filter((x) => !found.includes(x));
-    expect(unlisted, 'a new crossing: go through the part\'s public face, or list it with its reason').toEqual([]);
+    expect(unlisted, "a new crossing: go through the part's public face, or list it with its reason").toEqual([]);
     expect(stale, 'a listed crossing is gone: remove it from EXCEPTIONS').toEqual([]);
     for (const [x, why] of Object.entries(EXCEPTIONS)) expect(why.length, x).toBeGreaterThan(20);
     // The walk sees every part (it is not vacuous): imports of data/, of the kit's index, of the shell's public modules.
@@ -256,8 +279,15 @@ describe('L6.13: the Studio app\'s feature boundaries', () => {
     // What stays allowed: the kit's foundations, a screen's store from the shell, data/ from anywhere, a package.
     expect(findings('main.tsx', "import './ui-kit/kit.css';\nimport './shell/shell.css';")).toEqual([]);
     expect(findings('ui-kit/Menu.tsx', "import { Txt } from '../bits.js';\nimport type { Route } from '../route.js';\nimport { useState } from 'react';")).toEqual([]);
-    expect(findings('shell/StatusActions.tsx', "import { useProjectView } from '../project-data.js';\nimport { runStatus } from '../data/shoot.js';\nimport { useScenarioActions } from '../shoot/shoot-data.js';")).toEqual([]);
-    expect(findings('data/ops.ts', "import type { ProjectView } from '@retake/engine';\nimport type { ThreadAnswer } from '../../server/comment-ops.js';\nimport { call } from '../api.js';")).toEqual([]);
+    expect(
+      findings(
+        'shell/StatusActions.tsx',
+        "import { useProjectView } from '../project-data.js';\nimport { runStatus } from '../data/shoot.js';\nimport { useScenarioActions } from '../shoot/shoot-data.js';",
+      ),
+    ).toEqual([]);
+    expect(findings('data/ops.ts', "import type { ProjectView } from '@retake/engine';\nimport type { ThreadAnswer } from '../../server/comment-ops.js';\nimport { call } from '../api.js';")).toEqual(
+      [],
+    );
     // The ratchet's own mutations: an exception whose crossing is gone is stale; a crossing not listed is new.
     const without = found.filter((x) => x !== 'ui-kit/fields.tsx -> drafts');
     expect(Object.keys(EXCEPTIONS).filter((x) => !without.includes(x))).toEqual(['ui-kit/fields.tsx -> drafts']);
@@ -266,13 +296,29 @@ describe('L6.13: the Studio app\'s feature boundaries', () => {
   it('L7.32: the screens are grouped by feature — a folder each, reached from outside only through its public modules; the root holds the shared foundations and words/ the shared words, neither importing a feature', () => {
     const files = appSources();
     // Every folder is a part the model knows; the root holds the foundations and the entry only.
-    const folders = [...new Set(files.map(([f]) => f).filter((f) => f.includes('/')).map((f) => f.slice(0, f.indexOf('/'))))].sort();
+    const folders = [
+      ...new Set(
+        files
+          .map(([f]) => f)
+          .filter((f) => f.includes('/'))
+          .map((f) => f.slice(0, f.indexOf('/'))),
+      ),
+    ].sort();
     expect(folders).toEqual(['data', 'shell', 'ui-kit', 'words', ...Object.keys(FEATURES)].sort());
-    const root = files.map(([f]) => f).filter((f) => !f.includes('/')).map((f) => f.replace(/\.tsx?$/, ''));
+    const root = files
+      .map(([f]) => f)
+      .filter((f) => !f.includes('/'))
+      .map((f) => f.replace(/\.tsx?$/, ''));
     expect(root).toEqual([...FOUNDATIONS, 'main'].sort());
     // Each feature's public modules exist, and each is imported from outside its feature (a stale one fails).
     const modules = new Set(files.map(([f]) => f.replace(/\.tsx?$/, '')));
-    const reached = new Set(files.flatMap(([f, text]) => importsOf(f, text).filter((i) => i.module !== null && isFeature(partOf(i.module)) && partOf(i.module) !== partOf(f.replace(/\.tsx?$/, ''))).map((i) => i.module!)));
+    const reached = new Set(
+      files.flatMap(([f, text]) =>
+        importsOf(f, text)
+          .filter((i) => i.module !== null && isFeature(partOf(i.module)) && partOf(i.module) !== partOf(f.replace(/\.tsx?$/, '')))
+          .map((i) => i.module!),
+      ),
+    );
     for (const [feature, faces] of Object.entries(FEATURES)) {
       for (const m of faces) {
         expect(m.startsWith(`${feature}/`), m).toBe(true);
@@ -298,7 +344,12 @@ describe('L6.13: the Studio app\'s feature boundaries', () => {
     expect(findings('words/board-words.ts', "import { Renders } from '../review/Renders.js';")).toEqual(['words/board-words.ts -> review/Renders']);
     expect(findings('words/shoot-words.ts', "import { SlotContext } from '../shell/slots.js';")).toEqual(['words/shoot-words.ts -> shell/slots']);
     // What stays allowed: a feature's own internals, another's public module, the words, the foundations, data/.
-    expect(findings('review/ReviewScreen.tsx', "import { ThreadPanel } from './ThreadPanel.js';\nimport { editHandoff } from '../edit/edit-handoff.js';\nimport { renderWords } from '../words/render-words.js';\nimport { useProjectView } from '../project-data.js';\nimport { themeEdit } from '../data/themes.js';")).toEqual([]);
+    expect(
+      findings(
+        'review/ReviewScreen.tsx',
+        "import { ThreadPanel } from './ThreadPanel.js';\nimport { editHandoff } from '../edit/edit-handoff.js';\nimport { renderWords } from '../words/render-words.js';\nimport { useProjectView } from '../project-data.js';\nimport { themeEdit } from '../data/themes.js';",
+      ),
+    ).toEqual([]);
     expect(findings('main.tsx', "import { ReviewScreen } from './review/ReviewScreen.js';")).toEqual([]);
     expect(findings('words/theme-words.ts', "import { libraryWords } from './library-words.js';\nimport { Txt } from '../bits.js';")).toEqual([]);
   });

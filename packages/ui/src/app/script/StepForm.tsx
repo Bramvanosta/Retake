@@ -25,7 +25,23 @@ import { Button, Callout, Disclosure, Select, Switch, TextField } from '../ui-ki
 type InsertStep = Extract<StepEditOp, { kind: 'insert_step' }>;
 
 /** One field's input in the inspector's row: a text box, a yes / no / not set choice, or a choice of its options. */
-function FieldInput({ f, value, onChange, required, error, disabled, locked }: { f: FormField; value: string; onChange: (v: string) => void; required: boolean; error?: string; disabled: boolean; locked?: string }) {
+function FieldInput({
+  f,
+  value,
+  onChange,
+  required,
+  error,
+  disabled,
+  locked,
+}: {
+  f: FormField;
+  value: string;
+  onChange: (v: string) => void;
+  required: boolean;
+  error?: string;
+  disabled: boolean;
+  locked?: string;
+}) {
   const name = f.group !== undefined ? f.key.slice(f.group.length + 1).replace(/_/g, ' ') : f.label;
   const label = (
     <>
@@ -34,11 +50,12 @@ function FieldInput({ f, value, onChange, required, error, disabled, locked }: {
     </>
   );
   // The error said in words at its field (the kit adds "Error:"); the test id kept from L4.3.
-  const err = error !== undefined ? (
-    <span data-testid="field-error">
-      <Txt text={error} />
-    </span>
-  ) : undefined;
+  const err =
+    error !== undefined ? (
+      <span data-testid="field-error">
+        <Txt text={error} />
+      </span>
+    ) : undefined;
   const hint = locked !== undefined ? <Txt text={locked} /> : undefined;
   if (f.kind === 'boolean' || f.kind === 'enum') {
     const options = [
@@ -50,7 +67,20 @@ function FieldInput({ f, value, onChange, required, error, disabled, locked }: {
           ]
         : (f.options ?? []).map((o) => ({ value: o, label: o }))),
     ];
-    return <Select layout="row" label={label} value={value} options={options} onChange={onChange} disabled={disabled || locked !== undefined} hint={hint} error={err} dataField={f.key} title={f.description} />;
+    return (
+      <Select
+        layout="row"
+        label={label}
+        value={value}
+        options={options}
+        onChange={onChange}
+        disabled={disabled || locked !== undefined}
+        hint={hint}
+        error={err}
+        dataField={f.key}
+        title={f.description}
+      />
+    );
   }
   return (
     <TextField
@@ -161,7 +191,11 @@ function Fields({
           const set = p.fields.some((f) => (inputs[f.key] ?? '') !== '' || errors[f.key] !== undefined || locked[f.key] !== undefined);
           const target = p.group !== action && p.group !== 'caption';
           return (
-            <Disclosure key={`g-${p.group}`} defaultOpen={set || p.group === action || p.group === 'caption'} summary={`${groupLabel(p.group, action)}${target ? ' (a target: fill one way to find it)' : ''}`}>
+            <Disclosure
+              key={`g-${p.group}`}
+              defaultOpen={set || p.group === action || p.group === 'caption'}
+              summary={`${groupLabel(p.group, action)}${target ? ' (a target: fill one way to find it)' : ''}`}
+            >
               <div className="sb-fields">{shown(split(p.fields, p.group, String(i)))}</div>
             </Disclosure>
           );
@@ -337,7 +371,21 @@ function placesOf(scenes: SceneBlock[], selected: { scene: SceneBlock; step: Ste
  * The palette (critique C3): ≈ 15 actions; one chosen shows its form with the schema's defaults; Add inserts it. L5.10b:
  * a scene's "Add step" opens it placed at that scene's end (`at`).
  */
-export function Palette({ forms, scenes, selected, ed, onClose, at }: { forms: StepForms; scenes: SceneBlock[]; selected: { scene: SceneBlock; step: StepBlock } | null; ed: StepEditor; onClose: () => void; at?: string }) {
+export function Palette({
+  forms,
+  scenes,
+  selected,
+  ed,
+  onClose,
+  at,
+}: {
+  forms: StepForms;
+  scenes: SceneBlock[];
+  selected: { scene: SceneBlock; step: StepBlock } | null;
+  ed: StepEditor;
+  onClose: () => void;
+  at?: string;
+}) {
   const idBase = useId().replace(/:/g, '');
   const [action, setAction] = useState<ActionName | null>(null);
   const form = action ? actionForm(forms, action) : undefined;
@@ -404,7 +452,14 @@ export function Palette({ forms, scenes, selected, ed, onClose, at }: { forms: S
             locked={{}}
             modifiersFrom={-1}
           />
-          <Select layout="row" label="Where" testId="palette-where" value={String(Math.min(place, places.length - 1))} options={places.map((p, i) => ({ value: String(i), label: p.label }))} onChange={(v) => setPlace(Number(v))} />
+          <Select
+            layout="row"
+            label="Where"
+            testId="palette-where"
+            value={String(Math.min(place, places.length - 1))}
+            options={places.map((p, i) => ({ value: String(i), label: p.label }))}
+            onChange={(v) => setPlace(Number(v))}
+          />
           {touched && empty && (
             <p className="sb-error" role="alert">
               Fill at least one value.

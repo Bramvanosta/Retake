@@ -144,7 +144,11 @@ export type LogoCandidate =
  */
 export function readFacts(cfg: { maxCandidates: number; svgMax: number; urlMax: number; dataUrlMax: number }): PageFacts {
   const meta = (sel: string) => (document.querySelector(sel)?.getAttribute('content') ?? '').trim();
-  const firstFamily = (f: string) => (String(f).slice(0, 2000).split(',')[0] ?? '').trim().replace(/^["']|["']$/g, '').slice(0, 200);
+  const firstFamily = (f: string) =>
+    (String(f).slice(0, 2000).split(',')[0] ?? '')
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .slice(0, 200);
   const fonts = { display: {} as Record<string, number>, body: {} as Record<string, number> };
   const visible = (el: Element): boolean => {
     const s = getComputedStyle(el);
@@ -176,7 +180,8 @@ export function readFacts(cfg: { maxCandidates: number; svgMax: number; urlMax: 
       return '';
     }
   };
-  const label = (el: Element) => [el.id, el.getAttribute('class'), el.getAttribute('alt'), el.getAttribute('aria-label'), el.getAttribute('title'), el.getAttribute('src'), el.closest('a')?.getAttribute('aria-label')].join(' ');
+  const label = (el: Element) =>
+    [el.id, el.getAttribute('class'), el.getAttribute('alt'), el.getAttribute('aria-label'), el.getAttribute('title'), el.getAttribute('src'), el.closest('a')?.getAttribute('aria-label')].join(' ');
   const toRoot = (el: Element) => {
     const a = el.closest('a[href]');
     if (!a) return false;
@@ -249,7 +254,16 @@ export function readFacts(cfg: { maxCandidates: number; svgMax: number; urlMax: 
   for (const l of icons.slice(0, 6)) {
     const url = abs(l.getAttribute('href'));
     const size = /(\d+)x(\d+)/.exec(l.getAttribute('sizes') ?? '');
-    if (url.startsWith('https:') || url.startsWith('data:image/')) cands.push({ kind: 'icon', url, alt: '', width: size ? Number(size[1]) : 0, height: size ? Number(size[2]) : 0, score: -1 + (size ? Math.min(2, Number(size[2]) / 128) : 0), where: (l.getAttribute('rel') ?? 'icon').toLowerCase().slice(0, 40) });
+    if (url.startsWith('https:') || url.startsWith('data:image/'))
+      cands.push({
+        kind: 'icon',
+        url,
+        alt: '',
+        width: size ? Number(size[1]) : 0,
+        height: size ? Number(size[2]) : 0,
+        score: -1 + (size ? Math.min(2, Number(size[2]) / 128) : 0),
+        where: (l.getAttribute('rel') ?? 'icon').toLowerCase().slice(0, 40),
+      });
   }
   const og = abs(meta('meta[property="og:image" i]') || meta('meta[name="og:image" i]'));
   if (og.startsWith('https:')) cands.push({ kind: 'og', url: og, alt: '', width: 0, height: 0, score: -3, where: 'og:image' });

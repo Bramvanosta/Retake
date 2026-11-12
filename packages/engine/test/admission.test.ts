@@ -41,7 +41,8 @@ const runBusy = (client: 'ui' | 'mcp', what: 'dry' | 'capture', scenario: string
     ? `a ${what === 'dry' ? 'rehearsal' : 'capture'} of ${scenario} is queued (${runId}): wait for it to end, or stop it`
     : `a ${what === 'dry' ? 'dry run' : 'capture'} of ${scenario} is queued (${runId}): wait for it to end (run_status), or stop it (run_cancel)`;
 const SUPPLIER_WHY = 'supplier (never signed in): its session is not valid and no run signs it in by itself. The run checks it first and stops before filming if still not valid';
-const sessionsBusy = (client: 'ui' | 'mcp') => `${SUPPLIER_WHY}: ${client === 'ui' ? 'sign in first, or confirm the capture' : 'sign in first (auth_login), or confirm the capture (sessions_ack naming it)'}`;
+const sessionsBusy = (client: 'ui' | 'mcp') =>
+  `${SUPPLIER_WHY}: ${client === 'ui' ? 'sign in first, or confirm the capture' : 'sign in first (auth_login), or confirm the capture (sessions_ack naming it)'}`;
 
 const plain = (video: string, env?: string) =>
   [`video: ${video}`, ...(env ? [`env: ${env}`] : []), 'scenes:', '  - id: a', '    page: console', '    open: /', '    steps:', '      - hold: 1', ''].join('\n');
@@ -52,7 +53,15 @@ const open = async () => (await queue.list({ states: ['queued', 'running'], limi
 
 async function plantRender(scenario: string, renderId: string): Promise<JobRecord> {
   return queue.enqueue({
-    version: JOB_INPUT_VERSION, kind: 'render', project: P, scenario, run_id: `20261017-130000-${scenario}`, timeline_sha256: 'a'.repeat(64), render_id: renderId, overrides: {}, submitted_by: 'test',
+    version: JOB_INPUT_VERSION,
+    kind: 'render',
+    project: P,
+    scenario,
+    run_id: `20261017-130000-${scenario}`,
+    timeline_sha256: 'a'.repeat(64),
+    render_id: renderId,
+    overrides: {},
+    submitted_by: 'test',
   });
 }
 async function plantExport(renderId: string): Promise<JobRecord> {
@@ -128,7 +137,16 @@ describe('one_run_per_scenario', () => {
     // The approver plays the human who takes a while: meanwhile another process (the Studio) queues a capture.
     const approver = {
       approve: async (): Promise<ApprovalOutcome> => {
-        planted = await queue.enqueue({ version: JOB_INPUT_VERSION, kind: 'run', project: P, scenario: 'approve', scenario_sha256: 'b'.repeat(64), mode: 'capture', run_id: '20261109-120000-approve', submitted_by: 'ui' });
+        planted = await queue.enqueue({
+          version: JOB_INPUT_VERSION,
+          kind: 'run',
+          project: P,
+          scenario: 'approve',
+          scenario_sha256: 'b'.repeat(64),
+          mode: 'capture',
+          run_id: '20261109-120000-approve',
+          submitted_by: 'ui',
+        });
         return { approved: true };
       },
     };
@@ -197,14 +215,36 @@ describe('sessions_ack', () => {
 
   it('sessionsToConfirm and confirmWhy: the personas no run signs in by itself, and what the capture does with them', () => {
     const p = (persona: string, status: string, o: Record<string, boolean> = {}) => ({ persona, status, auto: false, has_check: true, ...o });
-    expect(sessionsToConfirm({ personas: [p('a', 'valid'), p('b', 'expired'), p('c', 'never', { has_check: false }), p('d', 'error', { auto: true }), p('e', 'expired', { sandbox: true }), p('f', 'never', { legacy: true }), p('g', 'error', { has_check: false })] })).toEqual([
+    expect(
+      sessionsToConfirm({
+        personas: [
+          p('a', 'valid'),
+          p('b', 'expired'),
+          p('c', 'never', { has_check: false }),
+          p('d', 'error', { auto: true }),
+          p('e', 'expired', { sandbox: true }),
+          p('f', 'never', { legacy: true }),
+          p('g', 'error', { has_check: false }),
+        ],
+      }),
+    ).toEqual([
       { persona: 'b', status: 'expired', checked_first: true },
       { persona: 'c', status: 'never', checked_first: true },
       { persona: 'g', status: 'error', checked_first: false },
     ]);
     expect(confirmWhy([{ persona: 'b', status: 'expired', checked_first: true }])).toBe('The run checks it first and stops before filming if still not valid');
-    expect(confirmWhy([{ persona: 'b', status: 'expired', checked_first: true }, { persona: 'c', status: 'never', checked_first: true }])).toBe('The run checks each first and stops before filming if still not valid');
-    expect(confirmWhy([{ persona: 'b', status: 'expired', checked_first: true }, { persona: 'g', status: 'error', checked_first: false }])).toBe(
+    expect(
+      confirmWhy([
+        { persona: 'b', status: 'expired', checked_first: true },
+        { persona: 'c', status: 'never', checked_first: true },
+      ]),
+    ).toBe('The run checks each first and stops before filming if still not valid');
+    expect(
+      confirmWhy([
+        { persona: 'b', status: 'expired', checked_first: true },
+        { persona: 'g', status: 'error', checked_first: false },
+      ]),
+    ).toBe(
       'The run checks b first and stops before filming if still not valid. Persona g cannot be checked first (no `check`): the run uses its saved session as it is and fails only when a page lands on the sign-in page — after its setup hooks ran',
     );
   });
@@ -227,7 +267,8 @@ describe('one_render_per_scenario', () => {
 
   it('the engine’s tests and the CLI are not held to it', async () => {
     await plantRender('quote', 'quote-v3');
-    for (const client of ['test', 'cli'] as const) expect(((await outcome(engines[client].renders.submit({ project: P, scenario: 'quote' }))) as EngineError).message, client).not.toMatch(/wait for it to end/);
+    for (const client of ['test', 'cli'] as const)
+      expect(((await outcome(engines[client].renders.submit({ project: P, scenario: 'quote' }))) as EngineError).message, client).not.toMatch(/wait for it to end/);
   });
 });
 
@@ -237,7 +278,11 @@ describe('export_cap', () => {
       const busy = await plantExport('quote-v1');
       const before = await open();
       const e = await outcome(engines[client].exports.submit({ project: P, render_id: 'quote-v1', formats: ['mp4_1080p'] }));
-      expect(e).toMatchObject({ code: 'conflict', message: `an export of quote-v1 is queued (job ${busy.id}): wait for it to end${client === 'mcp' ? ' (job_status)' : ''}`, details: { job: busy.id } });
+      expect(e).toMatchObject({
+        code: 'conflict',
+        message: `an export of quote-v1 is queued (job ${busy.id}): wait for it to end${client === 'mcp' ? ' (job_status)' : ''}`,
+        details: { job: busy.id },
+      });
       // One export of the workspace: another render's is not refused by the cap (it fails later: no such render).
       expect(((await outcome(engines[client].exports.submit({ project: P, render_id: 'quote-v5' }))) as EngineError).code).toBe('not_found');
       await plantExport('quote-v2');
@@ -260,9 +305,29 @@ describe('export_cap', () => {
     await writeFile(
       join(renders, `${id}.json`),
       JSON.stringify({
-        version: 1, id, project: P, scenario: 'quote', run_id: '20261017-130000-quote', run_dir: join(project(), 'runs', '20261017-130000-quote'), template: 'editorial', overrides: {},
-        variant: 'landscape', status: 'succeeded', file: join(renders, `${id}.mp4`), record: join(renders, `${id}.json`), render_version: 4, created_at: '2026-10-18T10:00:00.000Z',
-        finished_at: '2026-10-18T10:00:00.000Z', duration_s: 3, frames: 90, fps: 30, width: 1920, height: 1080, size_bytes: 5, plan: {}, warnings: [],
+        version: 1,
+        id,
+        project: P,
+        scenario: 'quote',
+        run_id: '20261017-130000-quote',
+        run_dir: join(project(), 'runs', '20261017-130000-quote'),
+        template: 'editorial',
+        overrides: {},
+        variant: 'landscape',
+        status: 'succeeded',
+        file: join(renders, `${id}.mp4`),
+        record: join(renders, `${id}.json`),
+        render_version: 4,
+        created_at: '2026-10-18T10:00:00.000Z',
+        finished_at: '2026-10-18T10:00:00.000Z',
+        duration_s: 3,
+        frames: 90,
+        fps: 30,
+        width: 1920,
+        height: 1080,
+        size_bytes: 5,
+        plan: {},
+        warnings: [],
       }),
     );
     const busy = await plantExport(id);

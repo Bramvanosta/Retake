@@ -40,7 +40,7 @@ beforeAll(async () => {
 });
 
 describe('previewPlan (critique B4)', () => {
-  it('quote: every asset URL swapped for the player\'s, no file, path, display table, note or warning left', async () => {
+  it("quote: every asset URL swapped for the player's, no file, path, display table, note or warning left", async () => {
     const p = await plan('quote');
     expect(Object.keys(p.assets).length).toBeGreaterThan(3);
     const out = previewPlan(p, { urlFor, forbid: FORBID });

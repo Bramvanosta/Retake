@@ -76,7 +76,9 @@ export function Lately({ project, scenario, limit = 8, label = 'Lately' }: { pro
     <div className="sc-lately" data-testid="activity" role="group" aria-label={label}>
       {v.state === 'loading' && <p className="sc-quiet">Loading the activity…</p>}
       {v.state === 'error' && <Txt className="sc-quiet" text={v.error} />}
-      {v.state === 'ready' && items.length === 0 && <p className="sc-quiet">{scenario ? 'Nothing for this production in the project’s recent activity.' : 'Nothing yet: captures, renders and other jobs show here.'}</p>}
+      {v.state === 'ready' && items.length === 0 && (
+        <p className="sc-quiet">{scenario ? 'Nothing for this production in the project’s recent activity.' : 'Nothing yet: captures, renders and other jobs show here.'}</p>
+      )}
       {items.length > 0 && (
         <ul className="sc-lately-list">
           {items.map((i) => (
@@ -118,13 +120,24 @@ export function SearchBox() {
   }, [q, tick]);
   return (
     <section className="sc-search" role="search" aria-label="Search the workspace">
-      <TextField label="Search" type="search" value={q} onChange={setQ} unsaved={null} placeholder="Projects, READMEs, scenarios, runs, renders" maxLength={200} autoComplete="off" spellCheck={false} />
+      <TextField
+        label="Search"
+        type="search"
+        value={q}
+        onChange={setQ}
+        unsaved={null}
+        placeholder="Projects, READMEs, scenarios, runs, renders"
+        maxLength={200}
+        autoComplete="off"
+        spellCheck={false}
+      />
       {hits && 'error' in hits && <Txt className="sc-quiet" text={hits.error} />}
       {hits && 'hits' in hits && (
         <div aria-live="polite">
           {hits.hits.length === 0 ? (
             <p className="sc-quiet" data-testid="search-empty">
-              Nothing matches “<Txt text={hits.q} />”.
+              Nothing matches “<Txt text={hits.q} />
+              ”.
             </p>
           ) : (
             <ul className="sc-hits" data-testid="search-hits">

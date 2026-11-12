@@ -112,12 +112,19 @@ describe('the capture lifecycle over a driver (L7.31)', () => {
     const events: RunProgress[] = [];
     const filming: string[] = [];
     const rec = await runCapture(
-      opts('phases', {
-        setup: [{ name: 'setup', shell: `touch ${marks}-setup` }, { name: 'page', js: { code: 'return document.title', page: 'app' } }],
-        teardown: [{ name: 'teardown', shell: `touch ${marks}-teardown` }],
-        hooks: { mark: [{ name: 'mark', shell: 'true' }] },
-        scenes: [{ id: 'one', steps: [{ wait: 10 }, { hook: 'mark' }] }],
-      }, { onProgress: (e) => events.push(e), onFilming: (s) => void filming.push(s) }),
+      opts(
+        'phases',
+        {
+          setup: [
+            { name: 'setup', shell: `touch ${marks}-setup` },
+            { name: 'page', js: { code: 'return document.title', page: 'app' } },
+          ],
+          teardown: [{ name: 'teardown', shell: `touch ${marks}-teardown` }],
+          hooks: { mark: [{ name: 'mark', shell: 'true' }] },
+          scenes: [{ id: 'one', steps: [{ wait: 10 }, { hook: 'mark' }] }],
+        },
+        { onProgress: (e) => events.push(e), onFilming: (s) => void filming.push(s) },
+      ),
       (run) => (driver = new FakeDriver(run, { file })),
     );
     expect(driver.calls).toEqual(['prepare', 'identify', 'open', 'hooks', 'setHookSteps', 'film (after the setup)', 'stop', 'close (after the teardown)', 'finish']);
@@ -143,7 +150,11 @@ describe('the capture lifecycle over a driver (L7.31)', () => {
     let driver!: FakeDriver;
     const filming: string[] = [];
     const rec = await runCapture(
-      opts('dry', { setup: [{ name: 'never', shell: 'false' }], hooks: { mark: [{ name: 'mark', shell: 'false' }] }, scenes: [{ id: 'one', steps: [{ hook: 'mark' }] }] }, { mode: 'dry', onFilming: (s) => void filming.push(s) }),
+      opts(
+        'dry',
+        { setup: [{ name: 'never', shell: 'false' }], hooks: { mark: [{ name: 'mark', shell: 'false' }] }, scenes: [{ id: 'one', steps: [{ hook: 'mark' }] }] },
+        { mode: 'dry', onFilming: (s) => void filming.push(s) },
+      ),
       (run) => (driver = new FakeDriver(run)),
     );
     expect(driver.calls).toEqual(['prepare', 'identify', 'open', 'setHookSteps', 'film', 'stop', 'close', 'finish']);
@@ -168,32 +179,39 @@ describe('the capture lifecycle over a driver (L7.31)', () => {
   });
 
   it('a take the driver discards writes no timeline; a cancel ends the run cancelled', async () => {
-    const discarded = await runCapture(opts('discard', { scenes: [{ id: 'one', steps: [{ wait: 10 }] }] }), (run) =>
-      new FakeDriver(run, {
-        discard: true,
-        film: async () => {
-          throw new LoginPageError('page "app" landed on the sign-in page');
-        },
-      }),
+    const discarded = await runCapture(
+      opts('discard', { scenes: [{ id: 'one', steps: [{ wait: 10 }] }] }),
+      (run) =>
+        new FakeDriver(run, {
+          discard: true,
+          film: async () => {
+            throw new LoginPageError('page "app" landed on the sign-in page');
+          },
+        }),
     );
     expect(discarded.status).toBe('failed');
     expect(discarded.timeline).toBeUndefined();
     expect(existsSync(join(discarded.dir, 'timeline.json'))).toBe(false);
     const ac = new AbortController();
-    const cancelled = await runCapture(opts('cancel', { scenes: [{ id: 'one', steps: [{ wait: 10 }] }] }, { signal: ac.signal }), (run) =>
-      new FakeDriver(run, {
-        film: async (r) => {
-          ac.abort(new StepError('stopped'));
-          if (r.signal.aborted) throw new (await import('../src/errors.js')).CancelledError('run cancelled (cancel requested)');
-        },
-      }),
+    const cancelled = await runCapture(
+      opts('cancel', { scenes: [{ id: 'one', steps: [{ wait: 10 }] }] }, { signal: ac.signal }),
+      (run) =>
+        new FakeDriver(run, {
+          film: async (r) => {
+            ac.abort(new StepError('stopped'));
+            if (r.signal.aborted) throw new (await import('../src/errors.js')).CancelledError('run cancelled (cancel requested)');
+          },
+        }),
     );
     expect(cancelled).toMatchObject({ status: 'cancelled', error: { message: 'run cancelled (cancel requested)' } });
   });
 
   it('refusals made before anything runs reach no driver phase but stop, close and finish', async () => {
     let driver!: FakeDriver;
-    const rec = await runCapture(opts('refused', { scenes: [{ id: 'one', open: '/x', steps: [{ wait: 10 }] }] }, { hookTrust: 'mcp', signal: AbortSignal.abort() }), (run) => (driver = new FakeDriver(run)));
+    const rec = await runCapture(
+      opts('refused', { scenes: [{ id: 'one', open: '/x', steps: [{ wait: 10 }] }] }, { hookTrust: 'mcp', signal: AbortSignal.abort() }),
+      (run) => (driver = new FakeDriver(run)),
+    );
     expect(driver.calls).toEqual(['failed', 'stop', 'close', 'finish']);
     expect(rec.status).toBe('cancelled');
   });

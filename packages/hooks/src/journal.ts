@@ -542,12 +542,7 @@ export async function findPendingJournals(projectDir: string, opts: JournalLocat
  * journal locations. Journals that cannot be read are left as they are (their error surfaces when they are replayed).
  * Returns the journals changed and how many entries each.
  */
-export async function supersedePendingJournals(
-  projectDir: string,
-  env: string,
-  by: string,
-  opts: JournalLocations = {},
-): Promise<Array<{ file: string; count: number }>> {
+export async function supersedePendingJournals(projectDir: string, env: string, by: string, opts: JournalLocations = {}): Promise<Array<{ file: string; count: number }>> {
   const out: Array<{ file: string; count: number }> = [];
   const at = nowIso();
   for (const file of await findPendingJournals(projectDir, opts)) {

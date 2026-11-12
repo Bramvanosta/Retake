@@ -92,7 +92,8 @@ function scenario(s: Omit<Scenario, 'video'>): LoadedScenario {
 /** One inspection: the run (dry, its folder under `dir/inspect`) and the report it handed over. */
 async function inspect(sc: LoadedScenario, req: Omit<InspectRequest, 'onResult'> = {}, opts: Partial<RunOptions> = {}) {
   let report: InspectReport | null = null;
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project,
     scenario: sc,
     mode: 'dry',
@@ -114,7 +115,11 @@ const lab = (path = '/inspect-lab') => scenario({ scenes: [{ id: 'inspect', page
 function trustedPart(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(trustedPart);
   if (v && typeof v === 'object') {
-    return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'untrusted').map(([k, x]) => [k, trustedPart(x)]));
+    return Object.fromEntries(
+      Object.entries(v)
+        .filter(([k]) => k !== 'untrusted')
+        .map(([k, x]) => [k, trustedPart(x)]),
+    );
   }
   return v;
 }
@@ -123,7 +128,10 @@ function trustedPart(v: unknown): unknown {
 function readBack(targetYaml: string): TargetSpec {
   const text = `version: 1\nvideo: t\nscenes:\n  - id: s\n    page: shop\n    steps:\n      - click: ${targetYaml}\n`;
   const { scenario: sc, issues } = parseScenario(text);
-  expect(issues.filter((i) => i.severity === 'error'), targetYaml).toEqual([]);
+  expect(
+    issues.filter((i) => i.severity === 'error'),
+    targetYaml,
+  ).toEqual([]);
   return (sc!.scenes[0] as { steps: Array<{ click: TargetSpec }> }).steps[0].click;
 }
 
@@ -393,9 +401,7 @@ describe('replays', () => {
   }, 90_000);
 
   it('a failed step: the page is inspected where it failed', async () => {
-    const { rec, report } = await inspect(
-      scenario({ scenes: [{ id: 'lab', page: 'shop', open: '/inspect-lab', steps: [{ click: 'Save draft' }, { click: 'Publish everything', timeout: 1 }] }] }),
-    );
+    const { rec, report } = await inspect(scenario({ scenes: [{ id: 'lab', page: 'shop', open: '/inspect-lab', steps: [{ click: 'Save draft' }, { click: 'Publish everything', timeout: 1 }] }] }));
     expect(rec.status).toBe('failed');
     const r = report!;
     expect(r.at).toBe('failed_step');
@@ -465,10 +471,13 @@ describe('a page that leaves for another origin while it is inspected', () => {
     const server = createServer((req, res) => {
       const u = new URL(req.url ?? '/', 'http://x');
       if (u.pathname === '/hop') {
-        setTimeout(() => {
-          res.writeHead(302, { location: `${away.url}/landed?token=abc`, 'cache-control': 'no-store' });
-          res.end();
-        }, Number(u.searchParams.get('hop') ?? 0));
+        setTimeout(
+          () => {
+            res.writeHead(302, { location: `${away.url}/landed?token=abc`, 'cache-control': 'no-store' });
+            res.end();
+          },
+          Number(u.searchParams.get('hop') ?? 0),
+        );
         return;
       }
       if (u.pathname === '/same') {
@@ -522,7 +531,8 @@ describe('a page that leaves for another origin while it is inspected', () => {
     const abort = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const t0 = Date.now();
-    const run = runScenario({ policy: PERSON_POLICY,
+    const run = runScenario({
+      policy: PERSON_POLICY,
       project: late,
       scenario: scenario({ scenes: [{ id: 'late', page: 'app', open: `/late?${query}#frag`, steps: [{ wait: 0 }] }] }),
       mode: 'dry',
@@ -567,7 +577,10 @@ describe('a page that leaves for another origin while it is inspected', () => {
       expect(r.untrusted.url, query).toBe(`${app.url}/late`);
       expect(r.screenshot, query).not.toBeNull();
       expect(r.elements.length, query).toBeGreaterThan(10);
-      expect(r.targets_checked.map((t) => t.count), query).toEqual([1, 0]);
+      expect(
+        r.targets_checked.map((t) => t.count),
+        query,
+      ).toEqual([1, 0]);
     } else {
       expect(r.status, query).toBe('landed_elsewhere');
       expect(r.untrusted.landed_host, query).toBe(new URL(away.url).host);
@@ -580,7 +593,8 @@ describe('a page that leaves for another origin while it is inspected', () => {
 
   it('labels and names leave out what a field holds; ARIA text fields are listed without a tabindex', async () => {
     let report: InspectReport | null = null;
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: late,
       scenario: scenario({ scenes: [{ id: 'fields', page: 'app', open: '/fields', steps: [{ wait: 0 }] }] }),
       mode: 'dry',
@@ -613,7 +627,8 @@ describe('a page that leaves for another origin while it is inspected', () => {
 
   async function inspectSame(n: number, budgetMs?: number): Promise<InspectReport> {
     let report: InspectReport | null = null;
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project: late,
       scenario: scenario({ scenes: [{ id: 'same', page: 'app', open: `/same?n=${n}`, steps: [{ wait: 0 }] }] }),
       mode: 'dry',

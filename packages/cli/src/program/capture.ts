@@ -24,10 +24,19 @@ export function registerCaptureCommands({ program, action }: ProgramContext): vo
     .option('--headed', 'show the browser window (needs a display)')
     .option('--allow-writes', 'let a run on a production environment write (only where project.yaml sets access: read-write; without it such a run is read-only)')
     .option('--yes', 'run the shell and sql hooks of a scenario an agent wrote last without asking (they are listed; otherwise a terminal asks, and without one the run is refused)')
-    .option('--sandbox', 'reset the sandbox to its seed before the take: up if needed, health, reset (environment: --env, the scenario env or default_env when a sandbox, else the first sandbox); it stays up after')
+    .option(
+      '--sandbox',
+      'reset the sandbox to its seed before the take: up if needed, health, reset (environment: --env, the scenario env or default_env when a sandbox, else the first sandbox); it stays up after',
+    )
     .option('--json', 'stream progress events as JSON lines on stdout')
     .option('--raw', 'then export the raw package for editors (as retake export-capture: clips per scene, cursor data, markers)')
-    .addOption(new Option('--cursor <mode>', 'with --raw: baked (as captured), none (captured without the cursor; data only) or layer (captured without it + a transparent cursor layer per clip)').choices(['baked', 'none', 'layer']))
+    .addOption(
+      new Option('--cursor <mode>', 'with --raw: baked (as captured), none (captured without the cursor; data only) or layer (captured without it + a transparent cursor layer per clip)').choices([
+        'baked',
+        'none',
+        'layer',
+      ]),
+    )
     .addOption(new Option('--format <format>', 'with --raw: mp4 (H.264 high, CRF 14) or prores (ProRes 422 HQ)').choices(['mp4', 'prores']))
     .addOption(new Option('--fps <n>', 'with --raw: 30 or 60 fps').choices(['30', '60']))
     .addOption(new Option('--layer <format>', 'with --raw --cursor layer: prores (ProRes 4444) or webm (VP9 alpha)').choices(['prores', 'webm']))
@@ -44,9 +53,9 @@ export function registerCaptureCommands({ program, action }: ProgramContext): vo
     .argument('[name]', 'scenario name (default recorded-YYYYMMDD-HHMM); an existing one is never overwritten')
     .option('--env <name>', 'environment (default: default_env, else the first one)')
     .option('--persona <name>', 'the persona the window is signed in as, or none (default: the persona whose pages list the page)')
-    .option('--page <key>', 'environment page the window opens (default: the persona\'s first page, else the first page)')
+    .option('--page <key>', "environment page the window opens (default: the persona's first page, else the first page)")
     .option('--path <path>', 'path under the page (default /)')
-    .option('--url <url>', 'instead of --page / --path: a URL on one of the environment\'s origins')
+    .option('--url <url>', "instead of --page / --path: a URL on one of the environment's origins")
     .option('--allow-writes', 'let the window write on a production environment (only where project.yaml sets access: read-write), as retake run')
     .option('--no-check', 'skip the check replay of the draft')
     .option('--json', 'print the outcome as JSON on stdout')
@@ -54,7 +63,9 @@ export function registerCaptureCommands({ program, action }: ProgramContext): vo
 
   program
     .command('inspect')
-    .description('replay a page or a scenario (dry, hooks skipped) and list the visible interactive elements with a target the runner resolves to each, plus a marked screenshot (what page_inspect gives Claude)')
+    .description(
+      'replay a page or a scenario (dry, hooks skipped) and list the visible interactive elements with a target the runner resolves to each, plus a marked screenshot (what page_inspect gives Claude)',
+    )
     .argument('<project>', 'project slug or directory')
     .argument('<page>', 'an environment page key, a URL of one of its pages, or a scenario name (with --until)')
     .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
@@ -77,7 +88,13 @@ export function registerCaptureCommands({ program, action }: ProgramContext): vo
     .option('--scenario <name>', 'with "latest": the latest run of this scenario')
     .addOption(new Option('--format <format>', 'mp4 (H.264 high profile, CRF 14, yuv420p) or prores (ProRes 422 HQ .mov); default mp4 or project raw.format').choices(['mp4', 'prores']))
     .addOption(new Option('--fps <n>', '30 or 60 (real frame timing, never interpolated); default 30').choices(['30', '60']))
-    .addOption(new Option('--cursor <mode>', 'baked (as captured), none (run captured with run --raw --cursor none) or layer (a transparent cursor video per clip); default: as captured').choices(['baked', 'none', 'layer']))
+    .addOption(
+      new Option('--cursor <mode>', 'baked (as captured), none (run captured with run --raw --cursor none) or layer (a transparent cursor video per clip); default: as captured').choices([
+        'baked',
+        'none',
+        'layer',
+      ]),
+    )
     .addOption(new Option('--layer <format>', 'cursor layer codec: prores (ProRes 4444) or webm (VP9 alpha); default prores').choices(['prores', 'webm']))
     .option('--selects', 'also one continuous selects file of the clips')
     .option('--no-cuts', 'keep the loading inside scenes (page loads before a scene are never in a clip)')

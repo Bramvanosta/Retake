@@ -135,7 +135,16 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
       join(project, 'project.yaml'),
-      ['name: W', 'environments:', '  local:', `    console: ${fixture.urls.console}`, `    shop: ${fixture.urls.shop}`, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n'),
+      [
+        'name: W',
+        'environments:',
+        '  local:',
+        `    console: ${fixture.urls.console}`,
+        `    shop: ${fixture.urls.shop}`,
+        'capture: {width: 1280, height: 720, scale: 1, fps: 30}',
+        'template: default',
+        '',
+      ].join('\n'),
     );
     await writeFile(join(project, 'scenarios', 'steps.yaml'), STEPS);
     await writeFile(join(project, 'scenarios', 'torn.yaml'), TORN);
@@ -144,7 +153,11 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
   });
 
   afterAll(async () => {
-    for (const [k, v] of [['RETAKE_HOME', saved.home], ['TMPDIR', saved.tmp], ['RETAKE_PAUSE_MAX_MIN', saved.max]] as const) {
+    for (const [k, v] of [
+      ['RETAKE_HOME', saved.home],
+      ['TMPDIR', saved.tmp],
+      ['RETAKE_PAUSE_MAX_MIN', saved.max],
+    ] as const) {
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
     }
@@ -220,7 +233,6 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     }
     expect(found).toEqual([]);
   });
-
 });
 
 /**
@@ -234,7 +246,13 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
 describe('a run job paused through the worker, on the in-memory runner', () => {
   const warm = 'setup:\n  - name: warm\n    http: {url: "{{console}}/health"}\n';
   const work = () =>
-    runWorker({ root: ws, idleExitMs: 300, pollMs: 50, log: () => undefined, ports: { capture: new MemoryCaptureRunner(), hooks: new MemoryHookRunner({ onExecute: async (e) => void (e.phase === 'setup' && (await new Promise((r) => setTimeout(r, 1000)))) }) } });
+    runWorker({
+      root: ws,
+      idleExitMs: 300,
+      pollMs: 50,
+      log: () => undefined,
+      ports: { capture: new MemoryCaptureRunner(), hooks: new MemoryHookRunner({ onExecute: async (e) => void (e.phase === 'setup' && (await new Promise((r) => setTimeout(r, 1000)))) }) },
+    });
 
   beforeAll(async () => {
     ws = await mkdtemp(join(tmpdir(), 'ds-live-pause-memory-'));
@@ -242,7 +260,19 @@ describe('a run job paused through the worker, on the in-memory runner', () => {
     await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
-    await writeFile(join(project, 'project.yaml'), ['name: W', 'environments:', '  local:', '    console: http://console.test', '    shop: http://shop.test', 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n'));
+    await writeFile(
+      join(project, 'project.yaml'),
+      [
+        'name: W',
+        'environments:',
+        '  local:',
+        '    console: http://console.test',
+        '    shop: http://shop.test',
+        'capture: {width: 1280, height: 720, scale: 1, fps: 30}',
+        'template: default',
+        '',
+      ].join('\n'),
+    );
     await writeFile(join(project, 'scenarios', 'steps.yaml'), warm + STEPS);
     await writeFile(join(project, 'scenarios', 'torn.yaml'), warm + TORN);
     engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
@@ -296,7 +326,22 @@ describe('a run job paused through the worker, on the in-memory runner', () => {
     await mkdir(cli, { recursive: true });
     await writeFile(
       join(cli, 'run.json'),
-      JSON.stringify({ id: '20261026-100000-steps', project: 'w', scenario: 'steps', mode: 'dry', status: 'running', started_at: new Date().toISOString(), dir: cli, env: 'local', options: { hooks: 'skip', headed: false }, steps_total: 4, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }),
+      JSON.stringify({
+        id: '20261026-100000-steps',
+        project: 'w',
+        scenario: 'steps',
+        mode: 'dry',
+        status: 'running',
+        started_at: new Date().toISOString(),
+        dir: cli,
+        env: 'local',
+        options: { hooks: 'skip', headed: false },
+        steps_total: 4,
+        steps_done: 1,
+        screenshots: [],
+        hooks: { setup: 'none', teardown: 'none' },
+        warnings: [],
+      }),
     );
     const e1 = await refusal(engine.runs.pause('w', '20261026-100000-steps', true));
     expect(e1.code).toBe('refused');

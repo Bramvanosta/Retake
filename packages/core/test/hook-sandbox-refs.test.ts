@@ -22,8 +22,7 @@ const project = () =>
     auth: { login_url: '/sign-in', personas: { buyer: { pages: ['console'] }, admin: { pages: ['console'] } } },
   });
 
-const scenario = (extra: Record<string, unknown>): Scenario =>
-  ({ video: 'x', scenes: [{ id: 'a', page: 'console', steps: [{ click: { text: 'Go' } }] }], ...extra }) as unknown as Scenario;
+const scenario = (extra: Record<string, unknown>): Scenario => ({ video: 'x', scenes: [{ id: 'a', page: 'console', steps: [{ click: { text: 'Go' } }] }], ...extra }) as unknown as Scenario;
 
 describe('sandbox references and auth in hooks (hotfix v0.2.3)', () => {
   it('a scenario hook may read {{compose_env:…}} and {{accounts.<persona>.…}} and act as a persona', () => {
@@ -80,10 +79,18 @@ seed:
   });
 
   it('through MCP a scenario never names a sandbox secret (it acts as a persona with auth instead)', () => {
-    const refused = agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', json: { p: '{{accounts.admin.password}}', k: '{{compose_env:API_KEY}}' } } }] }), { files: nodeFileFacts });
+    const refused = agentTrustProblems(
+      { dir: '/nonexistent/northfield' },
+      scenario({ setup: [{ http: { url: '{{console}}/x', json: { p: '{{accounts.admin.password}}', k: '{{compose_env:API_KEY}}' } } }] }),
+      { files: nodeFileFacts },
+    );
     expect(refused).toEqual([expect.stringContaining('the scenario uses {{accounts.admin.password}}, {{compose_env:API_KEY}}: through MCP a scenario never resolves a secret')]);
     // A username is not a secret.
-    expect(agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', auth: { persona: 'admin' }, json: { e: '{{accounts.admin.username}}' } } }] }), { files: nodeFileFacts })).toEqual([]);
+    expect(
+      agentTrustProblems({ dir: '/nonexistent/northfield' }, scenario({ setup: [{ http: { url: '{{console}}/x', auth: { persona: 'admin' }, json: { e: '{{accounts.admin.username}}' } } }] }), {
+        files: nodeFileFacts,
+      }),
+    ).toEqual([]);
   });
 
   it("through MCP an http hook acting as a persona targets that persona's own pages only (its URL's origin is one of theirs)", () => {
@@ -94,7 +101,8 @@ seed:
     expect(agentTrustProblems(p, hook('{{console}}/api/replies'), files)).toEqual([]);
     expect(agentTrustProblems(p, hook('https://console.staging.example.com/api/x'), files)).toEqual([]);
     // Another page of the environment, another site, a host the agent's vars choose, a rollback elsewhere: refused.
-    const rule = /^setup\[0\]\.http(\.rollback)?\.url: through MCP an http hook acting as persona buyer \(`auth: \{persona\}`\) sends its session only to that persona's own pages \(https:\/\/console\.staging\.example\.com\)/;
+    const rule =
+      /^setup\[0\]\.http(\.rollback)?\.url: through MCP an http hook acting as persona buyer \(`auth: \{persona\}`\) sends its session only to that persona's own pages \(https:\/\/console\.staging\.example\.com\)/;
     for (const url of ['{{shop}}/api/x', 'https://elsewhere.example/collect', '{{vars.host}}/x', 'https://{{vars.sub}}.example.com/x', '{{console}}@elsewhere.example/x']) {
       const got = agentTrustProblems(p, hook(url), files);
       expect(got, url).toEqual([expect.stringMatching(rule)]);

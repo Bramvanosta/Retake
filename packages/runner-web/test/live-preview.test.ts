@@ -82,7 +82,15 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}) {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...scenario }), mode: 'dry', runId: `${name}-${Date.now()}`, hookRunner: testHookRunner(), ...opts });
+  return runScenario({
+    policy: PERSON_POLICY,
+    project,
+    scenario: makeScenario(name, { pacing: FAST, ...scenario }),
+    mode: 'dry',
+    runId: `${name}-${Date.now()}`,
+    hookRunner: testHookRunner(),
+    ...opts,
+  });
 }
 
 describe('the live picture of a run', () => {
@@ -161,8 +169,7 @@ describe('the live picture of a run', () => {
   });
 
   it('a capture watched says so: perf.live_preview (seconds, frames) and a warning; unwatched, neither', async () => {
-    const take = (name: string, sink: LiveSink) =>
-      run(name, { scenes: [{ id: 'anim', open: '/anim.html', steps: [{ hold: 1.2 }] }] }, { live: sink, mode: 'capture' });
+    const take = (name: string, sink: LiveSink) => run(name, { scenes: [{ id: 'anim', open: '/anim.html', steps: [{ hold: 1.2 }] }] }, { live: sink, mode: 'capture' });
     const watched = testSink();
     const a = await take('live-perf-watched', watched);
     expect(a.status, a.error?.message).toBe('succeeded');
@@ -202,7 +209,15 @@ describe('the live picture of a run', () => {
           return centre(last.data, last.width, last.height);
         };
         await wait(500);
-        await expect.poll(async () => { const [r, g, b] = await lastColour(); return b > 200 && r + g < 80; }, { timeout: 5000, interval: 100 }).toBe(true);
+        await expect
+          .poll(
+            async () => {
+              const [r, g, b] = await lastColour();
+              return b > 200 && r + g < 80;
+            },
+            { timeout: 5000, interval: 100 },
+          )
+          .toBe(true);
         await page.evaluate(() => (document.body.style.background = '#ff0000'));
         await wait(400);
       }

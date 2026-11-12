@@ -43,7 +43,8 @@ export interface TokenRules {
 function checkToken(expr: string, path: IssuePath, scope: TokenScope, inRollback: boolean, ctx: CheckContext): void {
   if (SECRET.test(expr)) return;
   if (expr.startsWith('compose_env:')) {
-    if (!scope.hookRefs) ctx.error(path, `{{${expr}}} reads a sandbox's compose env file: it is available in hooks (run on a sandbox environment) and as an account's username or password in sandbox.yaml`);
+    if (!scope.hookRefs)
+      ctx.error(path, `{{${expr}}} reads a sandbox's compose env file: it is available in hooks (run on a sandbox environment) and as an account's username or password in sandbox.yaml`);
     else if (!/^compose_env:[A-Za-z_][A-Za-z0-9_.-]*$/.test(expr)) ctx.error(path, `{{${expr}}}: write {{compose_env:NAME}}, NAME as the compose env file sets it`);
     return;
   }
@@ -72,10 +73,7 @@ function checkToken(expr: string, path: IssuePath, scope: TokenScope, inRollback
     case 'vars':
       if (scope.varsComplete && (second === undefined || !scope.vars.has(second))) {
         const declared = [...scope.vars];
-        ctx.error(
-          path,
-          `unknown variable {{${expr}}}${second ? suggestion(second, declared) : ''}; declared: ${declared.join(', ') || 'none'}`,
-        );
+        ctx.error(path, `unknown variable {{${expr}}}${second ? suggestion(second, declared) : ''}; declared: ${declared.join(', ') || 'none'}`);
       }
       return;
     case 'hooks':

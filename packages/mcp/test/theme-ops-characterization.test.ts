@@ -64,7 +64,16 @@ const MCP_CALLS: Call[] = [
   { op: 'template_list', args: { template: 'no-such' } },
   { op: 'template_list', args: { template: '../x' } },
   { op: 'template_list', args: { project: 'no-such-project' } },
-  { op: 'template_create_from_brand', args: { name: 'brand-one', colors: ACCENT, logo: 'brand/mark.svg', fonts: { display: 'brand/Headline.ttf', body: ['brand/Text-Regular.ttf', 'brand/Text-Bold.ttf'] }, brand: { name: 'Northfield', url: 'northfield.example' } } },
+  {
+    op: 'template_create_from_brand',
+    args: {
+      name: 'brand-one',
+      colors: ACCENT,
+      logo: 'brand/mark.svg',
+      fonts: { display: 'brand/Headline.ttf', body: ['brand/Text-Regular.ttf', 'brand/Text-Bold.ttf'] },
+      brand: { name: 'Northfield', url: 'northfield.example' },
+    },
+  },
   { op: 'template_list', args: { template: 'brand-one' } },
   { op: 'template_create_from_brand', args: { name: 'brand-one', colors: { accent: '#aa3311' }, logo: 'brand/logo.png', replace: true } },
   { op: 'template_create_from_brand', args: { name: 'brand-one', colors: ACCENT, logo: 'brand/logo.png' } },
@@ -164,7 +173,16 @@ const STUDIO_CALLS: Call[] = [
   { op: 'library_images', args: { project: P, keys: ['nope'] } },
   { op: 'library_render', args: (s) => ({ project: P, items: [{ component: 'studio/card-title', poster: s.key, loop: s.loop }] }) },
   { op: 'library_render', args: (s) => ({ project: P, items: [{ component: 'studio/card-title', poster: s.key }] }) },
-  { op: 'library_render', args: (s) => ({ project: P, items: [{ component: 'studio/card-title', poster: s.key }, { component: 'studio/card-title', loop: s.loop }] }) },
+  {
+    op: 'library_render',
+    args: (s) => ({
+      project: P,
+      items: [
+        { component: 'studio/card-title', poster: s.key },
+        { component: 'studio/card-title', loop: s.loop },
+      ],
+    }),
+  },
   { op: 'library_render', args: { project: P, items: [{ component: 'acme/held' }] } },
   { op: 'library_render', args: { project: P, items: [] } },
   { op: 'library_view', args: { project: P } },
@@ -196,7 +214,10 @@ async function workspace(name: string): Promise<{ ws: string; home: string }> {
   await mkdir(join(ws, 'components'), { recursive: true });
   await cp(join(brand, 'logo.png'), join(ws, 'components', 'logo.png'));
   // A workspace card (held, valid) and a card that does not compile.
-  for (const [id, broken] of [['held', false], ['broken', true]] as const) {
+  for (const [id, broken] of [
+    ['held', false],
+    ['broken', true],
+  ] as const) {
     const comp = join(ws, 'components', 'acme', id);
     await mkdir(comp, { recursive: true });
     await cp(scaffoldDir('card'), comp, { recursive: true });
@@ -279,7 +300,11 @@ async function viaMcp(): Promise<Answers> {
   const n = { paths: await pathsOf(ws, home), ids: new Map<string, string>() };
   for (const c of MCP_CALLS) {
     const args = typeof c.args === 'function' ? c.args({}) : c.args;
-    const r = (await client.callTool({ name: c.op, arguments: args }, undefined, { timeout: 120_000 })) as { content: Array<{ type: string; text?: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
+    const r = (await client.callTool({ name: c.op, arguments: args }, undefined, { timeout: 120_000 })) as {
+      content: Array<{ type: string; text?: string }>;
+      structuredContent?: Record<string, unknown>;
+      isError?: boolean;
+    };
     out.push({ op: c.op, args: normalise(args, n), answer: normalise({ isError: r.isError ?? false, text: r.content[0]?.text, blocks: r.content.map((b) => b.type), data: r.structuredContent }, n) });
   }
   return out;
@@ -352,7 +377,17 @@ describe('the theme, component and library operations through their shells (char
     const text = `${JSON.stringify({ mcp: mcpAnswers, studio: studioAnswers, callers: callerAnswers }, null, 1)}\n`;
     if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
-    const mcp = ['template_list', 'template_create_from_brand', 'template_preview', 'template_from_site', 'component_list', 'component_get', 'component_validate', 'component_preview', 'component_create'];
+    const mcp = [
+      'template_list',
+      'template_create_from_brand',
+      'template_preview',
+      'template_from_site',
+      'component_list',
+      'component_get',
+      'component_validate',
+      'component_preview',
+      'component_create',
+    ];
     const studio = ['theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list', 'library_view', 'library_images', 'library_render', 'library_component'];
     expect([...new Set(mcpAnswers.map((a) => a.op))].sort()).toEqual([...mcp].sort());
     expect([...new Set(studioAnswers.map((a) => a.op))].sort()).toEqual([...studio].sort());

@@ -154,7 +154,9 @@ describe.skipIf(!canRender)('retake mcp: renders as jobs', () => {
     expect(r.content[0].text).not.toContain('run_id');
     expect(r.content[0].text.split('\n').at(-1)).toBe('capture first: run_capture {project: "demo", scenario: "synthetic"}; then render {project: "demo", scenario: "synthetic"}');
     const pinned = await call('plan_preview', { project: 'demo', scenario: 'synthetic', run_id: '20260101-120000-synthetic', template: 'motion' });
-    expect(pinned.content[0].text.split('\n').at(-1)).toBe('capture first: run_capture {project: "demo", scenario: "synthetic"}; then render {project: "demo", scenario: "synthetic", template: "motion"}');
+    expect(pinned.content[0].text.split('\n').at(-1)).toBe(
+      'capture first: run_capture {project: "demo", scenario: "synthetic"}; then render {project: "demo", scenario: "synthetic", template: "motion"}',
+    );
     expect(same.content[0].text.split('\n').at(-1)).toMatch(/^render it: render \{project: "demo", scenario: "synthetic"\} → synthetic-v1/);
     expect(JSON.stringify((r.structuredContent as { untrusted: unknown }).untrusted)).not.toContain('changed since');
   });

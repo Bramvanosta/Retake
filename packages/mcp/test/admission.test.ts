@@ -67,7 +67,12 @@ afterAll(async () => {
 
 describe('the admission rules through MCP', () => {
   it('the catalogue names them on the tools that meet them', () => {
-    expect(['run_dry', 'run_capture', 'render', 'export'].map((n) => catalogueOperation(n)?.admission)).toEqual([['one_run_per_scenario'], ['one_run_per_scenario', 'sessions_ack'], ['one_render_per_scenario'], ['export_cap']]);
+    expect(['run_dry', 'run_capture', 'render', 'export'].map((n) => catalogueOperation(n)?.admission)).toEqual([
+      ['one_run_per_scenario'],
+      ['one_run_per_scenario', 'sessions_ack'],
+      ['one_render_per_scenario'],
+      ['export_cap'],
+    ]);
   });
 
   it('run_dry / run_capture: one run of a scenario at a time — a second call is a conflict naming the run, nothing queued', async () => {
@@ -111,17 +116,36 @@ describe('the admission rules through MCP', () => {
 
   it('render: one render of a scenario at a time — a conflict naming the render queued', async () => {
     const busy = await queue.enqueue({
-      version: JOB_INPUT_VERSION, kind: 'render', project: P, scenario: 'quote', run_id: '20261017-130000-quote', timeline_sha256: 'a'.repeat(64), render_id: 'quote-v3', overrides: {}, submitted_by: 'test',
+      version: JOB_INPUT_VERSION,
+      kind: 'render',
+      project: P,
+      scenario: 'quote',
+      run_id: '20261017-130000-quote',
+      timeline_sha256: 'a'.repeat(64),
+      render_id: 'quote-v3',
+      overrides: {},
+      submitted_by: 'test',
     });
     const e = await refusal('render', { project: P, scenario: 'quote' });
-    expect(e).toMatchObject({ code: 'conflict', message: 'render quote-v3 of quote is queued: wait for it to end (render_status), or cancel it (job_cancel)', details: { render_id: 'quote-v3', job: busy.id } });
+    expect(e).toMatchObject({
+      code: 'conflict',
+      message: 'render quote-v3 of quote is queued: wait for it to end (render_status), or cancel it (job_cancel)',
+      details: { render_id: 'quote-v3', job: busy.id },
+    });
   });
 
   it('export: one export of a render at a time, at most two of the workspace', async () => {
     const plant = (render_id: string) => queue.enqueue({ version: JOB_INPUT_VERSION, kind: 'export', project: P, render_id, formats: ['mp4_1080p'], submitted_by: 'test' });
     const busy = await plant('quote-v1');
-    expect(await refusal('export', { project: P, render_id: 'quote-v1' })).toMatchObject({ code: 'conflict', message: `an export of quote-v1 is queued (job ${busy.id}): wait for it to end (job_status)` });
+    expect(await refusal('export', { project: P, render_id: 'quote-v1' })).toMatchObject({
+      code: 'conflict',
+      message: `an export of quote-v1 is queued (job ${busy.id}): wait for it to end (job_status)`,
+    });
     await plant('quote-v2');
-    expect(await refusal('export', { project: P, render_id: 'quote-v7' })).toMatchObject({ code: 'conflict', message: '2 exports are already queued or running: wait for one to end', details: { open: 2 } });
+    expect(await refusal('export', { project: P, render_id: 'quote-v7' })).toMatchObject({
+      code: 'conflict',
+      message: '2 exports are already queued or running: wait for one to end',
+      details: { open: 2 },
+    });
   });
 });

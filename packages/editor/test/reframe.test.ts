@@ -47,9 +47,21 @@ describe('smoothing', () => {
 
   it('corridorSmooth: returns a path already inside as is; bends a violating one smoothly into the corridor', () => {
     const free = Array.from({ length: 100 }, (_, k) => 500 + k);
-    expect(corridorSmooth(free, free.map(() => 0), free.map(() => 2000), 9)).toEqual(free);
+    expect(
+      corridorSmooth(
+        free,
+        free.map(() => 0),
+        free.map(() => 2000),
+        9,
+      ),
+    ).toEqual(free);
     const lo = free.map((_, k) => (k >= 40 && k < 50 ? 700 : 0));
-    const x = corridorSmooth(free, lo, free.map(() => 2000), 9);
+    const x = corridorSmooth(
+      free,
+      lo,
+      free.map(() => 2000),
+      9,
+    );
     for (let k = 0; k < 100; k++) expect(x[k]).toBeGreaterThanOrEqual(lo[k] - 1e-6);
     expect(maxAbs(steps(steps(x)))).toBeLessThan(3);
     // Critically damped: the repair is one bump, never the wrong way (no ringing), fading far from the constraint.
@@ -69,7 +81,12 @@ describe('reframeTrack (synthetic)', () => {
   });
 
   it('looks ahead: the view starts moving towards the next step target before the step starts', () => {
-    const cursor: Array<[number, number, number]> = [[0, 400, 500], [3, 400, 500], [3.6, 1500, 500], [6, 1500, 500]];
+    const cursor: Array<[number, number, number]> = [
+      [0, 400, 500],
+      [3, 400, 500],
+      [3.6, 1500, 500],
+      [6, 1500, 500],
+    ];
     const target: ReframeTarget = { t0: 3, t1: 5, box: { x: 1450, y: 480, w: 120, h: 40 } };
     const rf = track(cursor, 6, [target]);
     const at = (t: number) => rf[Math.round(t * FPS)][0];
@@ -80,7 +97,10 @@ describe('reframeTrack (synthetic)', () => {
   });
 
   it('never cuts the cursor nor a hard (clicked) target, even on a fast glide across the page', () => {
-    const cursor: Array<[number, number, number]> = [[0, 200, 300], [1, 200, 300]];
+    const cursor: Array<[number, number, number]> = [
+      [0, 200, 300],
+      [1, 200, 300],
+    ];
     for (let i = 1; i <= 8; i++) cursor.push([1 + i * 0.1, 200 + (1500 * i) / 8, 300 + 50 * i]); // 1500 px in 0.8 s
     cursor.push([4, 1700, 700]);
     const click: ReframeTarget = { t0: 2, t1: 2.8, box: { x: 1600, y: 680, w: 200, h: 44 }, hard: true };
@@ -102,7 +122,12 @@ describe('reframeTrack (synthetic)', () => {
   });
 
   it('stays inside the capture and eases into its edge (the cursor at the very edge)', () => {
-    const cursor: Array<[number, number, number]> = [[0, 900, 500], [2, 900, 500], [2.5, 1915, 500], [5, 1915, 500]];
+    const cursor: Array<[number, number, number]> = [
+      [0, 900, 500],
+      [2, 900, 500],
+      [2.5, 1915, 500],
+      [5, 1915, 500],
+    ];
     const rf = track(cursor, 5);
     const xs = rf.map((r) => r[0]);
     expect(Math.max(...xs)).toBeLessThanOrEqual(CSS.w - CROP.w / 2 + 1e-6);
@@ -113,7 +138,12 @@ describe('reframeTrack (synthetic)', () => {
 
   it('a square crop (both axes) keeps a target that fits in view; the zoomed view follows the camera focus', () => {
     const crop = { w: 1111, h: 833 };
-    const cursor: Array<[number, number, number]> = [[0, 300, 200], [2, 300, 200], [2.6, 1500, 900], [5, 1500, 900]];
+    const cursor: Array<[number, number, number]> = [
+      [0, 300, 200],
+      [2, 300, 200],
+      [2.6, 1500, 900],
+      [5, 1500, 900],
+    ];
     const target: ReframeTarget = { t0: 2, t1: 5, box: { x: 1400, y: 880, w: 200, h: 60 }, hard: true };
     const rf = track(cursor, 5, [target], crop);
     const end = rf[rf.length - 1];
@@ -131,7 +161,12 @@ describe('reframeTrack (synthetic)', () => {
   it('a target wider than the view counts by its leading part: a table row clicked in its middle shows its id and label', () => {
     // A 1342 px row clicked at its centre (960): the 864 px crop cannot show it whole; it shows where the row starts
     // (x 289: its id, a "New" pill, the coffee's name) along with the cursor.
-    const cursor: Array<[number, number, number]> = [[0, 960, 600], [1, 960, 600], [1.6, 960, 243], [5, 960, 243]];
+    const cursor: Array<[number, number, number]> = [
+      [0, 960, 600],
+      [1, 960, 600],
+      [1.6, 960, 243],
+      [5, 960, 243],
+    ];
     const row = { x: 289, y: 194, w: 1342, h: 97 };
     const rf = track(cursor, 5, [
       { t0: 1, t1: 4, box: row },
@@ -153,7 +188,10 @@ describe('reframeTrack (synthetic)', () => {
   it('starts framed toward the page’s leading edge (its heading in view)', () => {
     // The first step's region (a button with the resting cursor) fits the view anywhere between the page's left edge
     // and its own left: the view starts as far left (and up) as it allows — the page's heading in view.
-    const cursor: Array<[number, number, number]> = [[0, 700, 300], [6, 700, 300]];
+    const cursor: Array<[number, number, number]> = [
+      [0, 700, 300],
+      [6, 700, 300],
+    ];
     const square = { w: 1111, h: 833 };
     const rf = track(cursor, 3, [{ t0: 0.5, t1: 2, box: { x: 600, y: 260, w: 140, h: 44 } }], square);
     expect(rf[0][0]).toBeCloseTo(square.w / 2, 0);
@@ -163,11 +201,23 @@ describe('reframeTrack (synthetic)', () => {
   it('settles toward the leading edge where the page only rests (an idle pane of a multi-page scene)', () => {
     // The page clicks a button at the right, then rests (the other page acts from 3 s): its view leaves the button
     // and settles on the page's content around the resting cursor.
-    const cursor: Array<[number, number, number]> = [[0, 1500, 500], [6, 1500, 500]];
+    const cursor: Array<[number, number, number]> = [
+      [0, 1500, 500],
+      [6, 1500, 500],
+    ];
     const click: ReframeTarget = { t0: 0.5, t1: 2, box: { x: 1450, y: 480, w: 140, h: 40 }, hard: true };
     const times = Array.from({ length: 6 * FPS }, (_, k) => k / FPS);
     const run = (settle?: number[]) =>
-      reframeTrack({ times, camera: times.map(() => still), cursor: cursor.map(([t, x, y]) => ({ t, x, y, visible: true })), crop: CROP, css: CSS, outFps: FPS, targets: [click], ...(settle ? { settle } : {}) });
+      reframeTrack({
+        times,
+        camera: times.map(() => still),
+        cursor: cursor.map(([t, x, y]) => ({ t, x, y, visible: true })),
+        crop: CROP,
+        css: CSS,
+        outFps: FPS,
+        targets: [click],
+        ...(settle ? { settle } : {}),
+      });
     const held = run();
     const settled = run([3]);
     expect(held[5 * FPS][0]).toBeCloseTo(held[2 * FPS][0], 0);
@@ -191,11 +241,32 @@ describe('reframeTargets', () => {
       { scene: 's', scene_index: 0, step: -1, action: 'scene_still', t_start: 0, t_end: 1, status: 'ok' },
       { scene: 's', scene_index: 0, step: 0, action: 'click', t_start: 1, t_end: 2, t_click: 1.5, status: 'ok', target: { desc: 'b', bbox: { x: 10, y: 10, w: 50, h: 20 } } },
       {
-        scene: 's', scene_index: 0, step: 1, action: 'select', t_start: 2, t_end: 4, t_click: 2.5, status: 'ok',
+        scene: 's',
+        scene_index: 0,
+        step: 1,
+        action: 'select',
+        t_start: 2,
+        t_end: 4,
+        t_click: 2.5,
+        status: 'ok',
         target: { desc: 'combo', bbox: { x: 100, y: 100, w: 200, h: 40 } },
-        data: { clicks: [{ t_click: 2.5, bbox: { x: 100, y: 100, w: 200, h: 40 } }, { t_click: 3.5, bbox: { x: 100, y: 180, w: 200, h: 30 } }] },
+        data: {
+          clicks: [
+            { t_click: 2.5, bbox: { x: 100, y: 100, w: 200, h: 40 } },
+            { t_click: 3.5, bbox: { x: 100, y: 180, w: 200, h: 30 } },
+          ],
+        },
       },
-      { scene: 's', scene_index: 0, step: 2, action: 'wait_for', t_start: 4, t_end: 4.1, status: 'ok', overlay: { component: 'studio/overlay-callout', slots: {}, params: {}, duration: 2, bbox: { x: 500, y: 500, w: 80, h: 30 } } },
+      {
+        scene: 's',
+        scene_index: 0,
+        step: 2,
+        action: 'wait_for',
+        t_start: 4,
+        t_end: 4.1,
+        status: 'ok',
+        overlay: { component: 'studio/overlay-callout', slots: {}, params: {}, duration: 2, bbox: { x: 500, y: 500, w: 80, h: 30 } },
+      },
     ] as Timeline['events'];
     const t = reframeTargets(events);
     expect(t.filter((x) => x.hard).map((x) => [x.t0, x.t1, x.box.y])).toEqual([
@@ -255,7 +326,9 @@ describe('real fixture timelines, vertical and square', () => {
           expect(Math.abs(c.x - v.cx) <= v.w / 2 && Math.abs(c.y - v.cy) <= v.h / 2, `${name} ${clip.scene} frame ${k}`).toBe(true);
         }
         for (const ev of timeline.events.filter((e) => e.scene === clip.scene && e.t_click !== undefined)) {
-          const list = (ev.data as { clicks?: Array<{ t_click: number; bbox?: { x: number; y: number; w: number; h: number } }> } | undefined)?.clicks ?? [{ t_click: ev.t_click!, bbox: ev.target?.bbox }];
+          const list = (ev.data as { clicks?: Array<{ t_click: number; bbox?: { x: number; y: number; w: number; h: number } }> } | undefined)?.clicks ?? [
+            { t_click: ev.t_click!, bbox: ev.target?.bbox },
+          ];
           for (const c of list) {
             const k = clip.srcFrames.findIndex((f) => f >= Math.round(c.t_click * plan.source.fps));
             if (k < 0 || k >= n || !c.bbox) continue;

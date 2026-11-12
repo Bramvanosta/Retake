@@ -110,8 +110,7 @@ export function growRect(r: Rect, corner: InsetCorner, k: number): Rect {
   return { x: round(x, 2), y: round(y, 2), w: round(w, 2), h: round(h, 2) };
 }
 
-const overlapArea = (a: Rect, b: Rect) =>
-  Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+const overlapArea = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 
 const expand = (r: Rect, d: number): Rect => ({ x: r.x - d, y: r.y - d, w: r.w + 2 * d, h: r.h + 2 * d });
 
@@ -297,8 +296,21 @@ export function growClearOf(track: PlanInset['track'], grow: number, avoid: read
  * little before: the switch pause) the pane of its page. `previous`: the acting pane at the end of the clip this one is
  * joined to (no cut): the emphasis then eases from it to `first` from the clip's start.
  */
-export function planActing(steps: readonly TimelineEvent[], paneOf: (page: string | undefined) => number, rel: (t: number) => number, fps: number, first: number, previous?: number): Array<{ frame: number; pane: number }> {
-  const out: Array<{ frame: number; pane: number }> = previous !== undefined && previous !== first ? [{ frame: 0, pane: previous }, { frame: 1, pane: first }] : [{ frame: 0, pane: first }];
+export function planActing(
+  steps: readonly TimelineEvent[],
+  paneOf: (page: string | undefined) => number,
+  rel: (t: number) => number,
+  fps: number,
+  first: number,
+  previous?: number,
+): Array<{ frame: number; pane: number }> {
+  const out: Array<{ frame: number; pane: number }> =
+    previous !== undefined && previous !== first
+      ? [
+          { frame: 0, pane: previous },
+          { frame: 1, pane: first },
+        ]
+      : [{ frame: 0, pane: first }];
   const lead = Math.round(ACTING_LEAD_S * fps);
   for (const e of steps) {
     if (e.step < 0 || e.status === 'skipped') continue;
@@ -390,13 +402,7 @@ export function paneViewOf(plan: Pick<EditPlan, 'tracks' | 'source' | 'variant'>
 }
 
 /** A source rect of pane `i`'s page (CSS px; a point is 0×0) in output px at clip frame `f`. */
-export function mapPaneRect(
-  plan: Pick<EditPlan, 'tracks' | 'source' | 'variant' | 'fps'>,
-  clip: ClipSegment,
-  i: number,
-  frame: number,
-  rect: { x: number; y: number; w?: number; h?: number },
-): Rect {
+export function mapPaneRect(plan: Pick<EditPlan, 'tracks' | 'source' | 'variant' | 'fps'>, clip: ClipSegment, i: number, frame: number, rect: { x: number; y: number; w?: number; h?: number }): Rect {
   const view = paneViewOf(plan, clip, i, frame);
   const cap = paneCaptureAt(clip, i, frame, plan.fps);
   const sx = cap.w / view.w;

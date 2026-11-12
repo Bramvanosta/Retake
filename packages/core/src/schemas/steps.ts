@@ -49,13 +49,8 @@ export const OverlaySpecSchema: z.ZodType<OverlaySpec> = z
       .optional(),
     slots: SlotsSchema.optional(),
     params: ComponentParamsSchema.optional(),
-    duration: positiveSeconds()
-      .max(OVERLAY_MAX_SECONDS)
-      .describe(`Seconds on screen, at most ${OVERLAY_MAX_SECONDS} (default: the component's duration; a file: its own length).`)
-      .optional(),
-    target: TargetSpecSchema.describe(
-      'Element the overlay points at, measured at the end of the step after any scroll (default: the step target, else the cursor).',
-    ).optional(),
+    duration: positiveSeconds().max(OVERLAY_MAX_SECONDS).describe(`Seconds on screen, at most ${OVERLAY_MAX_SECONDS} (default: the component's duration; a file: its own length).`).optional(),
+    target: TargetSpecSchema.describe('Element the overlay points at, measured at the end of the step after any scroll (default: the step target, else the cursor).').optional(),
     ...overlayMediaShape,
     at: OverlayAtSchema.optional(),
     anchor: OverlayAnchorSchema.describe(
@@ -65,7 +60,7 @@ export const OverlaySpecSchema: z.ZodType<OverlaySpec> = z
       .strictObject({ x: z.number(), y: z.number(), w: z.number().gt(0), h: z.number().gt(0) })
       .describe('Where a file goes, as a rect of the page in CSS px (instead of anchor).')
       .optional(),
-    scale: z.number().gt(0).max(10).describe("Size of a file relative to its own size in page CSS px (default 1).").optional(),
+    scale: z.number().gt(0).max(10).describe('Size of a file relative to its own size in page CSS px (default 1).').optional(),
     loop: z.boolean().describe('Replay a video or Lottie file for the whole duration (default false: it plays once and holds its last frame).').optional(),
   })
   .meta({
@@ -82,12 +77,8 @@ export const stepCommonShape = {
   hold: seconds().describe('Seconds of stillness AFTER the step; never trimmed by the editor.').optional(),
   camera: CameraHintSchema.optional(),
   overlay: OverlaySpecSchema.optional(),
-  tutorial: TutorialSwitchSchema.describe(
-    "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
-  ).optional(),
-  on: keyString('page id')
-    .describe("Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page).")
-    .optional(),
+  tutorial: TutorialSwitchSchema.describe("Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.").optional(),
+  on: keyString('page id').describe("Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page).").optional(),
   mark: slugString('mark').describe('Named marker (editor: speed 1 around it; review: key frame).').optional(),
   timeout: positiveSeconds().describe("Seconds before the step fails (default: the scenario's or project's defaults.timeout_s, else 15).").optional(),
   optional: z.boolean().describe('A failure is logged (run.json optional_failures) but does not abort the run.').optional(),
@@ -108,15 +99,9 @@ export const stepCommonShape = {
 export const STEP_COMMON_KEYS = Object.keys(stepCommonShape);
 
 const clickOptionsShape = {
-  strategy: z
-    .enum(['auto', 'real', 'dom', 'pointer'])
-    .describe('auto = real input, then DOM click, then pointer-event sequence when an expected popup did not open.')
-    .optional(),
+  strategy: z.enum(['auto', 'real', 'dom', 'pointer']).describe('auto = real input, then DOM click, then pointer-event sequence when an expected popup did not open.').optional(),
   expect_popup: z.boolean().describe('Force popup detection on/off (default: inferred from aria attributes).').optional(),
-  outside: z
-    .union([z.boolean(), TargetSpecSchema])
-    .describe('Click somewhere neutral to close the open popover: true = auto (dialog title / blank area), or a target.')
-    .optional(),
+  outside: z.union([z.boolean(), TargetSpecSchema]).describe('Click somewhere neutral to close the open popover: true = auto (dialog title / blank area), or a target.').optional(),
   hover_ms: millis().describe('Hover pause before pressing (ms).').optional(),
   after_ms: millis().describe('Pause after the click (ms).').optional(),
   move_ms: millis().describe('Cursor travel duration (ms). Default: computed from distance.').optional(),
@@ -125,10 +110,7 @@ const clickOptionsShape = {
   offset: PointSchema.describe("Offset from the element's top-left in CSS px (default: centre).").optional(),
 };
 
-const ClickArgsSchema = z.union([
-  nonEmpty(),
-  z.strictObject({ ...targetShape, ...clickOptionsShape }).meta({ id: 'ClickArgs', description: 'Target + click options.' }),
-]);
+const ClickArgsSchema = z.union([nonEmpty(), z.strictObject({ ...targetShape, ...clickOptionsShape }).meta({ id: 'ClickArgs', description: 'Target + click options.' })]);
 
 const HoverArgsSchema = z.union([
   nonEmpty(),
@@ -191,27 +173,19 @@ const MenuArgsSchema = z.strictObject({
   row: z.union([nonEmpty(), TargetObjectSchema]).describe('Row (text it contains) whose action menu to open.').optional(),
   trigger: TargetSpecSchema.describe('Explicit menu trigger (overrides row-based discovery).').optional(),
   item: nonEmpty().describe('Menu item text.'),
-  confirm: z
-    .union([nonEmpty(), z.boolean()])
-    .describe('Confirm button text in the confirmation dialog (true = first non-cancel button).')
-    .optional(),
+  confirm: z.union([nonEmpty(), z.boolean()]).describe('Confirm button text in the confirmation dialog (true = first non-cancel button).').optional(),
 });
 
 const DateArgsSchema = z.union([
   nonEmpty(),
   z.strictObject({
-    field: z
-      .union([nonEmpty(), TargetObjectSchema])
-      .describe('The date field (its label, or a target) whose calendar opens; omit for a calendar already on screen.')
-      .optional(),
-    day: z
-      .union([nonEmpty(), z.array(nonEmpty()).min(1)])
-      .describe('Day(s) to click, matched by aria-label or date attribute: "10 January 2027", "2027-01-10", or a list (a range).'),
+    field: z.union([nonEmpty(), TargetObjectSchema]).describe('The date field (its label, or a target) whose calendar opens; omit for a calendar already on screen.').optional(),
+    day: z.union([nonEmpty(), z.array(nonEmpty()).min(1)]).describe('Day(s) to click, matched by aria-label or date attribute: "10 January 2027", "2027-01-10", or a list (a range).'),
     next: TargetSpecSchema.describe('Next-month button (default: the last visible one of the calendar).').optional(),
     previous: TargetSpecSchema.describe('Previous-month button (default: the last visible one of the calendar).').optional(),
     close: z
       .enum(['auto', 'outside', 'escape', 'none'])
-      .describe("After the last day: auto (default) waits for the calendar to close by itself, then clicks outside; or outside, escape, none.")
+      .describe('After the last day: auto (default) waits for the calendar to close by itself, then clicks outside; or outside, escape, none.')
       .optional(),
   }),
 ]);
@@ -224,10 +198,7 @@ const ScrollArgsSchema = z.union([
       .describe("Absolute scrollTop (px), a target, or 'top' / 'bottom'.")
       .optional(),
     by: z.number().describe('Relative scroll in px (alternative to `to`).').optional(),
-    offset: z
-      .number()
-      .describe('With a target: final scrollTop = targetTop + offset (-140 ⇒ target ends 140 px below the top). Default pacing.scroll_offset (-140).')
-      .optional(),
+    offset: z.number().describe('With a target: final scrollTop = targetTop + offset (-140 ⇒ target ends 140 px below the top). Default pacing.scroll_offset (-140).').optional(),
     duration: seconds().describe('Seconds (default pacing.scroll_duration).').optional(),
     in: TargetSpecSchema.describe('Scroll container (default: nearest scrollable ancestor, else the main scroller).').optional(),
   }),
@@ -314,15 +285,9 @@ const EvalArgsSchema = z.union([
   }),
 ]);
 
-const NotifyArgsSchema = z.union([
-  nonEmpty(),
-  z.strictObject({ title: z.string().optional(), message: nonEmpty() }),
-]);
+const NotifyArgsSchema = z.union([nonEmpty(), z.strictObject({ title: z.string().optional(), message: nonEmpty() })]);
 
-const EmitArgsSchema = z.union([
-  nonEmpty(),
-  z.strictObject({ name: nonEmpty(), data: z.unknown().optional() }),
-]);
+const EmitArgsSchema = z.union([nonEmpty(), z.strictObject({ name: nonEmpty(), data: z.unknown().optional() })]);
 
 const CursorArgsSchema = z.union([
   z.enum(['show', 'hide']),
@@ -345,9 +310,7 @@ const WaitForEmailArgsSchema = z.strictObject({
 const CaptureTextArgsSchema = z.strictObject({
   target: TargetSpecSchema.describe('Element whose visible text is read.'),
   as: slugString('artefact name').describe('Artefact name, referenced by components as `capture: <as>`.'),
-  pattern: nonEmpty()
-    .describe('Keep a part of the text: a regular expression (/…/flags or plain source); its first group, else the whole match.')
-    .optional(),
+  pattern: nonEmpty().describe('Keep a part of the text: a regular expression (/…/flags or plain source); its first group, else the whole match.').optional(),
 });
 
 const DownloadArgsSchema = z.strictObject({
@@ -356,10 +319,7 @@ const DownloadArgsSchema = z.strictObject({
   timeout: positiveSeconds().describe('Seconds to wait for the file after the click (default 30).').optional(),
 });
 
-const HookArgsSchema = z.union([
-  slugString('hook name'),
-  z.strictObject({ name: slugString('hook name').describe("A hook of the scenario's `hooks:`, else of project.yaml's.") }),
-]);
+const HookArgsSchema = z.union([slugString('hook name'), z.strictObject({ name: slugString('hook name').describe("A hook of the scenario's `hooks:`, else of project.yaml's.") })]);
 
 /** Argument schema of every action. */
 export const ACTION_ARG_SCHEMAS = {
@@ -403,8 +363,7 @@ export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
   select: 'Choose an option in a native select or a combobox listbox.',
   pick: 'Tick one or more options in a multi-select popover field, then close it.',
   menu: "Open a row's action menu, choose an item and optionally confirm.",
-  date:
-    'Pick a day (or a range) in a date picker: waits for a previous date popover to close, opens the field, pages months with the last visible month buttons (quick runs), clicks the days by label; fills a native date input in place.',
+  date: 'Pick a day (or a range) in a date picker: waits for a previous date popover to close, opens the field, pages months with the last visible month buttons (quick runs), clicks the days by label; fills a native date input in place.',
   scroll: 'Animated in-page scroll to a position, an element, or by an amount.',
   drag: 'Press on an element, move with an eased path and release.',
   drop_file: 'Drag a file ghost onto a drop zone and drop a real or placeholder file.',
@@ -430,9 +389,7 @@ function stepBranch<K extends ActionName>(action: K) {
   // `hold` is both an action and a modifier: in the hold branch the action (required) wins.
   const common: Record<string, z.ZodType> = { ...stepCommonShape };
   delete common[action];
-  return z
-    .strictObject({ [action]: args, ...common } as { [P in K]: (typeof ACTION_ARG_SCHEMAS)[K] } & typeof stepCommonShape)
-    .meta({ title: action, description: ACTION_DESCRIPTIONS[action] });
+  return z.strictObject({ [action]: args, ...common } as { [P in K]: (typeof ACTION_ARG_SCHEMAS)[K] } & typeof stepCommonShape).meta({ title: action, description: ACTION_DESCRIPTIONS[action] });
 }
 
 const STEP_BRANCHES = ACTION_NAMES.map((a) => stepBranch(a)) as unknown as [z.ZodObject, ...z.ZodObject[]];

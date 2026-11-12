@@ -28,7 +28,20 @@ import { hrefTo } from '../route.js';
 import { SessionEnded } from '../session.js';
 import { ShellSlot } from '../shell/slots.js';
 import { ThemeEditor } from './ThemeEditor.js';
-import { EMPTY_FORM, SOURCE_BADGE, createInput, formFromSite, freeThemeName, newThemeProblem, offersCopy, okHex, opensInEditor, pickerValue, themeEventAction, usedByWords } from '../words/theme-words.js';
+import {
+  EMPTY_FORM,
+  SOURCE_BADGE,
+  createInput,
+  formFromSite,
+  freeThemeName,
+  newThemeProblem,
+  offersCopy,
+  okHex,
+  opensInEditor,
+  pickerValue,
+  themeEventAction,
+  usedByWords,
+} from '../words/theme-words.js';
 import type { NewThemeForm } from '../words/theme-words.js';
 import { Button, Callout, ColorField, EmptyState, LinkButton, Select, Sheet, StatusMark, Tag, TextField } from '../ui-kit/index.js';
 
@@ -109,7 +122,17 @@ function ThemeList({ slug, list, reload }: { slug: string; list: Loaded<ThemeLis
             )}
             {'; a scenario can use another (Use in a scenario, in the editor).'}
           </p>
-          {form && <NewTheme key={`${form.name}|${form.logo}`} slug={slug} initial={form} taken={taken} themes={d.themes.filter((t) => t.source !== 'project').map((t) => t.name)} onClose={() => setForm(null)} onMade={reload} />}
+          {form && (
+            <NewTheme
+              key={`${form.name}|${form.logo}`}
+              slug={slug}
+              initial={form}
+              taken={taken}
+              themes={d.themes.filter((t) => t.source !== 'project').map((t) => t.name)}
+              onClose={() => setForm(null)}
+              onMade={reload}
+            />
+          )}
           <ul className="tm-list" data-testid="theme-list">
             {d.themes.map((t) => (
               <ThemeRow key={`${t.source}:${t.name}`} slug={slug} t={t} onCopy={() => setCopying(t.name)} />
@@ -209,7 +232,19 @@ export function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: s
       onAction={(id) => (id === 'copy' ? void go() : onCancel())}
       content={
         <>
-          <TextField label="Name of the copy" value={name} onChange={(v) => setName(v.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="theme-row-copy-name" error={problem ?? undefined} />
+          <TextField
+            label="Name of the copy"
+            value={name}
+            onChange={(v) => setName(v.trim())}
+            unsaved={null}
+            mono
+            maxLength={NEW_THEME_NAME_MAX}
+            hint={NEW_THEME_NAME_HINT}
+            autoComplete="off"
+            spellCheck={false}
+            testId="theme-row-copy-name"
+            error={problem ?? undefined}
+          />
           {error && (
             <p className="tm-failure" role="status">
               <Txt text={error} />
@@ -228,7 +263,22 @@ export function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: s
  * a value that is not a hex stays as typed and the form's line says why, review B-M2); nothing is written.
  */
 function FormColor({ label, value, set, optional, testId }: { label: string; value: string; set: (v: string) => void; optional?: boolean; testId: string }) {
-  return <ColorField label={label} hint={optional ? 'optional: derived when empty' : undefined} value={value} picker={pickerValue(value)} unset={!okHex(value)} removable={optional ?? false} onDraft={set} onCommit={set} onRemove={() => set('')} onText={set} testId={testId} layout="stack" />;
+  return (
+    <ColorField
+      label={label}
+      hint={optional ? 'optional: derived when empty' : undefined}
+      value={value}
+      picker={pickerValue(value)}
+      unset={!okHex(value)}
+      removable={optional ?? false}
+      onDraft={set}
+      onCommit={set}
+      onRemove={() => set('')}
+      onText={set}
+      testId={testId}
+      layout="stack"
+    />
+  );
 }
 
 /**
@@ -248,8 +298,14 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
   const set = (k: keyof NewThemeForm) => (v: string) => setF((x) => ({ ...x, [k]: v }));
   useEffect(() => {
     let live = true;
-    brandFiles({ kind: 'image' }).then((d) => live && setImages(d), () => live && setImages({ files: [], truncated: false }));
-    brandFiles({ kind: 'font' }).then((d) => live && setFontFiles(d), () => live && setFontFiles({ files: [], truncated: false }));
+    brandFiles({ kind: 'image' }).then(
+      (d) => live && setImages(d),
+      () => live && setImages({ files: [], truncated: false }),
+    );
+    brandFiles({ kind: 'font' }).then(
+      (d) => live && setFontFiles(d),
+      () => live && setFontFiles({ files: [], truncated: false }),
+    );
     return () => {
       live = false;
     };
@@ -313,14 +369,36 @@ export function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { sl
         <div className="tm-panel-body">
           <p className="tm-quiet">Made as Claude makes one (template_create_from_brand): files of this workspace, never an existing theme replaced.</p>
           <div className="tm-new-grid">
-            <TextField label="Name" value={f.name} onChange={(v) => set('name')(v.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="new-name" />
+            <TextField
+              label="Name"
+              value={f.name}
+              onChange={(v) => set('name')(v.trim())}
+              unsaved={null}
+              mono
+              maxLength={NEW_THEME_NAME_MAX}
+              hint={NEW_THEME_NAME_HINT}
+              autoComplete="off"
+              spellCheck={false}
+              testId="new-name"
+            />
             <Select label="Base (components, layout, motion)" value={f.base} onChange={set('base')} testId="new-base" options={themes.map((t) => ({ value: t, label: t }))} />
             <FormColor label="Accent" value={f.accent} set={set('accent')} testId="new-accent" />
             <FormColor label="Text" value={f.text} set={set('text')} optional testId="new-text" />
             <FormColor label="Paper" value={f.paper} set={set('paper')} optional testId="new-paper" />
             <FormColor label="Muted" value={f.muted} set={set('muted')} optional testId="new-muted" />
-            <Select label="Logo" value={f.logo} onChange={set('logo')} testId="new-logo" options={[{ value: '', label: images ? (logos.length ? 'Pick an image file' : 'No image file in the workspace') : 'Loading…' }, ...logos.map((r) => ({ value: r, label: r }))]} />
-            <Select label="Wordmark (optional)" value={f.wordmark} onChange={set('wordmark')} options={[{ value: '', label: 'None (the brand name as text)' }, ...logos.map((r) => ({ value: r, label: r }))]} />
+            <Select
+              label="Logo"
+              value={f.logo}
+              onChange={set('logo')}
+              testId="new-logo"
+              options={[{ value: '', label: images ? (logos.length ? 'Pick an image file' : 'No image file in the workspace') : 'Loading…' }, ...logos.map((r) => ({ value: r, label: r }))]}
+            />
+            <Select
+              label="Wordmark (optional)"
+              value={f.wordmark}
+              onChange={set('wordmark')}
+              options={[{ value: '', label: 'None (the brand name as text)' }, ...logos.map((r) => ({ value: r, label: r }))]}
+            />
             <Select label="Display font (optional)" value={f.display} onChange={set('display')} options={[{ value: '', label: "The base theme's" }, ...fonts]} />
             <Select label="Body font (optional)" value={f.body} onChange={set('body')} options={[{ value: '', label: "The base theme's" }, ...fonts]} />
             <TextField label="Brand name (optional)" value={f.brandName} onChange={set('brandName')} unsaved={null} maxLength={80} testId="new-brand-name" />
@@ -386,10 +464,24 @@ function SitePanel({ taken, onNewTheme }: { taken: string[]; onNewTheme: (f: New
         From a website
       </h2>
       <div className="tm-panel-body">
-        <p className="tm-quiet">Colours and logo candidates are extracted from a public page by a command you run (or by Claude, which asks you to approve the URL): the Studio never fetches a site itself.</p>
+        <p className="tm-quiet">
+          Colours and logo candidates are extracted from a public page by a command you run (or by Claude, which asks you to approve the URL): the Studio never fetches a site itself.
+        </p>
         <div className="tm-url-line">
           <div className="tm-url">
-            <TextField label="Page URL" type="url" value={url} onChange={setUrl} unsaved={null} maxLength={2048} placeholder="https://www.example.com" autoComplete="off" spellCheck={false} onKeyDown={(e) => e.key === 'Enter' && url && void ask()} testId="site-url" />
+            <TextField
+              label="Page URL"
+              type="url"
+              value={url}
+              onChange={setUrl}
+              unsaved={null}
+              maxLength={2048}
+              placeholder="https://www.example.com"
+              autoComplete="off"
+              spellCheck={false}
+              onKeyDown={(e) => e.key === 'Enter' && url && void ask()}
+              testId="site-url"
+            />
           </div>
           <Button disabled={!url} onClick={() => void ask()} data-testid="site-command">
             Show the command

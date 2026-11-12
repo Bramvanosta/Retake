@@ -26,7 +26,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe('another copy\'s worker takes the Studio\'s own submit', () => {
+describe("another copy's worker takes the Studio's own submit", () => {
   it('scenario_run answers it under untrusted.other_copy; the page says it in its queued line', async () => {
     root = await mkdtemp(join(tmpdir(), 'ui-other-copy-'));
     await fixtureWorkspace(root);
@@ -40,14 +40,22 @@ describe('another copy\'s worker takes the Studio\'s own submit', () => {
         throw new Error('no worker may start: one is alive');
       },
     });
-    const r = await raw(studio.port, 'POST', '/v1/call/scenario_run', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify({ project: 'northfield-fixture', name: 'quote', mode: 'dry' }));
+    const r = await raw(
+      studio.port,
+      'POST',
+      '/v1/call/scenario_run',
+      { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' },
+      JSON.stringify({ project: 'northfield-fixture', name: 'quote', mode: 'dry' }),
+    );
     expect(r.status).toBe(200);
     const data = r.json<{ data: Record<string, unknown> }>().data;
     expect(data.worker).toEqual({ pid: process.pid, spawned: false });
     expect(data.untrusted).toEqual({ other_copy: { version: '0.1.0', engine: folder } });
     // What the page says (the status line renders it as text).
     const said = `Rehearsal of quote queued${submitNotice(otherCopyOf(data, 'other_copy'))}`;
-    expect(said).toBe(`Rehearsal of quote queued. It runs in another copy of Retake (0.1.0, ${folder}), with that copy's browsers and tools: to use this one, let that worker finish (it stops a minute after its last job) and start it again`);
+    expect(said).toBe(
+      `Rehearsal of quote queued. It runs in another copy of Retake (0.1.0, ${folder}), with that copy's browsers and tools: to use this one, let that worker finish (it stops a minute after its last job) and start it again`,
+    );
     // L7.34: the page's own submits say it — Rehearse through this server (shoot-data.ts → scenario_run), and a render
     // whose answer names the other copy the same way (the render cannot be queued here: no capture), each line as said
     // (another scenario: quote's rehearsal is queued already).
@@ -56,7 +64,11 @@ describe('another copy\'s worker takes the Studio\'s own submit', () => {
     const sent: string[] = [];
     vi.stubGlobal('fetch', async (path: string, init: RequestInit) => {
       sent.push(path);
-      if (path === '/v1/call/scenario_render') return new Response(JSON.stringify({ ok: true, data: { render_id: 'quote-v1', untrusted: { other_copy: { version: '0.1.0', engine: folder } } } }), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (path === '/v1/call/scenario_render')
+        return new Response(JSON.stringify({ ok: true, data: { render_id: 'quote-v1', untrusted: { other_copy: { version: '0.1.0', engine: folder } } } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       return realFetch(`http://127.0.0.1:${port}${path}`, init);
     });
     const saying = (start: (say: (s: string) => void) => boolean) => new Promise<string>((resolve) => expect(start(resolve)).toBe(true));

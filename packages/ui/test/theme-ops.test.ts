@@ -215,7 +215,7 @@ describe('theme_preview', () => {
     return doc.spec;
   };
 
-  it('intro, clip, outro and one component: a component-preview on the player origin, every URL one of the scope\'s; drafts in memory only', async () => {
+  it("intro, clip, outro and one component: a component-preview on the player origin, every URL one of the scope's; drafts in memory only", async () => {
     const before = await readFile(join(ws, 'templates', 'mine', 'template.yaml'), 'utf8');
     for (const target of ['intro', 'clip', 'outro', { component: 'studio/card-title' }]) {
       const r = await call('theme_preview', { project: P, theme: 'mine', target, lease: LEASE });
@@ -283,18 +283,37 @@ describe('theme_preview', () => {
 });
 
 describe('theme_list (part D2)', () => {
-  it('⚑ editable by real path: starters read-only with why, a workspace theme editable, the project\'s own folder theme read-only; path-free', async () => {
+  it("⚑ editable by real path: starters read-only with why, a workspace theme editable, the project's own folder theme read-only; path-free", async () => {
     // A second project whose theme is its own folder (a path in project.yaml).
     const own = join(ws, 'projects', 'own');
     await mkdir(join(own, 'scenarios'), { recursive: true });
     await cp(join(ws, 'templates', 'mine'), join(own, 'theme'), { recursive: true });
     await writeFile(join(own, 'project.yaml'), 'version: 1\nname: Own\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: ./theme\n');
-    type List = { project: string; project_theme?: string; themes: Array<{ name: string; source: string; default?: true; editable: true | { why: string }; colors: Record<string, string>; issues: string[]; used_by: { projects: string[]; scenarios: unknown[] } }>; components: Array<{ id: string; kind: string; source: string }>; scenarios: string[] };
+    type List = {
+      project: string;
+      project_theme?: string;
+      themes: Array<{
+        name: string;
+        source: string;
+        default?: true;
+        editable: true | { why: string };
+        colors: Record<string, string>;
+        issues: string[];
+        used_by: { projects: string[]; scenarios: unknown[] };
+      }>;
+      components: Array<{ id: string; kind: string; source: string }>;
+      scenarios: string[];
+    };
     const r = await ok<List>('theme_list', { project: P });
     pathFree(r.body);
     const by = new Map(r.data.themes.map((t) => [t.name, t]));
     expect(r.data.project_theme).toBe('editorial');
-    expect(by.get('editorial')).toMatchObject({ source: 'starter', default: true, editable: { why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) }, colors: { accent: '#8a2332' } });
+    expect(by.get('editorial')).toMatchObject({
+      source: 'starter',
+      default: true,
+      editable: { why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) },
+      colors: { accent: '#8a2332' },
+    });
     expect(by.get('editorial')!.used_by.projects).toContain(P);
     for (const n of ['default', 'motion']) expect(by.get(n)!.editable).toMatchObject({ why: expect.any(String) });
     expect(by.get('mine')).toMatchObject({ source: 'workspace', editable: true, issues: [] });

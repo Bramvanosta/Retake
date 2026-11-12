@@ -142,7 +142,11 @@ export class QosYield {
       const { fresh } = this.learn(table);
       this.holding = true;
       for (const p of fresh) this.made.add(p.pid);
-      if (fresh.length) await this.deps.apply(fresh.map((p) => p.pid), true);
+      if (fresh.length)
+        await this.deps.apply(
+          fresh.map((p) => p.pid),
+          true,
+        );
     });
   }
 

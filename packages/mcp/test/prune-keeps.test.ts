@@ -47,41 +47,17 @@ async function said(id: string): Promise<{ lines: string[]; data: Record<string,
 
 const TABLE: Record<string, string[]> = {
   // P-1
-  A1: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
+  A1: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
   // P-1
-  A2: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
+  A2: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
   // U-1
-  A3: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last complete capture (a newer one was stopped by --until) — 1 take',
-  ],
+  A3: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last complete capture (a newer one was stopped by --until) — 1 take'],
   // P-1
-  B1: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: its folder is a link (left alone) — 1 take',
-  ],
+  B1: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: its folder is a link (left alone) — 1 take'],
   // P-1
-  B2: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: written by a newer Retake (left alone) — 1 take',
-  ],
+  B2: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: written by a newer Retake (left alone) — 1 take'],
   // P-1
-  B2f: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: written by a newer Retake (left alone) — 1 take',
-  ],
+  B2f: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: written by a newer Retake (left alone) — 1 take'],
   // C — L7.6b R-1: the renamed record is left alone and keeps its take; both are said, the file's name under "untrusted" only
   C1: [
     'nothing to prune in <p>',
@@ -133,35 +109,18 @@ const TABLE: Record<string, string[]> = {
     'kept: 2 takes, 0 renders, 0 reviews',
     'kept: the last capture that can be edited — 1 take',
   ],
-  rendered: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 1 render, 0 reviews',
-  ],
-  commented: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-  ],
+  rendered: ['nothing to prune in <p>', 'kept: 2 takes, 1 render, 0 reviews'],
+  commented: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews'],
   unread: [
     '1 item of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)',
     '- run OTHER-OLD: older capture nothing uses (<size>)',
     'kept: 3 takes, 0 renders, 0 reviews',
     'some comment threads of <p> cannot be read (the comment list says which): every render and take of quote is kept',
   ],
-  stale: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-  ],
+  stale: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews'],
   // P-1
-  stale3: [
-    'nothing to prune in <p>',
-    'kept: 3 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
-  dry: [
-    '1 item of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)',
-    '- run NEW: dry run (<size>)',
-    'kept: 1 take, 0 renders, 0 reviews',
-  ],
+  stale3: ['nothing to prune in <p>', 'kept: 3 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
+  dry: ['1 item of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)', '- run NEW: dry run (<size>)', 'kept: 1 take, 0 renders, 0 reviews'],
   // P-1
   dry3: [
     '1 item of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)',
@@ -170,29 +129,13 @@ const TABLE: Record<string, string[]> = {
     'kept: the last capture that can be edited — 1 take',
   ],
   // P-1
-  hand: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
+  hand: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
   // P-1
-  frames: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
+  frames: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
   // P-1
-  linkfilm: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
+  linkfilm: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
   // P-1
-  handmade: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
+  handmade: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
   // P-1, U-1
   until3: [
     'nothing to prune in <p>',
@@ -213,41 +156,16 @@ const TABLE: Record<string, string[]> = {
     'kept: 1 take, 0 renders, 0 reviews',
   ],
   // P-1
-  linkfail: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: its folder is a link (left alone) — 1 take',
-  ],
+  linkfail: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: its folder is a link (left alone) — 1 take'],
   // P-1
-  dangling: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: its folder is a link (left alone) — 1 take',
-  ],
+  dangling: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: its folder is a link (left alone) — 1 take'],
   // P-1
-  linkold: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: its folder is a link (left alone) — 1 take',
-  ],
+  linkold: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: its folder is a link (left alone) — 1 take'],
   // P-1
-  newerdry: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: written by a newer Retake (left alone) — 1 take',
-  ],
-  norecord: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-  ],
-  nojson: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-  ],
-  odd: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-  ],
+  newerdry: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: written by a newer Retake (left alone) — 1 take'],
+  norecord: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews'],
+  nojson: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews'],
+  odd: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews'],
   interrupted: [
     '1 item of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)',
     '- run NEW: interrupted take (<size>)',
@@ -259,32 +177,17 @@ const TABLE: Record<string, string[]> = {
     'kept: 1 take, 0 renders, 0 reviews',
   ],
   // P-1
-  bareok: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: the last capture that can be edited — 1 take',
-  ],
+  bareok: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take'],
   reclink: [
     '1 item of <p> can go (<size>); call again with dry_run: false to delete them (only when the user asked to free space)',
     '- run NEW: failed take (<size>)',
     'kept: 1 take, 0 renders, 0 reviews',
   ],
-  other: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-  ],
+  other: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews'],
   // P-1 (a newer record behind a linked run.json)
-  newerlink: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: written by a newer Retake (left alone) — 1 take',
-  ],
+  newerlink: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: written by a newer Retake (left alone) — 1 take'],
   // P-1
-  newerlinkok: [
-    'nothing to prune in <p>',
-    'kept: 2 takes, 0 renders, 0 reviews',
-    'kept: written by a newer Retake (left alone) — 1 take',
-  ],
+  newerlinkok: ['nothing to prune in <p>', 'kept: 2 takes, 0 renders, 0 reviews', 'kept: written by a newer Retake (left alone) — 1 take'],
 };
 
 describe('project_prune, layout by layout', () => {
@@ -296,10 +199,15 @@ describe('project_prune, layout by layout', () => {
 });
 
 describe('project_prune: the takes kept beyond the list', () => {
-  it('the text says each reason with a count and never a folder\'s name; `data.kept_takes` holds the takes', async () => {
+  it("the text says each reason with a count and never a folder's name; `data.kept_takes` holds the takes", async () => {
     const b = built.get('until3')!;
     const r = await said('until3');
-    expect(r.lines).toEqual(['nothing to prune in <p>', 'kept: 3 takes, 0 renders, 0 reviews', 'kept: the last capture that can be edited — 1 take', 'kept: the last complete capture (a newer one was stopped by --until) — 1 take']);
+    expect(r.lines).toEqual([
+      'nothing to prune in <p>',
+      'kept: 3 takes, 0 renders, 0 reviews',
+      'kept: the last capture that can be edited — 1 take',
+      'kept: the last complete capture (a newer one was stopped by --until) — 1 take',
+    ]);
     expect(r.data.kept_takes).toEqual([
       { id: b.ids.MID, why: 'editable', reason: 'the last capture that can be edited' },
       { id: b.ids.OLD, why: 'complete', reason: 'the last complete capture (a newer one was stopped by --until)' },
@@ -307,12 +215,18 @@ describe('project_prune: the takes kept beyond the list', () => {
     // In every layout: a line about what was kept names no run folder (the labels stand for the folders here).
     for (const id of Object.keys(LAYOUTS)) {
       const keptLines = (await said(id)).lines.filter((l) => l.startsWith('kept: ') && !/^kept: \d+ takes?, /.test(l));
-      for (const l of keptLines) expect(l, id).toMatch(/^kept: (the last capture that can be edited|the last complete capture \(a newer one was stopped by --until\)|its folder is a link \(left alone\)|written by a newer Retake \(left alone\)|a file of renders\/ that is no render names it) — \d+ takes?$/);
+      for (const l of keptLines)
+        expect(l, id).toMatch(
+          /^kept: (the last capture that can be edited|the last complete capture \(a newer one was stopped by --until\)|its folder is a link \(left alone\)|written by a newer Retake \(left alone\)|a file of renders\/ that is no render names it) — \d+ takes?$/,
+        );
     }
     // L7.6b: a file of renders/ left alone is counted in the text and named under `untrusted` only (C1: a record renamed by hand).
     const c1 = await said('C1');
     expect(c1.lines.join('\n')).not.toContain('quote-final');
-    expect([c1.data.renders_alone, c1.data.untrusted]).toEqual([{ count: 1, reasons: [{ why: 'renamed', count: 1, reason: 'its record says another id' }] }, { renders_alone: [{ file: 'quote-final.json', why: 'renamed' }] }]);
+    expect([c1.data.renders_alone, c1.data.untrusted]).toEqual([
+      { count: 1, reasons: [{ why: 'renamed', count: 1, reason: 'its record says another id' }] },
+      { renders_alone: [{ file: 'quote-final.json', why: 'renamed' }] },
+    ]);
   });
 
   it('two takes kept for one reason are one line with their count', async () => {

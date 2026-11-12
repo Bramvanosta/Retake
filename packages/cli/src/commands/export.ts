@@ -29,7 +29,10 @@ export interface ExportCommandOptions {
 /** `--formats a,b,c` (also `all`). */
 export function parseFormats(value: string | undefined): ExportFormat[] {
   if (value === undefined) return [...DEFAULT_JOB_EXPORT_FORMATS];
-  const list = value.split(',').map((s) => s.trim()).filter(Boolean);
+  const list = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (list.length === 1 && list[0] === 'all') return [...EXPORT_FORMAT_NAMES];
   for (const f of list) if (!(EXPORT_FORMAT_NAMES as readonly string[]).includes(f)) throw new UsageError(`--formats: unknown format "${f}" (use ${EXPORT_FORMAT_NAMES.join(', ')} or all)`);
   if (list.length === 0) throw new UsageError('--formats: name at least one format');
@@ -104,7 +107,9 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
       for (const o of r.outputs.filter((x) => formats.includes(x.format))) {
         const audio = o.audio_codec ? ` + ${o.audio_codec}` : o.format === 'gif_preview' ? '' : ' (no audio)';
         const win = o.window ? `, ${o.window.start_s.toFixed(1)}–${(o.window.start_s + o.window.duration_s).toFixed(1)} s (${o.window.reason})` : '';
-        ui.ok(`${LABEL[o.format].padEnd(13)} ${ui.path(o.file)}  ${o.width}×${o.height} ${o.video_codec ?? ''}${audio}, ${o.duration_s.toFixed(2)} s${win}, ${formatBytes(o.size_bytes)} ${c.dim(`${o.method} · ${formatMs(o.ms)}`)}`);
+        ui.ok(
+          `${LABEL[o.format].padEnd(13)} ${ui.path(o.file)}  ${o.width}×${o.height} ${o.video_codec ?? ''}${audio}, ${o.duration_s.toFixed(2)} s${win}, ${formatBytes(o.size_bytes)} ${c.dim(`${o.method} · ${formatMs(o.ms)}`)}`,
+        );
         for (const w of o.warnings) ui.warn(`  ${w}`);
       }
       for (const f of r.failures) ui.error(`${LABEL[f.format]}: ${f.error}`);

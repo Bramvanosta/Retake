@@ -147,10 +147,12 @@ describe('the ports bag: the capture runner', () => {
     expect(await c.sessions.status(join(dir, 'no-status.json'))).toBeNull();
     expect(calls.every((x) => x === 'runnerWeb')).toBe(true);
     const foreign: HookBrowser = { close: async () => undefined };
-    await expect(c.hookPages.evalIn(foreign, { project: { config: {}, slug: 'p' } as never, env: { name: 'e', pages: { a: 'http://127.0.0.1:1/' } }, log: () => undefined }, 'a', '1')).rejects.toMatchObject({ name: 'EngineError', code: 'internal' });
+    await expect(
+      c.hookPages.evalIn(foreign, { project: { config: {}, slug: 'p' } as never, env: { name: 'e', pages: { a: 'http://127.0.0.1:1/' } }, log: () => undefined }, 'a', '1'),
+    ).rejects.toMatchObject({ name: 'EngineError', code: 'internal' });
   });
 
-  it('a runner package that cannot be loaded: load rejects with the loader\'s own error, and is not kept failed', async () => {
+  it("a runner package that cannot be loaded: load rejects with the loader's own error, and is not kept failed", async () => {
     const c = runnerWebCapture();
     const broken = new Error('cannot load @retake/runner-web');
     failing.next = broken;
@@ -160,7 +162,7 @@ describe('the ports bag: the capture runner', () => {
     expect(c.cleanupSync()).toBe(0);
   });
 
-  it('the in-memory runner: refuses its synchronous members before load(), as the package does; then a cancel of the runner\'s name and kind, clean-ups counted, every call kept', async () => {
+  it("the in-memory runner: refuses its synchronous members before load(), as the package does; then a cancel of the runner's name and kind, clean-ups counted, every call kept", async () => {
     const m = new MemoryCaptureRunner();
     expect(() => m.cancelled('x')).toThrow(/the capture runner's cancelled was called before it was loaded/);
     expect(() => m.cleanupSync()).toThrow(expect.objectContaining({ name: 'EngineError', code: 'internal' }));
@@ -177,7 +179,7 @@ describe('the ports bag: the capture runner', () => {
     expect(calls).toEqual([]);
   });
 
-  it('the hook runner loads its package on load(), as the capture\'s hooks need it', async () => {
+  it("the hook runner loads its package on load(), as the capture's hooks need it", async () => {
     await packageHookRunner().load();
     expect(calls).toEqual(['hooks']);
     await expect(new MemoryHookRunner().load()).resolves.toBeUndefined();

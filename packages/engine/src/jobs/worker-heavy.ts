@@ -83,10 +83,18 @@ export async function onHeavyExit(w: Worker, h: HeavyChild): Promise<void> {
   const now = stampOf(w.clock);
   const final: JobRecord =
     h.killed === 'cancel'
-      ? { ...stored, state: 'cancelled', finished_at: now, error: { code: 'cancelled', message: `cancelled: its job process did not stop within ${Math.round(w.cancelGraceMs / 1000)} s and was killed` } }
+      ? {
+          ...stored,
+          state: 'cancelled',
+          finished_at: now,
+          error: { code: 'cancelled', message: `cancelled: its job process did not stop within ${Math.round(w.cancelGraceMs / 1000)} s and was killed` },
+        }
       : code === JOB_EXIT.refused
         ? { ...stored, state: 'failed', finished_at: now, error: { code: 'invalid', message: 'refused by its job process: not the queued heavy job this worker claimed' } }
-        : { ...interrupted(stored, w.cli, `its job process exited (${signal ? `signal ${signal}` : `code ${code}`}) before it wrote the job's end — .retake/workers/worker.log says why`), finished_at: now };
+        : {
+            ...interrupted(stored, w.cli, `its job process exited (${signal ? `signal ${signal}` : `code ${code}`}) before it wrote the job's end — .retake/workers/worker.log says why`),
+            finished_at: now,
+          };
   await closeJob(w, final, { cleanup: true });
   await rm(w.files.browser(h.id), { force: true }).catch(() => undefined);
 }

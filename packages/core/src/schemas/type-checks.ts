@@ -4,17 +4,7 @@
  * looser than the language on purpose) every value of the type is accepted by the schema.
  */
 import type { z } from 'zod';
-import type {
-  CameraHint,
-  HookStep,
-  ProjectConfig,
-  SandboxManifest,
-  Scenario,
-  Step,
-  TargetObject,
-  Template,
-  Timeline,
-} from '../types.js';
+import type { CameraHint, HookStep, ProjectConfig, SandboxManifest, Scenario, Step, TargetObject, Template, Timeline } from '../types.js';
 import type { HookStepSchema } from './hooks.js';
 import type { CameraHintSchema, TargetObjectSchema } from './primitives.js';
 import type { ProjectConfigSchema } from './project.js';
@@ -81,7 +71,15 @@ type _N10 = Assert<Not<Extends<RunBase & { status: 'queued'; error: RunError }, 
 type _N11 = Assert<Not<Extends<RunBase & { status: 'running'; error: RunError }, RunRecord>>>;
 // A run closed from outside IS a state: failed or cancelled, with the step it was at, its pause and what it had filmed
 // (this fails if the union is tightened past what lies on disks).
-type _ClosedFromOutside = RunBase & { status: 'failed' | 'cancelled'; finished_at: string; error: RunError; current: { scene: string; step: number; action: string }; paused: { scene: string; step: number; since: string }; capture: string; timeline: string };
+type _ClosedFromOutside = RunBase & {
+  status: 'failed' | 'cancelled';
+  finished_at: string;
+  error: RunError;
+  current: { scene: string; step: number; action: string };
+  paused: { scene: string; step: number; since: string };
+  capture: string;
+  timeline: string;
+};
 type _M1 = Assert<Extends<_ClosedFromOutside, RunRecord>>;
 // The flat shape itself is not a state (this fails if the union is folded back into optional members).
 type _M2 = Assert<Not<Extends<RunBase & { status: RunStatus; finished_at?: string; error?: RunError }, RunRecord>>>;

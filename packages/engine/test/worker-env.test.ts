@@ -104,7 +104,9 @@ describe('cleanWorkerEnv', () => {
     policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
       // What the worker's mediaBin / launchTarget / docker check say of these values (core programProblem).
-      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { path: '', files: nodeFileFacts })).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
+      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { path: '', files: nodeFileFacts })).toMatch(
+        /^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/,
+      );
       expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { path: '', files: nodeFileFacts })).toMatch(/is a relative path/);
       expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { path: '', files: nodeFileFacts })).toMatch(/lies inside the workspace/);
     } finally {
@@ -114,18 +116,28 @@ describe('cleanWorkerEnv', () => {
 
   it("all the workspace's folders count (its templates or components folder outside the root): PATH and load-path entries there are dropped", () => {
     const templates = join(ws, '..', `${ws.split('/').pop()}-templates`);
-    const env = cleanWorkerEnv({ PATH: [join(templates, 'bin'), '/usr/bin'].join(delimiter), NODE_PATH: join(templates, 'lib'), DYLD_LIBRARY_PATH: '/opt/lib' }, ws, { node: '/n/bin/node', exists: () => false, folders: [ws, templates] });
+    const env = cleanWorkerEnv({ PATH: [join(templates, 'bin'), '/usr/bin'].join(delimiter), NODE_PATH: join(templates, 'lib'), DYLD_LIBRARY_PATH: '/opt/lib' }, ws, {
+      node: '/n/bin/node',
+      exists: () => false,
+      folders: [ws, templates],
+    });
     expect(env.PATH).toBe(['/n/bin', '/usr/bin'].join(delimiter));
     expect(env.NODE_PATH).toBeUndefined();
     expect(env.DYLD_LIBRARY_PATH).toBe('/opt/lib');
     // The root alone: that folder is not the workspace's.
-    expect(cleanWorkerEnv({ PATH: join(templates, 'bin'), NODE_PATH: join(templates, 'lib') }, ws, { node: '/n/bin/node', exists: () => false })).toMatchObject({ PATH: ['/n/bin', join(templates, 'bin')].join(delimiter), NODE_PATH: join(templates, 'lib') });
+    expect(cleanWorkerEnv({ PATH: join(templates, 'bin'), NODE_PATH: join(templates, 'lib') }, ws, { node: '/n/bin/node', exists: () => false })).toMatchObject({
+      PATH: ['/n/bin', join(templates, 'bin')].join(delimiter),
+      NODE_PATH: join(templates, 'lib'),
+    });
   });
 
   it('PATH: no entry inside the workspace under another case or spelling (realpath.native)', () => {
     const up = (p: string) => (process.platform === 'darwin' ? p.toUpperCase() : p);
     // An existing folder under another case (the file system's own spelling: realpath.native), one not created yet.
-    const env = cleanWorkerEnv({ PATH: [up(join(ws, 'bin')), join(ws, 'bin'), join(ws, 'not', 'yet'), up(join(ws, 'not', 'yet')), '/usr/bin'].join(delimiter) }, ws, { node: '/n/bin/node', exists: () => false });
+    const env = cleanWorkerEnv({ PATH: [up(join(ws, 'bin')), join(ws, 'bin'), join(ws, 'not', 'yet'), up(join(ws, 'not', 'yet')), '/usr/bin'].join(delimiter) }, ws, {
+      node: '/n/bin/node',
+      exists: () => false,
+    });
     expect(env.PATH).toBe(['/n/bin', '/usr/bin'].join(delimiter));
   });
 });

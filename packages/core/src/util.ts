@@ -1,4 +1,3 @@
-
 /** "my Project!" → "my-project" */
 export function slugify(s: string): string {
   return (

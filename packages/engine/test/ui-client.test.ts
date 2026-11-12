@@ -17,10 +17,13 @@ import { fixtureWorkspace } from './helpers.js';
 let ws: string;
 let ui: Engine;
 const savedHome = process.env.RETAKE_HOME;
-const LEAK = "video: leak\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - eval: {js: \"throw new Error(btoa('{{env:HOME}}'))\"}\n";
+const LEAK = 'video: leak\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - eval: {js: "throw new Error(btoa(\'{{env:HOME}}\'))"}\n';
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -49,7 +52,10 @@ describe('client ui: agent trust, no approver', () => {
 
   it('a scenario naming a secret is refused at validate and save', async () => {
     expect((await ui.scenarios.validate('northfield-fixture', LEAK)).ok).toBe(false);
-    const e = await ui.scenarios.save('northfield-fixture', 'leak', LEAK).then(() => undefined, (x: unknown) => x as Error);
+    const e = await ui.scenarios.save('northfield-fixture', 'leak', LEAK).then(
+      () => undefined,
+      (x: unknown) => x as Error,
+    );
     expect(e?.message).toContain('the scenario uses {{env:HOME}}');
   });
 

@@ -56,7 +56,17 @@ export {
 export type { EncoderChoice, EncoderProbe, FrameSize, PolicyBrowser, RenderPathProbe, RenderEncoder, RenderGl, RenderPolicy, RenderSettingSource, VideotoolboxProbe } from './render/policy.js';
 export { PlanTrustError, editOfToday, noteEdit, planRun, preReadProblems, servedFileProblems } from './render/plan-run.js';
 export type { PlanRunOptions, PlanTrust, PlannedEdit, PlannedRun } from './render/plan-run.js';
-export { GUARDED_NO_OTHER_BROWSER, allowedDownload, allowedRequest, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, originOf, pickFreePort } from './render/network-guard.js';
+export {
+  GUARDED_NO_OTHER_BROWSER,
+  allowedDownload,
+  allowedRequest,
+  armNetworkGuard,
+  browserProcessInfo,
+  guardedPageFailed,
+  guardedPageFailure,
+  originOf,
+  pickFreePort,
+} from './render/network-guard.js';
 export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
 export { THEME_FILES_MAX, THEME_HASH_BYTES_MAX, themeContentHash, themeStatSignature } from './render/theme-hash.js';
 export { NoCaptureRunError, findRun, listRenders, nextVersion, recordEnv, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';
@@ -94,7 +104,17 @@ export { HEADLESS_SHELL_ENV, HEADLESS_SHELL_INSTALL, assertRenderBrowser, playwr
 export type { RenderBrowser } from './render/browser.js';
 export { PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples } from './preview.js';
 export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSample, PreviewSamples, PreviewScene, PreviewScreenName, PreviewTarget, PreviewUse } from './preview.js';
-export { LOOP_FORMAT, PREVIEW_COMPOSITION, REMOTION_PREVIEW_BACKEND, STARTER_TEMPLATES_DIR, loadPreviewTheme, loopFrames, previewDriver, renderComponentLoops, renderComponentPreviews } from './render/preview.js';
+export {
+  LOOP_FORMAT,
+  PREVIEW_COMPOSITION,
+  REMOTION_PREVIEW_BACKEND,
+  STARTER_TEMPLATES_DIR,
+  loadPreviewTheme,
+  loopFrames,
+  previewDriver,
+  renderComponentLoops,
+  renderComponentPreviews,
+} from './render/preview.js';
 export { createRenderer } from './render/driver.js';
 export type { RenderDriverOptions } from './render/driver.js';
 export type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, DriverProcess, DriverStillsRequest, DriverVideoRequest, DriverVideoResult, RenderDriver } from './render/driver-types.js';
@@ -115,5 +135,20 @@ export type {
   RenderedPreview,
 } from './render/preview.js';
 export { generateTestTrack, testTrackExpression } from './render/audio.js';
-export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportMethod, exportRender, exportRenderWarnings, exportThemeRef, findRenderRecord, gifWindow, locateRenderRecord, mp4TranscodeArgs, recordPathProblem, transcodeMp4 } from './render/export.js';
+export {
+  DEFAULT_EXPORT_FORMATS,
+  EXPORT_FORMATS,
+  ExportError,
+  GIF_PREVIEW,
+  exportMethod,
+  exportRender,
+  exportRenderWarnings,
+  exportThemeRef,
+  findRenderRecord,
+  gifWindow,
+  locateRenderRecord,
+  mp4TranscodeArgs,
+  recordPathProblem,
+  transcodeMp4,
+} from './render/export.js';
 export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult, FoundRender } from './render/export.js';

@@ -72,9 +72,30 @@ async function writeRecord(id: string, created: string): Promise<void> {
   await writeFile(
     join(r, `${id}.json`),
     JSON.stringify({
-      version: 1, id, project: 'demo', scenario: 'tl', run_id: RUN, run_dir: join(dir, 'runs', RUN), template: 'editorial', overrides: {},
-      edit: { from: 'scenario', sha256: sha(TEXT) }, variant: 'landscape', status: 'succeeded', file: join(r, `${id}.mp4`), record: join(r, `${id}.json`),
-      render_version: Number(/-v(\d+)/.exec(id)![1]), created_at: created, finished_at: created, duration_s: 3, frames: 90, fps: 30, width: 1920, height: 1080, size_bytes: 1234, plan: {}, warnings: [],
+      version: 1,
+      id,
+      project: 'demo',
+      scenario: 'tl',
+      run_id: RUN,
+      run_dir: join(dir, 'runs', RUN),
+      template: 'editorial',
+      overrides: {},
+      edit: { from: 'scenario', sha256: sha(TEXT) },
+      variant: 'landscape',
+      status: 'succeeded',
+      file: join(r, `${id}.mp4`),
+      record: join(r, `${id}.json`),
+      render_version: Number(/-v(\d+)/.exec(id)![1]),
+      created_at: created,
+      finished_at: created,
+      duration_s: 3,
+      frames: 90,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      size_bytes: 1234,
+      plan: {},
+      warnings: [],
     }),
   );
 }
@@ -110,7 +131,10 @@ beforeAll(async () => {
   await writeFile(
     join(rv, 'report.json'),
     JSON.stringify({
-      version: 1, clean: false, counts: { error: 0, warning: 1, info: 1 }, review: { created_at: '2026-01-02T10:01:00.000Z', fps: 1 },
+      version: 1,
+      clean: false,
+      counts: { error: 0, warning: 1, info: 1 },
+      review: { created_at: '2026-01-02T10:01:00.000Z', fps: 1 },
       findings: [
         { severity: 'warning', code: 'caption-too-long', message: 'The caption "Every frame has its own number." is long', at: { frame: 12, segment: 'a' } },
         { severity: 'info', code: 'plan-warning', message: 'a note' },
@@ -146,7 +170,17 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     expect(UI_OPS).toEqual(expect.arrayContaining([...RENDER_OPS]));
     expect(UI_OPS).not.toContain('render');
     expect(UI_OPS).not.toContain('job_cancel');
-    for (const extra of [{ template: 'editorial' }, { theme: 'editorial' }, { overrides: { scale: 0.5 } }, { variant: 'vertical' }, { review: { fps: 2 } }, { run: '../x' }, { name: '../tl' }, { project: '/tmp' }, { expect_edit_sha256: 'abc' }]) {
+    for (const extra of [
+      { template: 'editorial' },
+      { theme: 'editorial' },
+      { overrides: { scale: 0.5 } },
+      { variant: 'vertical' },
+      { review: { fps: 2 } },
+      { run: '../x' },
+      { name: '../tl' },
+      { project: '/tmp' },
+      { expect_edit_sha256: 'abc' },
+    ]) {
       const r = await call('scenario_render', renderArgs(extra));
       expect(r.status, JSON.stringify(extra)).toBe(400);
     }
@@ -157,7 +191,10 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     // ⚑ The file changed since the screen showed it: 409, no lock, no job.
     const stale = await call('scenario_render', renderArgs({ expect_edit_sha256: sha(`${TEXT}# another version\n`) }));
     expect(stale.status, stale.body).toBe(409);
-    expect(stale.json<{ error: { message: string; details?: Record<string, unknown> } }>().error).toMatchObject({ message: 'scenarios/tl changed since it was shown: look at the timeline again, then render', details: { current: sha(TEXT) } });
+    expect(stale.json<{ error: { message: string; details?: Record<string, unknown> } }>().error).toMatchObject({
+      message: 'scenarios/tl changed since it was shown: look at the timeline again, then render',
+      details: { current: sha(TEXT) },
+    });
     expect(await renderJobs()).toEqual([]);
     expect(await locks()).toEqual([]);
   });
@@ -171,7 +208,10 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     expect(refused).toHaveLength(1);
     const d = ok[0].json<{ data: ScenarioRenderAnswer }>().data;
     expect(d).toMatchObject({ render_id: 'tl-v10', run_id: RUN, variant: 'landscape', edit: 'scenario', state: 'queued' });
-    expect(refused[0].json<{ error: { message: string; details: Record<string, unknown> } }>().error).toMatchObject({ message: 'render tl-v10 of tl is queued: wait for it to end, or cancel it', details: { render_id: 'tl-v10', job: d.job } });
+    expect(refused[0].json<{ error: { message: string; details: Record<string, unknown> } }>().error).toMatchObject({
+      message: 'render tl-v10 of tl is queued: wait for it to end, or cancel it',
+      details: { render_id: 'tl-v10', job: d.job },
+    });
     const jobs = await renderJobs();
     expect(jobs.map((j) => j.id)).toEqual([d.job]);
     const input = jobs[0].input;
@@ -191,7 +231,12 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     const v = r.json<{ data: ScenarioRendersView }>().data;
     expect(v.jobs).toMatchObject([{ render_id: 'tl-v10', state: 'queued', run_id: RUN, edit_sha256: sha(TEXT), reviewing: false, queue: { ahead: 0 }, cancel_requested: false, submitted_by: 'ui' }]);
     expect(v.renders.map((x) => x.render_id)).toEqual(['tl-v7', 'tl-v9']);
-    expect(v.renders[0]).toMatchObject({ status: 'succeeded', theme: 'editorial', edit: { from: 'scenario', sha256: sha(TEXT) }, review: { state: 'warnings', counts: { error: 0, warning: 1, info: 1 } } });
+    expect(v.renders[0]).toMatchObject({
+      status: 'succeeded',
+      theme: 'editorial',
+      edit: { from: 'scenario', sha256: sha(TEXT) },
+      review: { state: 'warnings', counts: { error: 0, warning: 1, info: 1 } },
+    });
     expect(v.renders[1].review).toEqual({ state: 'none' });
     for (const needle of [ws, homedir(), '.mp4', '"file"', 'run_dir']) expect(r.body.includes(needle), needle).toBe(false);
     expect((await call('scenario_renders', { project: 'demo', name: 'tl', run: RUN })).status).toBe(400);
@@ -199,7 +244,17 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
 
   it('⚑ render_cancel: a render of this project only', async () => {
     // Another project's render job, and a run of this project: refused, untouched.
-    const other = await queue.enqueue({ version: 1, kind: 'render', project: 'other', scenario: 'tl', run_id: RUN, timeline_sha256: sha('t'), render_id: 'tl-v1', overrides: {}, submitted_by: 'test' });
+    const other = await queue.enqueue({
+      version: 1,
+      kind: 'render',
+      project: 'other',
+      scenario: 'tl',
+      run_id: RUN,
+      timeline_sha256: sha('t'),
+      render_id: 'tl-v1',
+      overrides: {},
+      submitted_by: 'test',
+    });
     const runJob = await queue.enqueue({ version: 1, kind: 'run', project: 'demo', scenario: 'tl', scenario_sha256: sha(TEXT), mode: 'dry', run_id: '20260101-130000-tl', submitted_by: 'test' });
     for (const job of [other, runJob]) {
       const r = await call('render_cancel', { project: 'demo', job: job.id });
@@ -237,7 +292,11 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     for (const k of ['dir', 'files']) expect(Object.prototype.hasOwnProperty.call(v, k), k).toBe(false);
     expect(v.untrusted).not.toHaveProperty('environment');
     for (const needle of [ws, homedir(), 'outside', 'report.json', '/elsewhere']) expect(r.body.includes(needle), needle).toBe(false);
-    for (const bad of [{ project: 'demo', render_id: '../tl-v7' }, { project: 'demo', render_id: 'tl-v7', images: 'all' }]) expect((await call('render_review', bad)).status).toBe(400);
+    for (const bad of [
+      { project: 'demo', render_id: '../tl-v7' },
+      { project: 'demo', render_id: 'tl-v7', images: 'all' },
+    ])
+      expect((await call('render_review', bad)).status).toBe(400);
   });
 
   it('⚑ review_image: a sheet by name as a capped JPEG; a planted link, a PNG named .jpg, a folder linked out are refused', async () => {
@@ -330,7 +389,10 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     await writeRecord('tl-v13', '2026-01-02T11:30:00.000Z');
     const third = await call('review_export', { project: 'demo', render_id: 'tl-v13' });
     expect(third.status, third.body).toBe(409);
-    expect(third.json<{ error: { message: string; details: Record<string, unknown> } }>().error).toMatchObject({ message: '2 exports are already queued or running: wait for one to end', details: { open: 2 } });
+    expect(third.json<{ error: { message: string; details: Record<string, unknown> } }>().error).toMatchObject({
+      message: '2 exports are already queued or running: wait for one to end',
+      details: { open: 2 },
+    });
     expect(await exportJobs()).toHaveLength(2);
     await studio.engine.jobs.cancel(raced[0].id);
     const after = await call('review_export', { project: 'demo', render_id: 'tl-v13' });

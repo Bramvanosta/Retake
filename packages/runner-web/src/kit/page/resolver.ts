@@ -21,15 +21,11 @@ export function rowFor(text: string): Element | null {
 function rowForLive(text: string): Element | null {
   const q = norm(text);
   const ql = lc(q);
-  const rows = deepQsa(document, ROW_SEL).filter(
-    (r) => lowText(r).includes(ql) && isVisible(r),
-  );
+  const rows = deepQsa(document, ROW_SEL).filter((r) => lowText(r).includes(ql) && isVisible(r));
   // Innermost rows only (a row containing a matching nested row is dropped).
   const inner = rows.filter((r) => !rows.some((o) => o !== r && r.contains(o)));
   if (inner.length) {
-    const exactCell = inner.find((r) =>
-      Array.from(r.querySelectorAll('*')).some((c) => c.children.length === 0 && lowText(c) === ql),
-    );
+    const exactCell = inner.find((r) => Array.from(r.querySelectorAll('*')).some((c) => c.children.length === 0 && lowText(c) === ql));
     return exactCell ?? inner[0];
   }
   // Card layouts: climb from the text to the first ancestor that holds a button.
@@ -229,7 +225,13 @@ export function match(t: TargetObject, root: Element, opts: FindOptions): Matche
     used = 'role';
   } else if (t.label !== undefined) {
     const pairs = labelPairs(root).filter((p) => vis0(p.control));
-    let best = bestTier(pairs, (p) => p.text, t.label, exact, (p) => own(p.control)).map((p) => p.control);
+    let best = bestTier(
+      pairs,
+      (p) => p.text,
+      t.label,
+      exact,
+      (p) => own(p.control),
+    ).map((p) => p.control);
     if (!best.length) {
       const trig = fieldTriggerEl(t.label, root);
       if (trig) best = [trig];
@@ -389,9 +391,7 @@ export function find(t: TargetObject, opts: FindOptions = {}): ResolveResult {
 }
 export function fieldTriggerEl(label: string, root: Element): Element | null {
   const q = norm(label);
-  const labels = deepQsa(root, 'label,legend,[id],div,span,p,dt,th').filter(
-    (e) => e.children.length <= 3 && tierOf(norm(nameText(e)), q, false) >= 0 && isVisible(e),
-  );
+  const labels = deepQsa(root, 'label,legend,[id],div,span,p,dt,th').filter((e) => e.children.length <= 3 && tierOf(norm(nameText(e)), q, false) >= 0 && isVisible(e));
   const best = bestTier(labels, (e) => norm(nameText(e)), q, false);
   const TRIG = '[role=combobox],[aria-haspopup]:not([aria-haspopup=false]),button,[role=button],input:not([type=hidden]),select,textarea';
   for (const lab of best) {

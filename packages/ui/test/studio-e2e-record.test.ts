@@ -146,7 +146,13 @@ async function untilState(want: string, timeout = 60_000): Promise<void> {
   for (;;) {
     const s = await stateOf();
     if (s === want) return;
-    if ((s === 'failed' || s === 'cancelled') && want !== s) throw new Error(`the recording is ${s}: ${workerLogs.slice(-6).join(' | ')} — ${await page.getByTestId('record-job-error').textContent().catch(() => '')}`);
+    if ((s === 'failed' || s === 'cancelled') && want !== s)
+      throw new Error(
+        `the recording is ${s}: ${workerLogs.slice(-6).join(' | ')} — ${await page
+          .getByTestId('record-job-error')
+          .textContent()
+          .catch(() => '')}`,
+      );
     if (Date.now() > end) throw new Error(`timed out waiting for the state ${want} (now ${s})`);
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -211,7 +217,11 @@ beforeAll(async () => {
     if (m) calls.push(m[1]);
   });
   page.on('response', (r) => {
-    if (new URL(r.url()).pathname.startsWith('/v1/call/')) void r.text().then((t) => answers.push(t), () => undefined);
+    if (new URL(r.url()).pathname.startsWith('/v1/call/'))
+      void r.text().then(
+        (t) => answers.push(t),
+        () => undefined,
+      );
   });
   await page.goto(studio.launchUrl());
   await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
@@ -350,7 +360,9 @@ describe('recording the lab from the Studio', () => {
       // "Recording · browser window open" with the counts and holds the actions slot (no Rehearse / Capture / second
       // Stop there), and no scenario's state line beside it.
       await page.getByTestId('status-recording').waitFor(POLL);
-      const stops = await page.getByRole('button', { name: /^(Stop|Stop and keep|Stop recording|Cancel recording)$/ }).evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => e.textContent?.trim()));
+      const stops = await page
+        .getByRole('button', { name: /^(Stop|Stop and keep|Stop recording|Cancel recording)$/ })
+        .evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => e.textContent?.trim()));
       expect(stops).toEqual(['Stop recording']);
       expect(await page.locator('.sh-inspector').getByTestId('record-stop').count()).toBe(1);
       expect(await page.getByTestId('status-actions').count()).toBe(0);
@@ -385,11 +397,12 @@ describe('recording the lab from the Studio', () => {
     expect(v.untrusted!.pending).toEqual([]);
     const forgery = v.untrusted!.sources.find((s) => s.modifiers && s.modifiers.length === 3);
     expect(forgery?.role).toBe('action');
-    for (const t of ['caption:', 'Pick a bag size', 'mark: m1', 'zoom: 1.4', 'hold: 2', 'Forgery', 'scroll: {to: {testid: lab-far}}', 'wait_for: {target: Delayed control']) expect(yaml, t).toContain(t);
+    for (const t of ['caption:', 'Pick a bag size', 'mark: m1', 'zoom: 1.4', 'hold: 2', 'Forgery', 'scroll: {to: {testid: lab-far}}', 'wait_for: {target: Delayed control'])
+      expect(yaml, t).toContain(t);
     expect(yaml).not.toMatch(/[&*]a\d/);
   }, 240_000);
 
-  it('the cursor by row identity: a hold after a chosen step, after the recorder\'s scroll and wait rows, right after that row; Remove; the screens at 1280 and 1600', async () => {
+  it("the cursor by row identity: a hold after a chosen step, after the recorder's scroll and wait rows, right after that row; Remove; the screens at 1280 and 1600", async () => {
     /** The draft's rows and the cursor line, in screen order (`role:helper:row`). */
     const rows = () =>
       page.evaluate(() =>
@@ -424,11 +437,21 @@ describe('recording the lab from the Studio', () => {
     expect(await page.getByTestId('record-cursor-where').textContent()).toMatch(/after step 1 of/);
     const h1 = await holdAt(before + 1);
     let r = await rows();
-    expect(r.slice(r.findIndex((x) => x.endsWith(`:${first}`)), r.findIndex((x) => x.endsWith(`:${first}`)) + 3)).toEqual([expect.stringMatching(new RegExp(`:${first}$`)), h1, 'CURSOR']);
+    expect(
+      r.slice(
+        r.findIndex((x) => x.endsWith(`:${first}`)),
+        r.findIndex((x) => x.endsWith(`:${first}`)) + 3,
+      ),
+    ).toEqual([expect.stringMatching(new RegExp(`:${first}$`)), h1, 'CURSOR']);
     await expect.poll(() => page.getByTestId('record-cursor-where').textContent(), POLL).toMatch(/after step 2 of/);
     // Remove takes it out again (L5.11b fixes: the selected row's Remove is in its cursor block — the cursor is on the hold);
     // the cursor's row is gone: back to the end.
-    expect(await page.locator(`[data-testid=record-step][data-row="${h1.split('::')[1]}"]`).getByTestId('record-insert-after').getAttribute('aria-selected')).toBe('true');
+    expect(
+      await page
+        .locator(`[data-testid=record-step][data-row="${h1.split('::')[1]}"]`)
+        .getByTestId('record-insert-after')
+        .getAttribute('aria-selected'),
+    ).toBe('true');
     await page.getByTestId('record-cursor').getByTestId('record-insert-remove').click();
     await expect.poll(async () => (await inserts()).length, POLL).toBe(before);
     await expect.poll(() => page.getByTestId('record-cursor-where').textContent(), POLL).toMatch(/at the end/);
@@ -441,7 +464,12 @@ describe('recording the lab from the Studio', () => {
     const at = r.findIndex((x) => x === `helper:scroll:${scroll}`);
     expect(r.slice(at, at + 5)).toEqual([`helper:scroll:${scroll}`, s1, s2, 'CURSOR', expect.stringMatching(/^action::a\d+$/)]);
     // The press after them is the "Far away" click (its target picked earlier: the test id, L5.11b shows the pick in the row).
-    expect(await page.locator('[data-testid=record-step]').nth(r.slice(0, at + 4).filter((x) => x !== 'CURSOR').length).textContent()).toContain('lab-far');
+    expect(
+      await page
+        .locator('[data-testid=record-step]')
+        .nth(r.slice(0, at + 4).filter((x) => x !== 'CURSOR').length)
+        .textContent(),
+    ).toContain('lab-far');
 
     // After the recorder's wait row: between the wait and its press.
     const wait = await after('[data-testid=record-step][data-helper=wait]');
@@ -449,7 +477,12 @@ describe('recording the lab from the Studio', () => {
     r = await rows();
     const wi = r.findIndex((x) => x === `helper:wait:${wait}`);
     expect(r.slice(wi, wi + 4)).toEqual([`helper:wait:${wait}`, w1, 'CURSOR', expect.stringMatching(/^action::a\d+$/)]);
-    expect(await page.locator('[data-testid=record-step]').nth(r.slice(0, wi + 3).filter((x) => x !== 'CURSOR').length).textContent()).toContain('Delayed control');
+    expect(
+      await page
+        .locator('[data-testid=record-step]')
+        .nth(r.slice(0, wi + 3).filter((x) => x !== 'CURSOR').length)
+        .textContent(),
+    ).toContain('Delayed control');
     // The server placed them there too (the saved scenario holds this order).
     const yaml = (await view(lab)).untrusted!.yaml_lines.join('\n');
     expect(yaml).toMatch(/scroll: \{to: \{testid: lab-far\}\}\n\s+- hold: 2\n\s+- hold: 2\n\s+- click: \{testid: lab-far\}/);
@@ -489,7 +522,10 @@ describe('recording the lab from the Studio', () => {
     const index = sc.steps.findIndex((st) => 'scroll' in st);
     for (const kind of ['delete_step', 'duplicate_step'] as const) {
       const edited = applyStepEdit(text, { kind, at: { scene: sc.id, index, guard: stepGuard(sc.steps[index]) } } as never);
-      expect(parseScenario(edited.text).issues.filter((i) => i.severity === 'error'), kind).toEqual([]);
+      expect(
+        parseScenario(edited.text).issues.filter((i) => i.severity === 'error'),
+        kind,
+      ).toEqual([]);
     }
     expect(await page.getByTestId('step').count()).toBeGreaterThanOrEqual(6);
     // Back on the recording: saved, read-only now, with the links.
@@ -633,7 +669,11 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
       started_at: now,
       finished_at: now,
       worker: { ...me, host: hostname() },
-      error: { code: 'refused', message: `persona supplier is not signed in on signed-in (never): sign it in first — retake -C ${ws} login ${P} --env signed-in --persona supplier`, fix: `retake -C ${ws} login ${P} --env signed-in --persona supplier` },
+      error: {
+        code: 'refused',
+        message: `persona supplier is not signed in on signed-in (never): sign it in first — retake -C ${ws} login ${P} --env signed-in --persona supplier`,
+        fix: `retake -C ${ws} login ${P} --env signed-in --persona supplier`,
+      },
     } as JobRecord);
     await expect.poll(stateOf, POLL).toBe('failed');
     await page.getByTestId('record-sign-in').waitFor();

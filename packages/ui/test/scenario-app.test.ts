@@ -125,7 +125,14 @@ describe('ThumbLoader', () => {
     h.tick();
     expect(h.calls[1].keys).toEqual(['s.1', 's.3']);
     expect(h.loader.get('r', 's.2')).toEqual({ state: 'missing', reason: 'not_reached' });
-    h.calls[1].resolve({ ...OF, thumbs: [], missing: [{ key: 's.1', reason: 'budget' }, { key: 's.3', reason: 'budget' }] });
+    h.calls[1].resolve({
+      ...OF,
+      thumbs: [],
+      missing: [
+        { key: 's.1', reason: 'budget' },
+        { key: 's.3', reason: 'budget' },
+      ],
+    });
     await h.flush();
     h.tick();
     expect(h.calls).toHaveLength(2);

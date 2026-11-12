@@ -251,9 +251,7 @@ function matchesType(t: string, v: unknown): boolean {
 
 /** JSON with plain objects' keys in locale order (`localeCompare`): what const / enum / uniqueItems compare, and the text a message quotes. */
 function localeSortedJson(v: unknown): string {
-  return JSON.stringify(v, (_k, x: unknown) =>
-    isPlainObject(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x,
-  );
+  return JSON.stringify(v, (_k, x: unknown) => (isPlainObject(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
 }
 
 function fmt(v: unknown): string {

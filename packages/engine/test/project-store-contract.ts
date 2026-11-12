@@ -91,11 +91,27 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
         const current = sha256Hex('# Theirs\n');
         const store = h.stores.of({ dir, slug: 'acme' }, scope());
         const exists = await failure(store.writeText('README.md', '# Mine\n', { ifMatch: null, what: 'readme' }));
-        expect([exists.name, exists.code, exists.message, exists.details, exists.fix]).toEqual(['EngineError', 'conflict', 'README.md: already exists', { current }, `read it again and pass if_match: "${current}"`]);
+        expect([exists.name, exists.code, exists.message, exists.details, exists.fix]).toEqual([
+          'EngineError',
+          'conflict',
+          'README.md: already exists',
+          { current },
+          `read it again and pass if_match: "${current}"`,
+        ]);
         const stale = await failure(store.writeText('README.md', '# Mine\n', { ifMatch: sha256Hex('stale'), what: 'readme' }));
-        expect([stale.code, stale.message, stale.details, stale.fix]).toEqual(['conflict', 'README.md: changed since it was read (if_match does not match its content)', { current }, `read it again and pass if_match: "${current}"`]);
+        expect([stale.code, stale.message, stale.details, stale.fix]).toEqual([
+          'conflict',
+          'README.md: changed since it was read (if_match does not match its content)',
+          { current },
+          `read it again and pass if_match: "${current}"`,
+        ]);
         const missing = await failure(store.writeText('notes/none.md', '# Mine\n', { ifMatch: sha256Hex('# Theirs\n'), what: 'readme' }));
-        expect([missing.code, missing.message, missing.details, missing.fix]).toEqual(['conflict', 'notes/none.md: does not exist (if_match names a content it never had)', { current: null }, undefined]);
+        expect([missing.code, missing.message, missing.details, missing.fix]).toEqual([
+          'conflict',
+          'notes/none.md: does not exist (if_match names a content it never had)',
+          { current: null },
+          undefined,
+        ]);
         expect((await h.read(join(dir, 'README.md')))?.toString('utf8')).toBe('# Theirs\n');
         expect(await h.read(join(dir, 'notes', 'none.md'))).toBeUndefined();
         expect(await h.lines()).toEqual([
@@ -106,7 +122,7 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
       });
     });
 
-    it('refusals: a ref that is not folder-relative in checkRef\'s words, a path outside the folder or the folder itself named by its label; none is journaled', async () => {
+    it("refusals: a ref that is not folder-relative in checkRef's words, a path outside the folder or the folder itself named by its label; none is journaled", async () => {
       await withStore(async (h, scope) => {
         const dir = join(h.root, 'projects', 'acme');
         const store = h.stores.of({ dir, slug: 'acme' }, scope());
@@ -135,7 +151,7 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
       });
     });
 
-    it('the journal: by the scope\'s caller, the project with of() or a slug, the path under its label outside the workspace, at the scope\'s clock', async () => {
+    it("the journal: by the scope's caller, the project with of() or a slug, the path under its label outside the workspace, at the scope's clock", async () => {
       await withStore(async (h, scope, clock) => {
         const ws = h.stores.at(h.root, scope('mcp'));
         expect(ws.project).toBeUndefined();
@@ -148,9 +164,41 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
         await h.stores.at(join(h.outside, 'plain'), scope()).writeText('a.txt', 'a', { ifMatch: null, what: 'sandbox' });
         const at2 = new Date(later).toISOString();
         expect(await h.lines()).toEqual([
-          line({ by: { client: 'mcp', channel: 'mcp', trust: 'mcp' }, op: 'write', what: 'workspace', path: 'retake.yaml', if_match: null, sha256: sha256Hex('version: 1\n'), bytes: 11, outcome: 'ok' }),
-          JSON.stringify({ v: 1, at: at2, by: UI, op: 'write', what: 'component', path: '<components_dir>/acme/card/README.md', if_match: null, sha256: sha256Hex('# Card\n'), bytes: 7, outcome: 'ok' }),
-          JSON.stringify({ v: 1, at: at2, by: CLI, project: 'new-project', op: 'write', what: 'project', path: '<project>/project.yaml', if_match: null, sha256: sha256Hex('name: N\n'), bytes: 8, outcome: 'ok' }),
+          line({
+            by: { client: 'mcp', channel: 'mcp', trust: 'mcp' },
+            op: 'write',
+            what: 'workspace',
+            path: 'retake.yaml',
+            if_match: null,
+            sha256: sha256Hex('version: 1\n'),
+            bytes: 11,
+            outcome: 'ok',
+          }),
+          JSON.stringify({
+            v: 1,
+            at: at2,
+            by: UI,
+            op: 'write',
+            what: 'component',
+            path: '<components_dir>/acme/card/README.md',
+            if_match: null,
+            sha256: sha256Hex('# Card\n'),
+            bytes: 7,
+            outcome: 'ok',
+          }),
+          JSON.stringify({
+            v: 1,
+            at: at2,
+            by: CLI,
+            project: 'new-project',
+            op: 'write',
+            what: 'project',
+            path: '<project>/project.yaml',
+            if_match: null,
+            sha256: sha256Hex('name: N\n'),
+            bytes: 8,
+            outcome: 'ok',
+          }),
           JSON.stringify({ v: 1, at: at2, by: CLI, op: 'write', what: 'sandbox', path: '<store>/a.txt', if_match: null, sha256: sha256Hex('a'), bytes: 1, outcome: 'ok' }),
         ]);
       });
@@ -192,7 +240,12 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
             },
             recheck: async () => ({ existing: false }),
           });
-          await store.createFolder(parent, 'listed', { what: 'theme', build: async (stage) => stage.write('a', 'a').then(() => ['only-this']), recheck: async () => ({ existing: false }), files: (r) => r });
+          await store.createFolder(parent, 'listed', {
+            what: 'theme',
+            build: async (stage) => stage.write('a', 'a').then(() => ['only-this']),
+            recheck: async () => ({ existing: false }),
+            files: (r) => r,
+          });
           expect(await h.lines()).toEqual([
             line({ by: CLI, op: 'folder', what: 'theme', path: 'templates/mine', files: ['template.yaml', 'fonts/a.ttf'], outcome: 'ok' }),
             line({ by: CLI, op: 'folder', what: 'component', path: 'templates/many', files: many.slice(0, JOURNAL_FILES_MAX), files_more: 2, outcome: 'ok' }),
@@ -251,7 +304,9 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
         await h.mkdir(parent);
         const store = h.stores.at(parent, scope('ui'), { label: '<templates_dir>' });
         await h.seed(join(parent, 'mine', 'old.yaml'), 'old\n');
-        const e = (await failure(store.createFolder(parent, 'mine', { what: 'theme', build: async (stage) => stage.write('template.yaml', 'new\n'), recheck: async () => ({ existing: false }) }))) as unknown as NodeJS.ErrnoException;
+        const e = (await failure(
+          store.createFolder(parent, 'mine', { what: 'theme', build: async (stage) => stage.write('template.yaml', 'new\n'), recheck: async () => ({ existing: false }) }),
+        )) as unknown as NodeJS.ErrnoException;
         // The rename of a folder over one that holds files: ENOTEMPTY on macOS (EEXIST on some systems).
         expect(['ENOTEMPTY', 'EEXIST']).toContain(e.code);
         expect(e.message.startsWith(`${e.code}:`)).toBe(true);
@@ -262,7 +317,7 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
       });
     });
 
-    it('createFolder: two creations of one name at once — the second\'s recheck finds the first\'s folder', async () => {
+    it("createFolder: two creations of one name at once — the second's recheck finds the first's folder", async () => {
       await withStore(async (h, scope) => {
         const parent = join(h.root, 'components');
         await h.mkdir(parent);
@@ -285,12 +340,15 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
         expect(await h.list(parent)).toEqual(['card']);
         expect((await h.read(join(parent, 'card', 'index.tsx')))?.toString('utf8')).toBe(won);
         expect((await h.lines()).sort()).toEqual(
-          [line({ by: CLI, op: 'folder', what: 'component', path: 'components/card', files: ['index.tsx'], outcome: 'ok' }), line({ by: CLI, op: 'folder', what: 'component', path: 'components/card', outcome: 'conflict' })].sort(),
+          [
+            line({ by: CLI, op: 'folder', what: 'component', path: 'components/card', files: ['index.tsx'], outcome: 'ok' }),
+            line({ by: CLI, op: 'folder', what: 'component', path: 'components/card', outcome: 'conflict' }),
+          ].sort(),
         );
       });
     });
 
-    it('folder(): a missing file reads as undefined; a file\'s text, its sha256 and whether it is UTF-8', async () => {
+    it("folder(): a missing file reads as undefined; a file's text, its sha256 and whether it is UTF-8", async () => {
       await withStore(async (h) => {
         const dir = join(h.root, 'projects', 'acme');
         await h.seed(join(dir, 'README.md'), '# Acme\n');

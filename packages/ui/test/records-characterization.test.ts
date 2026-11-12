@@ -88,10 +88,13 @@ describe('the take the timeline plans and Render edits, state by state', () => {
     expect([view.runs.length, view.runs.some((r) => r.take), timelineRun(view), timelineRun(actions)]).toEqual([20, false, b.old, b.old]);
   }, 60_000);
 
-  it('a run.json that does not read as a record: the Studio shows the run\'s id and fixed words, never a row of empty fields', async () => {
+  it("a run.json that does not read as a record: the Studio shows the run's id and fixed words, never a row of empty fields", async () => {
     const b = buildState(root, 's', { slug: 'ui-unread' });
     const runs = await engine.runs.list(b.slug);
-    expect(runs.map((r) => [r.id === b.new ? 'NEW' : 'OLD', r.unread])).toEqual([['NEW', 'its run.json does not read as a record'], ['OLD', undefined]]);
+    expect(runs.map((r) => [r.id === b.new ? 'NEW' : 'OLD', r.unread])).toEqual([
+      ['NEW', 'its run.json does not read as a record'],
+      ['OLD', undefined],
+    ]);
     const rows = renderToStaticMarkup(createElement(RunRows, { runs }));
     expect(rows).toContain(`<li class="sc-quiet"><bdi class="k-mono">${b.new}</bdi><bdi>: its run.json does not read as a record</bdi></li>`);
     expect(rows.match(/<li /g)?.length).toBe(2);
@@ -170,14 +173,19 @@ describe("the Studio's list of renders, state by state", () => {
     'keep-json': '200 quote: 4 renders, 0 queued or running | quote-v4:succeeded quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
     'keep-json-without': '200 quote: 4 renders, 0 queued or running | quote-v4:succeeded quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
     'final-files': '200 quote: 4 renders, 0 queued or running | quote-v4:succeeded quote-v3:succeeded quote-v2:succeeded quote-v1:succeeded | project,scenario,jobs,renders,untrusted',
-
   };
 
   it('every state of the table through the op', async () => {
     const got: Record<string, string> = {};
     for (const id of renderStateIds()) {
       const b = buildRenderState(root, id);
-      const r = await raw(studio.port, 'POST', '/v1/call/scenario_renders', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify({ project: b.slug, name: 'quote' }));
+      const r = await raw(
+        studio.port,
+        'POST',
+        '/v1/call/scenario_renders',
+        { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' },
+        JSON.stringify({ project: b.slug, name: 'quote' }),
+      );
       const body = r.json<{ summary?: string; data?: { renders: Array<{ render_id: string; status: string }> } & Record<string, unknown> }>();
       got[id] = `${r.status} ${body.summary ?? ''} | ${body.data?.renders.map((x) => `${x.render_id}:${x.status}`).join(' ') || '-'} | ${Object.keys(body.data ?? {}).join(',')}`;
     }

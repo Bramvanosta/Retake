@@ -16,7 +16,28 @@ import type { LoadedProject, StoredRenderRecord } from '@retake/core';
 import { PERSON_POLICY, projectRenderOf, ulid } from '@retake/core';
 import { STARTER_TEMPLATES_DIR, loadProject } from '@retake/core/io';
 import type { RenderRecord } from '@retake/editor';
-import { APPROVALS_USED_DIR, EngineError, JOB_RECORD_VERSION, LIVE_FILE_VERSION, RunFolder, addComment, checkRunId, checkTemplateName, consumeApprovals, createEngine, listComments, listRuns, openLiveChannel, pruneProject, readLiveChannel, renderForWork, restoreApprovals, selfIdentity, toEngineError, packageReviewer } from '../src/index.js';
+import {
+  APPROVALS_USED_DIR,
+  EngineError,
+  JOB_RECORD_VERSION,
+  LIVE_FILE_VERSION,
+  RunFolder,
+  addComment,
+  checkRunId,
+  checkTemplateName,
+  consumeApprovals,
+  createEngine,
+  listComments,
+  listRuns,
+  openLiveChannel,
+  pruneProject,
+  readLiveChannel,
+  renderForWork,
+  restoreApprovals,
+  selfIdentity,
+  toEngineError,
+  packageReviewer,
+} from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { recordShapeOk } from '../src/comments/views.js';
 import { checkJobId } from '../src/jobs/queue-core.js';
@@ -70,7 +91,24 @@ async function run(dir: string, id: string, o: { scenario?: string; mode?: 'capt
   await mkdir(d, { recursive: true });
   await writeFile(
     join(d, 'run.json'),
-    JSON.stringify({ version: 1, id, project: 'p', scenario: o.scenario ?? 'quote', mode: o.mode ?? 'dry', status: o.status ?? 'succeeded', started_at: '2026-10-20T10:00:00.000Z', finished_at: '2026-10-20T10:01:00.000Z', dir: d, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id,
+      project: 'p',
+      scenario: o.scenario ?? 'quote',
+      mode: o.mode ?? 'dry',
+      status: o.status ?? 'succeeded',
+      started_at: '2026-10-20T10:00:00.000Z',
+      finished_at: '2026-10-20T10:01:00.000Z',
+      dir: d,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+    }),
   );
 }
 
@@ -78,7 +116,21 @@ async function run(dir: string, id: string, o: { scenario?: string; mode?: 'capt
 async function record(dir: string, id: string, o: Partial<RenderRecord> & { file_name?: string } = {}): Promise<void> {
   const { file_name, ...rest } = o;
   const scenario = id.replace(/-v\d+(-vertical|-square)?$/, '');
-  await writeFile(join(dir, 'renders', `${file_name ?? id}.json`), JSON.stringify({ version: 1, id, scenario, run_id: '20261017-142233-quote', status: 'succeeded', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', template: 'editorial', plan: {}, ...rest }));
+  await writeFile(
+    join(dir, 'renders', `${file_name ?? id}.json`),
+    JSON.stringify({
+      version: 1,
+      id,
+      scenario,
+      run_id: '20261017-142233-quote',
+      status: 'succeeded',
+      created_at: '2026-10-20T11:00:00.000Z',
+      variant: 'landscape',
+      template: 'editorial',
+      plan: {},
+      ...rest,
+    }),
+  );
 }
 
 beforeAll(async () => {
@@ -101,7 +153,7 @@ afterAll(async () => {
 
 // ── The checks of a name ─────────────────────────────────────────────────────
 
-describe('the checks a client\'s names go through', () => {
+describe("the checks a client's names go through", () => {
   it('a run id: the folder grammar, at most 200 characters, a string', async () => {
     const rows: Array<[unknown, boolean]> = [
       [`${STAMP}quote`, true],
@@ -125,7 +177,15 @@ describe('the checks a client\'s names go through', () => {
       [undefined, false],
       [[`${STAMP}quote`], false],
     ];
-    expect(rows.map(([v]) => { try { return checkRunId(v as string) === v; } catch { return false; } })).toEqual(rows.map((r) => r[1]));
+    expect(
+      rows.map(([v]) => {
+        try {
+          return checkRunId(v as string) === v;
+        } catch {
+          return false;
+        }
+      }),
+    ).toEqual(rows.map((r) => r[1]));
     expect(await outcome(() => checkRunId('a/b'))).toBe('invalid: invalid run id "a/b": a folder name of runs/ (e.g. 20261017-142233-quote), never a path');
   });
 
@@ -143,7 +203,15 @@ describe('the checks a client\'s names go through', () => {
       ['x\n', false],
       [7, false],
     ];
-    expect(rows.map(([v]) => { try { return checkTemplateName(v as string) === v; } catch { return false; } })).toEqual(rows.map((r) => r[1]));
+    expect(
+      rows.map(([v]) => {
+        try {
+          return checkTemplateName(v as string) === v;
+        } catch {
+          return false;
+        }
+      }),
+    ).toEqual(rows.map((r) => r[1]));
     expect(await outcome(() => checkTemplateName('a.b'))).toBe('invalid: invalid theme "a.b": a theme name (template_list names them), never a path');
     // A render request names its theme the same way.
     const req = (template: unknown) => outcome(() => checkRenderRequest({ project: 'demo', scenario: 'quote', template: template as string }));
@@ -167,7 +235,15 @@ describe('the checks a client\'s names go through', () => {
       [`../j_${BODY}`, false],
       ['', false],
     ];
-    expect(rows.map(([v]) => { try { return checkJobId(v) === v; } catch { return false; } })).toEqual(rows.map((r) => r[1]));
+    expect(
+      rows.map(([v]) => {
+        try {
+          return checkJobId(v) === v;
+        } catch {
+          return false;
+        }
+      }),
+    ).toEqual(rows.map((r) => r[1]));
     expect(await outcome(() => checkJobId('j_x'))).toBe('invalid: invalid job id "j_x": j_ followed by 26 characters (job_list names them)');
     // A string only: a value that merely prints as a job id is refused.
     expect(await outcome(() => checkJobId([`j_${BODY}`] as unknown as string))).toBe(`invalid: invalid job id "j_${BODY}": j_ followed by 26 characters (job_list names them)`); // N-s
@@ -295,8 +371,14 @@ describe('run folders', () => {
   });
 
   it('a live channel is opened for a run id only', async () => {
-    const open = (runId: string) => outcome(openLiveChannel({ files: { live: () => join(p.dir, 'never-written.json') }, jobId: `j_${BODY}`, runId, worker: { pid: process.pid, started: '' } as never }));
-    expect((await Promise.all([a(201), '.tmp-quote', 'a/b', ''].map(open))).map(short)).toEqual(['Error: invalid run id "<201 a>"', 'Error: invalid run id ".tmp-quote"', 'Error: invalid run id "a/b"', 'Error: invalid run id ""']);
+    const open = (runId: string) =>
+      outcome(openLiveChannel({ files: { live: () => join(p.dir, 'never-written.json') }, jobId: `j_${BODY}`, runId, worker: { pid: process.pid, started: '' } as never }));
+    expect((await Promise.all([a(201), '.tmp-quote', 'a/b', ''].map(open))).map(short)).toEqual([
+      'Error: invalid run id "<201 a>"',
+      'Error: invalid run id ".tmp-quote"',
+      'Error: invalid run id "a/b"',
+      'Error: invalid run id ""',
+    ]);
     expect(existsSync(join(p.dir, 'never-written.json'))).toBe(false);
   });
 
@@ -304,7 +386,9 @@ describe('run folders', () => {
     const me = await selfIdentity();
     const file = join(p.dir, 'live.json');
     const read = async (run: unknown) => {
-      await writeFile(file, JSON.stringify({ v: LIVE_FILE_VERSION, job: `j_${BODY}`, run, port: 4999, token: 'a'.repeat(43), pid: me.pid, ...(me.started_at ? { started_at: me.started_at } : {}) }), { mode: 0o600 });
+      await writeFile(file, JSON.stringify({ v: LIVE_FILE_VERSION, job: `j_${BODY}`, run, port: 4999, token: 'a'.repeat(43), pid: me.pid, ...(me.started_at ? { started_at: me.started_at } : {}) }), {
+        mode: 0o600,
+      });
       return (await readLiveChannel({ claimOf: async () => ({ ...me, at: '2026-10-20T10:00:00.000Z' }) as never }, { live: () => file }, `j_${BODY}`)) !== null;
     };
     expect([await read(`${STAMP}quote`), await read(a(200))]).toEqual([true, true]);
@@ -327,7 +411,7 @@ describe('run folders', () => {
   });
 });
 
-describe('the scenario view\'s run argument', () => {
+describe("the scenario view's run argument", () => {
   it('is a run id', async () => {
     await project('view', { quote: SCENARIO_YAML });
     const view = (runId: string) => outcome(engine.scenarios.view('view', 'quote', { run: runId }));
@@ -354,7 +438,7 @@ describe('the project board', () => {
     expect((await s())?.last_run?.id).toBe(`${STAMP}quote`);
   });
 
-  it('a scenario whose theme is a folder path: the render of today\'s file is the one shown', async () => {
+  it("a scenario whose theme is a folder path: the render of today's file is the one shown", async () => {
     const long = a(101, 't');
     const yaml = `${SCENARIO_YAML}template: ./themes/${long}\n`;
     const p = await project('board-theme', { quote: yaml });
@@ -371,7 +455,10 @@ describe('the project board', () => {
     // the one in the row.
     expect([s?.render?.render_id, s?.render_current]).toEqual(['quote-v1', true]); // L7.8 (BL-164): was quote-v2, the newest render of today's file and take, of another theme
     expect([short(s?.theme ?? '(none)'), short(s?.render?.theme ?? '')]).toEqual(['(none)', 'unknown']); // D-2: 101 characters; L7.8 (BL-164): the render in the row is quote-v1, whose theme says unknown (was quote-v2's editorial)
-    expect(((await engine.renders.ofScenario('board-theme', 'quote')).renders.map((r) => [r.render_id, r.theme]))).toEqual([['quote-v2', 'editorial'], ['quote-v1', 'unknown']]); // D-2: 101 characters
+    expect((await engine.renders.ofScenario('board-theme', 'quote')).renders.map((r) => [r.render_id, r.theme])).toEqual([
+      ['quote-v2', 'editorial'],
+      ['quote-v1', 'unknown'],
+    ]); // D-2: 101 characters
     // With a theme folder of 100 characters: its name on both sides, and the older render — the one of today's theme —
     // is shown, not the newest.
     const ok = a(100, 't');
@@ -427,12 +514,16 @@ describe('render records', () => {
   it('a file of renders/ is a render record when its id is its file name, a render id', async () => {
     // L7.6b: read by the one reader of renders/, and a render by core's rule (a complete record of its own file whose id is one of its scenario).
     const read = async (file: string): Promise<string | null> => projectRenderOf(await readListedRecord(p.dir, file))?.id ?? null;
-    expect((await Promise.all(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', `${a(197)}-v1`, 'final', 'quote-v8', 'quote-v9', 'missing-v1'].map(read))).map((x) => x && short(x))).toEqual(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', '<197 a>-v1', null, null, null, null]);
+    expect(
+      (await Promise.all(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', `${a(197)}-v1`, 'final', 'quote-v8', 'quote-v9', 'missing-v1'].map(read))).map(
+        (x) => x && short(x),
+      ),
+    ).toEqual(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', '<197 a>-v1', null, null, null, null]);
     expect(await read('quote-v1000000')).toBe(null); // D-6
     expect(short((await read(`${a(198)}-v1`)) ?? '(none)')).toBe('(none)'); // D-2: 201 characters
   });
 
-  it('a scenario\'s renders are the records named <scenario>-v<N>[-vertical|-square].json', async () => {
+  it("a scenario's renders are the records named <scenario>-v<N>[-vertical|-square].json", async () => {
     const ids = (await engine.renders.ofScenario('records', 'quote')).renders.map((r) => r.render_id).sort();
     expect(ids).toEqual(['quote-v1-vertical', 'quote-v3', 'quote-v999999']); // D-6: not 'quote-v1000000'
     expect((await engine.renders.ofScenario('records', 'quote-v2')).renders.map((r) => r.render_id)).toEqual(['quote-v2-v1']);
@@ -440,7 +531,22 @@ describe('render records', () => {
 
   it('a render as listed names its take and its theme, or says unknown', () => {
     const view = (extra: Record<string, unknown>) => {
-      const v = renderView(p.dir, { version: 1, id: 'quote-v3', scenario: 'quote', status: 'succeeded', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', run_id: `${STAMP}quote`, template: 'editorial', ...extra } as unknown as StoredRenderRecord, [], []);
+      const v = renderView(
+        p.dir,
+        {
+          version: 1,
+          id: 'quote-v3',
+          scenario: 'quote',
+          status: 'succeeded',
+          created_at: '2026-10-20T11:00:00.000Z',
+          variant: 'landscape',
+          run_id: `${STAMP}quote`,
+          template: 'editorial',
+          ...extra,
+        } as unknown as StoredRenderRecord,
+        [],
+        [],
+      );
       return [short(v.run_id), short(v.theme)];
     };
     expect(view({})).toEqual([`${STAMP}quote`, 'editorial']);
@@ -455,9 +561,17 @@ describe('render records', () => {
   });
 
   it('a record whose fields a message may quote: a render id, a scenario name, a date, a variant', () => {
-    const ok = (extra: Record<string, unknown>) => recordShapeOk({ id: 'quote-v3', scenario: 'quote', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', ...extra } as unknown as RenderRecord);
+    const ok = (extra: Record<string, unknown>) =>
+      recordShapeOk({ id: 'quote-v3', scenario: 'quote', created_at: '2026-10-20T11:00:00.000Z', variant: 'landscape', ...extra } as unknown as RenderRecord);
     // L7.6b: the rule is core's quotableRender — the id is one of the scenario the record says (a render id of another scenario is not quoted).
-    expect([ok({}), ok({ id: 'final' }), ok({ id: 7 }), ok({ id: `${a(197)}-v1`, scenario: a(197) }), ok({ scenario: 'a.b' }), ok({ variant: 'tall' })]).toEqual([true, false, false, true, false, false]);
+    expect([ok({}), ok({ id: 'final' }), ok({ id: 7 }), ok({ id: `${a(197)}-v1`, scenario: a(197) }), ok({ scenario: 'a.b' }), ok({ variant: 'tall' })]).toEqual([
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+    ]);
     expect(ok({ id: `${a(197)}-v1` })).toBe(false);
     expect(ok({ id: `${a(198)}-v1` })).toBe(false); // D-2: 201 characters
     expect(ok({ id: 'quote-v1000000' })).toBe(false); // D-6
@@ -489,7 +603,12 @@ describe('render records', () => {
       }
     };
     const work = (scenario?: string) => outcome(renderForWork(q, 'latest', scenario === undefined ? {} : { scenario }));
-    const NONE = { status: 'not_found: no render of latest yet: render starts one', statusOf: 'not_found: no render of latest · quote yet: render starts one', work: 'not_found: no finished render of latest yet: render makes one', workOf: 'not_found: no finished render of latest · quote yet: render makes one' };
+    const NONE = {
+      status: 'not_found: no render of latest yet: render starts one',
+      statusOf: 'not_found: no render of latest · quote yet: render starts one',
+      work: 'not_found: no finished render of latest yet: render makes one',
+      workOf: 'not_found: no finished render of latest · quote yet: render makes one',
+    };
     // Newer than any render, and renders of their scenario nowhere: a version past the highest, a name of its own,
     // a name past 200 characters, another scenario's name.
     await made('quote-v1000000', { created_at: '2026-10-21T10:00:00.000Z' });
@@ -508,7 +627,10 @@ describe('render records', () => {
     const job = `j_${ulid()}`;
     await mkdir(join(ws.root, '.retake', 'jobs', job), { recursive: true });
     const input = { version: 1, kind: 'render', project: 'latest', scenario: 'quote', run_id: `${STAMP}quote`, render_id: 'other-v8', submitted_by: 'test' };
-    await writeFile(join(ws.root, '.retake', 'jobs', job, 'job.json'), JSON.stringify({ version: JOB_RECORD_VERSION, id: job, kind: 'render', input, state: 'queued', created_at: '2026-10-22T10:00:00.000Z' }));
+    await writeFile(
+      join(ws.root, '.retake', 'jobs', job, 'job.json'),
+      JSON.stringify({ version: JOB_RECORD_VERSION, id: job, kind: 'render', input, state: 'queued', created_at: '2026-10-22T10:00:00.000Z' }),
+    );
     expect((await engine.jobs.list({ project: 'latest' })).map((j) => j.id)).toEqual([job]);
     expect([await newest(), await newest('quote')]).toEqual(['quote-v4', 'quote-v4']);
     await rm(join(ws.root, '.retake', 'jobs', job), { recursive: true });
@@ -517,7 +639,7 @@ describe('render records', () => {
 
 // ── Reviews, comments and frames of a render ─────────────────────────────────
 
-describe('a render\'s review, comments and frames', () => {
+describe("a render's review, comments and frames", () => {
   it('a review names the render it was compared with by its id, or says unknown', async () => {
     const dir = join(ws.project.dir, 'review', 'quote-v1');
     await mkdir(dir, { recursive: true });
@@ -537,7 +659,10 @@ describe('a render\'s review, comments and frames', () => {
 
   it('a review image and a review job name renders by their id', async () => {
     const image = (id: string) => outcome(engine.reviews.image('demo', id, 'sheet_1.jpg'));
-    expect((await Promise.all(['final', `${a(198)}-v1`].map(image))).map(short)).toEqual(['invalid: invalid render id "final": <scenario>-v<N>', 'invalid: invalid render id "<198 a>-v1": <scenario>-v<N>']);
+    expect((await Promise.all(['final', `${a(198)}-v1`].map(image))).map(short)).toEqual([
+      'invalid: invalid render id "final": <scenario>-v<N>',
+      'invalid: invalid render id "<198 a>-v1": <scenario>-v<N>',
+    ]);
     expect(await image('quote-v2000000')).toBe('invalid: invalid render id "quote-v2000000": <scenario>-v<N>'); // D-6
     const submit = (previous: unknown) => outcome(engine.reviews.submit({ project: 'demo', render_id: 'quote-v1', previous: previous as string }));
     expect(await submit('final')).toBe('invalid: invalid previous "final": a render id, or false for no comparison');
@@ -551,7 +676,10 @@ describe('a render\'s review, comments and frames', () => {
   it('comments are listed for a render named by its id', async () => {
     const list = (render: string) => outcome(listComments(ws.project, { render }));
     expect(await list('quote-v1')).toBe('ok');
-    expect((await Promise.all(['final', `${a(198)}-v1`].map(list))).map(short)).toEqual(['invalid: invalid render id "final": <scenario>-v<N>, or "latest"', 'invalid: invalid render id "<80 a>": <scenario>-v<N>, or "latest"']);
+    expect((await Promise.all(['final', `${a(198)}-v1`].map(list))).map(short)).toEqual([
+      'invalid: invalid render id "final": <scenario>-v<N>, or "latest"',
+      'invalid: invalid render id "<80 a>": <scenario>-v<N>, or "latest"',
+    ]);
     expect(await list('quote-v2000000')).toBe('invalid: invalid render id "quote-v2000000": <scenario>-v<N>, or "latest"'); // D-6
   });
 
@@ -595,7 +723,8 @@ describe('a render\'s review, comments and frames', () => {
     const mixed = { ...demo.record, id: 'quote-v2-v1', file: join(ws.project.dir, 'renders', 'quote-v2-v1.mp4'), record: join(ws.project.dir, 'renders', 'quote-v2-v1.json') };
     await writeFile(mixed.file, '');
     await writeFile(mixed.record, JSON.stringify(mixed));
-    const add = (render: string) => outcome(addComment(ws.project, { render, frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, authorScope(ws.project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY, FRAMES));
+    const add = (render: string) =>
+      outcome(addComment(ws.project, { render, frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, authorScope(ws.project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY, FRAMES));
     const frame = (render: string) => outcome(engine.renders.frame('demo', { render_id: render, created_at: demo.record.created_at, frame: 0 }));
     // L7.5 D-5: the id is the scenario's exactly, not by its start.
     expect(await add('quote-v2-v1')).toBe('invalid: render quote-v2-v1 has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments'); // D-5
@@ -622,7 +751,11 @@ describe('a render\'s review, comments and frames', () => {
       const p = await engine.renders.plan({ project: 'demo', scenario: 'quote', run_id: demo.run.id, overrides: { variant } });
       return [p.variant, p.next_render_id];
     };
-    expect([await next('landscape'), await next('vertical'), await next('square')]).toEqual([['landscape', 'quote-v2'], ['vertical', 'quote-v2-vertical'], ['square', 'quote-v2-square']]);
+    expect([await next('landscape'), await next('vertical'), await next('square')]).toEqual([
+      ['landscape', 'quote-v2'],
+      ['vertical', 'quote-v2-vertical'],
+      ['square', 'quote-v2-square'],
+    ]);
   });
 
   it('a file of renders/ that claims the highest version or more: a plan and a render are refused with its name', async () => {
@@ -634,7 +767,11 @@ describe('a render\'s review, comments and frames', () => {
       const before = (await readdir(dir)).sort();
       const refusal = `renders/ holds quote-v${digits}.json, which claims version ${digits} of quote: the highest version is 999999. Remove or rename that file, then render again.`;
       // The editor's refusal, as a client is told it (its kind and its sentence).
-      const told = (p: Promise<unknown>) => p.then(() => 'ok', (e: unknown) => `${toEngineError(e).code}: ${toEngineError(e).message}`);
+      const told = (p: Promise<unknown>) =>
+        p.then(
+          () => 'ok',
+          (e: unknown) => `${toEngineError(e).code}: ${toEngineError(e).message}`,
+        );
       expect(await told(engine.renders.plan(req))).toBe(`invalid: ${refusal}`);
       expect(await told(engine.renders.submit(req))).toBe(`invalid: ${refusal}`);
       // Nothing is queued, no lock is left.
@@ -673,7 +810,7 @@ describe('pruning: the files of a render that goes', () => {
     expect(await renderItems(p)).toEqual([['final', ['final.json', 'final.mp4']]]);
   });
 
-  it('a record whose id is not its file\'s name', async () => {
+  it("a record whose id is not its file's name", async () => {
     const p = await project('prune-other');
     await record(p.dir, 'quote-v7', { ...failed, file_name: 'quote-v8' });
     await writeFile(join(p.dir, 'renders', 'quote-v7.mp4'), 'x');
@@ -702,7 +839,7 @@ describe('pruning: the files of a render that goes', () => {
 
 // ── Theme names ──────────────────────────────────────────────────────────────
 
-describe('a new theme\'s name, and a theme that exists under a long one', () => {
+describe("a new theme's name, and a theme that exists under a long one", () => {
   it('a copy takes a lower-case name of at most 60 characters', async () => {
     const copy = (name: unknown) => outcome(themeEngine.templates.copy({ from: 'editorial', name: name as string }));
     const invalid = (name: string) => `invalid: invalid theme name "${name.slice(0, 80)}": lower-case letters, digits and dashes (e.g. my-brand)`;
@@ -735,7 +872,7 @@ describe('a new theme\'s name, and a theme that exists under a long one', () => 
 
 // ── The time in an id ────────────────────────────────────────────────────────
 
-describe('the time a site extraction\'s id holds', () => {
+describe("the time a site extraction's id holds", () => {
   it('is read from its first ten characters', async () => {
     const root = join(themes, '.retake', 'site');
     const ids = [`s_01K8AB1CDE${a(16, '0')}`, `s_${a(26, '0')}`, `s_${a(26, 'Z')}`, `s_${BODY.slice(0, 25)}`, `s_U${BODY.slice(1)}`, `j_${BODY}`];

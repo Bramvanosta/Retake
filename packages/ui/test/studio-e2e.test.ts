@@ -78,7 +78,11 @@ const csp = (p: Page) => p.evaluate(() => (window as unknown as { __csp: number 
 const textarea = () => page.locator('#readme-text');
 /** L5.10a: back to Welcome through the title bar's project menu (or the address when no project is open). */
 async function toWelcome(p: Page): Promise<void> {
-  const menu = p.getByRole('banner').getByRole('button', { name: /./ }).filter({ has: p.locator('.k-btn-label') }).first();
+  const menu = p
+    .getByRole('banner')
+    .getByRole('button', { name: /./ })
+    .filter({ has: p.locator('.k-btn-label') })
+    .first();
   if (await menu.count()) {
     await menu.click();
     await p.getByRole('menuitem', { name: 'All projects' }).click();
@@ -112,7 +116,10 @@ beforeAll(async () => {
   await writeFile(join(hostile, 'README.md'), HOSTILE_README);
   // L5.10a: a production whose title is markup and a right-to-left override (the poster, the inspector).
   await mkdir(join(hostile, 'scenarios'), { recursive: true });
-  await writeFile(join(hostile, 'scenarios', 'evil.yaml'), `version: 1\nvideo: evil\ntitle: {text: ${JSON.stringify(HOSTILE_NAME)}}\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n`);
+  await writeFile(
+    join(hostile, 'scenarios', 'evil.yaml'),
+    `version: 1\nvideo: evil\ntitle: {text: ${JSON.stringify(HOSTILE_NAME)}}\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n`,
+  );
   const folder = join(ws, 'projects', HOSTILE_FOLDER);
   await mkdir(folder, { recursive: true });
   await writeFile(join(folder, 'project.yaml'), `version: 1\nname: "<svg onload=window.__pwned='folder'>"\nenvironments: {}\n`);
@@ -162,7 +169,10 @@ describe('the Studio in Chromium', () => {
     const cards = page.getByTestId('project-card');
     await expect.poll(() => cards.count(), POLL).toBe(4);
     const fixture = cards.filter({ hasText: 'Northfield (fixture)' });
-    await fixture.getByText(/production/).first().waitFor();
+    await fixture
+      .getByText(/production/)
+      .first()
+      .waitFor();
     const text = await fixture.innerText();
     expect(text).toMatch(/\d+ scenarios/);
     // Each flagged environment with its flag words exactly (review B-M3: its name alone must not satisfy the check).
@@ -187,7 +197,10 @@ describe('the Studio in Chromium', () => {
     await page.getByText('20261017').or(page.getByText('rehearsal ·').first()).first().waitFor();
     await shot('02-project');
     // L5.10a: a location's pages, display URLs and flags are in the inspector (the browser's Locations row).
-    await page.getByRole('navigation', { name: 'Studio' }).getByRole('link', { name: /^local/ }).click();
+    await page
+      .getByRole('navigation', { name: 'Studio' })
+      .getByRole('link', { name: /^local/ })
+      .click();
     await page.getByTestId('location-pages').waitFor();
     expect(await page.getByTestId('location-pages').locator('.k-facts').count()).toBeGreaterThan(0);
   });

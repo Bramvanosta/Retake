@@ -60,7 +60,9 @@ export function compactRunStatus(r: RunStatusWithJob): CompactRunStatus {
           },
         }
       : {}),
-    ...(r.optional_failures?.length ? { optional_failures: r.optional_failures.map((f) => ({ scene: f.scene, step: f.step, action: f.action, ...(f.screenshot ? { screenshot: f.screenshot.path } : {}) })) } : {}),
+    ...(r.optional_failures?.length
+      ? { optional_failures: r.optional_failures.map((f) => ({ scene: f.scene, step: f.step, action: f.action, ...(f.screenshot ? { screenshot: f.screenshot.path } : {}) })) }
+      : {}),
     ...(r.perf ? { perf: perfSummary(r.perf) } : {}),
     files: {
       dir: r.dir,
@@ -68,7 +70,18 @@ export function compactRunStatus(r: RunStatusWithJob): CompactRunStatus {
       ...(out('timeline.json') ? { timeline: out('timeline.json') } : {}),
       ...(r.screenshots.length ? { screenshots: { dir: `${r.dir}/screenshots`, count: r.screenshots.length } } : {}),
     },
-    ...(r.job ? { job: { id: r.job.id, state: r.job.state, ...(r.job.queue ? { queue: r.job.queue } : {}), ...(r.job.cancel_requested_at ? { cancel_requested_at: r.job.cancel_requested_at } : {}), ...(r.job.pause_requested_at ? { pause_requested_at: r.job.pause_requested_at } : {}), ...(r.job.error ? { error: r.job.error } : {}) } } : {}),
+    ...(r.job
+      ? {
+          job: {
+            id: r.job.id,
+            state: r.job.state,
+            ...(r.job.queue ? { queue: r.job.queue } : {}),
+            ...(r.job.cancel_requested_at ? { cancel_requested_at: r.job.cancel_requested_at } : {}),
+            ...(r.job.pause_requested_at ? { pause_requested_at: r.job.pause_requested_at } : {}),
+            ...(r.job.error ? { error: r.job.error } : {}),
+          },
+        }
+      : {}),
     untrusted: {
       ...(r.untrusted.error_message !== undefined ? { error_message: r.untrusted.error_message } : {}),
       ...(r.untrusted.missing_targets?.length ? { missing_targets: r.untrusted.missing_targets } : {}),
@@ -95,7 +108,16 @@ export function compactReview(r: ReviewView): Record<string, unknown> {
     render_id: r.render_id,
     status: r.status,
     finished: r.finished,
-    ...(r.job ? { job: { id: r.job.id, state: r.job.state, ...(r.job.progress ? { progress: r.job.progress } : {}), ...(r.job.error ? { error: { code: r.job.error.code, ...(r.job.error.fix ? { fix: r.job.error.fix } : {}) } } : {}) } } : {}),
+    ...(r.job
+      ? {
+          job: {
+            id: r.job.id,
+            state: r.job.state,
+            ...(r.job.progress ? { progress: r.job.progress } : {}),
+            ...(r.job.error ? { error: { code: r.job.error.code, ...(r.job.error.fix ? { fix: r.job.error.fix } : {}) } } : {}),
+          },
+        }
+      : {}),
     ...(r.created_at ? { created_at: r.created_at } : {}),
     ...(r.fps ? { fps: r.fps } : {}),
     ...(r.clean !== undefined ? { clean: r.clean } : {}),

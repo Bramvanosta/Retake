@@ -126,7 +126,9 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
               )}
             </p>
           )}
-          {job.state === 'succeeded' && <p>{shown(signIn?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[signIn?.status ?? '']?.[0] ?? 'not valid'}.`)}</p>}
+          {job.state === 'succeeded' && (
+            <p>{shown(signIn?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[signIn?.status ?? '']?.[0] ?? 'not valid'}.`)}</p>
+          )}
           {job.state === 'cancelled' && (
             <p>
               {signIn?.profile_kept
@@ -172,7 +174,8 @@ export type SessionRowData = AuthStatusItem & { auto?: boolean; has_check?: bool
 function runNotes(p: SessionRowData, issues: readonly string[]): string[] {
   const out: string[] = [];
   if (p.auto && p.login_keychain) out.push('its keychain items are not looked up here: they must exist on this computer');
-  if (p.login_env_missing && p.login_env_missing.length > 0 && !issues.some((i) => i.startsWith(`persona ${p.persona}:`))) out.push(`its login steps need ${p.login_env_missing.join(', ')}, not set for the worker: no run signs it in by itself`);
+  if (p.login_env_missing && p.login_env_missing.length > 0 && !issues.some((i) => i.startsWith(`persona ${p.persona}:`)))
+    out.push(`its login steps need ${p.login_env_missing.join(', ')}, not set for the worker: no run signs it in by itself`);
   if (p.has_check === false) out.push('no check: a run uses its saved session as it is, unverified');
   if (p.in_use) out.push('in use by a browser window');
   return out;
@@ -192,7 +195,21 @@ function signedInBy(p: SessionRowData): string | null {
  * in offers no "Sign in…": the run does it (review B-L1). Test ids kept from L4.4: sessions-table, session-row
  * (data-persona, data-status).
  */
-export function SessionRows({ slug, rows, onChanged, caption, showEnv = true, issues = [] }: { slug: string; rows: SessionRowData[]; onChanged: () => void; caption: string; showEnv?: boolean; issues?: readonly string[] }) {
+export function SessionRows({
+  slug,
+  rows,
+  onChanged,
+  caption,
+  showEnv = true,
+  issues = [],
+}: {
+  slug: string;
+  rows: SessionRowData[];
+  onChanged: () => void;
+  caption: string;
+  showEnv?: boolean;
+  issues?: readonly string[];
+}) {
   const cols = showEnv ? 5 : 4;
   return (
     <div className="sp-sessions-box">

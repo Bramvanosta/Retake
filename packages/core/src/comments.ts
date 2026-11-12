@@ -112,9 +112,7 @@ export function scenarioStepFingerprint(scenarioText: string, scene: string, ste
   }
   const scenes = (doc as { scenes?: unknown } | null)?.scenes;
   if (!Array.isArray(scenes)) return undefined;
-  const entry = scenes.find((e) => e && typeof e === 'object' && (e as { id?: unknown }).id === scene && Array.isArray((e as { steps?: unknown }).steps)) as
-    | { steps: unknown[] }
-    | undefined;
+  const entry = scenes.find((e) => e && typeof e === 'object' && (e as { id?: unknown }).id === scene && Array.isArray((e as { steps?: unknown }).steps)) as { steps: unknown[] } | undefined;
   if (!entry || !Number.isInteger(step) || step < 0 || step >= entry.steps.length) return undefined;
   const fp = stepFingerprint(entry.steps[step]);
   if (!fp) return undefined;
@@ -131,10 +129,7 @@ export function scenarioStepFingerprint(scenarioText: string, scene: string, ste
  * null when today's text has no such step (deleted, changed, several candidates elsewhere, the anchor kept no
  * fingerprint, the text does not parse). Undefined when the anchor names no step.
  */
-export function locateAnchorStep(
-  scenarioText: string,
-  a: Pick<FrameCommentAnchor, 'scene' | 'step' | 'step_id' | 'step_fp' | 'step_fp_n'>,
-): string | null | undefined {
+export function locateAnchorStep(scenarioText: string, a: Pick<FrameCommentAnchor, 'scene' | 'step' | 'step_id' | 'step_fp' | 'step_fp_n'>): string | null | undefined {
   if (a.scene === undefined || a.step === undefined) return undefined;
   const value = parseYaml(scenarioText).value as { scenes?: unknown } | undefined;
   const raw = value && typeof value === 'object' ? value.scenes : undefined;
@@ -206,12 +201,10 @@ export const CommentAuthorSchema = z.strictObject({
 });
 export type CommentAuthor = z.output<typeof CommentAuthorSchema>;
 
-export const CommentRegionSchema = z
-  .strictObject({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })
-  .superRefine((r, ctx) => {
-    const p = regionProblem(r);
-    if (p) ctx.addIssue({ code: 'custom', message: p });
-  });
+export const CommentRegionSchema = z.strictObject({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).superRefine((r, ctx) => {
+  const p = regionProblem(r);
+  if (p) ctx.addIssue({ code: 'custom', message: p });
+});
 
 /**
  * The stored anchor: its shape and number ranges. Its ids are strings here (a hand-edited file stays readable); a
@@ -233,9 +226,7 @@ export const FrameCommentAnchorSchema = z.strictObject({
   src_time_s: z.number().min(0).max(1e7).optional(),
   marker: anchorString.optional(),
   overlays: z.array(anchorString).max(50).optional(),
-  transition: z
-    .strictObject({ kind: z.enum(['crossfade', 'fade-black']), from: anchorString.optional(), to: anchorString.optional() })
-    .optional(),
+  transition: z.strictObject({ kind: z.enum(['crossfade', 'fade-black']), from: anchorString.optional(), to: anchorString.optional() }).optional(),
 });
 // The schema and the interface (types.ts) describe the same object.
 const anchorSchemaMatches: z.ZodType<FrameCommentAnchor> = FrameCommentAnchorSchema;
@@ -299,7 +290,10 @@ export function proposalHunksProblem(hunks: readonly LineHunk[]): string | null 
   if (st.changed > PROPOSAL_CHANGED_LINES_MAX) return `${st.changed} changed lines (removed + added): a proposal changes at most ${PROPOSAL_CHANGED_LINES_MAX}`;
   if (st.chars > PROPOSAL_CHARS_MAX) return `${st.chars.toLocaleString('en')} characters of changed lines: a proposal holds at most ${PROPOSAL_CHARS_MAX.toLocaleString('en')}`;
   for (const [i, h] of hunks.entries()) {
-    for (const [side, lines] of [['removed', h.del], ['added', h.add]] as const) {
+    for (const [side, lines] of [
+      ['removed', h.del],
+      ['added', h.add],
+    ] as const) {
       for (const [j, l] of lines.entries()) {
         const p = proposalLineProblem(l);
         if (p) return `hunk ${i + 1}, ${side} line ${j + 1}: ${p}`;
@@ -373,7 +367,8 @@ export const CommentEntrySchema = z
     }
     if (e.proposal !== undefined && e.kind !== 'reply') ctx.addIssue({ code: 'custom', path: ['proposal'], message: 'only a reply holds a proposal' });
     if (e.kind === 'apply') {
-      if (e.applies === undefined || e.scenario_sha256 === undefined) ctx.addIssue({ code: 'custom', path: ['applies'], message: 'an apply names the reply it applied (applies) and the file written (scenario_sha256)' });
+      if (e.applies === undefined || e.scenario_sha256 === undefined)
+        ctx.addIssue({ code: 'custom', path: ['applies'], message: 'an apply names the reply it applied (applies) and the file written (scenario_sha256)' });
     } else if (e.applies !== undefined || e.scenario_sha256 !== undefined) {
       ctx.addIssue({ code: 'custom', path: ['applies'], message: 'only an apply names a proposal applied' });
     }

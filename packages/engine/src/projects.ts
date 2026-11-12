@@ -36,7 +36,10 @@ export const README_MAX_CHARS = 200_000;
  * first line that ends with a colon gets the next non-empty line.
  */
 export function firstErrorLine(message: string): string {
-  const lines = message.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = message
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   if (lines.length === 0) return message;
   return lines[0].endsWith(':') && lines[1] ? `${lines[0]} ${lines[1]}` : lines[0];
 }
@@ -156,12 +159,18 @@ async function readmeOf(folder: ProjectFolder): Promise<{ text: string; sha256: 
       const reason = e.details?.reason;
       if (reason === 'link_out') return { text: null, sha256: null, error: `${README_FILE} is a symbolic link leading out of the project folder: not read (replace it with a regular file)` };
       if (reason === 'not_file') return { text: null, sha256: null, error: `${README_FILE} is not a regular file (a FIFO, a device, a folder…): not read (replace it with a regular file)` };
-      if (reason === 'too_large') return { text: null, sha256: null, error: `${README_FILE} is too large to show here (over ${READ_TEXT_MAX_BYTES.toLocaleString('en')} bytes): shorten it in an editor` };
+      if (reason === 'too_large')
+        return { text: null, sha256: null, error: `${README_FILE} is too large to show here (over ${READ_TEXT_MAX_BYTES.toLocaleString('en')} bytes): shorten it in an editor` };
     }
     throw e;
   }
   if (!r) return undefined;
-  if (!r.utf8) return { text: r.text, sha256: r.sha256, error: `${README_FILE} is not UTF-8 text (another encoding, or binary): shown with U+FFFD in place of the bytes that do not decode; convert it to UTF-8 in an editor before changing it here` };
+  if (!r.utf8)
+    return {
+      text: r.text,
+      sha256: r.sha256,
+      error: `${README_FILE} is not UTF-8 text (another encoding, or binary): shown with U+FFFD in place of the bytes that do not decode; convert it to UTF-8 in an editor before changing it here`,
+    };
   return { text: r.text, sha256: r.sha256 };
 }
 
@@ -232,14 +241,18 @@ export async function createProjectFromRequest(ws: OpenedWorkspace, input: Creat
     ? Object.fromEntries(Object.entries(input.environments).map(([env, pages]) => [env, Object.fromEntries(Object.entries(pages ?? {}).map(([k, v]) => [k, typeof v === 'string' ? v : v.url]))]))
     : undefined;
   await checkNewProjectHosts(ws, urls);
-  const created = await writeNewProject(ws.root, {
-    name: input.name,
-    ...(input.slug !== undefined ? { slug: input.slug } : {}),
-    ...(input.readme !== undefined ? { readme: input.readme } : {}),
-    ...(input.environments !== undefined ? { environments: input.environments } : {}),
-    ...(input.default_env !== undefined ? { default_env: input.default_env } : {}),
-    ...(input.template !== undefined ? { template: input.template } : {}),
-  }, scope);
+  const created = await writeNewProject(
+    ws.root,
+    {
+      name: input.name,
+      ...(input.slug !== undefined ? { slug: input.slug } : {}),
+      ...(input.readme !== undefined ? { readme: input.readme } : {}),
+      ...(input.environments !== undefined ? { environments: input.environments } : {}),
+      ...(input.default_env !== undefined ? { default_env: input.default_env } : {}),
+      ...(input.template !== undefined ? { template: input.template } : {}),
+    },
+    scope,
+  );
   return openProject(ws, created.dir);
 }
 
@@ -261,7 +274,9 @@ export async function updateProjectReadme(project: LoadedProject, markdown: stri
   // The cap holds for the file as written (review B L6): a text at the cap without its final line break would be
   // written one character over it, and could not be sent back unchanged.
   if (text.length > README_MAX_CHARS) {
-    throw new EngineError('invalid', `${README_FILE} would be ${text.length.toLocaleString('en')} characters with its final line break: at most ${README_MAX_CHARS.toLocaleString('en')}`, { fix: 'shorten it' });
+    throw new EngineError('invalid', `${README_FILE} would be ${text.length.toLocaleString('en')} characters with its final line break: at most ${README_MAX_CHARS.toLocaleString('en')}`, {
+      fix: 'shorten it',
+    });
   }
   const res = await store.writeText(README_FILE, text, { ifMatch: ifMatch ?? null, what: 'readme' });
   project.readme = text;

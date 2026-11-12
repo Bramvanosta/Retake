@@ -80,11 +80,44 @@ function bitsRender(file: string, n: number, width: number, height: number, fps:
   const src = `${file}.src.mp4`;
   bitsVideo(src, Math.ceil(n / fps) + 1, 'h264-x264', `${width}x${height}`);
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y', '-i', src,
-    '-f', 'lavfi', '-t', (n / fps).toFixed(4), '-i', 'anullsrc=r=48000:cl=stereo',
-    '-map', '0:v:0', '-map', '1:a:0', '-frames:v', String(n),
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-bf', '2', '-g', '60', '-keyint_min', '60', '-sc_threshold', '0',
-    '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', file,
+    '-v',
+    'error',
+    '-y',
+    '-i',
+    src,
+    '-f',
+    'lavfi',
+    '-t',
+    (n / fps).toFixed(4),
+    '-i',
+    'anullsrc=r=48000:cl=stereo',
+    '-map',
+    '0:v:0',
+    '-map',
+    '1:a:0',
+    '-frames:v',
+    String(n),
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '18',
+    '-bf',
+    '2',
+    '-g',
+    '60',
+    '-keyint_min',
+    '60',
+    '-sc_threshold',
+    '0',
+    '-pix_fmt',
+    'yuv420p',
+    '-c:a',
+    'aac',
+    '-movflags',
+    '+faststart',
+    file,
   ]);
   spawnSync('rm', ['-f', src]);
 }
@@ -219,7 +252,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
+  for (const [k, val] of [
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_AUTHOR', saved.author],
+  ] as const) {
     if (val === undefined) delete process.env[k];
     else process.env[k] = val;
   }
@@ -231,8 +267,7 @@ let id = '';
 let at = 0;
 
 describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)', () => {
-
-  it('timeline Comment → the exact frame; a dragged region and the chips; Post writes studio under the Studio\'s name; viewer = still = thread', async () => {
+  it("timeline Comment → the exact frame; a dragged region and the chips; Post writes studio under the Studio's name; viewer = still = thread", async () => {
     // The scenario screen: its open comments (L5.10b: a link in the take strip, critique M4).
     await page.goto(`${studio.url}#/p/demo/s/bits`);
     await expect.poll(() => page.getByTestId('comments-count').innerText(), POLL).toBe('Comments · 0 open');
@@ -349,14 +384,17 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
 
   it('⚑ the page names no author: a page-sent author is a 400 and nothing is written', async () => {
     const before = (await readFile(threadFile(id), 'utf8')).length;
-    const r = await page.evaluate(async (o) => {
-      const res = await fetch('/v1/call/thread_add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${o.token}` },
-        body: JSON.stringify({ project: 'demo', render_id: 'bits-v1', created_at: o.created, frame: 3, text: 'x', author: { via: 'cli', name: 'Someone' } }),
-      });
-      return res.status;
-    }, { token: studio.token, created: land.created_at });
+    const r = await page.evaluate(
+      async (o) => {
+        const res = await fetch('/v1/call/thread_add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${o.token}` },
+          body: JSON.stringify({ project: 'demo', render_id: 'bits-v1', created_at: o.created, frame: 3, text: 'x', author: { via: 'cli', name: 'Someone' } }),
+        });
+        return res.status;
+      },
+      { token: studio.token, created: land.created_at },
+    );
     expect(r).toBe(400);
     expect((await readFile(threadFile(id), 'utf8')).length).toBe(before);
     expect((await studio.engine.comments.list('demo', { scenario: 'bits', status: 'all' })).threads).toHaveLength(1);
@@ -389,7 +427,11 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
     let resolves = 0;
     await page.route('**/v1/call/thread_resolve', async (route) => {
       resolves++;
-      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'the thread changed since you read it', details: { current: 'f'.repeat(64) } } }) });
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'the thread changed since you read it', details: { current: 'f'.repeat(64) } } }),
+      });
     });
     await page.getByTestId('resolve-note').fill('The caption is shorter.');
     await page.getByTestId('resolve').click();
@@ -467,21 +509,22 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
 
       // A-L1 / A-L2: 30 frame steps re-render neither the shell (the palette's words hold no frame), the thread list nor the
       // thread (memoised): the props of their outer elements' fibers stay the same objects.
-      const probe = () => page.evaluate(() => {
-        const w = window as unknown as { __props?: Record<string, unknown[]> };
-        const sel: Record<string, string> = { shell: '.sh-app', list: '[data-testid="thread-list"]', thread: '[data-testid="thread"]' };
-        const changed: string[] = [];
-        const first = w.__props === undefined;
-        w.__props ??= {};
-        for (const [k, q] of Object.entries(sel)) {
-          const el = document.querySelector(q) as unknown as Record<string, { memoizedProps: unknown; alternate?: { memoizedProps: unknown } | null }>;
-          const f = el[Object.keys(el).find((x) => x.startsWith('__reactFiber$'))!];
-          const now = [f.memoizedProps, f.alternate?.memoizedProps];
-          if (!first && (now[0] !== w.__props[k][0] || now[1] !== w.__props[k][1])) changed.push(k);
-          w.__props[k] = now;
-        }
-        return changed;
-      });
+      const probe = () =>
+        page.evaluate(() => {
+          const w = window as unknown as { __props?: Record<string, unknown[]> };
+          const sel: Record<string, string> = { shell: '.sh-app', list: '[data-testid="thread-list"]', thread: '[data-testid="thread"]' };
+          const changed: string[] = [];
+          const first = w.__props === undefined;
+          w.__props ??= {};
+          for (const [k, q] of Object.entries(sel)) {
+            const el = document.querySelector(q) as unknown as Record<string, { memoizedProps: unknown; alternate?: { memoizedProps: unknown } | null }>;
+            const f = el[Object.keys(el).find((x) => x.startsWith('__reactFiber$'))!];
+            const now = [f.memoizedProps, f.alternate?.memoizedProps];
+            if (!first && (now[0] !== w.__props[k][0] || now[1] !== w.__props[k][1])) changed.push(k);
+            w.__props[k] = now;
+          }
+          return changed;
+        });
       const status = page.getByTestId('viewer-status');
       expect(await page.locator('[data-testid="viewer-frame"] [role="status"]').count()).toBe(1);
       const statusNode = await status.elementHandle();
@@ -542,11 +585,12 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
       await page.getByTestId('comment-this-frame').click();
       await page.waitForURL(/#\/p\/demo\/s\/bits\/comments\/at\/bits-v1\/\d+$/);
       await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), POLL).toBe('comment-text');
-      const inView = (testId: string) => page.getByTestId(testId).evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        const bar = document.querySelector('.sh-statusbar-wrap')!.getBoundingClientRect().top;
-        return r.top >= 0 && r.bottom <= bar;
-      });
+      const inView = (testId: string) =>
+        page.getByTestId(testId).evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          const bar = document.querySelector('.sh-statusbar-wrap')!.getBoundingClientRect().top;
+          return r.top >= 0 && r.bottom <= bar;
+        });
       expect(await inView('comment-text')).toBe(true);
       expect(await inView('post-comment')).toBe(true);
       // The text box is described by the characters left and how ⌘↩ posts (B-L5).
@@ -603,7 +647,8 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
         }
       }
       await page.waitForTimeout(300);
-      const WRITES = /^(?:scenario_(?:edit|save|run|render)|theme_(?:edit|copy|create)|thread_(?:add|reply|resolve|reopen|apply)|project_update_readme|render_cancel|run_cancel|run_pause|preview_allow|review_export|record_[a-z]+)$/;
+      const WRITES =
+        /^(?:scenario_(?:edit|save|run|render)|theme_(?:edit|copy|create)|thread_(?:add|reply|resolve|reopen|apply)|project_update_readme|render_cancel|run_cancel|run_pause|preview_allow|review_export|record_[a-z]+)$/;
       expect(ops.filter((op) => WRITES.test(op))).toEqual([]);
       expect(ops).toEqual(expect.arrayContaining(['render_frame', 'theme_list']));
     } finally {
@@ -734,7 +779,13 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", (
           const ins = document.querySelector('.sh-inspector')!;
           const box = document.querySelector('[data-testid="proposal-diff-box"]')!;
           const code = document.querySelector('[data-testid="proposal"] .k-diff-code')!;
-          return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, main: main.scrollWidth - main.clientWidth, inspector: ins.scrollWidth - ins.clientWidth, box: box.scrollWidth - box.clientWidth, code: code.getBoundingClientRect().width };
+          return {
+            page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            main: main.scrollWidth - main.clientWidth,
+            inspector: ins.scrollWidth - ins.clientWidth,
+            box: box.scrollWidth - box.clientWidth,
+            code: code.getBoundingClientRect().width,
+          };
         });
         expect(geo).toMatchObject({ page: 0, main: 0, inspector: 0, box: 0 });
         expect(geo.code).toBeGreaterThanOrEqual(160);
@@ -772,14 +823,17 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", (
 
     // ⚑ The page makes no proposal: thread_reply with one is a 400 and nothing is written.
     const before = await readFile(threadFile(id), 'utf8');
-    const status = await page.evaluate(async (o) => {
-      const res = await fetch('/v1/call/thread_reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${o.token}` },
-        body: JSON.stringify({ project: 'demo', comment_id: o.id, text: 'mine', proposal: { scenario_yaml: o.text, scenario_hash: o.hash } }),
-      });
-      return res.status;
-    }, { token: studio.token, id, text: PROPOSED.replace('Each frame', 'Any frame'), hash: sha(BITS_TEXT) });
+    const status = await page.evaluate(
+      async (o) => {
+        const res = await fetch('/v1/call/thread_reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${o.token}` },
+          body: JSON.stringify({ project: 'demo', comment_id: o.id, text: 'mine', proposal: { scenario_yaml: o.text, scenario_hash: o.hash } }),
+        });
+        return res.status;
+      },
+      { token: studio.token, id, text: PROPOSED.replace('Each frame', 'Any frame'), hash: sha(BITS_TEXT) },
+    );
     expect(status).toBe(400);
     expect(await readFile(threadFile(id), 'utf8')).toBe(before);
   }, 120_000);
@@ -797,9 +851,9 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", (
     });
     await page.getByTestId('proposal-apply').click();
     await page.getByTestId('proposal-applied').waitFor(POLL);
-    await expect.poll(() => page.getByTestId('proposal-said').innerText(), POLL).toBe(
-      'Applied, but: the apply was written to scenarios/bits.yaml but not recorded in the thread (a test)\nThe scenario has 1 warning: a warning from the test',
-    );
+    await expect
+      .poll(() => page.getByTestId('proposal-said').innerText(), POLL)
+      .toBe('Applied, but: the apply was written to scenarios/bits.yaml but not recorded in the thread (a test)\nThe scenario has 1 warning: a warning from the test');
     await page.unroute('**/v1/call/thread_apply');
     expect(await readFile(scenarioFile(), 'utf8')).toBe(PROPOSED);
     await expect.poll(() => proposal().getAttribute('data-state'), POLL).toBe('applied');

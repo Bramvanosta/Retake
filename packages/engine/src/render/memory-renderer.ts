@@ -125,7 +125,10 @@ export class MemoryRenderer implements Renderer {
     bundle: async (o: PreviewBundleRequest): Promise<PreviewBundle> => {
       this.calls.push({ op: 'previews.bundle', req: o });
       if (o.signal?.aborted) throw cancelledError();
-      const hash = createHash('sha256').update(JSON.stringify(o.components.map((c) => [c.id, c.kind, c.entry, c.defaults]))).digest('hex').slice(0, 16);
+      const hash = createHash('sha256')
+        .update(JSON.stringify(o.components.map((c) => [c.id, c.kind, c.entry, c.defaults])))
+        .digest('hex')
+        .slice(0, 16);
       const bundle: PreviewBundle = Object.freeze({ hash, cached: this.#seen.has(hash) });
       this.#seen.add(hash);
       this.#bundles.add(bundle);

@@ -245,7 +245,7 @@ describe('alternative targets (kit 1.6.0, the recorder only)', () => {
   });
 });
 
-describe('the passive kit (the recorder\'s copy)', () => {
+describe("the passive kit (the recorder's copy)", () => {
   it('draws no cursor, patches no API, still resolves and inventories', async () => {
     const p = await browser.newPage();
     try {

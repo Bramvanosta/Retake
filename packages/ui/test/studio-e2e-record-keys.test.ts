@@ -113,7 +113,12 @@ function view(): Record<string, unknown> {
           step: i,
           seq,
           chosen: s.chosen[seq] ?? 0,
-          options: [0, 1, 2].map((k) => ({ index: k, target: { text: `Item ${seq}` }, words: k === 0 ? target : k === 1 ? `text “Item ${seq}”` : `element matching #it-${seq}`, fragile: k === 2 ? ['css'] : [] })),
+          options: [0, 1, 2].map((k) => ({
+            index: k,
+            target: { text: `Item ${seq}` },
+            words: k === 0 ? target : k === 1 ? `text “Item ${seq}”` : `element matching #it-${seq}`,
+            fragile: k === 2 ? ['css'] : [],
+          })),
         });
       }
     }
@@ -167,7 +172,20 @@ const body = (route: Route) => JSON.parse(route.request().postData() ?? '{}') as
 /** A new recording to play (a new id: the screen starts afresh), and its route opened. */
 async function open(change: Partial<Stub> = {}, o: { wait?: boolean } = {}): Promise<void> {
   recCount++;
-  stub = { rec: `rec_stub${String(recCount).padStart(4, '0')}`, state: 'recording', scenes: [12], name: 'stub-draft', rev: 1, version: 1, chosen: {}, stopRequested: false, viewGate: null, annotateGate: null, discardAnswer: 'discarded', ...change };
+  stub = {
+    rec: `rec_stub${String(recCount).padStart(4, '0')}`,
+    state: 'recording',
+    scenes: [12],
+    name: 'stub-draft',
+    rev: 1,
+    version: 1,
+    chosen: {},
+    stopRequested: false,
+    viewGate: null,
+    annotateGate: null,
+    discardAnswer: 'discarded',
+    ...change,
+  };
   await page.goto(`${studio.url}#/p/${P}/record/${stub.rec}`);
   await page.getByTestId('record-title').waitFor(POLL);
   if (o.wait !== false) await expect.poll(() => page.getByTestId('record-state').getAttribute('data-state'), POLL).toBe(stub.state);
@@ -239,7 +257,7 @@ afterAll(async () => {
 });
 
 describe('the Record screen on a played recording (L5.11b fixes)', () => {
-  it('⚑ ⌘. is the recording\'s before its view is read; Rehearse / Capture / Render wait in every live state, ⌘. says what it does (B-L1)', async () => {
+  it("⚑ ⌘. is the recording's before its view is read; Rehearse / Capture / Render wait in every live state, ⌘. says what it does (B-L1)", async () => {
     // A scenario in context (the status bar's defaults would act on it).
     await page.goto(`${studio.url}#/p/${P}/s/quote`);
     await page.getByTestId('run-dry').waitFor(POLL);
@@ -283,7 +301,12 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(await page.getByTestId('record-stop').count()).toBe(0);
     await command('stop');
     await expect.poll(said, POLL).toBe('The recording is already stopping');
-    expect(calls.slice(before).map((c) => c.op).filter((op) => /^(scenario_run|scenario_render|run_cancel|run_pause|record_stop)$/.test(op))).toEqual([]);
+    expect(
+      calls
+        .slice(before)
+        .map((c) => c.op)
+        .filter((op) => /^(scenario_run|scenario_render|run_cancel|run_pause|record_stop)$/.test(op)),
+    ).toEqual([]);
   });
 
   it('⚑ the draft is one tab stop: Stop a few Tabs from the title with 60 rows; ↑ ↓ cross scenes, Home / End, Enter selects; the cursor block is no option (A-M2 / A-L3)', async () => {
@@ -306,11 +329,12 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     // The keys: the first list's active row moves; Enter selects it (the cursor goes after it), Enter again: the end.
     const first = lists.first();
     await first.focus();
-    const active = () => page.evaluate(() => {
-      const id = document.activeElement?.getAttribute('aria-activedescendant');
-      const el = id ? document.getElementById(id) : null;
-      return el ? { n: el.querySelector('.k-rowcard-tile')?.textContent, list: [...document.querySelectorAll('[data-testid="record-rows"]')].indexOf(document.activeElement!) } : null;
-    });
+    const active = () =>
+      page.evaluate(() => {
+        const id = document.activeElement?.getAttribute('aria-activedescendant');
+        const el = id ? document.getElementById(id) : null;
+        return el ? { n: el.querySelector('.k-rowcard-tile')?.textContent, list: [...document.querySelectorAll('[data-testid="record-rows"]')].indexOf(document.activeElement!) } : null;
+      });
     expect(await active()).toEqual({ n: '1', list: 0 });
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
@@ -352,11 +376,16 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     await open();
     await command('palette');
     await page.locator('dialog.k-palette[open]').waitFor(POLL);
-    const options = () => page.locator('.k-palette-option').evaluateAll((els) => els.map((e) => `${e.querySelector('.k-palette-label')?.textContent ?? ''} · ${e.querySelector('.k-palette-hint')?.textContent ?? ''}`));
+    const options = () =>
+      page.locator('.k-palette-option').evaluateAll((els) => els.map((e) => `${e.querySelector('.k-palette-label')?.textContent ?? ''} · ${e.querySelector('.k-palette-hint')?.textContent ?? ''}`));
     const all = await options();
     expect(all).toContain('Stop recording · stub-draft');
     expect(all).toContain('Discard… · stub-draft');
-    for (const label of ['Rehearse', 'Capture', 'Render', 'Stop']) expect(all.filter((o) => o.startsWith(`${label} · `)), label).toEqual([]);
+    for (const label of ['Rehearse', 'Capture', 'Render', 'Stop'])
+      expect(
+        all.filter((o) => o.startsWith(`${label} · `)),
+        label,
+      ).toEqual([]);
     // Discard… opens the sheet (Keep it holds the focus).
     await page.locator('.k-palette-option', { hasText: 'Discard…' }).click();
     await page.getByTestId('record-discard-confirm').waitFor(POLL);
@@ -405,7 +434,11 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     stub.annotateGate = null;
     g.open();
     await expect.poll(() => sent('record_annotate').length, POLL).toBe(before + 2);
-    expect(sent('record_annotate').slice(before).map((c) => (c.body.change as { index: number }).index)).toEqual([1, 2]);
+    expect(
+      sent('record_annotate')
+        .slice(before)
+        .map((c) => (c.body.change as { index: number }).index),
+    ).toEqual([1, 2]);
     await expect.poll(() => stub.chosen[1], POLL).toBe(2);
     await expect.poll(() => page.getByTestId('record-alt-state').textContent(), POLL).toBe('Target picked by you');
     expect(await checked()).toBe(2);
@@ -427,7 +460,10 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     stub.annotateGate = null;
     g.open();
     await expect.poll(() => calls.slice(before).filter((c) => c.op === 'record_stop').length, POLL).toBe(1);
-    const ops = calls.slice(before).map((c) => c.op).filter((op) => op === 'record_annotate' || op === 'record_stop');
+    const ops = calls
+      .slice(before)
+      .map((c) => c.op)
+      .filter((op) => op === 'record_annotate' || op === 'record_stop');
     expect(ops).toEqual(['record_annotate', 'record_stop']);
   });
 
@@ -518,7 +554,7 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
     expect(role).toBe('status');
   });
 
-  it('⚑ a narrow centre (900 px): a row\'s aside goes under its text, a word is never broken; the shots (A-L2)', async () => {
+  it("⚑ a narrow centre (900 px): a row's aside goes under its text, a word is never broken; the shots (A-L2)", async () => {
     await open({ scenes: [24] });
     await shot('record-live-1440-dark');
     await page.setViewportSize({ width: 900, height: 900 });
@@ -539,11 +575,14 @@ describe('the Record screen on a played recording (L5.11b fixes)', () => {
       await page.setViewportSize({ width: 1440, height: 900 });
     }
     // Wide: the aside on the row's right, on the text's line.
-    const wide = await page.locator('[role="option"]').first().evaluate((el) => {
-      const text = el.querySelector('.k-rowcard-text')!.getBoundingClientRect();
-      const aside = el.querySelector('.k-rowcard-aside')!.getBoundingClientRect();
-      return aside.left >= text.right - 1 && aside.top < text.bottom;
-    });
+    const wide = await page
+      .locator('[role="option"]')
+      .first()
+      .evaluate((el) => {
+        const text = el.querySelector('.k-rowcard-text')!.getBoundingClientRect();
+        const aside = el.querySelector('.k-rowcard-aside')!.getBoundingClientRect();
+        return aside.left >= text.right - 1 && aside.top < text.bottom;
+      });
     expect(wide).toBe(true);
     await page.emulateMedia({ colorScheme: 'light' });
     await page.setViewportSize({ width: 1280, height: 900 });

@@ -92,11 +92,10 @@ describe('http hooks', () => {
   it('a rollback that cannot be templated after the request fails the hook', async () => {
     const { ctx } = setup();
     const journal = await Journal.open(join(tmp.dir, 'runs/r1/hooks-journal.json'));
-    const res = await runHooks(
-      [{ http: { method: 'POST', url: '{{console}}/api/replies', rollback: { method: 'DELETE', url: '{{console}}/x/{{response.json.uuid}}' } } }],
-      ctx,
-      { phase: 'setup', journal },
-    );
+    const res = await runHooks([{ http: { method: 'POST', url: '{{console}}/api/replies', rollback: { method: 'DELETE', url: '{{console}}/x/{{response.json.uuid}}' } } }], ctx, {
+      phase: 'setup',
+      journal,
+    });
     expect(res.ok).toBe(false);
     expect(res.results[0].error).toMatch(/^ran \(201 Created\) but its rollback cannot be prepared: unknown template key \{\{response\.json\.uuid\}\}/);
     expect(journal.pending()).toHaveLength(0);
@@ -123,11 +122,7 @@ describe('http hooks', () => {
     ]);
     expect(api.requests.map((r) => r.method)).toEqual(['POST']);
 
-    const setupRes = await runHooks(
-      [{ http: { method: 'POST', url: '{{console}}/api/replies', rollback: { url: '{{console}}/{{hooks.nope.json.id}}' } } }],
-      ctx,
-      { phase: 'setup', journal },
-    );
+    const setupRes = await runHooks([{ http: { method: 'POST', url: '{{console}}/api/replies', rollback: { url: '{{console}}/{{hooks.nope.json.id}}' } } }], ctx, { phase: 'setup', journal });
     expect(setupRes.results[0].error).toMatch(/^unknown template key \{\{hooks\.nope\.json\.id\}\}/);
     expect(api.requests).toHaveLength(1);
   });
@@ -142,11 +137,7 @@ describe('http hooks', () => {
     expect(inside.results[0]).toMatchObject({ ok: true, message: '200 OK' });
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    const outside = await runHooks(
-      [{ http: { url: `{{console}}/redirect?to=${encodeURIComponent('http://collector.example.net/steal')}` } }],
-      ctx,
-      { phase: 'teardown', journal },
-    );
+    const outside = await runHooks([{ http: { url: `{{console}}/redirect?to=${encodeURIComponent('http://collector.example.net/steal')}` } }], ctx, { phase: 'teardown', journal });
     expect(outside.results[0]).toMatchObject({ ok: false, status: 'refused' });
     expect(outside.results[0].error).toMatch(/^refusing to contact collector\.example\.net: it is not in the allow-list/);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -162,11 +153,7 @@ describe('http hooks', () => {
     const { ctx } = setup();
     const journal = await Journal.open(join(tmp.dir, 'runs/r1/hooks-journal.json'));
     const port = await closedPort();
-    const res = await runHooks(
-      [{ http: { url: '{{console}}/text', save_as: 'plain' } }, { http: { url: `http://127.0.0.1:${port}/nothing-listens` } }],
-      ctx,
-      { phase: 'teardown', journal },
-    );
+    const res = await runHooks([{ http: { url: '{{console}}/text', save_as: 'plain' } }, { http: { url: `http://127.0.0.1:${port}/nothing-listens` } }], ctx, { phase: 'teardown', journal });
     expect(ctx.saved.plain).toMatchObject({ status: 200, body: 'plain text', json: undefined });
     expect(res.results[1].error).toBe(`GET http://127.0.0.1:${port}/nothing-listens failed: fetch failed (connect ECONNREFUSED 127.0.0.1:${port})`);
   });

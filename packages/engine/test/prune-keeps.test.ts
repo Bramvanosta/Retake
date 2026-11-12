@@ -141,7 +141,7 @@ const TABLE: Record<string, string> = {
   newerlinkok: 'nothing | kept 2 | NEW newer-format',
 };
 
-describe('what prune keeps of a scenario\'s captures, layout by layout', () => {
+describe("what prune keeps of a scenario's captures, layout by layout", () => {
   it('every layout: what a dry prune lists, how many takes it keeps, what it says', async () => {
     const got: Record<string, string> = {};
     for (const id of Object.keys(LAYOUTS)) got[id] = await row(id);
@@ -151,7 +151,10 @@ describe('what prune keeps of a scenario\'s captures, layout by layout', () => {
 
 describe('what the result says, and what a deletion leaves', () => {
   /** Which run folders of the layout are still there, by label. */
-  const left = (b: BuiltLayout): string[] => Object.entries(b.ids).filter(([, name]) => existsSync(join(b.runs, name))).map(([l]) => l);
+  const left = (b: BuiltLayout): string[] =>
+    Object.entries(b.ids)
+      .filter(([, name]) => existsSync(join(b.runs, name)))
+      .map(([l]) => l);
   const fresh = (id: string, n: string): BuiltLayout => buildLayout(root, id, { slug: `d-${id.toLowerCase()}-${n}` });
 
   it('`kept_takes`: the take, why, and the fixed words — newest first; absent when the rule alone keeps nothing', async () => {
@@ -234,7 +237,7 @@ describe('what the result says, and what a deletion leaves', () => {
     expect([r.items.map((i) => `${label(b, i.id)} ${i.reason}`), left(b)]).toEqual([['NEW failed take'], ['OLD']]);
   });
 
-  it('a run.json prune\'s own read does not open — over the reader\'s cap, a pipe, a link to one or to a folder — says nothing: the take is kept and counted, never listed', async () => {
+  it("a run.json prune's own read does not open — over the reader's cap, a pipe, a link to one or to a folder — says nothing: the take is kept and counted, never listed", async () => {
     const said = async (b: BuiltLayout): Promise<unknown[]> => {
       const r = await engine.projects.prune(b.slug, { dry_run: true });
       return [r.items.map((i) => `${label(b, i.id)} ${i.reason}`), r.kept.runs, r.kept_takes];
@@ -274,7 +277,13 @@ describe('what the result says, and what a deletion leaves', () => {
       const b = buildLayout(root, 'cost', { slug: `cost-${n}`, layout });
       opened.length = 0;
       const r = await engine.projects.prune(b.slug, { dry_run: true });
-      return [opened.filter((f) => f.startsWith(b.runs) && f.endsWith('timeline.json')).map((f) => label(b, f.slice(b.runs.length + 1).split('/')[0])).sort(), r.items.map((i) => label(b, i.id))];
+      return [
+        opened
+          .filter((f) => f.startsWith(b.runs) && f.endsWith('timeline.json'))
+          .map((f) => label(b, f.slice(b.runs.length + 1).split('/')[0]))
+          .sort(),
+        r.items.map((i) => label(b, i.id)),
+      ];
     };
     // Six captures stopped by --until and no complete one: the newest is the one that can be edited; no other is opened.
     expect(await reads('until', ['t6', 't6', 't6', 't6', 't6', 't6'])).toEqual([['R6'], ['R1', 'R2', 'R3', 'R4', 'R5']]);
@@ -283,18 +292,49 @@ describe('what the result says, and what a deletion leaves', () => {
     // The usual project: the newest capture is all three; nothing older is opened.
     expect(await reads('good', ['good', 'good', 'good', 'good'])).toEqual([['R4'], ['R1', 'R2', 'R3']]);
     // Films removed above a stopped capture above a complete one: the two that matter are opened, and kept.
-    expect(await reads('mixed', ['good', 'good', 't6', 't6', 'g', 'g'])).toEqual([['R2', 'R4'], ['R1', 'R3', 'R5']]);
+    expect(await reads('mixed', ['good', 'good', 't6', 't6', 'g', 'g'])).toEqual([
+      ['R2', 'R4'],
+      ['R1', 'R3', 'R5'],
+    ]);
     // Still opened, one by one: captures with a film whose timeline does not read (no complete take is ever found).
-    expect(await reads('cut', ['l', 'l', 'l'])).toEqual([['R1', 'R2', 'R3'], ['R1', 'R2']]);
+    expect(await reads('cut', ['l', 'l', 'l'])).toEqual([
+      ['R1', 'R2', 'R3'],
+      ['R1', 'R2'],
+    ]);
   });
 
   it('the form a person approves says what stays: the take that can be edited, the complete one, and what is left alone', () => {
-    const text = pruneApprovalFormText({ what: 'prune', project: 'p', keep_renders: 3, count: 1, bytes: 1000, by_kind: [{ kind: 'run', count: 1, bytes: 1000 }], lines: ['take 20261001-100000-quote — failed take, 1 kB'], more: 0, fix: 'retake prune p --yes' });
+    const text = pruneApprovalFormText({
+      what: 'prune',
+      project: 'p',
+      keep_renders: 3,
+      count: 1,
+      bytes: 1000,
+      by_kind: [{ kind: 'run', count: 1, bytes: 1000 }],
+      lines: ['take 20261001-100000-quote — failed take, 1 kB'],
+      more: 0,
+      fix: 'retake prune p --yes',
+    });
     expect(text.split('\n')[1]).toBe(
       'Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last 3 renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone, and so is a file of renders/ that is no render of its own name, or a record that lacks a member, with the render and the take it names; exports/ is not touched.',
     );
     // L7.6b: the files of renders/ left alone are said with a count, never a name.
-    const alone = (n: number) => pruneApprovalFormText({ what: 'prune', project: 'p', keep_renders: 3, count: 1, bytes: 1000, by_kind: [{ kind: 'run', count: 1, bytes: 1000 }], lines: ['take 20261001-100000-quote — failed take, 1 kB'], more: 0, fix: 'retake prune p --yes', renders_alone: n }).split('\n')[2];
-    expect([alone(1), alone(2)]).toEqual(['1 file of renders/ is no render of its own name, or lacks a member: left alone, with the renders and the takes it names.', '2 files of renders/ are no render of their own name, or lack a member: left alone, with the renders and the takes they name.']);
+    const alone = (n: number) =>
+      pruneApprovalFormText({
+        what: 'prune',
+        project: 'p',
+        keep_renders: 3,
+        count: 1,
+        bytes: 1000,
+        by_kind: [{ kind: 'run', count: 1, bytes: 1000 }],
+        lines: ['take 20261001-100000-quote — failed take, 1 kB'],
+        more: 0,
+        fix: 'retake prune p --yes',
+        renders_alone: n,
+      }).split('\n')[2];
+    expect([alone(1), alone(2)]).toEqual([
+      '1 file of renders/ is no render of its own name, or lacks a member: left alone, with the renders and the takes it names.',
+      '2 files of renders/ are no render of their own name, or lack a member: left alone, with the renders and the takes they name.',
+    ]);
   });
 });

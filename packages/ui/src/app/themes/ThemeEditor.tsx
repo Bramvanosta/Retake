@@ -41,7 +41,19 @@ import { SessionEnded } from '../session.js';
 import { ShellSlot } from '../shell/slots.js';
 import { SECTIONS, ThemeFields, showSection } from './ThemeFields.js';
 import type { Draft, Send } from './ThemeFields.js';
-import { DraftThrottle, EDITOR_KINDS, TARGET_WORDS, ThemeHistory, USE_IN_SCENARIO_WORDS, componentRow, kindLabel, themeEventAction, useInScenarioPlan, usedByWords, written } from '../words/theme-words.js';
+import {
+  DraftThrottle,
+  EDITOR_KINDS,
+  TARGET_WORDS,
+  ThemeHistory,
+  USE_IN_SCENARIO_WORDS,
+  componentRow,
+  kindLabel,
+  themeEventAction,
+  useInScenarioPlan,
+  usedByWords,
+  written,
+} from '../words/theme-words.js';
 import type { PreviewTarget, ThemeEdit } from '../words/theme-words.js';
 import { previewUrls } from '../words/timeline-words.js';
 import { Button, Callout, LinkButton, Segmented, Select, Sheet, SourceList, StatusMark, Tag, TextField } from '../ui-kit/index.js';
@@ -49,7 +61,10 @@ import { Button, Callout, LinkButton, Segmented, Select, Sheet, SourceList, Stat
 /** A random lease id (22 base64url characters) for theme_preview / timeline_leave. */
 function newLease(): string {
   const b = crypto.getRandomValues(new Uint8Array(16));
-  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(String.fromCharCode(...b))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 interface Status {
@@ -99,7 +114,14 @@ const ThemeBrowser = memo(function ThemeBrowser({ slug, v }: { slug: string; v: 
             label: 'Components of this theme',
             items: EDITOR_KINDS.map((k) => {
               const picked = componentRow(v, k).picked;
-              return { key: k, label: kindLabel(k), current: false, detail: <Txt className="k-mono" text={picked ?? 'none'} />, quiet: picked === null, ...(picked && okId(picked) ? { to: { name: 'library' as const, slug, theme: v.name, component: picked } } : { onSelect: () => showSection('components') }) };
+              return {
+                key: k,
+                label: kindLabel(k),
+                current: false,
+                detail: <Txt className="k-mono" text={picked ?? 'none'} />,
+                quiet: picked === null,
+                ...(picked && okId(picked) ? { to: { name: 'library' as const, slug, theme: v.name, component: picked } } : { onSelect: () => showSection('components') }),
+              };
             }),
           },
           {
@@ -214,7 +236,10 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
       if (e instanceof CallError && e.error.code === 'conflict') {
         const nv = await load();
         if (nv) history.current.sync(nv.sha256);
-        setStatus({ tone: 'warning', text: `The theme changed meanwhile (another window, Claude or a person): your change was not written. The editor now shows the new version — make it again if you still want it. (${e.error.message})` });
+        setStatus({
+          tone: 'warning',
+          text: `The theme changed meanwhile (another window, Claude or a person): your change was not written. The editor now shows the new version — make it again if you still want it. (${e.error.message})`,
+        });
       } else {
         setStatus({ tone: 'danger', text: `Not written: ${errorText(e)}` });
         void askPreview(null);
@@ -289,7 +314,13 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
       <ThemeBrowser slug={slug} v={v} />
       <ShellSlot name="actions">
         <span className="sh-scenario" data-testid="theme-state">
-          {busy ? <StatusMark state="running" word={`Busy: ${busy}`} /> : editable ? <StatusMark state="idle" word="Ready · each change is saved and checked" /> : <StatusMark state="idle" word="Read-only: copy it to edit it" />}
+          {busy ? (
+            <StatusMark state="running" word={`Busy: ${busy}`} />
+          ) : editable ? (
+            <StatusMark state="idle" word="Ready · each change is saved and checked" />
+          ) : (
+            <StatusMark state="idle" word="Read-only: copy it to edit it" />
+          )}
         </span>
         <Button size="sm" variant="ghost" icon="undo" data-testid="theme-undo" disabled={!editable || busy !== null || !undo} onClick={() => void write(undo!.edit, 'undo')}>
           Undo
@@ -412,7 +443,19 @@ export function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: s
         }}
         content={
           <>
-            <TextField label="Name of the copy" value={name} onChange={(x) => setName(x.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="theme-copy-name" error={problem ?? undefined} />
+            <TextField
+              label="Name of the copy"
+              value={name}
+              onChange={(x) => setName(x.trim())}
+              unsaved={null}
+              mono
+              maxLength={NEW_THEME_NAME_MAX}
+              hint={NEW_THEME_NAME_HINT}
+              autoComplete="off"
+              spellCheck={false}
+              testId="theme-copy-name"
+              error={problem ?? undefined}
+            />
             {state.error && (
               <p className="tm-failure" role="status">
                 <Txt text={state.error} />
@@ -499,7 +542,9 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
   return (
     <div className="tm-frame-wrap">
       <div className="tm-frame" role="region" aria-label="Live preview" aria-busy={state === 'loading'} data-testid="theme-preview" data-state={urls ? state : 'none'} data-settles={settles}>
-        {urls && state !== 'stopped' && <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />}
+        {urls && state !== 'stopped' && (
+          <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />
+        )}
         {urls && state === 'loading' && (
           <p className="tm-note" role="status">
             Loading the preview…
@@ -518,7 +563,14 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
         )}
       </div>
       <div className="tm-frame-bar">
-        <Button size="sm" icon="play" aria-pressed={playing} disabled={!urls || state === 'loading'} data-testid="theme-play" onClick={() => conn.current?.send(playing ? { type: 'pause' } : { type: 'play' })}>
+        <Button
+          size="sm"
+          icon="play"
+          aria-pressed={playing}
+          disabled={!urls || state === 'loading'}
+          data-testid="theme-play"
+          onClick={() => conn.current?.send(playing ? { type: 'pause' } : { type: 'play' })}
+        >
           Play
         </Button>
         {state === 'stopped' && (
@@ -586,7 +638,8 @@ const UseInScenario = memo(function UseInScenario({ slug, theme, scenarios, onCh
     if (!scenario && scenarios[0]) setScenario(scenarios[0]);
   }, [scenario, scenarios]);
   const fail = (e: unknown) => {
-    if (!(e instanceof SessionEnded)) setSt({ s: 'error', message: e instanceof CallError && e.error.code === 'conflict' ? 'The scenario changed meanwhile: nothing was written. Try again.' : errorText(e) });
+    if (!(e instanceof SessionEnded))
+      setSt({ s: 'error', message: e instanceof CallError && e.error.code === 'conflict' ? 'The scenario changed meanwhile: nothing was written. Try again.' : errorText(e) });
   };
   const use = async () => {
     setSt({ s: 'busy' });

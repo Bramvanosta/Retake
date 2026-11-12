@@ -19,7 +19,9 @@ export const reviewRenderRef = z.union([renderId, z.literal('latest')]).describe
 export const reviewImages = z
   .enum(['none', 'sheets', 'all'])
   .default('sheets')
-  .describe('Images returned: "sheets" (default: the contact sheet pages and the marker key frames), "all" (also every key frame, the per-scene sheets and the diff sheet) or "none". A few go inline as JPEG thumbnails (≤ 1280 px, ≤ 4 images and 1.5 MB per result); the others are listed as files to read.');
+  .describe(
+    'Images returned: "sheets" (default: the contact sheet pages and the marker key frames), "all" (also every key frame, the per-scene sheets and the diff sheet) or "none". A few go inline as JPEG thumbnails (≤ 1280 px, ≤ 4 images and 1.5 MB per result); the others are listed as files to read.',
+  );
 
 const pct = (f: number | undefined) => (f === undefined ? '' : ` ${Math.round(f * 100)} %`);
 
@@ -27,12 +29,7 @@ const pct = (f: number | undefined) => (f === undefined ? '' : ` ${Math.round(f 
 export function reviewSummary(r: ReviewView): string {
   const job = r.job;
   const p = job?.progress;
-  const head =
-    r.status === 'running' && p
-      ? `running: ${p.phase ?? ''}${pct(p.fraction)}`
-      : r.status === 'none'
-        ? 'not reviewed yet: review starts one'
-        : r.status;
+  const head = r.status === 'running' && p ? `running: ${p.phase ?? ''}${pct(p.fraction)}` : r.status === 'none' ? 'not reviewed yet: review starts one' : r.status;
   const lines = [`review of ${r.render_id}: ${head}`];
   if (job) lines.push(`job ${job.id}: ${job.state}${job.cancel_requested_at && !r.finished ? ' (cancel requested)' : ''}`);
   if (r.status === 'failed') lines.push('failed: the message is in "untrusted.error"; the previous review, if any, is unchanged');
@@ -44,7 +41,13 @@ export function reviewSummary(r: ReviewView): string {
     lines.push(
       `${r.status === 'succeeded' ? '' : 'last review written: '}${r.clean ? 'clean: no error, no warning' : `${plural(r.counts.error, 'error')}, ${plural(r.counts.warning, 'warning')}`}, ${plural(r.counts.info, 'note')} (${r.created_at ?? ''}, ${r.durations?.total_s ?? '?'} s video)`,
     );
-    if (shown.length) lines.push(`findings: ${shown.slice(0, 12).map((f) => `${f.severity} ${f.code}${where(f)}`).join('; ')}${shown.length > 12 ? `; … ${shown.length - 12} more` : ''} — each message is "untrusted.messages[i]" (it quotes the scenario and the filmed site)`);
+    if (shown.length)
+      lines.push(
+        `findings: ${shown
+          .slice(0, 12)
+          .map((f) => `${f.severity} ${f.code}${where(f)}`)
+          .join('; ')}${shown.length > 12 ? `; … ${shown.length - 12} more` : ''} — each message is "untrusted.messages[i]" (it quotes the scenario and the filmed site)`,
+      );
     if (r.diff) lines.push(`compared with ${r.diff.previous}: ${r.diff.changed_frames} of ${r.diff.compared} sample frames changed`);
     if (r.files?.report_md) lines.push(`report: ${r.files.report_md}`);
     const kf = Object.keys(r.files?.keyframes ?? {}).length;

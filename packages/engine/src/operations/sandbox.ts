@@ -13,8 +13,7 @@ import { waitS } from './wait.js';
 export const sandboxStatus = defineOperation({
   name: 'sandbox_status',
   title: 'Status of a sandbox',
-  description:
-    'A sandbox environment of a project (sandbox.yaml): up / partial / down, its services (running, healthy), pages, last seed and reset, and the take lock. It starts nothing.',
+  description: 'A sandbox environment of a project (sandbox.yaml): up / partial / down, its services (running, healthy), pages, last seed and reset, and the take lock. It starts nothing.',
   input: z.strictObject({
     project: projectSlug,
     env: envName.optional().describe('The sandbox environment (default: the first of project.yaml sandboxes).'),
@@ -66,4 +65,3 @@ export const sandboxReset = defineOperation({
     return jobOutput(ctx.engine, sub.job, wait_s, ctx, `sandbox reset of ${project} (${sub.env}) submitted (job ${sub.job.id}).`);
   },
 });
-

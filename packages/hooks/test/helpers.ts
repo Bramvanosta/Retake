@@ -49,10 +49,7 @@ export interface LogLine {
   msg: string;
 }
 
-export function makeContext(
-  project: LoadedProject,
-  over: Partial<HookContext> = {},
-): { ctx: HookContext; logs: LogLine[]; logText: () => string } {
+export function makeContext(project: LoadedProject, over: Partial<HookContext> = {}): { ctx: HookContext; logs: LogLine[]; logText: () => string } {
   const logs: LogLine[] = [];
   const ctx: HookContext = {
     project,

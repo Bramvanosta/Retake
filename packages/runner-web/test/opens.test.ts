@@ -31,8 +31,7 @@ let other: TestServer;
 let otherUrl: string;
 
 /** A link the page provides, clicked: its default prevented, so the runner follows its href itself (new_tab fallback). */
-const linkPage = (href: string) =>
-  `<!doctype html><html><body><h1>Links</h1><a id="l" href="${href}" onclick="event.preventDefault()">go</a></body></html>`;
+const linkPage = (href: string) => `<!doctype html><html><body><h1>Links</h1><a id="l" href="${href}" onclick="event.preventDefault()">go</a></body></html>`;
 /** A page that makes a document of its own (a blob: URL of its origin) and links to it. */
 const BLOB_PAGE = `<!doctype html><html><body><h1>Blob</h1><a id="l" href="#" onclick="event.preventDefault()">doc</a>
 <script>document.getElementById('l').href = URL.createObjectURL(new Blob(['<h1>Made by the page</h1>'], { type: 'text/html' }));</script></body></html>`;
@@ -62,7 +61,8 @@ type Trust = 'author' | 'mcp';
 async function run(name: string, sc: Omit<Scenario, 'video'>, o: { trust?: Trust; mode?: 'dry' | 'capture'; prewarm?: boolean } = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: app.url });
   if (o.prewarm) project.config.capture = { ...project.config.capture!, prewarm: true };
-  return runScenario({ policy: PERSON_POLICY,
+  return runScenario({
+    policy: PERSON_POLICY,
     project,
     scenario: makeScenario(name, { pacing: FAST, ...sc }),
     mode: o.mode ?? 'dry',
@@ -136,7 +136,7 @@ describe('the rule (pure)', () => {
     const ctx = (browser: unknown) => ({ browser: () => browser }) as never;
     await expect(armFileGuard(ctx(null))).rejects.toThrow(/could not set the browser to refuse file: pages: no browser-level session/);
     await expect(armFileGuard(ctx({ newBrowserCDPSession: () => Promise.reject(new Error('closed')) }), 'buyer')).rejects.toThrow(/of persona buyer to refuse file: pages: closed/);
-    const cdp = { on: () => undefined, send: () => Promise.reject(new Error('Fetch.enable wasn\'t found')), detach: () => Promise.resolve() };
+    const cdp = { on: () => undefined, send: () => Promise.reject(new Error("Fetch.enable wasn't found")), detach: () => Promise.resolve() };
     await expect(armFileGuard(ctx({ newBrowserCDPSession: () => Promise.resolve(cdp) }))).rejects.toThrow(/Fetch\.enable/);
   });
 });
@@ -146,9 +146,17 @@ describe('every navigation the runner starts (real browser)', () => {
     const cases: Array<[string, Omit<Scenario, 'video'>, RegExp]> = [
       // Templated, with a leading space: resolved against the environment page, it is a file: URL.
       ['scene-open', { vars: { u: ` ${fileUrl}` }, scenes: [{ id: 'a', page: 'app', open: '{{vars.u}}', steps: [{ hold: 0.1 }] }] }, /open: refused: file:\/\/.* opens a file: URL/],
-      ['open-step', { vars: { u: `data:text/html;base64,${Buffer.from(`<h1>${SECRET}</h1>`).toString('base64')}` }, scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ open: '{{vars.u}}' }] }] }, /open: refused: .* opens a data: URL/],
+      [
+        'open-step',
+        { vars: { u: `data:text/html;base64,${Buffer.from(`<h1>${SECRET}</h1>`).toString('base64')}` }, scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ open: '{{vars.u}}' }] }] },
+        /open: refused: .* opens a data: URL/,
+      ],
       ['new-tab-href', { vars: { u: fileUrl }, scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ new_tab: { href: '{{vars.u}}', as: 'doc' } }] }] }, /new_tab: refused: file:/],
-      ['page-open', { vars: { u: `view-source:${fileUrl}` }, scenes: [{ id: 'a', pages: { left: { page: 'app', open: '/' }, right: { page: 'app', open: '{{vars.u}}' } }, steps: [{ hold: 0.1 }] }] }, /page "right" open: refused: .* a view-source: URL/],
+      [
+        'page-open',
+        { vars: { u: `view-source:${fileUrl}` }, scenes: [{ id: 'a', pages: { left: { page: 'app', open: '/' }, right: { page: 'app', open: '{{vars.u}}' } }, steps: [{ hold: 0.1 }] }] },
+        /page "right" open: refused: .* a view-source: URL/,
+      ],
     ];
     for (const trust of ['author', 'mcp'] as const) {
       for (const [name, sc, message] of cases) {
@@ -241,13 +249,23 @@ describe("the browser's own guard against file: (real browser)", () => {
           await fresh.goto(`${web.url}/`);
           await fresh.evaluate(() => void window.open('about:blank'));
           const popup = await popupP;
-          for (const [label, page] of [['first', first], ['new', fresh], ['popup', popup]] as const) {
-            const err = await page.goto(fileUrl, { timeout: 10_000 }).then(() => null, (e: Error) => e.message);
+          for (const [label, page] of [
+            ['first', first],
+            ['new', fresh],
+            ['popup', popup],
+          ] as const) {
+            const err = await page.goto(fileUrl, { timeout: 10_000 }).then(
+              () => null,
+              (e: Error) => e.message,
+            );
             expect(err, `${label} read-only=${readOnly}`).toContain('net::ERR_BLOCKED_BY_CLIENT');
             expect(await textOf(page), label).not.toContain(SECRET);
           }
           // Chromium itself refuses an http redirect to a local file.
-          const redirected = await fresh.goto(`${web.url}/redir`, { timeout: 10_000 }).then(() => null, (e: Error) => e.message);
+          const redirected = await fresh.goto(`${web.url}/redir`, { timeout: 10_000 }).then(
+            () => null,
+            (e: Error) => e.message,
+          );
           expect(redirected).toMatch(/net::ERR_/);
           expect(await textOf(fresh)).not.toContain(SECRET);
           // Not a route: the cacheable script, fetched with the first page, comes from the HTTP cache afterwards.

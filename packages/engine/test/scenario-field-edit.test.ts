@@ -41,7 +41,10 @@ function changed(a: string, b: string): string[] {
 }
 
 async function failure(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -58,7 +61,10 @@ beforeAll(async () => {
   ] as const) {
     const d = join(ws, 'components', ...id.split('/'));
     await mkdir(d, { recursive: true });
-    await writeFile(join(d, 'component.yaml'), `id: ${id}\nversion: 1.0.0\nkind: card\nname: Card\ndescription: A card.\n${extra}slots:\n  title: {type: text, required: true}\n  kicker: {type: text}\npreview: {slots: {title: Hello}}\n`);
+    await writeFile(
+      join(d, 'component.yaml'),
+      `id: ${id}\nversion: 1.0.0\nkind: card\nname: Card\ndescription: A card.\n${extra}slots:\n  title: {type: text, required: true}\n  kicker: {type: text}\npreview: {slots: {title: Hello}}\n`,
+    );
     await writeFile(join(d, 'index.tsx'), 'export default function C() { return null; }\n');
   }
   ui = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
@@ -84,7 +90,7 @@ describe('set_field through scenarios.edit (L4.5)', () => {
     expect(undo.hash).toBe(sha(before));
   });
 
-  it('the caption component and a card component: before `scenes:` / in the card\'s flow map', async () => {
+  it("the caption component and a card component: before `scenes:` / in the card's flow map", async () => {
     const before = await read('quote');
     const cap = await ui.scenarios.edit(P, 'quote', { hash: sha(before), edit: { kind: 'set_field', at: { entry: 'top' }, field: 'caption_component', to: 'studio/caption-overlay' } });
     const t1 = await read('quote');
@@ -97,7 +103,7 @@ describe('set_field through scenarios.edit (L4.5)', () => {
     await ui.scenarios.edit(P, 'quote', { hash: card.hash, edit: { kind: 'restore', text: before, text_hash: sha(before) } });
   });
 
-  it('⚑ a component or frame that does not fit the use is refused with the inspector\'s reason, nothing written', async () => {
+  it("⚑ a component or frame that does not fit the use is refused with the inspector's reason, nothing written", async () => {
     const before = await read('quote');
     const { mtimeMs } = await stat(file('quote'));
     const refusals: Array<[ScenarioEdit, RegExp]> = [
@@ -134,7 +140,9 @@ describe('set_field through scenarios.edit (L4.5)', () => {
     expect(videoPages(live)).toMatchObject({ multi: videoPages(live).scenes });
     expect(fieldFitProblem(registry, fit, live, { at: { entry: 'top' }, field: 'frame', to: 'split' })).toBeNull();
     expect(fieldFitProblem(registry, fit, live, { at: { entry: 'top' }, field: 'frame', to: 'pip' })).toBeNull();
-    expect(fieldFitProblem(registry, fit, live, { at: { entry: 'top' }, field: 'frame', to: 'laptop' })).toBe('every scene of this video films several pages: a one-page layout changes none of them (Split screen, Picture in picture, or a multi-page layout component)');
+    expect(fieldFitProblem(registry, fit, live, { at: { entry: 'top' }, field: 'frame', to: 'laptop' })).toBe(
+      'every scene of this video films several pages: a one-page layout changes none of them (Split screen, Picture in picture, or a multi-page layout component)',
+    );
     const top = (await fieldOptions(registry, live, { entry: 'top' }, 'frame')).map((o) => [o.value, o.usable === true]);
     expect(top).toContainEqual(['split', true]);
     expect(top).toContainEqual(['laptop', false]);

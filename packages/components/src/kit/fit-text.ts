@@ -54,7 +54,10 @@ function canvasContext(): Ctx2D | null {
   if (ctx !== undefined) return ctx;
   ctx = null;
   try {
-    const g = globalThis as { OffscreenCanvas?: new (w: number, h: number) => { getContext(id: '2d'): Ctx2D | null }; document?: { createElement(tag: 'canvas'): { getContext(id: '2d'): Ctx2D | null } } };
+    const g = globalThis as {
+      OffscreenCanvas?: new (w: number, h: number) => { getContext(id: '2d'): Ctx2D | null };
+      document?: { createElement(tag: 'canvas'): { getContext(id: '2d'): Ctx2D | null } };
+    };
     if (g.OffscreenCanvas) ctx = new g.OffscreenCanvas(1, 1).getContext('2d');
     else if (g.document) ctx = g.document.createElement('canvas').getContext('2d');
   } catch {

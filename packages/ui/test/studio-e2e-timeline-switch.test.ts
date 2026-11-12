@@ -79,7 +79,11 @@ async function settled(): Promise<{ frame: number; png: Buffer; src: number }> {
 
 /** Raw RGB of a PNG (ffmpeg), with its size. */
 function rgbOf(png: Buffer): { w: number; h: number; rgb: Buffer } {
-  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png }).toString().trim().split(',').map(Number);
+  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png })
+    .toString()
+    .trim()
+    .split(',')
+    .map(Number);
   return { w, h, rgb: execFileSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { input: png, maxBuffer: 64 * 1024 * 1024 }) };
 }
 
@@ -90,10 +94,11 @@ function diff(a: Buffer, b: Buffer, y0 = 0, y1 = 1): number {
   expect([A.w, A.h]).toEqual([B.w, B.h]);
   let sum = 0;
   let n = 0;
-  for (let y = Math.floor(A.h * y0); y < Math.floor(A.h * y1); y++) for (let i = y * A.w * 3; i < (y + 1) * A.w * 3; i++) {
-    sum += Math.abs(A.rgb[i] - B.rgb[i]);
-    n++;
-  }
+  for (let y = Math.floor(A.h * y0); y < Math.floor(A.h * y1); y++)
+    for (let i = y * A.w * 3; i < (y + 1) * A.w * 3; i++) {
+      sum += Math.abs(A.rgb[i] - B.rgb[i]);
+      n++;
+    }
   return sum / n;
 }
 
@@ -101,10 +106,11 @@ function diff(a: Buffer, b: Buffer, y0 = 0, y1 = 1): number {
 function colourAt(png: Buffer, fx: number, fy: number): [number, number, number] {
   const { w, h, rgb } = rgbOf(png);
   const c = [0, 0, 0];
-  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-    const i = ((Math.floor(h * fy) + dy) * w + Math.floor(w * fx) + dx) * 3;
-    for (let k = 0; k < 3; k++) c[k] += rgb[i + k] / 25;
-  }
+  for (let dy = -2; dy <= 2; dy++)
+    for (let dx = -2; dx <= 2; dx++) {
+      const i = ((Math.floor(h * fy) + dy) * w + Math.floor(w * fx) + dx) * 3;
+      for (let k = 0; k < 3; k++) c[k] += rgb[i + k] / 25;
+    }
   return c.map(Math.round) as [number, number, number];
 }
 
@@ -239,8 +245,14 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     expect(diff(before.png, laptop.png)).toBeGreaterThan(12);
     const cornerRaw = colourAt(before.png, 0.02, 0.03);
     const cornerLaptop = colourAt(laptop.png, 0.02, 0.03);
-    expect(cornerRaw.every((c) => Math.abs(c - 0x20) < 12), `raw corner ${cornerRaw}`).toBe(true);
-    expect(cornerLaptop.some((c, k) => Math.abs(c - cornerRaw[k]) > 40), `laptop corner ${cornerLaptop}`).toBe(true);
+    expect(
+      cornerRaw.every((c) => Math.abs(c - 0x20) < 12),
+      `raw corner ${cornerRaw}`,
+    ).toBe(true);
+    expect(
+      cornerLaptop.some((c, k) => Math.abs(c - cornerRaw[k]) > 40),
+      `laptop corner ${cornerLaptop}`,
+    ).toBe(true);
     expect(await page.locator('iframe').count()).toBe(1);
     console.log(`switch: layout → laptop settled in ${Math.round(ms)} ms; corner ${cornerRaw} → ${cornerLaptop}`);
     await shot('switch-2-laptop');

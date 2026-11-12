@@ -39,12 +39,33 @@ afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 /** The library's frame encode, as its version in this repository writes it (libx264 and VideoToolbox). */
 const frameEncode = (codec: string[]) => [
-  '-r', '30', '-f', 'image2pipe', '-s', '1920x1080', '-vcodec', 'mjpeg', '-i', '-',
+  '-r',
+  '30',
+  '-f',
+  'image2pipe',
+  '-s',
+  '1920x1080',
+  '-vcodec',
+  'mjpeg',
+  '-i',
+  '-',
   ...codec,
-  '-pix_fmt', 'yuv420p', '-video_track_timescale', '90000',
-  '-colorspace:v', 'bt709', '-color_primaries:v', 'bt709', '-color_trc:v', 'bt709', '-color_range', 'tv',
-  '-vf', LIBRARY_FRAME_FILTER,
-  '-y', '/tmp/x/pre-encode.mp4',
+  '-pix_fmt',
+  'yuv420p',
+  '-video_track_timescale',
+  '90000',
+  '-colorspace:v',
+  'bt709',
+  '-color_primaries:v',
+  'bt709',
+  '-color_trc:v',
+  'bt709',
+  '-color_range',
+  'tv',
+  '-vf',
+  LIBRARY_FRAME_FILTER,
+  '-y',
+  '/tmp/x/pre-encode.mp4',
 ];
 const X264 = ['-c:v', 'libx264', '-crf', '16', '-preset', 'veryfast'];
 const VT = ['-c:v', 'h264_videotoolbox', '-b:v', '8M', '-g', '60'];
@@ -286,9 +307,18 @@ process.stdout.write(JSON.stringify({ dir, failed }));
       const raceHome = mkdtempSync(join(scratch, 'race-home-'));
       const at = String(Date.now() + 400);
       const results = await Promise.all(
-        Array.from({ length: N }, () => new Promise<{ dir: string; failed: string[] }>((done, fail) => execFile(process.execPath, [child, built, raceHome, compositor, own, at], { encoding: 'utf8' }, (err, stdout) => (err ? fail(err) : done(JSON.parse(stdout))))) ),
+        Array.from(
+          { length: N },
+          () =>
+            new Promise<{ dir: string; failed: string[] }>((done, fail) =>
+              execFile(process.execPath, [child, built, raceHome, compositor, own, at], { encoding: 'utf8' }, (err, stdout) => (err ? fail(err) : done(JSON.parse(stdout)))),
+            ),
+        ),
       );
-      expect(results.flatMap((r) => r.failed), `round ${round}`).toEqual([]);
+      expect(
+        results.flatMap((r) => r.failed),
+        `round ${round}`,
+      ).toEqual([]);
       expect(new Set(results.map((r) => r.dir)).size, `round ${round}`).toBe(1);
       // One folder, nothing built aside or moved aside left behind.
       expect(readdirSync(join(raceHome, ENCODE_TOOLS_DIR)), `round ${round}`).toEqual([basename(results[0].dir)]);
@@ -392,7 +422,10 @@ describe.skipIf(!posix)('which ffmpeg of ours may encode a render (ownFfmpeg)', 
     symlinkSync(good, link);
     const r = await ask(link);
     expect(r).toEqual({ ok: true, path: statReal(good), facts: { version: '7.1.1', libx264: true, videotoolbox: true, filter: true } });
-    expect(await ask(fakeFfmpeg('ff-novt', { version: 'n6.0', encoders: ['libx264', 'h264_videotoolbox_extra'] }))).toMatchObject({ ok: true, facts: { version: '6.0', libx264: true, videotoolbox: false } });
+    expect(await ask(fakeFfmpeg('ff-novt', { version: 'n6.0', encoders: ['libx264', 'h264_videotoolbox_extra'] }))).toMatchObject({
+      ok: true,
+      facts: { version: '6.0', libx264: true, videotoolbox: false },
+    });
     expect(await ask(fakeFfmpeg('ff-nox264', { version: '5.1', encoders: ['h264_videotoolbox'] }))).toMatchObject({ ok: true, facts: { libx264: false, videotoolbox: true } });
     // A snapshot build is not judged on its version (as `retake doctor`).
     expect(await ask(fakeFfmpeg('ff-snapshot', { version: 'N-118900-gabc' }))).toMatchObject({ ok: true, facts: { version: 'N-118900-gabc' } });
@@ -440,7 +473,9 @@ describe.skipIf(!posix)('which ffmpeg of ours may encode a render (ownFfmpeg)', 
   it('read again when the file changed, and when it did not start: only an answer is kept', async () => {
     const flag = join(scratch, 'ff-busy.flag');
     const busy = join(scratch, 'ff-busy');
-    writeFileSync(busy, readFileSync(fakeFfmpeg('ff-b', { version: '7.1' }), 'utf8').replace('const a = ', `if (require('fs').existsSync(${JSON.stringify(flag)})) process.exit(3);\nconst a = `), { mode: 0o755 });
+    writeFileSync(busy, readFileSync(fakeFfmpeg('ff-b', { version: '7.1' }), 'utf8').replace('const a = ', `if (require('fs').existsSync(${JSON.stringify(flag)})) process.exit(3);\nconst a = `), {
+      mode: 0o755,
+    });
     writeFileSync(flag, '');
     expect(await ask(busy)).toEqual({ ok: false, reason: "this machine's ffmpeg cannot encode renders: it does not start" });
     // The same file, a moment later (a busy machine let the first try time out): asked again.
@@ -483,10 +518,18 @@ describe.skipIf(!posix)('which ffmpeg of ours may encode a render (ownFfmpeg)', 
     expect(await probeFrameEncode(mute, s, ['-c:v', 'libx264'])).toEqual({ ok: false, error: 'Unknown encoder' });
     // One that cannot make the frames is not taken at the word of its encode.
     const noFrames = join(scratch, 'ff-noframes');
-    writeFileSync(noFrames, `#!${process.execPath}\nconst a = process.argv.slice(2);\nif (a.includes('lavfi')) { process.stderr.write("Unknown encoder 'mjpeg'\\n"); process.exit(1); }\nprocess.stdin.resume();\n`, { mode: 0o755 });
+    writeFileSync(
+      noFrames,
+      `#!${process.execPath}\nconst a = process.argv.slice(2);\nif (a.includes('lavfi')) { process.stderr.write("Unknown encoder 'mjpeg'\\n"); process.exit(1); }\nprocess.stdin.resume();\n`,
+      { mode: 0o755 },
+    );
     expect(await probeFrameEncode(noFrames, s, ['-c:v', 'libx264'])).toEqual({ ok: false, error: "Unknown encoder 'mjpeg'" });
     const half = join(scratch, 'ff-half');
-    writeFileSync(half, `#!${process.execPath}\nconst a = process.argv.slice(2);\nif (a.includes('lavfi')) { process.stdout.write('JPEG'); process.exit(0); }\nprocess.stderr.write("[AVFilterGraph] No such filter: 'colorspace'\\nmore\\n"); process.exit(8);\n`, { mode: 0o755 });
+    writeFileSync(
+      half,
+      `#!${process.execPath}\nconst a = process.argv.slice(2);\nif (a.includes('lavfi')) { process.stdout.write('JPEG'); process.exit(0); }\nprocess.stderr.write("[AVFilterGraph] No such filter: 'colorspace'\\nmore\\n"); process.exit(8);\n`,
+      { mode: 0o755 },
+    );
     expect(await probeFrameEncode(half, s, ['-c:v', 'libx264'])).toEqual({ ok: false, error: "[AVFilterGraph] No such filter: 'colorspace'" });
     const fine = join(scratch, 'ff-fine');
     writeFileSync(fine, `#!${process.execPath}\nconst a = process.argv.slice(2);\nif (a.includes('lavfi')) process.stdout.write('JPEG');\nelse process.stdin.resume();\n`, { mode: 0o755 });
@@ -521,8 +564,21 @@ describe.skipIf(!real)("this machine's ffmpeg and the library's, through the rea
     }
     // What the library's folder holds in the version installed: the three programs and seven libraries the folder
     // stands for (a version that adds a program or a library it loads must be looked at here first).
-    const programs = readdirSync(lib).filter((n) => !/^(?:README\.md|package\.json|index\.(?:js|mjs|d\.ts))$/.test(n)).sort();
-    expect(programs).toEqual(['ffmpeg', 'ffprobe', 'libavcodec.dylib', 'libavdevice.dylib', 'libavfilter.dylib', 'libavformat.dylib', 'libavutil.dylib', 'libswresample.dylib', 'libswscale.dylib', 'remotion']);
+    const programs = readdirSync(lib)
+      .filter((n) => !/^(?:README\.md|package\.json|index\.(?:js|mjs|d\.ts))$/.test(n))
+      .sort();
+    expect(programs).toEqual([
+      'ffmpeg',
+      'ffprobe',
+      'libavcodec.dylib',
+      'libavdevice.dylib',
+      'libavfilter.dylib',
+      'libavformat.dylib',
+      'libavutil.dylib',
+      'libswresample.dylib',
+      'libswscale.dylib',
+      'remotion',
+    ]);
     expect(linkedEntries(readdirSync(lib))).toEqual(programs.filter((n) => n !== 'ffmpeg'));
     // The probe a render makes before it takes ours: the frame encode itself, with each encoder ours has.
     const size = { width: 320, height: 180, fps: 30 };
@@ -539,13 +595,40 @@ describe.skipIf(!real)("this machine's ffmpeg and the library's, through the rea
     expect(version(join(dir, 'ffmpeg'))).not.toBe(version(own.path));
     expect(spawnSync(join(dir, 'ffprobe'), ['-version'], { cwd: dir, env, encoding: 'utf8' }).stdout).toMatch(/^ffprobe version/);
     // The frame encode: six full-range JPEG frames down the pipe, the library's arguments with the filter rewritten.
-    const jpegs = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=30', '-frames:v', '6', '-f', 'image2pipe', '-vcodec', 'mjpeg', '-q:v', '2', '-'], { maxBuffer: 64e6 });
+    const jpegs = execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=30', '-frames:v', '6', '-f', 'image2pipe', '-vcodec', 'mjpeg', '-q:v', '2', '-'], {
+      maxBuffer: 64e6,
+    });
     const out = join(home, 'pre-encode.mp4');
-    const args = rewritePreStitcher({ type: 'pre-stitcher', args: frameEncode(own.facts.libx264 ? X264 : ['-c:v', 'h264_videotoolbox', '-b:v', '1M', '-g', '60']).map((a) => (a === '1920x1080' ? '320x180' : a === '/tmp/x/pre-encode.mp4' ? out : a)) });
+    const args = rewritePreStitcher({
+      type: 'pre-stitcher',
+      args: frameEncode(own.facts.libx264 ? X264 : ['-c:v', 'h264_videotoolbox', '-b:v', '1M', '-g', '60']).map((a) => (a === '1920x1080' ? '320x180' : a === '/tmp/x/pre-encode.mp4' ? out : a)),
+    });
     const r = spawnSync(join(dir, 'ffmpeg'), args, { cwd: dir, env, input: jpegs, encoding: 'utf8' });
     expect(r.status, r.stderr).toBe(0);
-    const probe = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries', 'stream=codec_name,pix_fmt,color_range,color_space,color_transfer,color_primaries,time_base,nb_read_frames', '-of', 'default=nw=1', out], { encoding: 'utf8' });
-    expect(Object.fromEntries(probe.trim().split('\n').map((l) => l.split('=')))).toEqual({
+    const probe = execFileSync(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'v:0',
+        '-count_frames',
+        '-show_entries',
+        'stream=codec_name,pix_fmt,color_range,color_space,color_transfer,color_primaries,time_base,nb_read_frames',
+        '-of',
+        'default=nw=1',
+        out,
+      ],
+      { encoding: 'utf8' },
+    );
+    expect(
+      Object.fromEntries(
+        probe
+          .trim()
+          .split('\n')
+          .map((l) => l.split('=')),
+      ),
+    ).toEqual({
       codec_name: 'h264',
       pix_fmt: 'yuv420p',
       color_range: 'tv',

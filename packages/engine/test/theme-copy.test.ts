@@ -48,7 +48,18 @@ describe('copy a theme (L4.7)', () => {
     const r = await engine.templates.copy({ from: 'editorial', name: 'mine' });
     const dir = join(root, 'templates', 'mine');
     expect(r.name).toBe('mine');
-    expect(r.files.sort()).toEqual(['.retake-theme.json', 'LICENSES.md', 'README.md', 'fonts/InstrumentSerif-Regular.ttf', 'fonts/Inter-Bold.ttf', 'fonts/Inter-Regular.ttf', 'fonts/Inter-SemiBold.ttf', 'logo.svg', 'template.yaml', 'wordmark.svg']);
+    expect(r.files.sort()).toEqual([
+      '.retake-theme.json',
+      'LICENSES.md',
+      'README.md',
+      'fonts/InstrumentSerif-Regular.ttf',
+      'fonts/Inter-Bold.ttf',
+      'fonts/Inter-Regular.ttf',
+      'fonts/Inter-SemiBold.ttf',
+      'logo.svg',
+      'template.yaml',
+      'wordmark.svg',
+    ]);
     const src = readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8');
     const text = await readFile(join(dir, 'template.yaml'), 'utf8');
     expect(text).toBe(src.replace('name: editorial', 'name: mine'));
@@ -70,7 +81,7 @@ describe('copy a theme (L4.7)', () => {
     expect(r2.files).not.toContain('.DS_Store');
   });
 
-  it('⚑ names: a starter\'s, an existing folder\'s (without case), not a slug; nothing left behind', async () => {
+  it("⚑ names: a starter's, an existing folder's (without case), not a slug; nothing left behind", async () => {
     expect((await failure(engine.templates.copy({ from: 'editorial', name: 'motion' }))).message).toMatch(/name of the starter theme motion/);
     expect((await failure(engine.templates.copy({ from: 'editorial', name: 'MINE' }))).code).toBe('invalid');
     await mkdir(join(root, 'templates', 'Taken'), { recursive: true });

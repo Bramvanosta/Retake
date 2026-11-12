@@ -90,7 +90,18 @@ function runState(s: RunLiveState, fb: RunStatusLite | null): { word: string; fi
   return { word: s.hello ? 'starting' : 'connecting', finished: false };
 }
 
-const STATE_MARK: Record<string, MarkState> = { running: 'running', queued: 'waiting', starting: 'waiting', connecting: 'waiting', paused: 'warn', stopping: 'warn', succeeded: 'ok', failed: 'fail', cancelled: 'warn', interrupted: 'fail' };
+const STATE_MARK: Record<string, MarkState> = {
+  running: 'running',
+  queued: 'waiting',
+  starting: 'waiting',
+  connecting: 'waiting',
+  paused: 'warn',
+  stopping: 'warn',
+  succeeded: 'ok',
+  failed: 'fail',
+  cancelled: 'warn',
+  interrupted: 'fail',
+};
 
 /** "00:23" / "1:05:00" elapsed, ticking while the run goes. */
 function useElapsed(from: string | undefined, to: string | undefined): string | null {
@@ -194,7 +205,14 @@ function Controls({ slug, name, runId, s, fb, mode, finished }: { slug: string; 
         <span className="sh-scenario" data-testid="live-state">
           <StatusMark state={STATE_MARK[st.word] ?? 'running'} word={<Txt text={word} />} />
         </span>
-        <Button size="sm" icon={holding ? 'play' : 'pause'} data-testid={holding ? 'run-resume' : 'run-pause'} disabled={why !== null || busy !== null} aria-describedby="controls-why" onClick={() => pause(!holding)}>
+        <Button
+          size="sm"
+          icon={holding ? 'play' : 'pause'}
+          data-testid={holding ? 'run-resume' : 'run-pause'}
+          disabled={why !== null || busy !== null}
+          aria-describedby="controls-why"
+          onClick={() => pause(!holding)}
+        >
           {busy === 'pause' ? 'Pausing…' : busy === 'resume' ? 'Resuming…' : holding ? 'Resume' : 'Pause'}
         </Button>
         <Button size="sm" icon="stop" data-testid="run-stop" disabled={terminal || stopping || busy !== null} aria-describedby="controls-why" onClick={stop}>
@@ -202,15 +220,18 @@ function Controls({ slug, name, runId, s, fb, mode, finished }: { slug: string; 
         </Button>
       </ShellSlot>
       <p id="controls-why" className="sc-quiet" data-testid="controls-why">
-        {shown(stopping
-          ? 'Stopping now: the step in progress is interrupted; its teardown hooks and pending rollbacks still run — their result shows in the steps.'
-          : paused
-            ? `Paused before ${s.paused ? stepWords(s.paused.scene, s.paused.step) : fb?.paused ? stepWords(fb.paused.scene, fb.paused.step) : 'the next step'}.${mode === 'capture' ? ' The video does not show the pause; the page keeps running, so what changes on it meanwhile shows as a jump when the capture goes on.' : ''} ${
-                s.paused?.max_ms ? `A pause longer than ${pauseMaxWords(s.paused.max_ms)} stops the run` : 'A pause longer than its limit (RETAKE_PAUSE_MAX_MIN, 30 minutes by default) stops the run'
-              }; its teardown runs.`
-            : pauseAsked
-              ? 'Pausing before the next step: the current step finishes first.'
-              : (why ?? `Pause waits for the current step to finish${mode === 'capture' ? ' (the video does not show the pause)' : ''}; Stop stops now — the step in progress is interrupted — and still runs the teardown and rollbacks.`))}
+        {shown(
+          stopping
+            ? 'Stopping now: the step in progress is interrupted; its teardown hooks and pending rollbacks still run — their result shows in the steps.'
+            : paused
+              ? `Paused before ${s.paused ? stepWords(s.paused.scene, s.paused.step) : fb?.paused ? stepWords(fb.paused.scene, fb.paused.step) : 'the next step'}.${mode === 'capture' ? ' The video does not show the pause; the page keeps running, so what changes on it meanwhile shows as a jump when the capture goes on.' : ''} ${
+                  s.paused?.max_ms ? `A pause longer than ${pauseMaxWords(s.paused.max_ms)} stops the run` : 'A pause longer than its limit (RETAKE_PAUSE_MAX_MIN, 30 minutes by default) stops the run'
+                }; its teardown runs.`
+              : pauseAsked
+                ? 'Pausing before the next step: the current step finishes first.'
+                : (why ??
+                  `Pause waits for the current step to finish${mode === 'capture' ? ' (the video does not show the pause)' : ''}; Stop stops now — the step in progress is interrupted — and still runs the teardown and rollbacks.`),
+        )}
       </p>
       {said && (
         <p className="sp-error" role="alert" data-testid="controls-error">
@@ -368,7 +389,11 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
         {rows.length === 0 && fb && (
           <li className="sp-row" data-testid="run-fallback-step">
             <span className="sp-row-text">
-              {fb.current && !fb.paused ? <Txt text={`Now: ${stepWords(fb.current.scene, fb.current.step)} (${fb.current.action}).`} /> : <Txt text={fb.paused ? `Paused before ${stepWords(fb.paused.scene, fb.paused.step)}.` : `${RUN_STATUS_WORDS[fb.status] ?? 'unknown'}.`} />}{' '}
+              {fb.current && !fb.paused ? (
+                <Txt text={`Now: ${stepWords(fb.current.scene, fb.current.step)} (${fb.current.action}).`} />
+              ) : (
+                <Txt text={fb.paused ? `Paused before ${stepWords(fb.paused.scene, fb.paused.step)}.` : `${RUN_STATUS_WORDS[fb.status] ?? 'unknown'}.`} />
+              )}{' '}
               <span className="sc-quiet">The step list and the log are on the other screen following this run.</span>
             </span>
           </li>
@@ -475,10 +500,14 @@ function Outcome({ slug, name, runId, s, mode, pauseLate }: { slug: string; name
             />
           </p>
         )}
-        {e?.hooks && noHook(e.hooks.setup) && noHook(e.hooks.teardown) && rollbacks.length === 0 && <p data-testid="outcome-hooks">{mode === 'dry' ? 'No hook ran (a rehearsal skips them).' : 'No hook ran.'}</p>}
+        {e?.hooks && noHook(e.hooks.setup) && noHook(e.hooks.teardown) && rollbacks.length === 0 && (
+          <p data-testid="outcome-hooks">{mode === 'dry' ? 'No hook ran (a rehearsal skips them).' : 'No hook ran.'}</p>
+        )}
         {e?.hooks && !(noHook(e.hooks.setup) && noHook(e.hooks.teardown) && rollbacks.length === 0) && (
           <p data-testid="outcome-hooks">
-            <Txt text={`Setup: ${e.hooks.setup}${setup.length > 0 ? ` (${hookLine(setup)})` : ''} · Teardown: ${e.hooks.teardown}${teardown.length > 0 ? ` (${hookLine(teardown)})` : ''}${rollbacks.length > 0 ? ` · Rollbacks: ${hookLine(rollbacks)}` : ''}`} />
+            <Txt
+              text={`Setup: ${e.hooks.setup}${setup.length > 0 ? ` (${hookLine(setup)})` : ''} · Teardown: ${e.hooks.teardown}${teardown.length > 0 ? ` (${hookLine(teardown)})` : ''}${rollbacks.length > 0 ? ` · Rollbacks: ${hookLine(rollbacks)}` : ''}`}
+            />
           </p>
         )}
         {status === 'cancelled' && (
@@ -569,7 +598,17 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
     setFrames(!pictureShown);
   };
   // The one polite status line: the run's state in words, only when it changes.
-  const statusLine = st.finished ? `${endedWords(st.word)}.` : st.word === 'paused' ? 'Paused.' : st.word === 'stopping' ? 'Stopping.' : st.word === 'queued' ? 'Queued.' : st.word === 'running' ? 'Running.' : '';
+  const statusLine = st.finished
+    ? `${endedWords(st.word)}.`
+    : st.word === 'paused'
+      ? 'Paused.'
+      : st.word === 'stopping'
+        ? 'Stopping.'
+        : st.word === 'queued'
+          ? 'Queued.'
+          : st.word === 'running'
+            ? 'Running.'
+            : '';
   const rows = stepRows(s);
   const total = s.start?.steps_total ?? (rows.length || fallback?.steps_total || 0);
   // Done means its row says done: a failed step is not counted (run_status's steps_done counts every step that ended).
@@ -645,8 +684,8 @@ export function ShootLive({ slug, name, runId }: { slug: string; name: string; r
       {conn === 'busy' && (
         <Callout state="idle" role="note" title="Followed without its stream">
           <p data-testid="run-busy">
-            This Studio streams two live runs at a time and both streams are taken (another tab?): this screen reads the run's status every few seconds, without the picture, steps or log.
-            Close the other live screen to see them here.
+            This Studio streams two live runs at a time and both streams are taken (another tab?): this screen reads the run's status every few seconds, without the picture, steps or log. Close the
+            other live screen to see them here.
           </p>
         </Callout>
       )}

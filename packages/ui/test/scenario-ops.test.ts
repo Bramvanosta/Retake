@@ -87,7 +87,12 @@ describe('scenario_blocks', () => {
   });
 
   it('zod refusals before any read: a path as a name, a bad run id, an unknown argument', async () => {
-    for (const args of [{ project: P, name: '../quote' }, { project: P, name: 'quote', run: '../../x' }, { project: P, name: 'quote', extra: 1 }, { project: '../x', name: 'quote' }]) {
+    for (const args of [
+      { project: P, name: '../quote' },
+      { project: P, name: 'quote', run: '../../x' },
+      { project: P, name: 'quote', extra: 1 },
+      { project: '../x', name: 'quote' },
+    ]) {
       const r = await call('scenario_blocks', args);
       expect(r.status, JSON.stringify(args)).toBe(400);
     }
@@ -170,7 +175,8 @@ function watch(port: number, token: string) {
   return { events, until, close: () => req.destroy() };
 }
 
-const runsOf = (id: string) => (e: { event: string; data: Record<string, unknown> }) => e.event === 'workspace' && Array.isArray(e.data.runs) && (e.data.runs as Array<{ run: string }>).some((x) => x.run === id);
+const runsOf = (id: string) => (e: { event: string; data: Record<string, unknown> }) =>
+  e.event === 'workspace' && Array.isArray(e.data.runs) && (e.data.runs as Array<{ run: string }>).some((x) => x.run === id);
 
 describe('the workspace event names scenario files and runs (B1)', () => {
   it('an in-place save → scenarios ["<slug>/<name>"]; a run that starts → runs [{run, scenario, change: new}]', async () => {

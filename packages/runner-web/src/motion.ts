@@ -18,8 +18,7 @@ export const NUDGE_HOVER_MS = 120;
 /** Shortest nudge, as a fraction of nudge_ms: 0.6 × 250 ms = 150 ms. */
 const NUDGE_MIN_FRACTION = 0.6;
 
-type MotionPacing = Pick<Pacing, 'move_base_ms' | 'move_ms_per_px' | 'move_min_ms' | 'move_max_ms'> &
-  Partial<Pick<Pacing, 'nudge_px' | 'nudge_ms'>>;
+type MotionPacing = Pick<Pacing, 'move_base_ms' | 'move_ms_per_px' | 'move_min_ms' | 'move_max_ms'> & Partial<Pick<Pacing, 'nudge_px' | 'nudge_ms'>>;
 
 /** Whether a move of `dist` px is a nudge. */
 export function isNudge(dist: number, pacing: Partial<Pick<Pacing, 'nudge_px'>>): boolean {

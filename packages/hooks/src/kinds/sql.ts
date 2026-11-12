@@ -35,13 +35,7 @@ interface Database {
  * else project.yaml's — core databasesFor): URL templated (secrets resolved), host checked against the allow-list
  * before any connection. `snapshot` re-templates it for a rollback.
  */
-async function openDatabase(
-  ctx: HookContext,
-  log: (level: HookLogLevel, msg: string) => void,
-  key: string | undefined,
-  snapshot?: TemplateSnapshot,
-  env: string = ctx.env.name,
-): Promise<Database> {
+async function openDatabase(ctx: HookContext, log: (level: HookLogLevel, msg: string) => void, key: string | undefined, snapshot?: TemplateSnapshot, env: string = ctx.env.name): Promise<Database> {
   const dbs = databasesFor(ctx.project, env);
   const where = databasesSource(ctx.project, env);
   const keys = Object.keys(dbs);
@@ -53,9 +47,7 @@ async function openDatabase(
     throw new HookError(`unknown database "${k}" (${where} declares: ${keys.join(', ')})`);
   }
   const urlTemplate = dbs[k].url;
-  const tpl = snapshot
-    ? await snapshotTemplateContext(ctx, snapshot, urlTemplate)
-    : await hookTemplateContext(ctx, urlTemplate);
+  const tpl = snapshot ? await snapshotTemplateContext(ctx, snapshot, urlTemplate) : await hookTemplateContext(ctx, urlTemplate);
   const connectionString = render(urlTemplate, tpl);
   // A sandbox's database (L1.8): pg must connect where its URL says, on this machine (validation refuses the rest).
   if (sandboxOf(ctx.project, env)) {
@@ -95,9 +87,7 @@ function sqlErrorMessage(e: unknown, sql: string): string {
 
 function summarize(res: pg.QueryResult | pg.QueryResult[]): string {
   const all = Array.isArray(res) ? res : [res];
-  const rows = all
-    .filter((r) => r.command !== 'SELECT' && typeof r.rowCount === 'number')
-    .reduce((n, r) => n + (r.rowCount ?? 0), 0);
+  const rows = all.filter((r) => r.command !== 'SELECT' && typeof r.rowCount === 'number').reduce((n, r) => n + (r.rowCount ?? 0), 0);
   return `${all.length} statement${all.length === 1 ? '' : 's'}, ${rows} row${rows === 1 ? '' : 's'} affected`;
 }
 
@@ -105,13 +95,7 @@ function summarize(res: pg.QueryResult | pg.QueryResult[]): string {
  * Run a whole SQL text as one multi-statement query inside BEGIN … COMMIT (ROLLBACK on error). `readOnly` (a read-only
  * run, L1.7): BEGIN READ ONLY — whatever the static check could not see (a function that writes) fails in Postgres.
  */
-async function runSql(
-  db: Database,
-  sql: string,
-  where: string,
-  log: (level: HookLogLevel, msg: string) => void,
-  readOnly = false,
-): Promise<string> {
+async function runSql(db: Database, sql: string, where: string, log: (level: HookLogLevel, msg: string) => void, readOnly = false): Promise<string> {
   const client = new pg.Client({
     connectionString: db.connectionString,
     connectionTimeoutMillis: SQL_CONNECT_TIMEOUT_MS,

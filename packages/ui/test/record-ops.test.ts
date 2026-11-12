@@ -161,7 +161,10 @@ beforeAll(async () => {
   await fixtureWorkspace(ws);
   const project = join(ws, 'projects', P);
   const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
-  await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
+  await writeFile(
+    join(project, 'project.yaml'),
+    yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
+  );
   // The Studio's stderr (`retake ui` passes `log` to it), and anything else written there meanwhile.
   process.stderr.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
     stderr.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
@@ -194,7 +197,7 @@ afterAll(async () => {
 });
 
 describe('the allow-list and the pinned inputs', () => {
-  it('the 7 record ops are the Studio\'s own; scenario_record and job_cancel stay out', async () => {
+  it("the 7 record ops are the Studio's own; scenario_record and job_cancel stay out", async () => {
     expect([...RECORD_OPS]).toEqual(['record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save']);
     for (const op of RECORD_OPS) {
       expect(OWN_OPS as readonly string[]).toContain(op);
@@ -282,7 +285,16 @@ describe('the start form, one window at a time, path-free answers', () => {
     first = await ok<RecordStartAnswer>('record_start', { project: P, page: 'shop', path: '/record-lab/a/b', name: 'ops-first' });
     expect(first).toMatchObject({ state: 'queued', env: 'local', page: 'shop', path: '/record-lab/a/b', persona: null });
     const job = (await queue.get(first.job))!;
-    expect(job.input).toEqual({ version: job.input.version, kind: 'record', project: P, rec_id: first.rec_id, source: { page: 'shop', path: '/record-lab/a/b' }, scenario: 'ops-first', check: true, submitted_by: 'ui' });
+    expect(job.input).toEqual({
+      version: job.input.version,
+      kind: 'record',
+      project: P,
+      rec_id: first.rec_id,
+      source: { page: 'shop', path: '/record-lab/a/b' },
+      scenario: 'ops-first',
+      check: true,
+      submitted_by: 'ui',
+    });
     const again = await call('record_start', { project: P, page: 'shop', path: '/record-lab' });
     expect(again.status).toBe(409);
     expect(again.json<Fail>().error.details).toMatchObject({ job: first.job, project: P, rec_id: first.rec_id });
@@ -291,7 +303,18 @@ describe('the start form, one window at a time, path-free answers', () => {
     expect(v).toMatchObject({ state: 'queued', started_by: 'ui', path: '/record-lab/a/b', can: { stop: true, discard: true, annotate: false, save: false }, untrusted: null });
     const o = await ok<RecordOptionsAnswer>('record_options', { project: P });
     expect(o.open).toEqual({ job: first.job, project: P, rec_id: first.rec_id, state: 'queued' });
-    expect(o.recent[0]).toMatchObject({ rec_id: first.rec_id, state: 'queued', job: first.job, started_by: 'ui', name: 'ops-first', page: 'shop', path: '/record-lab/a/b', steps: null, saved: null, studio: true });
+    expect(o.recent[0]).toMatchObject({
+      rec_id: first.rec_id,
+      state: 'queued',
+      job: first.job,
+      started_by: 'ui',
+      name: 'ops-first',
+      page: 'shop',
+      path: '/record-lab/a/b',
+      steps: null,
+      saved: null,
+      studio: true,
+    });
   });
 
   it("a failed job's error in record_view: message and fix path-free (a refused preflight's retake -C <workspace> …)", async () => {
@@ -379,7 +402,12 @@ describe('a real recording through the ops', () => {
       // The stream names this recording while the runner writes its events.
       await until(async () => stream.events.some((e) => e.event === 'workspace' && (e.data.records as string[] | undefined)?.includes(`${P}/${lab.rec}`)), 'a records event');
       await page.getByLabel('Note').blur();
-      caption = await ok<{ rev: number; insert_id?: string }>('record_annotate', { project: P, rec_id: lab.rec, rev: live.rev, change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } } });
+      caption = await ok<{ rev: number; insert_id?: string }>('record_annotate', {
+        project: P,
+        rec_id: lab.rec,
+        rev: live.rev,
+        change: { op: 'insert', at: 'end', insert: { kind: 'caption', text: 'Add a note' } },
+      });
       expect(caption.rev).toBe(live.rev + 1);
       const stale = await call('record_annotate', { project: P, rec_id: lab.rec, rev: live.rev, change: { op: 'insert', at: 'end', insert: { kind: 'hold', seconds: 2 } } });
       expect(stale.status).toBe(409);
@@ -474,7 +502,18 @@ describe('a real recording through the ops', () => {
     const elsewhere = '/private/var/folders/zz/elsewhere/T/shot.png';
     await writeFile(
       join(recDir(mine), 'record.json'),
-      JSON.stringify({ ...rj, saved: null, check: { status: 'failed', scope: 'all', steps_passed: 1, steps_total: 3, failed_at: { scene: 'record-lab', step: 1, action: 'click' }, untrusted: { error: `no element — see ${ws}/projects/${P}/runs/x/error.png and ${elsewhere}` } } }),
+      JSON.stringify({
+        ...rj,
+        saved: null,
+        check: {
+          status: 'failed',
+          scope: 'all',
+          steps_passed: 1,
+          steps_total: 3,
+          failed_at: { scene: 'record-lab', step: 1, action: 'click' },
+          untrusted: { error: `no element — see ${ws}/projects/${P}/runs/x/error.png and ${elsewhere}` },
+        },
+      }),
       { mode: 0o600 },
     );
     const r = await call('record_view', { project: P, rec_id: mine });
@@ -491,7 +530,7 @@ describe('a real recording through the ops', () => {
     await rm(recDir(claude), { recursive: true, force: true });
   });
 
-  it('the password sentinel is nowhere: answers, workspace files, worker log, the Studio\'s log and stderr', async () => {
+  it("the password sentinel is nowhere: answers, workspace files, worker log, the Studio's log and stderr", async () => {
     const files: string[] = [];
     const walk = async (d: string) => {
       for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) {

@@ -113,7 +113,15 @@ export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg
   ui.line(`${c.bold(project.slug)} sandbox up ${c.dim(`· ${sb.env} · ${sb.kind}`)}`);
   const steps = new StepDisplay(ui);
   try {
-    const res = await sandboxWork.up(project, sb, { trust: 'author', interrupts: interrupts(ui), log: uiLog(ui), progress: steps, recordAs: recordAs(), seed: opts.seed === false ? 'never' : 'auto', build: opts.build });
+    const res = await sandboxWork.up(project, sb, {
+      trust: 'author',
+      interrupts: interrupts(ui),
+      log: uiLog(ui),
+      progress: steps,
+      recordAs: recordAs(),
+      seed: opts.seed === false ? 'never' : 'auto',
+      build: opts.build,
+    });
     steps.close();
     ui.line(`  ${c.dim('services')}  ${sandboxUpText(res)} ${c.dim(`(${formatMs(res.ms)})`)}`);
     if (res.reset) ui.line(`  ${c.dim('seed')}      ${resetText(res.reset)}`);
@@ -196,7 +204,9 @@ export async function sandboxStatusCommand(ui: Ui, global: GlobalOptions, projec
     if (s.command && s.state !== 'stopped') ui.line(`  ${' '.repeat(width)} ${c.dim(s.command)}`);
   }
   ui.line(`  ${c.dim('pages'.padEnd(width))} ${pagesLine(project, sb.env)}`);
-  ui.line(`  ${c.dim('seed'.padEnd(width))} ${st.seed ? `${st.seed.hash} · ${since(st.seed.at)}${st.seed.current ? '' : c.yellow(' · sandbox.yaml\'s seed changed since (the next up or reset seeds again)')}` : c.dim('never seeded')}`);
+  ui.line(
+    `  ${c.dim('seed'.padEnd(width))} ${st.seed ? `${st.seed.hash} · ${since(st.seed.at)}${st.seed.current ? '' : c.yellow(" · sandbox.yaml's seed changed since (the next up or reset seeds again)")}` : c.dim('never seeded')}`,
+  );
   if (st.last_reset) ui.line(`  ${c.dim('reset'.padEnd(width))} ${st.last_reset.strategy} · ${since(st.last_reset.at)} · ${formatMs(st.last_reset.ms)} · by ${st.last_reset.by}`);
   ui.line(`  ${c.dim('lock'.padEnd(width))} ${st.lock ? c.yellow(`in use: ${describeLock(st.lock)}`) : 'free'}`);
   ui.line(`  ${c.dim('logs'.padEnd(width))} ${ui.path(st.logs)}`);

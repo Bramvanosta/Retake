@@ -111,10 +111,7 @@ export function frameAnchor(plan: EditPlan, frame: number, opts: FrameAnchorOpti
 }
 
 /** The marked step of a plan marker (L3.6 plans), else of the timeline marker of that name (older plans). */
-function markedStep(
-  m: EditPlan['markers'][number],
-  timeline: FrameAnchorOptions['timeline'],
-): { step: number; step_id?: string; action?: string } | undefined {
+function markedStep(m: EditPlan['markers'][number], timeline: FrameAnchorOptions['timeline']): { step: number; step_id?: string; action?: string } | undefined {
   if (m.step !== undefined) return { step: m.step, step_id: m.step_id, action: m.action };
   const tm = timeline?.markers.find((x) => x.name === m.name && x.scene === m.scene);
   if (!tm) return undefined;

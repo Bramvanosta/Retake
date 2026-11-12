@@ -53,7 +53,8 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
   let environments = parseEnvOptions(opts.env ?? []);
   let auth: Record<string, AuthConfig> | undefined;
   const interactive = ui.io.canPrompt && ui.io.ask !== undefined && ui.io.confirm !== undefined && !opts.env?.length;
-  if (opts.theme !== undefined && opts.template !== undefined && opts.theme !== opts.template) throw new UsageError(`--theme ${opts.theme} and --template ${opts.template}: give the theme once (--template is the old name of --theme)`);
+  if (opts.theme !== undefined && opts.template !== undefined && opts.theme !== opts.template)
+    throw new UsageError(`--theme ${opts.theme} and --template ${opts.template}: give the theme once (--template is the old name of --theme)`);
   const base = { name: opts.name ?? slug, slug, template: opts.theme ?? opts.template };
   if (interactive) {
     await checkNewProject(ws.root, base);
@@ -129,7 +130,13 @@ async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environm
       if (name === '') break;
       const clash = Object.keys(personas).find((n) => n.toLowerCase() === name.toLowerCase());
       if (!NAME_RE.test(name) || name === PERSONA_NONE || clash) {
-        ui.warn(clash ? `"${clash}" is already a persona` : name === PERSONA_NONE ? `"${PERSONA_NONE}" is reserved (a page without persona)` : `"${name}": letters, digits, "-" or "_", starting with a letter or digit`);
+        ui.warn(
+          clash
+            ? `"${clash}" is already a persona`
+            : name === PERSONA_NONE
+              ? `"${PERSONA_NONE}" is reserved (a page without persona)`
+              : `"${name}": letters, digits, "-" or "_", starting with a letter or digit`,
+        );
         continue;
       }
       const free = keys.filter((k) => !owner.has(k));
@@ -141,7 +148,13 @@ async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environm
         const unknown = list.find((k) => !keys.includes(k));
         const taken = list.find((k) => owner.has(k));
         if ((list.length > 0 || free.length === 0) && !unknown && !taken) break;
-        ui.warn(unknown ? `"${unknown}" is not a page of ${env} (${keys.join(', ')})` : taken ? `${taken} is already signed in as ${owner.get(taken)}: a page belongs to one persona` : 'give at least one page');
+        ui.warn(
+          unknown
+            ? `"${unknown}" is not a page of ${env} (${keys.join(', ')})`
+            : taken
+              ? `${taken} is already signed in as ${owner.get(taken)}: a page belongs to one persona`
+              : 'give at least one page',
+        );
       }
       for (const k of list) owner.set(k, name);
       if (list.length === 0) ui.line(c.dim(`  ${name} films no page by default: a scene picks it with \`persona: ${name}\` (on a page id of its own)`));
@@ -219,9 +232,7 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
   if (detailed.length === 0) ui.result(c.dim('  none yet — create one with `retake new <slug>`'));
   const width = Math.max(0, ...detailed.map((p) => p.slug.length));
   for (const p of detailed) {
-    const info = p.error
-      ? c.red(p.error)
-      : `${p.name}  ${c.dim(`${plural(p.scenarios.length, 'scenario')}${p.scenarios.length ? `: ${p.scenarios.join(', ')}` : ''}`)}`;
+    const info = p.error ? c.red(p.error) : `${p.name}  ${c.dim(`${plural(p.scenarios.length, 'scenario')}${p.scenarios.length ? `: ${p.scenarios.join(', ')}` : ''}`)}`;
     ui.result(`  ${c.bold(p.slug.padEnd(width))}  ${info}`);
   }
   ui.result(`${c.bold('Themes')} ${c.dim(ui.path(ws.templatesDir))}`);

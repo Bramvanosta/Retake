@@ -49,46 +49,10 @@ export function createRoot(modules: ComponentModules): ComponentType {
   return function RetakeRoot() {
     return (
       <>
-        <Composition
-          id={COMPOSITIONS.landscape}
-          component={Video}
-          durationInFrames={1}
-          fps={30}
-          width={1920}
-          height={1080}
-          defaultProps={defaultProps}
-          calculateMetadata={metadata('landscape')}
-        />
-        <Composition
-          id={COMPOSITIONS.vertical}
-          component={Video}
-          durationInFrames={1}
-          fps={30}
-          width={1080}
-          height={1920}
-          defaultProps={defaultProps}
-          calculateMetadata={metadata('vertical')}
-        />
-        <Composition
-          id={COMPOSITIONS.square}
-          component={Video}
-          durationInFrames={1}
-          fps={30}
-          width={1080}
-          height={1080}
-          defaultProps={defaultProps}
-          calculateMetadata={metadata('square')}
-        />
-        <Composition
-          id={COMPOSITIONS.preview}
-          component={Preview}
-          durationInFrames={1}
-          fps={30}
-          width={1920}
-          height={1080}
-          defaultProps={previewDefaults}
-          calculateMetadata={previewMetadata}
-        />
+        <Composition id={COMPOSITIONS.landscape} component={Video} durationInFrames={1} fps={30} width={1920} height={1080} defaultProps={defaultProps} calculateMetadata={metadata('landscape')} />
+        <Composition id={COMPOSITIONS.vertical} component={Video} durationInFrames={1} fps={30} width={1080} height={1920} defaultProps={defaultProps} calculateMetadata={metadata('vertical')} />
+        <Composition id={COMPOSITIONS.square} component={Video} durationInFrames={1} fps={30} width={1080} height={1080} defaultProps={defaultProps} calculateMetadata={metadata('square')} />
+        <Composition id={COMPOSITIONS.preview} component={Preview} durationInFrames={1} fps={30} width={1920} height={1080} defaultProps={previewDefaults} calculateMetadata={previewMetadata} />
       </>
     );
   };

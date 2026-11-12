@@ -174,7 +174,11 @@ async function viaMcp(): Promise<Answers> {
   for (const c of CALLS) {
     if (c.only === 'studio') continue;
     const args = typeof c.args === 'function' ? c.args(state) : c.args;
-    const r = (await client.callTool({ name: c.op, arguments: args }, undefined, { timeout: 60_000 })) as { content: Array<{ type: string; text?: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
+    const r = (await client.callTool({ name: c.op, arguments: args }, undefined, { timeout: 60_000 })) as {
+      content: Array<{ type: string; text?: string }>;
+      structuredContent?: Record<string, unknown>;
+      isError?: boolean;
+    };
     if (c.op === 'project_get' && !r.isError && state.readmeHash === undefined) state.readmeHash = r.structuredContent?.readme_hash as string;
     // content[1] is the data's JSON (= structuredContent): kept once.
     out.push({ op: c.op, args: normalise(args, n), answer: normalise({ isError: r.isError ?? false, text: r.content[0]?.text, blocks: r.content.length, data: r.structuredContent }, n) });

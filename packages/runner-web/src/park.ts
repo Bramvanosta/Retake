@@ -10,9 +10,7 @@ import { KEEP_NEAR_PX, cursorCovers } from './scene-cursor.js';
  */
 
 /** Steps that act on the page: each restarts the record of what changes (when the scenario parks somewhere). */
-export const ACTING_ACTIONS: ReadonlySet<string> = new Set([
-  'click', 'double_click', 'hover', 'type', 'press', 'select', 'pick', 'menu', 'date', 'scroll', 'drag', 'drop_file', 'download',
-]);
+export const ACTING_ACTIONS: ReadonlySet<string> = new Set(['click', 'double_click', 'hover', 'type', 'press', 'select', 'pick', 'menu', 'date', 'scroll', 'drag', 'drop_file', 'download']);
 
 /** Popup kinds a park must not move away from (they may close when the pointer leaves them). */
 const FLOATING_KINDS = new Set(['menu', 'listbox', 'popover', 'popper']);

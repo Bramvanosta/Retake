@@ -1,15 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ACTION_NAMES,
-  StepError,
-  describeTarget,
-  listSteps,
-  looksLikeCss,
-  normalizeStep,
-  normalizeTarget,
-  parseScenario,
-  resolveStepRef,
-} from '@retake/core';
+import { ACTION_NAMES, StepError, describeTarget, listSteps, looksLikeCss, normalizeStep, normalizeTarget, parseScenario, resolveStepRef } from '@retake/core';
 import type { ActionName, Scenario, Step } from '@retake/core';
 import { SPEC_EXAMPLE } from './helpers.js';
 
@@ -31,7 +21,11 @@ describe('normalizeStep shorthands', () => {
     [{ pick: { field: 'Bag sizes', option: '1 kg' } }, 'pick', { field: 'Bag sizes', option: '1 kg' }],
     [{ menu: { row: 'Iceland', item: 'Pause' } }, 'menu', { row: 'Iceland', item: 'Pause' }],
     [{ date: '14 March 2027' }, 'date', { day: '14 March 2027' }],
-    [{ date: { field: 'Delivery window', day: ['10 January 2027', '24 January 2027'], close: 'none' } }, 'date', { field: 'Delivery window', day: ['10 January 2027', '24 January 2027'], close: 'none' }],
+    [
+      { date: { field: 'Delivery window', day: ['10 January 2027', '24 January 2027'], close: 'none' } },
+      'date',
+      { field: 'Delivery window', day: ['10 January 2027', '24 January 2027'], close: 'none' },
+    ],
     [{ scroll: 560 }, 'scroll', { to: 560 }],
     [{ scroll: 'bottom' } as unknown as Step, 'scroll', { to: 'bottom' }],
     [{ scroll: 'Awards' } as unknown as Step, 'scroll', { to: { text: 'Awards' } }],
@@ -121,7 +115,14 @@ describe('step refs', () => {
     scenes: [
       { id: 'a', open: '/', steps: [{ click: 'A', id: 'first' }, { hold: 1 }] },
       { interstitial: { text: 'Later' } },
-      { id: 'b', steps: [{ click: 'B', id: 'dup' }, { click: 'C', id: 'dup' }, { hold: 1, id: 'last' }] },
+      {
+        id: 'b',
+        steps: [
+          { click: 'B', id: 'dup' },
+          { click: 'C', id: 'dup' },
+          { hold: 1, id: 'last' },
+        ],
+      },
     ],
   };
 

@@ -25,25 +25,29 @@ async function swapped(p: unknown): Promise<void> {
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:fs/promises')>();
-  const wrap = <A extends unknown[], R>(f: (...a: A) => Promise<R>) => async (...a: A): Promise<R> => {
-    const r = await f(...a);
-    await swapped(a[0]);
-    return r;
-  };
+  const wrap =
+    <A extends unknown[], R>(f: (...a: A) => Promise<R>) =>
+    async (...a: A): Promise<R> => {
+      const r = await f(...a);
+      await swapped(a[0]);
+      return r;
+    };
   return { ...real, lstat: wrap(real.lstat), stat: wrap(real.stat) };
 });
 vi.mock('node:fs', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:fs')>();
-  const wrap = <A extends unknown[], R>(f: (...a: A) => R) => (...a: A): R => {
-    const r = f(...a);
-    if (String(a[0]) === swap.target && !swap.done) {
-      swap.asked++;
-      swap.done = true;
-      real.rmSync(swap.target);
-      real.symlinkSync(swap.outside, swap.target);
-    }
-    return r;
-  };
+  const wrap =
+    <A extends unknown[], R>(f: (...a: A) => R) =>
+    (...a: A): R => {
+      const r = f(...a);
+      if (String(a[0]) === swap.target && !swap.done) {
+        swap.asked++;
+        swap.done = true;
+        real.rmSync(swap.target);
+        real.symlinkSync(swap.outside, swap.target);
+      }
+      return r;
+    };
   return { ...real, lstatSync: wrap(real.lstatSync), statSync: wrap(real.statSync) };
 });
 

@@ -11,7 +11,24 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import type { HooksJobInput, RunJobInput } from '@retake/engine';
-import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, setProtectedHostResolver, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals, enginePorts } from '../src/index.js';
+import {
+  APPROVALS_USED_DIR,
+  EngineError,
+  buildDirs,
+  consumeApprovals,
+  createEngine,
+  executeHooksJob,
+  executeRunJob,
+  openWorkspace,
+  pruneUsedApprovals,
+  restoreApprovals,
+  setProtectedHostResolver,
+  sha256Hex,
+  signApprovals,
+  signalInterrupts,
+  verifiedApprovals,
+  enginePorts,
+} from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 let ws: string;
@@ -21,12 +38,18 @@ const savedHome = process.env.RETAKE_HOME;
 
 const project = (name: string, envs: string[]) => ['name: ' + name, 'environments:', ...envs, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n');
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
-const LEAK = SHORT.replace('video: short', 'video: leak').replace('      - hold: 0.2', "      - eval: {js: \"throw new Error(btoa('{{env:HOME}}'))\"}");
+const LEAK = SHORT.replace('video: short', 'video: leak').replace('      - hold: 0.2', '      - eval: {js: "throw new Error(btoa(\'{{env:HOME}}\'))"}');
 const PLAIN_HOOK = SHORT.replace('video: short', 'video: plain').replace('scenes:', 'setup:\n  - http: {method: POST, url: "{{console}}/x"}\nscenes:');
-const LEAK_HOOK = SHORT.replace('video: short', 'video: leakhook').replace('scenes:', 'setup:\n  - http: {method: POST, url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}\nscenes:');
+const LEAK_HOOK = SHORT.replace('video: short', 'video: leakhook').replace(
+  'scenes:',
+  'setup:\n  - http: {method: POST, url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}\nscenes:',
+);
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -36,7 +59,16 @@ beforeAll(async () => {
   process.env.RETAKE_HOME = join(ws, '.home');
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   const files: Record<string, string> = {
-    'prod/project.yaml': project('Prod', ['  production:', '    production: true', '    pages:', '      console: http://127.0.0.1:4999', '  frozen:', '    access: read-only', '    pages:', '      console: https://frozen.example.com']),
+    'prod/project.yaml': project('Prod', [
+      '  production:',
+      '    production: true',
+      '    pages:',
+      '      console: http://127.0.0.1:4999',
+      '  frozen:',
+      '    access: read-only',
+      '    pages:',
+      '      console: https://frozen.example.com',
+    ]),
     // A human made it: its staging points at prod's production host (as a project_create of an older build could).
     'twin/project.yaml': project('Twin', ['  staging:', '    console: http://localhost:4999', '  other:', '    console: http://127.0.0.1:4998']),
     'twin/scenarios/short.yaml': SHORT.replace('video: short', 'video: short\nenv: staging'),
@@ -67,7 +99,10 @@ afterAll(async () => {
 
 describe('secrets: a scenario written or run through MCP never names one', () => {
   it('save and validate through MCP refuse it; the engine of another client saves it', async () => {
-    const e = await mcp.scenarios.save('w', 'leak2', LEAK).then(() => undefined, (x: unknown) => x as Error);
+    const e = await mcp.scenarios.save('w', 'leak2', LEAK).then(
+      () => undefined,
+      (x: unknown) => x as Error,
+    );
     expect(e?.message).toContain('the scenario uses {{env:HOME}}: through MCP a scenario never resolves a secret');
     expect((await mcp.scenarios.validate('w', LEAK)).ok).toBe(false);
     expect((await cli.scenarios.validate('w', LEAK)).ok).toBe(true);
@@ -111,7 +146,10 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
 
   it('save and validate: a file: URL is an error for every client; another origin is saved (save checks the scheme only)', async () => {
     for (const engine of [mcp, cli]) {
-      const e = await engine.scenarios.save('w', 'file', FILE).then(() => undefined, (x: unknown) => x as Error);
+      const e = await engine.scenarios.save('w', 'file', FILE).then(
+        () => undefined,
+        (x: unknown) => x as Error,
+      );
       expect(e?.message).toContain('opens a file: URL: a scenario opens only http: and https: pages (or about:blank)');
       const v = await engine.scenarios.validate('w', FILE);
       expect(v.ok).toBe(false);
@@ -121,7 +159,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     expect((await mcp.scenarios.validate('w', FOREIGN)).ok).toBe(true);
   });
 
-  it('validate on a known environment (its `env`, or the scenario\'s own) says what the run would refuse, at the line', async () => {
+  it("validate on a known environment (its `env`, or the scenario's own) says what the run would refuse, at the line", async () => {
     for (const v of [await mcp.scenarios.validate('w', FOREIGN, { env: 'local' }), await mcp.scenarios.validate('w', FOREIGN.replace('video: foreign', 'video: foreign\nenv: local'))]) {
       expect(v.ok).toBe(false);
       expect(v.issues.filter((i) => i.severity === 'error')).toEqual([
@@ -154,7 +192,10 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     expect(check.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'opens_other_site', message: expect.stringContaining('from the Studio a scenario opens only its environment') })]);
     expect(check.run_blockers.dry[0].message).toContain('add its origin as a page of environment local in project.yaml');
     // Another reason beside it: the gate's general words, never "opens another site" alone.
-    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'foreign-secret.yaml'), FOREIGN.replace('video: foreign', 'video: foreign-secret').replace('url: "{{console}}/x"}', 'url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}'));
+    await writeFile(
+      join(ws, 'projects', 'w', 'scenarios', 'foreign-secret.yaml'),
+      FOREIGN.replace('video: foreign', 'video: foreign-secret').replace('url: "{{console}}/x"}', 'url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}'),
+    );
     const mixed = await ui.scenarios.check('w', 'foreign-secret');
     expect(mixed.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'agent_trust' })]);
   });
@@ -166,7 +207,8 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     await writeFile(join(ws, 'projects', 'w', 'scenarios', 'nav.yaml'), swapped);
     try {
       const input = { ...(sub.job.input as RunJobInput), scenario_sha256: sha256Hex(swapped) };
-      const out = await executeRunJob({ ...enginePorts(),
+      const out = await executeRunJob({
+        ...enginePorts(),
         ws: await openWorkspace({ root: ws, agent: false }),
         cli: 'retake',
         input,
@@ -215,7 +257,14 @@ describe("production across projects: another project's production / read-only h
   it('addresses compare canonically: an IPv4-mapped IPv6 address is its IPv4 form, the unspecified address is loopback', async () => {
     const dns = resolveWith({});
     try {
-      for (const url of ['http://[::ffff:127.0.0.1]:4999/app', 'http://[::ffff:7f00:1]:4999', 'http://[0:0:0:0:0:ffff:7f00:1]:4999', 'http://[::]:4999', 'http://[::ffff:0.0.0.0]:4999', 'http://0x7f.1:4999']) {
+      for (const url of [
+        'http://[::ffff:127.0.0.1]:4999/app',
+        'http://[::ffff:7f00:1]:4999',
+        'http://[0:0:0:0:0:ffff:7f00:1]:4999',
+        'http://[::]:4999',
+        'http://[::ffff:0.0.0.0]:4999',
+        'http://0x7f.1:4999',
+      ]) {
         const e = await refusal(mcp.projects.create({ name: 'Mapped', slug: 'mapped', environments: { staging: { console: url } } }));
         expect(e.code, url).toBe('refused');
         expect(e.message, url).toContain('points at a host of production environment production of project');
@@ -339,7 +388,14 @@ describe('a run whose job was cancelled before any worker took it', () => {
 describe('approvals are signed with the Retake home key, for their job', () => {
   const jobId = 'j_01K9AZ0000000000000000000A';
   const input: RunJobInput = {
-    version: 1, kind: 'run', project: 'w', scenario: 'short', scenario_sha256: 'a'.repeat(64), mode: 'dry', run_id: '20261017-120000-short', submitted_by: 'mcp',
+    version: 1,
+    kind: 'run',
+    project: 'w',
+    scenario: 'short',
+    scenario_sha256: 'a'.repeat(64),
+    mode: 'dry',
+    run_id: '20261017-120000-short',
+    submitted_by: 'mcp',
     approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
   };
 
@@ -371,7 +427,14 @@ describe('approvals are signed with the Retake home key, for their job', () => {
   it('a hooks job: the sha256 of its scenario bytes is signed with its approvals', async () => {
     const keyFile = join(ws, 'sign-home', 'approvals.key');
     const hooks: HooksJobInput = {
-      version: 1, kind: 'hooks', project: 'w', source: 'short:setup', scenario_sha256: 'a'.repeat(64), dry: false, journal_id: '20261017-120000-hooks-short-setup', submitted_by: 'mcp',
+      version: 1,
+      kind: 'hooks',
+      project: 'w',
+      source: 'short:setup',
+      scenario_sha256: 'a'.repeat(64),
+      dry: false,
+      journal_id: '20261017-120000-hooks-short-setup',
+      submitted_by: 'mcp',
       approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
     };
     const signed = await signApprovals(hooks, { jobId, root: ws, keyFile });
@@ -383,9 +446,12 @@ describe('approvals are signed with the Retake home key, for their job', () => {
   });
 });
 
-describe('a claim takes its job\'s approvals once (L5.14, review B M1)', () => {
+describe("a claim takes its job's approvals once (L5.14, review B M1)", () => {
   const approvals = [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation' as const, at: '2026-10-17T12:00:00.000Z' }];
-  const rec = (id: string, withApprovals = true) => ({ id, input: { version: 1, kind: 'hooks', project: 'w', source: 'hooks/x.yaml', dry: false, submitted_by: 'mcp', ...(withApprovals ? { approvals } : {}) } as never });
+  const rec = (id: string, withApprovals = true) => ({
+    id,
+    input: { version: 1, kind: 'hooks', project: 'w', source: 'hooks/x.yaml', dry: false, submitted_by: 'mcp', ...(withApprovals ? { approvals } : {}) } as never,
+  });
 
   it('once per id; none without approvals; an id older than the record kept is refused; restore gives them back; a record that cannot be written throws', async () => {
     const env = { ...process.env, RETAKE_HOME: join(ws, 'consume-home') };

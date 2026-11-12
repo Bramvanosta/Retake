@@ -23,7 +23,7 @@ import { plural } from './words.js';
 const runInput = {
   project: projectSlug,
   scenario: scenarioName,
-  env: envName.optional().describe('Environment (default: the scenario\'s env, else the project\'s default_env). Production environments always run read-only here.'),
+  env: envName.optional().describe("Environment (default: the scenario's env, else the project's default_env). Production environments always run read-only here."),
 };
 
 export const runDry = defineOperation({
@@ -37,7 +37,9 @@ export const runDry = defineOperation({
     hooks: z
       .enum(['run', 'skip'])
       .optional()
-      .describe('"run" executes the setup / teardown hooks too (default skip). Hooks that are destructive or run shell commands need a human: the user is asked to approve them (else the call is refused with the command a human runs).'),
+      .describe(
+        '"run" executes the setup / teardown hooks too (default skip). Hooks that are destructive or run shell commands need a human: the user is asked to approve them (else the call is refused with the command a human runs).',
+      ),
     wait_s: waitS(20, 'the dry run to finish'),
   }),
   annotations: RUN_JOB,
@@ -61,7 +63,7 @@ export const runCapture = defineOperation({
       .array(z.string().max(100).regex(SLUG_RE, 'a persona name'))
       .max(50)
       .optional()
-      .describe('The personas whose session is not valid that the user confirms capturing with anyway (a refusal\'s details.sessions names them; the run still checks each one it can before filming).'),
+      .describe("The personas whose session is not valid that the user confirms capturing with anyway (a refusal's details.sessions names them; the run still checks each one it can before filming)."),
     wait_s: waitS(0, 'the capture to finish'),
   }),
   annotations: RUN_JOB,
@@ -120,8 +122,14 @@ export const review = defineOperation({
     project: projectSlug,
     render_id: renderRef,
     scenario: scenarioName.optional().describe('With render_id "latest": the newest render of this scenario.'),
-    fps: z.union([z.literal(1), z.literal(2)]).default(1).describe('Contact sheet frames per second (1 or 2; per-scene sheets are always 2 fps).'),
-    previous: z.union([renderId, z.literal(false)]).optional().describe('Render to compare with (an id), or false for none; default the previous render of the same scenario and variant.'),
+    fps: z
+      .union([z.literal(1), z.literal(2)])
+      .default(1)
+      .describe('Contact sheet frames per second (1 or 2; per-scene sheets are always 2 fps).'),
+    previous: z
+      .union([renderId, z.literal(false)])
+      .optional()
+      .describe('Render to compare with (an id), or false for none; default the previous render of the same scenario and variant.'),
     images,
     detail,
     wait_s: waitS(20, 'the review to finish'),
@@ -177,7 +185,10 @@ export const exportRender = defineOperation({
   annotations: RENDER_JOB,
   async run({ project, render_id, scenario, formats, gif_start_s, gif_duration_s, wait_s }, ctx: ToolContext) {
     const { engine } = ctx;
-    const gif = gif_start_s !== undefined || gif_duration_s !== undefined ? { ...(gif_start_s !== undefined ? { start_s: gif_start_s } : {}), ...(gif_duration_s !== undefined ? { duration_s: gif_duration_s } : {}) } : undefined;
+    const gif =
+      gif_start_s !== undefined || gif_duration_s !== undefined
+        ? { ...(gif_start_s !== undefined ? { start_s: gif_start_s } : {}), ...(gif_duration_s !== undefined ? { duration_s: gif_duration_s } : {}) }
+        : undefined;
     const sub = await engine.exports.submit({ project, render_id, ...(scenario ? { scenario } : {}), ...(formats ? { formats } : {}), ...(gif ? { gif } : {}) });
     await waitJob(engine, sub.job, wait_s, ctx);
     const job = await engine.jobs.get(sub.job.id);
@@ -189,7 +200,14 @@ export const exportRender = defineOperation({
         exportSummary(job),
       ].join('\n'),
       // With render_id "latest": what it passed over (counts as data, the file names under "untrusted").
-      data: { render_id: sub.render_id, formats: sub.formats, rerendered: sub.rerendered, job: jobData(job), ...passed.data, ...(Object.keys(passed.untrusted).length ? { untrusted: passed.untrusted } : {}) },
+      data: {
+        render_id: sub.render_id,
+        formats: sub.formats,
+        rerendered: sub.rerendered,
+        job: jobData(job),
+        ...passed.data,
+        ...(Object.keys(passed.untrusted).length ? { untrusted: passed.untrusted } : {}),
+      },
     };
   },
 });

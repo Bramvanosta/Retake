@@ -70,7 +70,13 @@ function fakePayload(): string {
   }
   macho(`${V}/Chromium Framework`);
   put(root, `${V}/Resources/Info.plist`, '<plist/>');
-  for (const [link, to] of [['Versions/Current', '141.0.7390.37'], ['Chromium Framework', 'Versions/Current/Chromium Framework'], ['Resources', 'Versions/Current/Resources'], ['Libraries', 'Versions/Current/Libraries'], ['Helpers', 'Versions/Current/Helpers']]) {
+  for (const [link, to] of [
+    ['Versions/Current', '141.0.7390.37'],
+    ['Chromium Framework', 'Versions/Current/Chromium Framework'],
+    ['Resources', 'Versions/Current/Resources'],
+    ['Libraries', 'Versions/Current/Libraries'],
+    ['Helpers', 'Versions/Current/Helpers'],
+  ]) {
     symlinkSync(to, join(root, FW, link));
   }
   macho(`${CHR}/Contents/MacOS/Chromium`);
@@ -128,11 +134,30 @@ describe('the Tauri overlay is generated; tauri.conf.json keeps no bundle sectio
 
 /** Credentials a person's shell may hold: none may reach any child of a build (critique M1, review A M1). */
 const SECRETS = {
-  APPLE_SIGNING_IDENTITY: 'Developer ID Application: Example (ABCDE12345)', APPLE_TEAM_ID: 'ABCDE12345', APPLE_ID: 'person@example.com', APPLE_PASSWORD: 'apple-pw-canary',
-  APPLE_API_KEY: 'key-id-canary', APPLE_API_ISSUER: 'issuer-canary', APPLE_API_KEY_PATH: '/k-canary.p8', APPLE_KEYCHAIN_PROFILE: 'profile-canary', APPLE_CERTIFICATE: 'cert-canary', APPLE_CERTIFICATE_PASSWORD: 'cpw-canary',
-  TAURI_SIGNING_PRIVATE_KEY: 'updater-key-canary', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'kpw-canary', TAURI_PRIVATE_KEY: 'legacy-key-canary', TAURI_PRIVATE_KEY_PATH: '/legacy-canary.key', TAURI_PRIVATE_KEY_PASSWORD: 'legacy-pw-canary', TAURI_KEY_PASSWORD: 'legacy-kpw-canary',
-  RETAKE_UPDATE_PUBKEY: 'pub-canary', RETAKE_UPDATE_FEED: 'https://updates.example.com/canary',
-  GITHUB_TOKEN: 'gh-canary', NPM_TOKEN: 'npm-canary', AWS_SECRET_ACCESS_KEY: 'aws-canary', AWS_ACCESS_KEY_ID: 'aws-id-canary', CARGO_REGISTRY_TOKEN: 'cargo-canary', NODE_AUTH_TOKEN: 'node-auth-canary',
+  APPLE_SIGNING_IDENTITY: 'Developer ID Application: Example (ABCDE12345)',
+  APPLE_TEAM_ID: 'ABCDE12345',
+  APPLE_ID: 'person@example.com',
+  APPLE_PASSWORD: 'apple-pw-canary',
+  APPLE_API_KEY: 'key-id-canary',
+  APPLE_API_ISSUER: 'issuer-canary',
+  APPLE_API_KEY_PATH: '/k-canary.p8',
+  APPLE_KEYCHAIN_PROFILE: 'profile-canary',
+  APPLE_CERTIFICATE: 'cert-canary',
+  APPLE_CERTIFICATE_PASSWORD: 'cpw-canary',
+  TAURI_SIGNING_PRIVATE_KEY: 'updater-key-canary',
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'kpw-canary',
+  TAURI_PRIVATE_KEY: 'legacy-key-canary',
+  TAURI_PRIVATE_KEY_PATH: '/legacy-canary.key',
+  TAURI_PRIVATE_KEY_PASSWORD: 'legacy-pw-canary',
+  TAURI_KEY_PASSWORD: 'legacy-kpw-canary',
+  RETAKE_UPDATE_PUBKEY: 'pub-canary',
+  RETAKE_UPDATE_FEED: 'https://updates.example.com/canary',
+  GITHUB_TOKEN: 'gh-canary',
+  NPM_TOKEN: 'npm-canary',
+  AWS_SECRET_ACCESS_KEY: 'aws-canary',
+  AWS_ACCESS_KEY_ID: 'aws-id-canary',
+  CARGO_REGISTRY_TOKEN: 'cargo-canary',
+  NODE_AUTH_TOKEN: 'node-auth-canary',
 };
 const CANARY = /canary|ABCDE12345|person@example\.com/;
 
@@ -169,7 +194,14 @@ function fakeTauriStore(version: string, script: string): { store: string; pins:
 /** A stage that passes the layout check: its engine's @remotion/renderer carries each patch mark once (bundle.mjs RENDERER_PATCH_MARKS). */
 function fakeStage(marks: Record<string, Record<string, number>>): string {
   const stage = dir('stage');
-  for (const [rel, want] of Object.entries(marks)) put(stage, `engine/node_modules/@remotion/renderer/${rel}`, Object.entries(want).map(([m, k]) => `// ${m}\n`.repeat(k)).join(''));
+  for (const [rel, want] of Object.entries(marks))
+    put(
+      stage,
+      `engine/node_modules/@remotion/renderer/${rel}`,
+      Object.entries(want)
+        .map(([m, k]) => `// ${m}\n`.repeat(k))
+        .join(''),
+    );
   put(stage, '.retake-stage');
   put(stage, 'node/bin/node', THIN, 0o755);
   put(stage, 'node/guard.cjs', readFileSync(join(APP, 'bundle', 'guard.cjs')));
@@ -177,7 +209,17 @@ function fakeStage(marks: Record<string, Record<string, number>>): string {
   put(stage, 'engine/dist/bin.js', '');
   mkdirSync(join(stage, 'engine', 'node_modules', 'playwright-core'), { recursive: true });
   for (const d of ['browsers', 'engine/templates', 'plugin']) mkdirSync(join(stage, d), { recursive: true });
-  put(stage, 'bundle.json', JSON.stringify({ v: 1, app: '0.2.6', ffmpeg: null, paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' }, sha256: { node: 'stale' } }));
+  put(
+    stage,
+    'bundle.json',
+    JSON.stringify({
+      v: 1,
+      app: '0.2.6',
+      ffmpeg: null,
+      paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' },
+      sha256: { node: 'stale' },
+    }),
+  );
   return stage;
 }
 const NODE_ENTRY = [{ id: 'node', kind: 'file', path: 'node/bin/node', entitlements: 'node', dryDLV: false }];
@@ -185,8 +227,41 @@ const NODE_ENTRY = [{ id: 'node', kind: 'file', path: 'node/bin/node', entitleme
 describe('one allow-listed environment for every child of the build (critique M1, review A M1)', () => {
   it('buildEnv keeps the system, toolchain and pnpm variables, drops every credential — APPLE_*, updater keys (legacy names too), tokens', async () => {
     const { buildEnv } = await bundleModule();
-    const keep = { PATH: '/usr/bin:/bin', HOME: '/h', USER: 'u', LOGNAME: 'u', SHELL: '/bin/zsh', TMPDIR: '/t/', LANG: 'en_US.UTF-8', LC_ALL: 'C', TERM: 'xterm', CARGO_HOME: '/c', CARGO_NET_OFFLINE: 'true', RUSTUP_HOME: '/r', RUSTC_WRAPPER: 'x', RUSTFLAGS: '-C x', SDKROOT: '/sdk', DEVELOPER_DIR: '/d', MACOSX_DEPLOYMENT_TARGET: '15.0', PNPM_HOME: '/p', COREPACK_ENABLE_AUTO_PIN: '0', npm_config_store_dir: '/s', CI: '1', NO_COLOR: '1' };
-    const drop = { ...SECRETS, KEEP_ME: '1', RETAKE_HOME: '/scratch/home', NODE_OPTIONS: '--require /x.js', DYLD_INSERT_LIBRARIES: '/x.dylib', SSH_AUTH_SOCK: '/s', CARGO_REGISTRIES_X_TOKEN: 'cargo-canary-2', 'npm_config_//registry.example.com/:_authToken': 'npm-canary-2', npm_config__auth: 'npm-canary-3' };
+    const keep = {
+      PATH: '/usr/bin:/bin',
+      HOME: '/h',
+      USER: 'u',
+      LOGNAME: 'u',
+      SHELL: '/bin/zsh',
+      TMPDIR: '/t/',
+      LANG: 'en_US.UTF-8',
+      LC_ALL: 'C',
+      TERM: 'xterm',
+      CARGO_HOME: '/c',
+      CARGO_NET_OFFLINE: 'true',
+      RUSTUP_HOME: '/r',
+      RUSTC_WRAPPER: 'x',
+      RUSTFLAGS: '-C x',
+      SDKROOT: '/sdk',
+      DEVELOPER_DIR: '/d',
+      MACOSX_DEPLOYMENT_TARGET: '15.0',
+      PNPM_HOME: '/p',
+      COREPACK_ENABLE_AUTO_PIN: '0',
+      npm_config_store_dir: '/s',
+      CI: '1',
+      NO_COLOR: '1',
+    };
+    const drop = {
+      ...SECRETS,
+      KEEP_ME: '1',
+      RETAKE_HOME: '/scratch/home',
+      NODE_OPTIONS: '--require /x.js',
+      DYLD_INSERT_LIBRARIES: '/x.dylib',
+      SSH_AUTH_SOCK: '/s',
+      CARGO_REGISTRIES_X_TOKEN: 'cargo-canary-2',
+      'npm_config_//registry.example.com/:_authToken': 'npm-canary-2',
+      npm_config__auth: 'npm-canary-3',
+    };
     expect(buildEnv({ ...keep, ...drop })).toEqual(keep);
     expect(buildEnv({ PATH: '/p', ...SECRETS }, { CARGO_TARGET_DIR: '/t' })).toEqual({ PATH: '/p', CARGO_TARGET_DIR: '/t' });
   });
@@ -214,13 +289,16 @@ describe('one allow-listed environment for every child of the build (critique M1
 
   it.runIf(MAC)('a build run with stand-ins: git, pnpm, codesign, sips, iconutil, tauri, xattr and plutil all see the allow-listed environment only', async () => {
     const { build, TAURI_CLI_VERSION, useBuildEnv, buildEnv } = await bundleModule();
-    const { store, pins } = fakeTauriStore(TAURI_CLI_VERSION, [
-      "const fs = require('node:fs'), p = require('node:path');",
-      `fs.writeFileSync(${JSON.stringify(join(tmp, 'tauri-dump.json'))}, JSON.stringify(process.env));`,
-      "const app = p.join(process.env.CARGO_TARGET_DIR, 'release', 'bundle', 'macos', 'Retake.app');",
-      "fs.mkdirSync(p.join(app, 'Contents', 'MacOS'), { recursive: true }); fs.mkdirSync(p.join(app, 'Contents', 'Resources'), { recursive: true });",
-      "fs.writeFileSync(p.join(app, 'Contents', 'MacOS', 'retake-desktop'), '');",
-    ].join('\n'));
+    const { store, pins } = fakeTauriStore(
+      TAURI_CLI_VERSION,
+      [
+        "const fs = require('node:fs'), p = require('node:path');",
+        `fs.writeFileSync(${JSON.stringify(join(tmp, 'tauri-dump.json'))}, JSON.stringify(process.env));`,
+        "const app = p.join(process.env.CARGO_TARGET_DIR, 'release', 'bundle', 'macos', 'Retake.app');",
+        "fs.mkdirSync(p.join(app, 'Contents', 'MacOS'), { recursive: true }); fs.mkdirSync(p.join(app, 'Contents', 'Resources'), { recursive: true });",
+        "fs.writeFileSync(p.join(app, 'Contents', 'MacOS', 'retake-desktop'), '');",
+      ].join('\n'),
+    );
     const tools = fakeTools({
       git: 'exec /usr/bin/git "$@"',
       pnpm: `echo ${JSON.stringify(store)}`,
@@ -238,12 +316,18 @@ describe('one allow-listed environment for every child of the build (critique M1
     const stage = fakeStage((await bundleModule()).RENDERER_PATCH_MARKS);
     try {
       // The app's checks run in full: the signatures (verifyApp) and the rest (appProblems: Resources vs the signed payload, Info.plist).
-      expect(() => build({ out: dir('env-out'), stage, env, entries: NODE_ENTRY, tauriPins: pins })).toThrow(/the app fails its checks:[^]*sign-table entry node[^]*Contents\/Resources: missing from the app[^]*Info\.plist: no local network words/);
+      expect(() => build({ out: dir('env-out'), stage, env, entries: NODE_ENTRY, tauriPins: pins })).toThrow(
+        /the app fails its checks:[^]*sign-table entry node[^]*Contents\/Resources: missing from the app[^]*Info\.plist: no local network words/,
+      );
     } finally {
       useBuildEnv(buildEnv(process.env));
     }
     // bundle.json's hashes are the signed files' (review B M3).
-    expect(JSON.parse(readFileSync(join(stage, 'bundle.json'), 'utf8')).sha256.node).toBe(createHash('sha256').update(readFileSync(join(stage, 'node', 'bin', 'node'))).digest('hex'));
+    expect(JSON.parse(readFileSync(join(stage, 'bundle.json'), 'utf8')).sha256.node).toBe(
+      createHash('sha256')
+        .update(readFileSync(join(stage, 'node', 'bin', 'node')))
+        .digest('hex'),
+    );
     const seen = new Set<string>();
     for (const { tool, text } of [...tools.dumps(), { tool: 'tauri', text: readFileSync(join(tmp, 'tauri-dump.json'), 'utf8') }]) {
       seen.add(tool);
@@ -282,7 +366,12 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
     const { readTable, entitlementsFor, entitlementKeys, DLV, ENTITLEMENTS_DIR } = await signModule();
     const entries = readTable();
     const release = Object.fromEntries(entries.map((e: any) => [e.id, entitlementsFor(e, 'release')]));
-    expect(entries.filter((e: any) => release[e.id].includes(DLV)).map((e: any) => e.id).sort()).toEqual(['chromium-helper-plugin', 'node']);
+    expect(
+      entries
+        .filter((e: any) => release[e.id].includes(DLV))
+        .map((e: any) => e.id)
+        .sort(),
+    ).toEqual(['chromium-helper-plugin', 'node']);
     const JIT = 'com.apple.security.cs.allow-jit';
     expect(release.node).toEqual([JIT, DLV]);
     for (const id of ['chromium-helper-renderer', 'chromium-helper-gpu', 'headless-shell']) expect(release[id], id).toEqual([JIT]);
@@ -305,7 +394,11 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
       expect(readFileSync(join(ENTITLEMENTS_DIR, f), 'utf8')).not.toMatch(/get-task-allow|allow-dyld-environment|disable-executable-page-protection/);
     }
     // Every plist the table names exists, and every plist is used.
-    expect([...new Set(entries.map((e: any) => e.entitlements).filter(Boolean))].sort()).toEqual(readdirSync(ENTITLEMENTS_DIR).map((f) => f.replace(/\.plist$/, '')).sort());
+    expect([...new Set(entries.map((e: any) => e.entitlements).filter(Boolean))].sort()).toEqual(
+      readdirSync(ENTITLEMENTS_DIR)
+        .map((f) => f.replace(/\.plist$/, ''))
+        .sort(),
+    );
   });
 
   it('the dry set is the release set plus disable-library-validation where the table says so — nothing else', async () => {
@@ -315,7 +408,10 @@ describe('the signing table (sign-table.json + entitlements/*.plist)', () => {
       const dry = entitlementsFor(e, 'dry');
       const want = e.dryDLV ? [...new Set([...release, DLV])].sort() : release;
       expect(dry, e.id).toEqual(want);
-      expect(dry.filter((k: string) => !release.includes(k)), e.id).toEqual(e.dryDLV && !release.includes(DLV) ? [DLV] : []);
+      expect(
+        dry.filter((k: string) => !release.includes(k)),
+        e.id,
+      ).toEqual(e.dryDLV && !release.includes(DLV) ? [DLV] : []);
     }
   });
 
@@ -387,7 +483,10 @@ describe.runIf(MAC)('ad hoc signing and the app check, on a mini app (real codes
     }
     mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });
     copyFileSync('/usr/bin/true', join(app, 'Contents', 'MacOS', 'mini'));
-    writeFileSync(join(app, 'Contents', 'Info.plist'), '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>mini</string><key>CFBundleIdentifier</key><string>com.example.mini</string></dict></plist>\n');
+    writeFileSync(
+      join(app, 'Contents', 'Info.plist'),
+      '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>mini</string><key>CFBundleIdentifier</key><string>com.example.mini</string></dict></plist>\n',
+    );
     const s = signer('dry', process.env);
     expect(codesignArgs(s, '/x')).toEqual(['--force', '--options', 'runtime', '--timestamp=none', '-s', '-', '/x']);
     const plan = signPayload(res, s, { entries, work: join(dirname(app), 'ent') });
@@ -435,20 +534,65 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const byProfile = signer('release', { ...BASE, APPLE_KEYCHAIN_PROFILE: 'profile-canary' }, {});
     const byKey = signer('release', { ...BASE, APPLE_API_KEY: 'key-id-canary', APPLE_API_ISSUER: 'issuer-canary', APPLE_API_KEY_PATH: '/keys/AuthKey.p8' }, {});
     // Waited for at most NOTARY_TIMEOUT, the answer as JSON (review e B-L3: notarize reads its status).
-    expect(notarizeArgs(byProfile, '/o/Retake.zip')).toEqual(['notarytool', 'submit', '/o/Retake.zip', '--wait', '--timeout', '75m', '--output-format', 'json', '--keychain-profile', 'profile-canary']);
-    expect(notarizeArgs(byKey, '/o/Retake.dmg')).toEqual(['notarytool', 'submit', '/o/Retake.dmg', '--wait', '--timeout', '75m', '--output-format', 'json', '--key', '/keys/AuthKey.p8', '--key-id', 'key-id-canary', '--issuer', 'issuer-canary']);
+    expect(notarizeArgs(byProfile, '/o/Retake.zip')).toEqual([
+      'notarytool',
+      'submit',
+      '/o/Retake.zip',
+      '--wait',
+      '--timeout',
+      '75m',
+      '--output-format',
+      'json',
+      '--keychain-profile',
+      'profile-canary',
+    ]);
+    expect(notarizeArgs(byKey, '/o/Retake.dmg')).toEqual([
+      'notarytool',
+      'submit',
+      '/o/Retake.dmg',
+      '--wait',
+      '--timeout',
+      '75m',
+      '--output-format',
+      'json',
+      '--key',
+      '/keys/AuthKey.p8',
+      '--key-id',
+      'key-id-canary',
+      '--issuer',
+      'issuer-canary',
+    ]);
     expect(() => notarizeArgs(byProfile, '/o/Retake.app')).toThrow(/a \.zip or a \.dmg, not \/o\/Retake\.app/);
     for (const s of [byProfile, byKey]) expect(notarizeArgs(s, '/o/x.zip').join(' ')).not.toMatch(/--password|--apple-id|pw/);
     // Redaction by flag, wherever the flag sits, both spellings.
-    expect(redactArgs(['submit', 'f.zip', '--keychain-profile', 'p1', '--wait', '--key-id=k2', '--issuer', 'i3', '--password', 'p4', '--apple-id', 'a5', '--key', '/k6'])).toEqual(['submit', 'f.zip', '--keychain-profile', '<redacted>', '--wait', '--key-id=<redacted>', '--issuer', '<redacted>', '--password', '<redacted>', '--apple-id', '<redacted>', '--key', '<redacted>']);
+    expect(redactArgs(['submit', 'f.zip', '--keychain-profile', 'p1', '--wait', '--key-id=k2', '--issuer', 'i3', '--password', 'p4', '--apple-id', 'a5', '--key', '/k6'])).toEqual([
+      'submit',
+      'f.zip',
+      '--keychain-profile',
+      '<redacted>',
+      '--wait',
+      '--key-id=<redacted>',
+      '--issuer',
+      '<redacted>',
+      '--password',
+      '<redacted>',
+      '--apple-id',
+      '<redacted>',
+      '--key',
+      '<redacted>',
+    ]);
   });
 
-  it.runIf(MAC)('notarizeApp: ditto -c -k --keepParent, the zip submitted and waited for, then the app stapled; the zip removed; no APPLE_* in any tool\'s environment', async () => {
+  it.runIf(MAC)("notarizeApp: ditto -c -k --keepParent, the zip submitted and waited for, then the app stapled; the zip removed; no APPLE_* in any tool's environment", async () => {
     const { notarizeApp, notarizeDmg, signDmg, signer } = await signModule();
     const { buildEnv } = await bundleModule();
     const log = join(dir('notary-log'), 'calls');
     const record = `echo "$(basename "$0") $*" >> ${JSON.stringify(log)}`;
-    const tools = fakeTools({ ditto: `${record}\neval "z=\\\${$#}"; : > "$z"`, xcrun: `${record}\nif [ "$2" = submit ]; then echo '{"id":"sub-1","status":"Accepted","message":"Processing complete"}'; fi`, codesign: record });
+    const tools = fakeTools({
+      ditto: `${record}\neval "z=\\\${$#}"; : > "$z"`,
+      xcrun: `${record}\nif [ "$2" = submit ]; then echo '{"id":"sub-1","status":"Accepted","message":"Processing complete"}'; fi`,
+      codesign: record,
+    });
     const full = { ...SECRETS, ...BASE, APPLE_KEYCHAIN_PROFILE: 'profile-canary', PATH: `${tools.bin}:/usr/bin:/bin`, HOME: tmp };
     const s = signer('release', full, buildEnv(full));
     const app = join(dir('notary'), 'Retake.app');
@@ -471,7 +615,13 @@ describe('the release path: refusals first, a zip notarised then the app stapled
       `xcrun stapler staple ${dmg}`,
     ]);
     for (const { tool, text } of tools.dumps()) {
-      expect(text.split('\n').filter((l) => !l.startsWith('argv: ')).join('\n'), tool).not.toMatch(CANARY);
+      expect(
+        text
+          .split('\n')
+          .filter((l) => !l.startsWith('argv: '))
+          .join('\n'),
+        tool,
+      ).not.toMatch(CANARY);
       expect(text, tool).not.toMatch(/apple-pw-canary|key-id-canary|updater-key-canary/);
     }
     // Dry runs never notarise; a failing notarytool names no credential.
@@ -489,7 +639,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     expect(existsSync(zip)).toBe(false);
   });
 
-  it.runIf(MAC)('verifyRelease: every Mach-O signed by APPLE_TEAM_ID\'s team and none ad hoc; Gatekeeper and both tickets checked', async () => {
+  it.runIf(MAC)("verifyRelease: every Mach-O signed by APPLE_TEAM_ID's team and none ad hoc; Gatekeeper and both tickets checked", async () => {
     const { verifyRelease, signer } = await signModule();
     const app = join(dir('release-verify'), 'Retake.app');
     put(app, 'Contents/MacOS/retake-desktop', THIN, 0o755);
@@ -500,16 +650,19 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const run = (codesign: string, spctl = accepted, xcrun = 'exit 0') => {
       const tools = fakeTools({ codesign, spctl, xcrun });
       const s = signer('release', { ...BASE, APPLE_KEYCHAIN_PROFILE: 'p' }, { PATH: `${tools.bin}:/usr/bin:/bin` });
-      return { problems: verifyRelease(app, dmg, s) as string[], calls: tools.dumps().map((d) => d.text.split('\n')[0]).sort() };
+      return {
+        problems: verifyRelease(app, dmg, s) as string[],
+        calls: tools
+          .dumps()
+          .map((d) => d.text.split('\n')[0])
+          .sort(),
+      };
     };
     const ok = run('echo "TeamIdentifier=ABCDE12345" >&2; echo "CodeDirectory v=20500 flags=0x10000(runtime) hashes=1" >&2');
     expect(ok.problems).toEqual([]);
-    expect(ok.calls.filter((c) => !c.startsWith('argv: -dv'))).toEqual([
-      `argv: -a -vv -t exec ${app}`,
-      `argv: -a -vv -t open --context context:primary-signature ${dmg}`,
-      `argv: stapler validate ${app}`,
-      `argv: stapler validate ${dmg}`,
-    ].sort());
+    expect(ok.calls.filter((c) => !c.startsWith('argv: -dv'))).toEqual(
+      [`argv: -a -vv -t exec ${app}`, `argv: -a -vv -t open --context context:primary-signature ${dmg}`, `argv: stapler validate ${app}`, `argv: stapler validate ${dmg}`].sort(),
+    );
     const adhoc = run('echo "TeamIdentifier=not set" >&2; echo "flags=0x10002(adhoc,runtime)" >&2').problems.join('\n');
     expect(adhoc).toMatch(/Retake\.app: signed by team none, not ABCDE12345/);
     expect(adhoc).toMatch(/node\/bin\/node: an ad hoc signature/);
@@ -530,7 +683,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     expect(() => verifyRelease(app, dmg, signer('dry'))).toThrow(/release run only/);
   });
 
-  it.runIf(MAC)('notarize (review e B-L3): Accepted passes; Invalid says Apple\'s status and the first issues of its log (same credentials, none printed); no answer: notarytool\'s words', async () => {
+  it.runIf(MAC)("notarize (review e B-L3): Accepted passes; Invalid says Apple's status and the first issues of its log (same credentials, none printed); no answer: notarytool's words", async () => {
     const { notarize, signer } = await signModule();
     const { buildEnv } = await bundleModule();
     const log = join(dir('notarize-log'), 'calls');
@@ -540,11 +693,21 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     expect(notarize(s(xcrun(`echo '{"id":"a1","status":"Accepted"}'`, 'exit 1')), '/o/Retake.dmg')).toBe('a1');
     let message = '';
     try {
-      notarize(s(xcrun(`echo '{"id":"b2","status":"Invalid","message":"Processing complete"}'; exit 1`, `echo '{"issues":[{"severity":"error","path":"Retake.zip/Retake.app/Contents/Resources/node/bin/node","message":"The binary is not signed with a valid Developer ID certificate."}]}'`)), '/o/Retake-notarize.zip');
+      notarize(
+        s(
+          xcrun(
+            `echo '{"id":"b2","status":"Invalid","message":"Processing complete"}'; exit 1`,
+            `echo '{"issues":[{"severity":"error","path":"Retake.zip/Retake.app/Contents/Resources/node/bin/node","message":"The binary is not signed with a valid Developer ID certificate."}]}'`,
+          ),
+        ),
+        '/o/Retake-notarize.zip',
+      );
     } catch (e) {
       message = (e as Error).message;
     }
-    expect(message).toMatch(/^notarisation of Retake-notarize\.zip: Invalid — Processing complete \(submission b2\):\n  Retake\.zip\/Retake\.app\/Contents\/Resources\/node\/bin\/node: The binary is not signed with a valid Developer ID certificate\.$/);
+    expect(message).toMatch(
+      /^notarisation of Retake-notarize\.zip: Invalid — Processing complete \(submission b2\):\n  Retake\.zip\/Retake\.app\/Contents\/Resources\/node\/bin\/node: The binary is not signed with a valid Developer ID certificate\.$/,
+    );
     expect(readFileSync(log, 'utf8').trim().split('\n').pop()).toBe('notarytool log b2 --key /keys/canary.p8 --key-id key-id-canary --issuer issuer-canary');
     expect(message).not.toMatch(/canary/);
     message = '';
@@ -627,30 +790,35 @@ describe('the folders a build writes (review A M3, review B L5)', () => {
 });
 
 describe('a reused stage (--stage)', () => {
-  it.runIf(process.platform === 'darwin' && process.arch === 'arm64')('of another version than the app\'s is refused before Tauri builds anything when an app or a DMG is made: stage again', async () => {
-    const { build, GUARD } = await bundleModule();
-    const conf = JSON.parse(readFileSync(join(APP, 'tauri.conf.json'), 'utf8'));
-    const staged = (version: string) => {
-      const st = dir('old-stage');
-      put(st, '.retake-stage');
-      put(st, GUARD, '');
-      put(st, 'bundle.json', JSON.stringify({ v: 1, app: version, paths: { node: 'node/bin/node' } }));
-      return st;
-    };
-    const env = { PATH: '/usr/bin:/bin', HOME: tmp };
-    expect(() => build({ out: dir('reuse-out'), stage: staged('0.0.1'), env })).toThrow(new RegExp(`--stage \\S+ was made for version 0\\.0\\.1, the app is ${conf.version.replace(/\./g, '\\.')} \\(tauri\\.conf\\.json\\): stage again \\(bundle\\.mjs stage\\)`));
-    expect(() => build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, appVersion: '0.2.0', appOnly: true })).toThrow(/was made for version 0\.1\.0, the app is 0\.2\.0/);
-    // The same version passes this check (and stops further on, at the stage's own check); no app, no DMG: not asked.
-    for (const opts of [{ appVersion: '0.1.0' }, { appVersion: '0.2.0', dmg: false }]) {
-      let message = '';
-      try {
-        build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, ...opts });
-      } catch (e) {
-        message = (e as Error).message;
+  it.runIf(process.platform === 'darwin' && process.arch === 'arm64')(
+    "of another version than the app's is refused before Tauri builds anything when an app or a DMG is made: stage again",
+    async () => {
+      const { build, GUARD } = await bundleModule();
+      const conf = JSON.parse(readFileSync(join(APP, 'tauri.conf.json'), 'utf8'));
+      const staged = (version: string) => {
+        const st = dir('old-stage');
+        put(st, '.retake-stage');
+        put(st, GUARD, '');
+        put(st, 'bundle.json', JSON.stringify({ v: 1, app: version, paths: { node: 'node/bin/node' } }));
+        return st;
+      };
+      const env = { PATH: '/usr/bin:/bin', HOME: tmp };
+      expect(() => build({ out: dir('reuse-out'), stage: staged('0.0.1'), env })).toThrow(
+        new RegExp(`--stage \\S+ was made for version 0\\.0\\.1, the app is ${conf.version.replace(/\./g, '\\.')} \\(tauri\\.conf\\.json\\): stage again \\(bundle\\.mjs stage\\)`),
+      );
+      expect(() => build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, appVersion: '0.2.0', appOnly: true })).toThrow(/was made for version 0\.1\.0, the app is 0\.2\.0/);
+      // The same version passes this check (and stops further on, at the stage's own check); no app, no DMG: not asked.
+      for (const opts of [{ appVersion: '0.1.0' }, { appVersion: '0.2.0', dmg: false }]) {
+        let message = '';
+        try {
+          build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, ...opts });
+        } catch (e) {
+          message = (e as Error).message;
+        }
+        expect(message, JSON.stringify(opts)).toMatch(/the stage fails its check/);
       }
-      expect(message, JSON.stringify(opts)).toMatch(/the stage fails its check/);
-    }
-  });
+    },
+  );
 });
 
 describe('launch.json version 2 and the launcher', () => {
@@ -674,20 +842,33 @@ describe('launch.json version 2 and the launcher', () => {
     expect(child).toContain('cmd.env("WS_NO_BUFFER_UTIL", "1").env("WS_NO_UTF_8_VALIDATE", "1")');
   });
 
-  it('bin/retake runs the app\'s Node.js on the app\'s engine, its guard first, through any chain of links, without the code loaders', () => {
+  it("bin/retake runs the app's Node.js on the app's engine, its guard first, through any chain of links, without the code loaders", () => {
     const base = dir('launcher');
     const res = join(base, 'My Apps', 'Retake.app', 'Contents', 'Resources');
     put(res, 'bin/retake', readFileSync(join(APP, 'bundle', 'retake.sh')), 0o755);
     put(res, 'engine/dist/bin.js', '');
     put(res, 'node/guard.cjs', '');
     // A fake node: where it runs from, what it got, what the code loaders are.
-    put(res, 'node/bin/node', '#!/bin/sh\necho "node=$0"\nfor a in "$@"; do echo "arg=$a"; done\necho "NODE_OPTIONS=${NODE_OPTIONS-unset} NODE_PATH=${NODE_PATH-unset} NODE_REPL_EXTERNAL_MODULE=${NODE_REPL_EXTERNAL_MODULE-unset} LD_PRELOAD=${LD_PRELOAD-unset} LD_AUDIT=${LD_AUDIT-unset} KEEP=${KEEP-unset}"\necho "WS=${WS_NO_BUFFER_UTIL-unset},${WS_NO_UTF_8_VALIDATE-unset}"\n', 0o755);
+    put(
+      res,
+      'node/bin/node',
+      '#!/bin/sh\necho "node=$0"\nfor a in "$@"; do echo "arg=$a"; done\necho "NODE_OPTIONS=${NODE_OPTIONS-unset} NODE_PATH=${NODE_PATH-unset} NODE_REPL_EXTERNAL_MODULE=${NODE_REPL_EXTERNAL_MODULE-unset} LD_PRELOAD=${LD_PRELOAD-unset} LD_AUDIT=${LD_AUDIT-unset} KEEP=${KEEP-unset}"\necho "WS=${WS_NO_BUFFER_UTIL-unset},${WS_NO_UTF_8_VALIDATE-unset}"\n',
+      0o755,
+    );
     const bin = join(base, 'bin');
     mkdirSync(bin);
     symlinkSync(join(res, 'bin', 'retake'), join(bin, 'retake-direct'));
     symlinkSync(join(bin, 'retake-direct'), join(bin, 'retake'));
     const realRes = realpathSync(res);
-    const env = { PATH: '/usr/bin:/bin', NODE_OPTIONS: '--require=/somewhere/hook.js', NODE_PATH: '/somewhere', NODE_REPL_EXTERNAL_MODULE: '/somewhere/repl.js', LD_PRELOAD: '/x.so', LD_AUDIT: '/y.so', KEEP: 'kept' };
+    const env = {
+      PATH: '/usr/bin:/bin',
+      NODE_OPTIONS: '--require=/somewhere/hook.js',
+      NODE_PATH: '/somewhere',
+      NODE_REPL_EXTERNAL_MODULE: '/somewhere/repl.js',
+      LD_PRELOAD: '/x.so',
+      LD_AUDIT: '/y.so',
+      KEEP: 'kept',
+    };
     for (const cmd of [join(res, 'bin', 'retake'), join(bin, 'retake'), join(bin, 'retake-direct')]) {
       const out = execFileSync(cmd, ['--version', 'two words'], { encoding: 'utf8', env });
       expect(out.split('\n'), cmd).toEqual([
@@ -718,7 +899,7 @@ describe('launch.json version 2 and the launcher', () => {
   });
 });
 
-describe('the module lookup guard: the app\'s code never loads a module from a node_modules folder above the app (review A H1)', () => {
+describe("the module lookup guard: the app's code never loads a module from a node_modules folder above the app (review A H1)", () => {
   /**
    * A mini tree: canaries in a node_modules folder above the app, above Resources (inside the .app) and in
    * $HOME/.node_modules; a package inside the engine; a workspace file outside the app with its own node_modules and one
@@ -727,7 +908,8 @@ describe('the module lookup guard: the app\'s code never loads a module from a n
   function tree() {
     const base = dir('guard');
     const log = join(base, 'loaded.log');
-    const canary = (at: string, name: string) => put(base, `${at}/${name}/index.js`, `require('node:fs').appendFileSync(${JSON.stringify(log)}, ${JSON.stringify(`${at}/${name}\n`)}); module.exports = 'canary';\n`);
+    const canary = (at: string, name: string) =>
+      put(base, `${at}/${name}/index.js`, `require('node:fs').appendFileSync(${JSON.stringify(log)}, ${JSON.stringify(`${at}/${name}\n`)}); module.exports = 'canary';\n`);
     canary('node_modules', 'canary');
     canary('node_modules', 'bufferutil');
     canary('Retake.app/node_modules', 'canary-app');
@@ -750,7 +932,10 @@ for (const s of ${JSON.stringify(names)}) {
   // require.resolve with explicit folders inside the app (packages look their peers up so).
   try { req.resolve(s, { paths: [here] }); out['paths ' + s] = 'found'; } catch (e) { out['paths ' + s] = e.code; }
 }`;
-    put(res, 'engine/main.mjs', `import inner from 'inner';
+    put(
+      res,
+      'engine/main.mjs',
+      `import inner from 'inner';
 import Module, { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
 const req = createRequire(import.meta.url);
@@ -762,20 +947,29 @@ out.inner = inner + '/' + req('inner');
 out.ws = (await import(${JSON.stringify(pathToFileURL(join(base, 'ws', 'comp.mjs')).href)})).default;
 out.thread = await new Promise((ok) => new Worker(new URL('./thread.cjs', import.meta.url)).once('message', ok));
 console.log(JSON.stringify(out));
-`);
-    put(res, 'engine/thread.cjs', `const { parentPort } = require('node:worker_threads');
+`,
+    );
+    put(
+      res,
+      'engine/thread.cjs',
+      `const { parentPort } = require('node:worker_threads');
 let r; try { require('canary'); r = 'loaded'; } catch (e) { r = e.code; }
 import('bufferutil').then(() => parentPort.postMessage(r + ' / loaded'), (e) => parentPort.postMessage(r + ' / ' + e.code));
-`);
+`,
+    );
     const run = (guard: boolean) => {
-      const r = spawnSync(process.execPath, [...(guard ? ['--require', join(res, 'node', 'guard.cjs')] : []), join(res, 'engine', 'main.mjs')], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: join(base, 'home') }, cwd: base });
+      const r = spawnSync(process.execPath, [...(guard ? ['--require', join(res, 'node', 'guard.cjs')] : []), join(res, 'engine', 'main.mjs')], {
+        encoding: 'utf8',
+        env: { PATH: '/usr/bin:/bin', HOME: join(base, 'home') },
+        cwd: base,
+      });
       expect(r.status, r.stderr).toBe(0);
       return JSON.parse(r.stdout) as Record<string, string>;
     };
     return { log, run };
   }
 
-  it('with the guard: no canary loads (CommonJS, ES modules, a worker thread); the engine\'s own package loads; a workspace file keeps its own lookup', () => {
+  it("with the guard: no canary loads (CommonJS, ES modules, a worker thread); the engine's own package loads; a workspace file keeps its own lookup", () => {
     const { log, run } = tree();
     // Without it (control): Node.js walks up out of the app.
     const open = run(false);
@@ -790,11 +984,21 @@ import('bufferutil').then(() => parentPort.postMessage(r + ' / loaded'), (e) => 
     rmSync(log);
     const out = run(true);
     expect(out).toEqual({
-      'cjs canary': 'MODULE_NOT_FOUND', 'esm canary': 'ERR_MODULE_NOT_FOUND', 'paths canary': 'MODULE_NOT_FOUND',
-      'cjs bufferutil': 'MODULE_NOT_FOUND', 'esm bufferutil': 'ERR_MODULE_NOT_FOUND', 'paths bufferutil': 'MODULE_NOT_FOUND',
-      'cjs canary-app': 'MODULE_NOT_FOUND', 'esm canary-app': 'ERR_MODULE_NOT_FOUND', 'paths canary-app': 'MODULE_NOT_FOUND',
-      'cjs canary-contents': 'MODULE_NOT_FOUND', 'esm canary-contents': 'ERR_MODULE_NOT_FOUND', 'paths canary-contents': 'MODULE_NOT_FOUND',
-      'cjs canary-home': 'MODULE_NOT_FOUND', 'esm canary-home': 'ERR_MODULE_NOT_FOUND', 'paths canary-home': 'MODULE_NOT_FOUND',
+      'cjs canary': 'MODULE_NOT_FOUND',
+      'esm canary': 'ERR_MODULE_NOT_FOUND',
+      'paths canary': 'MODULE_NOT_FOUND',
+      'cjs bufferutil': 'MODULE_NOT_FOUND',
+      'esm bufferutil': 'ERR_MODULE_NOT_FOUND',
+      'paths bufferutil': 'MODULE_NOT_FOUND',
+      'cjs canary-app': 'MODULE_NOT_FOUND',
+      'esm canary-app': 'ERR_MODULE_NOT_FOUND',
+      'paths canary-app': 'MODULE_NOT_FOUND',
+      'cjs canary-contents': 'MODULE_NOT_FOUND',
+      'esm canary-contents': 'ERR_MODULE_NOT_FOUND',
+      'paths canary-contents': 'MODULE_NOT_FOUND',
+      'cjs canary-home': 'MODULE_NOT_FOUND',
+      'esm canary-home': 'ERR_MODULE_NOT_FOUND',
+      'paths canary-home': 'MODULE_NOT_FOUND',
       lookup: 'inside',
       inner: 'inner/inner',
       ws: 'wsdep+shared',
@@ -816,7 +1020,19 @@ import('bufferutil').then(() => parentPort.postMessage(r + ' / loaded'), (e) => 
 describe('the DMG commands, the hygiene of attributes', () => {
   it('hdiutil create: APFS, ULFO, the folder as given; attach for an inspection only: -nobrowse -readonly at a mount point', async () => {
     const { dmgCreateArgs, dmgAttachArgs } = await bundleModule();
-    expect(dmgCreateArgs({ src: '/scratch/app', dmg: '/scratch/Retake_0.2.0_aarch64.dmg' })).toEqual(['create', '-volname', 'Retake', '-srcfolder', '/scratch/app', '-fs', 'APFS', '-format', 'ULFO', '-ov', '/scratch/Retake_0.2.0_aarch64.dmg']);
+    expect(dmgCreateArgs({ src: '/scratch/app', dmg: '/scratch/Retake_0.2.0_aarch64.dmg' })).toEqual([
+      'create',
+      '-volname',
+      'Retake',
+      '-srcfolder',
+      '/scratch/app',
+      '-fs',
+      'APFS',
+      '-format',
+      'ULFO',
+      '-ov',
+      '/scratch/Retake_0.2.0_aarch64.dmg',
+    ]);
     expect(dmgAttachArgs('/scratch/r.dmg', '/scratch/mnt')).toEqual(['attach', '-nobrowse', '-readonly', '-noautoopen', '-mountpoint', '/scratch/mnt', '/scratch/r.dmg']);
     // Every hdiutil attach of the script goes through dmgAttachArgs; no Finder scripting, no /Volumes.
     const js = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
@@ -827,7 +1043,10 @@ describe('the DMG commands, the hygiene of attributes', () => {
   it('extended attributes: com.apple.provenance (kernel-kept) is ignored, anything else is a problem', async () => {
     const { foreignXattrs } = await bundleModule();
     expect(foreignXattrs('/a/Retake.app/Contents/MacOS/retake-desktop: com.apple.provenance\n/a/Retake.app/x: com.apple.provenance\n')).toEqual([]);
-    expect(foreignXattrs('/a/Retake.app/x: com.apple.provenance\n/a/Retake.app/y: com.apple.quarantine\n/a/b: com.apple.FinderInfo\n')).toEqual(['/a/Retake.app/y: com.apple.quarantine', '/a/b: com.apple.FinderInfo']);
+    expect(foreignXattrs('/a/Retake.app/x: com.apple.provenance\n/a/Retake.app/y: com.apple.quarantine\n/a/b: com.apple.FinderInfo\n')).toEqual([
+      '/a/Retake.app/y: com.apple.quarantine',
+      '/a/b: com.apple.FinderInfo',
+    ]);
   });
 });
 
@@ -836,15 +1055,19 @@ async function miniApp(name = 'Retake'): Promise<string> {
   const { LOCAL_NETWORK_USAGE } = (await import(pathToFileURL(join(APP, 'scripts', 'desktop.mjs')).href)) as any;
   const app = join(dir('mini-app'), `${name}.app`);
   put(app, 'Contents/MacOS/mini', readFileSync('/usr/bin/true'), 0o755);
-  put(app, 'Contents/Info.plist', `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>mini</string><key>CFBundleIdentifier</key><string>com.example.mini</string><key>LSMinimumSystemVersion</key><string>15.0</string><key>NSLocalNetworkUsageDescription</key><string>${LOCAL_NETWORK_USAGE}</string></dict></plist>\n`);
+  put(
+    app,
+    'Contents/Info.plist',
+    `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>mini</string><key>CFBundleIdentifier</key><string>com.example.mini</string><key>LSMinimumSystemVersion</key><string>15.0</string><key>NSLocalNetworkUsageDescription</key><string>${LOCAL_NETWORK_USAGE}</string></dict></plist>\n`,
+  );
   put(app, 'Contents/Resources/bundle.json', '{}');
   put(app, 'Contents/Resources/engine/dist/bin.js', 'js');
   symlinkSync('engine/dist', join(app, 'Contents', 'Resources', 'dist-link'));
   return app;
 }
 
-describe.runIf(MAC)('the app\'s checks beyond its signatures, and the DMG\'s (review B M2, review A L6)', () => {
-  it('appProblems: Contents/Resources equals the signed payload byte for byte (links, files, nothing more); no AppleDouble file, no foreign attribute; Info.plist\'s minimum macOS and local network words', async () => {
+describe.runIf(MAC)("the app's checks beyond its signatures, and the DMG's (review B M2, review A L6)", () => {
+  it("appProblems: Contents/Resources equals the signed payload byte for byte (links, files, nothing more); no AppleDouble file, no foreign attribute; Info.plist's minimum macOS and local network words", async () => {
     const { appProblems, treeDigest } = await bundleModule();
     const base = await miniApp();
     const digest = treeDigest(join(base, 'Contents', 'Resources'));
@@ -856,18 +1079,22 @@ describe.runIf(MAC)('the app\'s checks beyond its signatures, and the DMG\'s (re
       return appProblems(app, { digest }).join('\n');
     };
     const R = (app: string, rel: string) => join(app, 'Contents', 'Resources', rel);
-    expect(variant((a) => writeFileSync(R(a, 'icon.icns'), 'Tauri\'s icon'))).toBe(''); // what Tauri adds itself
+    expect(variant((a) => writeFileSync(R(a, 'icon.icns'), "Tauri's icon"))).toBe(''); // what Tauri adds itself
     expect(variant((a) => rmSync(R(a, 'dist-link')))).toMatch(/Contents\/Resources: missing from the app — dist-link/);
-    expect(variant((a) => {
-      rmSync(R(a, 'dist-link'));
-      symlinkSync('engine', R(a, 'dist-link'));
-    })).toMatch(/changed since the payload was signed — dist-link/);
+    expect(
+      variant((a) => {
+        rmSync(R(a, 'dist-link'));
+        symlinkSync('engine', R(a, 'dist-link'));
+      }),
+    ).toMatch(/changed since the payload was signed — dist-link/);
     expect(variant((a) => writeFileSync(R(a, 'engine/dist/bin.js'), 'edited'))).toMatch(/changed since the payload was signed — engine\/dist\/bin\.js/);
     expect(variant((a) => writeFileSync(R(a, 'extra.js'), ''))).toMatch(/not in the signed payload — extra\.js/);
     expect(variant((a) => writeFileSync(join(a, 'Contents', '._Info.plist'), ''))).toMatch(/Retake\.app\/Contents\/\._Info\.plist: an AppleDouble file/);
     expect(variant((a) => execFileSync('xattr', ['-w', 'com.example.tag', '1', R(a, 'bundle.json')]))).toMatch(/extended attributes: .*bundle\.json: com\.example\.tag/);
     expect(variant((a) => execFileSync('xattr', ['-w', 'com.apple.quarantine', '0081;00000000;Example;', a]))).toMatch(/extended attributes: .*com\.apple\.quarantine/);
-    expect(variant((a) => execFileSync('plutil', ['-replace', 'LSMinimumSystemVersion', '-string', '14.0', join(a, 'Contents', 'Info.plist')]))).toMatch(/Info\.plist: LSMinimumSystemVersion 14\.0, not 15\.0/);
+    expect(variant((a) => execFileSync('plutil', ['-replace', 'LSMinimumSystemVersion', '-string', '14.0', join(a, 'Contents', 'Info.plist')]))).toMatch(
+      /Info\.plist: LSMinimumSystemVersion 14\.0, not 15\.0/,
+    );
     expect(variant((a) => execFileSync('plutil', ['-remove', 'NSLocalNetworkUsageDescription', join(a, 'Contents', 'Info.plist')]))).toMatch(/Info\.plist: no local network words/);
   });
 
@@ -888,10 +1115,14 @@ describe.runIf(MAC)('the app\'s checks beyond its signatures, and the DMG\'s (re
     const good = make('good', (src) => symlinkSync('/Applications', join(src, 'Applications')));
     expect(verifyDmg(good, join(tmp, 'mnt-good'), { env: process.env, product: 'Mini' })).toEqual([]);
     expect(readdirSync(join(tmp, 'mnt-good'))).toEqual([]); // detached
-    const bad = make('bad', (src) => {
-      writeFileSync(join(src, '.hidden'), 'x');
-      symlinkSync('/Users', join(src, 'Applications'));
-    }, 'UDZO');
+    const bad = make(
+      'bad',
+      (src) => {
+        writeFileSync(join(src, '.hidden'), 'x');
+        symlinkSync('/Users', join(src, 'Applications'));
+      },
+      'UDZO',
+    );
     const p = verifyDmg(bad, join(tmp, 'mnt-bad'), { env: process.env, product: 'Mini' }).join('\n');
     expect(p).toMatch(/bad\.dmg: not ULFO \(UDZO\)/);
     expect(p).toMatch(/the DMG has no Applications link/);
@@ -917,7 +1148,9 @@ describe('the Tauri CLI from the pnpm store: every file pinned (review A M2)', (
     expect(readFileSync(join(dest, 'node_modules', '@tauri-apps', 'cli-darwin-arm64', 'cli.darwin-arm64.node'), 'utf8')).toBe('native');
     // The store's own index is not trusted alone: an index and a blob rewritten together still fail the pins.
     const other = fakeTauriStore(TAURI_CLI_VERSION, 'console.log("someone else")\n');
-    expect(() => tauriCli(dest, other.store, pins)).toThrow(new RegExp(`is not the pinned ${TAURI_CLI_VERSION.replace(/\./g, '\\.')} \\(apps/desktop/bundle/tauri-cli\\.json\\): its files or their sha512 differ`));
+    expect(() => tauriCli(dest, other.store, pins)).toThrow(
+      new RegExp(`is not the pinned ${TAURI_CLI_VERSION.replace(/\./g, '\\.')} \\(apps/desktop/bundle/tauri-cli\\.json\\): its files or their sha512 differ`),
+    );
     // Tampered content under the right name: refused.
     const tampered = createHash('sha512').update('native').digest('hex');
     writeFileSync(join(store, 'files', tampered.slice(0, 2), tampered.slice(2)), 'evil');
@@ -944,7 +1177,7 @@ describe('the Tauri CLI from the pnpm store: every file pinned (review A M2)', (
     expect(() => tauriCli(dest, dir('empty-store'), pins)).toThrow(/not in the pnpm store/);
   });
 
-  it('the committed pins: both packages, every file a sha512 (the native binary and the JS entries among them); the CLI\'s major.minor is the tauri crate\'s (review B L4)', async () => {
+  it("the committed pins: both packages, every file a sha512 (the native binary and the JS entries among them); the CLI's major.minor is the tauri crate's (review B L4)", async () => {
     const { TAURI_CLI_PINS, TAURI_CLI_VERSION } = await bundleModule();
     expect(TAURI_CLI_PINS.v).toBe(1);
     expect(Object.keys(TAURI_CLI_PINS.packages).sort()).toEqual(['@tauri-apps/cli', '@tauri-apps/cli-darwin-arm64']);
@@ -958,13 +1191,24 @@ describe('the Tauri CLI from the pnpm store: every file pinned (review A M2)', (
 });
 
 describe('the manifest, the pruned installers, the generated folder of the checkout', () => {
-  it('refreshManifestHashes: bundle.json\'s sha256 values are the signed files\' (review B M3)', async () => {
+  it("refreshManifestHashes: bundle.json's sha256 values are the signed files' (review B M3)", async () => {
     const { refreshManifestHashes } = await bundleModule();
     const d = dir('manifest');
     put(d, 'node/bin/node', 'signed node');
     put(d, 'ffmpeg/bin/ffmpeg', 'signed ffmpeg');
     put(d, 'ffmpeg/bin/ffprobe', 'signed ffprobe');
-    put(d, 'bundle.json', JSON.stringify({ v: 1, app: '0.2.0', paths: { node: 'node/bin/node', ffmpeg: 'ffmpeg/bin' }, ffmpeg: { version: '8.0', sha256: { ffmpeg: 'stale', ffprobe: 'stale' } }, sha256: { node: 'stale' }, sizes: { node: 1 } }));
+    put(
+      d,
+      'bundle.json',
+      JSON.stringify({
+        v: 1,
+        app: '0.2.0',
+        paths: { node: 'node/bin/node', ffmpeg: 'ffmpeg/bin' },
+        ffmpeg: { version: '8.0', sha256: { ffmpeg: 'stale', ffprobe: 'stale' } },
+        sha256: { node: 'stale' },
+        sizes: { node: 1 },
+      }),
+    );
     const sha = (s: string) => createHash('sha256').update(s).digest('hex');
     const m = refreshManifestHashes(d);
     const read = JSON.parse(readFileSync(join(d, 'bundle.json'), 'utf8'));
@@ -976,14 +1220,18 @@ describe('the manifest, the pruned installers, the generated folder of the check
     expect(refreshManifestHashes(d)).toMatchObject({ ffmpeg: null, sha256: { node: sha('signed node') } });
   });
 
-  it('the installer scripts nothing runs (playwright-core\'s sudo installers, the framework\'s install.sh) are pruned, and the layout check fails on them (review A L7)', async () => {
+  it("the installer scripts nothing runs (playwright-core's sudo installers, the framework's install.sh) are pruned, and the layout check fails on them (review A L7)", async () => {
     const { prunedIn, checkStage, PRUNED } = await bundleModule();
     expect(PRUNED).toEqual(['engine/node_modules/playwright-core/bin', 'browsers/*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Resources/install.sh']);
     const d = dir('pruned');
     put(d, 'engine/node_modules/playwright-core/bin/reinstall_chrome_stable_mac.sh', '#!/bin/sh\nsudo true\n', 0o755);
     put(d, `${V}/Resources/install.sh`, '#!/bin/sh\n', 0o755);
     put(d, `${V}/Resources/Info.plist`, '<plist/>');
-    expect(prunedIn(d).map((p: string) => p.slice(d.length + 1)).sort()).toEqual(['engine/node_modules/playwright-core/bin', `${V}/Resources/install.sh`].sort());
+    expect(
+      prunedIn(d)
+        .map((p: string) => p.slice(d.length + 1))
+        .sort(),
+    ).toEqual(['engine/node_modules/playwright-core/bin', `${V}/Resources/install.sh`].sort());
     const problems = checkStage(d, { machinePaths: [] }).problems.join('\n');
     expect(problems).toMatch(/engine\/node_modules\/playwright-core\/bin: an installer script the payload must not carry \(PRUNED\)/);
     expect(problems).toMatch(/Resources\/install\.sh: an installer script the payload must not carry/);
@@ -1011,7 +1259,7 @@ describe('the manifest, the pruned installers, the generated folder of the check
     expect(existsSync(join(repo, 'gen'))).toBe(false);
     expect(repoSnapshot(repo, ['gen'])).toBe(before);
     // Present before: put back byte for byte, the copy removed.
-    put(repo, 'gen/schemas/a.json', 'the developer app\'s');
+    put(repo, 'gen/schemas/a.json', "the developer app's");
     const kept = repoSnapshot(repo, ['gen']);
     saved = saveGenerated(repo, work, ['gen']);
     writeFileSync(join(repo, 'gen', 'schemas', 'a.json'), 'rewritten');

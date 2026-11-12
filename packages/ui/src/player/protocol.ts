@@ -145,7 +145,9 @@ export function parseFrameMessage(data: unknown, frames = FRAMES_MAX): FrameMess
     case 'settled':
       return keysAre(d, ['v', 'type', 'frame']) && isFrame(d.frame, frames) ? (d as FrameMessage) : undefined;
     case 'state':
-      return keysAre(d, ['v', 'type', 'playing', 'buffering', 'muted']) && typeof d.playing === 'boolean' && typeof d.buffering === 'boolean' && typeof d.muted === 'boolean' ? (d as FrameMessage) : undefined;
+      return keysAre(d, ['v', 'type', 'playing', 'buffering', 'muted']) && typeof d.playing === 'boolean' && typeof d.buffering === 'boolean' && typeof d.muted === 'boolean'
+        ? (d as FrameMessage)
+        : undefined;
     case 'ended':
       return keysAre(d, ['v', 'type']) ? (d as FrameMessage) : undefined;
     case 'warning':

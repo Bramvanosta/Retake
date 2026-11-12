@@ -74,11 +74,27 @@ export interface PosterItem {
 /** The columns a grid's layout has now (1 when it cannot tell). */
 export function gridColumns(el: HTMLElement | null): number {
   if (!el || typeof getComputedStyle !== 'function') return 1;
-  const cols = getComputedStyle(el).gridTemplateColumns.split(' ').filter((t) => t && t !== 'none').length;
+  const cols = getComputedStyle(el)
+    .gridTemplateColumns.split(' ')
+    .filter((t) => t && t !== 'none').length;
   return Math.max(1, cols);
 }
 
-export function PosterGrid({ label, items, selected, onSelect, onOpen, describedBy }: { label: string; items: PosterItem[]; selected: string | null; onSelect: (id: string | null) => void; onOpen: (id: string) => void; describedBy?: string }) {
+export function PosterGrid({
+  label,
+  items,
+  selected,
+  onSelect,
+  onOpen,
+  describedBy,
+}: {
+  label: string;
+  items: PosterItem[];
+  selected: string | null;
+  onSelect: (id: string | null) => void;
+  onOpen: (id: string) => void;
+  describedBy?: string;
+}) {
   const base = useId();
   const list = useRef<HTMLUListElement>(null);
   const optionId = (id: string) => `${base}-${items.findIndex((i) => i.id === id)}`;

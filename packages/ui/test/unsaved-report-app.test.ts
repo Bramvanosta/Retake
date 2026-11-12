@@ -131,12 +131,7 @@ describe('the reporter (fake page)', () => {
   it('a name that fails the rule (no slug, past 100 characters) is left out before sending; the item and the other items stay (review A L4)', async () => {
     const f = fake();
     startUnsavedReport(f.deps);
-    f.set([
-      { kind: 'readme', project: 'a'.repeat(101) },
-      { kind: 'comment', project: 'shop', scenario: 'Not a name' },
-      { kind: 'theme_draft', project: 'Shop' },
-      README,
-    ]);
+    f.set([{ kind: 'readme', project: 'a'.repeat(101) }, { kind: 'comment', project: 'shop', scenario: 'Not a name' }, { kind: 'theme_draft', project: 'Shop' }, README]);
     expect(f.sent[0]!.args.items).toEqual([{ kind: 'readme' }, { kind: 'comment', project: 'shop' }, { kind: 'theme_draft' }, README]);
     expect(reportable({ kind: 'step_form', project: 'a'.repeat(100), scenario: `Q${'x'.repeat(99)}` })).toEqual({ kind: 'step_form', project: 'a'.repeat(100), scenario: `Q${'x'.repeat(99)}` });
     // A scenario is named only with its project.

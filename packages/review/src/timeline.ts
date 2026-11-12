@@ -115,9 +115,8 @@ export function outputClicks(plan: EditPlan, timeline: Timeline | undefined): Ou
     // A widget (select, date pick…) records every click it made in `data.clicks`; other actions click once.
     const data = ev.data as { clicks?: Array<{ t_click?: number; point?: { x: number; y: number }; bbox?: OutputClick['bbox']; desc?: string }> } | undefined;
     const widget = Array.isArray(data?.clicks) ? data!.clicks.filter((c) => typeof c.t_click === 'number') : [];
-    const moments: Moment[] = widget.length > 0
-      ? widget.map((c) => ({ t: c.t_click!, point: c.point, bbox: c.bbox, desc: c.desc }))
-      : [{ t: ev.t_click, point: ev.point, bbox: ev.target?.bbox, desc: ev.target?.desc }];
+    const moments: Moment[] =
+      widget.length > 0 ? widget.map((c) => ({ t: c.t_click!, point: c.point, bbox: c.bbox, desc: c.desc })) : [{ t: ev.t_click, point: ev.point, bbox: ev.target?.bbox, desc: ev.target?.desc }];
     moments.forEach((m, i) => {
       for (const clip of plan.segments.filter(isClip)) {
         if (clip.scene !== ev.scene) continue;

@@ -102,7 +102,10 @@ const base = {
   /** The recorder's page id ("p1": the window's page). */
   page: z.string().regex(/^p\d+$/),
   /** The path of the page the event happened on (never a query or a fragment; empty when not known). */
-  path: z.string().max(2048).refine((p) => !/[?#]/.test(p), 'a path without a query or a fragment'),
+  path: z
+    .string()
+    .max(2048)
+    .refine((p) => !/[?#]/.test(p), 'a path without a query or a fragment'),
   /** How many strings of the event the secret memory masked. */
   redacted: z.number().int().min(1).optional(),
 };
@@ -153,13 +156,15 @@ const SelectNativeEventSchema = z.strictObject({ ...base, kind: z.literal('selec
 const FileEventSchema = z.strictObject({ ...base, kind: z.literal('file'), el: RecordedElementSchema.nullable(), via: z.enum(['input', 'drop']), names: z.array(short).max(20) });
 
 /** A whitelisted key (or a Control / Meta shortcut) pressed outside typing, with the focused element. */
-const KeyEventSchema = z.strictObject({
-  ...base,
-  kind: z.literal('key'),
-  key: z.union([z.enum(RECORDED_KEYS), z.string().regex(RECORDED_SHORTCUT_KEY_RE)]),
-  modifiers: z.array(z.enum(['Control', 'Meta', 'Alt', 'Shift'])).max(4),
-  el: RecordedElementSchema.nullable(),
-}).refine((e) => (RECORDED_KEYS as readonly string[]).includes(e.key) || e.modifiers.includes('Control') || e.modifiers.includes('Meta'), 'a letter or digit only with Control or Meta');
+const KeyEventSchema = z
+  .strictObject({
+    ...base,
+    kind: z.literal('key'),
+    key: z.union([z.enum(RECORDED_KEYS), z.string().regex(RECORDED_SHORTCUT_KEY_RE)]),
+    modifiers: z.array(z.enum(['Control', 'Meta', 'Alt', 'Shift'])).max(4),
+    el: RecordedElementSchema.nullable(),
+  })
+  .refine((e) => (RECORDED_KEYS as readonly string[]).includes(e.key) || e.modifiers.includes('Control') || e.modifiers.includes('Meta'), 'a letter or digit only with Control or Meta');
 
 /** A scroll the person made (wheel, keys, scrollbar), net per container after a pause. */
 const ScrollEventSchema = z.strictObject({
@@ -484,7 +489,9 @@ export function recordedAlternatives(el: RecordedElement | null | undefined): Ar
   if (!el?.alternatives || el.secret || targetOf(el) === null) return [];
   const main = el.target as TargetObject;
   return el.alternatives.flatMap((a, i) =>
-    hasMask(a.target) || hasTemplate(a.target) || hasHidden(a.target) || a.target.nth !== undefined || sameTarget(a.target, main) ? [] : [{ index: i + 1, target: targetValue(a.target), fragile: [...a.fragile] }],
+    hasMask(a.target) || hasTemplate(a.target) || hasHidden(a.target) || a.target.nth !== undefined || sameTarget(a.target, main)
+      ? []
+      : [{ index: i + 1, target: targetValue(a.target), fragile: [...a.fragile] }],
   );
 }
 
@@ -537,7 +544,8 @@ function sceneIdOf(path: string): string {
 }
 
 const TEMPLATE_MESSAGE = 'a recorded text held a {{…}} template, which a scenario would resolve (a var, an environment variable): left out — add the step by hand';
-const HIDDEN_MESSAGE = 'a recorded text held a hidden character (a direction control, a zero-width or line-separator character): it would read as something else than it does, so the step is left out — add it by hand';
+const HIDDEN_MESSAGE =
+  'a recorded text held a hidden character (a direction control, a zero-width or line-separator character): it would read as something else than it does, so the step is left out — add it by hand';
 
 /**
  * Turn a recording's events (core RecordedEvent, in `seq` order) into a draft scenario: click, type (always with
@@ -566,12 +574,7 @@ const HIDDEN_MESSAGE = 'a recorded text held a hidden character (a direction con
  * either part is the step's. `aliases: false` (every Studio recording's draft): no YAML anchor or alias — a target
  * shared by a helper and its action is written twice, so the block editor can delete or duplicate a helper.
  */
-export function draftFromRecording(
-  events: readonly RecordedEvent[],
-  ctx: DraftContext,
-  annotations?: RecordAnnotations | null,
-  opts: { final?: boolean; aliases?: boolean } = {},
-): RecordingDraft {
+export function draftFromRecording(events: readonly RecordedEvent[], ctx: DraftContext, annotations?: RecordAnnotations | null, opts: { final?: boolean; aliases?: boolean } = {}): RecordingDraft {
   const evs = [...events].sort((a, b) => a.seq - b.seq);
   const final = opts.final ?? evs.some((e) => e.kind === 'stop');
   const choices = annotations?.choices ?? {};
@@ -785,7 +788,12 @@ class EventWalk implements Walked {
   }
 
   private checkOpen(open: string): void {
-    if (open.includes(MASK)) this.raise({ severity: 'warning', code: 'secret_path', message: 'a page address held a value that looks like a token or an e-mail address: it is masked (•••) in `open:` — put a demo value back by hand' });
+    if (open.includes(MASK))
+      this.raise({
+        severity: 'warning',
+        code: 'secret_path',
+        message: 'a page address held a value that looks like a token or an e-mail address: it is masked (•••) in `open:` — put a demo value back by hand',
+      });
   }
 
   private lastStep(): Step | undefined {
@@ -825,7 +833,11 @@ class EventWalk implements Walked {
     if (t !== null) {
       if (el.fragile.includes('nth') || el.fragile.includes('css')) {
         const s = step();
-        this.note(s, { severity: 'info', code: 'fragile_target', message: `the recorded target depends on ${el.fragile.includes('nth') ? 'its position among look-alikes' : 'a CSS selector'}: check it with page_inspect` });
+        this.note(s, {
+          severity: 'info',
+          code: 'fragile_target',
+          message: `the recorded target depends on ${el.fragile.includes('nth') ? 'its position among look-alikes' : 'a CSS selector'}: check it with page_inspect`,
+        });
       }
       return t;
     }
@@ -892,8 +904,12 @@ class EventWalk implements Walked {
         this.away = e.where === 'environment' ? 'foreign' : e.where;
         this.raise(
           this.away === 'sign_in'
-            ? { severity: 'warning', code: 'signed_out', message: `the window reached a sign-in page${ctx.persona ? ` (persona ${ctx.persona} signed out)` : ''}: nothing done there was recorded — sign the persona in (retake login / auth_login) and record that part again` }
-            : { severity: 'warning', code: 'foreign_page', message: 'the window left the environment\'s pages (another site): nothing done there was recorded' },
+            ? {
+                severity: 'warning',
+                code: 'signed_out',
+                message: `the window reached a sign-in page${ctx.persona ? ` (persona ${ctx.persona} signed out)` : ''}: nothing done there was recorded — sign the persona in (retake login / auth_login) and record that part again`,
+              }
+            : { severity: 'warning', code: 'foreign_page', message: "the window left the environment's pages (another site): nothing done there was recorded" },
         );
       }
       if (this.scroll) this.scroll = null;
@@ -931,9 +947,15 @@ class EventWalk implements Walked {
         cur.seq = e.seq;
       } else this.newScene(e.seq, e.page_key, path, open);
       this.checkOpen(open);
-      if (!wasAway) this.raise({ severity: 'info', code: 'opened_by_address', message: 'a scene opens its page by address: the address bar, a reload or a script changed the page with no action before it' });
+      if (!wasAway)
+        this.raise({ severity: 'info', code: 'opened_by_address', message: 'a scene opens its page by address: the address bar, a reload or a script changed the page with no action before it' });
     } else if (cur.steps.length > 0) {
-      if (e.page_key !== cur.page) this.raise({ severity: 'warning', code: 'page_changed', message: `an action led to another environment page (${e.page_key}) in the same window: the scene continues on page ${cur.page} — check the replay` });
+      if (e.page_key !== cur.page)
+        this.raise({
+          severity: 'warning',
+          code: 'page_changed',
+          message: `an action led to another environment page (${e.page_key}) in the same window: the scene continues on page ${cur.page} — check the replay`,
+        });
       this.newScene(e.seq, cur.page, path);
     } else {
       cur.path = path;
@@ -1055,7 +1077,9 @@ class EventWalk implements Walked {
       if (hint === null) m = siteOf(el, trigger, [e.seq], 'select');
     } else {
       const field: unknown = label ?? (el.target ? { ...el.target } : null);
-      step = { pick: { field, option: options.length === 1 ? options[0] : options, ...(search !== undefined ? { search } : {}), close: close ?? (after && ACTION_KINDS.has(after.kind) ? 'outside' : 'none') } };
+      step = {
+        pick: { field, option: options.length === 1 ? options[0] : options, ...(search !== undefined ? { search } : {}), close: close ?? (after && ACTION_KINDS.has(after.kind) ? 'outside' : 'none') },
+      };
     }
     if (!this.push(e, step, e.t, close !== null ? after!.t : tEnd, { seqs: [e.seq, close !== null ? after!.seq : sEnd], ...m })) this.stats.noise++;
     else this.group(hs, step);
@@ -1141,7 +1165,11 @@ class EventWalk implements Walked {
     this.acted(e.t);
     if (!el.target) {
       this.stats.fallbacks++;
-      this.note(step, { severity: 'warning', code: 'fallback_target', message: 'no verified target for this press (it was still appearing, or the page was too large): the target is guessed from its text — check it with page_inspect' });
+      this.note(step, {
+        severity: 'warning',
+        code: 'fallback_target',
+        message: 'no verified target for this press (it was still appearing, or the page was too large): the target is guessed from its text — check it with page_inspect',
+      });
     }
   }
 
@@ -1180,8 +1208,10 @@ class EventWalk implements Walked {
     if (this.push(e, step, e.t, e.t, { ...typeMeta(), ...(into !== null && !e.enter ? { typeIdx: i } : {}) })) this.group(hs, step);
     if (folded) this.moved(folded, step);
     this.acted(e.t);
-    if (into === null) this.note(step, { severity: 'warning', code: 'fallback_target', message: 'the field typed into has no verified target: the step types into the focused element — add `into` (page_inspect)' });
-    if (e.field_kind === 'contenteditable') this.note(step, { severity: 'info', code: 'contenteditable', message: 'typed into a rich text editor: its text is recorded as it shows, formatting aside — check the replay' });
+    if (into === null)
+      this.note(step, { severity: 'warning', code: 'fallback_target', message: 'the field typed into has no verified target: the step types into the focused element — add `into` (page_inspect)' });
+    if (e.field_kind === 'contenteditable')
+      this.note(step, { severity: 'info', code: 'contenteditable', message: 'typed into a rich text editor: its text is recorded as it shows, formatting aside — check the replay' });
   }
 
   /**
@@ -1231,7 +1261,11 @@ class EventWalk implements Walked {
     if (kind === 'one_time_code' && prev && typeof prev.type === 'object' && String((prev.type as { text?: string }).text ?? '').startsWith('{{vars.one_time_code_')) {
       // One-time-code boxes: one typing step on the first box (the app must move to the next box by itself).
       if (!this.otpMerged) {
-        this.note(prev, { severity: 'warning', code: 'one_time_code', message: 'one-time-code boxes were typed one by one: merged into one typing step on the first box — it replays only if the app moves to the next box by itself' });
+        this.note(prev, {
+          severity: 'warning',
+          code: 'one_time_code',
+          message: 'one-time-code boxes were typed one by one: merged into one typing step on the first box — it replays only if the app moves to the next box by itself',
+        });
         this.otpMerged = true;
       }
       const last2 = this.scene!.steps.at(-1)!;
@@ -1397,7 +1431,7 @@ function applyInserts(d: Walked, inserts: readonly RecordInsert[], final: boolea
     }
     return undefined;
   };
-  const listIn = <K,>(map: Map<K, Step[]>, k: K): Step[] => {
+  const listIn = <K>(map: Map<K, Step[]>, k: K): Step[] => {
     let l = map.get(k);
     if (!l) map.set(k, (l = []));
     return l;
@@ -1427,7 +1461,14 @@ function applyInserts(d: Walked, inserts: readonly RecordInsert[], final: boolea
         const t = hm?.emitted ?? hm?.target ?? (g ? fieldTarget(g.head) : undefined);
         if (!g || t === undefined) {
           step = { wait_for: { network_idle: true } };
-          late.push({ step, issue: { severity: 'info', code: 'insert_wait_idle', message: 'a wait for the next target you inserted: the next action has no target (or there is none yet), so the step waits for the page to be idle' } });
+          late.push({
+            step,
+            issue: {
+              severity: 'info',
+              code: 'insert_wait_idle',
+              message: 'a wait for the next target you inserted: the next action has no target (or there is none yet), so the step waits for the page to be idle',
+            },
+          });
         } else {
           // The recorder's own wait for that target before the action: replaced by this one (its timeout kept).
           const auto = g.steps.find((st) => {
@@ -1520,10 +1561,7 @@ function stepGroups(scenes: readonly DraftScene[], meta: Map<Step, StepMeta>): {
 }
 
 /** The inserted steps put in their scenes (before or after a step, at a scene's end); the recorder's waits they replace removed. */
-function spliceInserts(
-  scenes: readonly DraftScene[],
-  at: { beforeStep: Map<Step, Step[]>; afterStep: Map<Step, Step[]>; atEnd: Map<DraftScene, Step[]>; removed: Set<Step> },
-): void {
+function spliceInserts(scenes: readonly DraftScene[], at: { beforeStep: Map<Step, Step[]>; afterStep: Map<Step, Step[]>; atEnd: Map<DraftScene, Step[]>; removed: Set<Step> }): void {
   for (const sc of scenes) {
     const out: DraftScene['steps'] = [];
     for (const x of sc.steps) {
@@ -1654,11 +1692,8 @@ function draftYaml(value: Record<string, unknown>, o: { annotated: boolean; alia
   const doc = new Document(value, { aliasDuplicateObjects: o.aliases });
   doc.commentBefore = (
     !o.annotated
-      ? [
-          ' Recorded with retake record: a draft. Captions are empty and nothing is held — add them, check the steps flagged',
-          ' in the recording\'s report (page_inspect), then run_dry.',
-        ]
-      : [' Recorded with retake record and arranged in the Studio: a draft. Check the steps flagged in the recording\'s', ' report (page_inspect), then run_dry.']
+      ? [' Recorded with retake record: a draft. Captions are empty and nothing is held — add them, check the steps flagged', " in the recording's report (page_inspect), then run_dry."]
+      : [" Recorded with retake record and arranged in the Studio: a draft. Check the steps flagged in the recording's", ' report (page_inspect), then run_dry.']
   ).join('\n');
   visit(doc, {
     Pair(_, pair) {

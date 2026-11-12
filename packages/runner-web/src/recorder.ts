@@ -501,9 +501,7 @@ export class ScreencastRecorder {
 
   /** Holds that ran into the time limit (HOLD_MAX_MS): capture time, page and what was held. */
   limitedLoads(): Array<{ t: number; page?: string; kind: HoldKind }> {
-    return this.hold.records
-      .filter((r) => r.how === 'limit')
-      .map((r) => ({ t: round3(this.opts.clock.at(r.since)), ...(r.page !== undefined ? { page: r.page } : {}), kind: r.kind }));
+    return this.hold.records.filter((r) => r.how === 'limit').map((r) => ({ t: round3(this.opts.clock.at(r.since)), ...(r.page !== undefined ? { page: r.page } : {}), kind: r.kind }));
   }
 
   /** Stop capturing and wait for every pending frame write. Returns the frames sorted by time. */

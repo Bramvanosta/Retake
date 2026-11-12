@@ -157,5 +157,30 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
   const admitted = admits(caller)
     ? admission({ queue, channel: via, sessions: (t) => sessionsOf(t.project, t.scenario.name, t.scenario.scenario, { ...(t.env !== undefined ? { env: t.env } : {}), mode: 'capture' }) })
     : undefined;
-  return { opts, ports, caller, agent, via, ws, files: fileFacts(ws.policy), scope, project, studio, loginCommand, queue, jobFiles, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
+  return {
+    opts,
+    ports,
+    caller,
+    agent,
+    via,
+    ws,
+    files: fileFacts(ws.policy),
+    scope,
+    project,
+    studio,
+    loginCommand,
+    queue,
+    jobFiles,
+    submitCtx,
+    startWorker,
+    overlaid,
+    sessionsOf,
+    admitted,
+    runData,
+    runThumbs,
+    commentIndex,
+    renderFrames,
+    views,
+    boards,
+  };
 }

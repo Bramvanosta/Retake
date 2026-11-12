@@ -29,7 +29,10 @@ export function gridMove(counts: readonly number[], at: FramePos, key: string, c
     for (let index = 0; index < n; index++) flat.push({ scene, index });
   });
   if (flat.length === 0) return null;
-  const cur = Math.max(0, flat.findIndex((p) => p.scene === at.scene && p.index === at.index));
+  const cur = Math.max(
+    0,
+    flat.findIndex((p) => p.scene === at.scene && p.index === at.index),
+  );
   const clamp = (i: number) => flat[Math.max(0, Math.min(flat.length - 1, i))];
   const n = counts[at.scene] ?? 0;
   const col = at.index % cols;

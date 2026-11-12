@@ -51,9 +51,22 @@ function fakeApp(dir: string): BundleInfo {
   const sealed = join(dir, 'Retake.app');
   const root = join(sealed, 'Contents', 'Resources');
   for (const d of ['bin', 'node/bin', 'engine/dist', 'plugin/.claude-plugin', 'plugin/skills/.claude-plugin']) mkdirSync(join(root, d), { recursive: true });
-  for (const [f, text] of [['bin/retake', '#!/bin/sh\n'], ['node/bin/node', '#!/bin/sh\n'], ['node/guard.cjs', ''], ['engine/dist/bin.js', ''], ['plugin/.claude-plugin/marketplace.json', '{}'], ['plugin/skills/.claude-plugin/plugin.json', '{}']] as const) writeFileSync(join(root, f), text);
+  for (const [f, text] of [
+    ['bin/retake', '#!/bin/sh\n'],
+    ['node/bin/node', '#!/bin/sh\n'],
+    ['node/guard.cjs', ''],
+    ['engine/dist/bin.js', ''],
+    ['plugin/.claude-plugin/marketplace.json', '{}'],
+    ['plugin/skills/.claude-plugin/plugin.json', '{}'],
+  ] as const)
+    writeFileSync(join(root, f), text);
   chmodSync(join(root, 'bin/retake'), 0o755);
-  return { root, sealed, manifest: {} as BundleInfo['manifest'], paths: { node: join(root, 'node/bin/node'), engine: join(root, 'engine'), browsers: join(root, 'browsers'), ffmpeg: null, templates: join(root, 'engine/templates'), plugin: join(root, 'plugin') } };
+  return {
+    root,
+    sealed,
+    manifest: {} as BundleInfo['manifest'],
+    paths: { node: join(root, 'node/bin/node'), engine: join(root, 'engine'), browsers: join(root, 'browsers'), ffmpeg: null, templates: join(root, 'engine/templates'), plugin: join(root, 'plugin') },
+  };
 }
 const app = fakeApp(join(base, 'Applications'));
 const moved = fakeApp(join(base, 'AppTranslocation', '0A1B', 'd'));
@@ -79,14 +92,21 @@ async function open(app: boolean, hash = ''): Promise<Page> {
   return p;
 }
 const sheet = (p: Page) => p.locator('dialog[data-testid="setup-sheet"]');
-const isOpen = (p: Page) => sheet(p).evaluate((d: HTMLDialogElement) => d.open).catch(() => false);
+const isOpen = (p: Page) =>
+  sheet(p)
+    .evaluate((d: HTMLDialogElement) => d.open)
+    .catch(() => false);
 const tour = (page: Page): Tour => ({ page, log: [] }) as unknown as Tour;
 /** The focused element: its test id, else its tag and text. */
-const focused = (p: Page) => p.evaluate(() => {
-  const a = document.activeElement as HTMLElement | null;
-  return a?.dataset.testid ?? `${a?.tagName.toLowerCase()}:${a?.textContent?.trim().slice(0, 40)}`;
-});
-const SCHEMES = [{ scheme: 'dark' as const, widths: [1280, 1440, 900] }, { scheme: 'light' as const, widths: [1280] }];
+const focused = (p: Page) =>
+  p.evaluate(() => {
+    const a = document.activeElement as HTMLElement | null;
+    return a?.dataset.testid ?? `${a?.tagName.toLowerCase()}:${a?.textContent?.trim().slice(0, 40)}`;
+  });
+const SCHEMES = [
+  { scheme: 'dark' as const, widths: [1280, 1440, 900] },
+  { scheme: 'light' as const, widths: [1280] },
+];
 
 beforeAll(async () => {
   for (const d of [ws, home, join(desktopConfig, '..')]) mkdirSync(d, { recursive: true });
@@ -121,17 +141,35 @@ describe('the Set-up sheet', () => {
     await expect.poll(() => focused(p), POLL).toBe('h2:Set up Retake');
     expect(await sheet(p).evaluate((d) => d.scrollTop)).toBe(0);
     // Review c A-L8: the Claude Desktop step below the fold — the process list is not read (the polls skip it).
-    expect(await sheet(p).getByTestId('setup-claude-desktop').evaluate((el) => el.getBoundingClientRect().top > window.innerHeight)).toBe(true);
+    expect(
+      await sheet(p)
+        .getByTestId('setup-claude-desktop')
+        .evaluate((el) => el.getBoundingClientRect().top > window.innerHeight),
+    ).toBe(true);
     await p.waitForTimeout(2500);
     expect(psCalls).toBe(0);
     await p.keyboard.press('Enter');
     await p.waitForTimeout(300);
     expect(await isOpen(p)).toBe(true);
-    expect(await sheet(p).locator('.k-check-title').allInnerTexts()).toEqual(['Workspace', 'Retake home', 'Command line', 'Claude Code', 'Claude Desktop', 'Notifications', 'Screen recording', 'Local network']);
+    expect(await sheet(p).locator('.k-check-title').allInnerTexts()).toEqual([
+      'Workspace',
+      'Retake home',
+      'Command line',
+      'Claude Code',
+      'Claude Desktop',
+      'Notifications',
+      'Screen recording',
+      'Local network',
+    ]);
     expect(await sheet(p).getByTestId('setup-screen').innerText()).toContain('Captures are headless');
-    const r = await station(tour(p), 'setup-sheet', async () => {
-      await sheet(p).locator('[data-testid="setup-claude-desktop"] .k-check-word').waitFor(POLL);
-    }, { schemes: SCHEMES, walkMax: 60 });
+    const r = await station(
+      tour(p),
+      'setup-sheet',
+      async () => {
+        await sheet(p).locator('[data-testid="setup-claude-desktop"] .k-check-word').waitFor(POLL);
+      },
+      { schemes: SCHEMES, walkMax: 60 },
+    );
     expect(r.findings, r.report).toEqual([]);
     // The top of the sheet in both appearances (the tour's own shots end where its Tab walk left the focus).
     if (process.env.RETAKE_UI_SHOTS) {
@@ -156,7 +194,7 @@ describe('the Set-up sheet', () => {
     await again.close();
   }, 120_000);
 
-  it('Install retake, Add to Claude Desktop… (its confirmation), Run with Claude Code — other programs\' words as text; Done remembers', async () => {
+  it("Install retake, Add to Claude Desktop… (its confirmation), Run with Claude Code — other programs' words as text; Done remembers", async () => {
     const p = await open(true);
     await expect.poll(() => isOpen(p), POLL).toBe(true);
     const d = sheet(p);
@@ -211,9 +249,27 @@ describe('the Set-up sheet', () => {
     await p.waitForTimeout(500);
     expect(await d.getByTestId('setup-cli-panel').count()).toBe(0);
     applyShellLine(studio.setup, ws, '{"type":"cli_folder_open"}');
-    await expect.poll(() => d.getByTestId('setup-cli-panel').innerText().catch(() => ''), POLL).toContain('Choose the folder in the panel the app opened');
+    await expect
+      .poll(
+        () =>
+          d
+            .getByTestId('setup-cli-panel')
+            .innerText()
+            .catch(() => ''),
+        POLL,
+      )
+      .toContain('Choose the folder in the panel the app opened');
     applyShellLine(studio.setup, ws, '{"type":"cli_folder_cancelled"}');
-    await expect.poll(() => d.getByTestId('setup-cli-panel').innerText().catch(() => ''), POLL).toContain('No folder was chosen');
+    await expect
+      .poll(
+        () =>
+          d
+            .getByTestId('setup-cli-panel')
+            .innerText()
+            .catch(() => ''),
+        POLL,
+      )
+      .toContain('No folder was chosen');
     // Notifications: a pipe line for the shell.
     await d.getByTestId('setup-notifications-allow').click();
     await expect.poll(() => lines.at(-1), POLL).toBe('{"type":"setup","action":"notifications"}');

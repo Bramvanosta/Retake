@@ -63,11 +63,16 @@ describe('the run of a render, state by state', () => {
     expect(got).toEqual(ROWS);
   });
 
-  it('the run folder the render names comes first, then the project\'s runs/<run id>; a past record keeps its blocks', async () => {
+  it("the run folder the render names comes first, then the project's runs/<run id>; a past record keeps its blocks", async () => {
     const b = buildState(root, 'i', { slug: 'review-past' });
     const project = await loadProject(b.slug, root);
     const rec = await renderRun(project, { run_id: 'gone', run_dir: b.newDir } as RenderRecord);
-    expect([rec?.status, Object.keys(rec?.engine ?? {}), (rec?.perf?.cpu as Record<string, unknown> | undefined)?.x, rec?.perf?.cpu?.retake]).toEqual(['succeeded', ['node', 'chromium', 'os', 'fonts', 'x'], 1.5, undefined]);
+    expect([rec?.status, Object.keys(rec?.engine ?? {}), (rec?.perf?.cpu as Record<string, unknown> | undefined)?.x, rec?.perf?.cpu?.retake]).toEqual([
+      'succeeded',
+      ['node', 'chromium', 'os', 'fonts', 'x'],
+      1.5,
+      undefined,
+    ]);
     expect((await renderTimeline(project, { run_id: b.old, run_dir: join(b.runs, 'gone') } as RenderRecord)).file).toBe(join(b.runs, b.old, 'timeline.json'));
     expect(await renderRun(project, { run_id: 'gone' } as RenderRecord)).toBeUndefined();
   });
@@ -76,7 +81,10 @@ describe('the run of a render, state by state', () => {
     const project = await loadProject(b.slug, root);
     const render = { run_id: b.old, run_dir: b.newDir } as RenderRecord;
     const from = async () => [(await renderTimeline(project, render)).file, (await renderRun(project, render))?.started_at];
-    const [NEW, OLD] = [[join(b.newDir, 'timeline.json'), '2026-10-02T08:00:00.000Z'], [join(b.runs, b.old, 'timeline.json'), '2026-10-01T08:00:00.000Z']];
+    const [NEW, OLD] = [
+      [join(b.newDir, 'timeline.json'), '2026-10-02T08:00:00.000Z'],
+      [join(b.runs, b.old, 'timeline.json'), '2026-10-01T08:00:00.000Z'],
+    ];
     expect(await from()).toEqual(NEW);
     // Files that are links are read, as they always were (the render names its run).
     for (const name of ['run.json', 'timeline.json']) {
@@ -104,7 +112,20 @@ describe('the run of a render, state by state', () => {
 // own file (D-10), by core's previousRender.
 
 describe('the render a review works on, state by state', () => {
-  const NAME: Record<string, string> = { ctl: 'quote-v1', 'renamed-newest': 'quote-final', 'renamed-fixed': 'quote-final', 'renamed-old': 'quote-final', 'renamed-reused': 'quote-final', copy: 'quote-v1 copy', 'copy-backup': 'quote-v1-backup', 'out-name': 'quote-final', 'empty-id': 'x', 'keep-json': 'keep', 'keep-json-without': 'quote-v1', 'final-files': 'quote-v1.final' };
+  const NAME: Record<string, string> = {
+    ctl: 'quote-v1',
+    'renamed-newest': 'quote-final',
+    'renamed-fixed': 'quote-final',
+    'renamed-old': 'quote-final',
+    'renamed-reused': 'quote-final',
+    copy: 'quote-v1 copy',
+    'copy-backup': 'quote-v1-backup',
+    'out-name': 'quote-final',
+    'empty-id': 'x',
+    'keep-json': 'keep',
+    'keep-json-without': 'quote-v1',
+    'final-files': 'quote-v1.final',
+  };
   const said = (e: unknown): string => `${(e as Error).name}: ${(e as Error).message.replaceAll(root, '<root>')}`;
   type Row = [latest: string, named: string, previous: string];
   const RTABLE: Record<string, Row> = {
@@ -121,7 +142,11 @@ describe('the render a review works on, state by state', () => {
     // named, as before (at a terminal row 8 adds one line)
     'renamed-old': ['quote-v3', 'taken quote-v0', 'none'],
     // moved: row 9 — named: refused, its stored video is now another render's (before: taken)
-    'renamed-reused': ['quote-v4', 'ReviewError: renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to review — correct "file" in the record, or render again with --out', '-'],
+    'renamed-reused': [
+      'quote-v4',
+      'ReviewError: renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to review — correct "file" in the record, or render again with --out',
+      '-',
+    ],
     // named, as before (at a terminal row 8 adds one line)
     copy: ['quote-v1', 'taken quote-v1', 'none'],
     // named, as before (at a terminal row 8 adds one line)
@@ -137,7 +162,11 @@ describe('the render a review works on, state by state', () => {
     failed: ['quote-v1', 'taken quote-v2', 'quote-v1'],
     'variant-cube': ['quote-v2', 'taken quote-v2', 'none'],
     // moved: row 10 — named: the newer-Retake sentence (before: `… is not a render record (renders/<id>.json)`)
-    'version-2': ['quote-v1', 'ReviewError: <root>/projects/r-version-2/renders/quote-v2.json: this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake', '-'],
+    'version-2': [
+      'quote-v1',
+      'ReviewError: <root>/projects/r-version-2/renders/quote-v2.json: this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      '-',
+    ],
     // moved: row 14 — latest is quote-v1, the link passed over (before: quote-v2); named, read through the link as before
     link: ['quote-v1', 'taken quote-v2', 'quote-v1'],
     // D-11: a terminal's latest is quote-final (must not move)
@@ -161,7 +190,6 @@ describe('the render a review works on, state by state', () => {
     'keep-json-without': ['quote-v4', 'taken quote-v1', 'none'],
     // D-11: a terminal's latest takes a record of its own file under any name (must not move)
     'final-files': ['quote-v1.final', 'taken quote-v1.final', 'quote-v4'],
-
   };
 
   it('every state of the table: `latest`, the render named, and the render it is compared with', async () => {
@@ -221,9 +249,13 @@ describe('the render a review works on, state by state', () => {
     expect((await findRender(project, join(b.renders, 'quote-final.json'))).id).toBe('quote-v2');
     expect((await findRender(project, join(b.renders, 'quote-final.mp4'))).id).toBe('quote-v2');
     writeFileSync(join(b.renders, 'alone.mp4'), 'x');
-    expect(await findRender(project, join(b.renders, 'alone.mp4')).catch(said)).toBe(`ReviewError: <root>/projects/review-paths/renders/alone.mp4 has no render record next to it (alone.json): review needs the plan the video was rendered from`);
+    expect(await findRender(project, join(b.renders, 'alone.mp4')).catch(said)).toBe(
+      `ReviewError: <root>/projects/review-paths/renders/alone.mp4 has no render record next to it (alone.json): review needs the plan the video was rendered from`,
+    );
     // The renders a "not found" names are the records of their own file (D-10; before the lot: `quote-v1, quote-v2`, the
     // renamed record's inner id among them).
-    expect(await findRender(project, 'quote-v9').catch(said)).toBe('ReviewError: render "quote-v9" not found in <root>/projects/review-paths/renders (renders: quote-v1); use a render id, a .json/.mp4 path or "latest"');
+    expect(await findRender(project, 'quote-v9').catch(said)).toBe(
+      'ReviewError: render "quote-v9" not found in <root>/projects/review-paths/renders (renders: quote-v1); use a render id, a .json/.mp4 path or "latest"',
+    );
   });
 });

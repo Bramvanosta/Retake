@@ -57,7 +57,7 @@ export function loginTarget(project: LoadedProject, opts: { env?: string; person
     if (opts.persona !== undefined && opts.persona !== LEGACY_PERSONA) {
       throw new LoginOptionError(`environment "${env.name}" has no personas (its auth is one browser profile): leave --persona out, or name the accounts in auth.personas`, true);
     }
-    if (opts.auto) throw new LoginOptionError('--auto runs a persona\'s login steps: name the account in auth.personas with `login:` steps (the single-account auth.profile has none)', true);
+    if (opts.auto) throw new LoginOptionError("--auto runs a persona's login steps: name the account in auth.personas with `login:` steps (the single-account auth.profile has none)", true);
     if (!legacy.profileDir) {
       throw new LoginOptionError(
         `project "${project.slug}" has no browser profile for environment "${env.name}": name its accounts in auth.personas of project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`,
@@ -99,7 +99,7 @@ export async function signInPersona(
 ): Promise<SignInOutcome> {
   if (opts.mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new LoginOptionError(
-      `retake login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ': add --auto to use the persona\'s login steps' : ''}`,
+      `retake login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ": add --auto to use the persona's login steps" : ''}`,
       false,
     );
   }

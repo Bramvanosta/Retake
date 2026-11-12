@@ -7,17 +7,7 @@
  * through `CaptureRun`. Nothing here names a browser.
  */
 import type { TemplateContext } from '@retake/core/base';
-import type {
-  CaptureSettings,
-  LoadedProject,
-  LoadedScenario,
-  MailboxConfig,
-  Pacing,
-  ResolvedClock,
-  RunMode,
-  ResolvedEnvironment,
-  Scenario,
-} from '@retake/core/model';
+import type { CaptureSettings, LoadedProject, LoadedScenario, MailboxConfig, Pacing, ResolvedClock, RunMode, ResolvedEnvironment, Scenario } from '@retake/core/model';
 import type { RunAccess } from '@retake/core/environment';
 import type { RunProgress, RunningRun } from '@retake/core/run';
 import type { HookStepOutcome, LogLevel } from '../runtime.js';

@@ -35,12 +35,8 @@ describe('the test-migration guard', () => {
     const before = parseTests(BEFORE);
     expect(compareTests(before, parseTests(BEFORE))).toEqual([]);
     const weaker = BEFORE.replace("expect(await page.getByTestId('frame').count()).toBe(3);\n", '').replace('renders it', 'renders');
-    expect(compareTests(before, parseTests(weaker))).toEqual([
-      'fewer expects (2 → 1): opens the board',
-      'lost test ids [frame]: opens the board',
-      'missing title: renders it',
-    ]);
-    const stronger = BEFORE.replace("await expect.poll", "expect(await page.getByTestId('extra').count()).toBe(1);\n  await expect.poll");
+    expect(compareTests(before, parseTests(weaker))).toEqual(['fewer expects (2 → 1): opens the board', 'lost test ids [frame]: opens the board', 'missing title: renders it']);
+    const stronger = BEFORE.replace('await expect.poll', "expect(await page.getByTestId('extra').count()).toBe(1);\n  await expect.poll");
     expect(compareTests(before, parseTests(stronger))).toEqual([]);
   });
 

@@ -93,8 +93,22 @@ beforeAll(async () => {
   if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
   plan = v;
   // A comment on this take at step a.1, and one made on another take (beside the track).
-  await writeThread(dir, { id: 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', scenario: 'bits', run: RUN, frames: v.plan.durationInFrames, text: 'The zoom starts <b>too early</b>', anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 } });
-  await writeThread(dir, { id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', scenario: 'bits', run: '20250101-120000-bits', frames: 100, text: 'An older take', anchor: { segment: 'b', kind: 'clip', scene: 'b', step: 0 } });
+  await writeThread(dir, {
+    id: 'c_01JAAAAAAAAAAAAAAAAAAAAAAA',
+    scenario: 'bits',
+    run: RUN,
+    frames: v.plan.durationInFrames,
+    text: 'The zoom starts <b>too early</b>',
+    anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 },
+  });
+  await writeThread(dir, {
+    id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB',
+    scenario: 'bits',
+    run: '20250101-120000-bits',
+    frames: 100,
+    text: 'An older take',
+    anchor: { segment: 'b', kind: 'clip', scene: 'b', step: 0 },
+  });
   const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1360, height: 900 } });
@@ -195,7 +209,14 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
         const tracks = box.top - pane.top;
         // L5.12a: Edit's stage fills what the tracks leave — the tracks' whole height in the pane counts as "as much".
         const whole = box.bottom - pane.top <= pane.height + 1;
-        return { now: tops.filter((t) => t < pane.height - 8).length, then: tops.filter((t) => t + before < innerHeight - 8).length, seen: whole ? Infinity : pane.height - tracks, seenThen: innerHeight - (tracks + before), preview, whole };
+        return {
+          now: tops.filter((t) => t < pane.height - 8).length,
+          then: tops.filter((t) => t + before < innerHeight - 8).length,
+          seen: whole ? Infinity : pane.height - tracks,
+          seenThen: innerHeight - (tracks + before),
+          preview,
+          whole,
+        };
       });
       await shot(`timeline-shell-dark-${width}`);
       const why = `${width}×${height}: ${JSON.stringify(rows)}`;
@@ -207,7 +228,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await page.emulateMedia({ colorScheme: 'light' });
   });
 
-  it('muted at first; Unmute asks the frame; clicks, a scrubber drag and the keys show exactly the plan\'s frames', async () => {
+  it("muted at first; Unmute asks the frame; clicks, a scrubber drag and the keys show exactly the plan's frames", async () => {
     const mute = page.getByTestId('mute');
     expect(await mute.innerText()).toBe('Unmute');
     await mute.click();
@@ -282,7 +303,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await page.keyboard.press('ArrowLeft');
     expect(await shown()).toBe(2);
     expect(await page.getByTestId('scrubber').getAttribute('aria-valuetext')).toBe(`0:00.07 · scene a · step 1 ${plan.view.untrusted.steps['a.0']}`);
-    await check('the scrubber\'s own arrow');
+    await check("the scrubber's own arrow");
     // Space plays (the frame says so) and pauses; the frame shown afterwards is exact again.
     await page.keyboard.press('Home');
     await blur();

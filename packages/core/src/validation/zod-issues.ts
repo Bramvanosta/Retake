@@ -178,11 +178,7 @@ class Converter {
   /** Does a union branch fail on the TYPE of the value itself (rather than on its contents)? */
   private rootMismatch(branch: readonly ZIssue[]): boolean {
     return branch.some(
-      (i) =>
-        i.path.length === 0 &&
-        (i.code === 'invalid_type' ||
-          i.code === 'invalid_value' ||
-          (i.code === 'invalid_union' && i.errors.length > 0 && i.errors.every((b) => this.rootMismatch(b)))),
+      (i) => i.path.length === 0 && (i.code === 'invalid_type' || i.code === 'invalid_value' || (i.code === 'invalid_union' && i.errors.length > 0 && i.errors.every((b) => this.rootMismatch(b)))),
     );
   }
 
@@ -208,15 +204,18 @@ class Converter {
       else if (values.length > 1) parts.push(`one of ${values.map(fmtValue).join(', ')}`);
       parts.push(...types);
       const hint =
-        typeof v === 'string' ? suggestion(v, values.filter((x): x is string => typeof x === 'string')) : '';
+        typeof v === 'string'
+          ? suggestion(
+              v,
+              values.filter((x): x is string => typeof x === 'string'),
+            )
+          : '';
       this.error(path, `expected ${joinOr(parts)}, got ${describeValue(v)}${hint}`);
       return;
     }
     // Prefer the branch that recognises most of the given keys, then the one with fewest issues.
     const inputKeys = isObj(v) ? Object.keys(v).length : 0;
-    const matched = (b: readonly ZIssue[]) =>
-      inputKeys -
-      b.reduce((n, i) => n + (i.code === 'unrecognized_keys' && i.path.length === 0 ? i.keys.length : 0), 0);
+    const matched = (b: readonly ZIssue[]) => inputKeys - b.reduce((n, i) => n + (i.code === 'unrecognized_keys' && i.path.length === 0 ? i.keys.length : 0), 0);
     let best = applicable[0];
     for (const b of applicable.slice(1)) {
       const d = matched(b) - matched(best);
@@ -285,11 +284,7 @@ class Converter {
     }
     const first = info.branchOf.get(present[0])!;
     if (present.length > 1) {
-      this.error(
-        path,
-        `several ${info.label}s in one ${info.noun} (${present.join(', ')}): split them into separate ${info.noun}s`,
-        { path: [...path, present[1]], key: true },
-      );
+      this.error(path, `several ${info.label}s in one ${info.noun} (${present.join(', ')}): split them into separate ${info.noun}s`, { path: [...path, present[1]], key: true });
       this.convert(branches[first], path, v, new Set(present));
       for (const k of present.slice(1)) {
         this.convert(

@@ -12,14 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
-import type {
-  ComponentKind,
-  LoadedProject,
-  LoadedTemplate,
-  Timeline,
-  TimelineEvent,
-  TimelineScene,
-} from '@retake/core';
+import type { ComponentKind, LoadedProject, LoadedTemplate, Timeline, TimelineEvent, TimelineScene } from '@retake/core';
 import { createComponent, loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor';
@@ -74,23 +67,23 @@ export interface Workspace {
  * A temp workspace with components/studio/* scaffolded; `patch` edits a component.yaml after creation, `extra` adds
  * components (other ids, from the scaffold of their kind), `omit` leaves studio/* ids out.
  */
-export async function studioWorkspace(
-  patch: Record<string, (yaml: string) => string> = {},
-  opts: { extra?: Array<[string, ComponentKind]>; omit?: string[] } = {},
-): Promise<Workspace> {
+export async function studioWorkspace(patch: Record<string, (yaml: string) => string> = {}, opts: { extra?: Array<[string, ComponentKind]>; omit?: string[] } = {}): Promise<Workspace> {
   const root = await mkdtemp(join(tmpdir(), 'retake-editor-'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   const componentsDir = join(root, 'components');
   const all = [...STUDIO_COMPONENTS.filter(([id]) => !(opts.omit ?? []).includes(id)), ...(opts.extra ?? [])];
   for (const [id, kind] of all) {
-    const created = await createComponent(root, { write: plainWrite,  id, kind, componentsDir, builtinDir: null, description: `Test stand-in for ${id}.` });
+    const created = await createComponent(root, { write: plainWrite, id, kind, componentsDir, builtinDir: null, description: `Test stand-in for ${id}.` });
     const file = join(created.dir, 'component.yaml');
     let yaml = await readFile(file, 'utf8');
     const extra = EXTRA_PARAMS[id];
     if (extra) yaml = yaml.replace(/^  properties:\n/m, `  properties:\n${extra.join('\n')}\n`);
     if (kind === 'transition') {
       // A transition is a crossfade unless it dips through a colour (the fade-black one dips through the text colour).
-      yaml = yaml.replace(/through: \{type: string, enum: \[none, paper, text, accent\], default: none/, `through: {type: string, enum: [none, paper, text, accent], default: ${id.endsWith('fade-black') ? 'text' : 'none'}`);
+      yaml = yaml.replace(
+        /through: \{type: string, enum: \[none, paper, text, accent\], default: none/,
+        `through: {type: string, enum: [none, paper, text, accent], default: ${id.endsWith('fade-black') ? 'text' : 'none'}`,
+      );
     }
     if (patch[id]) yaml = patch[id](yaml);
     await writeFile(file, yaml);
@@ -167,10 +160,7 @@ export interface SceneSpec {
   steps?: Array<Partial<TimelineEvent> & { action: TimelineEvent['action']; t_start: number; t_end: number; holdS?: number }>;
 }
 
-export type EntrySpec =
-  | SceneSpec
-  | { card: { id: string; slots?: Record<string, string>; duration?: number; component?: string } }
-  | { interstitial: { id: string; text: string; duration?: number } };
+export type EntrySpec = SceneSpec | { card: { id: string; slots?: Record<string, string>; duration?: number; component?: string } } | { interstitial: { id: string; text: string; duration?: number } };
 
 /**
  * A timeline of `duration` seconds at `fps` with the given scenes (in order), idle intervals and cursor track.
@@ -193,11 +183,27 @@ export function synthTimeline(opts: {
   let lastT = 0;
   opts.entries.forEach((e, index) => {
     if ('card' in e) {
-      scenes.push({ id: e.card.id, index, kind: 'card', t_start: lastT, t_end: lastT, card: { ...(e.card.slots ? { slots: e.card.slots } : {}), ...(e.card.duration ? { duration: e.card.duration } : {}), ...(e.card.component ? { component: e.card.component } : {}) }, status: 'ok' });
+      scenes.push({
+        id: e.card.id,
+        index,
+        kind: 'card',
+        t_start: lastT,
+        t_end: lastT,
+        card: { ...(e.card.slots ? { slots: e.card.slots } : {}), ...(e.card.duration ? { duration: e.card.duration } : {}), ...(e.card.component ? { component: e.card.component } : {}) },
+        status: 'ok',
+      });
       return;
     }
     if ('interstitial' in e) {
-      scenes.push({ id: e.interstitial.id, index, kind: 'interstitial', t_start: lastT, t_end: lastT, interstitial: { text: e.interstitial.text, ...(e.interstitial.duration ? { duration: e.interstitial.duration } : {}) }, status: 'ok' });
+      scenes.push({
+        id: e.interstitial.id,
+        index,
+        kind: 'interstitial',
+        t_start: lastT,
+        t_end: lastT,
+        interstitial: { text: e.interstitial.text, ...(e.interstitial.duration ? { duration: e.interstitial.duration } : {}) },
+        status: 'ok',
+      });
       return;
     }
     const s = e;

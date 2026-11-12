@@ -83,7 +83,7 @@ function lookup(expr: string, ctx: TemplateContext): unknown {
           ? `environment variable ${ref.slice(4)} is not set (referenced as {{${expr}}})`
           : ref.startsWith('compose_env:')
             ? `{{${expr}}} is read from a sandbox's compose env file: only the hooks of a sandbox environment and the accounts of its sandbox.yaml resolve it`
-          : `secret {{${expr}}} could not be resolved (keychain refs must be prefetched with resolveSecretRef)`,
+            : `secret {{${expr}}} could not be resolved (keychain refs must be prefetched with resolveSecretRef)`,
       );
     }
     ctx.usedSecrets?.add(v);
@@ -145,13 +145,7 @@ export function interpolateDeep<T>(value: T, ctx: TemplateContext): T {
  * `ctxAt(path)`, when given, picks the context of each string (L1.7: edit text sees the display URLs, steps the real
  * ones); `ctx` otherwise.
  */
-export function interpolateAt<T>(
-  value: T,
-  ctx: TemplateContext,
-  path: IssuePath,
-  skip?: (path: IssuePath, value: unknown) => boolean,
-  ctxAt?: (path: IssuePath) => TemplateContext,
-): T {
+export function interpolateAt<T>(value: T, ctx: TemplateContext, path: IssuePath, skip?: (path: IssuePath, value: unknown) => boolean, ctxAt?: (path: IssuePath) => TemplateContext): T {
   if (skip?.(path, value)) return value;
   if (typeof value === 'string') {
     try {
@@ -230,12 +224,7 @@ export function secretForms(value: string): string[] {
     const component = encodeURIComponent(value);
     forms.push(component, component.replace(/%20/g, '+'), encodeURI(value));
     const path = new URL(`http://h/${value}`).href.slice('http://h/'.length);
-    forms.push(
-      path,
-      path.replace(/\^/g, '%5E').replace(/\|/g, '%7C'),
-      new URL(`http://h/?${value}`).href.slice('http://h/?'.length),
-      new URLSearchParams({ k: value }).toString().slice(2),
-    );
+    forms.push(path, path.replace(/\^/g, '%5E').replace(/\|/g, '%7C'), new URL(`http://h/?${value}`).href.slice('http://h/?'.length), new URLSearchParams({ k: value }).toString().slice(2));
   } catch {
     /* a lone surrogate cannot be URL-encoded: it cannot be in a URL either */
   }

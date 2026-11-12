@@ -449,7 +449,15 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
               }
             />
             {ed.enabled && forms && palette && (
-              <Palette key={palette.at ?? ''} forms={forms} scenes={scenes} selected={sel.kind === 'step' ? { scene: sel.scene, step: sel.step } : null} ed={ed} onClose={() => setPalette(null)} {...(palette.at ? { at: palette.at } : {})} />
+              <Palette
+                key={palette.at ?? ''}
+                forms={forms}
+                scenes={scenes}
+                selected={sel.kind === 'step' ? { scene: sel.scene, step: sel.step } : null}
+                ed={ed}
+                onClose={() => setPalette(null)}
+                {...(palette.at ? { at: palette.at } : {})}
+              />
             )}
             <Storyboard v={v} subject={effective} onSelect={setSubject} editFrom={editFrom} ed={ed} moves={boardMoves} canAdd={ed.enabled && forms !== null} onAddStep={(at) => setPalette({ at })} />
             <Disclosure summary="Renders and review" testId="renders-section">

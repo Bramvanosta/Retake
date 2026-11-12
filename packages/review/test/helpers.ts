@@ -61,17 +61,28 @@ export interface DrawOptions {
   emptyCards?: boolean;
 }
 
-const between = (ranges: Array<[number, number]>, fps: number) =>
-  ranges.length ? ranges.map(([a, b]) => `between(t\\,${(a / fps).toFixed(4)}\\,${((b - 0.5) / fps).toFixed(4)})`).join('+') : '0';
+const between = (ranges: Array<[number, number]>, fps: number) => (ranges.length ? ranges.map(([a, b]) => `between(t\\,${(a / fps).toFixed(4)}\\,${((b - 0.5) / fps).toFixed(4)})`).join('+') : '0');
 
 /** A static test-pattern capture of `seconds` (white where `blank`). */
 export function drawCapture(file: string, seconds: number, blank: Array<[number, number]> = []): void {
   const filters = blank.map(([a, b]) => `drawbox=x=0:y=0:w=iw:h=ih:color=white:t=fill:enable='between(t\\,${a}\\,${b})'`);
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y',
-    '-f', 'lavfi', '-i', `smptehdbars=s=320x180:r=30:d=${seconds}`,
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `smptehdbars=s=320x180:r=30:d=${seconds}`,
     ...(filters.length ? ['-vf', filters.join(',')] : []),
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-g', '30', '-crf', '18',
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    '-g',
+    '30',
+    '-crf',
+    '18',
     file,
   ]);
 }
@@ -101,13 +112,35 @@ export function drawRender(plan: EditPlan, file: string, opts: DrawOptions = {})
     `[v4]drawbox=x=${Math.round(plan.width * 0.35)}:y=${Math.round(plan.height * 0.4)}:w=${Math.round(plan.width * 0.3)}:h=${Math.round(plan.height * 0.12)}:color=0x8a2332:t=fill:enable='${opts.emptyCards ? '0' : between(cards, fps)}'[v5]`,
   ].join(';');
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y',
-    '-f', 'lavfi', '-i', `color=c=0xece6df:s=${plan.width}x${plan.height}:r=${fps}:d=${dur}`,
-    '-f', 'lavfi', '-i', `${a}=s=${cw}x${ch}:r=${fps}:d=${dur}`,
-    '-f', 'lavfi', '-i', `${b}=s=${cw}x${ch}:r=${fps}:d=${dur}`,
-    '-filter_complex', graph, '-map', '[v5]',
-    '-frames:v', String(D),
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-g', '30', '-crf', '18',
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=0xece6df:s=${plan.width}x${plan.height}:r=${fps}:d=${dur}`,
+    '-f',
+    'lavfi',
+    '-i',
+    `${a}=s=${cw}x${ch}:r=${fps}:d=${dur}`,
+    '-f',
+    'lavfi',
+    '-i',
+    `${b}=s=${cw}x${ch}:r=${fps}:d=${dur}`,
+    '-filter_complex',
+    graph,
+    '-map',
+    '[v5]',
+    '-frames:v',
+    String(D),
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    '-g',
+    '30',
+    '-crf',
+    '18',
     file,
   ]);
 }

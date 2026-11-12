@@ -94,10 +94,7 @@ export function sceneStepFingerprints(text: string): ScenarioIdentity | undefine
  * names the run's step it replaced), `new` (added since the run), `scene_changed` (the scene's page, open, pages or
  * persona changed), `scene_not_in_run` (no scene of that id in the run), `unreadable` (no single action today).
  */
-export type RunStepMatch =
-  | { run_index: number }
-  | { missing: 'changed'; run_index: number }
-  | { missing: 'new' | 'scene_changed' | 'scene_not_in_run' | 'unreadable' };
+export type RunStepMatch = { run_index: number } | { missing: 'changed'; run_index: number } | { missing: 'new' | 'scene_changed' | 'scene_not_in_run' | 'unreadable' };
 
 /**
  * Today's steps matched to a run's (both from scenarioIdentityOfValue / sceneStepFingerprints), keyed

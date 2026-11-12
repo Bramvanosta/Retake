@@ -19,7 +19,7 @@ export const componentList = defineOperation({
   name: 'component_list',
   title: 'List components',
   description:
-    'Components a theme or a render can use, by id: the workspace\'s components/ (they win over a built-in of the same id) and the built-in library (studio/…). Each with its kind (intro, outro, card, interstitial, caption, layout, overlay, transition), version, source, description, slot names and its committed preview image with whether it is fresh or stale. Registry notices list invalid or overriding components. Use an id in render {overrides: {components: {<kind or scene id>: <id>}}}; component_get has its slots and params.',
+    "Components a theme or a render can use, by id: the workspace's components/ (they win over a built-in of the same id) and the built-in library (studio/…). Each with its kind (intro, outro, card, interstitial, caption, layout, overlay, transition), version, source, description, slot names and its committed preview image with whether it is fresh or stale. Registry notices list invalid or overriding components. Use an id in render {overrides: {components: {<kind or scene id>: <id>}}}; component_get has its slots and params.",
   input: z.strictObject({ kind: kind.optional().describe('Only components usable as this kind.') }),
   annotations: READ,
   async run({ kind: k }, { engine }) {
@@ -63,7 +63,7 @@ export const componentValidate = defineOperation({
   name: 'component_validate',
   title: 'Validate a component',
   description:
-    'Validate a component of the registry (workspace or built-in, valid or not): its component.yaml (schema, params JSON Schema and defaults, preview samples, geometry), the id matching its folder, the entry file, and a compile of the code with esbuild that allows only react, remotion and the kit (nothing is executed). Issues are positioned (file, line, col). Run it after a component\'s files were edited.',
+    "Validate a component of the registry (workspace or built-in, valid or not): its component.yaml (schema, params JSON Schema and defaults, preview samples, geometry), the id matching its folder, the entry file, and a compile of the code with esbuild that allows only react, remotion and the kit (nothing is executed). Issues are positioned (file, line, col). Run it after a component's files were edited.",
   input: z.strictObject({ component: componentId }),
   annotations: READ,
   async run({ component }, { engine }) {
@@ -83,11 +83,11 @@ export const componentPreview = defineOperation({
   name: 'component_preview',
   title: 'Preview a component',
   description:
-    'A still of one component with a theme (default the project\'s) — over a neutral sample screen for layouts, captions, overlays and transitions — with its manifest\'s preview samples, or the slot values and params you give (text, url and color slots take a value; file and media slots keep their samples). Rendered by a job in the background into <workspace>/.retake/previews/<id>/ (960×540; never into the component\'s folder). Waits up to wait_s (default 20): when it finishes in time the still comes back as an image, else follow it with job_status {job_id, wait_s}. The preview loads nothing from the network: what a component tries to load is blocked and named under "untrusted".',
+    "A still of one component with a theme (default the project's) — over a neutral sample screen for layouts, captions, overlays and transitions — with its manifest's preview samples, or the slot values and params you give (text, url and color slots take a value; file and media slots keep their samples). Rendered by a job in the background into <workspace>/.retake/previews/<id>/ (960×540; never into the component's folder). Waits up to wait_s (default 20): when it finishes in time the still comes back as an image, else follow it with job_status {job_id, wait_s}. The preview loads nothing from the network: what a component tries to load is blocked and named under \"untrusted\".",
   input: z.strictObject({
     project: projectSlug.describe('Project whose theme is the default.'),
     component: componentId,
-    template: templateName.optional().describe('Theme of the preview (template_list names them); default the project\'s own.'),
+    template: templateName.optional().describe("Theme of the preview (template_list names them); default the project's own."),
     slots: z
       .record(z.string().max(60).regex(KEY_RE, 'a slot name of the component'), z.string().max(2000))
       .refine((r) => Object.keys(r).length <= 30, 'at most 30 slots')
@@ -97,13 +97,20 @@ export const componentPreview = defineOperation({
       .record(z.string().max(60), z.unknown())
       .refine((r) => JSON.stringify(r).length <= 8192, 'params of at most 8 KB')
       .optional()
-      .describe('Params over the component\'s defaults (component_get lists them and their schema).'),
+      .describe("Params over the component's defaults (component_get lists them and their schema)."),
     at_s: z.number().min(0).max(600).optional().describe('Second of the component shown (default: its preview moment).'),
     wait_s: waitS(20, 'the still'),
   }),
   annotations: PREVIEW_JOB,
   async run({ project, component, template, slots, params, at_s, wait_s }, ctx: ToolContext) {
-    const sub = await ctx.engine.components.preview({ project, component, ...(template ? { template } : {}), ...(slots ? { slots } : {}), ...(params ? { params } : {}), ...(at_s !== undefined ? { at_s } : {}) });
+    const sub = await ctx.engine.components.preview({
+      project,
+      component,
+      ...(template ? { template } : {}),
+      ...(slots ? { slots } : {}),
+      ...(params ? { params } : {}),
+      ...(at_s !== undefined ? { at_s } : {}),
+    });
     return previewOutput(ctx.engine, sub, wait_s, ctx, `preview of ${component} with the ${sub.theme} theme submitted (job ${sub.job.id}).`);
   },
 });

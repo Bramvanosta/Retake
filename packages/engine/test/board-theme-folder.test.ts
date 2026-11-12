@@ -76,7 +76,24 @@ beforeAll(async () => {
   demo = await makeCase(ws, 'quote', timeline, { noVideo: true });
   await writeFile(
     join(demo.run.dir, 'run.json'),
-    JSON.stringify({ version: 1, id: demo.run.id, project: 'demo', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-01-01T12:00:00.000Z', finished_at: '2026-01-01T12:01:00.000Z', dir: demo.run.dir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id: demo.run.id,
+      project: 'demo',
+      scenario: 'quote',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      finished_at: '2026-01-01T12:01:00.000Z',
+      dir: demo.run.dir,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+    }),
   );
   await writeFile(join(demo.run.dir, 'scenario.yaml'), SCENARIO_YAML);
   project = await loadProject('demo', ws.root);
@@ -111,7 +128,8 @@ describe("a theme's identity is its folder (BL-164, L7.9)", () => {
         [join(link, 'shared', 'brand'), ws.root],
         [join(ws.root, 'shared', 'brand'), link],
         [join(link, 'shared', 'brand'), link],
-      ]) expect(templateFolderId(dir, root)).toBe('shared/brand');
+      ])
+        expect(templateFolderId(dir, root)).toBe('shared/brand');
       expect(templateFolderId(join(link, '..', 'elsewhere', 'brand'), ws.root)).toBe(templateFolderId(join(ws.root, '..', 'elsewhere', 'brand'), ws.root));
       expect(await projectTemplateFolderId({ root: link, dir: join(link, 'projects', 'demo') }, SHARED)).toBe('shared/brand');
     } finally {
@@ -150,7 +168,7 @@ describe("a theme's identity is its folder (BL-164, L7.9)", () => {
     expect(await row()).toEqual(['quote-v2', false, 'brand']);
   });
 
-  it('a record of before L7.9 holds no folder: compared by its folder\'s name, as before', async () => {
+  it("a record of before L7.9 holds no folder: compared by its folder's name, as before", async () => {
     await clearRenders();
     await record('quote-v1', '2026-10-20T11:00:00.000Z', undefined);
     expect(await row()).toEqual(['quote-v1', true, 'brand']);
@@ -181,7 +199,11 @@ describe("a theme's identity is its folder (BL-164, L7.9)", () => {
 // with the workspace's `brand` or failed "not found". Through MCP never a path the record holds.
 describe("an export's re-render plans with the master's theme folder (L7.9 fix pass)", () => {
   const p = () => loadProject('demo', ws.root);
-  const outcome = async (x: Promise<unknown>) => x.then(() => 'ok', (e: unknown) => (e instanceof EngineError ? `${e.code}: ${e.message}` : `${(e as Error).name}: ${(e as Error).message}`));
+  const outcome = async (x: Promise<unknown>) =>
+    x.then(
+      () => 'ok',
+      (e: unknown) => (e instanceof EngineError ? `${e.code}: ${e.message}` : `${(e as Error).name}: ${(e as Error).message}`),
+    );
 
   it('the folder named as the project names it: its own template:, a theme name, a starter; a record of before L7.9 by its name', async () => {
     const project = await p();
@@ -198,7 +220,7 @@ describe("an export's re-render plans with the master's theme folder (L7.9 fix p
     expect(await exportThemeRef(project, shared, { trust: 'author' })).toBe(resolve(realpathSync(ws.root), 'shared', 'brand'));
     const refused = await outcome(exportThemeRef(project, shared, { trust: 'mcp' }));
     expect(refused).toBe(
-      "PlanTrustError: refused through MCP:\n- the theme folder this render was made with is not one the project names today (its project.yaml template:, a theme of the workspace or a starter): through MCP a re-render uses only those — re-render it from a terminal, or render the scenario again",
+      'PlanTrustError: refused through MCP:\n- the theme folder this render was made with is not one the project names today (its project.yaml template:, a theme of the workspace or a starter): through MCP a re-render uses only those — re-render it from a terminal, or render the scenario again',
     );
     // A record's text that is no folder of the rule: refused both ways, never another folder.
     const crafted = { template: 'brand', template_folder: '/starter:../../shared/brand' };
@@ -206,7 +228,7 @@ describe("an export's re-render plans with the master's theme folder (L7.9 fix p
     expect(await outcome(exportThemeRef(project, crafted, { trust: 'mcp' }))).toMatch(/^PlanTrustError: refused through MCP/);
   });
 
-  it('an export submitted through the engine: a vertical of a render of the project\'s own folder is planned; one of another folder of that name is refused', async () => {
+  it("an export submitted through the engine: a vertical of a render of the project's own folder is planned; one of another folder of that name is refused", async () => {
     await clearRenders();
     await record('quote-v1', '2026-10-20T11:00:00.000Z', 'projects/demo/themes/brand');
     await record('quote-v2', '2026-10-20T12:00:00.000Z', 'shared/brand');

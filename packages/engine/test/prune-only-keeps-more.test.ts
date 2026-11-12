@@ -119,7 +119,8 @@ describe('prune only keeps more than it did before L7.7', () => {
       }
       // Every take that left the list is one more take kept, and nothing else of the answer is a take's.
       const left = before.listed.size - listed.length;
-      if (after.kept.runs !== before.kept + left || after.items.length !== listed.length) wrong.push(`${b.slug} [${shape.join(', ')}]: kept ${before.kept} → ${after.kept.runs} with ${left} off the list`);
+      if (after.kept.runs !== before.kept + left || after.items.length !== listed.length)
+        wrong.push(`${b.slug} [${shape.join(', ')}]: kept ${before.kept} → ${after.kept.runs} with ${left} off the list`);
       count.runs += runs.length;
       count.listedBefore += before.listed.size;
       count.listedAfter += listed.length;
@@ -182,7 +183,11 @@ async function oldRenders(projectDir: string, o: { keep: number; threadRenders: 
   const keepOf = o.unread ?? new Set<string>();
   const unreadBy = (...is: Array<(s: string) => boolean>): boolean => [...keepOf].some((s) => is.some((f) => f(s)));
   const sameName = (a: unknown, s: string): boolean => typeof a === 'string' && a.toLowerCase() === s.toLowerCase();
-  const unreadRender = (r: { id: string; scenario: string }) => unreadBy((s) => sameName(r.scenario, s), (s) => sameName(parseRenderId(r.id)?.scenario, s));
+  const unreadRender = (r: { id: string; scenario: string }) =>
+    unreadBy(
+      (s) => sameName(r.scenario, s),
+      (s) => sameName(parseRenderId(r.id)?.scenario, s),
+    );
   const dir = join(projectDir, 'renders');
   let files: string[];
   try {
@@ -222,7 +227,11 @@ async function oldRenders(projectDir: string, o: { keep: number; threadRenders: 
   for (const r of renders) {
     if (kept.has(r.id)) continue;
     if (r.id === '' || r.id.startsWith('.')) continue;
-    out.renders.push({ id: r.id, reason: r.status === 'succeeded' ? 'older render' : `${r.status} render`, paths: rendersFiles.filter((f) => f === `${r.id}.json` || f.startsWith(`${r.id}.`)).map((f) => `renders/${f}`) });
+    out.renders.push({
+      id: r.id,
+      reason: r.status === 'succeeded' ? 'older render' : `${r.status} render`,
+      paths: rendersFiles.filter((f) => f === `${r.id}.json` || f.startsWith(`${r.id}.`)).map((f) => `renders/${f}`),
+    });
   }
   for (const name of await readdir(join(projectDir, 'review')).catch(() => [] as string[])) {
     if (name.startsWith('.')) continue;
@@ -241,11 +250,27 @@ describe('prune only keeps more than it did before L7.6b: the renders', () => {
   const RENDER_LAYOUTS = 300;
   const RENDER_SEED = 20261112;
 
-  it('generated renders/ folders (a fixed seed): the lists of renders and reviews are the frozen rule\'s or shorter, and no take it protected through a render is listed', async () => {
+  it("generated renders/ folders (a fixed seed): the lists of renders and reviews are the frozen rule's or shorter, and no take it protected through a render is listed", async () => {
     const rnd = random(RENDER_SEED);
     const pick = <T>(a: readonly T[]): T => a[Math.floor(rnd() * a.length)] as T;
     const chance = (p: number): boolean => rnd() < p;
-    const count = { layouts: 0, threw: 0, listed: 0, listedAfter: 0, shorter: 0, twice: 0, phantom: 0, reviews: 0, reviewsAfter: 0, protectedListedElsewhere: 0, unread: 0, firstList: 0, shapes: new Map<string, number>(), alone: new Map<string, number>(), said: new Map<string, number>() };
+    const count = {
+      layouts: 0,
+      threw: 0,
+      listed: 0,
+      listedAfter: 0,
+      shorter: 0,
+      twice: 0,
+      phantom: 0,
+      reviews: 0,
+      reviewsAfter: 0,
+      protectedListedElsewhere: 0,
+      unread: 0,
+      firstList: 0,
+      shapes: new Map<string, number>(),
+      alone: new Map<string, number>(),
+      said: new Map<string, number>(),
+    };
     const seen = (shape: string): void => void count.shapes.set(shape, (count.shapes.get(shape) ?? 0) + 1);
     const wrong: string[] = [];
     for (let n = 0; n < RENDER_LAYOUTS; n++) {
@@ -310,7 +335,13 @@ describe('prune only keeps more than it did before L7.6b: the renders', () => {
       const reviews = [...new Set([...real.filter(() => chance(0.3)), ...(chance(0.2) ? ['quote-final'] : []), ...(chance(0.2) ? ['quote-v99'] : [])])];
       const threadOn = real.length && chance(0.2) ? pick(real) : undefined;
       const busyId = real.length && chance(0.1) ? pick(real) : undefined;
-      const layout: Layout = { about: 'generated renders', runs, files, reviews, ...(threadOn ? { threads: [{ scenario: threadOn.startsWith('other') ? 'other' : 'quote', on: { render: threadOn, run: label() } }] } : {}) };
+      const layout: Layout = {
+        about: 'generated renders',
+        runs,
+        files,
+        reviews,
+        ...(threadOn ? { threads: [{ scenario: threadOn.startsWith('other') ? 'other' : 'quote', on: { render: threadOn, run: label() } }] } : {}),
+      };
       const b = buildLayout(root, 'generated', { slug: `r-${String(n).padStart(3, '0')}`, layout });
       const project = { slug: b.slug, dir: b.dir, root, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(b.dir, 'project.yaml') } as unknown as LoadedProject;
       const busy = (id: string): boolean => id === busyId;
@@ -334,8 +365,10 @@ describe('prune only keeps more than it did before L7.6b: the renders', () => {
       // What stays is said: the files left alone are counted and named under `untrusted` only, a file too big to read
       // keeps everything, and the count of renders kept is the count of record files that stay.
       const jsonFiles = (await readdir(join(b.dir, 'renders')).catch(() => [] as string[])).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
-      if (after.kept.renders !== jsonFiles.length - renderItems.length) wrong.push(`${where}: kept ${after.kept.renders} renders of ${jsonFiles.length} record files with ${renderItems.length} listed`);
-      if ((after.renders_alone?.count ?? 0) !== (after.untrusted?.renders_alone.length ?? 0)) wrong.push(`${where}: ${after.renders_alone?.count} files left alone, ${after.untrusted?.renders_alone.length} named`);
+      if (after.kept.renders !== jsonFiles.length - renderItems.length)
+        wrong.push(`${where}: kept ${after.kept.renders} renders of ${jsonFiles.length} record files with ${renderItems.length} listed`);
+      if ((after.renders_alone?.count ?? 0) !== (after.untrusted?.renders_alone.length ?? 0))
+        wrong.push(`${where}: ${after.renders_alone?.count} files left alone, ${after.untrusted?.renders_alone.length} named`);
       if (after.renders_unread !== undefined) {
         count.unread++;
         if (after.items.length) wrong.push(`${where}: a file of renders/ is too big to read and ${after.items.length} items are listed`);
@@ -359,7 +392,8 @@ describe('prune only keeps more than it did before L7.6b: the renders', () => {
         const paths = i.paths.map(rel);
         if (!was.length) wrong.push(`${where}: lists render ${i.id} (${i.reason}), which the frozen rule kept`);
         else if (!was.some((x) => x.reason === i.reason)) wrong.push(`${where}: render ${i.id} was "${was[0]!.reason}", is "${i.reason}"`);
-        else if (!was.some((x) => paths.every((p) => x.paths.includes(p)))) wrong.push(`${where}: render ${i.id} has a path the frozen rule did not list: ${paths.join(' ')} (frozen: ${was.map((x) => x.paths.join(' ')).join(' | ')})`);
+        else if (!was.some((x) => paths.every((p) => x.paths.includes(p))))
+          wrong.push(`${where}: render ${i.id} has a path the frozen rule did not list: ${paths.join(' ')} (frozen: ${was.map((x) => x.paths.join(' ')).join(' | ')})`);
       }
       // … every review item too …
       for (const i of reviewItems) {
@@ -437,4 +471,19 @@ const TWIST: Record<string, (s: RenderFileSpec) => void> = {
   'not-json': (s) => void (s.raw = '{"version": 1, "id": "quo'),
 };
 const TWISTS = Object.keys(TWIST).filter((k) => k !== 'none');
-const STRAYS = ['copy', 'edited-copy', 'renamed', 'keep-other-scenario', 'keep-newer', 'final-says-original', 'final-says-itself', 'out', 'empty-id', 'null', 'array', 'not-json', 'link-to-copy', 'big-stray'] as const;
+const STRAYS = [
+  'copy',
+  'edited-copy',
+  'renamed',
+  'keep-other-scenario',
+  'keep-newer',
+  'final-says-original',
+  'final-says-itself',
+  'out',
+  'empty-id',
+  'null',
+  'array',
+  'not-json',
+  'link-to-copy',
+  'big-stray',
+] as const;

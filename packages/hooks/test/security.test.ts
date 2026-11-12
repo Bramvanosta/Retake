@@ -2,18 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  HookSecurityError,
-  Journal,
-  allowedHosts,
-  checkHostAllowed,
-  checkShellHosts,
-  destructiveReason,
-  isDestructive,
-  isHostAllowed,
-  runHooks,
-  shellWords,
-} from '@retake/hooks';
+import { HookSecurityError, Journal, allowedHosts, checkHostAllowed, checkShellHosts, destructiveReason, isDestructive, isHostAllowed, runHooks, shellWords } from '@retake/hooks';
 import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
 import { nodeFileFacts } from '@retake/core/io';
@@ -28,9 +17,13 @@ afterEach(async () => {
 });
 
 describe('allow-list', () => {
-  const project = makeProject('/projects/northfield', { console: 'http://localhost:4401' }, {
-    allow_hosts: ['api.partner.example.net', '*.cdn.example.org', 'https://hooks.example.com/path', 'db.example.com:5432'],
-  });
+  const project = makeProject(
+    '/projects/northfield',
+    { console: 'http://localhost:4401' },
+    {
+      allow_hosts: ['api.partner.example.net', '*.cdn.example.org', 'https://hooks.example.com/path', 'db.example.com:5432'],
+    },
+  );
 
   it('lists localhost, every environment host and allow_hosts', () => {
     expect(allowedHosts(project)).toEqual([
@@ -91,14 +84,10 @@ describe('allow-list', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const { ctx } = makeContext(makeProject(tmp.dir, { console: 'http://localhost:4401' }));
     const journal = await Journal.open(join(tmp.dir, 'runs/r/hooks-journal.json'));
-    const res = await runHooks(
-      [
-        { http: { method: 'POST', url: 'https://console.production.example.com/api/reset' } },
-        { http: { url: 'http://localhost:4401/never-reached' } },
-      ],
-      ctx,
-      { phase: 'setup', journal },
-    );
+    const res = await runHooks([{ http: { method: 'POST', url: 'https://console.production.example.com/api/reset' } }, { http: { url: 'http://localhost:4401/never-reached' } }], ctx, {
+      phase: 'setup',
+      journal,
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(res).toMatchObject({ ok: false, results: [{ status: 'refused' }] });
     expect(res.results).toHaveLength(1);
@@ -120,11 +109,7 @@ describe('allow-list', () => {
   it('optional does not tolerate refusals', async () => {
     const { ctx } = makeContext(makeProject(tmp.dir, {}));
     const journal = await Journal.open(join(tmp.dir, 'runs/r/hooks-journal.json'));
-    const res = await runHooks(
-      [{ optional: true, http: { url: 'https://elsewhere.example.net/' } }, { shell: 'echo ran > ran.txt' }],
-      ctx,
-      { phase: 'setup', journal },
-    );
+    const res = await runHooks([{ optional: true, http: { url: 'https://elsewhere.example.net/' } }, { shell: 'echo ran > ran.txt' }], ctx, { phase: 'setup', journal });
     expect(res.ok).toBe(false);
     expect(res.results).toHaveLength(1);
   });
@@ -136,11 +121,7 @@ describe('shell hosts (R-SEC-06)', () => {
   it('refuses a shell hook naming an unlisted host before anything runs', async () => {
     const { ctx } = makeContext(makeProject(tmp.dir, { console: 'http://localhost:4401' }));
     const journal = await journalAt();
-    const res = await runHooks(
-      [{ shell: 'touch ran.txt && curl -fsS https://console.production.example.com/api/reset' }],
-      ctx,
-      { phase: 'setup', journal },
-    );
+    const res = await runHooks([{ shell: 'touch ran.txt && curl -fsS https://console.production.example.com/api/reset' }], ctx, { phase: 'setup', journal });
     expect(res.results[0]).toMatchObject({ ok: false, status: 'refused' });
     expect(res.results[0].error).toMatch(/^refusing to contact console\.production\.example\.com \(URL in the shell hook\): it is not in the allow-list of project "northfield"/);
     expect(existsSync(join(tmp.dir, 'ran.txt'))).toBe(false);
@@ -237,9 +218,7 @@ describe('shell hosts (R-SEC-06)', () => {
       journal: await journalAt(),
     });
     expect(res.ok).toBe(true);
-    expect((await readFile(join(tmp.dir, 'hosts.txt'), 'utf8')).trim()).toBe(
-      'localhost,127.0.0.1,::1,console.staging.example.com,shop.staging.example.com,api.partner.example.net',
-    );
+    expect((await readFile(join(tmp.dir, 'hosts.txt'), 'utf8')).trim()).toBe('localhost,127.0.0.1,::1,console.staging.example.com,shop.staging.example.com,api.partner.example.net');
   });
 
   it('checkShellHosts names the host, never the URL or its credentials', () => {
@@ -307,9 +286,7 @@ describe('destructive hooks', () => {
 
     const refused = await runHooks([{ shell: 'rm exports/old.mp4' }], makeContext(project).ctx, { phase: 'teardown', journal });
     expect(refused.results[0]).toMatchObject({ ok: false, status: 'refused' });
-    expect(refused.results[0].error).toBe(
-      'refusing destructive hook (shell rm) without "confirm: true"; add it to the hook once you have checked what it does',
-    );
+    expect(refused.results[0].error).toBe('refusing destructive hook (shell rm) without "confirm: true"; add it to the hook once you have checked what it does');
 
     const asked: string[] = [];
     const { ctx, logText } = makeContext(project, {

@@ -161,7 +161,12 @@ export class MemoryReviewer implements Reviewer {
     };
     stage('loading');
     const project: LoadedProject = typeof o.project === 'string' ? await loadProject(o.project, o.root) : o.project;
-    const found = await findNamedRender(projectPath(project.dir, 'renders'), o.render, { verb: 'review', slug: project.slug, videoAlone: true, ...(o.scenario !== undefined ? { scenario: o.scenario } : {}) });
+    const found = await findNamedRender(projectPath(project.dir, 'renders'), o.render, {
+      verb: 'review',
+      slug: project.slug,
+      videoAlone: true,
+      ...(o.scenario !== undefined ? { scenario: o.scenario } : {}),
+    });
     if (!found.ok) throw new MemoryReviewError(found.message);
     const record = found.render.record;
     const name = found.render.output;

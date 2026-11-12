@@ -149,9 +149,7 @@ const TimelineVideoSchema = z
   .strictObject({
     title: z.strictObject({ kicker: z.string().optional(), text: z.string() }).optional(),
     intro: z.union([z.literal(false), z.strictObject(IntroOutroBase)]).optional(),
-    outro: z
-      .union([z.literal(false), z.strictObject({ ...IntroOutroBase, tagline: z.string().optional(), url: z.string().optional() })])
-      .optional(),
+    outro: z.union([z.literal(false), z.strictObject({ ...IntroOutroBase, tagline: z.string().optional(), url: z.string().optional() })]).optional(),
     frame: FrameSpecSchema.optional(),
     template: z.string().optional(),
     music: z.strictObject({ file: z.string(), volume: z.number().optional(), duck: z.number().optional(), loop: z.boolean().optional() }).optional(),
@@ -290,7 +288,7 @@ const TimelineWriteSchema = z.strictObject({
   method: nonEmpty(),
   url: z.string().describe('The real URL.'),
   operation: z.string().describe('GraphQL operation name.').optional(),
-  outcome: z.enum(['blocked', 'mocked', 'allowed', 'passed', 'exempt']).describe('exempt: the automated sign-in\'s own write, from its sign-in page.'),
+  outcome: z.enum(['blocked', 'mocked', 'allowed', 'passed', 'exempt']).describe("exempt: the automated sign-in's own write, from its sign-in page."),
   rule: z.string().describe('The allow / mock entry that matched.').optional(),
   status: z.number().int().optional(),
   via: z.enum(['page', 'hook', 'sign-in']).optional(),
@@ -300,12 +298,12 @@ const TimelineWriteSchema = z.strictObject({
 /** The sandbox of a run (L1.8): its provider, and the reset made before the take. */
 const RunSandboxSchema = z
   .strictObject({
-    name: nonEmpty().describe('The sandbox\'s environment.'),
+    name: nonEmpty().describe("The sandbox's environment."),
     provider: z.enum(SANDBOX_PROVIDERS),
     strategy: z.enum(SANDBOX_RESET_STRATEGIES).describe('Absent: no reset before this take (--env <sandbox> without --sandbox).').optional(),
     restored: z.boolean().describe('A snapshot was restored (rather than the seed run again).').optional(),
     reset_ms: z.number().min(0).optional(),
-    seed_hash: z.string().describe('The seed\'s hash (12 characters).').optional(),
+    seed_hash: z.string().describe("The seed's hash (12 characters).").optional(),
     at: z.string().describe('When the reset finished (ISO).').optional(),
   })
   .describe('A sandbox environment (L1.8): its provider and the reset made before the take.');
@@ -356,7 +354,7 @@ export const TimelineSchema = z
     loading: z.array(LoadingSchema).describe('Page loads `capture` did not show (the previous frame held until the new page painted).').optional(),
     stalls: z.array(StallSchema).describe('Where `capture` froze while the cursor moved or a click ripple played.').optional(),
     busy: z.array(BusySchema).describe('Waits the screen showed after a click (skeletons, spinners, blank panels).').optional(),
-    loading_ui: z.array(LoadingUiSchema).describe('Loading indicators (skeleton, shimmer, spinner, aria-busy) in the filmed page\'s viewport, as the take probed it.').optional(),
+    loading_ui: z.array(LoadingUiSchema).describe("Loading indicators (skeleton, shimmer, spinner, aria-busy) in the filmed page's viewport, as the take probed it.").optional(),
     pauses: z.array(PauseSchema).describe('Where the take was paused between steps (from the Studio): not filmed.').optional(),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),
@@ -418,7 +416,13 @@ const runPerfSchema = <C extends z.ZodType>(object: ObjectOf, retake: C) =>
     })
       .describe('CPU seconds per process group over the take (Chromium browser / GPU / renderer / other, retake, encoder, product).')
       .optional(),
-    machine: object({ cpus: z.number().int().min(1), load_mean: z.number().min(0), load_max: z.number().min(0), takes_beside: z.number().int().min(0).optional(), heavy_slowed: z.literal(true).optional() }),
+    machine: object({
+      cpus: z.number().int().min(1),
+      load_mean: z.number().min(0),
+      load_max: z.number().min(0),
+      takes_beside: z.number().int().min(0).optional(),
+      heavy_slowed: z.literal(true).optional(),
+    }),
     gpu: object({ accelerated: z.boolean(), renderer: z.string().optional(), software: z.array(z.string()).optional() })
       .describe("Chromium's own GPU feature report.")
       .optional(),
@@ -528,7 +532,7 @@ function runRecordSchemas<E extends z.ZodType, P extends z.ZodType, S extends z.
           near: z.array(object({ role: z.string().optional(), name: z.string().optional(), text: z.string().optional() })),
         }),
       )
-      .describe('A target was not found: the targets of the scene\'s later steps missing from the page too, with the closest visible elements.')
+      .describe("A target was not found: the targets of the scene's later steps missing from the page too, with the closest visible elements.")
       .optional(),
   });
   const current = object({ scene: z.string(), step: whole(), action: z.string() });
@@ -538,7 +542,16 @@ function runRecordSchemas<E extends z.ZodType, P extends z.ZodType, S extends z.
   return {
     queued: object({ ...base, status: z.literal('queued'), finished_at: never(), error: never(), current: never(), paused: never(), capture: never(), timeline: never() }),
     running: object({ ...base, status: z.literal('running'), ...inFlight, finished_at: never(), error: never() }),
-    succeeded: object({ ...base, status: z.literal('succeeded'), finished_at: z.string(), capture: z.string().optional(), timeline: z.string().optional(), error: never(), current: never(), paused: never() }),
+    succeeded: object({
+      ...base,
+      status: z.literal('succeeded'),
+      finished_at: z.string(),
+      capture: z.string().optional(),
+      timeline: z.string().optional(),
+      error: never(),
+      current: never(),
+      paused: never(),
+    }),
     failed: object({ ...base, status: z.literal('failed'), finished_at: z.string(), error, ...inFlight }),
     cancelled: object({ ...base, status: z.literal('cancelled'), finished_at: z.string(), error, ...inFlight }),
     unknown: object({ ...base, status: z.string(), finished_at: z.string().optional(), error: error.optional(), ...inFlight }),

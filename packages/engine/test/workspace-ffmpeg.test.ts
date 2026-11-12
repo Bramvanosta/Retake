@@ -75,7 +75,9 @@ describe('the worker a client starts: no relative tool variable', () => {
     // The worker refuses the relative value as the server does (core resolveMediaTools, and the agent policy for the
     // browser), so no process runs a cwd-relative file — and the job says what to change instead of running another one.
     expect(() => resolveMediaTools({ env: out })).toThrow(/^\$RETAKE_FFMPEG \(tools\/ffmpeg\) must be an absolute path/);
-    expect(agentProgramProblem(out.RETAKE_CHROMIUM!, '$RETAKE_CHROMIUM', [root], { path: '', files: nodeFileFacts })).toMatch(/^\$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path — .*: give the absolute path of a program outside the workspace$/);
+    expect(agentProgramProblem(out.RETAKE_CHROMIUM!, '$RETAKE_CHROMIUM', [root], { path: '', files: nodeFileFacts })).toMatch(
+      /^\$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path — .*: give the absolute path of a program outside the workspace$/,
+    );
   });
 });
 

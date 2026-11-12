@@ -169,15 +169,20 @@ export async function hooksRunWork(project: LoadedProject, source: string, o: Ho
   await o.onSelected?.(sel, { runId });
   const journalFile = await o.hooks.journals.standaloneFile(project.dir, runId);
   const env = o.env ?? sel.env;
-  return inHookContext(project, { ...o, ...(env !== undefined ? { env } : {}) }, { runId, ...(sel.vars ? { vars: sel.vars } : {}), ...(sel.scenario ? { scenario: sel.scenario } : {}) }, async (ctx, access, interrupted) => {
-    o.onStart?.({ sel, ctx, access, runId, journalFile });
-    const journal = await o.hooks.journals.open(journalFile);
-    // Trust `mcp`: a scenario's hooks are the agent's (the adapter reads this under that trust only).
-    const res = await o.hooks.run(sel.hooks, ctx, { phase: sel.phase, journal, ...(o.trust === 'mcp' ? { agentWritten: sel.scenario !== undefined } : {}) });
-    const out: HooksRunOutcome = { sel, env: ctx.env, access, runId, journalFile, ok: res.ok, results: res.results, pending: journal.pending().length, interrupted: interrupted() };
-    o.onResults?.(out);
-    return out;
-  });
+  return inHookContext(
+    project,
+    { ...o, ...(env !== undefined ? { env } : {}) },
+    { runId, ...(sel.vars ? { vars: sel.vars } : {}), ...(sel.scenario ? { scenario: sel.scenario } : {}) },
+    async (ctx, access, interrupted) => {
+      o.onStart?.({ sel, ctx, access, runId, journalFile });
+      const journal = await o.hooks.journals.open(journalFile);
+      // Trust `mcp`: a scenario's hooks are the agent's (the adapter reads this under that trust only).
+      const res = await o.hooks.run(sel.hooks, ctx, { phase: sel.phase, journal, ...(o.trust === 'mcp' ? { agentWritten: sel.scenario !== undefined } : {}) });
+      const out: HooksRunOutcome = { sel, env: ctx.env, access, runId, journalFile, ok: res.ok, results: res.results, pending: journal.pending().length, interrupted: interrupted() };
+      o.onResults?.(out);
+      return out;
+    },
+  );
 }
 
 /** Open every pending journal, say what will run (`listed`), and replay exactly that (nothing when none is pending). */

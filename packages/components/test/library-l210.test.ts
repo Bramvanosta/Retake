@@ -46,7 +46,10 @@ beforeAll(async () => {
   }
 });
 
-function render(id: string, opts: { params?: Record<string, unknown>; slots?: Record<string, string>; media?: Record<string, MediaValue>; at?: number; variant?: Variant; dark?: boolean; extra?: Partial<ComponentProps> } = {}): string {
+function render(
+  id: string,
+  opts: { params?: Record<string, unknown>; slots?: Record<string, string>; media?: Record<string, MediaValue>; at?: number; variant?: Variant; dark?: boolean; extra?: Partial<ComponentProps> } = {},
+): string {
   const m = manifests[id];
   const variant = opts.variant ?? 'landscape';
   frame.current = opts.at ?? 90;
@@ -136,7 +139,10 @@ describe('tutorial overlays', () => {
     for (const variant of ['landscape', 'vertical', 'square'] as const) {
       const shown = variant === 'landscape' ? 0.8125 : 0.9;
       const a = { x: 400, y: 600, w: region.w * shown, h: region.h * shown };
-      const rects = variant === 'landscape' ? RECTS : { screen: { x: 0, y: 200, w: SIZES[variant][0], h: SIZES[variant][1] - 500 }, frame: { x: 0, y: 200, w: SIZES[variant][0], h: SIZES[variant][1] - 500 }, radius: 0 };
+      const rects =
+        variant === 'landscape'
+          ? RECTS
+          : { screen: { x: 0, y: 200, w: SIZES[variant][0], h: SIZES[variant][1] - 500 }, frame: { x: 0, y: 200, w: SIZES[variant][0], h: SIZES[variant][1] - 500 }, radius: 0 };
       const html = render('studio/overlay-loupe', { variant, extra: { anchor: a, rects, region, screen: createElement('i', { id: 'cap' }) }, at: 30 });
       expect(html).toContain('id="cap"');
       const w = Number(/width:([\d.]+)px;height:([\d.]+)px;border-radius:[\d.]+px;overflow:hidden/.exec(html)![1]);
@@ -201,10 +207,34 @@ describe('story cards', () => {
   });
 
   it('chart: bars or a line from a CSV table or inline data', () => {
-    const table: MediaValue = { kind: 'table', name: 'x.csv', columns: ['month', 'requests', 'accepted'], rows: [['Jun', '42', '19'], ['Jul', '1,051', '24']] };
+    const table: MediaValue = {
+      kind: 'table',
+      name: 'x.csv',
+      columns: ['month', 'requests', 'accepted'],
+      rows: [
+        ['Jun', '42', '19'],
+        ['Jul', '1,051', '24'],
+      ],
+    };
     expect(chartPoints(table as never, { data: [], x: '', y: '', max_points: 12 }).points.map((p) => p.value)).toEqual([42, 1051]);
     expect(chartPoints(table as never, { data: [], x: '', y: 'accepted', max_points: 12 }).points.map((p) => p.value)).toEqual([19, 24]);
-    expect(chartPoints(undefined, { data: [{ label: 'a', value: 1.5 }, { label: 'b', value: 2 }], x: '', y: '', max_points: 12 })).toEqual({ points: [{ label: 'a', value: 1.5, raw: '1.5' }, { label: 'b', value: 2, raw: '2' }], decimals: 1 });
+    expect(
+      chartPoints(undefined, {
+        data: [
+          { label: 'a', value: 1.5 },
+          { label: 'b', value: 2 },
+        ],
+        x: '',
+        y: '',
+        max_points: 12,
+      }),
+    ).toEqual({
+      points: [
+        { label: 'a', value: 1.5, raw: '1.5' },
+        { label: 'b', value: 2, raw: '2' },
+      ],
+      decimals: 1,
+    });
     const bars = render('studio/card-chart', { media: { data: table }, at: 200 });
     expect(bars).toContain('>1,051<');
     const line = render('studio/card-chart', { media: { data: table }, params: { type: 'line', prefix: '€' }, at: 200 });
@@ -217,12 +247,27 @@ describe('story cards', () => {
       capture: { kind: 'text', name: 't', value: '921', text: '921' },
       before: { kind: 'picture', name: 'b', url: 'http://a/b.png', width: 1280, height: 720, label: 'b' },
       after: { kind: 'picture', name: 'a', url: 'http://a/a.png', width: 1280, height: 720, label: 'a' },
-      data: { kind: 'table', name: 'd', columns: ['m', 'v'], rows: [['a', '1'], ['b', '2'], ['c', '3']] },
+      data: {
+        kind: 'table',
+        name: 'd',
+        columns: ['m', 'v'],
+        rows: [
+          ['a', '1'],
+          ['b', '2'],
+          ['c', '3'],
+        ],
+      },
     };
     for (const id of IDS) {
       for (const variant of ['landscape', 'vertical', 'square'] as const) {
         for (const dark of [false, true]) {
-          const html = render(id, { variant, dark, media, extra: { anchor: { x: 300, y: 300, w: 200, h: 40 }, rects: RECTS, region: { x: 0, y: 0, w: 300, h: 50 }, chapters: [{ id: 'a', from: 0, to: 60 }] }, at: 60 });
+          const html = render(id, {
+            variant,
+            dark,
+            media,
+            extra: { anchor: { x: 300, y: 300, w: 200, h: 40 }, rects: RECTS, region: { x: 0, y: 0, w: 300, h: 50 }, chapters: [{ id: 'a', from: 0, to: 60 }] },
+            at: 60,
+          });
           expect(html.length, `${id} ${variant} ${dark}`).toBeGreaterThan(0);
           expect(html).not.toMatch(/NaN|undefinedpx|Infinity/);
         }
@@ -263,7 +308,12 @@ describe('kit helpers', () => {
 
   it('placeBeside keeps the box inside the bounds and off the target', () => {
     const bounds = { x: 0, y: 0, w: 1000, h: 600 };
-    for (const target of [{ x: 0, y: 0, w: 100, h: 40 }, { x: 900, y: 560, w: 100, h: 40 }, { x: 450, y: 280, w: 100, h: 40 }, { x: 0, y: 0, w: 1000, h: 540 }]) {
+    for (const target of [
+      { x: 0, y: 0, w: 100, h: 40 },
+      { x: 900, y: 560, w: 100, h: 40 },
+      { x: 450, y: 280, w: 100, h: 40 },
+      { x: 0, y: 0, w: 1000, h: 540 },
+    ]) {
       const b = placeBeside({ target, w: 44, h: 44, bounds, gap: 8 });
       expect(b.x).toBeGreaterThanOrEqual(-0.5);
       expect(b.y).toBeGreaterThanOrEqual(-0.5);
@@ -287,7 +337,13 @@ describe('kit helpers', () => {
   });
 
   it('parseCsv: quotes, escapes, CRLF, semicolons and tabs', () => {
-    expect(parseCsv('a,b\r\n"x, y","say ""hi"""\r\n\r\n3,4\n')).toEqual({ columns: ['a', 'b'], rows: [['x, y', 'say "hi"'], ['3', '4']] });
+    expect(parseCsv('a,b\r\n"x, y","say ""hi"""\r\n\r\n3,4\n')).toEqual({
+      columns: ['a', 'b'],
+      rows: [
+        ['x, y', 'say "hi"'],
+        ['3', '4'],
+      ],
+    });
     expect(parseCsv('m;v\nJan;1,5\n')).toEqual({ columns: ['m', 'v'], rows: [['Jan', '1,5']] });
     expect(parseCsv('m\tv\nJan\t2\n').rows).toEqual([['Jan', '2']]);
     expect(parseCsv('a,b,c\n1\n').rows).toEqual([['1', '', '']]);

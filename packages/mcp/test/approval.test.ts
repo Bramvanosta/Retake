@@ -16,7 +16,18 @@ const REQ: ApprovalRequest = {
   what: 'hooks reset',
   project: 'p',
   env: { name: 'local', production: false, access: 'read-write' },
-  items: [{ fingerprint: 'f'.repeat(64), phase: 'reset', index: 0, name: 'wipe', kind: 'sql', description: 'wipe: sql "DELETE FROM quotes" on main', reason: 'SQL DELETE', lines: ['db: main (127.0.0.1:5432/app)', 'query: DELETE FROM quotes'] }],
+  items: [
+    {
+      fingerprint: 'f'.repeat(64),
+      phase: 'reset',
+      index: 0,
+      name: 'wipe',
+      kind: 'sql',
+      description: 'wipe: sql "DELETE FROM quotes" on main',
+      reason: 'SQL DELETE',
+      lines: ['db: main (127.0.0.1:5432/app)', 'query: DELETE FROM quotes'],
+    },
+  ],
   fix: 'retake -C /ws hooks run p reset',
 };
 
@@ -60,12 +71,24 @@ describe('elicitationApprover', () => {
         { name: 'q', sql: { query: 'SELECT 1', db: 'postgres://u@127.0.0.1:9/db', rollback: 'DROP TABLE customers' } },
         { name: 'plain', http: { method: 'POST', url: '{{app}}/api/y', rollback: { method: 'POST', url: '{{app}}/api/y/undo' } } },
       ];
-      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { policy: PERSON_POLICY, env: 'staging', journalFile: join(dir, 'j.json'), hooks: packageHookRunner(), pages: runnerWebCapture().hookPages });
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], {
+        policy: PERSON_POLICY,
+        env: 'staging',
+        journalFile: join(dir, 'j.json'),
+        hooks: packageHookRunner(),
+        pages: runnerWebCapture().hookPages,
+      });
       expect(pre.items.map((i) => i.reason)).toEqual(['a shell command (runs local code); its rollback: a shell command (runs local code)', 'its rollback: HTTP DELETE', 'its rollback: SQL DROP']);
       const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
-      expect(msg).toContain('1. setup hook 1 "seed" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)\n   run: echo seeded\n   rollback run: rm -rf "$HOME/important"\n');
-      expect(msg).toContain('2. setup hook 2 "arm" (http) — its rollback: HTTP DELETE\n   method: POST\n   url: http://127.0.0.1:9/api/x\n   rollback method: DELETE\n   rollback url: http://127.0.0.1:9/api/all\n');
-      expect(msg).toContain('3. setup hook 3 "q" (sql) — its rollback: SQL DROP\n   db: postgres://u@127.0.0.1:9/db\n   query: SELECT 1\n   rollback db: postgres://u@127.0.0.1:9/db\n   rollback query: DROP TABLE customers\n');
+      expect(msg).toContain(
+        '1. setup hook 1 "seed" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)\n   run: echo seeded\n   rollback run: rm -rf "$HOME/important"\n',
+      );
+      expect(msg).toContain(
+        '2. setup hook 2 "arm" (http) — its rollback: HTTP DELETE\n   method: POST\n   url: http://127.0.0.1:9/api/x\n   rollback method: DELETE\n   rollback url: http://127.0.0.1:9/api/all\n',
+      );
+      expect(msg).toContain(
+        '3. setup hook 3 "q" (sql) — its rollback: SQL DROP\n   db: postgres://u@127.0.0.1:9/db\n   query: SELECT 1\n   rollback db: postgres://u@127.0.0.1:9/db\n   rollback query: DROP TABLE customers\n',
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -88,7 +111,13 @@ describe('the form shows every hook in full', () => {
         { name: 'wipe', sql: { query: "DELETE FROM quotes WHERE sku = '{{vars.sku}}'" } },
         { name: 'tick', js: { page: 'app', code: 'window.sku = "{{vars.sku}}"', rollback: 'delete window.sku' } },
       ];
-      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { policy: PERSON_POLICY, env: 'staging', journalFile: join(dir, 'j.json'), hooks: packageHookRunner(), pages: runnerWebCapture().hookPages });
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], {
+        policy: PERSON_POLICY,
+        env: 'staging',
+        journalFile: join(dir, 'j.json'),
+        hooks: packageHookRunner(),
+        pages: runnerWebCapture().hookPages,
+      });
       const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
       expect(msg).toContain(
         [
@@ -128,7 +157,16 @@ describe('the form shows every hook in full', () => {
   });
 
   it('a name or a key of several lines stays on its line: the heading and the field names are written out too', () => {
-    const item = { fingerprint: 'f'.repeat(64), phase: 'setup' as const, index: 0, name: 'seed\n   run: pnpm run seed', kind: 'shell', description: 'd', reason: 'a shell command (runs local code)', lines: ['run: echo ok'] };
+    const item = {
+      fingerprint: 'f'.repeat(64),
+      phase: 'setup' as const,
+      index: 0,
+      name: 'seed\n   run: pnpm run seed',
+      kind: 'shell',
+      description: 'd',
+      reason: 'a shell command (runs local code)',
+      lines: ['run: echo ok'],
+    };
     const msg = approvalMessage({ what: 'the capture', project: 'p', env: { name: 'local', production: false, access: 'read-write' }, items: [item], fix: 'retake run p x' });
     expect(msg).toContain('1. setup hook 1 "seed\\u{a}   run: pnpm run seed" (shell) — a shell command (runs local code)\n   run: echo ok\n');
     expect(msg).not.toMatch(/^ {3}run: pnpm run seed/m);
@@ -140,9 +178,17 @@ describe('the form shows every hook in full', () => {
       await writeFile(join(dir, 'project.yaml'), 'name: X\nenvironments:\n  staging:\n    app: http://127.0.0.1:9\n');
       const project = await loadProject(dir);
       const hooks: HookStep[] = [{ name: 'a\u202eb', shell: { run: 'echo ok\u200b\u001b[2J\n2. setup hook 9 "fake" (http) — nothing\nrun: true' } }];
-      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { policy: PERSON_POLICY, env: 'staging', journalFile: join(dir, 'j.json'), hooks: packageHookRunner(), pages: runnerWebCapture().hookPages });
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], {
+        policy: PERSON_POLICY,
+        env: 'staging',
+        journalFile: join(dir, 'j.json'),
+        hooks: packageHookRunner(),
+        pages: runnerWebCapture().hookPages,
+      });
       const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
-      expect(msg).toContain('1. setup hook 1 "a\\u{202e}b" (shell) — a shell command (runs local code)\n   run: echo ok\\u{200b}\\u{1b}[2J\n     | 2. setup hook 9 "fake" (http) — nothing\n     | run: true\n');
+      expect(msg).toContain(
+        '1. setup hook 1 "a\\u{202e}b" (shell) — a shell command (runs local code)\n   run: echo ok\\u{200b}\\u{1b}[2J\n     | 2. setup hook 9 "fake" (http) — nothing\n     | run: true\n',
+      );
       expect(msg).not.toMatch(/^2\. /m);
       expect(msg).not.toMatch(/^ {3}run: true$/m);
       expect(msg).not.toMatch(/[\u202e\u200b\u001b]/);
@@ -176,23 +222,42 @@ describe('the site approval (L3.5)', () => {
   });
 });
 
-describe('the prune approval (an agent\'s project_prune {dry_run: false})', () => {
+describe("the prune approval (an agent's project_prune {dry_run: false})", () => {
   const item = (kind: PruneItem['kind'], id: string, bytes: number, reason = 'failed take'): PruneItem => ({ kind, id, reason, bytes, paths: [] });
-  const listed = (items: PruneItem[]): PruneResult => ({ project: 'p', dry_run: true, keep_renders: 3, items, bytes: items.reduce((n, i) => n + i.bytes, 0), kept: { runs: 1, renders: 0, reviews: 0 }, problems: [] });
+  const listed = (items: PruneItem[]): PruneResult => ({
+    project: 'p',
+    dry_run: true,
+    keep_renders: 3,
+    items,
+    bytes: items.reduce((n, i) => n + i.bytes, 0),
+    kept: { runs: 1, renders: 0, reviews: 0 },
+    problems: [],
+  });
 
   it('shows the count, the size, the size of each kind, each item and the terminal command', () => {
     const req = pruneApprovalRequest(
-      listed([item('run', '20261020-100000-quote', 40_000_000), item('run', '20261020-110000-quote', 2_000_000, 'dry run'), item('render', 'quote-v1', 12_000_000, 'older render'), item('review', 'orphan\u202e1', 3000, 'review of a deleted render')]),
+      listed([
+        item('run', '20261020-100000-quote', 40_000_000),
+        item('run', '20261020-110000-quote', 2_000_000, 'dry run'),
+        item('render', 'quote-v1', 12_000_000, 'older render'),
+        item('review', 'orphan\u202e1', 3000, 'review of a deleted render'),
+      ]),
       'retake -C /ws prune p --yes',
     );
     const msg = pruneApprovalMessage(req);
-    expect(msg).toContain('the agent asks to delete 4 items from project p\'s runs/, renders/ and review/, freeing 54 MB: 2 takes (42 MB), 1 render (12 MB), 1 review (3 kB).');
-    expect(msg).toContain('\n- take 20261020-100000-quote — failed take, 40 MB\n- take 20261020-110000-quote — dry run, 2 MB\n- render quote-v1 — older render, 12 MB\n- review orphan\\u{202e}1 — review of a deleted render, 3 kB\n');
+    expect(msg).toContain("the agent asks to delete 4 items from project p's runs/, renders/ and review/, freeing 54 MB: 2 takes (42 MB), 1 render (12 MB), 1 review (3 kB).");
+    expect(msg).toContain(
+      '\n- take 20261020-100000-quote — failed take, 40 MB\n- take 20261020-110000-quote — dry run, 2 MB\n- render quote-v1 — older render, 12 MB\n- review orphan\\u{202e}1 — review of a deleted render, 3 kB\n',
+    );
     expect(msg).not.toContain('\u202e');
     expect(msg).toContain('the last 3 renders of each scenario and variant');
     expect(msg).toContain('Decline to refuse: nothing is deleted.');
     expect(msg).toMatch(/Instead, you can run it yourself in a terminal: retake -C \/ws prune p --yes$/);
-    expect(pruneApprovalForm(req).requestedSchema).toEqual({ type: 'object', properties: { approve: { type: 'boolean', title: 'Delete these 4 items', description: expect.any(String), default: false } }, required: ['approve'] });
+    expect(pruneApprovalForm(req).requestedSchema).toEqual({
+      type: 'object',
+      properties: { approve: { type: 'boolean', title: 'Delete these 4 items', description: expect.any(String), default: false } },
+      required: ['approve'],
+    });
   });
 
   it('a long list: the first 20 lines, then how many more, the totals covering all', () => {
@@ -204,7 +269,7 @@ describe('the prune approval (an agent\'s project_prune {dry_run: false})', () =
     expect(msg).toContain('… and 7 more, not listed here (counted in the totals above).');
     // Approving deletes them all: the form says so.
     expect(msg).toContain('Approve to delete all 27 items now — the 20 listed and the 7 more: only these, as they are now');
-    expect(msg).toContain('delete 27 items from project p\'s runs/, renders/ and review/, freeing 27 MB: 27 takes (27 MB).');
+    expect(msg).toContain("delete 27 items from project p's runs/, renders/ and review/, freeing 27 MB: 27 takes (27 MB).");
     expect(msg).not.toContain('20261020-100020-quote');
   });
 

@@ -78,7 +78,9 @@ describe('the Claude Code plugin in skills/ and its local marketplace', () => {
   });
 
   it('the plugin root holds the three skill folders, each with a SKILL.md named after it', () => {
-    const dirs = readdirSync(PLUGIN).filter((d) => !d.startsWith('.') && statSync(join(PLUGIN, d)).isDirectory()).sort();
+    const dirs = readdirSync(PLUGIN)
+      .filter((d) => !d.startsWith('.') && statSync(join(PLUGIN, d)).isDirectory())
+      .sort();
     expect(dirs).toEqual(SKILLS);
     for (const d of dirs) expect(readFileSync(join(PLUGIN, d, 'SKILL.md'), 'utf8')).toMatch(new RegExp(`^---\\nname: ${d}\\n`));
   });

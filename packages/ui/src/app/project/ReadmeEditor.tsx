@@ -185,7 +185,17 @@ function Editor({ view }: { view: ProjectView }) {
 
   const dirty = isDirty(draft);
   const missing = draft.base.hash === null;
-  const state = saving ? 'Saving…' : conflict ? 'Not saved: README.md changed on disk' : dirty ? 'Unsaved changes' : savedHash ? `Saved · ${savedHash.slice(0, 12)}` : missing ? 'No README.md yet' : 'No changes';
+  const state = saving
+    ? 'Saving…'
+    : conflict
+      ? 'Not saved: README.md changed on disk'
+      : dirty
+        ? 'Unsaved changes'
+        : savedHash
+          ? `Saved · ${savedHash.slice(0, 12)}`
+          : missing
+            ? 'No README.md yet'
+            : 'No changes';
   const showDisk = disk !== null && !conflict && disk.hash !== dismissed;
 
   return (

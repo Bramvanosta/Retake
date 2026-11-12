@@ -19,11 +19,34 @@ const base = (o: Partial<BoardScenario> = {}): BoardScenario => ({
   untrusted: {},
   ...o,
 });
-const run = (id: string, o: Partial<BoardRun> = {}): BoardRun => ({ id, mode: 'capture', status: 'succeeded', started_at: '2026-10-20T10:00:00.000Z', finished_at: '2026-10-20T10:01:00.000Z', steps_done: 18, steps_total: 18, ...o });
+const run = (id: string, o: Partial<BoardRun> = {}): BoardRun => ({
+  id,
+  mode: 'capture',
+  status: 'succeeded',
+  started_at: '2026-10-20T10:00:00.000Z',
+  finished_at: '2026-10-20T10:01:00.000Z',
+  steps_done: 18,
+  steps_total: 18,
+  ...o,
+});
 const CAP = '20261020-100000-quote';
 const capture = (current: boolean | null) => ({ id: CAP, env: 'local', finished_at: '2026-10-20T10:01:00.000Z', current });
 const render = (review: RenderReviewSummary, o: Partial<NonNullable<BoardScenario['render']>> = {}): NonNullable<BoardScenario['render']> => ({
-  render_id: 'quote-v1', status: 'succeeded', created_at: '2026-10-20T11:00:00.000Z', run_id: CAP, theme: 'default', variant: 'landscape', duration_s: 60, width: 1920, height: 1080, size_bytes: 1, edit: { from: 'scenario', sha256: H }, fps: 30, overrides: [], review, ...o,
+  render_id: 'quote-v1',
+  status: 'succeeded',
+  created_at: '2026-10-20T11:00:00.000Z',
+  run_id: CAP,
+  theme: 'default',
+  variant: 'landscape',
+  duration_s: 60,
+  width: 1920,
+  height: 1080,
+  size_bytes: 1,
+  edit: { from: 'scenario', sha256: H },
+  fps: 30,
+  overrides: [],
+  review,
+  ...o,
 });
 const CLEAN: RenderReviewSummary = { state: 'clean', counts: { error: 0, warning: 0, info: 0 } };
 
@@ -39,11 +62,23 @@ const ROWS: Array<[string, BoardScenario, string, string, string | null]> = [
   ['rendering, no fraction', base({ capture: capture(true), render_job: { job: 'j_1', state: 'running', reviewing: false } }), 'running', 'Render running', null],
   ['render queued', base({ capture: capture(true), render_job: { job: 'j_1', state: 'queued', reviewing: false } }), 'running', 'Render queued', null],
   ['reviewing', base({ capture: capture(true), render_job: { job: 'j_1', state: 'running', reviewing: true } }), 'running', 'Review running', null],
-  ['failed after the capture', base({ capture: capture(true), last_run: run('20261022-100000-quote', { mode: 'dry', status: 'failed', partial: 'failed at step 3 of proposal' }) }), 'fail', 'Failed at step 3 of proposal', 'failed'],
+  [
+    'failed after the capture',
+    base({ capture: capture(true), last_run: run('20261022-100000-quote', { mode: 'dry', status: 'failed', partial: 'failed at step 3 of proposal' }) }),
+    'fail',
+    'Failed at step 3 of proposal',
+    'failed',
+  ],
   ['failed, no capture', base({ last_run: run('20261022-100000-quote', { status: 'failed' }) }), 'fail', 'Failed', 'failed'],
   ['interrupted', base({ last_run: run('20261022-100000-quote', { status: 'interrupted', partial: 'interrupted' }) }), 'fail', 'Interrupted', 'failed'],
   ['status unknown', base({ last_run: run('20261022-100000-quote', { status: 'unknown' }) }), 'attention', 'Last take: status invalid', null],
-  ['render failed after the capture', base({ capture: capture(true), last_run: run(CAP), render_failed: { render_id: 'quote-v2', at: '2026-10-20T12:00:00.000Z' } }), 'fail', 'Render failed', 'failed'],
+  [
+    'render failed after the capture',
+    base({ capture: capture(true), last_run: run(CAP), render_failed: { render_id: 'quote-v2', at: '2026-10-20T12:00:00.000Z' } }),
+    'fail',
+    'Render failed',
+    'failed',
+  ],
   ['script changed', base({ capture: capture(false), last_run: run(CAP), render: render(CLEAN) }), 'warn', 'Script changed since the shoot', 'shoot'],
   ['rendered, clean', base({ capture: capture(true), last_run: run(CAP), render: render(CLEAN) }), 'ok', 'Rendered · clean', null],
   ['rendered, warnings', base({ capture: capture(true), render: render({ state: 'warnings', counts: { error: 0, warning: 2, info: 0 } }) }), 'warn', 'Rendered · 2 warnings', null],
@@ -59,15 +94,27 @@ const ROWS: Array<[string, BoardScenario, string, string, string | null]> = [
   ['render as captured', base({ capture: capture(true), render: render(CLEAN, { edit: { from: 'run' } }) }), 'warn', 'Render outdated', 'ready'],
   // L5.10a fixes (review B-L2): the theme a render would use today counts, as on the scenario screen.
   ['render with the theme of today', base({ theme: 'default', capture: capture(true), render: render(CLEAN) }), 'ok', 'Rendered · clean', null],
-  ['render with another theme than today\'s', base({ theme: 'editorial', capture: capture(true), render: render(CLEAN) }), 'warn', 'Render outdated', 'ready'],
+  ["render with another theme than today's", base({ theme: 'editorial', capture: capture(true), render: render(CLEAN) }), 'warn', 'Render outdated', 'ready'],
   // L7.8 (BL-164): the board's own verdict, which compares a theme it cannot name (no `theme`) by its identity.
-  ['the board says the render does not show today\'s file (a theme it cannot name)', base({ capture: capture(true), render: render(CLEAN), render_current: false }), 'warn', 'Render outdated', 'ready'],
-  ['the board says the render shows today\'s file (a theme it cannot name)', base({ capture: capture(true), render: render(CLEAN), render_current: true }), 'ok', 'Rendered · clean', null],
+  ["the board says the render does not show today's file (a theme it cannot name)", base({ capture: capture(true), render: render(CLEAN), render_current: false }), 'warn', 'Render outdated', 'ready'],
+  ["the board says the render shows today's file (a theme it cannot name)", base({ capture: capture(true), render: render(CLEAN), render_current: true }), 'ok', 'Rendered · clean', null],
   ['shot, not rendered', base({ capture: capture(true), last_run: run(CAP) }), 'waiting', 'Shot · ready to render', 'ready'],
   ['shot, cannot tell', base({ capture: capture(null) }), 'idle', 'Ready to render · cannot tell if current', 'ready'],
-  ['cancelled after the capture: the take stands', base({ capture: capture(true), last_run: run('20261022-100000-quote', { status: 'cancelled', partial: 'cancelled' }) }), 'waiting', 'Shot · ready to render', 'ready'],
+  [
+    'cancelled after the capture: the take stands',
+    base({ capture: capture(true), last_run: run('20261022-100000-quote', { status: 'cancelled', partial: 'cancelled' }) }),
+    'waiting',
+    'Shot · ready to render',
+    'ready',
+  ],
   ['cancelled, no capture', base({ last_run: run('20261022-100000-quote', { status: 'cancelled', partial: 'cancelled' }) }), 'idle', 'Last take stopped · not shot', 'shoot'],
-  ['a newer partial until run: the take stands', base({ capture: capture(true), last_run: run('20261022-100000-quote', { partial: 'until step 4 of request' }) }), 'waiting', 'Shot · ready to render', 'ready'],
+  [
+    'a newer partial until run: the take stands',
+    base({ capture: capture(true), last_run: run('20261022-100000-quote', { partial: 'until step 4 of request' }) }),
+    'waiting',
+    'Shot · ready to render',
+    'ready',
+  ],
   ['rehearsal passed', base({ dry: { id: '20261019-100000-quote' }, last_run: run('20261019-100000-quote', { mode: 'dry' }) }), 'idle', 'Rehearsal passed · not shot', 'shoot'],
   ['nothing', base(), 'idle', 'Draft · not shot yet', 'shoot'],
 ];
@@ -98,11 +145,22 @@ describe('productionState (L5.10a): every row a shape and a word', () => {
 
 describe('the inspector words', () => {
   it('every review state and every run status has words', () => {
-    for (const r of [CLEAN, { state: 'none' }, { state: 'queued', job: 'j' }, { state: 'running', job: 'j' }, { state: 'failed' }, { state: 'cancelled' }, { state: 'warnings', counts: { error: 0, warning: 1, info: 0 } }, { state: 'errors', counts: { error: 3, warning: 0, info: 0 } }] as RenderReviewSummary[]) {
+    for (const r of [
+      CLEAN,
+      { state: 'none' },
+      { state: 'queued', job: 'j' },
+      { state: 'running', job: 'j' },
+      { state: 'failed' },
+      { state: 'cancelled' },
+      { state: 'warnings', counts: { error: 0, warning: 1, info: 0 } },
+      { state: 'errors', counts: { error: 3, warning: 0, info: 0 } },
+    ] as RenderReviewSummary[]) {
       expect(reviewState(r).words.length, r.state).toBeGreaterThan(3);
     }
     expect(reviewState({ state: 'errors', counts: { error: 3, warning: 0, info: 0 } }).words).toBe('3 errors');
-    const words = (['succeeded', 'failed', 'cancelled', 'interrupted', 'queued', 'running', 'unknown'] as const).map((status) => lastTakeWords(run('r', { status, steps_done: 2, steps_total: 5 })).words);
+    const words = (['succeeded', 'failed', 'cancelled', 'interrupted', 'queued', 'running', 'unknown'] as const).map(
+      (status) => lastTakeWords(run('r', { status, steps_done: 2, steps_total: 5 })).words,
+    );
     expect(words).toEqual(['Capture succeeded', 'Capture failed', 'Capture stopped', 'Capture interrupted', 'Capture · queued', 'Capture running · step 3 of 5', 'Capture: status invalid']);
     expect(lastTakeWords(run('r', { mode: 'dry', status: 'failed', partial: 'failed at step 3 of proposal' })).words).toBe('Rehearsal failed at step 3 of proposal');
     expect(lastTakeWords(run('r', { partial: 'until step 4 of request' })).words).toBe('Capture stopped until step 4 of request');
@@ -128,7 +186,7 @@ describe('the inspector words', () => {
   });
 });
 
-describe('the open project\'s reads: what an event re-reads (project-data boardEventAction, critique M2)', () => {
+describe("the open project's reads: what an event re-reads (project-data boardEventAction, critique M2)", () => {
   const P = 'northfield-fixture';
   const run = (change: 'new' | 'status' | 'progress' | 'removed', project = P) => ({ project, run: '20261020-100000-quote', scenario: 'quote', status: 'running', finished: false, change });
   const ws = (o: Record<string, unknown>) => ({ type: 'workspace' as const, projects: [P], readme: [], ...o });

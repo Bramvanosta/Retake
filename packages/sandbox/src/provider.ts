@@ -164,9 +164,27 @@ export interface ProviderCapabilities {
 }
 
 /** The process provider's capabilities: its services are programs of this machine, their logs files. */
-export const PROCESS_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({ exec: false, logs: false, followLogs: false, snapshots: false, address: false, hashInputs: false, build: false, volumes: false });
+export const PROCESS_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
+  exec: false,
+  logs: false,
+  followLogs: false,
+  snapshots: false,
+  address: false,
+  hashInputs: false,
+  build: false,
+  volumes: false,
+});
 /** The docker-compose provider's capabilities: all of them. */
-export const COMPOSE_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({ exec: true, logs: true, followLogs: true, snapshots: true, address: true, hashInputs: true, build: true, volumes: true });
+export const COMPOSE_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
+  exec: true,
+  logs: true,
+  followLogs: true,
+  snapshots: true,
+  address: true,
+  hashInputs: true,
+  build: true,
+  volumes: true,
+});
 
 export interface Provider {
   readonly kind: SandboxProvider;

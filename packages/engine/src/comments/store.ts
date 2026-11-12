@@ -8,14 +8,7 @@ import { basename, join, relative } from 'node:path';
 import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
 import { COMMENT_ID_RE, ulidFileRe } from '@retake/core/ids';
 import { statePath } from '@retake/core/project';
-import {
-  COMMENT_ENTRIES_MAX,
-  CommentThreadSchema,
-  commentAuthorName,
-  commentText,
-  commentTextProblem,
-  newCommentEntryId,
-} from '@retake/core/comments';
+import { COMMENT_ENTRIES_MAX, CommentThreadSchema, commentAuthorName, commentText, commentTextProblem, newCommentEntryId } from '@retake/core/comments';
 import type { LoadedProject } from '@retake/core/model';
 import type { CommentAuthor, CommentEntry, CommentThread } from '@retake/core/comments';
 import type { TakeLock } from '@retake/core/io';
@@ -235,7 +228,8 @@ export function appendedThread(id: string, r: { thread: CommentThread }, entry: 
   const next = CommentThreadSchema.safeParse({ ...r.thread, entries: [...r.thread.entries, entry] });
   if (!next.success) throw new EngineError('invalid', `the entry does not make a valid thread: ${next.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   const text = `${JSON.stringify(next.data, null, 2)}\n`;
-  if (Buffer.byteLength(text) > COMMENT_FILE_MAX_BYTES) throw new EngineError('refused', `comment ${id} would grow past ${COMMENT_FILE_MAX_BYTES / 1024 / 1024} MB with this entry: start a new thread`);
+  if (Buffer.byteLength(text) > COMMENT_FILE_MAX_BYTES)
+    throw new EngineError('refused', `comment ${id} would grow past ${COMMENT_FILE_MAX_BYTES / 1024 / 1024} MB with this entry: start a new thread`);
   return { thread: next.data, text };
 }
 
@@ -256,4 +250,3 @@ export function checkIfMatch(f: ThreadFile, hash: string, ifMatch: string | unde
     });
   }
 }
-

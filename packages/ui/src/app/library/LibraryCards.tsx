@@ -165,7 +165,18 @@ export function PictureBox({ item, playing, large = false }: { item: LibraryItem
 /**
  * Play (a toggle with one name), Retry of a failed poster or loop, "Render again"; the failure's words (untrusted).
  */
-export function PlayControls({ item, playing, nameId, tabStop = true }: { item: LibraryItem; playing: boolean; nameId: string; /** Not a tab stop: a card of the grid that is not its stop. */ tabStop?: boolean }) {
+export function PlayControls({
+  item,
+  playing,
+  nameId,
+  tabStop = true,
+}: {
+  item: LibraryItem;
+  playing: boolean;
+  nameId: string;
+  /** Not a tab stop: a card of the grid that is not its stop. */
+  tabStop?: boolean;
+}) {
   const lib = useLibrary();
   const id = useId();
   const posterAsked = useAsked(lib.pump, item.poster.key);
@@ -224,17 +235,21 @@ export function PlayControls({ item, playing, nameId, tabStop = true }: { item: 
 
 /** The source as a tag in words (never "made with Claude": nobody can tell who wrote one). */
 export function SourceTag({ source }: { source: LibraryItem['source'] }) {
-  return <Tag testId="lib-source">
+  return (
+    <Tag testId="lib-source">
       <Txt text={SOURCE_WORDS[source].badge} />
-    </Tag>;
+    </Tag>
+  );
 }
 
 /** "Theme default" (the kind in brackets when the theme picks it as another kind than its own). */
 export function DefaultTag({ item }: { item: LibraryItem }) {
   if (!item.theme_default.length) return null;
-  return <Tag testId="lib-default">
+  return (
+    <Tag testId="lib-default">
       <Txt text={`Theme default${item.theme_default.length === 1 && item.theme_default[0] !== item.kind ? ` (${item.theme_default[0]})` : ''}`} />
-    </Tag>;
+    </Tag>
+  );
 }
 
 /** Two cards show the same thing (a re-read of the view hands new item objects with the same values). */
@@ -258,7 +273,15 @@ function CardPage({ item, nameId, tabStop }: { item: LibraryItem; nameId: string
   const id = useId();
   if (!host?.hidden?.inspector) return null;
   return (
-    <LinkButton size="sm" variant="ghost" to={{ name: 'library', slug: lib.slug, theme: lib.theme, component: item.component }} testId="lib-card-open" id={id} labelledBy={`${id} ${nameId}`} {...(tabStop ? {} : { tabIndex: -1 })}>
+    <LinkButton
+      size="sm"
+      variant="ghost"
+      to={{ name: 'library', slug: lib.slug, theme: lib.theme, component: item.component }}
+      testId="lib-card-open"
+      id={id}
+      labelledBy={`${id} ${nameId}`}
+      {...(tabStop ? {} : { tabIndex: -1 })}
+    >
       Details
     </LinkButton>
   );

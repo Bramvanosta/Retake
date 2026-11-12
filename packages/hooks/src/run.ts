@@ -101,18 +101,16 @@ async function confirmDestructive(hook: HookStep, reason: string, description: s
 function approvalReason(hook: HookStep, kind: HookKind, prepared: PreparedHook, ctx: HookContext, agentWritten: boolean): string | null {
   const own = hook.destructive === true ? 'declared destructive' : prepared.destructive;
   if (ctx.trust !== 'mcp') return own;
-  const reasons = [own ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && (agentWritten || prepared.agentVars === true) ? AGENT_SQL_REASON : null), prepared.rollback?.reason ? `its rollback: ${prepared.rollback.reason}` : null];
+  const reasons = [
+    own ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && (agentWritten || prepared.agentVars === true) ? AGENT_SQL_REASON : null),
+    prepared.rollback?.reason ? `its rollback: ${prepared.rollback.reason}` : null,
+  ];
   const r = reasons.filter((x): x is string => x !== null);
   return r.length ? r.join('; ') : null;
 }
 
 /** Journal an outcome; a journal that cannot be saved turns the result into a failure. */
-async function journalOutcome(
-  journal: Journal,
-  entry: Omit<JournalEntry, 'seq'>,
-  result: HookResult,
-  log: Log,
-): Promise<Attempt> {
+async function journalOutcome(journal: Journal, entry: Omit<JournalEntry, 'seq'>, result: HookResult, log: Log): Promise<Attempt> {
   const stored = journal.add(entry);
   result.journal_seq = stored.seq;
   try {

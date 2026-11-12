@@ -170,10 +170,13 @@ export function Storyboard({
   const counts = useMemo(() => scenes.map((s) => s.steps.length), [scenes]);
   const selected = subject?.kind === 'step' && index.has(subject.key) ? subject.key : null;
   const lists = useRef(new Map<string, HTMLUListElement>());
-  const listRef = useCallback((scene: string) => (el: HTMLUListElement | null) => {
-    if (el) lists.current.set(scene, el);
-    else lists.current.delete(scene);
-  }, []);
+  const listRef = useCallback(
+    (scene: string) => (el: HTMLUListElement | null) => {
+      if (el) lists.current.set(scene, el);
+      else lists.current.delete(scene);
+    },
+    [],
+  );
   const selRef = useRef(selected);
   selRef.current = selected;
   const go = useCallback(
@@ -418,7 +421,15 @@ export function Storyboard({
       </p>
       {(setup.length > 0 || named.length > 0) && (
         <div id="entry-before" className="sb-entry">
-          <RowCard tile="Before" quiet title="Before filming" meta={hooksLine(setup.length, names(setup)) + (named.length ? ` · ${plural(named.length, 'named hook')} during the take` : '')} selected={subject?.kind === 'before'} onSelect={() => onSelect({ kind: 'before' })} testId="before-filming" />
+          <RowCard
+            tile="Before"
+            quiet
+            title="Before filming"
+            meta={hooksLine(setup.length, names(setup)) + (named.length ? ` · ${plural(named.length, 'named hook')} during the take` : '')}
+            selected={subject?.kind === 'before'}
+            onSelect={() => onSelect({ kind: 'before' })}
+            testId="before-filming"
+          />
         </div>
       )}
       {v.blocks.entries.map((e) => {
@@ -522,7 +533,15 @@ export function Storyboard({
       })}
       {teardown.length > 0 && (
         <div id="entry-after" className="sb-entry">
-          <RowCard tile="After" quiet title="After filming" meta={hooksLine(teardown.length, names(teardown))} selected={subject?.kind === 'after'} onSelect={() => onSelect({ kind: 'after' })} testId="after-filming" />
+          <RowCard
+            tile="After"
+            quiet
+            title="After filming"
+            meta={hooksLine(teardown.length, names(teardown))}
+            selected={subject?.kind === 'after'}
+            onSelect={() => onSelect({ kind: 'after' })}
+            testId="after-filming"
+          />
         </div>
       )}
     </div>

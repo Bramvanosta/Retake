@@ -49,7 +49,15 @@ const UNSAVED = {
   cancel: 0,
   destructive: true,
 };
-const JOBS = { ...UNSAVED, id: ID2, text: 'These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of shop · quote (running)', buttons: ['Quit Anyway', 'Cancel'], proceed: 0, cancel: 1, destructive: false };
+const JOBS = {
+  ...UNSAVED,
+  id: ID2,
+  text: 'These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of shop · quote (running)',
+  buttons: ['Quit Anyway', 'Cancel'],
+  proceed: 0,
+  cancel: 1,
+  destructive: false,
+};
 
 const dispatch = (p: Page, detail: unknown) => p.evaluate((d) => window.dispatchEvent(new CustomEvent('studio:quit', { detail: d })), detail);
 const close = (p: Page, id: string) => p.evaluate((i) => window.dispatchEvent(new CustomEvent('studio:quit-close', { detail: { id: i } })), id);
@@ -70,7 +78,13 @@ async function open(ctx: BrowserContext, app: boolean): Promise<Page> {
     if (h) {
       held = null;
       await h.gate;
-      await route.fulfill({ status: h.status, contentType: 'application/json', body: JSON.stringify({ error: { code: 'conflict', message: 'this Studio server is not the desktop app\'s (not supervised): there is no question to answer', details: { reason: 'not_supervised' } } }) });
+      await route.fulfill({
+        status: h.status,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'conflict', message: "this Studio server is not the desktop app's (not supervised): there is no question to answer", details: { reason: 'not_supervised' } },
+        }),
+      });
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, summary: 'ok', data: { ok: true } }) });
@@ -99,8 +113,8 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the quit sheet (the desktop app\'s question in its page)', () => {
-  it('unsaved text: the alert\'s keys (Return = Cancel, Quit Anyway destructive with no key, Escape = Cancel), one ack after it is painted, words as text', async () => {
+describe("the quit sheet (the desktop app's question in its page)", () => {
+  it("unsaved text: the alert's keys (Return = Cancel, Quit Anyway destructive with no key, Escape = Cancel), one ack after it is painted, words as text", async () => {
     bodies.length = 0;
     await dispatch(page, UNSAVED);
     const d = sheet(page);
@@ -262,7 +276,7 @@ describe('the quit sheet (the desktop app\'s question in its page)', () => {
     expect(errors).toEqual([]);
   });
 
-  it('anything but the shell\'s exact shape is ignored: no sheet, no ack', async () => {
+  it("anything but the shell's exact shape is ignored: no sheet, no ack", async () => {
     bodies.length = 0;
     for (const bad of [
       { ...UNSAVED, extra: 1 },

@@ -207,7 +207,10 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       const others = leases.leave(a.project, a.lease);
       const revoked = others === 0;
       leases.prune();
-      return { summary: revoked ? `${a.project}: preview URLs revoked` : `${a.project}: ${plural(others, 'other page')} still on a timeline or a theme preview`, data: { project: a.project, revoked } };
+      return {
+        summary: revoked ? `${a.project}: preview URLs revoked` : `${a.project}: ${plural(others, 'other page')} still on a timeline or a theme preview`,
+        data: { project: a.project, revoked },
+      };
     },
   });
   const allow = defineTool({
@@ -221,7 +224,8 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       const { workspaceComponents } = await import('../player/bundle-player.js');
       const c = (await workspaceComponents(await o.registry())).find((x) => x.id === a.id);
       if (!c) throw new EngineError('not_found', `${a.id} is not a workspace component (a built-in component always runs)`);
-      if (c.hash !== a.hash) throw new EngineError('conflict', `${a.id} changed since the timeline showed it (its folder is now ${c.hash}): look at it again, then allow it`, { details: { id: a.id, hash: c.hash } });
+      if (c.hash !== a.hash)
+        throw new EngineError('conflict', `${a.id} changed since the timeline showed it (its folder is now ${c.hash}): look at it again, then allow it`, { details: { id: a.id, hash: c.hash } });
       if (!o.allow.allow(a.id, a.hash)) throw new EngineError('refused', 'too many components were allowed in this session: restart the Studio');
       return { summary: `${a.id} (${a.hash}) runs in the preview until the Studio stops`, data: { id: a.id, hash: a.hash, allowed: true } };
     },
@@ -237,4 +241,22 @@ export const SCENARIO_OPS = ['scenario_blocks', 'scenario_actions', 'run_thumbs'
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', 'project_board', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS, ...RECORD_OPS, ...UNSAVED_OPS, ...DESKTOP_OPS, ...SETUP_OPS, ...UPDATE_OPS] as const;
+export const OWN_OPS = [
+  ...INDEX_OPS,
+  'projects_overview',
+  'project_board',
+  ...SCENARIO_OPS,
+  ...RUN_OPS,
+  ...EDIT_OPS,
+  ...LIVE_OPS,
+  ...TIMELINE_OPS,
+  ...RENDER_OPS,
+  ...COMMENT_OPS,
+  ...LIBRARY_OPS,
+  ...THEME_OPS,
+  ...RECORD_OPS,
+  ...UNSAVED_OPS,
+  ...DESKTOP_OPS,
+  ...SETUP_OPS,
+  ...UPDATE_OPS,
+] as const;

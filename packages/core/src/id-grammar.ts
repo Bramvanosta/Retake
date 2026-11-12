@@ -70,7 +70,12 @@ export function isMadeRunId(id: string): id is RunId {
 
 /** The part of a made run id after its stamp, for a scenario name. */
 function runSlug(scenario: string): string {
-  return scenario.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
+  return (
+    scenario
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'run'
+  );
 }
 
 /**
@@ -90,10 +95,7 @@ const pad2 = (n: number): string => String(n).padStart(2, '0');
  * a scenario name of more than 184 characters gives more than RUN_ID_MAX.
  */
 export function formatRunId(scenario: string, date: Date): string {
-  return (
-    `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-` +
-    `${pad2(date.getHours())}${pad2(date.getMinutes())}${pad2(date.getSeconds())}-${runSlug(scenario)}`
-  );
+  return `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-` + `${pad2(date.getHours())}${pad2(date.getMinutes())}${pad2(date.getSeconds())}-${runSlug(scenario)}`;
 }
 
 // ── Render ids ───────────────────────────────────────────────────────────────

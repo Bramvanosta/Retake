@@ -60,7 +60,10 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
     const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
-    await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
+    await writeFile(
+      join(project, 'project.yaml'),
+      yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
+    );
     await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
     studio = await startStudioServer({ root, workerIdleExitMs: 5000 });
     const executablePath = process.env.RETAKE_CHROMIUM;
@@ -104,10 +107,30 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
     await expect.poll(() => readWorkerLock(root)?.started_by, RUN).toBe('ui');
     noteWorker();
     // Progress through run_status: "n/N steps · current step k of <scene>".
-    await expect.poll(async () => (await page.getByTestId('running').innerText().catch(() => '')).match(/current step \d+ of [a-z-]+/) !== null, RUN).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (
+            await page
+              .getByTestId('running')
+              .innerText()
+              .catch(() => '')
+          ).match(/current step \d+ of [a-z-]+/) !== null,
+        RUN,
+      )
+      .toBe(true);
     await shot('30-real-dry-running');
     await expect.poll(() => page.getByTestId('running').count(), RUN).toBe(0);
-    await expect.poll(() => page.getByTestId('source-line').innerText().catch(() => ''), RUN).toContain(runId);
+    await expect
+      .poll(
+        () =>
+          page
+            .getByTestId('source-line')
+            .innerText()
+            .catch(() => ''),
+        RUN,
+      )
+      .toContain(runId);
     expect(await page.getByTestId('source-line').innerText()).toContain('succeeded');
     // Pictures are asked for the rows on screen only: the first step brought into view (the editing bar and notices of
     // L4.3 / L5.5 put the steps below the first screen).
@@ -122,7 +145,18 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
     await page.getByTestId('run-dry').click();
     await page.getByTestId('run-submitted').waitFor();
     const runId = /(\d{8}-\d{6}-highlights)/.exec(await page.getByTestId('run-submitted').innerText())![1];
-    await expect.poll(async () => /current step/.test(await page.getByTestId('running').innerText().catch(() => '')), RUN).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          /current step/.test(
+            await page
+              .getByTestId('running')
+              .innerText()
+              .catch(() => ''),
+          ),
+        RUN,
+      )
+      .toBe(true);
     noteWorker();
     // L5.11a: Stop is the status bar's.
     await page.getByTestId('run-stop').click();

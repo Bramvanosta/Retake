@@ -22,7 +22,23 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import * as contract from '@retake/engine/contract';
-import { HOOK_JOB, OPERATIONS, OPERATIONS_BY_NAME, READ, SANDBOX_JOB, argumentProblems, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, scenarioKey, servedBy, servedNames, studioPins } from '@retake/engine/contract';
+import {
+  HOOK_JOB,
+  OPERATIONS,
+  OPERATIONS_BY_NAME,
+  READ,
+  SANDBOX_JOB,
+  argumentProblems,
+  catalogueOperation,
+  defineOperation,
+  invoke,
+  operationChain,
+  pinArguments,
+  scenarioKey,
+  servedBy,
+  servedNames,
+  studioPins,
+} from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
 import * as mcp from '@retake/mcp';
 import { TOOLS } from '@retake/mcp';
@@ -34,9 +50,30 @@ const signal = new AbortController().signal;
 const ELEVEN = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'scenario_validate', 'run_list', 'run_status', 'run_cancel', 'job_list', 'auth_status', 'auth_login'];
 /** L7.14: the read-only queries of runs, renders, reviews and scenarios — MCP's (job_status waits: its answer is three tools' outputs still in MCP) and the Studio's. */
 const QUERIES_MCP = ['scenario_get', 'plan_preview', 'render_status', 'review_get'];
-const QUERIES_STUDIO = ['projects_overview', 'project_board', 'scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms', 'scenario_sessions', 'scenario_renders', 'render_review', 'review_image'];
+const QUERIES_STUDIO = [
+  'projects_overview',
+  'project_board',
+  'scenario_blocks',
+  'scenario_actions',
+  'run_thumbs',
+  'scenario_forms',
+  'scenario_sessions',
+  'scenario_renders',
+  'render_review',
+  'review_image',
+];
 /** L7.17: the theme, component and library family (MCP's nine, the Studio's eleven). */
-const THEMES_MCP = ['template_list', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_list', 'component_get', 'component_validate', 'component_preview', 'component_create'];
+const THEMES_MCP = [
+  'template_list',
+  'template_preview',
+  'template_from_site',
+  'template_create_from_brand',
+  'component_list',
+  'component_get',
+  'component_validate',
+  'component_preview',
+  'component_create',
+];
 const THEMES_STUDIO = ['library_view', 'library_images', 'library_render', 'library_component', 'theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list'];
 /** L7.15: the submits and job controls (MCP's seven — job_status still waits for its recording answer — and the Studio's six). */
 const JOBS_MCP = ['page_inspect', 'run_dry', 'run_capture', 'render', 'review', 'export', 'job_cancel'];
@@ -45,7 +82,20 @@ const JOBS_STUDIO = ['scenario_run', 'run_pause', 'sign_in_cancel', 'scenario_re
 const HOOKS_MCP = ['hooks_run', 'env_reset', 'sandbox_status', 'sandbox_up', 'sandbox_reset'];
 /** L7.16: the comments (MCP's three, the Studio's twelve). */
 const COMMENTS_MCP = ['comments_list', 'comment_reply', 'comment_resolve'];
-const COMMENTS_STUDIO = ['threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply'];
+const COMMENTS_STUDIO = [
+  'threads_list',
+  'threads_counts',
+  'thread_get',
+  'thread_still',
+  'render_outline',
+  'render_frame',
+  'frame_anchor',
+  'thread_add',
+  'thread_reply',
+  'thread_resolve',
+  'thread_reopen',
+  'thread_apply',
+];
 /** L7.18: the authoring, recording and project writes (MCP's five and job_status; the Studio's scenario_edit and its seven record_* ops). */
 const AUTHORING_MCP = ['project_create', 'project_prune', 'scenario_save', 'scenario_record', 'scenario_from_script', 'job_status'];
 const AUTHORING_STUDIO = ['scenario_edit', 'record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save'];
@@ -54,9 +104,26 @@ describe("the engine's operations: one definition, served by the shells as it is
   it('names operations of the catalogue, each served by MCP or the Studio, in catalogue order: the eleven both serve', () => {
     const names = OPERATIONS.map((o) => o.name);
     expect(names.filter((n) => ELEVEN.includes(n))).toEqual(ELEVEN);
-    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP, ...COMMENTS_MCP, ...COMMENTS_STUDIO, ...AUTHORING_MCP, ...AUTHORING_STUDIO].sort());
-    for (const n of [...THEMES_MCP, ...JOBS_MCP, ...COMMENTS_MCP, ...AUTHORING_MCP]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
-    for (const n of [...THEMES_STUDIO, ...JOBS_STUDIO, ...COMMENTS_STUDIO, ...AUTHORING_STUDIO]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
+    expect([...names].sort()).toEqual(
+      [
+        ...ELEVEN,
+        ...QUERIES_MCP,
+        ...QUERIES_STUDIO,
+        ...THEMES_MCP,
+        ...THEMES_STUDIO,
+        ...JOBS_MCP,
+        ...JOBS_STUDIO,
+        ...HOOKS_MCP,
+        ...COMMENTS_MCP,
+        ...COMMENTS_STUDIO,
+        ...AUTHORING_MCP,
+        ...AUTHORING_STUDIO,
+      ].sort(),
+    );
+    for (const n of [...THEMES_MCP, ...JOBS_MCP, ...COMMENTS_MCP, ...AUTHORING_MCP])
+      expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
+    for (const n of [...THEMES_STUDIO, ...JOBS_STUDIO, ...COMMENTS_STUDIO, ...AUTHORING_STUDIO])
+      expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
     for (const n of names) {
       const op = catalogueOperation(n);
       expect(op, n).toBeDefined();
@@ -69,7 +136,7 @@ describe("the engine's operations: one definition, served by the shells as it is
     for (const o of OPERATIONS) expect(OPERATIONS_BY_NAME[o.name as keyof typeof OPERATIONS_BY_NAME]).toBe(o);
   });
 
-  it('names the read-only queries too (L7.14): MCP\'s four, then the Studio\'s ten, each a read served by one shell only', () => {
+  it("names the read-only queries too (L7.14): MCP's four, then the Studio's ten, each a read served by one shell only", () => {
     const names = OPERATIONS.map((o) => o.name);
     // In catalogue order among the others (L7.17's theme family, L7.15's jobs and L7.19's hooks left out: the test above holds them).
     const later = [...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP, ...COMMENTS_MCP, ...COMMENTS_STUDIO, ...AUTHORING_MCP, ...AUTHORING_STUDIO];
@@ -87,7 +154,11 @@ describe("the engine's operations: one definition, served by the shells as it is
     // The Studio's table holds its ten as these very objects (no pin), and MCP's TOOLS none of them.
     const table = stubTools();
     for (const n of QUERIES_STUDIO) expect(table.get(n), n).toBe(OPERATIONS_BY_NAME[n as keyof typeof OPERATIONS_BY_NAME]);
-    for (const n of QUERIES_STUDIO) expect(TOOLS.some((t) => t.name === n), n).toBe(false);
+    for (const n of QUERIES_STUDIO)
+      expect(
+        TOOLS.some((t) => t.name === n),
+        n,
+      ).toBe(false);
   });
 
   it("MCP's TOOLS entry of an engine operation is that very object, at its place in tools/list", () => {
@@ -162,7 +233,11 @@ describe('invoke', () => {
       if (a.ok || r.success) continue;
       // The words the deprecated callTool gave too (L7.13–L7.20): the zod problems, one line per argument.
       const problems = argumentProblems(r.error);
-      expect({ code: a.error.code, message: a.error.message, details: a.error.details }, op.name).toEqual({ code: 'invalid', message: `invalid arguments for ${op.name}:\n${problems.join('\n')}`, details: { arguments: problems } });
+      expect({ code: a.error.code, message: a.error.message, details: a.error.details }, op.name).toEqual({
+        code: 'invalid',
+        message: `invalid arguments for ${op.name}:\n${problems.join('\n')}`,
+        details: { arguments: problems },
+      });
       expect(a.error.message, op.name).toMatch(new RegExp(`^invalid arguments for ${op.name}:\n`));
     }
   });
@@ -208,23 +283,73 @@ describe('invoke', () => {
 
   it('never throws: a handler that throws anything, caller rules that throw, an engine getter that fails', async () => {
     const thrower = (f: () => never): ToolDef => ({ ...OPERATIONS_BY_NAME.job_list, run: async () => f() }) as ToolDef;
-    const a = await invoke(thrower(() => { throw 'a string'; }), engine, {}, { shell: 'studio', signal });
+    const a = await invoke(
+      thrower(() => {
+        throw 'a string';
+      }),
+      engine,
+      {},
+      { shell: 'studio', signal },
+    );
     expect(!a.ok && [a.error.code, a.error.message]).toEqual(['internal', 'a string']);
-    const b = await invoke(thrower(() => { throw new EngineError('conflict', 'changed'); }), engine, {}, { shell: 'studio', signal });
+    const b = await invoke(
+      thrower(() => {
+        throw new EngineError('conflict', 'changed');
+      }),
+      engine,
+      {},
+      { shell: 'studio', signal },
+    );
     expect(!b.ok && b.error.code).toBe('conflict');
-    const c = await invoke({ ...OPERATIONS_BY_NAME.job_list, callers: () => { throw new Error('rule broke'); } } as ToolDef, engine, {}, { shell: 'studio', signal });
+    const c = await invoke(
+      {
+        ...OPERATIONS_BY_NAME.job_list,
+        callers: () => {
+          throw new Error('rule broke');
+        },
+      } as ToolDef,
+      engine,
+      {},
+      { shell: 'studio', signal },
+    );
     expect(!c.ok && [c.error.code, c.error.message]).toEqual(['internal', 'rule broke']);
     const d = await invoke(OPERATIONS_BY_NAME.job_list, () => Promise.reject(new EngineError('unavailable', 'no engine')), {}, { shell: 'studio', signal });
     expect(!d.ok && d.error.code).toBe('unavailable');
     // Values String() cannot show (review fix): an object without a prototype, a throwing toString, an Error whose
     // message getter throws.
     const bare = Object.create(null) as never;
-    const loud = { toString: () => { throw new Error('no text'); } } as never;
-    const sly = Object.defineProperty(new Error('x'), 'message', { get: () => { throw new Error('no message'); } }) as never;
-    for (const [label, v] of [['no prototype', bare], ['throwing toString', loud], ['throwing message', sly]] as const) {
-      const r = await invoke(thrower(() => { throw v; }), engine, {}, { shell: 'studio', signal });
+    const loud = {
+      toString: () => {
+        throw new Error('no text');
+      },
+    } as never;
+    const sly = Object.defineProperty(new Error('x'), 'message', {
+      get: () => {
+        throw new Error('no message');
+      },
+    }) as never;
+    for (const [label, v] of [
+      ['no prototype', bare],
+      ['throwing toString', loud],
+      ['throwing message', sly],
+    ] as const) {
+      const r = await invoke(
+        thrower(() => {
+          throw v;
+        }),
+        engine,
+        {},
+        { shell: 'studio', signal },
+      );
       expect(!r.ok && r.error.code, label).toBe('internal');
-      const c2 = await invoke(thrower(() => { throw v; }), async () => engine, {}, { shell: 'mcp', signal });
+      const c2 = await invoke(
+        thrower(() => {
+          throw v;
+        }),
+        async () => engine,
+        {},
+        { shell: 'mcp', signal },
+      );
       expect(!c2.ok && c2.error.code, label).toBe('internal');
     }
     expect(toEngineError(bare).message).toBe('a value that cannot be shown as text was thrown');
@@ -356,7 +481,17 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
     await release('1');
     expect((await held).ok).toBe(true);
     // A failed call does not stop the next of its key.
-    const failing = defineOperation({ name: 'library_render', title: 'x', description: 'x', input: z.strictObject({}), annotations: {}, serialize: () => 'k', run: async () => { throw new EngineError('conflict', 'changed'); } });
+    const failing = defineOperation({
+      name: 'library_render',
+      title: 'x',
+      description: 'x',
+      input: z.strictObject({}),
+      annotations: {},
+      serialize: () => 'k',
+      run: async () => {
+        throw new EngineError('conflict', 'changed');
+      },
+    });
     expect((await invoke(failing, engine, {}, { shell: 'studio', signal })).ok).toBe(false);
     const after = invoke(op, engine, { key: 'k', n: '2' }, { shell: 'studio', signal });
     await release('2');
@@ -367,7 +502,9 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
 describe("theme_edit's caller rule (L7.17: editsThemes as the operation's callers)", () => {
   it('refuses the MCP client, after the parse and before the theme is read; every other caller passes', async () => {
     const op = OPERATIONS_BY_NAME.theme_edit;
-    expect(op.callers!(callerOf('mcp'), {} as never)).toEqual(new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)'));
+    expect(op.callers!(callerOf('mcp'), {} as never)).toEqual(
+      new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)'),
+    );
     for (const client of ['ui', 'cli', 'test'] as const) expect(op.callers!(callerOf(client), {} as never), client).toBeUndefined();
     // Through invoke on an engine that has no workspace: the parse first, then the refusal, nothing read.
     const engine = { caller: callerOf('mcp') } as unknown as Engine;
@@ -375,7 +512,10 @@ describe("theme_edit's caller rule (L7.17: editsThemes as the operation's caller
     expect(!bad.ok && bad.error.code).toBe('invalid');
     const valid = { theme: 'mine', if_match: 'a'.repeat(64), edit: { kind: 'set_field', field: 'colors.accent', to: '#123456' } };
     const refused = await invoke(op, engine, valid, { shell: 'studio', signal });
-    expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual(['refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)']);
+    expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual([
+      'refused',
+      'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)',
+    ]);
   });
 });
 
@@ -388,12 +528,16 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
   const PROPOSAL = ['refused', 'a proposal comes from Claude (comment_reply over MCP): from a terminal or the Studio, change the scenario and reply', undefined];
   const add = { project: 'p', render_id: 'quote-v1', created_at: '2026-01-01T12:00:00.000Z', frame: 1, text: 'x' };
 
-  it('refuse in the façade\'s words, per caller: a person creates, reopens and applies; every client but the CLI names the version; a proposal is an agent\'s', () => {
+  it("refuse in the façade's words, per caller: a person creates, reopens and applies; every client but the CLI names the version; a proposal is an agent's", () => {
     const c = (client: 'mcp' | 'ui' | 'cli' | 'test') => callerOf(client);
     for (const client of ['mcp', 'test'] as const) {
       expect(words(ops.thread_add.callers!(c(client), add)), client).toEqual(PERSON('add (creating a thread)', 'retake comment add in a terminal, or the Studio'));
-      expect(words(ops.thread_reopen.callers!(c(client), { project: 'p', comment_id: 'c', if_match: H })), client).toEqual(PERSON('reopen (reopening a thread)', 'retake comment reopen in a terminal, or the Studio'));
-      expect(words(ops.thread_apply.callers!(c(client), { project: 'p', comment_id: 'c', entry_id: 'r', if_match: H })), client).toEqual(PERSON('apply (applying a proposal)', 'in the Studio: an agent proposes, a person applies'));
+      expect(words(ops.thread_reopen.callers!(c(client), { project: 'p', comment_id: 'c', if_match: H })), client).toEqual(
+        PERSON('reopen (reopening a thread)', 'retake comment reopen in a terminal, or the Studio'),
+      );
+      expect(words(ops.thread_apply.callers!(c(client), { project: 'p', comment_id: 'c', entry_id: 'r', if_match: H })), client).toEqual(
+        PERSON('apply (applying a proposal)', 'in the Studio: an agent proposes, a person applies'),
+      );
       expect(ops.comment_reply.callers!(c(client), { project: 'p', comment_id: 'c', text: 'x', proposal: { scenario_yaml: 'x', scenario_hash: H } }), client).toBeUndefined();
     }
     for (const client of ['ui', 'cli'] as const) {
@@ -405,7 +549,11 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
     for (const client of ['mcp', 'ui', 'cli', 'test'] as const) expect(ops.comment_reply.callers!(c(client), { project: 'p', comment_id: 'c', text: 'x' }), client).toBeUndefined();
     // The rules every schema already holds stay (a schema change cannot drop them): the version, the render shown.
     const none = undefined as unknown as string;
-    expect(words(ops.thread_add.callers!(c('ui'), { ...add, created_at: none }))).toEqual(['invalid', 'render_created_at is required to comment from the Studio: the created_at of the render shown', { argument: 'render_created_at' }]);
+    expect(words(ops.thread_add.callers!(c('ui'), { ...add, created_at: none }))).toEqual([
+      'invalid',
+      'render_created_at is required to comment from the Studio: the created_at of the render shown',
+      { argument: 'render_created_at' },
+    ]);
     expect(ops.thread_add.callers!(c('cli'), { ...add, created_at: none })).toBeUndefined();
     for (const [op, what, args] of [
       [ops.thread_resolve, 'resolve', { project: 'p', comment_id: 'c', note: 'n', if_match: none }],
@@ -416,9 +564,12 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
       expect(words(op.callers!(c('ui'), args)), op.name).toEqual(IF_MATCH(what));
       expect(op.callers!(c('cli'), args), op.name).toBeUndefined();
     }
-    expect(words(ops.thread_reopen.callers!(c('mcp'), { project: 'p', comment_id: 'c', if_match: none }))).toEqual(PERSON('reopen (reopening a thread)', 'retake comment reopen in a terminal, or the Studio'));
+    expect(words(ops.thread_reopen.callers!(c('mcp'), { project: 'p', comment_id: 'c', if_match: none }))).toEqual(
+      PERSON('reopen (reopening a thread)', 'retake comment reopen in a terminal, or the Studio'),
+    );
     // The reads and the plain replies have none (the façade has none for them).
-    for (const n of ['comments_list', 'threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_reply'] as const) expect(ops[n].callers, n).toBeUndefined();
+    for (const n of ['comments_list', 'threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_reply'] as const)
+      expect(ops[n].callers, n).toBeUndefined();
   });
 
   it('refuse through invoke after the parse and before anything is read (an engine with no workspace)', async () => {
@@ -434,7 +585,12 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
       expect(!r.ok && r.error.code, op.name).toBe('refused');
     }
     const person = { caller: callerOf('ui') } as unknown as Engine;
-    const r = await invoke(ops.comment_reply, person, { project: 'p', comment_id: 'c_01JQ0000000000000000000000', text: 'x', proposal: { scenario_yaml: 'x', scenario_hash: H } }, { shell: 'mcp', signal });
+    const r = await invoke(
+      ops.comment_reply,
+      person,
+      { project: 'p', comment_id: 'c_01JQ0000000000000000000000', text: 'x', proposal: { scenario_yaml: 'x', scenario_hash: H } },
+      { shell: 'mcp', signal },
+    );
     expect(!r.ok && words(r.error)).toEqual(PROPOSAL);
   });
 
@@ -444,10 +600,16 @@ describe("the comment operations (L7.16: the comments façade's caller rules as 
       writeFileSync(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
       const agent = await createEngine({ root, client: 'mcp', autoStartWorker: false });
       const ui = await createEngine({ root, client: 'ui', autoStartWorker: false });
-      const at = (p: Promise<unknown>) => p.then(() => undefined, (e: EngineError) => words(e));
+      const at = (p: Promise<unknown>) =>
+        p.then(
+          () => undefined,
+          (e: EngineError) => words(e),
+        );
       expect(await at(agent.comments.add('p', { render: 'quote-v1', render_created_at: add.created_at, frame: 1, text: 'x' }))).toEqual(words(ops.thread_add.callers!(agent.caller, add)));
       expect(await at(agent.comments.reopen('p', 'c', 'n', { if_match: H }))).toEqual(words(ops.thread_reopen.callers!(agent.caller, { project: 'p', comment_id: 'c', if_match: H })));
-      expect(await at(agent.comments.apply('p', 'c', { entry_id: 'r', if_match: H }))).toEqual(words(ops.thread_apply.callers!(agent.caller, { project: 'p', comment_id: 'c', entry_id: 'r', if_match: H })));
+      expect(await at(agent.comments.apply('p', 'c', { entry_id: 'r', if_match: H }))).toEqual(
+        words(ops.thread_apply.callers!(agent.caller, { project: 'p', comment_id: 'c', entry_id: 'r', if_match: H })),
+      );
       expect(await at(ui.comments.reply('p', 'c', 'x', { proposal: { scenario_yaml: 'x', scenario_hash: H } }))).toEqual(PROPOSAL);
       expect(await at(ui.comments.resolve('p', 'c', { note: 'n' }))).toEqual(IF_MATCH('resolve'));
     } finally {
@@ -472,7 +634,10 @@ describe("the hooks, environment-reset and sandbox operations (L7.19: MCP's five
     for (const n of HOOKS_MCP) {
       const op = catalogueOperation(n)!;
       expect([servedBy(op, 'mcp'), servedBy(op, 'studio')], n).toEqual([true, false]);
-      expect(TOOLS.find((t) => t.name === n), n).toBe(byName[n]);
+      expect(
+        TOOLS.find((t) => t.name === n),
+        n,
+      ).toBe(byName[n]);
       expect(byName[n].callers, n).toBeUndefined();
       expect(byName[n].serialize, n).toBeUndefined();
       expect([op.effect, op.job], n).toEqual(n === 'sandbox_status' ? ['read', false] : ['destructive', true]);
@@ -484,7 +649,9 @@ describe("the hooks, environment-reset and sandbox operations (L7.19: MCP's five
   it('hand the engine the parsed arguments, and the approver exactly when the shell gives one (the very object)', async () => {
     const seen: Array<[string, unknown, Record<string, unknown>]> = [];
     const job = { id: 'j_01JZ0000000000000000000000', state: 'queued', input: { kind: 'hooks' } };
-    const submit = (what: string, extra: object = {}) => async (args: unknown, opts: Record<string, unknown>) => (seen.push([what, args, opts]), { job, ...extra });
+    const submit =
+      (what: string, extra: object = {}) =>
+      async (args: unknown, opts: Record<string, unknown>) => (seen.push([what, args, opts]), { job, ...extra });
     const fake = {
       caller: callerOf('mcp'),
       hooks: { submit: submit('hooks.submit') },
@@ -542,9 +709,13 @@ describe('Engine.caller', () => {
       expect(e.caller, client).toEqual(callerOf(client));
       // Read-only (review fix): the member cannot be written or redefined, the caller itself is frozen.
       const before = e.caller;
-      expect(() => { (e as { caller: unknown }).caller = callerOf('cli'); }, client).toThrow(TypeError);
+      expect(() => {
+        (e as { caller: unknown }).caller = callerOf('cli');
+      }, client).toThrow(TypeError);
       expect(() => Object.defineProperty(e, 'caller', { value: callerOf('cli') }), client).toThrow(TypeError);
-      expect(() => { (e.caller as { trust: string }).trust = 'author'; }, client).toThrow(TypeError);
+      expect(() => {
+        (e.caller as { trust: string }).trust = 'author';
+      }, client).toThrow(TypeError);
       expect(e.caller, client).toBe(before);
       expect(e.caller, client).toEqual(callerOf(client));
       expect(Object.isFrozen(e.caller), client).toBe(true);
@@ -576,12 +747,18 @@ describe("the authoring, recording and project writes (L7.18: the Record screen'
   it("the Record screen's ops refuse every caller but the Studio and tests, in each channel's words; record_start and scenario_edit have no caller rule", () => {
     for (const [name, what] of Object.entries(SCREEN)) {
       const op = byName[name]!;
-      expect(op.callers!(callerOf('mcp'), ARGS[name] as never), name).toEqual(new EngineError('refused', `${what} is the Studio's (its Record screen): scenario_record starts a recording and job_status reads its draft`));
+      expect(op.callers!(callerOf('mcp'), ARGS[name] as never), name).toEqual(
+        new EngineError('refused', `${what} is the Studio's (its Record screen): scenario_record starts a recording and job_status reads its draft`),
+      );
       expect(op.callers!(callerOf('cli'), ARGS[name] as never), name).toEqual(new EngineError('refused', `${what} is the Studio's (its Record screen): retake record records in a terminal`));
       for (const client of ['ui', 'test'] as const) expect(op.callers!(callerOf(client), ARGS[name] as never), `${name} ${client}`).toBeUndefined();
     }
     // With theme_edit's (L7.17) and the comment ops' (L7.16, the comments façade's rules).
-    expect(OPERATIONS.filter((o) => o.callers).map((o) => o.name).sort()).toEqual([...Object.keys(SCREEN), 'theme_edit', 'comment_reply', 'comment_resolve', 'thread_add', 'thread_apply', 'thread_reopen', 'thread_resolve'].sort());
+    expect(
+      OPERATIONS.filter((o) => o.callers)
+        .map((o) => o.name)
+        .sort(),
+    ).toEqual([...Object.keys(SCREEN), 'theme_edit', 'comment_reply', 'comment_resolve', 'thread_add', 'thread_apply', 'thread_reopen', 'thread_resolve'].sort());
     for (const n of [...AUTHORING_MCP, 'record_start', 'scenario_edit']) expect(byName[n]!.callers, n).toBeUndefined();
   });
 
@@ -597,7 +774,11 @@ describe("the authoring, recording and project writes (L7.18: the Record screen'
     }
     // A Studio engine passes the rule and reaches the engine's record façade (here a probe).
     const seen: string[] = [];
-    const ui = { caller: callerOf('ui'), workspace: { root: '/w' }, record: { view: async (p: string, id: string) => (seen.push(`view ${p} ${id}`), { rec_id: id, state: 'missing', counts: { actions: 0 }, untrusted: null }) } } as unknown as Engine;
+    const ui = {
+      caller: callerOf('ui'),
+      workspace: { root: '/w' },
+      record: { view: async (p: string, id: string) => (seen.push(`view ${p} ${id}`), { rec_id: id, state: 'missing', counts: { actions: 0 }, untrusted: null }) },
+    } as unknown as Engine;
     const ok = await invoke(byName.record_view!, ui, ARGS.record_view, { shell: 'studio', signal });
     expect(ok.ok).toBe(true);
     expect(seen).toEqual([`view p ${rec}`]);

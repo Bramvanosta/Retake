@@ -56,7 +56,12 @@ const summary = (r: Result) => r.content[0]?.text ?? '';
 /** Everything but the `untrusted` subtrees. */
 function trustedPart(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(trustedPart);
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'untrusted').map(([k, x]) => [k, trustedPart(x)]));
+  if (v && typeof v === 'object')
+    return Object.fromEntries(
+      Object.entries(v)
+        .filter(([k]) => k !== 'untrusted')
+        .map(([k, x]) => [k, trustedPart(x)]),
+    );
   return v;
 }
 

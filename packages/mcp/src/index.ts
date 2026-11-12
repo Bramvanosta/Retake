@@ -35,7 +35,17 @@ export { PORT_LOOKUP_TIMEOUT_MS, listenersAreOurs, lsofPortListeners, portHolder
 export type { PortHolderVerdict, PortListener, PortListenerLookup } from './port-holder.js';
 export { MCP_HTTP_IDLE_MS, MCP_HTTP_SESSIONS_MAX } from './server.js';
 export { UNTRUSTED_MAX, capUntrusted, errorResult, imageCaps, imageResult, okResult } from './result.js';
-export { APPROVAL_TIMEOUT_MS, approvalForm, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalForm, siteApprovalMessage } from './approval.js';
+export {
+  APPROVAL_TIMEOUT_MS,
+  approvalForm,
+  approvalMessage,
+  approvalTimeoutMs,
+  elicitationApprover,
+  pruneApprovalForm,
+  pruneApprovalMessage,
+  siteApprovalForm,
+  siteApprovalMessage,
+} from './approval.js';
 export type { ImageCaps, Thumbnailer, ToolImage, ToolOutput } from './result.js';
 export type { ToolDef, ToolContext } from './tools/define.js';
 /**

@@ -157,7 +157,14 @@ describe('the fixture SMTP relay (server/smtp.mjs)', () => {
     expect(mime.endsWith('--b-rel--\r\n')).toBe(true);
     expect(mime.replace(/\r\n/g, '').includes('\n')).toBe(false);
     expect(Math.max(...mime.split('\r\n').map((l) => l.length))).toBeLessThanOrEqual(998);
-    expect(Math.max(...mime.split('\r\n').filter((l) => /^[A-Za-z0-9+/=]+$/.test(l)).map((l) => l.length))).toBe(76);
+    expect(
+      Math.max(
+        ...mime
+          .split('\r\n')
+          .filter((l) => /^[A-Za-z0-9+/=]+$/.test(l))
+          .map((l) => l.length),
+      ),
+    ).toBe(76);
 
     // Without inline parts: multipart/alternative only.
     const plain = buildMime({ ...MAIL, inline: [] }, { messageId: 'x@y', boundary: 'c' });
@@ -220,7 +227,12 @@ describe('the fixture SMTP relay (server/smtp.mjs)', () => {
     const srv = await started();
     const logs: string[] = [];
     const mod = (await import(join(FIXTURE, 'server.mjs'))) as {
-      startFixture(o: object): Promise<{ urls: { console: string; shop: string }; smtp: string | null; mailbox: { messages: Array<{ Subject: string; MessageID: string }>; flush(): Promise<void> }; close(): Promise<void> }>;
+      startFixture(o: object): Promise<{
+        urls: { console: string; shop: string };
+        smtp: string | null;
+        mailbox: { messages: Array<{ Subject: string; MessageID: string }>; flush(): Promise<void> };
+        close(): Promise<void>;
+      }>;
     };
     const fx = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', build: false, smtp: `127.0.0.1:${srv.port}`, log: (m: string) => logs.push(m) });
     try {

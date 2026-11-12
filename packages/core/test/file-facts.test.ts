@@ -10,8 +10,18 @@ import { fileFacts, nodeFileFacts } from '@retake/core/io';
 import { AGENT_CONFINEMENT } from '@retake/core';
 
 const DIR = '/p';
-const project = { slug: 'p', dir: DIR, root: '/', file: `${DIR}/project.yaml`, issues: [], readme: null, scenarios: [], config: { name: 'P', environments: { local: { app: 'http://localhost:4990' } }, capture: {}, frame: 'card', template: 'default' } } as unknown as LoadedProject;
-const scenario = (path: string) => `version: 1\nvideo: s\nenv: local\nscenes:\n  - id: one\n    steps:\n      - open: "http://localhost:4990/"\n      - drop_file: {zone: {css: body}, path: "${path}"}\n`;
+const project = {
+  slug: 'p',
+  dir: DIR,
+  root: '/',
+  file: `${DIR}/project.yaml`,
+  issues: [],
+  readme: null,
+  scenarios: [],
+  config: { name: 'P', environments: { local: { app: 'http://localhost:4990' } }, capture: {}, frame: 'card', template: 'default' },
+} as unknown as LoadedProject;
+const scenario = (path: string) =>
+  `version: 1\nvideo: s\nenv: local\nscenes:\n  - id: one\n    steps:\n      - open: "http://localhost:4990/"\n      - drop_file: {zone: {css: body}, path: "${path}"}\n`;
 /** A scenario whose intro shows the video file assets/clip.mp4. */
 const INTRO = 'version: 1\nvideo: s\nenv: local\nintro: {video: assets/clip.mp4}\nscenes:\n  - id: one\n    steps:\n      - open: "http://localhost:4990/"\n';
 const errors = (r: { issues: Array<{ severity: string; message: string }> }) => r.issues.filter((i) => i.severity === 'error').map((i) => i.message);
@@ -52,12 +62,14 @@ describe('FileFacts: the disk a pure rule looks at', () => {
     expect([f.isExecutable('/a/run'), f.isExecutable('/a/b.txt')]).toEqual([true, false]);
   });
 
-  it('nodeFileFacts is the disk only (a video is probed under a work\'s policy): a video check given it throws; fileFacts(policy) probes', () => {
+  it("nodeFileFacts is the disk only (a video is probed under a work's policy): a video check given it throws; fileFacts(policy) probes", () => {
     expect('probeVideo' in nodeFileFacts).toBe(false);
     expect(nodeFileFacts.ignoresCase).toBe(process.platform === 'darwin' || process.platform === 'win32');
     const files = memoryFileFacts({ [`${DIR}/assets/clip.mp4`]: 'x' });
     const { probeVideo: _, ...diskOnly } = files;
-    expect(() => parseScenario(INTRO, { project, files: diskOnly })).toThrow(/^a video file check needs a VideoProber \(core file-facts\.ts\) to probe a video: pass fileFacts\(policy\) of @retake\/core\/io$/);
+    expect(() => parseScenario(INTRO, { project, files: diskOnly })).toThrow(
+      /^a video file check needs a VideoProber \(core file-facts\.ts\) to probe a video: pass fileFacts\(policy\) of @retake\/core\/io$/,
+    );
     expect(() => parseScenario(INTRO, { project, files: diskOnly })).toThrow(FileFactsMissingError);
     expect(errors(parseScenario(INTRO, { project, files }))).toEqual(['"assets/clip.mp4" is not a video the renderer can read: /p/assets/clip.mp4 not found']);
     expect(() => fileFacts(PERSON_POLICY).probeVideo('/nope.mp4')).toThrow(/not found/);
@@ -67,9 +79,33 @@ describe('FileFacts: the disk a pure rule looks at', () => {
     const at = `${DIR}/assets/clip.mp4`;
     const disk = memoryFileFacts({ [at]: 'x' });
     const probing = (probeVideo: (file: string) => never) => ({ ...disk, probeVideo });
-    expect(errors(parseScenario(INTRO, { project, files: probing(() => { throw new MediaProbeError('ffprobe cannot read it (moov atom not found)', 'unreadable'); }) }))).toEqual(['"assets/clip.mp4" is not a video the renderer can read: ffprobe cannot read it (moov atom not found)']);
-    const missing = parseScenario(INTRO, { project, files: probing(() => { throw new MediaProbeError('ffprobe is not available (ENOENT): install ffmpeg', 'no-ffprobe'); }) });
-    expect(missing.issues.map((i) => [i.severity, i.message])).toContainEqual(['warning', 'cannot check "assets/clip.mp4": ffprobe is not available (ENOENT): install ffmpeg (the render needs it too)']);
-    expect(() => parseScenario(INTRO, { project, files: probing(() => { throw new TypeError('a bug'); }) })).toThrow(TypeError);
+    expect(
+      errors(
+        parseScenario(INTRO, {
+          project,
+          files: probing(() => {
+            throw new MediaProbeError('ffprobe cannot read it (moov atom not found)', 'unreadable');
+          }),
+        }),
+      ),
+    ).toEqual(['"assets/clip.mp4" is not a video the renderer can read: ffprobe cannot read it (moov atom not found)']);
+    const missing = parseScenario(INTRO, {
+      project,
+      files: probing(() => {
+        throw new MediaProbeError('ffprobe is not available (ENOENT): install ffmpeg', 'no-ffprobe');
+      }),
+    });
+    expect(missing.issues.map((i) => [i.severity, i.message])).toContainEqual([
+      'warning',
+      'cannot check "assets/clip.mp4": ffprobe is not available (ENOENT): install ffmpeg (the render needs it too)',
+    ]);
+    expect(() =>
+      parseScenario(INTRO, {
+        project,
+        files: probing(() => {
+          throw new TypeError('a bug');
+        }),
+      }),
+    ).toThrow(TypeError);
   });
 });

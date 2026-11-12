@@ -16,16 +16,41 @@ import type { HookPlace } from '../src/hook-run/runner.js';
 // The hooks as their files declare them (a fingerprint hashes the raw hook, whatever it holds: `confirm` on an http
 // spec included).
 const ROWS: Array<[object, Omit<HookPlace, 'files'>, Record<string, string>, string]> = [
-  [{"shell":"echo hello"}, {"phase":"setup","index":0,"env":"staging"}, {}, "a10c7ad451b18908cd9fb5f701a6eb0c8626075498a9ee87b5680fe26f9612f6"],
-  [{"shell":"echo hello"}, {"phase":"setup","index":1,"env":"staging"}, {}, "437b43fb74cf106d06b42b39f0fd0f7805bdedf7489211020ea919ec7905ffa4"],
-  [{"shell":"echo hello"}, {"phase":"teardown","index":0,"env":"staging"}, {}, "08f00e7072a35a8759c3e544109dd1fc8cbd1f777785bb738c0e3139912e4be9"],
-  [{"shell":"echo hello"}, {"phase":"setup","index":0,"env":"local"}, {}, "30dd6cc83e3cd885d22fe13ac3e4afb9360120ab106e5010f3dc08203b7b42a8"],
-  [{"name":"seed","shell":{"run":"sh scripts/seed.sh","rollback":"echo undo"}}, {"phase":"setup","index":0,"env":"staging"}, {"scripts/seed.sh":"0fcabd7c97e9866df13df0867d5786569a6854b4598f5949f95355d521397d5e"}, "92517dfd6dd983a5e91ca8c35421da14cd5ab59dd95845c2333ad493f5e87021"],
-  [{"shell":{"run":"./seed.sh --fast","cwd":"scripts"}}, {"phase":"seed","index":2,"env":"sandbox"}, {"scripts/./seed.sh":"0fcabd7c97e9866df13df0867d5786569a6854b4598f5949f95355d521397d5e"}, "7c9a8302cb4a97a0ee236bf0b562574b2ad4fd7f68aa830fef7540790aaec3b1"],
-  [{"sql":{"db":"{{env:DB}}","file":"hooks/sql/seed.sql","rollback":{"file":"hooks/sql/undo.sql"}}}, {"phase":"setup","index":0,"env":"staging"}, {"hooks/sql/seed.sql":"09777820b7522a91b900d8ab618a42c17c60ce4aed0423365c9fde67aa3091be","hooks/sql/undo.sql":"5f5139d9416eb5ee15a084e7bd8e4b92528a1fc56486280c7ce7b43d3c84b2a8"}, "2e4c646721eafe532e520f67258185abeb9909b70b1c0bd3bb622b39649ba227"],
-  [{"http":{"method":"DELETE","url":"{{api}}/items/{{vars.id}}","confirm":true}}, {"phase":"reset","index":0,"env":"staging"}, {}, "7a091fd37e3a542902c257f2d9eafa3c22193ea7c1b07a959a7bcd9afc47161e"],
-  [{"js":{"file":"hooks/page.js","page":"app"}}, {"phase":"step","index":3,"env":"staging"}, {"hooks/page.js":"a4688a271f970bc9d4bd5ad3a736ff802730df3b5aa1024e49aa2b286ede3312"}, "86f2b3e71fdf500a1f7bfaec515e42ddad7fab5f97709c9026731fedefcacc5f"],
-  [{"shell":"rm -rf build"}, {"phase":"reset","index":1,"env":"sandbox"}, {}, "699eb90415a9599ea9d1015777fcd999c9430fd5d9314c49b59f83ee38bbd51e"],
+  [{ 'shell': 'echo hello' }, { 'phase': 'setup', 'index': 0, 'env': 'staging' }, {}, 'a10c7ad451b18908cd9fb5f701a6eb0c8626075498a9ee87b5680fe26f9612f6'],
+  [{ 'shell': 'echo hello' }, { 'phase': 'setup', 'index': 1, 'env': 'staging' }, {}, '437b43fb74cf106d06b42b39f0fd0f7805bdedf7489211020ea919ec7905ffa4'],
+  [{ 'shell': 'echo hello' }, { 'phase': 'teardown', 'index': 0, 'env': 'staging' }, {}, '08f00e7072a35a8759c3e544109dd1fc8cbd1f777785bb738c0e3139912e4be9'],
+  [{ 'shell': 'echo hello' }, { 'phase': 'setup', 'index': 0, 'env': 'local' }, {}, '30dd6cc83e3cd885d22fe13ac3e4afb9360120ab106e5010f3dc08203b7b42a8'],
+  [
+    { 'name': 'seed', 'shell': { 'run': 'sh scripts/seed.sh', 'rollback': 'echo undo' } },
+    { 'phase': 'setup', 'index': 0, 'env': 'staging' },
+    { 'scripts/seed.sh': '0fcabd7c97e9866df13df0867d5786569a6854b4598f5949f95355d521397d5e' },
+    '92517dfd6dd983a5e91ca8c35421da14cd5ab59dd95845c2333ad493f5e87021',
+  ],
+  [
+    { 'shell': { 'run': './seed.sh --fast', 'cwd': 'scripts' } },
+    { 'phase': 'seed', 'index': 2, 'env': 'sandbox' },
+    { 'scripts/./seed.sh': '0fcabd7c97e9866df13df0867d5786569a6854b4598f5949f95355d521397d5e' },
+    '7c9a8302cb4a97a0ee236bf0b562574b2ad4fd7f68aa830fef7540790aaec3b1',
+  ],
+  [
+    { 'sql': { 'db': '{{env:DB}}', 'file': 'hooks/sql/seed.sql', 'rollback': { 'file': 'hooks/sql/undo.sql' } } },
+    { 'phase': 'setup', 'index': 0, 'env': 'staging' },
+    { 'hooks/sql/seed.sql': '09777820b7522a91b900d8ab618a42c17c60ce4aed0423365c9fde67aa3091be', 'hooks/sql/undo.sql': '5f5139d9416eb5ee15a084e7bd8e4b92528a1fc56486280c7ce7b43d3c84b2a8' },
+    '2e4c646721eafe532e520f67258185abeb9909b70b1c0bd3bb622b39649ba227',
+  ],
+  [
+    { 'http': { 'method': 'DELETE', 'url': '{{api}}/items/{{vars.id}}', 'confirm': true } },
+    { 'phase': 'reset', 'index': 0, 'env': 'staging' },
+    {},
+    '7a091fd37e3a542902c257f2d9eafa3c22193ea7c1b07a959a7bcd9afc47161e',
+  ],
+  [
+    { 'js': { 'file': 'hooks/page.js', 'page': 'app' } },
+    { 'phase': 'step', 'index': 3, 'env': 'staging' },
+    { 'hooks/page.js': 'a4688a271f970bc9d4bd5ad3a736ff802730df3b5aa1024e49aa2b286ede3312' },
+    '86f2b3e71fdf500a1f7bfaec515e42ddad7fab5f97709c9026731fedefcacc5f',
+  ],
+  [{ 'shell': 'rm -rf build' }, { 'phase': 'reset', 'index': 1, 'env': 'sandbox' }, {}, '699eb90415a9599ea9d1015777fcd999c9430fd5d9314c49b59f83ee38bbd51e'],
 ];
 const TABLE = ROWS.map(([hook, ...rest]) => [hook as HookStep, ...rest] as const);
 

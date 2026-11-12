@@ -9,7 +9,10 @@ import { DONE_POLL_MS, LIVE_POLL_MS, LIVE_STATES, newerView } from '../words/rec
 import { startedJobs } from './started.js';
 
 /** A recording's view, read live: the poll (700 ms live / 3 s after, never while the tab is hidden) and the events. */
-export function useRecordView(slug: string, rec: string): [RecordViewAnswer | null, string | null, () => void, (v: RecordViewAnswer, fresh?: boolean) => void, () => void, () => RecordViewAnswer | null] {
+export function useRecordView(
+  slug: string,
+  rec: string,
+): [RecordViewAnswer | null, string | null, () => void, (v: RecordViewAnswer, fresh?: boolean) => void, () => void, () => RecordViewAnswer | null] {
   const [view, setView] = useState<RecordViewAnswer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const version = useRef<string | null>(null);
@@ -124,7 +127,9 @@ export function useFocusKeeper(title: RefObject<HTMLHeadingElement | null>): voi
     const id = was.dataset.testid;
     // A radio among its group's (one test id each group): the one of the same value.
     const value = was instanceof HTMLInputElement ? was.value : null;
-    const twins = id ? [...document.querySelectorAll<HTMLElement>(`[data-testid="${id}"]`)].filter((el) => !(el as HTMLButtonElement).disabled && (value === null || (el as HTMLInputElement).value === value)) : [];
+    const twins = id
+      ? [...document.querySelectorAll<HTMLElement>(`[data-testid="${id}"]`)].filter((el) => !(el as HTMLButtonElement).disabled && (value === null || (el as HTMLInputElement).value === value))
+      : [];
     const next = twins.length === 1 ? twins[0] : title.current;
     last.current = next;
     next?.focus({ preventScroll: next === title.current });

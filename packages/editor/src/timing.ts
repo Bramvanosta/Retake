@@ -349,7 +349,10 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
   for (let n = 0; n < pieces.length; n++) {
     const x = pieces[n];
     if (x.cut || x.protected || x.b - x.a >= 1) continue;
-    const before = pieces.slice(0, n).reverse().find((y) => !y.cut);
+    const before = pieces
+      .slice(0, n)
+      .reverse()
+      .find((y) => !y.cut);
     const after = pieces.slice(n + 1).find((y) => !y.cut);
     const ref = before ?? after;
     if (ref) x.v = ref.v;

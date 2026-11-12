@@ -204,7 +204,14 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     const w = startWorker();
     const job = await finished(up.job.id);
     expect(job.state, JSON.stringify(job)).toBe('succeeded');
-    expect(job.result).toMatchObject({ kind: 'sandbox_up', env: 'sandbox', provider: 'process', services: { started: ['app'] }, reset: { strategy: 'reseed', seed: { steps: 2 } }, pages: { app: `http://localhost:${port}` } });
+    expect(job.result).toMatchObject({
+      kind: 'sandbox_up',
+      env: 'sandbox',
+      provider: 'process',
+      services: { started: ['app'] },
+      reset: { strategy: 'reseed', seed: { steps: 2 } },
+      pages: { app: `http://localhost:${port}` },
+    });
     expect(await readFile(join(project.dir, 'sandbox', 'seed-marker.txt'), 'utf8')).toBe('seeded\n');
     expect(await w.exited).toBe(0);
     expect(w.out()).toBe('');
@@ -215,8 +222,16 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(await finished(reset.job.id)).toMatchObject({ state: 'succeeded', result: { kind: 'sandbox_reset', reset: { seed: { steps: 2 } } } });
     expect(await readFile(join(project.dir, 'sandbox', 'seed-marker.txt'), 'utf8')).toBe('seeded\nseeded\n');
     await w2.exited;
-    const lines = (await readFile(historyFile(ws), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as { job: string; kind: string; state: string });
-    expect(lines.map((l) => [l.job, l.kind, l.state])).toEqual(expect.arrayContaining([[up.job.id, 'sandbox_up', 'succeeded'], [reset.job.id, 'sandbox_reset', 'succeeded']]));
+    const lines = (await readFile(historyFile(ws), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { job: string; kind: string; state: string });
+    expect(lines.map((l) => [l.job, l.kind, l.state])).toEqual(
+      expect.arrayContaining([
+        [up.job.id, 'sandbox_up', 'succeeded'],
+        [reset.job.id, 'sandbox_reset', 'succeeded'],
+      ]),
+    );
   });
 
   it('a sandbox job queued without the approval (bypassing the submit): the shell seed step is refused, the job fails', async () => {
@@ -246,7 +261,10 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(sub.job.input).toEqual({ version: 1, kind: 'auth_login', project: 's', env: 'signed-in', persona: 'supplier', mode: 'auto', submitted_by: 'test' });
     const w = startWorker({ NF_JOB_SUPPLIER: accounts.supplier.password });
     const job = await finished(sub.job.id);
-    expect(job, JSON.stringify(job)).toMatchObject({ state: 'succeeded', result: { kind: 'auth_login', persona: 'supplier', status: 'valid', signed_in: true, command: `retake -C ${ws} login s --env signed-in --persona supplier --auto` } });
+    expect(job, JSON.stringify(job)).toMatchObject({
+      state: 'succeeded',
+      result: { kind: 'auth_login', persona: 'supplier', status: 'valid', signed_in: true, command: `retake -C ${ws} login s --env signed-in --persona supplier --auto` },
+    });
     const text = JSON.stringify(job) + JSON.stringify(await queue.events(sub.job.id));
     expect(text).not.toContain(home);
     expect(text).not.toContain(accounts.supplier.password);
@@ -254,7 +272,9 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(status.personas.find((p) => p.persona === 'supplier')).toMatchObject({ status: 'valid', by: 'login' });
     await w.exited;
     expect(w.out()).toBe('');
-    const killed = spawnSync('pgrep', ['-f', `${home}`]).stdout.toString().trim();
+    const killed = spawnSync('pgrep', ['-f', `${home}`])
+      .stdout.toString()
+      .trim();
     expect(killed).toBe('');
   });
 

@@ -282,7 +282,10 @@ function folderOf(reg: ComponentRegistry, r: ComponentRef): { id: string; dir: s
 
 /** The workspace's components a shell validates when it names none: the valid and the broken ones, by id. */
 function workspaceFolders(reg: ComponentRegistry): Array<{ id: string; dir: string }> {
-  const valid = reg.list().filter((i) => i.source === 'workspace').map((i) => ({ id: i.manifest.id, dir: i.dir }));
+  const valid = reg
+    .list()
+    .filter((i) => i.source === 'workspace')
+    .map((i) => ({ id: i.manifest.id, dir: i.dir }));
   const broken = reg.notices.filter((n) => n.severity === 'error' && n.source === 'workspace' && n.id !== undefined).map((n) => ({ id: n.id!, dir: n.dir }));
   return [...valid, ...broken].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -432,9 +435,7 @@ export function componentReadmeWriter(ws: Pick<OpenedWorkspace, 'componentsDir'>
 export type PreviewSelection = { ref: ComponentRef } | { all: true; workspaceOnly: boolean };
 
 /** The components to render, with the registry and the theme they are judged against — or the one named, invalid. */
-export type PreviewTargetsView =
-  | { theme: string; registry: ComponentRegistry; targets: PreviewComponentTarget[] }
-  | { invalid: { id: string; dir: string; issues: ComponentFileIssue[] } };
+export type PreviewTargetsView = { theme: string; registry: ComponentRegistry; targets: PreviewComponentTarget[] } | { invalid: { id: string; dir: string; issues: ComponentFileIssue[] } };
 
 /** A component folder validated, as a preview target when it has a manifest (`ok`: whether it validates). */
 async function targetOfDir(lib: Awaited<ReturnType<typeof components>>, dir: string): Promise<{ target?: PreviewComponentTarget; ok: boolean; issues: ComponentFileIssue[]; dir: string }> {

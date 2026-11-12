@@ -54,7 +54,10 @@ function spaceLane(lane: HTMLElement): void {
   const w = lane.clientWidth;
   const xs = ticks.map((t) => (parseFloat(t.style.left) / 100) * w);
   const order = xs.map((_, i) => i).sort((a, b) => xs[a] - xs[b]);
-  const spaced = spaceTicks(order.map((i) => xs[i]), w);
+  const spaced = spaceTicks(
+    order.map((i) => xs[i]),
+    w,
+  );
   order.forEach((i, k) => {
     const d = spaced[k] - xs[i];
     ticks[i].style.marginLeft = Math.abs(d) < 0.5 ? '' : `${d.toFixed(1)}px`;
@@ -161,14 +164,44 @@ export function TrackItem({ variant, place, frames, label, title, states, presse
 }
 
 /** The playhead's range input on its lane (its own arrows move one frame), time labels under it (decorative). */
-export function Scrubber({ time, max, value, valueText, onChange, marks, testId, label = 'Playhead' }: { time: string; max: number; value: number; valueText: string; onChange: (frame: number) => void; marks?: Array<{ at: number; label: string }>; testId?: string; /** L5.12b: its name (the comments viewer's "Frame"). */ label?: string }) {
+export function Scrubber({
+  time,
+  max,
+  value,
+  valueText,
+  onChange,
+  marks,
+  testId,
+  label = 'Playhead',
+}: {
+  time: string;
+  max: number;
+  value: number;
+  valueText: string;
+  onChange: (frame: number) => void;
+  marks?: Array<{ at: number; label: string }>;
+  testId?: string;
+  /** L5.12b: its name (the comments viewer's "Frame"). */
+  label?: string;
+}) {
   return (
     <div className="k-track k-scrub">
       <span className="k-track-label k-mono" aria-hidden="true">
         {shown(time)}
       </span>
       <div className="k-track-lane k-scrub-lane">
-        <input type="range" className="k-scrubber" data-testid={testId} min={0} max={max} step={1} value={value} aria-label={visibleControls(label)} aria-valuetext={visibleControls(valueText)} onChange={(e) => onChange(Number(e.currentTarget.value))} />
+        <input
+          type="range"
+          className="k-scrubber"
+          data-testid={testId}
+          min={0}
+          max={max}
+          step={1}
+          value={value}
+          aria-label={visibleControls(label)}
+          aria-valuetext={visibleControls(valueText)}
+          onChange={(e) => onChange(Number(e.currentTarget.value))}
+        />
         {marks && marks.length > 0 && (
           <span className="k-scrub-marks" aria-hidden="true">
             {marks.map((m) => (

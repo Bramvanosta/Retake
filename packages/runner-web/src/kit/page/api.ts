@@ -61,7 +61,10 @@ export const api: KitApi = {
   expanded: (id) => deref(id)?.getAttribute('aria-expanded') ?? null,
   outsidePlan,
   blankPoint: (near) => {
-    const p = outsidePlan(near, popupState().map((e) => e.id));
+    const p = outsidePlan(
+      near,
+      popupState().map((e) => e.id),
+    );
     return p ? { x: p.x, y: p.y } : null;
   },
   dragGhost: ghost,

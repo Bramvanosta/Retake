@@ -296,7 +296,14 @@ describe('the bundle server listens on loopback only, and answers its own origin
         expect(await status({ ...own, origin: `http://localhost:${p}` })).toBe(200);
         expect(await status({ ...own, 'sec-fetch-site': 'same-origin' })).toBe(200);
         expect(await status({ ...own, 'sec-fetch-site': 'none' })).toBe(200);
-        const crossOrigin: Array<Record<string, string>> = [{ origin: 'http://evil.example' }, { origin: 'null' }, { origin: `http://127.0.0.1:${p}` }, { origin: `https://localhost:${p}` }, { 'sec-fetch-site': 'cross-site' }, { 'sec-fetch-site': 'same-site' }];
+        const crossOrigin: Array<Record<string, string>> = [
+          { origin: 'http://evil.example' },
+          { origin: 'null' },
+          { origin: `http://127.0.0.1:${p}` },
+          { origin: `https://localhost:${p}` },
+          { 'sec-fetch-site': 'cross-site' },
+          { 'sec-fetch-site': 'same-site' },
+        ];
         for (const extra of crossOrigin) {
           expect(await status({ ...own, ...extra }), JSON.stringify(extra)).toBe(403);
           expect(await status({ ...own, ...extra }, `/proxy?src=${encodeURIComponent('http://127.0.0.1:4982/x.mp4')}&time=0&transparent=false`), JSON.stringify(extra)).toBe(403);
@@ -352,15 +359,19 @@ describe.skipIf(!canRender)('a guarded render whose bundle port has ::1 taken fa
 
   const render = (out: string) => renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 2], concurrency: 1 });
 
-  it('the same render passes without the other listener, fails with it (no file written)', async () => {
-    const ok = await render('control.mp4');
-    expect(ok.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    expect(existsSync(join(ws.root, 'control.mp4'))).toBe(true);
-    const raced = await withIpv6Taken(() => render('raced.mp4'));
-    expect(raced.taken.length).toBeGreaterThanOrEqual(1);
-    expect(raced.outcome.status).toBe('rejected');
-    expect(String((raced.outcome as PromiseRejectedResult).reason?.message)).toMatch(/port/);
-    expect(existsSync(join(ws.root, 'raced.mp4'))).toBe(false);
-    for (const t of raced.taken) expect(listeners(t)).toEqual([]);
-  }, LONG);
+  it(
+    'the same render passes without the other listener, fails with it (no file written)',
+    async () => {
+      const ok = await render('control.mp4');
+      expect(ok.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+      expect(existsSync(join(ws.root, 'control.mp4'))).toBe(true);
+      const raced = await withIpv6Taken(() => render('raced.mp4'));
+      expect(raced.taken.length).toBeGreaterThanOrEqual(1);
+      expect(raced.outcome.status).toBe('rejected');
+      expect(String((raced.outcome as PromiseRejectedResult).reason?.message)).toMatch(/port/);
+      expect(existsSync(join(ws.root, 'raced.mp4'))).toBe(false);
+      for (const t of raced.taken) expect(listeners(t)).toEqual([]);
+    },
+    LONG,
+  );
 });

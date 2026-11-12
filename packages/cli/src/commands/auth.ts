@@ -251,7 +251,9 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
     return opts.check && bad ? EXIT.failure : EXIT.ok;
   }
   if (rows.length === 0) {
-    ui.line(`no personas${opts.project !== undefined ? ` in ${opts.project}` : ' in this workspace'}: name the accounts a project films in auth.personas of its project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`);
+    ui.line(
+      `no personas${opts.project !== undefined ? ` in ${opts.project}` : ' in this workspace'}: name the accounts a project films in auth.personas of its project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`,
+    );
     return EXIT.ok;
   }
   printStates(

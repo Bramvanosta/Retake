@@ -111,7 +111,8 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
     const old = this.memory.files.get(file);
     const current = old === undefined ? null : sha256Hex(old);
     // Checked and written with no await in between: no other write of the Map comes between the two.
-    const conflict = ifMatch === null ? (current !== null ? conflictError(ref, current, 'exists') : undefined) : current !== ifMatch ? conflictError(ref, current, current === null ? 'missing' : 'stale') : undefined;
+    const conflict =
+      ifMatch === null ? (current !== null ? conflictError(ref, current, 'exists') : undefined) : current !== ifMatch ? conflictError(ref, current, current === null ? 'missing' : 'stale') : undefined;
     if (conflict) {
       this.journal({ op: 'write', what, path, if_match: ifMatch, outcome: outcomeOf(conflict) });
       throw conflict;
@@ -184,7 +185,14 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
       throw e;
     }
     const listed = (o.files ? o.files(result) : written).slice();
-    this.journal({ op: 'folder', what: o.what, path, files: listed.slice(0, JOURNAL_FILES_MAX), ...(listed.length > JOURNAL_FILES_MAX ? { files_more: listed.length - JOURNAL_FILES_MAX } : {}), outcome: 'ok' });
+    this.journal({
+      op: 'folder',
+      what: o.what,
+      path,
+      files: listed.slice(0, JOURNAL_FILES_MAX),
+      ...(listed.length > JOURNAL_FILES_MAX ? { files_more: listed.length - JOURNAL_FILES_MAX } : {}),
+      outcome: 'ok',
+    });
     return { result, dir: final, replaced };
   }
 

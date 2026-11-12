@@ -195,11 +195,7 @@ const isBy = (b: unknown): b is JournalBy => !!b && typeof b === 'object' && typ
  * Who wrote the hook surface of `loaded` (the bytes a command read once and runs): see the module comment. `wsRoot`:
  * the workspace the command opened.
  */
-export async function hooksWrittenBy(
-  wsRoot: string,
-  opened: Pick<LoadedProject, 'slug' | 'dir'>,
-  loaded: { file: string; sha256?: string; scenario?: SurfaceOf },
-): Promise<HooksAuthor> {
+export async function hooksWrittenBy(wsRoot: string, opened: Pick<LoadedProject, 'slug' | 'dir'>, loaded: { file: string; sha256?: string; scenario?: SurfaceOf }): Promise<HooksAuthor> {
   if (loaded.sha256 === undefined || !loaded.scenario) return { agent: true, unknown: 'its bytes were not read from a file' };
   // The record of the project that holds the file, whichever project the command opened.
   const project = projectOfFile(loaded.file, opened);
@@ -240,7 +236,8 @@ export async function hooksWrittenBy(
     if ('unreadable' in j) return { agent: true, unknown: `the workspace journal cannot be read (${j.unreadable})` };
     for (const l of 'lines' in j ? j.lines : []) {
       const e = l as Partial<JournalScenarioWrite> & { v?: number; op?: string; what?: string; outcome?: string };
-      if (e?.v !== 1 || e.op !== 'write' || e.what !== 'scenario' || e.outcome !== 'ok' || typeof e.sha256 !== 'string' || typeof e.path !== 'string' || typeof e.at !== 'string' || !isBy(e.by)) continue;
+      if (e?.v !== 1 || e.op !== 'write' || e.what !== 'scenario' || e.outcome !== 'ok' || typeof e.sha256 !== 'string' || typeof e.path !== 'string' || typeof e.at !== 'string' || !isBy(e.by))
+        continue;
       if (recorded.has(e.sha256)) continue;
       if (await sameFile(fileOfLine(root, project, e as JournalScenarioWrite))) writes.push(e as JournalScenarioWrite);
     }
@@ -385,7 +382,12 @@ function sqlSpec(h: HookStep, projectDir: string | undefined): { run: { text: st
  * with its statements (a file's text, read from `projectDir`: the folder a scenario's sql files are read from), its
  * database key and its rollback.
  */
-export function scenarioShellHooks(sc: Pick<Scenario, 'setup' | 'teardown' | 'scenes' | 'hooks'>, project: Pick<LoadedProject, 'config'> & { dir?: string }, tpl: ListingContext, phases: ScenarioHookPhases = ALL_PHASES): ScenarioShellHook[] {
+export function scenarioShellHooks(
+  sc: Pick<Scenario, 'setup' | 'teardown' | 'scenes' | 'hooks'>,
+  project: Pick<LoadedProject, 'config'> & { dir?: string },
+  tpl: ListingContext,
+  phases: ScenarioHookPhases = ALL_PHASES,
+): ScenarioShellHook[] {
   const out: ScenarioShellHook[] = [];
   const add = (h: HookStep, base: Pick<ScenarioShellHook, 'phase' | 'position' | 'named'>) => {
     const q = sqlSpec(h, project.dir);

@@ -27,7 +27,9 @@ export function checkCapture(timeline: Timeline, warnings: MessageList): void {
   const cap = timeline.capture;
   if (!(cap.fps > 0) || !(cap.duration > 0)) throw new PlanError(`run ${timeline.run_id} has no usable capture (fps ${cap.fps}, ${cap.duration} s)`);
   if (cap.cursor === 'hidden') {
-    warnings.add(`run ${timeline.run_id} was captured without its in-page cursor (raw export for editors, run --raw --cursor none|layer): the video shows no cursor — capture without --raw for an edited video`);
+    warnings.add(
+      `run ${timeline.run_id} was captured without its in-page cursor (raw export for editors, run --raw --cursor none|layer): the video shows no cursor — capture without --raw for an edited video`,
+    );
   }
 }
 
@@ -87,7 +89,9 @@ export function planEditInfo(c: Omit<PlanContext, 'video'>): TimelineVideo {
   }
   const literal = literalTokens(timeline, video);
   if (literal.length) {
-    warnings.add(`${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`);
+    warnings.add(
+      `${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`,
+    );
   }
   return video;
 }

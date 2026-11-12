@@ -82,7 +82,10 @@ export function recordCommandLine(cli: string, r: { project: string; scenario?: 
 const hasTemplate = (v: unknown) => v !== undefined && JSON.stringify(v).includes('{{');
 
 /** Check where the recording starts (as the worker will), then queue a `record` job with a reserved recording id. */
-export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitRequest): Promise<{ job: JobRecord; rec_id: string; env: string; page: string; path: string; persona: string | null; warnings: string[] }> {
+export async function submitRecordJob(
+  ctx: SubmitContext,
+  req: RecordSubmitRequest,
+): Promise<{ job: JobRecord; rec_id: string; env: string; page: string; path: string; persona: string | null; warnings: string[] }> {
   checkProjectSlug(req.project);
   checkEnvName(req.env);
   for (const [k, v] of Object.entries({ page: req.page, path: req.path, url: req.url, persona: req.persona })) {
@@ -103,13 +106,17 @@ export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitReque
     path: start.path,
   });
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    throw new EngineError('unavailable', 'a recording opens a browser window for a person and this machine has no display (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen', { fix });
+    throw new EngineError('unavailable', 'a recording opens a browser window for a person and this machine has no display (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen', {
+      fix,
+    });
   }
   // Where it may run (the workspace's protected hosts), as for run_dry.
   await checkWorkspaceProtection(ctx.ws, project, start.env.name, fix);
   const warnings: string[] = [];
-  if (req.scenario !== undefined && project.scenarios.includes(req.scenario)) warnings.push(`scenario ${req.scenario} exists: the draft will be kept in the recording's folder only (not saved over it)`);
-  if (resolveRunAccess(start.env, { allowWrites: false, project }).mode === 'read-only') warnings.push(`environment ${start.env.name} is read-only: writes made in the window are stopped or answered by a mock, as in a dry run`);
+  if (req.scenario !== undefined && project.scenarios.includes(req.scenario))
+    warnings.push(`scenario ${req.scenario} exists: the draft will be kept in the recording's folder only (not saved over it)`);
+  if (resolveRunAccess(start.env, { allowWrites: false, project }).mode === 'read-only')
+    warnings.push(`environment ${start.env.name} is read-only: writes made in the window are stopped or answered by a mock, as in a dry run`);
   const recId = newRecordId();
   const input: RecordJobInput = {
     version: JOB_INPUT_VERSION,

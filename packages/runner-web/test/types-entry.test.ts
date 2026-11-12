@@ -33,7 +33,7 @@ function exportedNames(file: string): { names: string[]; typeOnly: boolean[]; sp
 }
 
 describe('the runner-web types entry', () => {
-  it('is type-only re-exports of the package\'s own modules, and a domain entry', () => {
+  it("is type-only re-exports of the package's own modules, and a domain entry", () => {
     const sf = parse(ENTRY);
     expect(sf.statements.length).toBeGreaterThan(0);
     for (const st of sf.statements) {
@@ -55,7 +55,9 @@ describe('the runner-web types entry', () => {
     const sf = parse(built);
     const specs = rules.specifiersOf(ts, built, sf.text) as string[];
     expect(specs).toEqual([]);
-    expect(sf.statements.filter((s) => !ts.isExportDeclaration(s) || s.exportClause === undefined || !ts.isNamedExports(s.exportClause) || s.exportClause.elements.length > 0).map((s) => s.getText(sf))).toEqual([]);
+    expect(
+      sf.statements.filter((s) => !ts.isExportDeclaration(s) || s.exportClause === undefined || !ts.isNamedExports(s.exportClause) || s.exportClause.elements.length > 0).map((s) => s.getText(sf)),
+    ).toEqual([]);
   });
 
   it('names only what the package root exports', () => {

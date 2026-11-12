@@ -7,7 +7,18 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BROWSER_OPEN_SWITCHES, LINUX_ONLY_SANDBOX_SWITCHES, LOAD_PATH_ENV, NODE_OPTIONS_LOADS, SANDBOX_OFF_SWITCHES, isLoaderEnvName, loadPathSeparator, parseProjectYaml, sandboxOffArgProblem, sandboxSwitchOff } from '@retake/core';
+import {
+  BROWSER_OPEN_SWITCHES,
+  LINUX_ONLY_SANDBOX_SWITCHES,
+  LOAD_PATH_ENV,
+  NODE_OPTIONS_LOADS,
+  SANDBOX_OFF_SWITCHES,
+  isLoaderEnvName,
+  loadPathSeparator,
+  parseProjectYaml,
+  sandboxOffArgProblem,
+  sandboxSwitchOff,
+} from '@retake/core';
 import { loadWorkspaceConfig } from '@retake/core/io';
 
 describe('loader variables', () => {
@@ -74,7 +85,25 @@ describe('loader variables', () => {
   });
 
   it('leaves the variables a hook passes to its command', () => {
-    for (const name of ['SKU', 'API_BASE', 'DATABASE_URL', 'LANG', 'TZ', 'NODE_ENV', 'PATHNAME', 'MY_PATH', 'HOMEPAGE', 'ENVIRONMENT', 'GITHUB_REF_NAME_X', 'JAVA_HOME', 'NPM_TOKEN_NAME', 'R_HOME', 'LUA_VERSION', 'EDITOR_THEME', 'GEMS']) {
+    for (const name of [
+      'SKU',
+      'API_BASE',
+      'DATABASE_URL',
+      'LANG',
+      'TZ',
+      'NODE_ENV',
+      'PATHNAME',
+      'MY_PATH',
+      'HOMEPAGE',
+      'ENVIRONMENT',
+      'GITHUB_REF_NAME_X',
+      'JAVA_HOME',
+      'NPM_TOKEN_NAME',
+      'R_HOME',
+      'LUA_VERSION',
+      'EDITOR_THEME',
+      'GEMS',
+    ]) {
       expect(isLoaderEnvName(name), name).toBe(false);
     }
   });
@@ -98,10 +127,24 @@ describe('Chromium switches that turn the sandbox or site isolation off', () => 
       }
     }
     expect(SANDBOX_OFF_SWITCHES).toEqual(expect.arrayContaining(['no-sandbox', 'disable-setuid-sandbox', 'disable-gpu-sandbox', 'no-zygote', 'single-process', 'disable-site-isolation-trials']));
-    for (const arg of ['--disable-features=IsolateOrigins', '--disable-features=Translate,site-per-process', '--disable-features=SitePerProcess<Study', '--disable-features=MediaRouter, isolate_origins:x/1']) {
+    for (const arg of [
+      '--disable-features=IsolateOrigins',
+      '--disable-features=Translate,site-per-process',
+      '--disable-features=SitePerProcess<Study',
+      '--disable-features=MediaRouter, isolate_origins:x/1',
+    ]) {
       expect(sandboxOffArgProblem(arg), arg).toMatch(/^--disable-features=\S+ turns Chromium's site isolation off/);
     }
-    for (const arg of ['--hide-scrollbars', '--disable-features=Translate,MediaRouter', '--enable-features=SitePerProcess', '--sandbox', '--no-sandbox-x', 'no-sandbox', '--lang=fr', '--window-size=1280,800']) {
+    for (const arg of [
+      '--hide-scrollbars',
+      '--disable-features=Translate,MediaRouter',
+      '--enable-features=SitePerProcess',
+      '--sandbox',
+      '--no-sandbox-x',
+      'no-sandbox',
+      '--lang=fr',
+      '--window-size=1280,800',
+    ]) {
       expect(sandboxOffArgProblem(arg), arg).toBeNull();
     }
   });
@@ -111,7 +154,9 @@ describe('Chromium switches that turn the sandbox or site isolation off', () => 
     expect(Object.keys(BROWSER_OPEN_SWITCHES).sort()).toEqual([...open].sort());
     for (const name of open) {
       for (const arg of [`--${name}`, `-${name}=/tmp/x`, ` --${name.toUpperCase()}=9222`]) {
-        expect(sandboxOffArgProblem(arg), arg).toMatch(new RegExp(`^--${name} (?:turns Chromium's same-origin policy off|starts Chromium's .* (?:through|from) another program|opens a debugging port) .*remove it from browser\\.args`));
+        expect(sandboxOffArgProblem(arg), arg).toMatch(
+          new RegExp(`^--${name} (?:turns Chromium's same-origin policy off|starts Chromium's .* (?:through|from) another program|opens a debugging port) .*remove it from browser\\.args`),
+        );
         expect(sandboxSwitchOff(arg), arg).toBeNull();
       }
     }
@@ -128,7 +173,15 @@ describe('Chromium switches that turn the sandbox or site isolation off', () => 
   });
 
   it('project.yaml and retake.yaml refuse them in browser.args, at their line', async () => {
-    const { config, issues } = parseProjectYaml(['name: Demo', 'environments: {local: {app: "http://localhost:3000"}}', 'browser:', '  args: [--lang=fr, --no-sandbox, "--disable-features=IsolateOrigins", --remote-debugging-port=9222]', ''].join('\n'));
+    const { config, issues } = parseProjectYaml(
+      [
+        'name: Demo',
+        'environments: {local: {app: "http://localhost:3000"}}',
+        'browser:',
+        '  args: [--lang=fr, --no-sandbox, "--disable-features=IsolateOrigins", --remote-debugging-port=9222]',
+        '',
+      ].join('\n'),
+    );
     expect(config).toBeUndefined();
     expect(issues.filter((i) => i.severity === 'error').map((i) => `${i.path.join('.')}@${i.line}: ${i.message}`)).toEqual([
       expect.stringMatching(/^browser\.args\.1@4: --no-sandbox turns Chromium's sandbox off/),

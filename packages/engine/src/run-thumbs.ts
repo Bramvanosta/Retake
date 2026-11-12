@@ -148,9 +148,7 @@ export interface RunThumbsOptions {
   ffmpegTimeoutMs?: number;
 }
 
-type Plan =
-  | { kind: 'file'; key: string; rel: string; max: number; from: ThumbSource }
-  | { kind: 'video'; key: string; video: string; seconds: number };
+type Plan = { kind: 'file'; key: string; rel: string; max: number; from: ThumbSource } | { kind: 'video'; key: string; video: string; seconds: number };
 
 /** The thumbnail service of one engine (its caches and its process slots). */
 export class RunThumbs {
@@ -291,7 +289,12 @@ export class RunThumbs {
         const open = run.folder.openVideo(video, batch.length);
         if (!open.ok) return null;
         try {
-          return await this.ffmpegFrames(r, { fds: open.fds }, batch.map((p) => p.seconds), signal);
+          return await this.ffmpegFrames(
+            r,
+            { fds: open.fds },
+            batch.map((p) => p.seconds),
+            signal,
+          );
         } finally {
           for (const fd of open.fds) closeSync(fd);
         }

@@ -117,7 +117,15 @@ export async function videoFramesAt(input: VideoInput, seconds: readonly number[
   });
   const stdio: Array<'ignore' | 'pipe' | number> = ['ignore', 'ignore', 'pipe', ...(fds ?? []), ...seconds.map(() => 'pipe' as const)];
   // `exit`, not `close`: a process killed while something it started still holds its pipes must not hold this call.
-  const tool = startMediaTool(ffmpegBin(o.policy, o.ffmpeg), args, { stdio, ...(o.signal ? { signal: o.signal } : {}), cancelSignal: 'SIGKILL', timeoutMs: o.timeoutMs ?? 10_000, timeoutSignal: 'SIGKILL', stderr: { keep: 'head', max: 2000 }, settle: 'exit' });
+  const tool = startMediaTool(ffmpegBin(o.policy, o.ffmpeg), args, {
+    stdio,
+    ...(o.signal ? { signal: o.signal } : {}),
+    cancelSignal: 'SIGKILL',
+    timeoutMs: o.timeoutMs ?? 10_000,
+    timeoutSignal: 'SIGKILL',
+    stderr: { keep: 'head', max: 2000 },
+    settle: 'exit',
+  });
   const proc = tool.child;
   const outputs = seconds.map((_s, i) => {
     const out = proc.stdio[out0 + i] as Readable | null | undefined;

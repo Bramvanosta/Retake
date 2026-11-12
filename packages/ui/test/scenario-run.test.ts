@@ -103,7 +103,9 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
   });
 
   it('a blocked capture (quote: hooks needing a person) → 403 as the screen showed before the click, Studio wording, the command; nothing queued', async () => {
-    const view = (await call('scenario_blocks', { project: P, name: 'quote' })).json<{ data: { run_blockers: { capture: Array<{ code: string; message: string; fix?: string; fix_node?: string }> } } }>().data;
+    const view = (await call('scenario_blocks', { project: P, name: 'quote' })).json<{
+      data: { run_blockers: { capture: Array<{ code: string; message: string; fix?: string; fix_node?: string }> } };
+    }>().data;
     expect(view.run_blockers.capture).toHaveLength(1);
     const jobs = await jobFiles();
     const runs = await runDirs();
@@ -112,7 +114,7 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     const e = r.json<Fail>().error;
     expect(e.code).toBe('needs_approval');
     // L5.11a: the blocker also says which gate refused (`kind`, `count`: the status bar's words) — the refusal does not.
-    const { fix_node, kind, count, ...shown } = view.run_blockers.capture[0] as typeof view.run_blockers.capture[0] & { kind?: string; count?: number };
+    const { fix_node, kind, count, ...shown } = view.run_blockers.capture[0] as (typeof view.run_blockers.capture)[0] & { kind?: string; count?: number };
     expect([kind, count]).toEqual(['needs_approval', 1]);
     expect({ code: e.code, message: e.message, fix: e.fix }).toEqual(shown);
     // The same command for a person without `retake` on their PATH (review B L6).
@@ -211,7 +213,8 @@ describe('the worker the Studio starts (critique B5)', () => {
       () => false,
     );
     expect(env.PATH).toBe(['/node/bin', '/usr/local/bin', '/opt/tools/bin'].join(delimiter));
-    for (const k of ['npm_config__authToken', 'npm_lifecycle_event', 'PNPM_SCRIPT_SRC_DIR', 'INIT_CWD', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'RETAKE_MCP_TOKEN']) expect(env[k], k).toBeUndefined();
+    for (const k of ['npm_config__authToken', 'npm_lifecycle_event', 'PNPM_SCRIPT_SRC_DIR', 'INIT_CWD', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'RETAKE_MCP_TOKEN'])
+      expect(env[k], k).toBeUndefined();
     expect(env.RETAKE_HOME).toBe(join(process.cwd(), 'rel/home'));
     expect(env.NORTHFIELD_SUPPLIER_PASSWORD).toBe('kept');
     expect(env.HOME).toBe('/Users/someone');
@@ -223,7 +226,12 @@ describe('the worker the Studio starts (critique B5)', () => {
       seen.push({ command, args, env: options.env ?? {}, cwd: options.cwd, detached: options.detached });
       return { pid: 4242, on: () => undefined, unref: () => undefined } as unknown as ReturnType<WorkerSpawnFn>;
     };
-    const saved = { PATH: process.env.PATH, npm_config__authToken: process.env.npm_config__authToken, RETAKE_MCP_TOKEN: process.env.RETAKE_MCP_TOKEN, NORTHFIELD_SUPPLIER_PASSWORD: process.env.NORTHFIELD_SUPPLIER_PASSWORD };
+    const saved = {
+      PATH: process.env.PATH,
+      npm_config__authToken: process.env.npm_config__authToken,
+      RETAKE_MCP_TOKEN: process.env.RETAKE_MCP_TOKEN,
+      NORTHFIELD_SUPPLIER_PASSWORD: process.env.NORTHFIELD_SUPPLIER_PASSWORD,
+    };
     process.env.PATH = [join(ws, 'node_modules', '.bin'), join(ws, 'bin'), process.env.PATH ?? ''].join(delimiter);
     process.env.npm_config__authToken = 'npm-secret';
     process.env.RETAKE_MCP_TOKEN = 'mcp-secret';

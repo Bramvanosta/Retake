@@ -109,7 +109,10 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     await mkdir(join(dir, 'sandbox'), { recursive: true });
     await writeFile(join(dir, 'sandbox', 'service.mjs'), SERVICE);
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest(RESET));
-    await writeFile(join(dir, 'project.yaml'), ['name: S', 'environments:', `  local: {app: "http://localhost:${port}"}`, 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', 'default_env: local', 'template: default', ''].join('\n'));
+    await writeFile(
+      join(dir, 'project.yaml'),
+      ['name: S', 'environments:', `  local: {app: "http://localhost:${port}"}`, 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', 'default_env: local', 'template: default', ''].join('\n'),
+    );
     engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
   }, 60_000);
 
@@ -124,7 +127,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 
-  it('the items: the seed\'s shell step, then the shell reset hook — phase reset, its position among the reset hooks, the fingerprint the sandbox checks', async () => {
+  it("the items: the seed's shell step, then the shell reset hook — phase reset, its position among the reset hooks, the fingerprint the sandbox checks", async () => {
     const p = await project();
     const items = await seedApprovalItems(p, 'sandbox', packageHookRunner());
     expect(items.map((i) => [i.phase, i.index, i.name, i.kind, i.reason])).toEqual([
@@ -136,14 +139,28 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     expect(items[1].lines.join('\n')).toContain(RESET);
   });
 
-  it('an `exec` step is asked about nowhere, yet keeps its position: the seed\'s and the reset hooks\' indexes, each within its list, are those runSeed checks', async () => {
+  it("an `exec` step is asked about nowhere, yet keeps its position: the seed's and the reset hooks' indexes, each within its list, are those runSeed checks", async () => {
     const c = join(ws, 'projects', 'c');
     await mkdir(join(c, 'sandbox'), { recursive: true });
     await writeFile(join(c, 'project.yaml'), ['name: C', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', 'template: default', ''].join('\n'));
     await writeFile(join(c, 'sandbox', 'compose.yaml'), ['services:', '  app: {image: busybox:1.38.0}', ''].join('\n'));
     await writeFile(
       join(c, 'sandbox', 'sandbox.yaml'),
-      ['version: 1', 'provider: docker-compose', 'services:', '  app: {url: "http://localhost:4790", health: false, pages: {app: "http://localhost:4790"}}', 'seed:', '  - exec: {service: app, command: "true"}', '  - shell: {run: "echo seeded"}', 'reset:', '  hooks:', '    - exec: {service: app, command: "true"}', '    - name: after-exec', '      shell: {run: "echo reset"}', ''].join('\n'),
+      [
+        'version: 1',
+        'provider: docker-compose',
+        'services:',
+        '  app: {url: "http://localhost:4790", health: false, pages: {app: "http://localhost:4790"}}',
+        'seed:',
+        '  - exec: {service: app, command: "true"}',
+        '  - shell: {run: "echo seeded"}',
+        'reset:',
+        '  hooks:',
+        '    - exec: {service: app, command: "true"}',
+        '    - name: after-exec',
+        '      shell: {run: "echo reset"}',
+        '',
+      ].join('\n'),
     );
     const p = await loadProject('c', ws);
     const items = await seedApprovalItems(p, 'sandbox', packageHookRunner());
@@ -154,7 +171,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     expect(items[1].fingerprint).toBe(hookFingerprint(p.sandboxes!.sandbox.manifest.reset!.hooks![1] as never, { phase: 'reset', index: 1, env: 'sandbox' }));
   });
 
-  it('a person\'s own up and reset (no trust): the reset hook runs, as before', async () => {
+  it("a person's own up and reset (no trust): the reset hook runs, as before", async () => {
     sb = openSandbox(await project(), 'sandbox', PERSON_POLICY);
     const up = await sb.up();
     expect(up.reset).toMatchObject({ hooks: { steps: 2 } });
@@ -169,7 +186,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     expect([await marker('seed-marker.txt'), await marker('reset-marker.txt')]).toEqual([3, 3]);
   }, 60_000);
 
-  it('the reset hook not approved (only the seed\'s step): refused, it does not run', async () => {
+  it("the reset hook not approved (only the seed's step): refused, it does not run", async () => {
     const items = await seedApprovalItems(await project(), 'sandbox', packageHookRunner());
     const r = await agentReset(approvalsOf(items.filter((i) => i.phase === 'seed')));
     expect(r).toMatch(/^refused: sandbox sandbox: reset hook step 2\/2/);
@@ -194,7 +211,10 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     // seed's two steps it would have been index 3).
     const approved = approvalsOf(await seedApprovalItems(await project(), 'sandbox', packageHookRunner()));
     const grown = manifest(RESET)
-      .replace("    shell: {run: \"echo seeded >> seed-marker.txt\"}\n", `    shell: {run: "echo seeded >> seed-marker.txt"}\n  - name: pad\n    http: {url: "{{app}}/health"}\n  - name: clean\n    shell: {run: "${RESET}"}\n`)
+      .replace(
+        '    shell: {run: "echo seeded >> seed-marker.txt"}\n',
+        `    shell: {run: "echo seeded >> seed-marker.txt"}\n  - name: pad\n    http: {url: "{{app}}/health"}\n  - name: clean\n    shell: {run: "${RESET}"}\n`,
+      )
       .replace(/reset:\n  hooks:\n(?:    .*\n|      .*\n)*/, '');
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), grown);
     try {

@@ -18,7 +18,18 @@ import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { agentShellCwdProblems, agentShellProblems, agentWritablePath, childEnv, policyArgsProblems, policyChildEnv, policyProgram, programProblem, workPolicyFrom, workspaceFolders } from '@retake/core';
+import {
+  agentShellCwdProblems,
+  agentShellProblems,
+  agentWritablePath,
+  childEnv,
+  policyArgsProblems,
+  policyChildEnv,
+  policyProgram,
+  programProblem,
+  workPolicyFrom,
+  workspaceFolders,
+} from '@retake/core';
 import type { RenderSettings, WorkPolicy } from '@retake/core';
 import { ffmpegBin, ffprobeBin, nodeFileFacts } from '@retake/core/io';
 
@@ -44,7 +55,12 @@ const folders = workspaceFolders({ root: ws, projectsDir: join(ws, 'projects'), 
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const files = nodeFileFacts;
 
-const shown = (v: unknown): unknown => JSON.parse(JSON.stringify(v ?? null).split(tmp).join('<tmp>'));
+const shown = (v: unknown): unknown =>
+  JSON.parse(
+    JSON.stringify(v ?? null)
+      .split(tmp)
+      .join('<tmp>'),
+  );
 const attempt = (f: () => unknown): unknown => {
   try {
     return { ok: shown(f()) };
@@ -76,7 +92,15 @@ const PROGRAMS: Array<[string, string, string?]> = [
   ['empty', '  '],
 ];
 const ARGS = [['--hide-scrollbars', 'https://example.com/'], ['--no-sandbox'], ['--user-data-dir=/x'], ['--headless=new', '--lang=fr'], ['--enable-features=SitePerProcess'], []];
-const SOURCE = { PATH: [join(ws, 'bin'), join(outside, 'bin'), 'bin', '/usr/bin'].join(delimiter), HOME: '/home/x', TOKEN: 's3cret', DATABASE_URL: 'postgres://x', DOCKER_HOST: 'unix:///x', DOCKER_PASSWORD: 'p', NODE_OPTIONS: '--require x' };
+const SOURCE = {
+  PATH: [join(ws, 'bin'), join(outside, 'bin'), 'bin', '/usr/bin'].join(delimiter),
+  HOME: '/home/x',
+  TOKEN: 's3cret',
+  DATABASE_URL: 'postgres://x',
+  DOCKER_HOST: 'unix:///x',
+  DOCKER_PASSWORD: 'p',
+  NODE_OPTIONS: '--require x',
+};
 const FFMPEG: Array<[string, string | undefined, string | undefined]> = [
   ['none', undefined, undefined],
   ['retake.yaml inside', join(ws, 'bin', 'tool'), undefined],
@@ -106,7 +130,9 @@ function decisions(on: boolean): Record<string, unknown> {
   try {
     return decide(on);
   } finally {
-    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    for (const [k, v] of Object.entries(saved))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
   }
 }
 
@@ -120,7 +146,12 @@ function decide(on: boolean): Record<string, unknown> {
   }
   out.args = shown(ARGS.map((a) => policyArgsProblems(policy, a)));
   // `childEnv`: what a caller under this policy gets with its folders (hooks' unsigned rollbacks), as the process-wide default gave.
-  out.env = shown({ plain: policyChildEnv(policy, SOURCE, { pass: ['DATABASE_URL', 'NODE_OPTIONS'], files }), docker: policyChildEnv(policy, SOURCE, { docker: true, files }), childEnv: childEnv(SOURCE, { folders: policy.agentFolders ?? [], files }), childEnvFolders: childEnv(SOURCE, { folders: [outside], files }) });
+  out.env = shown({
+    plain: policyChildEnv(policy, SOURCE, { pass: ['DATABASE_URL', 'NODE_OPTIONS'], files }),
+    docker: policyChildEnv(policy, SOURCE, { docker: true, files }),
+    childEnv: childEnv(SOURCE, { folders: policy.agentFolders ?? [], files }),
+    childEnvFolders: childEnv(SOURCE, { folders: [outside], files }),
+  });
   for (const [name, configured, explicit] of FFMPEG) {
     const p = at(configured);
     out[`ffmpeg: ${name}`] = { ffmpeg: attempt(() => ffmpegBin(p, explicit)), ffprobe: attempt(() => ffprobeBin(p, explicit)) };
@@ -143,8 +174,36 @@ const project = join(ws, 'projects', 'p');
 for (const d of [join(project, 'runs', 'r1'), join(project, 'scenarios'), join(project, 'hooks'), join(ws, 'projects', 'q', 'runs')]) mkdirSync(d, { recursive: true });
 symlinkSync(join(project, 'runs'), join(project, 'tools'));
 symlinkSync(join(project, 'runs', 'r1'), join(outside, 'into-runs'));
-const SHELL_PATHS = ['runs/r1/a.sh', './scenarios/../hooks/a.sh', 'hooks/a.sh', 'README.md', 'RUNS/r1/a.sh', '../q/runs/a.sh', '../q/hooks/a.sh', 'tools/a.sh', join(outside, 'into-runs', 'a.sh'), `file://${project}/README.md`, '~/x.sh', '~', '/etc/hosts', 'missing/deeper/a.sh'];
-const SHELL_COMMANDS = ['sh runs/r1/a.sh', 'cat README.md && ls', 'node scenarios/x.js', 'bash hooks/a.sh', 'sh tools/a.sh', 'sh ../q/runs/a.sh', 'psql -f runs/r1/x.sql', 'cp a b; rm c', 'echo $HOME', 'node -e 1', 'npx something', 'ls /etc'];
+const SHELL_PATHS = [
+  'runs/r1/a.sh',
+  './scenarios/../hooks/a.sh',
+  'hooks/a.sh',
+  'README.md',
+  'RUNS/r1/a.sh',
+  '../q/runs/a.sh',
+  '../q/hooks/a.sh',
+  'tools/a.sh',
+  join(outside, 'into-runs', 'a.sh'),
+  `file://${project}/README.md`,
+  '~/x.sh',
+  '~',
+  '/etc/hosts',
+  'missing/deeper/a.sh',
+];
+const SHELL_COMMANDS = [
+  'sh runs/r1/a.sh',
+  'cat README.md && ls',
+  'node scenarios/x.js',
+  'bash hooks/a.sh',
+  'sh tools/a.sh',
+  'sh ../q/runs/a.sh',
+  'psql -f runs/r1/x.sql',
+  'cp a b; rm c',
+  'echo $HOME',
+  'node -e 1',
+  'npx something',
+  'ls /etc',
+];
 const SHELL_CWDS = ['.', 'runs', 'hooks', 'tools/r1', '../q/runs', 'two words'];
 
 /** The paths and commands of an agent-written shell hook (the same with the policy on or off: these rules are for agent text). */

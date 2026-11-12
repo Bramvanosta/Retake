@@ -16,19 +16,7 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  FileJobQueue,
-  RECORD_KEEP,
-  createEngine,
-  historyFile,
-  jobsDir,
-  newRecordId,
-  openProject,
-  openWorkspace,
-  pruneRecords,
-  recordsRoot,
-  runWorker,
-} from '../src/index.js';
+import { FileJobQueue, RECORD_KEEP, createEngine, historyFile, jobsDir, newRecordId, openProject, openWorkspace, pruneRecords, recordsRoot, runWorker } from '../src/index.js';
 import type { Engine, EngineError, JobRecord, RecordJobResult, RecordWindow } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
@@ -84,8 +72,7 @@ function workInMemory(during: NonNullable<MemoryRecordOptions['during']>): Promi
 }
 
 /** Resolves once `signal` is aborted. */
-const aborted = (signal: AbortSignal | undefined): Promise<void> =>
-  new Promise((done) => (!signal || signal.aborted ? done() : signal.addEventListener('abort', () => done(), { once: true })));
+const aborted = (signal: AbortSignal | undefined): Promise<void> => new Promise((done) => (!signal || signal.aborted ? done() : signal.addEventListener('abort', () => done(), { once: true })));
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
   const e = await p.then(
@@ -211,9 +198,21 @@ describe('record jobs: run by the worker', () => {
       expect(text, f).not.toContain(sentinel);
       expect(text, f).not.toContain('Two bags');
     }
-    const lines = (await readFile(historyFile(root), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    const lines = (await readFile(historyFile(root), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
     const mine = lines.filter((l) => (l.record as { id?: string } | undefined)?.id === sub.rec_id);
-    expect(mine).toEqual([expect.objectContaining({ job: job.id, kind: 'record', submitted_by: 'test', state: 'succeeded', record: { id: sub.rec_id, steps: r.stats.steps, saved: true }, counted: { captures: 0, dry_runs: 0, renders: 0 } })]);
+    expect(mine).toEqual([
+      expect.objectContaining({
+        job: job.id,
+        kind: 'record',
+        submitted_by: 'test',
+        state: 'succeeded',
+        record: { id: sub.rec_id, steps: r.stats.steps, saved: true },
+        counted: { captures: 0, dry_runs: 0, renders: 0 },
+      }),
+    ]);
     const p = await openProject(await openWorkspace({ root, agent: false }), PROJECT);
     for (const f of [...(await files(r.dir!)), join(p.dir, 'scenarios', 'lab-job.yaml'), historyFile(root)]) {
       expect((await readFile(f)).includes(sentinel), f).toBe(false);
@@ -266,14 +265,24 @@ describe('record jobs: folders and interruptions', () => {
 
   it('an interrupted record job says the window closed with it and names `retake record`', async () => {
     const q = new FileJobQueue(join(root, 'q-int'), 'retake -C /ws');
-    const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: newRecordId(), env: 'local', source: { page: 'shop', path: '/products' }, scenario: 'mine', check: true, submitted_by: 'mcp' });
+    const job = await q.enqueue({
+      version: 1,
+      kind: 'record',
+      project: PROJECT,
+      rec_id: newRecordId(),
+      env: 'local',
+      source: { page: 'shop', path: '/products' },
+      scenario: 'mine',
+      check: true,
+      submitted_by: 'mcp',
+    });
     const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
     const running: JobRecord = { ...job, state: 'running', started_at: new Date().toISOString(), worker: { pid: dead, host: 'h' } };
     await q.write(running);
     const got = await q.get(job.id);
     expect(got?.state).toBe('interrupted');
     expect(got?.error?.message).toMatch(/The recording stopped with it: no draft was made/);
-    expect(got?.error?.fix).toBe("retake -C /ws record northfield-fixture mine --env local --page shop --path /products");
+    expect(got?.error?.fix).toBe('retake -C /ws record northfield-fixture mine --env local --page shop --path /products');
   });
 
   it('interrupted after the window closed: the message names the draft that was made (check) or being made (draft)', async () => {
@@ -285,7 +294,13 @@ describe('record jobs: folders and interruptions', () => {
       ['recording · 3 actions', /no draft was made/],
     ] as const) {
       const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: newRecordId(), env: 'local', source: { page: 'shop', path: '/' }, check: true, submitted_by: 'mcp' });
-      await q.write({ ...job, state: 'running', started_at: new Date().toISOString(), worker: { pid: dead, host: 'h' }, progress: { steps_done: 0, steps_total: 0, phase, updated_at: new Date().toISOString() } });
+      await q.write({
+        ...job,
+        state: 'running',
+        started_at: new Date().toISOString(),
+        worker: { pid: dead, host: 'h' },
+        progress: { steps_done: 0, steps_total: 0, phase, updated_at: new Date().toISOString() },
+      });
       const got = await q.get(job.id);
       expect(got?.state).toBe('interrupted');
       expect(got?.error?.message, phase).toMatch(re);

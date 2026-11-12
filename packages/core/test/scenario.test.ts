@@ -34,10 +34,7 @@ describe('docs/SPEC.md §6 example', () => {
     const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { files: fileFacts(PERSON_POLICY), file: 'catalogue.yaml', project: fakeProject() });
     expect(s).toBeUndefined();
     const es = errors(issues);
-    expect(es.map((w) => w.message)).toEqual([
-      'SQL file "hooks/remove-registry-refs.sql" not found in the project',
-      'SQL file "hooks/restore-registry-refs.sql" not found in the project',
-    ]);
+    expect(es.map((w) => w.message)).toEqual(['SQL file "hooks/remove-registry-refs.sql" not found in the project', 'SQL file "hooks/restore-registry-refs.sql" not found in the project']);
     expect(es[0].line).toBe(lineOf(SPEC_EXAMPLE, 'sql: hooks/remove-registry-refs.sql'));
   });
 
@@ -104,9 +101,7 @@ describe('structural errors are precise and positioned', () => {
     expect(e.message).toBe('unknown key "txt" (did you mean "text"?)');
     expect(e.line).toBe(lineOf(text, 'txt: New import'));
     expect(e.col).toBe(colOf(text, 'txt: New import'));
-    expect(formatIssues([e], 'catalogue.yaml')).toBe(
-      `catalogue.yaml:${e.line}:${e.col} error scenes[0].steps[1].click: unknown key "txt" (did you mean "text"?)`,
-    );
+    expect(formatIssues([e], 'catalogue.yaml')).toBe(`catalogue.yaml:${e.line}:${e.col} error scenes[0].steps[1].click: unknown key "txt" (did you mean "text"?)`);
   });
 
   it('wrong type points at the value', () => {
@@ -114,10 +109,7 @@ describe('structural errors are precise and positioned', () => {
     const { issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project });
     expect(errors(issues).map((i) => [formatIssues([i]), i.col])).toEqual([
       [`${lineOf(text, 'wait: soon')}:15 error scenes[0].steps[0].wait: expected a number, got "soon"`, 15],
-      [
-        `${lineOf(text, 'duration: fast')}:${colOf(text, 'fast')} error scenes[0].steps[1].scroll.duration: expected a number, got "fast"`,
-        colOf(text, 'fast'),
-      ],
+      [`${lineOf(text, 'duration: fast')}:${colOf(text, 'fast')} error scenes[0].steps[1].scroll.duration: expected a number, got "fast"`, colOf(text, 'fast')],
     ]);
   });
 
@@ -168,26 +160,13 @@ describe('structural errors are precise and positioned', () => {
   it('ranges: speed (0, 8], camera zoom [1, 3] and duration ≥ 0.8', () => {
     const text = scenario('      - click: Save\n        speed: 10\n        camera: {zoom: 4, duration: 0.3}\n');
     const msgs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
-    expect(msgs).toEqual([
-      'scenes.0.steps.0.speed: must be ≤ 8, got 10',
-      'scenes.0.steps.0.camera.zoom: must be ≤ 3, got 4',
-      'scenes.0.steps.0.camera.duration: must be ≥ 0.8, got 0.3',
-    ]);
+    expect(msgs).toEqual(['scenes.0.steps.0.speed: must be ≤ 8, got 10', 'scenes.0.steps.0.camera.zoom: must be ≤ 3, got 4', 'scenes.0.steps.0.camera.duration: must be ≥ 0.8, got 0.3']);
     const zero = parseScenario(scenario('      - click: Save\n        speed: 0\n'), { files: fileFacts(PERSON_POLICY), project });
     expect(only(zero.issues).message).toBe('must be > 0, got 0');
   });
 
   it('unknown scene keys, interstitial without text, scene kind dispatch', () => {
-    const text = [
-      'video: demo',
-      'scenes:',
-      '  - id: a',
-      '    open: /',
-      '    stepz: []',
-      '  - interstitial: {kicker: Later}',
-      '  - interstitial: {text: Later}',
-      '    steps: []',
-    ].join('\n');
+    const text = ['video: demo', 'scenes:', '  - id: a', '    open: /', '    stepz: []', '  - interstitial: {kicker: Later}', '  - interstitial: {text: Later}', '    steps: []'].join('\n');
     const msgs = errors(parseScenario(text).issues).map((i) => `${i.line} ${i.path.join('.')}: ${i.message}`);
     expect(msgs).toEqual([
       '5 scenes.0: unknown key "stepz" (did you mean "steps"?)',
@@ -234,27 +213,13 @@ describe('semantic checks', () => {
   it('page keys of open steps and js hooks', () => {
     const text = scenario('      - open: {url: /x, page: shopp}\n', 'setup:\n  - js: {code: "return 1", page: admin}\n');
     const msgs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => i.message);
-    expect(msgs).toEqual([
-      'unknown page "admin" (available: console, shop)',
-      'unknown page "shopp" in environment "staging" (did you mean "shop"?) (available: console, shop)',
-    ]);
+    expect(msgs).toEqual(['unknown page "admin" (available: console, shop)', 'unknown page "shopp" in environment "staging" (did you mean "shop"?) (available: console, shop)']);
   });
 
   it('duplicate scene and step ids', () => {
-    const text = [
-      'video: demo',
-      'scenes:',
-      '  - id: a',
-      '    open: /',
-      '    steps: [{click: Save, id: save}]',
-      '  - id: a',
-      '    steps: [{click: Save, id: save}]',
-    ].join('\n');
+    const text = ['video: demo', 'scenes:', '  - id: a', '    open: /', '    steps: [{click: Save, id: save}]', '  - id: a', '    steps: [{click: Save, id: save}]'].join('\n');
     const msgs = errors(parseScenario(text).issues).map((i) => `${i.line} ${i.message}`);
-    expect(msgs).toEqual([
-      '6 duplicate scene id "a" (already used by scenes[0])',
-      '7 duplicate step id "save" (already used at scenes[0].steps[0])',
-    ]);
+    expect(msgs).toEqual(['6 duplicate scene id "a" (already used by scenes[0])', '7 duplicate step id "save" (already used at scenes[0].steps[0])']);
   });
 
   it('slug-like ids', () => {
@@ -341,12 +306,7 @@ describe('semantic checks', () => {
     try {
       await writeFiles(dir, { 'assets/price-list.xlsx': 'x' });
       const text = scenario(
-        [
-          '      - drop_file: {zone: "#drop", path: assets/price-list.xlsx}',
-          '      - drop_file: {zone: "#drop", path: assets/missing.xlsx}',
-          '      - eval: {file: hooks/missing.js}',
-          '',
-        ].join('\n'),
+        ['      - drop_file: {zone: "#drop", path: assets/price-list.xlsx}', '      - drop_file: {zone: "#drop", path: assets/missing.xlsx}', '      - eval: {file: hooks/missing.js}', ''].join('\n'),
         'music: {file: assets/bed.mp3}\n',
       );
       const msgs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project: fakeProject(dir) }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -424,9 +384,7 @@ describe('semantic checks', () => {
 
   it('template tokens must exist', () => {
     const head = 'vars: {product: geisha}\nsetup:\n  - http: {method: POST, url: "{{consle}}/api/{{vars.prodct}}/{{env:TOKEN}}/{{run.id}}/{{run.dir}}/{{run.name}}"}\n';
-    const msgs = errors(parseScenario(scenario('      - open: "/p/{{vars.product}}"\n', head), { files: fileFacts(PERSON_POLICY), project }).issues).map(
-      (i) => i.message,
-    );
+    const msgs = errors(parseScenario(scenario('      - open: "/p/{{vars.product}}"\n', head), { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => i.message);
     expect(msgs).toEqual([
       'unknown template key {{consle}} (did you mean "console"?); available: console, shop, vars.product, env:VAR, keychain:service/account',
       'unknown variable {{vars.prodct}} (did you mean "product"?); declared: product',
@@ -493,14 +451,7 @@ describe('semantic checks', () => {
   });
 
   it('warnings: zoom above max_zoom, first scene without open, video vs file name', () => {
-    const text = [
-      'video: demo',
-      'scenes:',
-      '  - id: a',
-      '    steps:',
-      '      - click: Save',
-      '        camera: {zoom: 1.8}',
-    ].join('\n');
+    const text = ['video: demo', 'scenes:', '  - id: a', '    steps:', '      - click: Save', '        camera: {zoom: 1.8}'].join('\n');
     const { scenario: s, issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project, file: 'other.yaml' });
     expect(s).toBeDefined();
     expect(warnings(issues).map((i) => i.message)).toEqual([
@@ -545,9 +496,7 @@ describe('semantic checks', () => {
       '',
     ].join('\n');
     const { issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project });
-    expect(errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual([
-      'scenes.5.cursor: target needs at least one of text, contains, role, label, aria, placeholder, css or testid',
-    ]);
+    expect(errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual(['scenes.5.cursor: target needs at least one of text, contains, role, label, aria, placeholder, css or testid']);
     expect(warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual([
       'scenes.0.cursor: `cursor: keep` on the first scene: there is no previous position, it behaves like `auto`',
       'scenes.4.cursor: point (2400, 40) is outside the 1920×1080 viewport: it is clamped inside',
@@ -568,7 +517,7 @@ describe('semantic checks', () => {
 });
 
 describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', () => {
-  it('compares scenarios/<name>.yaml, else .yml, with the run\'s snapshot; undefined when either is missing', async () => {
+  it("compares scenarios/<name>.yaml, else .yml, with the run's snapshot; undefined when either is missing", async () => {
     const { dir, cleanup } = await tempDir();
     try {
       const run = `${dir}/runs/20260101-120000-quote`;
@@ -665,8 +614,11 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
 });
 
 describe('hook names and env names a person reads', () => {
-  it('a control character in a hook name or a shell hook\'s env name is an error; other characters are kept', () => {
-    const bad = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: "seed\\n   run: pnpm run seed"\n    shell: {run: echo ok, env: {"A\\tB": x}}\n'), { files: fileFacts(PERSON_POLICY), project: fakeProject() });
+  it("a control character in a hook name or a shell hook's env name is an error; other characters are kept", () => {
+    const bad = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: "seed\\n   run: pnpm run seed"\n    shell: {run: echo ok, env: {"A\\tB": x}}\n'), {
+      files: fileFacts(PERSON_POLICY),
+      project: fakeProject(),
+    });
     expect(errors(bad.issues).map((i) => i.message)).toEqual([
       expect.stringContaining('a hook name: no control character (a line break, a tab, an escape)'),
       expect.stringContaining('an env name: no control character (a line break, a tab, an escape)'),

@@ -47,7 +47,10 @@ describe('the render `latest` picked, and what it passed over', () => {
   it('the lines: a count each, never a name', () => {
     expect(renderLatestLines({})).toEqual([]);
     expect(renderLatestLines({ renders_passed_over: 1, renders_not_considered: 1 })).toEqual([LINE, '1 file of renders/ does not read: not considered']);
-    expect(renderLatestLines({ renders_passed_over: 3, renders_not_considered: 2 })).toEqual(['3 newer files of renders/ passed over: "untrusted.renders_passed_over" names them', '2 files of renders/ do not read: not considered']);
+    expect(renderLatestLines({ renders_passed_over: 3, renders_not_considered: 2 })).toEqual([
+      '3 newer files of renders/ passed over: "untrusted.renders_passed_over" names them',
+      '2 files of renders/ do not read: not considered',
+    ]);
   });
 
   it('render_status, review, export and comments_list with "latest": the count in the text and the data, the file name under "untrusted" only; by id: nothing', async () => {

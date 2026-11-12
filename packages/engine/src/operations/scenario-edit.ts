@@ -20,14 +20,17 @@ const stepIndex = z.number().int().min(0).max(100_000);
 const StepAtInput = z.strictObject({
   scene: sceneId,
   index: stepIndex.describe('Its index in the scene (0-based).'),
-  guard: z.string().regex(/^[0-9a-f]{16}$/, 'the step\'s guard as scenario_blocks gave it (16 hex characters)'),
+  guard: z.string().regex(/^[0-9a-f]{16}$/, "the step's guard as scenario_blocks gave it (16 hex characters)"),
 });
 
 /** A form field's value (critique B9 is checked by core, which names the field): one line of text, a number, yes / no. */
 const fieldValue = z.union([z.string().max(10_000, 'at most 10,000 characters'), z.number().finite(), z.boolean()]);
 const fieldSeg = z.string().regex(/^[a-z][a-z_]{0,39}$/, 'a field name of the form (lower-case letters and _)');
 /** A form field's key, dotted ("type.into.label"): at most three levels (a flat target). */
-const fieldKey = z.string().max(122).regex(/^[a-z][a-z_]{0,39}(\.[a-z][a-z_]{0,39}){0,2}$/, 'a field key of the form ("type.text", "click.in")');
+const fieldKey = z
+  .string()
+  .max(122)
+  .regex(/^[a-z][a-z_]{0,39}(\.[a-z][a-z_]{0,39}){0,2}$/, 'a field key of the form ("type.text", "click.in")');
 const FieldChangeInput = z.strictObject({
   path: z.array(fieldSeg).min(1).max(3).describe('The field, as its key split on dots: ["type", "text"], ["caption", "text"], ["hold"].'),
   from: fieldValue.optional().describe('The value the form showed (absent: none) — the change is applied only while the file still holds it.'),
@@ -61,7 +64,8 @@ const SetFieldInput = z
   })
   .superRefine((e, ctx) => {
     const allowed = FIELD_PATHS[e.at.entry] as readonly string[];
-    if (!allowed.includes(e.field)) ctx.addIssue({ code: 'custom', path: ['field'], message: `${e.field} is not a value of ${e.at.entry === 'top' ? 'the video' : `a ${e.at.entry}`} (${allowed.join(', ')})` });
+    if (!allowed.includes(e.field))
+      ctx.addIssue({ code: 'custom', path: ['field'], message: `${e.field} is not a value of ${e.at.entry === 'top' ? 'the video' : `a ${e.at.entry}`} (${allowed.join(', ')})` });
   });
 
 const EditInput = z.strictObject({
@@ -70,7 +74,7 @@ const EditInput = z.strictObject({
   hash: sha256.describe('The file as the screen showed it (scenario_blocks `hash`): refused (409) when the file changed since.'),
   edit: z
     .discriminatedUnion('kind', [
-      z.strictObject({ kind: z.literal('replace_text'), text: editText.describe('The YAML view\'s text (a final line break is added when missing).') }),
+      z.strictObject({ kind: z.literal('replace_text'), text: editText.describe("The YAML view's text (a final line break is added when missing).") }),
       z.strictObject({
         kind: z.literal('restore'),
         text: editText.describe('The exact text of an earlier version (undo / redo).'),
@@ -93,11 +97,14 @@ const EditInput = z.strictObject({
         to: z.strictObject({ scene: sceneId, index: stepIndex.describe('Its index in the scene once added.') }),
         after: z
           .string()
-          .regex(/^[0-9a-f]{16}$/, "the guard of the step before that place, as scenario_blocks gave it")
+          .regex(/^[0-9a-f]{16}$/, 'the guard of the step before that place, as scenario_blocks gave it')
           .nullable()
           .describe('The guard of the step just before that place (null at the start of the scene).'),
         action: z.enum(PALETTE_ACTIONS).describe('An action of the palette.'),
-        values: z.record(fieldKey, fieldValue).describe("The new step's form values (scenario_forms names the fields).").refine((v) => Object.keys(v).length <= 40, 'at most 40 values'),
+        values: z
+          .record(fieldKey, fieldValue)
+          .describe("The new step's form values (scenario_forms names the fields).")
+          .refine((v) => Object.keys(v).length <= 40, 'at most 40 values'),
       }),
       SetFieldInput,
     ])
@@ -116,7 +123,8 @@ const EditInput = z.strictObject({
 export const scenarioEdit = defineOperation({
   name: 'scenario_edit',
   title: 'Edit a scenario from the Studio',
-  description: "Apply one edit (the YAML view's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette, a timeline switch of an edit value) to a scenario, on the version the screen showed.",
+  description:
+    "Apply one edit (the YAML view's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette, a timeline switch of an edit value) to a scenario, on the version the screen showed.",
   input: EditInput,
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   // Edits of one file run one at a time on the engine's chain (invoke), shared with scenario_render, thread_apply and

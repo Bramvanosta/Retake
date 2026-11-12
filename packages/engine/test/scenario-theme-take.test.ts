@@ -63,7 +63,24 @@ beforeAll(async () => {
   await writeFile(join(runDir, 'scenario.yaml'), TEXT);
   await writeFile(
     join(runDir, 'run.json'),
-    JSON.stringify({ version: 1, id: RUN, project: 'demo', scenario: SCENARIO, mode: 'capture', status: 'succeeded', started_at: '2026-01-01T12:00:00.000Z', finished_at: '2026-01-01T12:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id: RUN,
+      project: 'demo',
+      scenario: SCENARIO,
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      finished_at: '2026-01-01T12:01:00.000Z',
+      dir: runDir,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+    }),
   );
   await writeFile(join(runDir, 'capture.mp4'), 'not a video');
   await writeFile(join(dir, 'scenarios', `${SCENARIO}.yaml`), TEXT);
@@ -76,8 +93,8 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('a scenario\'s theme on an existing take (critique B1)', () => {
-  it('set_field template → the take\'s next plan uses the new theme and its hash; a theme edit changes the hash; removing it restores the project\'s', async () => {
+describe("a scenario's theme on an existing take (critique B1)", () => {
+  it("set_field template → the take's next plan uses the new theme and its hash; a theme edit changes the hash; removing it restores the project's", async () => {
     clearTimelineViewMemo();
     const before = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(before).toMatchObject({ theme: 'editorial', theme_sha256: themeContentHash(join(STARTER_TEMPLATES_DIR, 'editorial')), source: { scenario_changed: false } });

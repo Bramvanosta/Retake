@@ -21,10 +21,7 @@ export interface TestServer {
 }
 
 /** A served path: html (or a function of the request headers), or a response with its type, status and a delay. */
-export type ServerEntry =
-  | string
-  | ((headers: IncomingHttpHeaders) => string)
-  | { body: string | ((headers: IncomingHttpHeaders) => string); type?: string; status?: number; delay_ms?: number };
+export type ServerEntry = string | ((headers: IncomingHttpHeaders) => string) | { body: string | ((headers: IncomingHttpHeaders) => string); type?: string; status?: number; delay_ms?: number };
 
 /** Serves fixed pages (path → entry) on 127.0.0.1 with a random port. */
 export async function startServer(pages: Record<string, ServerEntry>): Promise<TestServer> {
@@ -150,11 +147,10 @@ export async function ffprobeDuration(file: string): Promise<number> {
 
 /** Decode one frame of a video at time t (seconds) as raw RGB24. */
 export async function frameAt(file: string, t: number, width: number, height: number): Promise<Buffer> {
-  const { stdout } = await execFileP(
-    'ffmpeg',
-    ['-v', 'error', '-ss', t.toFixed(3), '-i', file, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
-    { encoding: 'buffer', maxBuffer: width * height * 3 + 1024 },
-  );
+  const { stdout } = await execFileP('ffmpeg', ['-v', 'error', '-ss', t.toFixed(3), '-i', file, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], {
+    encoding: 'buffer',
+    maxBuffer: width * height * 3 + 1024,
+  });
   return stdout as unknown as Buffer;
 }
 
@@ -162,11 +158,7 @@ export async function frameAt(file: string, t: number, width: number, height: nu
  * Centroid and bounding box of the pure-magenta debug hotspot (the 6×6 CSS px square of `cursor.style: debug`) in an
  * RGB24 frame (null when absent).
  */
-export function magentaCentroid(
-  rgb: Buffer,
-  width: number,
-  height: number,
-): { x: number; y: number; n: number; box: { x: number; y: number; w: number; h: number } } | null {
+export function magentaCentroid(rgb: Buffer, width: number, height: number): { x: number; y: number; n: number; box: { x: number; y: number; w: number; h: number } } | null {
   let sx = 0;
   let sy = 0;
   let n = 0;

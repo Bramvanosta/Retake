@@ -206,18 +206,60 @@ export function layerArgs(format: RawLayerFormat, width: number, height: number,
   const tags = ['-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709'];
   if (format === 'webm') {
     return [
-      '-y', '-hide_banner', '-loglevel', 'error', ...input,
-      '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuva420p',
-      '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '18', '-deadline', 'good', '-cpu-used', '4', '-row-mt', '1', '-auto-alt-ref', '0',
-      ...tags, '-frames:v', String(frames), '-an', out,
+      '-y',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      ...input,
+      '-vf',
+      'scale=out_color_matrix=bt709:out_range=tv,format=yuva420p',
+      '-c:v',
+      'libvpx-vp9',
+      '-pix_fmt',
+      'yuva420p',
+      '-b:v',
+      '0',
+      '-crf',
+      '18',
+      '-deadline',
+      'good',
+      '-cpu-used',
+      '4',
+      '-row-mt',
+      '1',
+      '-auto-alt-ref',
+      '0',
+      ...tags,
+      '-frames:v',
+      String(frames),
+      '-an',
+      out,
     ];
   }
   return [
-    '-y', '-hide_banner', '-loglevel', 'error', ...input,
-    '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuva444p10le',
+    '-y',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    ...input,
+    '-vf',
+    'scale=out_color_matrix=bt709:out_range=tv,format=yuva444p10le',
     // prores_aw: ≈ 5× faster than prores_ks on these mostly empty frames, alpha kept within 1/255 (measured).
-    '-c:v', 'prores_aw', '-profile:v', '4', '-pix_fmt', 'yuva444p10le', '-vendor', 'apl0',
-    ...tags, '-timecode', timecode, '-frames:v', String(frames), '-an', out,
+    '-c:v',
+    'prores_aw',
+    '-profile:v',
+    '4',
+    '-pix_fmt',
+    'yuva444p10le',
+    '-vendor',
+    'apl0',
+    ...tags,
+    '-timecode',
+    timecode,
+    '-frames:v',
+    String(frames),
+    '-an',
+    out,
   ];
 }
 
@@ -243,7 +285,10 @@ export async function encodeCursorLayer(opts: {
 }): Promise<void> {
   const { width, height } = opts;
   const bin = ffmpegBin(opts.policy, opts.ffmpeg);
-  const tool = startMediaTool(bin, layerArgs(opts.format, width, height, opts.fps, opts.frames.length, opts.out, opts.timecode), { stdio: ['pipe', 'ignore', 'pipe'], stderr: { keep: 'tail', max: 4000 } });
+  const tool = startMediaTool(bin, layerArgs(opts.format, width, height, opts.fps, opts.frames.length, opts.out, opts.timecode), {
+    stdio: ['pipe', 'ignore', 'pipe'],
+    stderr: { keep: 'tail', max: 4000 },
+  });
   const child = tool.child as ChildProcessByStdio<Writable, null, Readable>;
   // An ffmpeg that quits while frames are written closes the pipe: the write fails (EPIPE), the frames stop and its exit
   // says why (`done`), never an unhandled stream error that would end this process.

@@ -386,10 +386,11 @@ function holdsAnchor(n: unknown): string | undefined {
   if (!n || typeof n !== 'object') return undefined;
   const node = n as { anchor?: string; items?: unknown[]; key?: unknown; value?: unknown };
   if (typeof node.anchor === 'string' && node.anchor) return node.anchor;
-  if (Array.isArray(node.items)) for (const it of node.items) {
-    const a = holdsAnchor(it);
-    if (a) return a;
-  }
+  if (Array.isArray(node.items))
+    for (const it of node.items) {
+      const a = holdsAnchor(it);
+      if (a) return a;
+    }
   if ('key' in node || 'value' in node) return holdsAnchor(node.key) ?? holdsAnchor(node.value);
   return undefined;
 }
@@ -517,10 +518,10 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
       let n = 2;
       while (taken.has(`${old}-${n}`)) n++;
       const name = `${old}-${n}`;
-      if (!isScalar(asNode) || !asNode.range) throw new StepEditError('not_editable', 'this capture\'s `as` is not a plain value: duplicate it in the YAML view');
+      if (!isScalar(asNode) || !asNode.range) throw new StepEditError('not_editable', "this capture's `as` is not a plain value: duplicate it in the YAML view");
       const [s, e] = asNode.range;
       const at = asNode.type === 'PLAIN' ? e : asNode.type === 'QUOTE_DOUBLE' || asNode.type === 'QUOTE_SINGLE' ? e - 1 : -1;
-      if (at < 0 || (asNode.type === 'PLAIN' && ctx.text.slice(s, e) !== old)) throw new StepEditError('not_editable', 'this capture\'s `as` is not written on one line: duplicate it in the YAML view');
+      if (at < 0 || (asNode.type === 'PLAIN' && ctx.text.slice(s, e) !== old)) throw new StepEditError('not_editable', "this capture's `as` is not written on one line: duplicate it in the YAML view");
       cuts.push({ at, remove: 0, insert: `-${n}` });
       (copy[action!] as { as: string }).as = name;
       notices.push(`The copy saves its ${kind} as "${name}": names of captures are unique (the original keeps "${old}").`);
@@ -530,7 +531,10 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
   // range takes in: review B), with the cuts above, inserted after the original's span.
   const base = span.dashLine;
   const own = ctx.text.slice(base, Math.min(span.contentEnd, lineEndOf(ctx.text, Math.max(lastValueEnd(node), base + 1) - 1)));
-  const copied = applySplices(own, cuts.map((c) => ({ ...c, at: c.at - base })));
+  const copied = applySplices(
+    own,
+    cuts.map((c) => ({ ...c, at: c.at - base })),
+  );
   const intended = cloneValue(ctx.value);
   (intended.scenes[scene.entry] as { steps: unknown[] }).steps.splice(i + 1, 0, copy);
   return {
@@ -762,7 +766,7 @@ function applyRawOpText(ctx: Ctx, text: string, entry: number, index: number, op
   } else {
     const pair = items.find((p) => isScalar(p.key) && (p.key as Scalar).value === op.key);
     if (!pair || items.length < 2) throw refuse();
-    const dashLine = map === step ? itemLines(text, (stepsSeqOf(contents, entry) as YAMLSeq), index, what).dashLine : lineStartOf(text, map.range![0]);
+    const dashLine = map === step ? itemLines(text, stepsSeqOf(contents, entry) as YAMLSeq, index, what).dashLine : lineStartOf(text, map.range![0]);
     const [a, b] = pairRemoval(text, map as YAMLMap, pair, dashLine);
     out = text.slice(0, a) + text.slice(b);
   }

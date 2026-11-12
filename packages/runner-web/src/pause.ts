@@ -93,7 +93,10 @@ export class RunPauser {
     const t = take.clock.pause(wallNow());
     const filming = take.filming();
     const stopped = Promise.all(filming.map((f) => f.recorder.pause()));
-    await take.sampler()?.pause().catch(() => undefined);
+    await take
+      .sampler()
+      ?.pause()
+      .catch(() => undefined);
     await stopped;
     this.p.filming?.(false);
     record.paused = { scene, step, since: since.toISOString() };
@@ -158,7 +161,10 @@ export class RunPauser {
       }
     }
     const cut = take.clock.resume(to);
-    await take.sampler()?.resume().catch(() => undefined);
+    await take
+      .sampler()
+      ?.resume()
+      .catch(() => undefined);
     return cut;
   }
 }

@@ -122,13 +122,21 @@ describe('what the engine hands the capture runner (in memory)', () => {
     expect(req!.policy.agentFolders).not.toBeNull();
     for (const k of ['signal', 'confirmHook', 'recordHookRun', 'loginCommand', 'onProgress'] as const) expect(req![k], k).toBeTypeOf(k === 'signal' ? 'object' : 'function');
     expect(req!.loginCommand!({ project: 'p', env: 'e', persona: 'x' })).toMatch(/ login p --env e --persona x$/);
-    const history = (await readFile(historyFile(ws), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
-    expect(history.at(-1)).toMatchObject({ kind: 'run', job: sub.job.id, run: { id: sub.run_id, scenario: 'quote', mode: 'dry', status: 'succeeded' }, counted: { captures: 0, dry_runs: 1, renders: 0 } });
+    const history = (await readFile(historyFile(ws), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(history.at(-1)).toMatchObject({
+      kind: 'run',
+      job: sub.job.id,
+      run: { id: sub.run_id, scenario: 'quote', mode: 'dry', status: 'succeeded' },
+      counted: { captures: 0, dry_runs: 1, renders: 0 },
+    });
     const onDisk = JSON.parse(await readFile(join(ws, 'projects', 'northfield-fixture', 'runs', sub.run_id, 'run.json'), 'utf8')) as RunRecord;
     expect(onDisk.status).toBe('succeeded');
   });
 
-  it('a run in process (the CLI\'s): the hook runner handed, no run id, trust author, then its history line as the cli\'s', async () => {
+  it("a run in process (the CLI's): the hook runner handed, no run id, trust author, then its history line as the cli's", async () => {
     const w = await openWorkspace({ root: ws, agent: false });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const prepared = await prepareRun(w, project, 'quote', { dry: true, until: 'discover.0' });
@@ -145,7 +153,10 @@ describe('what the engine hands the capture runner (in memory)', () => {
     expect(req!.policy.agentFolders).toBeNull();
     expect(progress[0]).toBe('run_start');
     expect(progress.at(-1)).toBe('run_end');
-    const history = (await readFile(historyFile(ws), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+    const history = (await readFile(historyFile(ws), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(history.at(-1)).toMatchObject({ kind: 'run', submitted_by: 'cli', run: { id: rec.id, scenario: 'quote', mode: 'dry', status: 'succeeded' } });
   });
 

@@ -52,7 +52,17 @@ const OWN_OPTIONS = ['noEmit', 'composite', 'declaration', 'declarationMap', 'so
 /** What a package sets for its build output, and what the parser adds about the file it read: no part of the comparison. */
 const NOT_COMPARED = [...OWN_OPTIONS, 'outDir', 'rootDir', 'tsBuildInfoFile', 'configFilePath', 'pathsBasePath'];
 /** The checks `strict` turns on: none may be turned off one by one. */
-const STRICT_FAMILY = ['noImplicitAny', 'noImplicitThis', 'strictNullChecks', 'strictFunctionTypes', 'strictBindCallApply', 'strictPropertyInitialization', 'strictBuiltinIteratorReturn', 'useUnknownInCatchVariables', 'alwaysStrict'];
+const STRICT_FAMILY = [
+  'noImplicitAny',
+  'noImplicitThis',
+  'strictNullChecks',
+  'strictFunctionTypes',
+  'strictBindCallApply',
+  'strictPropertyInitialization',
+  'strictBuiltinIteratorReturn',
+  'useUnknownInCatchVariables',
+  'alwaysStrict',
+];
 /** Options that make the compiler look at less: off everywhere. */
 const LOOKS_AWAY = ['noCheck', 'noResolve', 'noLib', 'allowJs', 'checkJs'];
 
@@ -147,7 +157,9 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
     // The files the compiler checks are the TypeScript files on disk under those folders: none missed (a dot folder
     // and node_modules are skipped by the compiler's `**`: a test file there would be run and not checked), none extra.
     const onDisk = packages.flatMap((p) => {
-      const files = filesUnder(join(REPO, 'packages', p, 'test')).map(rel).filter((f) => /\.(?:ts|mts|cts|tsx)$/.test(f));
+      const files = filesUnder(join(REPO, 'packages', p, 'test'))
+        .map(rel)
+        .filter((f) => /\.(?:ts|mts|cts|tsx)$/.test(f));
       expect(files.length, p).toBeGreaterThan(0);
       return files;
     });
@@ -167,13 +179,21 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
     expect(own.options.jsx).toBe(ts.JsxEmit.ReactJSX);
     // And equal to a package's on every other key: the test files are checked with the options the sources are built with.
     const root = readConfig('tsconfig.json');
-    const compared = (o: import('typescript').CompilerOptions, skip: readonly string[]): Record<string, unknown> => Object.fromEntries(Object.entries(o).filter(([k]) => !skip.includes(k)).sort(([a], [b]) => a.localeCompare(b)));
+    const compared = (o: import('typescript').CompilerOptions, skip: readonly string[]): Record<string, unknown> =>
+      Object.fromEntries(
+        Object.entries(o)
+          .filter(([k]) => !skip.includes(k))
+          .sort(([a], [b]) => a.localeCompare(b)),
+      );
     expect(root.references!.map((r) => r.path)).toContain('packages/core');
     for (const r of root.references!) {
       const pkg = resolved(`${r.path}/tsconfig.json`);
       // A package's own options (its build output; the CLI's `moduleDetection`) are its own; the strict family is not.
       const ownKeys = Object.keys((pkg.raw as TestConfig).compilerOptions ?? {});
-      expect(ownKeys.filter((k) => k === 'strict' || STRICT_FAMILY.includes(k) || LOOKS_AWAY.includes(k)), r.path).toEqual([]);
+      expect(
+        ownKeys.filter((k) => k === 'strict' || STRICT_FAMILY.includes(k) || LOOKS_AWAY.includes(k)),
+        r.path,
+      ).toEqual([]);
       expect(compared(own.options, [...NOT_COMPARED, ...ownKeys]), r.path).toEqual(compared(pkg.options, [...NOT_COMPARED, ...ownKeys]));
       expect(pkg.options.strict, r.path).toBe(true);
     }
@@ -190,7 +210,8 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
       if (ts.isPropertyAssignment(n) && n.name.getText(sf) === 'test' && ts.isObjectLiteralExpression(n.initializer)) {
         for (const p of n.initializer.properties) {
           if (!ts.isPropertyAssignment(p) || p.name.getText(sf) !== 'include') continue;
-          if (!ts.isArrayLiteralExpression(p.initializer) || !p.initializer.elements.every((e) => ts.isStringLiteral(e))) throw new Error(`vitest.config.ts: test.include has a form this test does not read — ${p.initializer.getText(sf)}`);
+          if (!ts.isArrayLiteralExpression(p.initializer) || !p.initializer.elements.every((e) => ts.isStringLiteral(e)))
+            throw new Error(`vitest.config.ts: test.include has a form this test does not read — ${p.initializer.getText(sf)}`);
           includes.push(p.initializer.elements.map((e) => (e as import('typescript').StringLiteral).text));
         }
       }
@@ -209,7 +230,10 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
     for (const p of readdirSync(join(REPO, 'packages'))) {
       const dir = join(REPO, 'packages', p, 'test');
       if (!existsSync(dir)) continue;
-      for (const f of filesUnder(dir).map(rel).filter((x) => /\.test\.tsx?$/.test(x))) expect(own.has(f), f).toBe(true);
+      for (const f of filesUnder(dir)
+        .map(rel)
+        .filter((x) => /\.test\.tsx?$/.test(x)))
+        expect(own.has(f), f).toBe(true);
     }
   });
 

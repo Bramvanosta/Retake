@@ -52,7 +52,52 @@ import { FRAME_URL_RE, previewUrls } from '../src/app/words/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
-import { Blocker, Button, Callout, Checklist, ChecklistItem, ChoiceChips, ColorField, CommandPalette, ContactSheet, DataTable, DiffTable, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, NumberField, PosterGrid, Progress, RadioGroup, RegionOverlay, RowCard, Scrubber, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, Tag, TerminalCommands, TextArea, TextField, Toolbar, Track, TrackItem } from '../src/app/ui-kit/index.js';
+import {
+  Blocker,
+  Button,
+  Callout,
+  Checklist,
+  ChecklistItem,
+  ChoiceChips,
+  ColorField,
+  CommandPalette,
+  ContactSheet,
+  DataTable,
+  DiffTable,
+  Disclosure,
+  EmptyState,
+  Facts,
+  FieldRow,
+  FrameCard,
+  FrameGrid,
+  FrameOption,
+  InspectorSection,
+  Kbd,
+  LinkButton,
+  Menu,
+  NumberField,
+  PosterGrid,
+  Progress,
+  RadioGroup,
+  RegionOverlay,
+  RowCard,
+  Scrubber,
+  Segmented,
+  SegmentedLinks,
+  Select,
+  Sheet,
+  SourceList,
+  StatusBar,
+  StatusMark,
+  Switch,
+  Tag,
+  TerminalCommands,
+  TextArea,
+  TextField,
+  Toolbar,
+  Track,
+  TrackItem,
+} from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
 import { cssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
@@ -114,7 +159,8 @@ const FRAME_SRC_SET = /\bframeSrc\s*=\s*armed\s*\?\s*url\s*:\s*undefined\b/g;
 /** A page's frame URLs are previewUrls' answer (checked: the L4.5 case below), assigned once. */
 const PREVIEW_URLS = /\burls\s*=[^;]*\bpreviewUrls\(/g;
 /** Sandbox tokens that would loosen the frame, and attributes that would bypass the literal ones: nowhere in the app. */
-const FRAME_LOOSE = /allow-(?:same-origin|top-navigation|popups|forms|downloads|modals|pointer-lock|presentation|storage-access|orientation-lock)|\bsandbox=\{|\bcredentialless\b|\ballowFullScreen\b|\bcsp=/;
+const FRAME_LOOSE =
+  /allow-(?:same-origin|top-navigation|popups|forms|downloads|modals|pointer-lock|presentation|storage-access|orientation-lock)|\bsandbox=\{|\bcredentialless\b|\ballowFullScreen\b|\bcsp=/;
 
 /** A source as the lint reads it: Thumb.tsx without its one allowed image source, PreviewFrame.tsx without its one frame (each checked on its own). */
 function linted(f: string, src: string): string {
@@ -287,7 +333,11 @@ describe('the app builds no HTML from data (source lint)', () => {
       '<video poster={x} />',
       '<object data={x} />',
     ];
-    for (const line of planted) expect(BANNED.some(([re]) => re.test(code(line))), line).toBe(true);
+    for (const line of planted)
+      expect(
+        BANNED.some(([re]) => re.test(code(line))),
+        line,
+      ).toBe(true);
     expect(/^\{hrefTo\(/.test('{url}')).toBe(false);
     // The exception covers Thumb.tsx's one line only: the same line elsewhere, or another src in Thumb.tsx, fails.
     expect(BANNED.some(([re]) => re.test(linted('Other.tsx', '<img src={url} alt="" />')))).toBe(true);
@@ -309,14 +359,17 @@ describe('the app builds no HTML from data (source lint)', () => {
     const bitmaps: Blob[] = [];
     const image = { close: () => undefined };
     let fails = false;
-    vi.stubGlobal('ImageDecoder', class {
-      constructor(init: { data: unknown; type: string }) {
-        decoders.push(init);
-        if (fails) throw new Error('no');
-      }
-      decode = async () => ({ image });
-      close = () => undefined;
-    });
+    vi.stubGlobal(
+      'ImageDecoder',
+      class {
+        constructor(init: { data: unknown; type: string }) {
+          decoders.push(init);
+          if (fails) throw new Error('no');
+        }
+        decode = async () => ({ image });
+        close = () => undefined;
+      },
+    );
     vi.stubGlobal('createImageBitmap', async (b: Blob) => (bitmaps.push(b), { close: () => undefined }));
     try {
       expect((await decodeJpeg(bytes)).image).toBe(image);
@@ -342,7 +395,11 @@ describe('the app builds no HTML from data (source lint)', () => {
       if (f === LIVE_FILE) continue;
       expect(/createImageBitmap|new\s+Blob\b|\bImageDecoder\b|\bFileReader\b/.test(code(text)), `${f}: decodes an image or builds a Blob`).toBe(false);
     }
-    for (const line of ['const u = URL.createObjectURL(b);', "const a = 'blob:' + x;", 'const { createObjectURL } = URL;']) expect(BANNED.some(([re]) => re.test(code(line))), line).toBe(true);
+    for (const line of ['const u = URL.createObjectURL(b);', "const a = 'blob:' + x;", 'const { createObjectURL } = URL;'])
+      expect(
+        BANNED.some(([re]) => re.test(code(line))),
+        line,
+      ).toBe(true);
   });
 
   it('⚑ L4.5: the one frame — PreviewFrame.tsx, once, the literal sandboxed attributes, src={frameSrc} from a checked URL', async () => {
@@ -354,7 +411,17 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(frame.match(FRAME_SRC_SET)?.length, 'frameSrc set once, from url, only once armed').toBe(1);
     // L7.34: rendered before its connection listens (react-dom/server runs no effect: not armed) — the attributes are
     // PREVIEW_FRAME_ATTRS, and the frame has no address yet.
-    const rendered = renderToStaticMarkup(createElement(PreviewFrame, { url: 'http://127.0.0.1:1/s/x/frame', planUrl: 'http://127.0.0.1:1/m/x/plan/y.json', frameRef: { current: 0 }, onMessage: () => undefined, onHello: () => undefined, onStop: () => undefined, onConnection: () => undefined }));
+    const rendered = renderToStaticMarkup(
+      createElement(PreviewFrame, {
+        url: 'http://127.0.0.1:1/s/x/frame',
+        planUrl: 'http://127.0.0.1:1/m/x/plan/y.json',
+        frameRef: { current: 0 },
+        onMessage: () => undefined,
+        onHello: () => undefined,
+        onStop: () => undefined,
+        onConnection: () => undefined,
+      }),
+    );
     const iframes = [...rendered.matchAll(/<iframe\b([^>]*)>/g)].map((m) => Object.fromEntries([...m[1].matchAll(/\s([A-Za-z-]+)="([^"]*)"/g)].map((a) => [a[1].toLowerCase(), a[2]])));
     expect(iframes).toHaveLength(1);
     expect(Object.fromEntries(Object.keys(PREVIEW_FRAME_ATTRS).map((k) => [k, iframes[0][k]]))).toEqual(PREVIEW_FRAME_ATTRS);
@@ -399,7 +466,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     for (const line of ['<iframe sandbox="allow-scripts allow-same-origin" />', '<iframe sandbox={x} />', 'f.sandbox.add("allow-popups")']) expect(FRAME_LOOSE.test(line), line).toBe(true);
   });
 
-  it('L4.5: previewUrls takes only the player origin\'s frame and a plan of the same capability', () => {
+  it("L4.5: previewUrls takes only the player origin's frame and a plan of the same capability", () => {
     const cap = 'A'.repeat(43);
     const frame = `http://127.0.0.1:4321/s/${cap}/frame`;
     const plan = `http://127.0.0.1:4321/m/${cap}/plan/${'b'.repeat(22)}.json`;
@@ -437,7 +504,9 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(img(createElement(Picture, { format: 'png', base64: PNG, max: POSTER_DATA_MAX, ...at }))).toEqual([imageDataUrl('png', PNG, POSTER_DATA_MAX)]);
     expect(img(createElement(Jpeg, { base64: JPG, max: THUMB_DATA_MAX, ...at }))).toEqual([`data:image/jpeg;base64,${JPG}`]);
     const atCap = (b64: string, n: number) => b64 + 'A'.repeat(n - b64.length);
-    expect(img(createElement(Picture, { format: 'png', base64: atCap(PNG, POSTER_DATA_MAX), max: POSTER_DATA_MAX, ...at }))).toEqual([imageDataUrl('png', atCap(PNG, POSTER_DATA_MAX), POSTER_DATA_MAX)]);
+    expect(img(createElement(Picture, { format: 'png', base64: atCap(PNG, POSTER_DATA_MAX), max: POSTER_DATA_MAX, ...at }))).toEqual([
+      imageDataUrl('png', atCap(PNG, POSTER_DATA_MAX), POSTER_DATA_MAX),
+    ]);
     expect(img(createElement(Jpeg, { base64: atCap(JPG, SHEET_DATA_MAX), max: SHEET_DATA_MAX, ...at }))).toHaveLength(1);
     expect(img(createElement(Picture, { format: 'png', base64: PNG + 'A'.repeat(POSTER_DATA_MAX), max: POSTER_DATA_MAX, ...at }))).toEqual([]);
     expect(img(createElement(Picture, { format: 'gif', base64: PNG, max: LOOP_DATA_MAX, ...at }))).toEqual([]);
@@ -468,7 +537,13 @@ describe('the app builds no HTML from data (source lint)', () => {
     }
     expect(jpegs).toBe(1);
     expect(pictures).toBeGreaterThanOrEqual(2);
-    for (const bad of ['<Picture format="png" base64={b} max={LOOP_DATA_MAX} />', '<Picture format="gif" base64={b} max={POSTER_DATA_MAX} />', '<Picture format={f} base64={b} max={POSTER_DATA_MAX} />', '<Picture format="svg" base64={b} max={POSTER_DATA_MAX} />', '<Picture format="jpeg" base64={b} max={max} />']) {
+    for (const bad of [
+      '<Picture format="png" base64={b} max={LOOP_DATA_MAX} />',
+      '<Picture format="gif" base64={b} max={POSTER_DATA_MAX} />',
+      '<Picture format={f} base64={b} max={POSTER_DATA_MAX} />',
+      '<Picture format="svg" base64={b} max={POSTER_DATA_MAX} />',
+      '<Picture format="jpeg" base64={b} max={max} />',
+    ]) {
       expect(PICTURE_CAP.test(bad), bad).toBe(false);
     }
     // The caps: a contact sheet's payload is refused past SHEET_DATA_MAX, a step picture's past THUMB_DATA_MAX.
@@ -515,7 +590,10 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
     expect([...screen.matchAll(/\bsend\('[A-Za-z]+', '(thread_[a-z_]+)'/g)].map((m) => m[1]).sort()).toEqual(['thread_reopen', 'thread_reply', 'thread_resolve']);
     // The lint catches a planted author (or via, proposal) in a write.
     for (const planted of ["call('thread_add', { project, author: { via: 'cli', name: 'x' }, text })", "call<X>('thread_reply', { project, via: 'cli' })", "call('thread_reply', { proposal: p })"]) {
-      expect(threadCalls(planted).some((c) => NAMED.test(c.args)), planted).toBe(true);
+      expect(
+        threadCalls(planted).some((c) => NAMED.test(c.args)),
+        planted,
+      ).toBe(true);
     }
   });
 });
@@ -549,8 +627,16 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
       const v = prop.initializer;
       return ts.isIdentifier(v) && v.text !== 'undefined' ? 'identifier' : `(${ts.SyntaxKind[v.kind]})`;
     };
-    expect(apiCalls(panel, { members: true }).filter((c) => c.op === 'thread_apply').map(ifMatchOf)).toEqual(['identifier']);
-    const everywhere = files.flatMap(([f, text]) => threadCalls(code(text)).filter((c) => c.op === 'thread_apply').map(() => f));
+    expect(
+      apiCalls(panel, { members: true })
+        .filter((c) => c.op === 'thread_apply')
+        .map(ifMatchOf),
+    ).toEqual(['identifier']);
+    const everywhere = files.flatMap(([f, text]) =>
+      threadCalls(code(text))
+        .filter((c) => c.op === 'thread_apply')
+        .map(() => f),
+    );
     expect(everywhere).toEqual(['review/ProposalCard.tsx']);
     // L6.13: data/ names it once (its function); its arguments and result are derived from the op table (data/ops.ts).
     expect(files.filter(([f, text]) => !f.startsWith('data/') && /thread_apply|threadApply/.test(code(text))).map(([f]) => f)).toEqual(['review/ProposalCard.tsx']);
@@ -620,7 +706,12 @@ describe('hash routes', () => {
         expect(href.startsWith('#/p/')).toBe(true);
         expect(parseRoute(href)).toEqual({ name: 'run', slug: 'p/q', scenario, ...(run ? { run } : {}) });
       }
-      for (const [run, step] of [[undefined, undefined], ['20261026-120000-quote', undefined], ['../x', 'a.1'], ['<b>', '../../x']] as const) {
+      for (const [run, step] of [
+        [undefined, undefined],
+        ['20261026-120000-quote', undefined],
+        ['../x', 'a.1'],
+        ['<b>', '../../x'],
+      ] as const) {
         const href = hrefTo({ name: 'timeline', slug: 'p/q', scenario, ...(run ? { run } : {}), ...(step ? { step } : {}) });
         expect(href.startsWith('#/p/')).toBe(true);
         expect(parseRoute(href)).toEqual({ name: 'timeline', slug: 'p/q', scenario, ...(run ? { run } : {}), ...(step ? { step } : {}) });
@@ -691,7 +782,16 @@ describe('imageDataUrl: library posters and loops (L4.7 part D1, critique B6 / B
     const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>').toString('base64');
     const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46]).toString('base64');
     const gif87 = Buffer.from('GIF87a\x01\x00\x01\x00', 'latin1').toString('base64');
-    for (const [format, b64] of [['png', GIF], ['png', svg], ['png', jpeg], ['gif', PNG], ['gif', svg], ['gif', gif87], ['png', 'QUJD'], ['gif', 'AAAA']] as const) {
+    for (const [format, b64] of [
+      ['png', GIF],
+      ['png', svg],
+      ['png', jpeg],
+      ['gif', PNG],
+      ['gif', svg],
+      ['gif', gif87],
+      ['png', 'QUJD'],
+      ['gif', 'AAAA'],
+    ] as const) {
       expect(imageDataUrl(format, b64, format === 'png' ? POSTER_DATA_MAX : LOOP_DATA_MAX), `${format} ${b64.slice(0, 12)}`).toBeNull();
     }
   });
@@ -766,7 +866,19 @@ function hostileView(): RecordViewAnswer {
         parsed: true,
         video: { intro: { mode: 'theme' }, outro: { mode: 'theme' } },
         hooks: { setup: [], teardown: [], named: [] },
-        entries: [{ type: 'scene', index: 0, id: H('scene'), page: H('scenepage'), open: H('sceneopen'), continues: false, context: 'x', steps: [step(0, '0'), step(1, '1'), step(2, '2', { category: 'hold', action: 'hold' })], issues: [] }],
+        entries: [
+          {
+            type: 'scene',
+            index: 0,
+            id: H('scene'),
+            page: H('scenepage'),
+            open: H('sceneopen'),
+            continues: false,
+            context: 'x',
+            steps: [step(0, '0'), step(1, '1'), step(2, '2', { category: 'hold', action: 'hold' })],
+            issues: [],
+          },
+        ],
         step_count: 3,
         issues: [],
       },
@@ -778,7 +890,18 @@ function hostileView(): RecordViewAnswer {
       issues: [{ severity: 'warning', code: 'fragile_target', message: H('issue'), scene: H('scene'), step: 0 }],
       pending: ['i3'],
       placeholders: [{ name: H('placeholder'), kind: 'password', project_var: false, scene: H('scene'), step: 0 }],
-      alternatives: [{ scene: H('scene'), step: 0, seq: 1, chosen: 1, options: [{ index: 0, target: { text: 'x' }, words: H('alt0'), fragile: [] }, { index: 1, target: { label: 'y' }, words: H('alt1'), fragile: ['css'] }] }],
+      alternatives: [
+        {
+          scene: H('scene'),
+          step: 0,
+          seq: 1,
+          chosen: 1,
+          options: [
+            { index: 0, target: { text: 'x' }, words: H('alt0'), fragile: [] },
+            { index: 1, target: { label: 'y' }, words: H('alt1'), fragile: ['css'] },
+          ],
+        },
+      ],
       inserts: [
         { id: 'i1', after_seq: 2, kind: 'wait_for', until: 'text', text: H('waittext') },
         { id: 'i2', after_seq: 0, kind: 'caption', text: H('caption'), kicker: H('kicker') },
@@ -812,7 +935,24 @@ function hostileOptions(): RecordOptionsAnswer {
         warnings: [H('envwarning')],
       },
     ],
-    recent: [{ rec_id: H('recentid'), state: 'done', job: null, started_by: 'mcp', started_at: null, name: H('recentname'), env: H('recentenv'), persona: null, page: null, path: null, steps: 2, actions: 3, saved: { name: H('recentsaved'), file: 'x' }, studio: false }],
+    recent: [
+      {
+        rec_id: H('recentid'),
+        state: 'done',
+        job: null,
+        started_by: 'mcp',
+        started_at: null,
+        name: H('recentname'),
+        env: H('recentenv'),
+        persona: null,
+        page: null,
+        path: null,
+        steps: 2,
+        actions: 3,
+        saved: { name: H('recentsaved'), file: 'x' },
+        studio: false,
+      },
+    ],
   } as unknown as RecordOptionsAnswer;
 }
 
@@ -842,7 +982,14 @@ function recordingWithInspector(v: RecordViewAnswer, cursor: { at: 'end' } | { a
   return createElement(SlotContext.Provider, { value: host }, createElement(Fragment, null, createElement(RecordingBody, { slug: 'p', v, cursor, setCursor: () => undefined, ui: UI, act: ACT })));
 }
 
-const UI: RecordingUi = { busy: false, note: { tone: 'danger', text: H('note'), issues: [{ severity: 'error', code: 'invalid', message: H('noteissue'), scene: H('scene'), step: 0 }], fix: H('notefix') }, taken: null, discarding: false, confirming: false, now: Date.parse('2026-10-28T10:05:00.000Z') };
+const UI: RecordingUi = {
+  busy: false,
+  note: { tone: 'danger', text: H('note'), issues: [{ severity: 'error', code: 'invalid', message: H('noteissue'), scene: H('scene'), step: 0 }], fix: H('notefix') },
+  taken: null,
+  discarding: false,
+  confirming: false,
+  now: Date.parse('2026-10-28T10:05:00.000Z'),
+};
 const ACT = { annotate: () => undefined, stop: () => undefined, discard: () => undefined, save: () => undefined, onSignedIn: () => undefined, confirm: () => undefined };
 
 describe('the Record screen shows page text only through Txt (L4.8 part 5)', () => {
@@ -862,7 +1009,39 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
       expect(bare, JSON.stringify(bare)).toEqual([]);
       // Attributes hold page text only with the controls made visible (visibleControls): no raw RLO above.
       const shown = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
-      for (const n of ['name', 'env', 'persona', 'page', 'path', 'scene', 'scenepage', 'sceneopen', 'label0', 'target0', 'summary0', 'chip0', 'label1', 'label2', 'summary2', 'caption', 'kicker', 'mark', 'issue', 'placeholder', 'write', 'checkerror', 'action', 'yaml1', 'yaml2', 'problem', 'warning', 'savedfile', 'note', 'noteissue', 'notefix']) {
+      for (const n of [
+        'name',
+        'env',
+        'persona',
+        'page',
+        'path',
+        'scene',
+        'scenepage',
+        'sceneopen',
+        'label0',
+        'target0',
+        'summary0',
+        'chip0',
+        'label1',
+        'label2',
+        'summary2',
+        'caption',
+        'kicker',
+        'mark',
+        'issue',
+        'placeholder',
+        'write',
+        'checkerror',
+        'action',
+        'yaml1',
+        'yaml2',
+        'problem',
+        'warning',
+        'savedfile',
+        'note',
+        'noteissue',
+        'notefix',
+      ]) {
         expect(shown, n).toContain(n);
       }
       // (L5.11b: an insert row says what it is by its own step — label2 / summary2 — beside its Remove; no chip repeats it.)
@@ -893,7 +1072,11 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
     expect(html).toMatch(/<button (?=[^>]*data-testid="record-start")(?=[^>]*type="submit")(?=[^>]*disabled="")/);
     expect(html).toContain('data-testid="record-start-blocked"');
     expect(html).toContain('data-testid="sign-in-button"');
-    const signed = { ...o, open: null, environments: o.environments.map((e) => ({ ...e, problem: undefined, personas: e.personas.map((x) => ({ ...x, status: 'valid' as const })) })) } as RecordOptionsAnswer;
+    const signed = {
+      ...o,
+      open: null,
+      environments: o.environments.map((e) => ({ ...e, problem: undefined, personas: e.personas.map((x) => ({ ...x, status: 'valid' as const })) })),
+    } as RecordOptionsAnswer;
     const ok = renderToStaticMarkup(createElement(StartForm, { slug: 'p', o: signed, onStarted: () => undefined, onChanged: () => undefined }));
     expect(ok).not.toContain('data-testid="record-start-blocked"');
     expect(ok).toMatch(/<button (?=[^>]*data-testid="record-start")(?=[^>]*type="submit")/);
@@ -905,8 +1088,15 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
     expect(html.includes(RLO), 'a raw direction control').toBe(false);
     expect(html).not.toMatch(/<img|onerror="/);
     const places = placesOf(html);
-    expect(places.filter((p) => p.where === 'bare'), html).toEqual([]);
-    for (const n of ['note', 'openrec', 'persona', 'envproblem', 'envwarning']) expect(places.filter((p) => p.where === 'bdi').map((p) => p.n), n).toContain(n);
+    expect(
+      places.filter((p) => p.where === 'bare'),
+      html,
+    ).toEqual([]);
+    for (const n of ['note', 'openrec', 'persona', 'envproblem', 'envwarning'])
+      expect(
+        places.filter((p) => p.where === 'bdi').map((p) => p.n),
+        n,
+      ).toContain(n);
     // An <option> cannot hold a <bdi>: its text is visibleControls(…), the control shown as [U+202E].
     for (const n of ['env', 'pagekey', 'persona']) expect(html, n).toContain(`PAGE-${n}[U+202E]gnp`);
   });
@@ -921,7 +1111,7 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
     expect(shownMarkup('<option value="PAGE-a" data-key="PAGE-b">PAGE-c</option>')).toBe('<option>PAGE-c</option>');
   });
 
-  it('record-words.ts never reads page text (no `untrusted`): its sentences hold enums, numbers and the Studio\'s own words', async () => {
+  it("record-words.ts never reads page text (no `untrusted`): its sentences hold enums, numbers and the Studio's own words", async () => {
     const words = code((await appSources()).find(([f]) => f === 'words/record-words.ts')![1]);
     expect(words).not.toMatch(/untrusted|yaml_lines|\.words\b|\.label\b|\.summary\b/);
   });
@@ -940,7 +1130,6 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
     }
   });
 });
-
 
 // ── L4.9 part B: the closed palette, the fonts, contrast by token, real controls ─────────────────────────────────────
 
@@ -1000,7 +1189,10 @@ const tokensOf = (a: Appearance): Map<string, string> => tokenMap(a);
 
 /** A colour written as a literal (hex or a colour function); named colours are matched as whole values / words. */
 const COLOUR_LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/i;
-const NAMED_COLOURS = 'aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen canvas canvastext linktext visitedtext activetext buttonface buttontext field fieldtext highlight highlighttext graytext mark marktext accentcolor accentcolortext'.split(' ');
+const NAMED_COLOURS =
+  'aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen canvas canvastext linktext visitedtext activetext buttonface buttontext field fieldtext highlight highlighttext graytext mark marktext accentcolor accentcolortext'.split(
+    ' ',
+  );
 const NAMED_COLOUR = new RegExp(`(?:^|[\\s,(])(?:${NAMED_COLOURS.join('|')})(?=$|[\\s,)])`, 'i');
 const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.test(value);
 
@@ -1051,7 +1243,11 @@ function rgbaOf(v: string | undefined): RGBA | undefined {
   const p = m[1].split(',').map(Number);
   return p.length === 4 && p.every((x) => !Number.isNaN(x)) ? (p as RGBA) : undefined;
 }
-const hexOf = (c: RGBA) => `#${c.slice(0, 3).map((x) => Math.round(x).toString(16).padStart(2, '0')).join('')}`;
+const hexOf = (c: RGBA) =>
+  `#${c
+    .slice(0, 3)
+    .map((x) => Math.round(x).toString(16).padStart(2, '0'))
+    .join('')}`;
 const overOpaque = (top: RGBA, base: RGBA): RGBA => [0, 1, 2].map((i) => top[i] * top[3] + base[i] * (1 - top[3])).concat(1) as RGBA;
 const GREYS = Array.from({ length: 11 }, (_x, i): RGBA => [i * 25.5, i * 25.5, i * 25.5, 1]);
 
@@ -1066,7 +1262,8 @@ function worstRatio(tokens: Map<string, string>, t: string, b: string): number {
 }
 
 /** Any `on…` handler but these makes an element a control (user input): focus, change, form, load and media events. */
-const NOT_INPUT = /^on(?:Focus|Blur|Change|Input|BeforeInput|Load|Error|Scroll|Submit|Reset|Invalid|Toggle|Close|Cancel|Select|Composition\w+|Animation\w+|Transition\w+|LoadStart|LoadedData|LoadedMetadata|CanPlay|CanPlayThrough|Play|Playing|Pause|Ended|TimeUpdate|Seeked|Seeking|Waiting|Stalled|Suspend|Emptied|DurationChange|RateChange|VolumeChange|Progress|Abort)(?:Capture)?$/;
+const NOT_INPUT =
+  /^on(?:Focus|Blur|Change|Input|BeforeInput|Load|Error|Scroll|Submit|Reset|Invalid|Toggle|Close|Cancel|Select|Composition\w+|Animation\w+|Transition\w+|LoadStart|LoadedData|LoadedMetadata|CanPlay|CanPlayThrough|Play|Playing|Pause|Ended|TimeUpdate|Seeked|Seeking|Waiting|Stalled|Suspend|Emptied|DurationChange|RateChange|VolumeChange|Progress|Abort)(?:Capture)?$/;
 const isHandler = (k: string) => /^on[A-Z]/.test(k) && !NOT_INPUT.test(k);
 const NATIVE = new Set(['button', 'input', 'select', 'textarea', 'summary']);
 const CONTROL_ROLE = new Set(['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'option', 'menuitem', 'slider', 'spinbutton', 'textbox', 'searchbox', 'combobox', 'listbox']);
@@ -1077,17 +1274,83 @@ const CLICK_ROLE = new Set(['button', 'link', 'checkbox', 'radio', 'switch', 'ta
  * piece of the element's source line (a new element of the same kind is not excused).
  */
 const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<string, string>; line: string; why: string }> = [
-  { file: 'review/FrameViewer.tsx', tag: 'div', attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' }, line: '<div', why: "the region drag on the frame (L5.12b: FrameViewer.tsx's FramePicture; RegionOverlay draws, presentational); its keyboard alternative is the composer's four % fields" },
-  { file: 'ui-kit/frames.tsx', tag: 'li', attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' }, line: '<li', why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard" },
-  { file: 'ui-kit/frames.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' }, line: '<p', why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows' },
-  { file: 'ui-kit/ChoiceChips.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"k-chips"', onKeyDown: '{rove}' }, line: '<div className="k-chips" role="radiogroup"', why: "L5.12a (was TimelineInspector.tsx's tl-radios): the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop" },
-  { file: 'record/Inserts.tsx', tag: 'form', attrs: { className: '"rc-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
-  { file: 'ui-kit/panes.tsx', tag: 'div', attrs: { role: '"toolbar"', onKeyDown: '{rove}' }, line: '<div role="toolbar"', why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop' },
-  { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
-  { file: 'ui-kit/cards.tsx', tag: 'li', attrs: { role: '"option"', 'data-index': '{n}' }, line: '<li', why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does' },
-  { file: 'ui-kit/frames.tsx', tag: 'div', attrs: { role: '"option"', id: '{option.id}' }, line: 'role="option"', why: "L5.11b fixes (review A-M2): a RowCard option of a RowList listbox (the Record screen's draft), which holds the tab stop (aria-activedescendant); Enter / Space select the active one as a click does" },
-  { file: 'library/LibraryScreen.tsx', tag: 'div', attrs: { className: '"lb-cards"', onKeyDown: '{gridKeys}' }, line: '<div className="lb-cards"', why: "L5.12c fixes (review A-M3): the roving keys of the Library's card grid (arrows, Home / End, Escape, Enter to the inspector); the cards' own buttons hold its one tab stop" },
-  { file: 'ui-kit/Sheet.tsx', tag: 'dialog', attrs: { onKeyDown: '{onKeyDown}' }, line: '<dialog', why: "L5.12c fixes (review A-L2 / B-L2): Return in a sheet's one-line text field chooses its default action; the dialog is no control (its fields and actions are)" },
+  {
+    file: 'review/FrameViewer.tsx',
+    tag: 'div',
+    attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' },
+    line: '<div',
+    why: "the region drag on the frame (L5.12b: FrameViewer.tsx's FramePicture; RegionOverlay draws, presentational); its keyboard alternative is the composer's four % fields",
+  },
+  {
+    file: 'ui-kit/frames.tsx',
+    tag: 'li',
+    attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' },
+    line: '<li',
+    why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard",
+  },
+  {
+    file: 'ui-kit/frames.tsx',
+    tag: 'p',
+    attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' },
+    line: '<p',
+    why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows',
+  },
+  {
+    file: 'ui-kit/ChoiceChips.tsx',
+    tag: 'div',
+    attrs: { role: '"radiogroup"', className: '"k-chips"', onKeyDown: '{rove}' },
+    line: '<div className="k-chips" role="radiogroup"',
+    why: "L5.12a (was TimelineInspector.tsx's tl-radios): the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop",
+  },
+  {
+    file: 'record/Inserts.tsx',
+    tag: 'form',
+    attrs: { className: '"rc-insert-form"', onKeyDown: '{onKey}' },
+    line: '<form',
+    why: 'Escape from its fields closes the insert form; the form itself is no control',
+  },
+  {
+    file: 'ui-kit/panes.tsx',
+    tag: 'div',
+    attrs: { role: '"toolbar"', onKeyDown: '{rove}' },
+    line: '<div role="toolbar"',
+    why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop',
+  },
+  {
+    file: 'ui-kit/CommandPalette.tsx',
+    tag: 'div',
+    attrs: { role: '"option"', id: '{optId(c)}' },
+    line: 'role="option"',
+    why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it",
+  },
+  {
+    file: 'ui-kit/cards.tsx',
+    tag: 'li',
+    attrs: { role: '"option"', 'data-index': '{n}' },
+    line: '<li',
+    why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does',
+  },
+  {
+    file: 'ui-kit/frames.tsx',
+    tag: 'div',
+    attrs: { role: '"option"', id: '{option.id}' },
+    line: 'role="option"',
+    why: "L5.11b fixes (review A-M2): a RowCard option of a RowList listbox (the Record screen's draft), which holds the tab stop (aria-activedescendant); Enter / Space select the active one as a click does",
+  },
+  {
+    file: 'library/LibraryScreen.tsx',
+    tag: 'div',
+    attrs: { className: '"lb-cards"', onKeyDown: '{gridKeys}' },
+    line: '<div className="lb-cards"',
+    why: "L5.12c fixes (review A-M3): the roving keys of the Library's card grid (arrows, Home / End, Escape, Enter to the inspector); the cards' own buttons hold its one tab stop",
+  },
+  {
+    file: 'ui-kit/Sheet.tsx',
+    tag: 'dialog',
+    attrs: { onKeyDown: '{onKeyDown}' },
+    line: '<dialog',
+    why: "L5.12c fixes (review A-L2 / B-L2): Return in a sheet's one-line text field chooses its default action; the dialog is no control (its fields and actions are)",
+  },
 ];
 const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
 
@@ -1136,9 +1399,15 @@ function jsxControls(file: string, text: string): JsxFinding[] {
           const clickOnly = handlers.some((h) => /^on(?:Click|DoubleClick)/.test(h)) && !keys && role !== undefined && CLICK_ROLE.has(role);
           const real = role !== undefined && CONTROL_ROLE.has(role) && stop && !clickOnly;
           const excused = REAL_CONTROL_EXCEPTIONS.some((x) => x.file === file && x.tag === tag && Object.entries(x.attrs).every(([k, v]) => attrs.get(k) === v) && tagText.includes(x.line));
-          if (!real && !excused) out.push({ file, line, what: `<${tag}> with ${handlers.join(', ')} is not a control (${role === undefined || !CONTROL_ROLE.has(role) ? 'no control role' : !stop ? 'no tab stop (tabIndex 0 or a roving 0)' : 'a click with no key handler'})` });
+          if (!real && !excused)
+            out.push({
+              file,
+              line,
+              what: `<${tag}> with ${handlers.join(', ')} is not a control (${role === undefined || !CONTROL_ROLE.has(role) ? 'no control role' : !stop ? 'no tab stop (tabIndex 0 or a roving 0)' : 'a click with no key handler'})`,
+            });
         }
-        if (n.attributes.properties.some(ts.isJsxSpreadAttribute) && !native && !SPREAD_EXCEPTIONS.some((x) => x.file === file && x.tag === tag)) out.push({ file, line, what: `a spread onto <${tag}> (props the lint cannot see)` });
+        if (n.attributes.properties.some(ts.isJsxSpreadAttribute) && !native && !SPREAD_EXCEPTIONS.some((x) => x.file === file && x.tag === tag))
+          out.push({ file, line, what: `a spread onto <${tag}> (props the lint cannot see)` });
         if (tag === 'a' && !realHref) out.push({ file, line, what: '<a> without href' });
         const ti = /^\{(-?\d+)\}$|^"(-?\d+)"$/.exec(attrs.get('tabIndex') ?? '');
         if (ti && Number(ti[1] ?? ti[2]) > 0) out.push({ file, line, what: `tabIndex ${ti[1] ?? ti[2]} (a positive tab order)` });
@@ -1192,7 +1461,6 @@ function focusLint(rules: CssRule[]): string[] {
 /** A var() reference: any custom-property character (an underscore or a capital is part of the name). */
 const VAR_REF = /var\((--[\w-]+)/g;
 
-
 describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
   it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
     // (L5.12d: the legacy layer is gone; every stylesheet of the app is read.)
@@ -1213,7 +1481,19 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     // Every token value is a literal colour, a length or a font list (no token built from another).
     for (const a of APPEARANCES) for (const [k, v] of tokensOf(a)) expect(v.includes('var('), `${a} ${k}`).toBe(false);
     // The lint catches each kind of literal (planted).
-    for (const v of ['#123456', '#fff', 'rgb(1, 2, 3)', 'rgba(0,0,0,.5)', 'hsl(0 0% 0%)', 'oklch(0.5 0.1 200)', 'white', '1px solid red', 'linear-gradient(90deg, var(--a), black)', 'color-mix(in srgb, var(--a), var(--b))']) expect(colourIn(v), v).toBe(true);
+    for (const v of [
+      '#123456',
+      '#fff',
+      'rgb(1, 2, 3)',
+      'rgba(0,0,0,.5)',
+      'hsl(0 0% 0%)',
+      'oklch(0.5 0.1 200)',
+      'white',
+      '1px solid red',
+      'linear-gradient(90deg, var(--a), black)',
+      'color-mix(in srgb, var(--a), var(--b))',
+    ])
+      expect(colourIn(v), v).toBe(true);
     for (const v of ['var(--accent)', 'transparent', 'currentColor', 'inherit', '1px solid var(--line)', 'nowrap', 'pre-line', 'redirect']) expect(colourIn(v), v).toBe(false);
   });
 
@@ -1223,7 +1503,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect([...file.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual(["'/fonts/Geist-Variable.woff2'", "'/fonts/GeistMono-Variable.woff2'"]);
     expect(file.match(/@font-face/g)).toHaveLength(2);
     // Dark by default (no preference), light only when the system asks for it; the scopes after the media block.
-    expect(file.indexOf("color-scheme: dark")).toBeLessThan(file.indexOf('@media (prefers-color-scheme: light)'));
+    expect(file.indexOf('color-scheme: dark')).toBeLessThan(file.indexOf('@media (prefers-color-scheme: light)'));
     // (Twice: the tokens, then the dialogs' veils on ::backdrop.)
     expect(file.match(/@media[^{]*/g)).toEqual(['@media (prefers-color-scheme: light) ', '@media (prefers-color-scheme: light) ']);
     expect(file.lastIndexOf("[data-appearance='dark'] {")).toBeGreaterThan(file.indexOf('@media'));
@@ -1265,21 +1545,30 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect([...'1px solid var(--accent_strong)'.matchAll(VAR_REF)].map((m) => m[1])).toEqual(['--accent_strong']);
     for (const [f, css] of kit) {
       const own = cssRules(css).flatMap((r) => r.decls.flatMap(([, v]) => [...v.matchAll(VAR_REF)].map((m) => m[1])));
-      expect(own.filter((u) => !u.startsWith('--ui-')), `${f} reads a legacy token`).toEqual([]);
+      expect(
+        own.filter((u) => !u.startsWith('--ui-')),
+        `${f} reads a legacy token`,
+      ).toEqual([]);
       for (const u of own) used.add(u);
     }
     for (const [f, src] of await appSources()) {
       if (f.endsWith('.css') || f === 'tokens.ts') continue;
       for (const m of code(src).matchAll(/var\((--[\w-]+)|getPropertyValue\('(--[\w-]+)'\)/g)) used.add(m[1] ?? m[2]);
     }
-    expect([...used].filter((u) => !tokens.has(u)), 'used but not defined').toEqual([]);
-    expect([...tokens.keys()].filter((t) => !used.has(t)), 'defined but never used').toEqual([]);
+    expect(
+      [...used].filter((u) => !tokens.has(u)),
+      'used but not defined',
+    ).toEqual([]);
+    expect(
+      [...tokens.keys()].filter((t) => !used.has(t)),
+      'defined but never used',
+    ).toEqual([]);
     // (L5.12c: --ink, --veil and --backdrop left with the theme editor's frame and the Library's dialog: the kit's
     // --ui-video / --ui-overlay / --ui-backdrop draw them — the app holds no colour of its own.)
     expect([...used].some((u) => u === '--ink' || u === '--veil' || u === '--backdrop')).toBe(false);
   });
 
-  it('⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor\'s defaults (theme data, not the Studio\'s chrome) and tokens.ts', async () => {
+  it("⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor's defaults (theme data, not the Studio's chrome) and tokens.ts", async () => {
     const THEME_DATA = new Set(['themes/ThemeEditor.tsx', 'themes/ThemesScreen.tsx', 'words/theme-words.ts', 'tokens.ts']);
     // L5.12c (critique M1): the set stays these four — a new file (ThemeFields.tsx, the kit's ColorField) takes its
     // colours as data, never a literal of its own.
@@ -1289,8 +1578,20 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       expect(tsColourLiterals(code(src)), `${f}: a colour literal`).toEqual([]);
     }
     // The lint catches each kind (planted), and leaves words and tokens alone.
-    for (const line of ["g.fillStyle = '#16181d';", "const c = '#16181dcc';", "const c = '#abcd';", "style={{ color: 'red' }}", "style={{ background: 'White' }}", 'const c = `hsl(210 40% 20%)`;', "const c = 'rgba(0, 0, 0, .5)';", "const c = 'oklch(0.5 0.1 200)';", "border: '1px solid black'"]) expect(tsColourLiterals(line), line).not.toEqual([]);
-    for (const line of ["const t = 'red flag';", "getPropertyValue('--ink')", "className=\"tan-line\"", "const words = 'a white page';", "href=\"#abc\"", "'#main'"]) expect(tsColourLiterals(line), line).toEqual([]);
+    for (const line of [
+      "g.fillStyle = '#16181d';",
+      "const c = '#16181dcc';",
+      "const c = '#abcd';",
+      "style={{ color: 'red' }}",
+      "style={{ background: 'White' }}",
+      'const c = `hsl(210 40% 20%)`;',
+      "const c = 'rgba(0, 0, 0, .5)';",
+      "const c = 'oklch(0.5 0.1 200)';",
+      "border: '1px solid black'",
+    ])
+      expect(tsColourLiterals(line), line).not.toEqual([]);
+    for (const line of ["const t = 'red flag';", "getPropertyValue('--ink')", 'className="tan-line"', "const words = 'a white page';", 'href="#abc"', "'#main'"])
+      expect(tsColourLiterals(line), line).toEqual([]);
   });
 
   it('⚑ the Geist pair first in the font stacks (bundled, BL-120); the body, code and the kit use them', async () => {
@@ -1305,14 +1606,24 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     // (L5.12d: the page's base, on the kit's tokens: the legacy body's 14px/1.5 is the kit's 13 / 18.) L7.34: the family
     // an element gets, its var() read through the tokens (whatever the rule's layout or the token's name).
     const family = (el: string) => {
-      const r = rules.find((x) => x.selector.split(',').map((t) => t.trim()).includes(el) && x.decls.some(([k]) => k === 'font-family'));
+      const r = rules.find(
+        (x) =>
+          x.selector
+            .split(',')
+            .map((t) => t.trim())
+            .includes(el) && x.decls.some(([k]) => k === 'font-family'),
+      );
       const v = r?.decls.find(([k]) => k === 'font-family')?.[1] ?? '';
-      return v.replace(/var\((--[a-z0-9-]+)\)/g, (_, t: string) => tokens.get(t) ?? '?').split(',')[0].trim();
+      return v
+        .replace(/var\((--[a-z0-9-]+)\)/g, (_, t: string) => tokens.get(t) ?? '?')
+        .split(',')[0]
+        .trim();
     };
     expect(family('body')).toBe("'Geist'");
     expect([family('code'), family('kbd')]).toEqual(["'Geist Mono'", "'Geist Mono'"]);
     for (const [f, css] of await kitCss()) {
-      for (const r of cssRules(css)) for (const [k, v] of r.decls) if (k === 'font' || k === 'font-family') expect(/var\(--ui-(?:font|mono)\)|^inherit$/.test(v), `${f}: ${r.selector} { ${k}: ${v} }`).toBe(true);
+      for (const r of cssRules(css))
+        for (const [k, v] of r.decls) if (k === 'font' || k === 'font-family') expect(/var\(--ui-(?:font|mono)\)|^inherit$/.test(v), `${f}: ${r.selector} { ${k}: ${v} }`).toBe(true);
     }
   });
 
@@ -1321,8 +1632,10 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     for (const a of APPEARANCES) {
       const tokens = tokensOf(a);
       // The kit's set (L5.12d: the only one).
-      for (const [t, on] of UI_TEXT_PAIRS) for (const b of on) if (!(worstRatio(tokens, `ui-${t}`, `ui-${b}`) >= 4.5)) fails.push(`${a}: --ui-${t} on --ui-${b}: ${worstRatio(tokens, `ui-${t}`, `ui-${b}`).toFixed(2)}:1`);
-      for (const [m, on] of UI_MARK_PAIRS) for (const b of on) if (!(worstRatio(tokens, `ui-${m}`, `ui-${b}`) >= 3)) fails.push(`${a}: --ui-${m} (a mark) on --ui-${b}: ${worstRatio(tokens, `ui-${m}`, `ui-${b}`).toFixed(2)}:1`);
+      for (const [t, on] of UI_TEXT_PAIRS)
+        for (const b of on) if (!(worstRatio(tokens, `ui-${t}`, `ui-${b}`) >= 4.5)) fails.push(`${a}: --ui-${t} on --ui-${b}: ${worstRatio(tokens, `ui-${t}`, `ui-${b}`).toFixed(2)}:1`);
+      for (const [m, on] of UI_MARK_PAIRS)
+        for (const b of on) if (!(worstRatio(tokens, `ui-${m}`, `ui-${b}`) >= 3)) fails.push(`${a}: --ui-${m} (a mark) on --ui-${b}: ${worstRatio(tokens, `ui-${m}`, `ui-${b}`).toFixed(2)}:1`);
       // Every pair a rule declares together, excuses or not.
       for (const [f, css] of (await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])) {
         for (const r of css) {
@@ -1360,7 +1673,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect(Number.isNaN(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', 'grey'), 'ui-text-3', 'ui-pane'))).toBe(true);
   });
 
-  it('⚑ placeholders take the app\'s own colour at full opacity (WebKit\'s default reads 2.35:1)', async () => {
+  it("⚑ placeholders take the app's own colour at full opacity (WebKit's default reads 2.35:1)", async () => {
     const rules = cssRules(await baseCss());
     const ph = rules.filter((r) => /(^|,\s*)::placeholder$/.test(r.selector));
     expect(ph).toHaveLength(1);
@@ -1379,7 +1692,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect(seen).toBeGreaterThan(ph.length);
   });
 
-  it('⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong / --ui-ring (the skip link\'s target excepted)', async () => {
+  it("⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong / --ui-ring (the skip link's target excepted)", async () => {
     // (L5.12d: the page's base ring is --ui-ring, read with the others.)
     // L7.34: by what the ring is — at least 2 px, solid, in a ring token, set off from the control, none of the lint's
     // findings — not by its statement.
@@ -1407,18 +1720,35 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     ] as const) {
       expect(focusLint(cssRules(rule)).join(' | '), rule).toContain(what);
     }
-    for (const rule of ['button:focus-visible { outline: 2px solid var(--accent) }', '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }', '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }', '.k-button:focus-visible { outline: 2px solid var(--ui-ring) }']) expect(focusLint(cssRules(rule)), rule).toEqual([]);
+    for (const rule of [
+      'button:focus-visible { outline: 2px solid var(--accent) }',
+      '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }',
+      '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }',
+      '.k-button:focus-visible { outline: 2px solid var(--ui-ring) }',
+    ])
+      expect(focusLint(cssRules(rule)), rule).toEqual([]);
   });
 
-  it('⚑ no opacity below 1 in any stylesheet (L5.12c: the unset colour well is hatched; L5.12d: the legacy layer\'s two faded states — a disabled legacy button, a dragged step — went with it)', async () => {
+  it("⚑ no opacity below 1 in any stylesheet (L5.12c: the unset colour well is hatched; L5.12d: the legacy layer's two faded states — a disabled legacy button, a dragged step — went with it)", async () => {
     await legacyGone();
-    for (const [f, css] of await kitCss()) expect(cssRules(css).filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => `${f}: ${r.selector}`)).toEqual([]);
+    for (const [f, css] of await kitCss())
+      expect(
+        cssRules(css)
+          .filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1))
+          .map((r) => `${f}: ${r.selector}`),
+      ).toEqual([]);
   });
 
-  it('⚑ L5.9: heights follow the shell\'s centre pane (--main-h), never the viewport — no vh in a height, inside min() / max() / clamp() too (review B-M1)', async () => {
+  it("⚑ L5.9: heights follow the shell's centre pane (--main-h), never the viewport — no vh in a height, inside min() / max() / clamp() too (review B-M1)", async () => {
     const vh = (rules: CssRule[]) => rules.flatMap((r) => r.decls.filter(([k, v]) => /^(?:min-|max-)?height$/.test(k) && /\d(?:d|s|l)?vh\b/.test(v)).map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
     for (const [f, css] of await kitCss()) expect(vh(cssRules(css)), f).toEqual([]);
-    expect(vh(cssRules('.x { max-height: calc(100vh - 32px) } .y { height: 100dvh } .z { height: min(44vh, 460px) } .w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) } .v { height: max(var(--main-h), 10px) }'))).toEqual(['.x { max-height: calc(100vh - 32px) }', '.y { height: 100dvh }', '.z { height: min(44vh, 460px) }', '.w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) }']);
+    expect(
+      vh(
+        cssRules(
+          '.x { max-height: calc(100vh - 32px) } .y { height: 100dvh } .z { height: min(44vh, 460px) } .w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) } .v { height: max(var(--main-h), 10px) }',
+        ),
+      ),
+    ).toEqual(['.x { max-height: calc(100vh - 32px) }', '.y { height: 100dvh }', '.z { height: min(44vh, 460px) }', '.w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) }']);
   });
 });
 
@@ -1466,8 +1796,21 @@ describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
       expect(r.map((x) => x.what).join(' | '), line).toContain(what);
     }
     // An exception's look-alike in the same file (other attributes) is not excused.
-    expect(jsxControls('ui-kit/frames.tsx', 'export const X = () => (<li role="option" data-testid="step" onClick={go}>x</li>);').map((x) => x.what)).toEqual([expect.stringContaining('not a control')]);
-    for (const line of ['<button onClick={go}>x</button>', '<a href="#x" onClick={go}>x</a>', '<div role="button" tabIndex={0} onClick={go} onKeyDown={k}>x</div>', '<input {...p} />', '<ul role="listbox" tabIndex={0} onKeyDown={k} />', '<ul role="listbox" tabIndex={on ? 0 : -1} onKeyDown={k} />', '<img onLoad={a} onError={b} alt="" />', '<details onToggle={t} />', '<dialog onClose={c} onCancel={d} />', '<video onTimeUpdate={t} onEnded={e} />']) {
+    expect(jsxControls('ui-kit/frames.tsx', 'export const X = () => (<li role="option" data-testid="step" onClick={go}>x</li>);').map((x) => x.what)).toEqual([
+      expect.stringContaining('not a control'),
+    ]);
+    for (const line of [
+      '<button onClick={go}>x</button>',
+      '<a href="#x" onClick={go}>x</a>',
+      '<div role="button" tabIndex={0} onClick={go} onKeyDown={k}>x</div>',
+      '<input {...p} />',
+      '<ul role="listbox" tabIndex={0} onKeyDown={k} />',
+      '<ul role="listbox" tabIndex={on ? 0 : -1} onKeyDown={k} />',
+      '<img onLoad={a} onError={b} alt="" />',
+      '<details onToggle={t} />',
+      '<dialog onClose={c} onCancel={d} />',
+      '<video onTimeUpdate={t} onEnded={e} />',
+    ]) {
       expect(jsxControls('Planted.tsx', `export const X = () => (${line});`), line).toEqual([]);
     }
   });
@@ -1496,7 +1839,7 @@ const CLASS_HOOKS = new Map<string, string>([
   ['tm-editor', 'the theme editor beside tm-screen'],
   ['sidebar', "the browser's aside beside sh-browser"],
   // A state whose look comes from elsewhere (an attribute, a child, the native state).
-  ['is-busy', "a busy Button: natively disabled, the k-spinner child moves"],
+  ['is-busy', 'a busy Button: natively disabled, the k-spinner child moves'],
   ['is-gap', 'a DiffTable gap row (data-kind="gap" beside it)'],
   ['is-unusable', 'a chip with a reason: its k-why line says it'],
   ['th-none', 'a Thumb with no picture (data-state="none" beside it)'],
@@ -1508,33 +1851,46 @@ const CLASS_HOOKS = new Map<string, string>([
   ['k-contact-label', "a contact sheet item's label"],
   ['k-empty-action', "an EmptyState's action row"],
   ['k-facts-group', 'a named Facts group (kit-static pins its markup)'],
-  ['k-palette-group', "a palette group (role=group, its heading styled)"],
+  ['k-palette-group', 'a palette group (role=group, its heading styled)'],
   ['k-progress-label', "a Progress' label"],
   ['k-seg-label', "a segment's label"],
   ['k-source-group', 'a source list group (kit-static pins its markup)'],
   ['ed-notes', "Edit's notes pane (data-testid beside it)"],
   ['lb-cards', "the Library grid's key-handling wrapper"],
   ['rc-state-mark', "Record's state mark (data-state beside it)"],
-  ['rv-family', "a Review family row inside its RowListItem"],
-  ['sc-lately', 'Activity\'s list (its items and words styled)'],
+  ['rv-family', 'a Review family row inside its RowListItem'],
+  ['sc-lately', "Activity's list (its items and words styled)"],
   ['sh-foot-meta', "the browser foot's second line beside sh-foot-line"],
   ['sh-scenario-env', 'the status bar\'s " · on <env>" words'],
   ['sh-slot-inspector', "the inspector slot's portal target"],
   ['sp-col-persona', "Sessions' persona column head"],
-  ['sp-group', "a Shoot checklist group (its head styled)"],
-  ['tm-note-message', 'a theme note\'s message beside tm-note'],
+  ['sp-group', 'a Shoot checklist group (its head styled)'],
+  ['tm-note-message', "a theme note's message beside tm-note"],
   ['wl-project-error', "a Welcome project card's error words"],
   ['wl-run', "a Welcome project card's last-run words"],
 ]);
 
 /** A comparison or a membership test: its operands are values tested, never classes (`x === 'record' ? … : …`). */
-const TESTS = new Set([ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.InKeyword]);
+const TESTS = new Set([
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+  ts.SyntaxKind.InKeyword,
+]);
 
 /** A declaration a class expression may name and the lint follows: a class string or a helper that builds one. */
 function followable(n: ts.Node): boolean {
   if (ts.isParenthesizedExpression(n)) return followable(n.expression);
   if (ts.isArrowFunction(n)) return !ts.isBlock(n.body);
-  return ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateExpression(n) || ts.isConditionalExpression(n) || ts.isBinaryExpression(n) || (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'join');
+  return (
+    ts.isStringLiteral(n) ||
+    ts.isNoSubstitutionTemplateLiteral(n) ||
+    ts.isTemplateExpression(n) ||
+    ts.isConditionalExpression(n) ||
+    ts.isBinaryExpression(n) ||
+    (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'join')
+  );
 }
 
 /**
@@ -1642,7 +1998,11 @@ function reducedMotionGaps(rules: Array<CssRule & { f: string }>): string[] {
     if (r.media === REDUCE) return;
     for (const kind of ['animation', 'transition'] as const) {
       if (!r.decls.some(([k, v]) => k.startsWith(kind) && MOVES.test(k) && !STILL.test(v))) continue;
-      const offAt = rules.flatMap((x, j) => (x.media === REDUCE && x.selector.split(/,\s*/).includes(r.selector) && x.decls.some(([k, v]) => (k === kind || k === `${kind}-${kind === 'animation' ? 'name' : 'duration'}`) && STILL.test(v)) ? [j] : []));
+      const offAt = rules.flatMap((x, j) =>
+        x.media === REDUCE && x.selector.split(/,\s*/).includes(r.selector) && x.decls.some(([k, v]) => (k === kind || k === `${kind}-${kind === 'animation' ? 'name' : 'duration'}`) && STILL.test(v))
+          ? [j]
+          : [],
+      );
       if (!offAt.some((j) => j > i)) out.push(`${r.f}: ${r.selector} (${kind}${offAt.length ? ', after its reduced-motion rule' : ''})`);
     }
   });
@@ -1657,19 +2017,31 @@ describe('⚑ L5.12d: the legacy layer is gone', () => {
     expect([...main.matchAll(/^import '\.\/([\w/.-]+\.css)';$/gm)].map((m) => m[1])).toEqual(['tokens.css', 'base.css', 'ui-kit/kit.css', 'shell/shell.css', 'screens.css']);
     for (const [f, css] of await kitCss()) expect(css, f).not.toMatch(/@layer\b/);
     expect([...cssClasses(await baseCss())]).toEqual([]);
-    for (const r of cssRules(await baseCss())) expect(r.selector, r.selector).toMatch(/^(?:[*a-z0-9]+|\[hidden\]|#root|:focus-visible|::placeholder|a:hover|a:focus-visible)(?:,\n(?:[*a-z0-9]+|#root))*$/);
+    for (const r of cssRules(await baseCss()))
+      expect(r.selector, r.selector).toMatch(/^(?:[*a-z0-9]+|\[hidden\]|#root|:focus-visible|::placeholder|a:hover|a:focus-visible)(?:,\n(?:[*a-z0-9]+|#root))*$/);
     // Review B-L4: a plain link's focus ring keeps the kit ring's radius (the legacy layer gave it one).
     expect(cssRules(await baseCss()).find((r) => r.selector === 'a:focus-visible')?.decls).toContainEqual(['border-radius', 'var(--ui-radius-control)']);
     const bits = files.find(([f]) => f === 'bits.tsx')![1];
     expect([...bits.matchAll(/^export (?:function|const|type) (\w+)/gm)].map((m) => m[1]).sort()).toEqual(['Txt', 'When', 'plural', 'shown', 'visibleControls']);
-    expect(files.filter(([, text]) => /\b(?:Badge|Notice|Loading|EnvFlags|RunState|BadgeTone)\b[^\n]*from '\.{1,2}\/bits\.js'/.test(text) || /import \{[^}]*\b(?:Badge|Notice|Loading)\b[^}]*\} from '[^']*bits\.js'/.test(text)).map(([f]) => f)).toEqual([]);
+    expect(
+      files
+        .filter(
+          ([, text]) =>
+            /\b(?:Badge|Notice|Loading|EnvFlags|RunState|BadgeTone)\b[^\n]*from '\.{1,2}\/bits\.js'/.test(text) || /import \{[^}]*\b(?:Badge|Notice|Loading)\b[^}]*\} from '[^']*bits\.js'/.test(text),
+        )
+        .map(([f]) => f),
+    ).toEqual([]);
   });
 
-  it('⚑ reduced motion: every animation and transition of the stylesheets is turned off under prefers-reduced-motion: reduce (its own selector); no smooth scroll — every scrollIntoView / scrollTo / scrollBy says behavior: \'auto\'', async () => {
+  it("⚑ reduced motion: every animation and transition of the stylesheets is turned off under prefers-reduced-motion: reduce (its own selector); no smooth scroll — every scrollIntoView / scrollTo / scrollBy says behavior: 'auto'", async () => {
     const all = await cascadeRules();
     expect(reducedMotionGaps(all)).toEqual([]);
     expect(all.filter((r) => r.media !== REDUCE && r.decls.some(([k, v]) => MOVES.test(k) && !STILL.test(v))).length).toBeGreaterThanOrEqual(3);
-    for (const r of all) expect(r.decls.filter(([k, v]) => k === 'scroll-behavior' && v !== 'auto'), `${r.f}: ${r.selector}`).toEqual([]);
+    for (const r of all)
+      expect(
+        r.decls.filter(([k, v]) => k === 'scroll-behavior' && v !== 'auto'),
+        `${r.f}: ${r.selector}`,
+      ).toEqual([]);
     const calls = (await appSources()).filter(([f]) => /\.tsx?$/.test(f)).flatMap(([f, src]) => [...code(src).matchAll(SCROLL_CALL)].map((m) => [f, m[0], m[2]] as const));
     expect(calls.length).toBeGreaterThanOrEqual(10);
     expect(calls.filter(([, , args]) => !/behavior: 'auto'/.test(args)).map(([f, call]) => `${f}: ${call}`)).toEqual([]);
@@ -1709,11 +2081,15 @@ describe('⚑ L5.12d: the legacy layer is gone', () => {
     for (const [text, word] of [
       ["export const row = { key: 'a', label: 'A', current: false, className: 'nav-link' };", 'nav-link'],
       ['const cls = `k-source-item muted`;\nexport const X = () => <a className={cls} />;', 'muted'],
-      ["const cls = (v: string) => `k-btn k-btn-${v} card`;\nexport const X = ({ v }: { v: string }) => <button className={cls(v)} />;", 'card'],
+      ['const cls = (v: string) => `k-btn k-btn-${v} card`;\nexport const X = ({ v }: { v: string }) => <button className={cls(v)} />;', 'card'],
     ] as const) {
       expect(undefinedClasses([['Planted.tsx', text]], defined), text).toEqual([`Planted.tsx: ${word}`]);
     }
-    expect(classWords('Planted.tsx', "export const X = ({ v }: { v: string }) => <a className={v === 'record' ? 'k-btn' : `k-btn ${'record' !== v ? 'k-btn-ghost' : ''}`} />;")).toEqual(['k-btn', 'k-btn', 'k-btn-ghost']);
+    expect(classWords('Planted.tsx', "export const X = ({ v }: { v: string }) => <a className={v === 'record' ? 'k-btn' : `k-btn ${'record' !== v ? 'k-btn-ghost' : ''}`} />;")).toEqual([
+      'k-btn',
+      'k-btn',
+      'k-btn-ghost',
+    ]);
   });
 });
 
@@ -1729,7 +2105,7 @@ function headTable(): Record<string, number> | null {
 }
 
 describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint with a ratchet)', () => {
-  it('no native control, widget role, kit class or legacy token outside ui-kit/ but the legacy screens\' counted ones (each count ≤ its row; the rows only go down)', async () => {
+  it("no native control, widget role, kit class or legacy token outside ui-kit/ but the legacy screens' counted ones (each count ≤ its row; the rows only go down)", async () => {
     const table = await readTable();
     const found = await ratchetFindings();
     const over = [...found].filter(([f, x]) => x.length > (table[f] ?? 0)).map(([f, x]) => `${f}: ${x.length} findings, the table allows ${table[f] ?? 0} (${x.slice(0, 4).join('; ')})`);
@@ -1744,7 +2120,12 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     }
     // A row never goes up: not above the committed table's (pnpm -F @retake/ui ratchet only lowers rows).
     const head = headTable();
-    if (head) expect(Object.entries(table).filter(([f, n]) => n > (head[f] ?? 0)).map(([f]) => f)).toEqual([]);
+    if (head)
+      expect(
+        Object.entries(table)
+          .filter(([f, n]) => n > (head[f] ?? 0))
+          .map(([f]) => f),
+      ).toEqual([]);
     // Planted, in a file without a row: each kind found.
     const ctx = { tokens: new Set(['--danger-soft', '--accent']) };
     const planted = (line: string) => offKit('New.tsx', `export const X = () => (${line});`, ctx);
@@ -1752,10 +2133,13 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     expect(planted('<div role="switch" />')).toEqual(['New.tsx:1 role switch']);
     expect(planted('<a href="#/" className="k-btn k-btn-primary">Go</a>')).toEqual(['New.tsx:1 class k-btn', 'New.tsx:1 class k-btn-primary']);
     // The review's mutation: an ad-hoc button on a legacy colour, a link dressed as a legacy button.
-    expect(planted('<div role="button" tabIndex={0} onClick={go} onKeyDown={go} style={{ background: \'var(--danger-soft)\' }}>Ad hoc</div>')).toEqual(['New.tsx:1 role button', 'New.tsx:1 legacy token --danger-soft']);
+    expect(planted('<div role="button" tabIndex={0} onClick={go} onKeyDown={go} style={{ background: \'var(--danger-soft)\' }}>Ad hoc</div>')).toEqual([
+      'New.tsx:1 role button',
+      'New.tsx:1 legacy token --danger-soft',
+    ]);
     expect(planted("<div role={on ? 'tab' : undefined} />")).toEqual([expect.stringContaining('(not a literal)')]);
     expect(planted('<div role={`tab`} />')).toEqual([expect.stringContaining('(not a literal)')]);
-    expect(planted('<div className={on ? \'card\' : `k-panel ${x}`} />')).toEqual(['New.tsx:1 class k-panel']);
+    expect(planted("<div className={on ? 'card' : `k-panel ${x}`} />")).toEqual(['New.tsx:1 class k-panel']);
     for (const tag of ['progress', 'meter', 'details', 'summary', 'label']) expect(planted(`<${tag} />`), tag).toEqual([`New.tsx:1 <${tag}>`]);
     for (const role of ['checkbox', 'radio', 'tab', 'slider', 'option', 'menuitemradio', 'spinbutton']) expect(planted(`<div role="${role}" />`), role).toEqual([`New.tsx:1 role ${role}`]);
     expect(offKit('New.tsx', "const c = getComputedStyle(el).getPropertyValue('--accent');", ctx)).toEqual(['New.tsx:1 legacy token --accent']);
@@ -1767,7 +2151,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     expect([...cssClasses('.a, .b > .c:hover { x: 1 } @media (max-width: 9px) { .d.e { y: 2 } } /* .f */')].sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 
-  it('the kit, the shell and the new screens\' stylesheets: sizes, weights and radii from --ui-* tokens only', async () => {
+  it("the kit, the shell and the new screens' stylesheets: sizes, weights and radii from --ui-* tokens only", async () => {
     const SIZED = new Set(['font-size', 'line-height', 'font-weight', 'border-radius', 'letter-spacing']);
     const bad: string[] = [];
     const lint = (f: string, css: string) => {
@@ -1781,7 +2165,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     expect(bad).toEqual(['planted.css: .k-x { font-size: 14px }', 'planted.css: .k-x { border-radius: 3px }', 'planted.css: .k-x { font-weight: 650 }']);
   });
 
-  it('the product\'s name lives in brand.ts: never written in the app\'s sources (the screens, the kit, the shell, the gallery) or bundle.ts', async () => {
+  it("the product's name lives in brand.ts: never written in the app's sources (the screens, the kit, the shell, the gallery) or bundle.ts", async () => {
     const files = await appSources();
     files.push(['../bundle.ts', await readFile(join(APP, '..', 'bundle.ts'), 'utf8')]);
     // The name as a word, in JSX text, a string or a template.
@@ -1839,7 +2223,10 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(Menu, { label: 'More', text: K('mtext'), items: [{ id: 'x', label: K('mitem') }], onSelect: go }),
       createElement(Select, { label: K('slabel'), hint: K('shint'), value: 'v', options: [{ value: 'v', label: K('opt') }], onChange: go }),
       createElement(Sheet, { open: false, title: K('stitle'), actions: [{ id: 'c', label: K('saction'), isCancel: true }], onAction: go, children: K('sbody') }),
-      createElement(SourceList, { label: 'Browser', groups: [{ key: 'g', heading: K('sheading'), items: [{ key: 'r', to: { name: 'projects' }, label: K('srow'), flag: K('sflag'), current: false, count: 3 }] }] }),
+      createElement(SourceList, {
+        label: 'Browser',
+        groups: [{ key: 'g', heading: K('sheading'), items: [{ key: 'r', to: { name: 'projects' }, label: K('srow'), flag: K('sflag'), current: false, count: 3 }] }],
+      }),
       createElement(StatusMark, { state: 'ok', word: K('status') }),
       createElement(StatusBar, { state: K('bstate'), info: K('binfo'), actions: K('bactions') }),
       createElement(FrameCard, { picture: K('cpic'), number: K('cnum'), title: K('ctitle'), meta: K('cmeta'), onSelect: go }),
@@ -1848,7 +2235,14 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(TextArea, { label: K('alabel'), value: 'x', onChange: go, unsaved: null }),
       createElement(FieldRow, { label: K('rlabel'), hint: K('rhint'), children: K('rchild') }),
       createElement(Segmented, { label: K('seglegend'), value: 'a', options: [{ value: 'a', label: K('seg') }], onChange: go }),
-      createElement(SegmentedLinks, { label: 'Mode', hint: K('seghint'), items: [{ key: 'a', label: K('link'), to: null, current: false }, { key: 'b', label: K('link2'), to: { name: 'projects' }, current: false }] }),
+      createElement(SegmentedLinks, {
+        label: 'Mode',
+        hint: K('seghint'),
+        items: [
+          { key: 'a', label: K('link'), to: null, current: false },
+          { key: 'b', label: K('link2'), to: { name: 'projects' }, current: false },
+        ],
+      }),
       createElement(EmptyState, { title: K('etitle'), children: K('etext'), actions: K('eactions') }),
       createElement(InspectorSection, { title: K('ititle'), children: K('ibody') }),
       createElement(InspectorSection, { title: K('ctitle2'), collapsible: true, children: K('cbody2') }),
@@ -1862,9 +2256,32 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(Facts, { rows: [{ key: 'a', label: K('factl'), value: K('factv') }] }),
       createElement(Disclosure, { summary: K('dsum'), children: K('dbody') }),
       createElement(PosterGrid, { label: 'Productions', items: [{ id: 'a', picture: K('ppic'), title: K('ptitle'), meta: K('pmeta') }], selected: 'a', onSelect: go, onOpen: go }),
-      createElement(SourceList, { label: 'Browser 2', groups: [{ key: 'g', items: [{ key: 'r', to: { name: 'projects' }, label: 'Row', value: K('svalue'), lead: K('slead'), icon: 'film', quiet: true, current: true }] }] }),
+      createElement(SourceList, {
+        label: 'Browser 2',
+        groups: [{ key: 'g', items: [{ key: 'r', to: { name: 'projects' }, label: 'Row', value: K('svalue'), lead: K('slead'), icon: 'film', quiet: true, current: true }] }],
+      }),
       // L5.10b: the scenario side's kit additions.
-      createElement(FrameGrid, { label: 'Steps', tabbable: true, children: [createElement(FrameOption, { key: 'a', id: 'o', dataKey: 'a', label: 'Step', selected: true, picture: K('fpic'), number: K('fnum'), title: K('ftitle'), meta: K('fmeta'), draggable: false, drop: null, dragging: false, onPick: go })] }),
+      createElement(FrameGrid, {
+        label: 'Steps',
+        tabbable: true,
+        children: [
+          createElement(FrameOption, {
+            key: 'a',
+            id: 'o',
+            dataKey: 'a',
+            label: 'Step',
+            selected: true,
+            picture: K('fpic'),
+            number: K('fnum'),
+            title: K('ftitle'),
+            meta: K('fmeta'),
+            draggable: false,
+            drop: null,
+            dragging: false,
+            onPick: go,
+          }),
+        ],
+      }),
       createElement(FrameGrid, { label: 'Empty', tabbable: false, empty: K('fempty'), children: [] }),
       createElement(RowCard, { tile: K('rtile'), title: K('rtitle'), meta: K('rmeta'), selected: false, onSelect: go }),
       createElement(Callout, { title: K('caltitle'), children: K('calbody') }),
@@ -1880,35 +2297,201 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(RadioGroup, { legend: K('rglegend'), value: 'a', onChange: go, options: [{ value: 'a', label: K('rglabel'), detail: K('rgdetail'), aside: K('rgaside') }] }),
       createElement(RowCard, { compact: true, tile: K('crtile'), title: K('crtitle'), meta: K('crmeta'), aside: K('craside'), selected: true, onSelect: go }),
       // L5.12a: Edit's and the Review report's kit additions (chips, tracks, the scrubber, a contact sheet, a tag, a number field).
-      createElement(ChoiceChips, { labelledBy: 'l', chips: [{ key: 'a', label: K('chlabel'), value: 'a', checked: true }, { key: 'b', label: K('chlabel2'), value: 'b', checked: false, disabled: true, why: K('chwhy') }], onPick: go }),
-      createElement(Track, { name: K('trname'), testId: 't', count: 1, children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p', onActivate: go, tip: K('trtip'), children: K('tritem') }) }),
+      createElement(ChoiceChips, {
+        labelledBy: 'l',
+        chips: [
+          { key: 'a', label: K('chlabel'), value: 'a', checked: true },
+          { key: 'b', label: K('chlabel2'), value: 'b', checked: false, disabled: true, why: K('chwhy') },
+        ],
+        onPick: go,
+      }),
+      createElement(Track, {
+        name: K('trname'),
+        testId: 't',
+        count: 1,
+        children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p', onActivate: go, tip: K('trtip'), children: K('tritem') }),
+      }),
       createElement(Scrubber, { time: K('sctime'), max: 9, value: 0, valueText: K('scvalue'), onChange: go, marks: [{ at: 0.5, label: K('scmark') }] }),
-      createElement(ContactSheet, { items: [{ key: 'a', name: 'Sheet', label: K('cslabel'), meta: K('csmeta'), picture: K('cspic'), state: 'ok' }, { key: 'b', name: 'Sheet 2', label: K('cslabel2'), picture: null, words: K('cswords'), state: 'error' }] }),
+      createElement(ContactSheet, {
+        items: [
+          { key: 'a', name: 'Sheet', label: K('cslabel'), meta: K('csmeta'), picture: K('cspic'), state: 'ok' },
+          { key: 'b', name: 'Sheet 2', label: K('cslabel2'), picture: null, words: K('cswords'), state: 'error' },
+        ],
+      }),
       createElement(Tag, { children: K('tag') }),
       createElement(NumberField, { label: K('nflabel'), hint: K('nfhint'), error: K('nferror'), value: '1', onChange: go }),
       // L5.12a fixes (review A-L5): a row card that is a link.
       createElement(RowCard, { compact: true, tile: K('lrtile'), title: K('lrtitle'), meta: K('lrmeta'), selected: true, to: { name: 'projects' } }),
       // L5.12b: the diff table (its code cells: visible marks, byte order — no <bdi> can go inside a bidi-overridden line),
       // the region over a frame, the palette's footnote, a tick that is a link.
-      createElement(DiffTable, { label: 'Change', title: K('dttitle'), rows: [{ kind: 'add', sign: '+', word: K('dtword'), base: null, line: 3, pieces: [{ kind: 'text', text: K('dtcode') }], rtl: true }, { kind: 'gap', sign: '…', word: K('dtgap'), base: null, line: null, pieces: [], rtl: false }] }),
+      createElement(DiffTable, {
+        label: 'Change',
+        title: K('dttitle'),
+        rows: [
+          { kind: 'add', sign: '+', word: K('dtword'), base: null, line: 3, pieces: [{ kind: 'text', text: K('dtcode') }], rtl: true },
+          { kind: 'gap', sign: '…', word: K('dtgap'), base: null, line: null, pieces: [], rtl: false },
+        ],
+      }),
       createElement(RegionOverlay, { region: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, label: K('rolabel') }),
       createElement(CommandPalette, { open: true, onClose: go, footnote: K('pfoot'), commands: [{ id: 'b', label: 'Row', icon: 'theme', group: 'Themes', run: go }] }),
-      createElement(Track, { name: 'Pins', testId: 't2', count: 1, children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p2', to: { name: 'projects' }, tip: K('trltip'), children: K('trlitem') }) }),
+      createElement(Track, {
+        name: 'Pins',
+        testId: 't2',
+        count: 1,
+        children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p2', to: { name: 'projects' }, tip: K('trltip'), children: K('trlitem') }),
+      }),
       // L5.12c: the Library's data table, the theme editor's colour field, a sheet's fields.
-      createElement(DataTable, { caption: K('dtcap'), columns: [{ key: 'a', label: K('dtcol') }, { key: 'b', label: 'B' }], rows: [{ key: 'r', cells: [K('dthead'), K('dtcell')] }] }),
+      createElement(DataTable, {
+        caption: K('dtcap'),
+        columns: [
+          { key: 'a', label: K('dtcol') },
+          { key: 'b', label: 'B' },
+        ],
+        rows: [{ key: 'r', cells: [K('dthead'), K('dtcell')] }],
+      }),
       createElement(ColorField, { label: K('cflabel'), hint: K('cfhint'), value: 'x', picker: 'x', draft: K('cfdraft'), onDraft: go, onCommit: go }),
       createElement(Sheet, { open: false, title: 'Copy', actions: [{ id: 'c', label: 'Cancel', isCancel: true }], onAction: go, content: K('shcontent') }),
     ];
     const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
     const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
-    expect(raw, "a raw direction control").toEqual([]);
+    expect(raw, 'a raw direction control').toEqual([]);
     expect(html).not.toMatch(/<img|onerror="/);
     const places = placesOf(html);
     const marks = new Set(['opt', 'kbd', 'dtcode']);
     // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
     const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
     expect(wrong, JSON.stringify(wrong)).toEqual([]);
-    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside', 'chlabel', 'chlabel2', 'chwhy', 'trname', 'trtip', 'tritem', 'sctime', 'scmark', 'cslabel', 'csmeta', 'cspic', 'cslabel2', 'cswords', 'tag', 'nflabel', 'nfhint', 'nferror', 'lrtile', 'lrtitle', 'lrmeta', 'dttitle', 'dtword', 'dtgap', 'rolabel', 'pfoot', 'trltip', 'trlitem', 'dtcap', 'dtcol', 'dthead', 'dtcell', 'cflabel', 'cfhint', 'cfdraft', 'shcontent'];
+    const all = [
+      'plabel',
+      'phint',
+      'pgroup',
+      'mtext',
+      'mitem',
+      'slabel',
+      'shint',
+      'stitle',
+      'saction',
+      'sbody',
+      'sheading',
+      'srow',
+      'sflag',
+      'status',
+      'bstate',
+      'binfo',
+      'bactions',
+      'cpic',
+      'cnum',
+      'ctitle',
+      'cmeta',
+      'wlabel',
+      'whint',
+      'flabel',
+      'fhint',
+      'ferror',
+      'alabel',
+      'rlabel',
+      'rhint',
+      'rchild',
+      'seglegend',
+      'seg',
+      'seghint',
+      'link',
+      'link2',
+      'etitle',
+      'etext',
+      'eactions',
+      'ititle',
+      'ibody',
+      'ctitle2',
+      'cbody2',
+      'prog',
+      'progv',
+      'blword',
+      'blfix',
+      'bltext',
+      'why',
+      'btn',
+      'lbtn',
+      'tool',
+      'factl',
+      'factv',
+      'dsum',
+      'dbody',
+      'ppic',
+      'ptitle',
+      'pmeta',
+      'svalue',
+      'slead',
+      'fpic',
+      'fnum',
+      'ftitle',
+      'fmeta',
+      'fempty',
+      'rtile',
+      'rtitle',
+      'rmeta',
+      'caltitle',
+      'calbody',
+      'tfix',
+      'tnode',
+      'wrlabel',
+      'wrhint',
+      'sbtn',
+      'ckword',
+      'cktitle',
+      'ckact',
+      'ckbody',
+      'cbword',
+      'cbcopy',
+      'cbtext',
+      'cbword2',
+      'cblink',
+      'astitle',
+      'asaction',
+      'rglegend',
+      'rglabel',
+      'rgdetail',
+      'rgaside',
+      'crtile',
+      'crtitle',
+      'crmeta',
+      'craside',
+      'chlabel',
+      'chlabel2',
+      'chwhy',
+      'trname',
+      'trtip',
+      'tritem',
+      'sctime',
+      'scmark',
+      'cslabel',
+      'csmeta',
+      'cspic',
+      'cslabel2',
+      'cswords',
+      'tag',
+      'nflabel',
+      'nfhint',
+      'nferror',
+      'lrtile',
+      'lrtitle',
+      'lrmeta',
+      'dttitle',
+      'dtword',
+      'dtgap',
+      'rolabel',
+      'pfoot',
+      'trltip',
+      'trlitem',
+      'dtcap',
+      'dtcol',
+      'dthead',
+      'dtcell',
+      'cflabel',
+      'cfhint',
+      'cfdraft',
+      'shcontent',
+    ];
     const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
     expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
     // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
@@ -1922,7 +2505,15 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
     for (const line of ['<span>{c.label}</span>', '<span>{title}</span>', '<p>{on ? label : <b />}</p>', '<p>{on && hint}</p>', '<p>{`${a} b`}</p>', '<p>{a ?? b}</p>', '<p>{format(a)}</p>']) {
       expect(kitBareText('Planted.tsx', `export const X = () => (${line});`), line).toHaveLength(1);
     }
-    for (const line of ['<span>{shown(c.label)}</span>', '<span><Txt text={c.label} /></span>', '<option>{visibleControls(o.label)}</option>', '<p>{on ? shown(a) : null}</p>', '<p>{on && <b />}</p>', '<ul>{xs.map((x) => <li key={x}>{shown(x)}</li>)}</ul>', '<p>{"word"}</p>']) {
+    for (const line of [
+      '<span>{shown(c.label)}</span>',
+      '<span><Txt text={c.label} /></span>',
+      '<option>{visibleControls(o.label)}</option>',
+      '<p>{on ? shown(a) : null}</p>',
+      '<p>{on && <b />}</p>',
+      '<ul>{xs.map((x) => <li key={x}>{shown(x)}</li>)}</ul>',
+      '<p>{"word"}</p>',
+    ]) {
       expect(kitBareText('Planted.tsx', `export const X = () => (${line});`), line).toEqual([]);
     }
     expect(kitBareText('Planted.tsx', 'export const X = () => (<ul>{xs.map((x) => <li key={x}>{x}</li>)}</ul>);')).toEqual(['Planted.tsx:1 {x}']);
@@ -1954,7 +2545,11 @@ describe('L5.10a: the project side', () => {
     expect(parseRoute('#/p/n/cast')).toEqual({ name: 'cast', slug: 'n' });
     expect(parseRoute('#/p/n/cast/x')).toMatchObject({ name: 'not-found' });
     for (const slug of ['northfield-fixture', '<img src=x>', 'a/b', '\u202Egnp.exe']) {
-      for (const r of [{ name: 'group', slug, group: 'ready' }, { name: 'location', slug, env: slug }, { name: 'cast', slug }] as const) {
+      for (const r of [
+        { name: 'group', slug, group: 'ready' },
+        { name: 'location', slug, env: slug },
+        { name: 'cast', slug },
+      ] as const) {
         const h = hrefTo(r);
         expect(h.startsWith('#/p/')).toBe(true);
         expect(parseRoute(h)).toEqual(r);
@@ -2005,7 +2600,19 @@ describe('L5.10a: the project side', () => {
 // ── L5.10b: the scenario side (the storyboard, its inspector, the take strip, the scenes browser, the YAML source) ────
 
 /** The rebuilt scenario-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
-const SCENARIO_SIDE = ['script/ScenarioScreen.tsx', 'script/Storyboard.tsx', 'shoot/TakeStrip.tsx', 'script/ScenarioInspector.tsx', 'script/ScenesBrowser.tsx', 'script/StepForm.tsx', 'script/StepEditing.tsx', 'script/YamlTab.tsx', 'script/YamlView.tsx', 'script/TextEditing.tsx', 'Thumb.tsx'];
+const SCENARIO_SIDE = [
+  'script/ScenarioScreen.tsx',
+  'script/Storyboard.tsx',
+  'shoot/TakeStrip.tsx',
+  'script/ScenarioInspector.tsx',
+  'script/ScenesBrowser.tsx',
+  'script/StepForm.tsx',
+  'script/StepEditing.tsx',
+  'script/YamlTab.tsx',
+  'script/YamlView.tsx',
+  'script/TextEditing.tsx',
+  'Thumb.tsx',
+];
 /** The ops the scenario side may call: its reads, and the mutating ones the plan allows (critique §7.3). */
 // L5.11a: Rehearse, Capture and Stop moved to the status bar (shoot-data.ts): the scenario side no longer starts or stops a run.
 const SCENARIO_SIDE_OPS = new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit']);
@@ -2014,7 +2621,15 @@ const SCENARIO_SIDE_OPS = new Set(['scenario_blocks', 'scenario_forms', 'scenari
 function editCalls(text: string): Array<{ at: number; hash: boolean }> {
   return apiCalls(text)
     .filter((c) => c.op === 'scenario_edit')
-    .map((c) => ({ at: c.line, hash: !!c.args && ts.isObjectLiteralExpression(c.args) && c.args.properties.some((p) => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === 'hash' && ts.isPropertyAssignment(p) && !(ts.isIdentifier(p.initializer) && p.initializer.text === 'undefined')) }));
+    .map((c) => ({
+      at: c.line,
+      hash:
+        !!c.args &&
+        ts.isObjectLiteralExpression(c.args) &&
+        c.args.properties.some(
+          (p) => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === 'hash' && ts.isPropertyAssignment(p) && !(ts.isIdentifier(p.initializer) && p.initializer.text === 'undefined'),
+        ),
+    }));
 }
 
 describe('L5.10b: the scenario side', () => {
@@ -2034,7 +2649,7 @@ describe('L5.10b: the scenario side', () => {
     expect(kitBareText('script/Storyboard.tsx', title)).toEqual([expect.stringContaining('e.caption?.kicker ?? e.id')]);
   });
 
-  it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; Inspector.tsx is gone; the frames\' widget roles live in the kit', async () => {
+  it("⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; Inspector.tsx is gone; the frames' widget roles live in the kit", async () => {
     const table = await readTable();
     const found = await ratchetFindings();
     for (const f of SCENARIO_SIDE) {
@@ -2073,7 +2688,19 @@ describe('L5.10b: the scenario side', () => {
 /** The rebuilt Shoot files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
 const SHOOT_SIDE = ['shoot/ShootPrepare.tsx', 'shoot/ShootLive.tsx', 'shoot/ShootBrowser.tsx', 'shoot/LiveView.tsx', 'project/Sessions.tsx', 'project/CastScreen.tsx', 'shell/StatusActions.tsx'];
 /** The ops Shoot may call: its reads, the run's own controls, a render, a sign-in (no edit, no other write). */
-const SHOOT_OPS = new Set(['scenario_actions', 'scenario_sessions', 'scenario_run', 'scenario_render', 'run_cancel', 'run_pause', 'run_status', 'run_thumbs', 'auth_login', 'sign_in_cancel', 'job_list']);
+const SHOOT_OPS = new Set([
+  'scenario_actions',
+  'scenario_sessions',
+  'scenario_run',
+  'scenario_render',
+  'run_cancel',
+  'run_pause',
+  'run_status',
+  'run_thumbs',
+  'auth_login',
+  'sign_in_cancel',
+  'job_list',
+]);
 
 /**
  * "dry run" in a string the page shows (M6 / M9 of the plan: the Studio says Rehearse) — string literals, templates and
@@ -2087,7 +2714,8 @@ function dryRunWords(file: string, text: string): string[] {
   const visit = (n: ts.Node) => {
     if (ts.isJsxAttribute(n) && /^(?:data-testid|testId)$/.test(n.name.getText(src))) return;
     if (ts.isVariableDeclaration(n) && n.name.getText(src) === 'REHEARSE_MAPPING') return;
-    if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) && RE.test(n.text)) out.push(`${at(n)} ${n.text.trim().slice(0, 60)}`);
+    if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) && RE.test(n.text))
+      out.push(`${at(n)} ${n.text.trim().slice(0, 60)}`);
     ts.forEachChild(n, visit);
   };
   visit(src);
@@ -2129,12 +2757,16 @@ describe('L5.11a: Shoot', () => {
     expect(offKit('shoot/ShootLive.tsx', planted, ctx).length).toBeGreaterThan(offKit('shoot/ShootLive.tsx', live, ctx).length);
   });
 
-  it('⚑ Shoot calls only its reads, the run\'s controls, a render and a sign-in; every scenario_run of the app goes through shoot-data.ts and names the file shown (hash)', async () => {
+  it("⚑ Shoot calls only its reads, the run's controls, a render and a sign-in; every scenario_run of the app goes through shoot-data.ts and names the file shown (hash)", async () => {
     const files = (await appSources()).filter(([f]) => [...SHOOT_SIDE, 'shoot/shoot-data.ts'].includes(f));
     const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
     expect(called.length).toBeGreaterThan(5);
     expect(called.filter(([, op]) => !SHOOT_OPS.has(op))).toEqual([]);
-    const runs = (await appSources()).flatMap(([f, text]) => opsCalled(text).filter((op) => op === 'scenario_run').map(() => f));
+    const runs = (await appSources()).flatMap(([f, text]) =>
+      opsCalled(text)
+        .filter((op) => op === 'scenario_run')
+        .map(() => f),
+    );
     expect(runs).toEqual(['shoot/shoot-data.ts']);
     // L7.34: what startRun sends (the page's request, fetch stood in for): the scenario, the mode and the file shown.
     const sent: Array<Record<string, unknown>> = [];
@@ -2169,7 +2801,7 @@ describe('L5.11a: Shoot', () => {
     const edit = described(await readFile(join(REPO, 'packages/engine/src/operations/scenario-edit.ts'), 'utf8'));
     expect(dryRunWords('scenario-edit.ts', edit)).toEqual([]);
     // The mutations: a label, a template, JSX text.
-    expect(dryRunWords('X.tsx', "const a = <Button>Start dry run</Button>;")).toEqual(['X.tsx:1 Start dry run']);
+    expect(dryRunWords('X.tsx', 'const a = <Button>Start dry run</Button>;')).toEqual(['X.tsx:1 Start dry run']);
     expect(dryRunWords('X.tsx', 'const a = `the ${m} dry-run`;')).toHaveLength(1);
     expect(dryRunWords('X.tsx', "const a = 'Dry runs';")).toHaveLength(1);
     expect(dryRunWords('X.tsx', '// a dry run\nconst a = <i data-testid="blockers-dry-run" />;')).toEqual([]);
@@ -2219,7 +2851,7 @@ describe('L5.11b: Record', () => {
     expect(offKit('RecordScreen.tsx', planted, ctx).length).toBeGreaterThan(offKit('RecordScreen.tsx', text, ctx).length);
   });
 
-  it('the Record screen calls only the record ops; the Scenario menu\'s commands are held at the recording\'s priority while it goes', async () => {
+  it("the Record screen calls only the record ops; the Scenario menu's commands are held at the recording's priority while it goes", async () => {
     const text = (await recordSources()).map(([, t]) => t).join('\n');
     const called = opsCalled(text);
     expect(called.length).toBeGreaterThanOrEqual(7);
@@ -2235,10 +2867,19 @@ describe('L5.11b: Record', () => {
 // ── L5.12a: Edit and the Review report (R4-Edit, R4-Review) ──────────────────────────────────────────────────────────
 
 /** The rebuilt Edit / Review files (L5.12a fixes, review A-M3): every value from data through Txt / a kit slot. */
-const EDIT_REVIEW_SIDE = ['edit/TimelineScreen.tsx', 'edit/TimelineInspector.tsx', 'edit/TimelineTracks.tsx', 'edit/EditPreview.tsx', 'edit/EditStatus.tsx', 'edit/EditNotes.tsx', 'review/ReviewScreen.tsx', 'review/Renders.tsx'];
+const EDIT_REVIEW_SIDE = [
+  'edit/TimelineScreen.tsx',
+  'edit/TimelineInspector.tsx',
+  'edit/TimelineTracks.tsx',
+  'edit/EditPreview.tsx',
+  'edit/EditStatus.tsx',
+  'edit/EditNotes.tsx',
+  'review/ReviewScreen.tsx',
+  'review/Renders.tsx',
+];
 
 describe('L5.12a: Edit and the Review report', () => {
-  it('⚑ every value from data is text: each JSX child of Edit\'s and the Review report\'s files goes through Txt / shown / a kit slot (a planted bare scenario name or finding code fails it)', async () => {
+  it("⚑ every value from data is text: each JSX child of Edit's and the Review report's files goes through Txt / shown / a kit slot (a planted bare scenario name or finding code fails it)", async () => {
     const files = (await appSources()).filter(([f]) => EDIT_REVIEW_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...EDIT_REVIEW_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
@@ -2257,7 +2898,16 @@ describe('L5.12a: Edit and the Review report', () => {
 // ── L5.12b: Review › Comments, Claude's proposal, the README editor, the ⌘K palette (R4-Comments, R4-Palette) ─────────
 
 /** The files L5.12b rebuilt or added (kit only, every value from data through Txt / a kit slot). */
-const COMMENTS_SIDE = ['review/CommentsScreen.tsx', 'review/ThreadList.tsx', 'review/FrameViewer.tsx', 'review/Composer.tsx', 'review/ThreadPanel.tsx', 'review/ProposalCard.tsx', 'review/ProposalBanner.tsx', 'project/ReadmeEditor.tsx'];
+const COMMENTS_SIDE = [
+  'review/CommentsScreen.tsx',
+  'review/ThreadList.tsx',
+  'review/FrameViewer.tsx',
+  'review/Composer.tsx',
+  'review/ThreadPanel.tsx',
+  'review/ProposalCard.tsx',
+  'review/ProposalBanner.tsx',
+  'project/ReadmeEditor.tsx',
+];
 
 /** The ops each comments-side file may call (L5.12b fixes, reviews A-M1 / B-M1 — like SHOOT_OPS / SCENARIO_SIDE_OPS). */
 const COMMENTS_OPS: Record<string, string[]> = {
@@ -2350,7 +3000,8 @@ function threadWrites(text: string): Array<{ op: string; keys: string[]; line: n
   const visit = (n: ts.Node) => {
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'send') {
       const op = n.arguments[1];
-      if (op && ts.isStringLiteral(op) && WRITES.has(op.text) && op.text !== 'thread_add') out.push({ op: op.text, keys: keysOf(n.arguments[2]), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1 });
+      if (op && ts.isStringLiteral(op) && WRITES.has(op.text) && op.text !== 'thread_add')
+        out.push({ op: op.text, keys: keysOf(n.arguments[2]), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1 });
     }
     ts.forEachChild(n, visit);
   };
@@ -2420,7 +3071,14 @@ function paletteGroupWriters(file: string, text: string): Array<{ slot: string; 
   };
   const out: Array<{ slot: string; writers: string[] }> = [];
   const visitGroup = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'usePaletteGroup' && n.arguments[0] && ts.isStringLiteral(n.arguments[0]) && n.arguments[0].text !== 'scenario') {
+    if (
+      ts.isCallExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      n.expression.text === 'usePaletteGroup' &&
+      n.arguments[0] &&
+      ts.isStringLiteral(n.arguments[0]) &&
+      n.arguments[0].text !== 'scenario'
+    ) {
       const writers: string[] = [];
       const seen = new Set<ts.Node>();
       const walk = (m: ts.Node) => {
@@ -2487,32 +3145,42 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(offKit('review/Composer.tsx', planted, ctx).length).toBeGreaterThan(offKit('review/Composer.tsx', text, ctx).length);
   });
 
-  it('⚑ the palette never writes (L5.12b fixes, reviews A-L3 / B-M2: structural): every screen group\'s handlers reach no writer — the identifiers its entries use are followed to their definitions in the file; the shell\'s builder calls engine_info only', async () => {
+  it("⚑ the palette never writes (L5.12b fixes, reviews A-L3 / B-M2: structural): every screen group's handlers reach no writer — the identifiers its entries use are followed to their definitions in the file; the shell's builder calls engine_info only", async () => {
     const files = await appSources();
     const shell = code(files.find(([f]) => f === 'shell/AppShell.tsx')![1]);
     const bus = code(files.find(([f]) => f === 'shell/command-bus.ts')![1]);
     const groups = files.flatMap(([f, text]) => paletteGroupWriters(f, text).map((g) => ({ f, ...g })));
     // Scenes (Scenario, Edit), Themes (Edit), Review (Comments), the report (Renders: the screens that hold renders).
-    expect(groups.map((g) => `${g.f}:${g.slot}`).sort()).toEqual(['edit/TimelineScreen.tsx:scenes', 'edit/TimelineScreen.tsx:themes', 'review/CommentsScreen.tsx:review', 'review/Renders.tsx:report', 'script/ScenarioScreen.tsx:scenes']);
+    expect(groups.map((g) => `${g.f}:${g.slot}`).sort()).toEqual([
+      'edit/TimelineScreen.tsx:scenes',
+      'edit/TimelineScreen.tsx:themes',
+      'review/CommentsScreen.tsx:review',
+      'review/Renders.tsx:report',
+      'script/ScenarioScreen.tsx:scenes',
+    ]);
     for (const g of groups) expect(g.writers, `${g.f} ${g.slot}`).toEqual([]);
     expect(opsCalled(bus)).toEqual([]);
     // The shell's palette builder: commands go through the bus or a route; the one op the shell calls is engine_info.
     expect(new Set(opsCalled(shell))).toEqual(new Set(['engine_info']));
     // The mutations (reviews A-L3 / B-M2): a writer one definition away, a writer imported, the bus's commands.
     const timeline = files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1];
-    const away = timeline.replace(/run: \(\) => onSelect\(s\.id, landingOf\(s\)\)(?:,\s*| )\}\)\),/, 'run: () => pickScene(s.id) })),').replace('  // A segment gone from the new version', "  const pickScene = (id: string) => void call('scenario_edit', { project: slug, name, id });\n  // A segment gone from the new version");
+    const away = timeline
+      .replace(/run: \(\) => onSelect\(s\.id, landingOf\(s\)\)(?:,\s*| )\}\)\),/, 'run: () => pickScene(s.id) })),')
+      .replace('  // A segment gone from the new version', "  const pickScene = (id: string) => void call('scenario_edit', { project: slug, name, id });\n  // A segment gone from the new version");
     expect(away).not.toBe(timeline);
     expect(paletteGroupWriters('edit/TimelineScreen.tsx', away).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('scenario_edit', { project: slug, name, id })"]);
     const deep = timeline.replace('      setSelected(id);\n      seek(from);', "      setSelected(id);\n      seek(from);\n      void call('timeline_set', { id });");
     expect(deep).not.toBe(timeline);
     expect(paletteGroupWriters('edit/TimelineScreen.tsx', deep).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('timeline_set', { id })"]);
     const comments = files.find(([f]) => f === 'review/CommentsScreen.tsx')![1];
-    const imported = comments.replace("import { ShellSlot } from '../shell/slots.js';", "import { ShellSlot } from '../shell/slots.js';\nimport { runShellCommand } from '../shell/command-bus.js';").replace("if (composing) setTimeout(", "runShellCommand('render');\n              if (composing) setTimeout(");
+    const imported = comments
+      .replace("import { ShellSlot } from '../shell/slots.js';", "import { ShellSlot } from '../shell/slots.js';\nimport { runShellCommand } from '../shell/command-bus.js';")
+      .replace('if (composing) setTimeout(', "runShellCommand('render');\n              if (composing) setTimeout(");
     expect(imported).not.toBe(comments);
     expect(paletteGroupWriters('review/CommentsScreen.tsx', imported)[0].writers).toEqual(["runShellCommand('render')"]);
   });
 
-  it('⚑ the comments side calls only its own ops (L5.12b fixes, reviews A-M1 / B-M1): an allow-list per file, like Shoot\'s and the scenario side\'s; the thread\'s writes through ThreadPanel\'s one helper', async () => {
+  it("⚑ the comments side calls only its own ops (L5.12b fixes, reviews A-M1 / B-M1): an allow-list per file, like Shoot's and the scenario side's; the thread's writes through ThreadPanel's one helper", async () => {
     const files = await appSources();
     const found: Record<string, string[]> = {};
     for (const f of Object.keys(COMMENTS_OPS)) found[f] = [...new Set(opsCalled(files.find(([x]) => x === f)![1]))].sort();
@@ -2528,36 +3196,58 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(nonLiteralCalls(panel)).toBe(1);
     // The mutation (review A-M1): a resolve planted in the list fails its allow-list.
     const list = files.find(([f]) => f === 'review/ThreadList.tsx')![1];
-    const planted = list.replace("  const first = useRef(true);", "  void call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' });\n  const first = useRef(true);");
+    const planted = list.replace('  const first = useRef(true);', "  void call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' });\n  const first = useRef(true);");
     expect(planted).not.toBe(list);
     expect([...new Set(opsCalled(planted))].sort()).not.toEqual(want['review/ThreadList.tsx']);
   });
 
-  it('⚑ the proposal\'s writers stay with their owner (L5.12b fixes, reviews A-M1 / B-M1: an import graph) — ProposalCard.tsx exports only its card, imported by ThreadPanel.tsx alone; the timeline\'s banner imports nothing that writes', async () => {
+  it("⚑ the proposal's writers stay with their owner (L5.12b fixes, reviews A-M1 / B-M1: an import graph) — ProposalCard.tsx exports only its card, imported by ThreadPanel.tsx alone; the timeline's banner imports nothing that writes", async () => {
     const files = await appSources();
     const exportsOf = (f: string) => valueExports(files.find(([x]) => x === f)![1]).sort();
     expect(exportsOf('review/ProposalCard.tsx')).toEqual(['ProposalCard']);
     expect(exportsOf('review/ThreadPanel.tsx')).toEqual(['ChipList', 'ThreadPanel', 'threadMark']);
-    const importers = (mod: string) => files.flatMap(([f, text]) => importsOf(f, text).filter((i) => i.module === mod && i.names.length > 0).map((i) => `${f}: ${i.names.sort().join(', ')}`)).sort();
+    const importers = (mod: string) =>
+      files
+        .flatMap(([f, text]) =>
+          importsOf(f, text)
+            .filter((i) => i.module === mod && i.names.length > 0)
+            .map((i) => `${f}: ${i.names.sort().join(', ')}`),
+        )
+        .sort();
     expect(importers('review/ProposalCard')).toEqual(['review/ThreadPanel.tsx: ProposalCard']);
     expect(importers('review/ThreadPanel')).toEqual(['review/CommentsScreen.tsx: ThreadPanel', 'review/Composer.tsx: ChipList', 'review/ThreadList.tsx: threadMark']);
     // The banner: exactly these imports (values) — a read (useCall), words, the focus hand-off, the kit. Nothing that writes.
     const banner = files.find(([f]) => f === 'review/ProposalBanner.tsx')![1];
-    expect(Object.fromEntries(importsOf('review/ProposalBanner.tsx', banner).filter((i) => i.names.length > 0).map((i) => [i.module, i.names.sort()]))).toEqual(BANNER_IMPORTS);
+    expect(
+      Object.fromEntries(
+        importsOf('review/ProposalBanner.tsx', banner)
+          .filter((i) => i.names.length > 0)
+          .map((i) => [i.module, i.names.sort()]),
+      ),
+    ).toEqual(BANNER_IMPORTS);
     // The mutation (reviews A-M1 / B-M1): the banner applying through the card's helper (exported again for it) fails both.
     const card = files.find(([f]) => f === 'review/ProposalCard.tsx')![1];
     const exported = card.replace('async function applyProposal(', 'export async function applyProposal(');
     expect(exported).not.toBe(card);
     expect(valueExports(exported).sort()).toEqual(['ProposalCard', 'applyProposal']);
-    const applying = banner.replace("import { focusProposalOf } from './proposal-focus.js';", "import { focusProposalOf } from './proposal-focus.js';\nimport { applyProposal } from './ProposalCard.js';");
+    const applying = banner.replace(
+      "import { focusProposalOf } from './proposal-focus.js';",
+      "import { focusProposalOf } from './proposal-focus.js';\nimport { applyProposal } from './ProposalCard.js';",
+    );
     expect(applying).not.toBe(banner);
     expect(importsOf('review/ProposalBanner.tsx', applying).map((i) => i.module)).toContain('review/ProposalCard');
   });
 
-  it('⚑ every thread write the engine guards carries the version shown (L5.12b fixes, review A-M1: checked on each call\'s argument object) — thread_resolve / thread_reopen / thread_apply name if_match; thread_reply, whose input has no if_match, sends its text only', async () => {
+  it("⚑ every thread write the engine guards carries the version shown (L5.12b fixes, review A-M1: checked on each call's argument object) — thread_resolve / thread_reopen / thread_apply name if_match; thread_reply, whose input has no if_match, sends its text only", async () => {
     const files = await appSources();
     const writes = files.flatMap(([f, text]) => threadWrites(text).map((w) => ({ f, ...w })));
-    expect(writes.map((w) => `${w.f}:${w.op}`).sort()).toEqual(['review/ProposalCard.tsx:thread_apply', 'review/ProposalCard.tsx:thread_resolve', 'review/ThreadPanel.tsx:thread_reopen', 'review/ThreadPanel.tsx:thread_reply', 'review/ThreadPanel.tsx:thread_resolve']);
+    expect(writes.map((w) => `${w.f}:${w.op}`).sort()).toEqual([
+      'review/ProposalCard.tsx:thread_apply',
+      'review/ProposalCard.tsx:thread_resolve',
+      'review/ThreadPanel.tsx:thread_reopen',
+      'review/ThreadPanel.tsx:thread_reply',
+      'review/ThreadPanel.tsx:thread_resolve',
+    ]);
     for (const w of writes) {
       if (w.op === 'thread_reply') expect(w.keys, `${w.f}: thread_reply`).toEqual(['text']);
       else expect(w.keys, `${w.f}: ${w.op}`).toContain('if_match');
@@ -2567,21 +3257,36 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     const thread = { project: 'northfield-fixture', comment_id: 'c_01JABCDEFGHJKMNPQRSTVWXYZ0' };
     const parses = (op: 'thread_reply' | 'thread_resolve' | 'thread_reopen' | 'thread_apply', args: Record<string, unknown>) => OPERATIONS_BY_NAME[op].input.safeParse(args).success;
     expect([parses('thread_reply', { ...thread, text: 'Yes.' }), parses('thread_reply', { ...thread, text: 'Yes.', if_match: 'a'.repeat(64) })]).toEqual([true, false]);
-    for (const [op, more] of [['thread_resolve', { note: 'Done.' }], ['thread_reopen', {}], ['thread_apply', { entry_id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ0' }]] as const) {
+    for (const [op, more] of [
+      ['thread_resolve', { note: 'Done.' }],
+      ['thread_reopen', {}],
+      ['thread_apply', { entry_id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ0' }],
+    ] as const) {
       expect([parses(op, { ...thread, ...more, if_match: 'a'.repeat(64) }), parses(op, { ...thread, ...more })], op).toEqual([true, false]);
     }
     // The mutations (review A-M1): a resolve without its version — through the helper, or a direct call.
-    expect(threadWrites("send('Resolve', 'thread_resolve', { note, ...(answer ? { render_id: answer } : {}) }, 'Resolved', () => setNote(''));")).toEqual([{ op: 'thread_resolve', keys: ['note', '...'], line: 1 }]);
+    expect(threadWrites("send('Resolve', 'thread_resolve', { note, ...(answer ? { render_id: answer } : {}) }, 'Resolved', () => setNote(''));")).toEqual([
+      { op: 'thread_resolve', keys: ['note', '...'], line: 1 },
+    ]);
     expect(threadWrites("call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' })")).toEqual([{ op: 'thread_resolve', keys: ['project', 'comment_id', 'note'], line: 1 }]);
     expect(threadWrites("call('thread_apply', { project, comment_id, entry_id, if_match: undefined })")[0].keys).not.toContain('if_match');
   });
-
 });
 
 // ── L5.12c: the Library, the Themes list and the theme editor (R4-Library, R4-Theme) ──────────────────────────────────
 
 /** The files L5.12c rebuilt or added (kit only, every value from data through Txt / a kit slot). */
-const LIBRARY_SIDE = ['library/LibraryScreen.tsx', 'library/LibraryCards.tsx', 'library/LibraryInspector.tsx', 'library/LibraryDetail.tsx', 'library/LibraryBrowser.tsx', 'project/CreateSheet.tsx', 'themes/ThemesScreen.tsx', 'themes/ThemeEditor.tsx', 'themes/ThemeFields.tsx'];
+const LIBRARY_SIDE = [
+  'library/LibraryScreen.tsx',
+  'library/LibraryCards.tsx',
+  'library/LibraryInspector.tsx',
+  'library/LibraryDetail.tsx',
+  'library/LibraryBrowser.tsx',
+  'project/CreateSheet.tsx',
+  'themes/ThemesScreen.tsx',
+  'themes/ThemeEditor.tsx',
+  'themes/ThemeFields.tsx',
+];
 
 /** The ops each Library / themes file may call (critique M1 of L5.12: an allow-list per file, like the comments side's). */
 const LIBRARY_OPS: Record<string, string[]> = {
@@ -2639,7 +3344,11 @@ function apiImportFindings(file: string, text: string): string[] {
     if (ts.isIdentifier(n) && bound.has(n.text)) {
       const p = n.parent;
       const callee = ts.isCallExpression(p) && p.expression === n;
-      const named = (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n) || ts.isImportSpecifier(p) || ((ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) || ts.isMethodSignature(p)) && p.name === n);
+      const named =
+        (ts.isPropertyAccessExpression(p) && p.name === n) ||
+        (ts.isPropertyAssignment(p) && p.name === n) ||
+        ts.isImportSpecifier(p) ||
+        ((ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) || ts.isMethodSignature(p)) && p.name === n);
       if (!callee && !named) out.push(`${file}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}: ${n.text} used as a value`);
     }
     ts.forEachChild(n, visit);
@@ -2672,7 +3381,7 @@ function themeWordsImports(text: string): string[] | '*' {
 }
 
 describe('L5.12c: the Library, the Themes list and the theme editor', () => {
-  it('⚑ every value from data is text: each JSX child of the Library\'s and the themes\' files goes through Txt / shown / a kit slot (a planted bare component name, page title or README fails it)', async () => {
+  it("⚑ every value from data is text: each JSX child of the Library's and the themes' files goes through Txt / shown / a kit slot (a planted bare component name, page title or README fails it)", async () => {
     const files = (await appSources()).filter(([f]) => LIBRARY_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...LIBRARY_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
@@ -2714,7 +3423,11 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     for (const f of Object.keys(LIBRARY_OPS)) found[f] = [...new Set(opsCalled(files.find(([x]) => x === f)![1]))].sort();
     expect(found).toEqual(Object.fromEntries(Object.entries(LIBRARY_OPS).map(([f, ops]) => [f, [...ops].sort()])));
     // App-wide: who renders library previews, who writes a theme (the palette's Themes rows never do: L5.12b's lint).
-    const owners = (op: string) => files.filter(([, text]) => opsCalled(text).includes(op)).map(([f]) => f).sort();
+    const owners = (op: string) =>
+      files
+        .filter(([, text]) => opsCalled(text).includes(op))
+        .map(([f]) => f)
+        .sort();
     expect(owners('library_render')).toEqual(['library/LibraryScreen.tsx']);
     expect(owners('theme_edit')).toEqual(['library/LibraryInspector.tsx', 'themes/ThemeEditor.tsx']);
     expect(owners('theme_copy')).toEqual(['library/LibraryInspector.tsx', 'themes/ThemeEditor.tsx', 'themes/ThemesScreen.tsx']);
@@ -2744,7 +3457,7 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(opCalls("call('theme_edit', { theme: target, edit: plan.edit })", new Set(['theme_edit']))[0].keys).not.toContain('if_match');
   });
 
-  it('⚑ L5.12c fixes (review A-M2): every app file imports the api\'s call / useCall by their own names and only calls them — an alias, a namespace import or a call bound to another name fails (both of the review\'s dodges planted); the if_match lint sees `x.call(…)`', async () => {
+  it("⚑ L5.12c fixes (review A-M2): every app file imports the api's call / useCall by their own names and only calls them — an alias, a namespace import or a call bound to another name fails (both of the review's dodges planted); the if_match lint sees `x.call(…)`", async () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f) && f !== 'api.ts');
     expect(files.flatMap(([f, text]) => apiImportFindings(f, text))).toEqual([]);
     // The files that call the api at all (L6.13: through a data module) are seen by the lint (it is not vacuous).
@@ -2784,11 +3497,14 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(DATA_FNS.get('threadWrite')).toEqual({ op: null, ops: ['thread_reply', 'thread_resolve', 'thread_reopen'] });
     expect(DATA_FNS.get('projectRead')).toEqual({ op: null, ops: ['project_get', 'project_board', 'auth_status'] });
     // The mutations: a data function the lints would not see (a wrapper of its own, a re-export, a class).
-    const planted: Array<[string, string]> = [...sources, ['planted.ts', "import { call } from '../api.js';\nexport const sneaky = (a: object) => call('theme_edit', a);\nexport { themeEdit as edit } from './themes.js';\nexport class Client {}\n"]];
+    const planted: Array<[string, string]> = [
+      ...sources,
+      ['planted.ts', "import { call } from '../api.js';\nexport const sneaky = (a: object) => call('theme_edit', a);\nexport { themeEdit as edit } from './themes.js';\nexport class Client {}\n"],
+    ];
     expect([...dataValueExports(planted).keys()].filter((n) => !DATA_FNS.has(n))).toEqual(['sneaky', '(re-export in planted.ts)', 'Client']);
   });
 
-  it('⚑ L5.12c fixes (review A-L5): the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery\'s sample, the New theme form, the colour fields\' fallback', async () => {
+  it("⚑ L5.12c fixes (review A-L5): the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery's sample, the New theme form, the colour fields' fallback", async () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f));
     const colours = colourExports(files.find(([f]) => f === 'words/theme-words.ts')![1]);
     expect(colours.sort()).toEqual(['EMPTY_FORM', 'SAMPLE_ACCENT', 'pickerValue']);

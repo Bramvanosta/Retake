@@ -148,7 +148,6 @@ export interface LatestRunNotice {
  */
 export type PassedOverRuns = Array<{ run_id: string; why: NotUsable }>;
 
-
 /** What `latest` said of a planned run: the notice, and the runs it passed over (empty: none, or the run was named). */
 export function latestNoticeOf(planned: Pick<PlannedRun, 'run'>): { notice: LatestRunNotice; passed: PassedOverRuns } {
   const pick = planned.run.latest;
@@ -156,7 +155,11 @@ export function latestNoticeOf(planned: Pick<PlannedRun, 'run'>): { notice: Late
   const count = pick.passed.length + pick.passed_more;
   return {
     // Where a capture stopped by `--until` ends, in words that can be repeated (core untilStep), else `{}`.
-    notice: { ...(count > 0 ? { passed_over: count } : {}), ...(pick.without_record > 0 ? { not_considered: pick.without_record } : {}), ...(pick.take?.until ? { until: untilStep(pick.take.until) ?? {} } : {}) },
+    notice: {
+      ...(count > 0 ? { passed_over: count } : {}),
+      ...(pick.without_record > 0 ? { not_considered: pick.without_record } : {}),
+      ...(pick.take?.until ? { until: untilStep(pick.take.until) ?? {} } : {}),
+    },
     passed: pick.passed.map((p) => ({ run_id: p.run, why: p.why })),
   };
 }
@@ -236,7 +239,9 @@ export function renderVersionOf(renderId: string, scenario: string): { version: 
 export async function submitRenderJob(
   ctx: SubmitContext,
   req: RenderRequest,
-): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; untrusted?: { passed_over: PassedOverRuns } } & RenderEditSource & LatestRunNotice> {
+): Promise<
+  { job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; untrusted?: { passed_over: PassedOverRuns } } & RenderEditSource & LatestRunNotice
+> {
   const { project, planned, overrides, source } = await planRenderRequest(ctx.ws, ctx.cli, req);
   if (req.expect_edit_sha256 !== undefined) await checkShownEdit(project, req.scenario, planned, req.expect_edit_sha256);
   const ed = await editor();

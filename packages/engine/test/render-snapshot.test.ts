@@ -87,7 +87,8 @@ afterAll(async () => {
 /** Run the job's render up to the render stage (an aborted signal stops it there: no bundle, no browser). */
 async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Error> {
   const events: unknown[] = [];
-  const e = await executeRenderJob({ ...enginePorts(),
+  const e = await executeRenderJob({
+    ...enginePorts(),
     ws: engine.workspace,
     cli: 'retake',
     input: job.input as RenderJobInput,
@@ -105,7 +106,7 @@ async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Erro
 }
 
 describe('render job snapshot (critique B5)', () => {
-  it('submit writes edit.yaml (0600) before job.json: the planned text, its sha256 the job\'s edit_sha256; the review option is carried', async () => {
+  it("submit writes edit.yaml (0600) before job.json: the planned text, its sha256 the job's edit_sha256; the review option is carried", async () => {
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 }, review: { fps: 1 } });
     const input = sub.job.input as RenderJobInput;
     expect(input).toMatchObject({ edit_sha256: sha(TEXT), review: { fps: 1 } });
@@ -135,8 +136,18 @@ describe('render job snapshot (critique B5)', () => {
     await engine.jobs.cancel(sub.job.id);
   });
 
-  it('a job folder takes only plain file names from a submit (no path, no file of the queue\'s own)', async () => {
-    const input: RenderJobInput = { version: 1, kind: 'render', project: 'demo', scenario: SCENARIO, run_id: RUN, timeline_sha256: sha('x'), render_id: `${SCENARIO}-v9`, overrides: {}, submitted_by: 'test' };
+  it("a job folder takes only plain file names from a submit (no path, no file of the queue's own)", async () => {
+    const input: RenderJobInput = {
+      version: 1,
+      kind: 'render',
+      project: 'demo',
+      scenario: SCENARIO,
+      run_id: RUN,
+      timeline_sha256: sha('x'),
+      render_id: `${SCENARIO}-v9`,
+      overrides: {},
+      submitted_by: 'test',
+    };
     for (const name of ['../edit.yaml', 'job.json', 'claim', 'cancel', '.hidden.yaml', 'a/b.yaml', 'edit.sh']) {
       await expect(queue.enqueue(input, { files: { [name]: 'x' } }), name).rejects.toThrow(/invalid job file name/);
     }

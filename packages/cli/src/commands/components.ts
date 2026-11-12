@@ -111,12 +111,7 @@ function refOf(arg: string): ComponentRef {
  * `retake components validate [<id|dir>] [--json]`: manifest, entry and compile check of one component — or of every
  * workspace component when none is given. Exit 1 on any error.
  */
-export async function componentsValidateCommand(
-  ui: Ui,
-  global: GlobalOptions,
-  arg: string | undefined,
-  opts: ComponentsValidateOptions,
-): Promise<ExitCode> {
+export async function componentsValidateCommand(ui: Ui, global: GlobalOptions, arg: string | undefined, opts: ComponentsValidateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const validated = await componentValidateShell(ws, arg !== undefined ? refOf(arg) : { workspace: true });
   const results = validated.components;
@@ -238,12 +233,16 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
   } else if (arg === undefined) {
     throw new CliError('name a component (id or folder) or pass --all');
   }
-  const picked = await componentPreviewTargets(ws, arg !== undefined ? { ref: refOf(arg) } : { all: true, workspaceOnly }, { ...(opts.theme !== undefined ? { theme: opts.theme } : {}), ...(opts.stale ? { stale: true } : {}) });
+  const picked = await componentPreviewTargets(ws, arg !== undefined ? { ref: refOf(arg) } : { all: true, workspaceOnly }, {
+    ...(opts.theme !== undefined ? { theme: opts.theme } : {}),
+    ...(opts.stale ? { stale: true } : {}),
+  });
   if ('invalid' in picked) {
     for (const i of picked.invalid.issues) ui.line(`  ${ui.issue(i, join(picked.invalid.dir, i.file))}`);
     throw new CliError(`component ${picked.invalid.id} does not validate: fix it before rendering its preview`);
   }
-  if (arg === undefined && workspaceOnly && !opts.workspace && !opts.json) ui.line(ui.c.dim("the built-in components ship inside the Retake app and keep their own previews: rendering this workspace's"));
+  if (arg === undefined && workspaceOnly && !opts.workspace && !opts.json)
+    ui.line(ui.c.dim("the built-in components ship inside the Retake app and keep their own previews: rendering this workspace's"));
   const { targets, registry, theme: themeName } = picked;
   const c = ui.c;
   if (targets.length === 0) {
@@ -268,10 +267,13 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
     },
   });
   if (opts.json) {
-    ui.result(JSON.stringify({ theme: template.name, previews: done.map((p) => ({ id: p.id, file: p.file, bytes: p.bytes, at: p.at, screen: p.screen, quantized: p.quantized, readme: p.readme })) }, null, 2));
+    ui.result(
+      JSON.stringify({ theme: template.name, previews: done.map((p) => ({ id: p.id, file: p.file, bytes: p.bytes, at: p.at, screen: p.screen, quantized: p.quantized, readme: p.readme })) }, null, 2),
+    );
     return EXIT.ok;
   }
-  for (const p of done) ui.ok(`${c.bold(p.id)} ${ui.path(p.file)} ${c.dim(`${Math.round(p.bytes / 1024)} KB · at ${p.at} s${p.screen ? ` · ${p.screen} screen` : ''}${p.quantized ? ' · 256 colours' : ''}`)}`);
+  for (const p of done)
+    ui.ok(`${c.bold(p.id)} ${ui.path(p.file)} ${c.dim(`${Math.round(p.bytes / 1024)} KB · at ${p.at} s${p.screen ? ` · ${p.screen} screen` : ''}${p.quantized ? ' · 256 colours' : ''}`)}`);
   ui.line(c.dim(`${plural(done.length, 'preview')} in ${((performance.now() - t0) / 1000).toFixed(1)} s`));
   return EXIT.ok;
 }

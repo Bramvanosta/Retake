@@ -110,7 +110,9 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
   });
 
   it('the port held by a program that is not a Retake MCP server → refused (exit 1), stop it and rotate the token', async () => {
-    const holder = spawn(process.execPath, ['-e', "require('net').createServer().listen({port: 4975, host: '127.0.0.1', exclusive: true}, () => console.log('up'))"], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const holder = spawn(process.execPath, ['-e', "require('net').createServer().listen({port: 4975, host: '127.0.0.1', exclusive: true}, () => console.log('up'))"], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     children.push(holder);
     await new Promise<void>((r) => holder.stdout!.once('data', () => r()));
     try {

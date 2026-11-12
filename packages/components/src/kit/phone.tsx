@@ -55,9 +55,7 @@ export function phoneCardGeometry(opts: { width: number; height: number; unit: n
     edge: e * u,
   };
   if (opts.withText) {
-    out.text = side
-      ? { x: (x + bw + gap) * u, y: (fh / 2 - 160) * u, w: cw * u, h: 320 * u }
-      : { x: gap * u, y: (y + bh + 40) * u, w: (fw - 2 * gap) * u, h: (fh - y - bh - 60) * u };
+    out.text = side ? { x: (x + bw + gap) * u, y: (fh / 2 - 160) * u, w: cw * u, h: 320 * u } : { x: gap * u, y: (y + bh + 40) * u, w: (fw - 2 * gap) * u, h: (fh - y - bh - 60) * u };
   }
   return out;
 }
@@ -171,7 +169,9 @@ export function PhoneDevice(props: {
       <div style={{ position: 'absolute', left: d.x, top: d.y, width: d.w, height: d.h, borderRadius: g.radius, overflow: 'hidden', isolation: 'isolate', background: t.glass }}>
         {props.children}
         {props.status ? (
-          <div style={{ position: 'absolute', left: 0, top: 0, width: d.w, height: islandTop * 2 + islandH, color: props.status.ink, fontFamily: cssFontFamily(theme.fonts.body), pointerEvents: 'none' }}>
+          <div
+            style={{ position: 'absolute', left: 0, top: 0, width: d.w, height: islandTop * 2 + islandH, color: props.status.ink, fontFamily: cssFontFamily(theme.fonts.body), pointerEvents: 'none' }}
+          >
             {props.status.time ? (
               <div
                 style={{
@@ -205,7 +205,17 @@ export function PhoneDevice(props: {
             background: t.glass,
           }}
         >
-          <div style={{ position: 'absolute', left: islandW - islandH / 2 - lens / 2 - islandH * 0.08, top: (islandH - lens) / 2, width: lens, height: lens, borderRadius: lens / 2, background: mixColors(t.glass, t.lens, 0.6) }} />
+          <div
+            style={{
+              position: 'absolute',
+              left: islandW - islandH / 2 - lens / 2 - islandH * 0.08,
+              top: (islandH - lens) / 2,
+              width: lens,
+              height: lens,
+              borderRadius: lens / 2,
+              background: mixColors(t.glass, t.lens, 0.6),
+            }}
+          />
         </div>
       </div>
     </div>

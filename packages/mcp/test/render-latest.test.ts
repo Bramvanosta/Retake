@@ -105,14 +105,28 @@ describe('run_list: a row that is no run of the list says why in fixed words', (
 
 describe('plan_preview and render', () => {
   it('plan_preview: the count in the summary, the names under untrusted only', async () => {
-    const view = plan({ passed_over: 2, untrusted: { captions: [], warnings: [], summary: '', passed_over: [{ run_id: PLANTED, why: 'failed' }, { run_id: '20261002-090000-quote', why: 'cancelled' }] } });
+    const view = plan({
+      passed_over: 2,
+      untrusted: {
+        captions: [],
+        warnings: [],
+        summary: '',
+        passed_over: [
+          { run_id: PLANTED, why: 'failed' },
+          { run_id: '20261002-090000-quote', why: 'cancelled' },
+        ],
+      },
+    });
     const r = await planPreview.run({ project: 'demo', scenario: 'quote' }, ctx(engineOf({ plan: view })));
     const lines = r.summary.split('\n');
     expect(lines[1]).toBe('2 newer captures of the scenario passed over: "untrusted.passed_over" names them');
     expect(r.summary).not.toContain('IGNORE');
     expect(r.summary).not.toContain('20261002');
     expect(outside(r.data)).not.toContain('IGNORE');
-    expect((r.data as PlanPreviewView).untrusted.passed_over).toEqual([{ run_id: PLANTED, why: 'failed' }, { run_id: '20261002-090000-quote', why: 'cancelled' }]);
+    expect((r.data as PlanPreviewView).untrusted.passed_over).toEqual([
+      { run_id: PLANTED, why: 'failed' },
+      { run_id: '20261002-090000-quote', why: 'cancelled' },
+    ]);
     expect((r.data as PlanPreviewView).passed_over).toBe(2);
   });
 
@@ -124,7 +138,7 @@ describe('plan_preview and render', () => {
     expect(partial.summary.split('\n')[1]).toBe(`run ${RUN} stops at step catalog.1 (\`--until\`): the render shows the scenario up to there`);
   });
 
-  it('render: the same lines after the first; the names join the render\'s other untrusted text', async () => {
+  it("render: the same lines after the first; the names join the render's other untrusted text", async () => {
     const r = await render.run(
       { project: 'demo', scenario: 'quote', wait_s: 0 },
       ctx(engineOf({ submit: { passed_over: 1, until: { scene: 'catalog', step: 1 }, untrusted: { passed_over: [{ run_id: PLANTED, why: 'not-finished' }] } } })),

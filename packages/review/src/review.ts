@@ -14,7 +14,30 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { printableText } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
-import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkSlowTransitions, checkTextSlots, checkButtonContrast, checkOverlayCover, checkLoadingFilmed, checkZoomScroll, checkCaptionContradictions, checkOverlaysKept, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
+import {
+  captionRegion,
+  checkArtefactOrder,
+  checkCamera,
+  checkCaptions,
+  checkCursor,
+  checkDurations,
+  checkEnvironment,
+  checkLongScenes,
+  checkRender,
+  checkSlowTransitions,
+  checkTextSlots,
+  checkButtonContrast,
+  checkOverlayCover,
+  checkLoadingFilmed,
+  checkZoomScroll,
+  checkCaptionContradictions,
+  checkOverlaysKept,
+  checkTransitionsOnClicks,
+  checkTutorial,
+  planFontFiles,
+  reviewEnvironment,
+  segmentDurations,
+} from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
@@ -220,31 +243,42 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     const keyFiles: Record<string, string> = {};
     const fullStep = Math.max(2, Math.round(Math.min(plan.width, plan.height) / 180));
     let done = 0;
-    const delivered = await extractFrames(record.file, [...wanted], { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height, policy: opts.policy, ...(signal ? { signal } : {}) }, async (f, img) => {
-      const span = spanAt(spans, f);
-      if (mainSet.has(f) || sceneSet.has(f)) tiles.set(f, await makeTile(img, layout.tile));
-      for (const name of keyByFrame.get(f) ?? []) {
-        const file = join(tmpDir, 'keyframes', `${name}.png`);
-        await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } }).png({ compressionLevel: 6 }).toFile(file);
-        keyFiles[name] = file;
-      }
-      const a: FrameAnalysis = { frame: f, full: regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: fullStep }) };
-      if (span && isClip(span.segment)) {
-        const cap = span.segment.layout.capture;
-        const screen = inset(cap, span.segment.layout.radius + 2 * plan.unit);
-        a.screen = regionStats(img, screen);
-        a.screenSig = signature(img, screen, 64, 36);
-        const region = captionRegion(plan, span.segment);
-        if (region) a.captionSd = regionStats(img, region.rect, { step: Math.max(1, Math.round(plan.unit * 2)) }).sd;
-      }
-      if (previous && mainSet.has(f)) a.sig = signature(img, { x: 0, y: 0, w: img.width, h: img.height });
-      analyses.set(f, a);
-      done++;
-      if (done % 10 === 0) progress({ stage: 'frames', progress: done / wanted.size });
-    });
+    const delivered = await extractFrames(
+      record.file,
+      [...wanted],
+      { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height, policy: opts.policy, ...(signal ? { signal } : {}) },
+      async (f, img) => {
+        const span = spanAt(spans, f);
+        if (mainSet.has(f) || sceneSet.has(f)) tiles.set(f, await makeTile(img, layout.tile));
+        for (const name of keyByFrame.get(f) ?? []) {
+          const file = join(tmpDir, 'keyframes', `${name}.png`);
+          await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } })
+            .png({ compressionLevel: 6 })
+            .toFile(file);
+          keyFiles[name] = file;
+        }
+        const a: FrameAnalysis = { frame: f, full: regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: fullStep }) };
+        if (span && isClip(span.segment)) {
+          const cap = span.segment.layout.capture;
+          const screen = inset(cap, span.segment.layout.radius + 2 * plan.unit);
+          a.screen = regionStats(img, screen);
+          a.screenSig = signature(img, screen, 64, 36);
+          const region = captionRegion(plan, span.segment);
+          if (region) a.captionSd = regionStats(img, region.rect, { step: Math.max(1, Math.round(plan.unit * 2)) }).sd;
+        }
+        if (previous && mainSet.has(f)) a.sig = signature(img, { x: 0, y: 0, w: img.width, h: img.height });
+        analyses.set(f, a);
+        done++;
+        if (done % 10 === 0) progress({ stage: 'frames', progress: done / wanted.size });
+      },
+    );
     const missingFrames = [...wanted].filter((f) => !delivered.includes(f));
     if (missingFrames.length) {
-      notes.push({ severity: 'warning', code: 'frames-missing', message: `${missingFrames.length} of the ${wanted.size} frames sampled could not be decoded (the video ends at ${probed.duration_s.toFixed(2)} s?)` });
+      notes.push({
+        severity: 'warning',
+        code: 'frames-missing',
+        message: `${missingFrames.length} of the ${wanted.size} frames sampled could not be decoded (the video ends at ${probed.duration_s.toFixed(2)} s?)`,
+      });
     }
 
     // ── Pass 2: the capture behind the clips (scene starts, blank suspects) — the main capture and the pages' tracks ──
@@ -289,7 +323,11 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
         check();
         sources = undefined;
         sourceSigs = undefined;
-        notes.push({ severity: 'info', code: 'capture-unreadable', message: `the capture ${captureFile} could not be read (${(e as Error).message}): scene starts checked on the rendered frames only` });
+        notes.push({
+          severity: 'info',
+          code: 'capture-unreadable',
+          message: `the capture ${captureFile} could not be read (${(e as Error).message}): scene starts checked on the rendered frames only`,
+        });
       }
     } else {
       notes.push({ severity: 'info', code: 'capture-missing', message: `the capture of run ${record.run_id} is not available: scene starts checked on the rendered frames only` });
@@ -307,10 +345,15 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
       const prevTiles = new Map<number, { data: Buffer; width: number; height: number }>();
       try {
         const info = await probeVideo(previous.file, opts.policy);
-        await extractFrames(previous.file, pairs.map((p) => p.previous_frame), { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height, policy: opts.policy, ...(signal ? { signal } : {}) }, async (f, img) => {
-          prevSigs.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }));
-          prevTiles.set(f, await makeTile(img, layout.tile));
-        });
+        await extractFrames(
+          previous.file,
+          pairs.map((p) => p.previous_frame),
+          { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height, policy: opts.policy, ...(signal ? { signal } : {}) },
+          async (f, img) => {
+            prevSigs.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }));
+            prevTiles.set(f, await makeTile(img, layout.tile));
+          },
+        );
         const changed: DiffFrame[] = [];
         let compared = 0;
         for (const p of pairs) {
@@ -323,7 +366,10 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
         }
         diff = { ...base, compared, changed_frames: changed };
         // The most changed frames, in time order.
-        const shown = [...changed].sort((x, y) => y.changed - x.changed).slice(0, MAX_DIFF_PAIRS).sort((x, y) => x.frame - y.frame);
+        const shown = [...changed]
+          .sort((x, y) => y.changed - x.changed)
+          .slice(0, MAX_DIFF_PAIRS)
+          .sort((x, y) => x.frame - y.frame);
         for (const c of shown) {
           const pt = prevTiles.get(c.previous_frame);
           const ct = tiles.get(c.frame);

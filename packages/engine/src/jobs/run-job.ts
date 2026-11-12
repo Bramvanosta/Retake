@@ -172,7 +172,16 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
             { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
             ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
-          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client), hooks: ctx.hooks, pages: ctx.capture.hookPages },
+          {
+            policy: ctx.ws.policy,
+            env: env.name,
+            ...(sc.vars ? { vars: sc.vars } : {}),
+            scenario: sc,
+            journalFile: preflightJournal(project),
+            via: agentChannel(ctx.client),
+            hooks: ctx.hooks,
+            pages: ctx.capture.hookPages,
+          },
         ).catch((e: unknown) => {
           throw toEngineError(e);
         })
@@ -189,7 +198,8 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
       const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv, ctx.hooks) : [];
       const p = await preflight();
       if (p) return takeApprovals({ what, project: project.slug, env: p.env, items: [...seedItems, ...p.items], fix }, approver, ctx.client, ctx.clock);
-      if (seedItems.length) return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client, ctx.clock);
+      if (seedItems.length)
+        return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client, ctx.clock);
       return [];
     },
   ];
@@ -408,7 +418,14 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const runDir = projectPath(project.dir, 'runs', input.run_id);
   try {
     // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
-    const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox, expectSha256: input.scenario_sha256 }).catch((e: unknown) => {
+    const prepared = await prepareRun(ctx.ws, project, input.scenario, {
+      dry: input.mode === 'dry',
+      until: input.until,
+      hooks: input.hooks,
+      env: input.env,
+      sandbox: input.sandbox,
+      expectSha256: input.scenario_sha256,
+    }).catch((e: unknown) => {
       throw scenarioChangedConflict(e, `${projectRef('scenarios', input.scenario)} changed since the run was submitted: submit it again (what was checked is what runs)`);
     });
     await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));

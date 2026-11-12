@@ -41,8 +41,18 @@ afterAll(async () => {
 });
 
 describe('captures first through MCP (L5.14b)', () => {
-  it('waiting, then slowed: words and an enum, never another workspace\'s names', async () => {
-    const job = await queue.enqueue({ version: 1, kind: 'render', project: 'northfield-fixture', scenario: 'quote', run_id: '20261104-120000-quote', render_id: 'quote-v1', timeline_sha256: 'a'.repeat(64), overrides: {}, submitted_by: 'mcp' } as never);
+  it("waiting, then slowed: words and an enum, never another workspace's names", async () => {
+    const job = await queue.enqueue({
+      version: 1,
+      kind: 'render',
+      project: 'northfield-fixture',
+      scenario: 'quote',
+      run_id: '20261104-120000-quote',
+      render_id: 'quote-v1',
+      timeline_sha256: 'a'.repeat(64),
+      overrides: {},
+      submitted_by: 'mcp',
+    } as never);
     const quiet = await tool('engine_info', {});
     expect(quiet.data.held).toBeNull();
     const m = FilmingMarker.open({ root: other, source: 'job', owner: await selfIdentity() })!;
@@ -61,7 +71,14 @@ describe('captures first through MCP (L5.14b)', () => {
       // Running at background priority (its worker's yield.json).
       const me = { ...(await selfIdentity()), host: hostname() };
       const rec = (await queue.stored(job.id))!;
-      await queue.write({ ...rec, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me, progress: { phase: 'rendering', fraction: 0.25, steps_done: 0, steps_total: 0 } } as JobRecord);
+      await queue.write({
+        ...rec,
+        state: 'running',
+        started_at: new Date().toISOString(),
+        worker: me,
+        supervisor: me,
+        progress: { phase: 'rendering', fraction: 0.25, steps_done: 0, steps_total: 0 },
+      } as JobRecord);
       await writeFile(queue.files.yield(job.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'elsewhere' }));
       const run = await tool('job_status', { job_id: job.id });
       expect((run.data as { yield?: unknown }).yield).toEqual({ state: 'background', cause: 'elsewhere', since: '2026-11-04T14:02:00.000Z' });

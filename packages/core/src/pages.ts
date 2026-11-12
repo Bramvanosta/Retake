@@ -109,7 +109,8 @@ export function resolveScenePages(
         open = { url: split.path, absolute: false };
       } else if (isAbsoluteUrl(s.open)) open = { url: s.open, absolute: true };
       else {
-        if (page === undefined) throw new Error(`scene ${scene.id}, page ${e.id}: \`open: ${s.open}\` is relative but the page names no environment page (add \`page:\` or write \`<page>:${s.open}\`)`);
+        if (page === undefined)
+          throw new Error(`scene ${scene.id}, page ${e.id}: \`open: ${s.open}\` is relative but the page names no environment page (add \`page:\` or write \`<page>:${s.open}\`)`);
         open = { url: s.open, absolute: false };
       }
     }

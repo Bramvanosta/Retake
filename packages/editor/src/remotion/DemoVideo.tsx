@@ -18,7 +18,25 @@ import { layoutPaneRectsAt, paneSource, paneViewOf } from '../panes.js';
 import type { PlanSource } from '../plan-types.js';
 import type { VideoProps } from './contract.js';
 import { useThemeFonts } from './fonts.js';
-import { brandmarkRect, insetHole, layoutRects, mapUseRect, overlayBoxAt, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
+import {
+  brandmarkRect,
+  insetHole,
+  layoutRects,
+  mapUseRect,
+  overlayBoxAt,
+  musicPlayGain,
+  musicVolumeAt,
+  loupePlacement,
+  overlayAvoid,
+  overlayRects,
+  overlayTargets,
+  shortcutSlot,
+  srcFrameAt,
+  trackBoxAt,
+  trackKeysAt,
+  transitionWindows,
+  urlAt,
+} from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 import { usePreviewMode } from './preview-mode.js';
@@ -77,7 +95,21 @@ function CaptureFrame({ plan, srcFrame, source }: { plan: EditPlan; srcFrame: nu
  * ratio, the source frame of this output frame scaled and moved by the camera. `frame` = the clip frame to show
  * (default: the current one).
  */
-function CaptureScreen({ plan, clip, frame, region, pane, fit }: { plan: EditPlan; clip: ClipSegment; frame?: number; region?: { x: number; y: number; w: number; h: number }; pane?: number; fit?: 'contain' | 'cover' }) {
+function CaptureScreen({
+  plan,
+  clip,
+  frame,
+  region,
+  pane,
+  fit,
+}: {
+  plan: EditPlan;
+  clip: ClipSegment;
+  frame?: number;
+  region?: { x: number; y: number; w: number; h: number };
+  pane?: number;
+  fit?: 'contain' | 'cover';
+}) {
   const current = useCurrentFrame();
   const f = Math.max(0, Math.min(clip.durationInFrames - 1, frame ?? current));
   // Multi-page clips (L2.11): a page's own track, view and size.
@@ -303,8 +335,18 @@ function SegmentView({ plan, index }: { plan: EditPlan; index: number }) {
   const f = useCurrentFrame();
   const { entering, exiting } = transitionWindows(plan, index);
   let node: ReactNode = <SegmentBody plan={plan} index={index} />;
-  if (exiting && f >= exiting.from && f < exiting.to) node = <TransitionRender plan={plan} w={exiting}>{node}</TransitionRender>;
-  if (entering && f >= entering.from && f < entering.to) node = <TransitionRender plan={plan} w={entering}>{node}</TransitionRender>;
+  if (exiting && f >= exiting.from && f < exiting.to)
+    node = (
+      <TransitionRender plan={plan} w={exiting}>
+        {node}
+      </TransitionRender>
+    );
+  if (entering && f >= entering.from && f < entering.to)
+    node = (
+      <TransitionRender plan={plan} w={entering}>
+        {node}
+      </TransitionRender>
+    );
   return <AbsoluteFill>{node}</AbsoluteFill>;
 }
 

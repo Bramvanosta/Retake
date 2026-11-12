@@ -50,7 +50,23 @@ export function ChipList({ chips, label }: { chips: Chip[]; label: string }) {
 }
 
 /** Memoised (review A-L2): a frame step of the viewer re-renders the screen, never the thread (its props are stable). */
-export const ThreadPanel = memo(function ThreadPanel({ slug, name, id, tick, onThread, renders, rs }: { slug: string; name: string; id: string; tick: number; onThread: (t: ThreadAnswer | null) => void; renders: ScenarioRenderView[]; rs: RendersState }) {
+export const ThreadPanel = memo(function ThreadPanel({
+  slug,
+  name,
+  id,
+  tick,
+  onThread,
+  renders,
+  rs,
+}: {
+  slug: string;
+  name: string;
+  id: string;
+  tick: number;
+  onThread: (t: ThreadAnswer | null) => void;
+  renders: ScenarioRenderView[];
+  rs: RendersState;
+}) {
   const [loaded, reload] = useThreadGet({ project: slug, comment_id: id }, `${slug}\0${id}`);
   const first = useRef(true);
   useEffect(() => {
@@ -184,7 +200,13 @@ function ThreadStill({ slug, id, renderId }: { slug: string; id: string; renderI
   return (
     <figure className="cm-still" data-testid="thread-still">
       {loaded.state === 'ready' ? (
-        <Jpeg base64={loaded.data.base64} max={SHEET_DATA_MAX} width={loaded.data.width} height={loaded.data.height} alt={`The still of this comment, made on ${renderWords(renderId)} (its region outlined)`} />
+        <Jpeg
+          base64={loaded.data.base64}
+          max={SHEET_DATA_MAX}
+          width={loaded.data.width}
+          height={loaded.data.height}
+          alt={`The still of this comment, made on ${renderWords(renderId)} (its region outlined)`}
+        />
       ) : (
         <p className="cm-quiet">{loaded.state === 'error' ? <Txt text={loaded.error} /> : 'Loading the still…'}</p>
       )}
@@ -216,7 +238,8 @@ function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name
         (e: unknown) => {
           if (e instanceof SessionEnded) return;
           // The thread changed since the panel showed it (Claude replied, another tab): read it again, send nothing.
-          if (e instanceof CallError && e.status === 409) setWrite({ kind: 'conflict', words: `The thread changed since you opened it: read it again, then ${what.toLowerCase()} — nothing was written. (${errorText(e)})` });
+          if (e instanceof CallError && e.status === 409)
+            setWrite({ kind: 'conflict', words: `The thread changed since you opened it: read it again, then ${what.toLowerCase()} — nothing was written. (${errorText(e)})` });
           else setWrite({ kind: 'error', words: errorText(e) });
         },
       )
@@ -233,7 +256,16 @@ function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name
           if (reply.trim()) send('Reply', 'thread_reply', { text: reply }, 'Reply posted', () => setReply(''));
         }}
       >
-        <TextArea label="Reply" rows={3} value={reply} onChange={setReply} unsaved={reply.trim() ? item : null} maxLength={COMMENT_TEXT_MAX} placeholder="Answer or ask for another change" testId="reply-text" />
+        <TextArea
+          label="Reply"
+          rows={3}
+          value={reply}
+          onChange={setReply}
+          unsaved={reply.trim() ? item : null}
+          maxLength={COMMENT_TEXT_MAX}
+          placeholder="Answer or ask for another change"
+          testId="reply-text"
+        />
         <Button size="sm" submit data-testid="reply" disabled={sending || reply.trim() === ''}>
           Reply
         </Button>
@@ -248,7 +280,15 @@ function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name
           }}
         >
           <TextArea label="Resolve — what was changed" rows={2} value={note} onChange={setNote} unsaved={note.trim() ? item : null} maxLength={COMMENT_TEXT_MAX} testId="resolve-note" />
-          {newer.length > 0 && <Select label="Answered by" value={answer} onChange={setAnswer} testId="resolve-render" options={[...newer.map((r) => ({ value: r, label: renderWords(r) })), { value: '', label: 'no render' }]} />}
+          {newer.length > 0 && (
+            <Select
+              label="Answered by"
+              value={answer}
+              onChange={setAnswer}
+              testId="resolve-render"
+              options={[...newer.map((r) => ({ value: r, label: renderWords(r) })), { value: '', label: 'no render' }]}
+            />
+          )}
           <Button size="sm" submit data-testid="resolve" disabled={sending || note.trim() === ''}>
             Resolve
           </Button>

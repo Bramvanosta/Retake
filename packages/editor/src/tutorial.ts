@@ -260,7 +260,17 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
       .map((k) => ({ at: Math.max(0, rel(k.t) - from), bbox: { ...k.bbox } }))
       .filter((k, i, all) => i === 0 || JSON.stringify(k.bbox) !== JSON.stringify(all[i - 1].bbox));
     track[0].at = 0;
-    out.spotlight.push({ component: rc, from, durationInFrames: to - from, scene, step: first.ev.step, anchor: { bbox: { ...track[0].bbox } }, tutorial: 'spotlight', layer: 'screen', ...(track.length > 1 ? { track } : {}) });
+    out.spotlight.push({
+      component: rc,
+      from,
+      durationInFrames: to - from,
+      scene,
+      step: first.ev.step,
+      anchor: { bbox: { ...track[0].bbox } },
+      tutorial: 'spotlight',
+      layer: 'screen',
+      ...(track.length > 1 ? { track } : {}),
+    });
     count(input, 'spotlight');
   }
 

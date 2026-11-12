@@ -178,13 +178,11 @@ describe('scaffold behaviour', () => {
 
   it('transition: entering fades in on top; a dip veils through a theme colour', () => {
     const screen = createElement('i', null, 'segment');
-    const mid = (direction: 'entering' | 'exiting', params = {}) =>
-      render('transition', { at: 6, params, extra: { screen, direction, durationInFrames: 12 } });
+    const mid = (direction: 'entering' | 'exiting', params = {}) => render('transition', { at: 6, params, extra: { screen, direction, durationInFrames: 12 } });
     expect(mid('entering')).toMatch(/^<div style="position:absolute;inset:0;opacity:0\.5\d*"><i>segment<\/i><\/div>$/);
     expect(mid('exiting')).toMatch(/opacity:1"><i>segment<\/i>/);
     // A dip does not overlap: exiting covers frames [0, 6) of 12 (opaque on its last one), entering [6, 12).
-    const dip = (at: number, direction: 'entering' | 'exiting') =>
-      render('transition', { at, params: { through: 'paper' }, extra: { screen, direction, durationInFrames: 12 } });
+    const dip = (at: number, direction: 'entering' | 'exiting') => render('transition', { at, params: { through: 'paper' }, extra: { screen, direction, durationInFrames: 12 } });
     const veil = (html: string) => Number(new RegExp(`background:${LIGHT.colors.paper};opacity:([\\d.e-]+)`).exec(html)?.[1]);
     expect(dip(0, 'exiting')).toContain(`background:${LIGHT.colors.paper}`);
     expect(veil(dip(0, 'exiting'))).toBeLessThan(0.2);
@@ -213,35 +211,149 @@ function moduleSpecifiers(src: string): string[] {
 
 /** Every name `@retake/components/kit` exports (sorted): the public surface a workspace component may import. */
 const KIT_PUBLIC_NAMES = [
-  'AUTO_COVER_MIN_SHARE', 'AbsoluteFill', 'AppIcon', 'BUTTON_LABEL_MIN', 'Background', 'CAMERA_EASINGS', 'CAPTION_BAND_INSET',
-  'CAPTION_BAND_MIN_SCREEN', 'CAPTION_BAND_PAD_X', 'CapText', 'DEFAULT_ZOOM_EASE', 'EASINGS', 'EASING_CURVES',
-  'ESTIMATED_METRICS', 'FORMAT_SCALE', 'FitText', 'ICON_NAMES', 'ICON_SHAPES', 'Icon', 'ImageFile', 'Img',
-  'InsetCard', 'InsetPhone', 'KEY_GLYPHS', 'LOUPE_MIN_SCALE', 'LOUPE_ORDER', 'Logo', 'LottieFile',
-  'NOTIFICATION_INSET', 'NOTIFICATION_STYLES', 'NOTIFICATION_WIDTH', 'NotificationCard', 'PANE_BAR',
-  'PANE_LABEL_ROW', 'PHONE_DISPLAY_ASPECT', 'PIP_BAR', 'PaneLabel', 'PhoneDevice', 'Picture', 'STEP_BADGE_ORDER',
-  'SYSTEM_COLORS', 'SafeArea', 'Sequence', 'StatusGlyphs', 'VideoFile', 'WORDMARK_TEXT_SCALE', 'WindowBar',
-  'Wordmark', 'activeIndex', 'addressParts', 'autoFit', 'backgroundCss', 'backgroundSample', 'balanceLines',
-  'barTones', 'biasMotion', 'buttonColors', 'capOffset', 'capTextLayout', 'captionBandBox', 'captionMaxLines', 'cardShadow',
-  'clamp', 'clearOf', 'contrastRatio', 'cssFontFamily', 'cubicBezier', 'darkLight', 'deviceTones', 'easing',
-  'estimateTextWidth', 'fade', 'fadeIn', 'fadeOut', 'figureAt', 'filePartGain', 'fitText', 'fontMetrics',
-  'formatClock', 'formatFigure', 'formatMetrics', 'inkOn', 'insetPhoneEdge', 'isDarkBackground', 'isDarkColor',
-  'layoutNotification', 'lerp', 'liftToContrast', 'lottieFrames', 'loupeLens', 'luminance', 'measureText',
-  'mediaBackground', 'mediaLength', 'mixColors', 'nightTone', 'notificationArea', 'notificationBox',
-  'notificationMotion', 'notificationTones', 'parseColor01', 'parseFigure', 'parseNumber', 'parseShortcut',
-  'phoneCardGeometry', 'pictureAspect', 'placeBeside', 'progress', 'qrEncode', 'qrMatrix', 'qrPath',
-  'qrVersionFor', 'random', 'readableOn', 'recolorLottie', 'rise', 'roundTo', 'safeAreaRect', 'scaleRect',
-  'shortcutPlateBox', 'shortcutPlateLayout', 'shortcutPlateMetrics', 'shortcutText', 'splitKeys', 'stagger',
-  'stepBadgeBox', 'textStyleCss', 'themeColorMap', 'themeEasing', 'toFrames', 'toSeconds', 'useCurrentFrame',
-  'useLottieData', 'useVideoConfig', 'videoPartFrames', 'wallpaperCss', 'withAlpha', 'wrapText',
+  'AUTO_COVER_MIN_SHARE',
+  'AbsoluteFill',
+  'AppIcon',
+  'BUTTON_LABEL_MIN',
+  'Background',
+  'CAMERA_EASINGS',
+  'CAPTION_BAND_INSET',
+  'CAPTION_BAND_MIN_SCREEN',
+  'CAPTION_BAND_PAD_X',
+  'CapText',
+  'DEFAULT_ZOOM_EASE',
+  'EASINGS',
+  'EASING_CURVES',
+  'ESTIMATED_METRICS',
+  'FORMAT_SCALE',
+  'FitText',
+  'ICON_NAMES',
+  'ICON_SHAPES',
+  'Icon',
+  'ImageFile',
+  'Img',
+  'InsetCard',
+  'InsetPhone',
+  'KEY_GLYPHS',
+  'LOUPE_MIN_SCALE',
+  'LOUPE_ORDER',
+  'Logo',
+  'LottieFile',
+  'NOTIFICATION_INSET',
+  'NOTIFICATION_STYLES',
+  'NOTIFICATION_WIDTH',
+  'NotificationCard',
+  'PANE_BAR',
+  'PANE_LABEL_ROW',
+  'PHONE_DISPLAY_ASPECT',
+  'PIP_BAR',
+  'PaneLabel',
+  'PhoneDevice',
+  'Picture',
+  'STEP_BADGE_ORDER',
+  'SYSTEM_COLORS',
+  'SafeArea',
+  'Sequence',
+  'StatusGlyphs',
+  'VideoFile',
+  'WORDMARK_TEXT_SCALE',
+  'WindowBar',
+  'Wordmark',
+  'activeIndex',
+  'addressParts',
+  'autoFit',
+  'backgroundCss',
+  'backgroundSample',
+  'balanceLines',
+  'barTones',
+  'biasMotion',
+  'buttonColors',
+  'capOffset',
+  'capTextLayout',
+  'captionBandBox',
+  'captionMaxLines',
+  'cardShadow',
+  'clamp',
+  'clearOf',
+  'contrastRatio',
+  'cssFontFamily',
+  'cubicBezier',
+  'darkLight',
+  'deviceTones',
+  'easing',
+  'estimateTextWidth',
+  'fade',
+  'fadeIn',
+  'fadeOut',
+  'figureAt',
+  'filePartGain',
+  'fitText',
+  'fontMetrics',
+  'formatClock',
+  'formatFigure',
+  'formatMetrics',
+  'inkOn',
+  'insetPhoneEdge',
+  'isDarkBackground',
+  'isDarkColor',
+  'layoutNotification',
+  'lerp',
+  'liftToContrast',
+  'lottieFrames',
+  'loupeLens',
+  'luminance',
+  'measureText',
+  'mediaBackground',
+  'mediaLength',
+  'mixColors',
+  'nightTone',
+  'notificationArea',
+  'notificationBox',
+  'notificationMotion',
+  'notificationTones',
+  'parseColor01',
+  'parseFigure',
+  'parseNumber',
+  'parseShortcut',
+  'phoneCardGeometry',
+  'pictureAspect',
+  'placeBeside',
+  'progress',
+  'qrEncode',
+  'qrMatrix',
+  'qrPath',
+  'qrVersionFor',
+  'random',
+  'readableOn',
+  'recolorLottie',
+  'rise',
+  'roundTo',
+  'safeAreaRect',
+  'scaleRect',
+  'shortcutPlateBox',
+  'shortcutPlateLayout',
+  'shortcutPlateMetrics',
+  'shortcutText',
+  'splitKeys',
+  'stagger',
+  'stepBadgeBox',
+  'textStyleCss',
+  'themeColorMap',
+  'themeEasing',
+  'toFrames',
+  'toSeconds',
+  'useCurrentFrame',
+  'useLottieData',
+  'useVideoConfig',
+  'videoPartFrames',
+  'wallpaperCss',
+  'withAlpha',
+  'wrapText',
 ];
 
 describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer stays replaceable)', () => {
   it('no scaffold file imports remotion (or anything but react and the kit): renderer primitives come from the kit', () => {
-    expect(moduleSpecifiers("import { useCurrentFrame } from 'remotion';\nimport type { X } from \"remotion\";\n// import 'y'\nexport * from 'z';")).toEqual([
-      'remotion',
-      'remotion',
-      'z',
-    ]);
+    expect(moduleSpecifiers("import { useCurrentFrame } from 'remotion';\nimport type { X } from \"remotion\";\n// import 'y'\nexport * from 'z';")).toEqual(['remotion', 'remotion', 'z']);
     for (const kind of COMPONENT_KINDS) {
       const dir = scaffoldDir(kind);
       const files = readdirSync(dir).filter((f) => ['.ts', '.tsx', '.js', '.jsx', '.mjs'].includes(extname(f)));
@@ -249,7 +361,10 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
       for (const file of files) {
         const specs = moduleSpecifiers(readFileSync(join(dir, file), 'utf8'));
         expect(specs.length, `${kind}/${file}`).toBeGreaterThan(0);
-        expect(specs.filter((s) => s !== 'react' && s !== KIT_MODULE), `${kind}/${file}`).toEqual([]);
+        expect(
+          specs.filter((s) => s !== 'react' && s !== KIT_MODULE),
+          `${kind}/${file}`,
+        ).toEqual([]);
       }
     }
   });
@@ -264,7 +379,10 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
       for (const file of files) {
         const specs = moduleSpecifiers(readFileSync(join(dir, file), 'utf8'));
         expect(specs.length, `${id}/${file}`).toBeGreaterThan(0);
-        expect(specs.filter((s) => s !== 'react' && s !== KIT_MODULE), `studio/${id}/${file}`).toEqual([]);
+        expect(
+          specs.filter((s) => s !== 'react' && s !== KIT_MODULE),
+          `studio/${id}/${file}`,
+        ).toEqual([]);
       }
     }
   });
@@ -282,7 +400,11 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
     const seam = (await import('../src/kit/renderer.js')) as unknown as Record<string, unknown>;
     const primitives = ['AbsoluteFill', 'Img', 'Sequence', 'random', 'useCurrentFrame', 'useVideoConfig'];
     expect(primitives.filter((n) => kit[n] === undefined || kit[n] !== seam[n])).toEqual([]);
-    expect(Object.keys(seam).filter((n) => n in kit).sort()).toEqual([...primitives].sort());
+    expect(
+      Object.keys(seam)
+        .filter((n) => n in kit)
+        .sort(),
+    ).toEqual([...primitives].sort());
     expect(index).not.toMatch(/export \* from '\.\/renderer\.js'/);
     const names = await kitExports();
     expect(names).toEqual(KIT_PUBLIC_NAMES);

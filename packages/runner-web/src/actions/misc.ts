@@ -64,7 +64,13 @@ export async function evalStep(ctx: StepContext, args: EvalArgs): Promise<Action
     const value = await evalInPage(rt.page, code, arg);
     return { data: { value: jsonSafe(value) } };
   } catch (e) {
-    throw new StepError(`eval: ${errorMessage(e).replace(/^page\.evaluate: /, '').split('\n')[0]}`);
+    throw new StepError(
+      `eval: ${
+        errorMessage(e)
+          .replace(/^page\.evaluate: /, '')
+          .split('\n')[0]
+      }`,
+    );
   }
 }
 

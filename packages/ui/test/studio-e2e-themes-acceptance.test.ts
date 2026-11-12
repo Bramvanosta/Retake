@@ -65,7 +65,10 @@ function rgbAt(input: { png: Buffer } | { video: string; t: number }, fx: number
   const W = 320;
   const H = 180;
   const args = 'png' in input ? ['-v', 'error', '-i', 'pipe:0'] : ['-v', 'error', '-ss', String(input.t), '-i', input.video, '-frames:v', '1'];
-  const rgb = execFileSync('ffmpeg', [...args, '-vf', `scale=${W}:${H}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { ...('png' in input ? { input: input.png } : {}), maxBuffer: 16 * 1024 * 1024 });
+  const rgb = execFileSync('ffmpeg', [...args, '-vf', `scale=${W}:${H}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], {
+    ...('png' in input ? { input: input.png } : {}),
+    maxBuffer: 16 * 1024 * 1024,
+  });
   const i = (Math.floor(H * fy) * W + Math.floor(W * fx)) * 3;
   return [rgb[i], rgb[i + 1], rgb[i + 2]];
 }
@@ -93,7 +96,10 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
     const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
-    await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
+    await writeFile(
+      join(project, 'project.yaml'),
+      yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
+    );
     await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
     studio = await startStudioServer({ root, workerIdleExitMs: 5000 });
     // The take the render will re-theme: captured first (the worker runs it before the loop asked below).
@@ -211,7 +217,16 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     const t0 = Date.now();
     await page.getByTestId('render').click();
     // L5.12a: Edit's status bar says the render this tab queued once its review is written, and links its report.
-    await expect.poll(() => page.getByTestId('render-status').innerText().catch(() => ''), WORK).toMatch(/^v\d+ reviewed · (clean|\d+ warnings?|\d+ errors?) · /);
+    await expect
+      .poll(
+        () =>
+          page
+            .getByTestId('render-status')
+            .innerText()
+            .catch(() => ''),
+        WORK,
+      )
+      .toMatch(/^v\d+ reviewed · (clean|\d+ warnings?|\d+ errors?) · /);
     timings.render_review_ms = Date.now() - t0;
     noteWorker();
     const renderId = /\/review\/([^/]+)$/.exec((await page.getByTestId('render-open-review').getAttribute('href'))!)![1];

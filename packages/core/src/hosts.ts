@@ -140,12 +140,7 @@ export function hostRefusalMessage(host: string, project: Pick<LoadedProject, 'c
  */
 export class HostRefusedError extends Error {
   readonly hosts: string[];
-  constructor(
-    hosts: readonly string[],
-    project: Pick<LoadedProject, 'config'> & { slug?: string },
-    via?: string,
-    options?: { cause?: unknown; detail?: string },
-  ) {
+  constructor(hosts: readonly string[], project: Pick<LoadedProject, 'config'> & { slug?: string }, via?: string, options?: { cause?: unknown; detail?: string }) {
     const detail = options?.detail ? `; ${options.detail}` : '';
     super(`${hostRefusalMessage(hosts.join(', '), project, via)}${detail}`, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'HostRefusedError';

@@ -11,7 +11,10 @@ import { BASELINE, RULES, compareBaseline, ratchetEntries, ratchetReport, readBa
 
 // The repository root is the first argument unless it is an option (`rules.mjs --check` checks the current folder).
 const root = path.resolve(process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : '.');
-const opt = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };
+const opt = (n) => {
+  const i = process.argv.indexOf(n);
+  return i > 0 ? process.argv[i + 1] : undefined;
+};
 const LIST = process.argv.includes('--list');
 
 if (process.argv.includes('--write-baseline') || process.argv.includes('--check')) {

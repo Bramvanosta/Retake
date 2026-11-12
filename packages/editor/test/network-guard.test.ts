@@ -220,97 +220,132 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
     await ws?.cleanup();
   });
 
-  it('guarded: B gets nothing (fetch, localhost alias, image, /proxy source, WebSocket); the render warns with its origin only', async () => {
-    const plan = await introPlan('acme/reaching');
-    hits = [];
-    const res = await renderIntro(plan, 'guard', 'guarded.mp4');
-    expect(hits).toEqual([]);
-    const blocked = res.warnings.filter((w) => w.startsWith('the render blocked'));
-    expect(blocked.join('\n')).toContain(bOrigin);
-    expect(blocked.join('\n')).toContain(`http://localhost:${new URL(bOrigin).port}`);
-    expect(blocked.join('\n')).not.toMatch(/\/fetch|\/img|proxy-src/);
-  }, LONG);
+  it(
+    'guarded: B gets nothing (fetch, localhost alias, image, /proxy source, WebSocket); the render warns with its origin only',
+    async () => {
+      const plan = await introPlan('acme/reaching');
+      hits = [];
+      const res = await renderIntro(plan, 'guard', 'guarded.mp4');
+      expect(hits).toEqual([]);
+      const blocked = res.warnings.filter((w) => w.startsWith('the render blocked'));
+      expect(blocked.join('\n')).toContain(bOrigin);
+      expect(blocked.join('\n')).toContain(`http://localhost:${new URL(bOrigin).port}`);
+      expect(blocked.join('\n')).not.toMatch(/\/fetch|\/img|proxy-src/);
+    },
+    LONG,
+  );
 
-  it('open (a `retake render`): B gets the page requests and the /proxy download — the positive control', async () => {
-    const plan = await introPlan('acme/reaching');
-    hits = [];
-    const res = await renderIntro(plan, 'open', 'open.mp4');
-    expect(hits).toEqual(expect.arrayContaining(['/fetch', '/fetch-localhost', '/img.png', '/proxy-src.mp4']));
-    // The CSP of the bundle holds for every render: no WebSocket leaves the page.
-    expect(hits).not.toContain('/ws');
-    expect(res.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-  }, LONG);
+  it(
+    'open (a `retake render`): B gets the page requests and the /proxy download — the positive control',
+    async () => {
+      const plan = await introPlan('acme/reaching');
+      hits = [];
+      const res = await renderIntro(plan, 'open', 'open.mp4');
+      expect(hits).toEqual(expect.arrayContaining(['/fetch', '/fetch-localhost', '/img.png', '/proxy-src.mp4']));
+      // The CSP of the bundle holds for every render: no WebSocket leaves the page.
+      expect(hits).not.toContain('/ws');
+      expect(res.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+    },
+    LONG,
+  );
 
-  it('L5.15 fixes: a page of a guarded render fails — the render fails plainly; Remotion opens no browser of its own (B gets nothing, none outlives it)', async () => {
-    const plan = await introPlan('acme/closing');
-    const before = renderBrowsers();
-    const browsers: BrowserProcessInfo[] = [];
-    hits = [];
-    const err = await renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, 'closing.mp4'), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 5], concurrency: 2, onBrowser: (b) => browsers.push(b) }).then(
-      () => null,
-      (e: unknown) => e as Error,
-    );
-    expect(err?.message).toBe('render failed: a page of the render failed (its browser closed); a guarded render never continues in another browser');
-    expect(hits).toEqual([]);
-    expect(browsers).toHaveLength(1);
-    await new Promise((r) => setTimeout(r, 1000));
-    expect(renderBrowsers().filter((p) => !before.includes(p))).toEqual([]);
-    expect(guardedPageFailure(new Error('Protocol error (Runtime.callFunctionOn): Target closed'))).toBe(true);
-    expect(guardedPageFailure(new Error('Timeout (90000ms) exceeded'))).toBe(false);
-  }, LONG);
+  it(
+    'L5.15 fixes: a page of a guarded render fails — the render fails plainly; Remotion opens no browser of its own (B gets nothing, none outlives it)',
+    async () => {
+      const plan = await introPlan('acme/closing');
+      const before = renderBrowsers();
+      const browsers: BrowserProcessInfo[] = [];
+      hits = [];
+      const err = await renderPlan({
+        workPolicy: PERSON_POLICY,
+        plan,
+        out: join(ws.root, 'closing.mp4'),
+        root: ws.root,
+        cacheDir: SHARED_CACHE,
+        network: 'guard',
+        frameRange: [0, 5],
+        concurrency: 2,
+        onBrowser: (b) => browsers.push(b),
+      }).then(
+        () => null,
+        (e: unknown) => e as Error,
+      );
+      expect(err?.message).toBe('render failed: a page of the render failed (its browser closed); a guarded render never continues in another browser');
+      expect(hits).toEqual([]);
+      expect(browsers).toHaveLength(1);
+      await new Promise((r) => setTimeout(r, 1000));
+      expect(renderBrowsers().filter((p) => !before.includes(p))).toEqual([]);
+      expect(guardedPageFailure(new Error('Protocol error (Runtime.callFunctionOn): Target closed'))).toBe(true);
+      expect(guardedPageFailure(new Error('Timeout (90000ms) exceeded'))).toBe(false);
+    },
+    LONG,
+  );
 
-  it('L5.15 fixes: the same in a guarded preview loop — that item fails plainly, B gets nothing, no browser outlives it', async () => {
-    const registry = await loadComponentRegistry({ root: ws.root });
-    const template = await loadTemplate('editorial', ws.root, { files: fileFacts(PERSON_POLICY) });
-    const info = registry.get('acme/closing');
-    const before = renderBrowsers();
-    const browsers: BrowserProcessInfo[] = [];
-    hits = [];
-    const r = await renderComponentLoops({ workPolicy: PERSON_POLICY,
-      root: ws.root,
-      registry,
-      template,
-      cacheDir: SHARED_CACHE,
-      network: 'guard',
-      onBrowser: (b) => browsers.push(b),
-      items: [{ target: { id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }, loop: join(ws.root, 'closing.gif') }],
-    });
-    expect(r.rendered).toEqual([]);
-    expect(r.failed.map((f) => f.id)).toEqual(['acme/closing']);
-    expect(r.failed[0]!.reason).toContain('a page of the preview failed (its browser closed); a guarded preview never continues in another browser');
-    expect(hits).toEqual([]);
-    expect(browsers).toHaveLength(1);
-    await new Promise((res) => setTimeout(res, 1000));
-    expect(renderBrowsers().filter((p) => !before.includes(p))).toEqual([]);
-  }, LONG);
-
-  it("guarded: an <Audio> source on B is refused before Remotion's Node side downloads it (the render fails)", async () => {
-    // In a process of its own: the failed render's encoder pipe rejects with EPIPE afterwards (fixtures/render-intro.mts).
-    const renderIn = (network: RenderNetwork, out: string): Promise<{ ok: boolean; error?: string }> =>
-      new Promise((done, fail) => {
-        // Asynchronous: B answers from this process while the child renders.
-        const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(HERE, 'fixtures', 'render-intro.mts'), ws.root, 'acme/sounding', network, join(ws.root, out), SHARED_CACHE], {
-          cwd: join(HERE, '..'),
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
-        child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
-        child.on('error', fail);
-        child.on('exit', () => {
-          const line = stdout.trim().split('\n').pop() ?? '';
-          if (!line.startsWith('{')) fail(new Error(`no result from the render process: ${stderr.slice(-2000)}`));
-          else done(JSON.parse(line) as { ok: boolean; error?: string });
-        });
+  it(
+    'L5.15 fixes: the same in a guarded preview loop — that item fails plainly, B gets nothing, no browser outlives it',
+    async () => {
+      const registry = await loadComponentRegistry({ root: ws.root });
+      const template = await loadTemplate('editorial', ws.root, { files: fileFacts(PERSON_POLICY) });
+      const info = registry.get('acme/closing');
+      const before = renderBrowsers();
+      const browsers: BrowserProcessInfo[] = [];
+      hits = [];
+      const r = await renderComponentLoops({
+        workPolicy: PERSON_POLICY,
+        root: ws.root,
+        registry,
+        template,
+        cacheDir: SHARED_CACHE,
+        network: 'guard',
+        onBrowser: (b) => browsers.push(b),
+        items: [{ target: { id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }, loop: join(ws.root, 'closing.gif') }],
       });
-    hits = [];
-    const guarded = await renderIn('guard', 'audio-guarded.mp4');
-    expect(guarded.ok).toBe(false);
-    expect(guarded.error).toMatch(/blocked download of http:\/\/127\.0\.0\.1:\d+: a render through MCP loads only the files of its plan/);
-    expect(hits).toEqual([]);
-    hits = [];
-    expect((await renderIn('open', 'audio-open.mp4')).ok).toBe(true);
-    expect(hits).toContain('/sound.wav');
-  }, LONG);
+      expect(r.rendered).toEqual([]);
+      expect(r.failed.map((f) => f.id)).toEqual(['acme/closing']);
+      expect(r.failed[0]!.reason).toContain('a page of the preview failed (its browser closed); a guarded preview never continues in another browser');
+      expect(hits).toEqual([]);
+      expect(browsers).toHaveLength(1);
+      await new Promise((res) => setTimeout(res, 1000));
+      expect(renderBrowsers().filter((p) => !before.includes(p))).toEqual([]);
+    },
+    LONG,
+  );
+
+  it(
+    "guarded: an <Audio> source on B is refused before Remotion's Node side downloads it (the render fails)",
+    async () => {
+      // In a process of its own: the failed render's encoder pipe rejects with EPIPE afterwards (fixtures/render-intro.mts).
+      const renderIn = (network: RenderNetwork, out: string): Promise<{ ok: boolean; error?: string }> =>
+        new Promise((done, fail) => {
+          // Asynchronous: B answers from this process while the child renders.
+          const child = spawn(
+            process.execPath,
+            ['--conditions=source', '--import', 'tsx', join(HERE, 'fixtures', 'render-intro.mts'), ws.root, 'acme/sounding', network, join(ws.root, out), SHARED_CACHE],
+            {
+              cwd: join(HERE, '..'),
+              stdio: ['ignore', 'pipe', 'pipe'],
+            },
+          );
+          let stdout = '';
+          let stderr = '';
+          child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
+          child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
+          child.on('error', fail);
+          child.on('exit', () => {
+            const line = stdout.trim().split('\n').pop() ?? '';
+            if (!line.startsWith('{')) fail(new Error(`no result from the render process: ${stderr.slice(-2000)}`));
+            else done(JSON.parse(line) as { ok: boolean; error?: string });
+          });
+        });
+      hits = [];
+      const guarded = await renderIn('guard', 'audio-guarded.mp4');
+      expect(guarded.ok).toBe(false);
+      expect(guarded.error).toMatch(/blocked download of http:\/\/127\.0\.0\.1:\d+: a render through MCP loads only the files of its plan/);
+      expect(hits).toEqual([]);
+      hits = [];
+      expect((await renderIn('open', 'audio-open.mp4')).ok).toBe(true);
+      expect(hits).toContain('/sound.wav');
+    },
+    LONG,
+  );
 });

@@ -81,13 +81,7 @@ describe('pacing from the field notes', () => {
         {
           id: 'nav',
           open: '/nav.html',
-          steps: [
-            { click: 'Plain' },
-            { click: 'Open view two' },
-            { assert: { text: 'View two', url: '?view=2' } },
-            { click: 'Go to page two' },
-            { assert: { text: 'Page two' } },
-          ],
+          steps: [{ click: 'Plain' }, { click: 'Open view two' }, { assert: { text: 'View two', url: '?view=2' } }, { click: 'Go to page two' }, { assert: { text: 'Page two' } }],
         },
       ],
     });
@@ -108,14 +102,7 @@ describe('pacing from the field notes', () => {
         {
           id: 'widgets',
           open: '/strategies.html',
-          steps: [
-            { click: { css: '#a' } },
-            { click: { outside: true } },
-            { click: { css: '#b' } },
-            { click: { outside: true } },
-            { click: { css: '#c' } },
-            { click: { outside: true } },
-          ],
+          steps: [{ click: { css: '#a' } }, { click: { outside: true } }, { click: { css: '#b' } }, { click: { outside: true } }, { click: { css: '#c' } }, { click: { outside: true } }],
         },
       ],
     });

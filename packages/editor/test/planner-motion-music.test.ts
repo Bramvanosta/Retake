@@ -91,7 +91,11 @@ describe('theme default zoom (R-ED-22)', () => {
   it('balanced works the same; real keeps a static camera (a note says why); overrides.camera = false disables it', async () => {
     const tl = synthTimeline({ entries: scenes(), duration: 22 });
     const balanced = await plan(tl, withTheme(editorial, { style_bias: 'balanced', motion: { ...editorial.template.motion, default_zoom: 1.1 } }));
-    expect(clips(balanced).flatMap((c) => c.zooms).map((z) => z.source)).toEqual(['theme', 'theme']);
+    expect(
+      clips(balanced)
+        .flatMap((c) => c.zooms)
+        .map((z) => z.source),
+    ).toEqual(['theme', 'theme']);
     const real = await plan(tl, withTheme(editorial, { style_bias: 'real', motion: { ...editorial.template.motion, default_zoom: 1.1 } }));
     expect(clips(real).flatMap((c) => c.zooms)).toEqual([]);
     expect(clips(real).every((c) => c.camera === null)).toBe(true);
@@ -115,7 +119,7 @@ describe('theme default zoom (R-ED-22)', () => {
     expect(p.notes.some((n) => /"c": no theme zoom on the mark "second"/.test(n))).toBe(true);
   });
 
-  it('clamps default_zoom to max_zoom; the motion starter theme zooms on the quote fixture\'s marked proposal', async () => {
+  it("clamps default_zoom to max_zoom; the motion starter theme zooms on the quote fixture's marked proposal", async () => {
     const p = await plan(synthTimeline({ entries: scenes(), duration: 22 }), withTheme(motion, { motion: { ...motion.template.motion, default_zoom: 2, max_zoom: 1.3 } }));
     expect(clip(p, 'a').zooms[0]).toMatchObject({ zoom: 1.3, requested_zoom: 2 });
     const q = await plan(realTimeline('quote'), motion);
@@ -131,7 +135,12 @@ describe('music bed (R-ED-17)', () => {
     const loops = musicPlays(16, 1800, 30, true, 1);
     expect(loops.map((l) => l.from)).toEqual([0, 450, 900, 1350]);
     expect(loops.map((l) => l.frames)).toEqual([480, 480, 480, 450]);
-    expect(loops.map((l) => [l.fadeIn, l.fadeOut])).toEqual([[0, 30], [30, 30], [30, 30], [30, 0]]);
+    expect(loops.map((l) => [l.fadeIn, l.fadeOut])).toEqual([
+      [0, 30],
+      [30, 30],
+      [30, 30],
+      [30, 0],
+    ]);
     // Each play starts before the previous one ends: no gap.
     for (let i = 1; i < loops.length; i++) expect(loops[i].from).toBeLessThan(loops[i - 1].from + loops[i - 1].frames);
     expect(musicPlays(16, 1800, 30, false, 1)).toEqual([{ from: 0, frames: 480, fadeIn: 0, fadeOut: 0 }]);

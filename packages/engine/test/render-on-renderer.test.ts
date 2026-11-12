@@ -40,7 +40,10 @@ let engine: Engine;
 const saved = { home: process.env.RETAKE_HOME, ffmpeg: process.env.RETAKE_FFMPEG, ffprobe: process.env.RETAKE_FFPROBE };
 
 const historyLines = async (): Promise<Array<Record<string, unknown>>> =>
-  (await readFile(historyFile(root), 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+  (await readFile(historyFile(root), 'utf8').catch(() => ''))
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as Record<string, unknown>);
 const recordOf = async (id: string): Promise<RenderRecord> => JSON.parse(await readFile(join(dir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
 
 beforeAll(async () => {
@@ -53,7 +56,11 @@ beforeAll(async () => {
   const runDir = join(dir, 'runs', RUN);
   await mkdir(runDir, { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  const t = synthTimeline({ duration: 2, entries: [{ id: 'a', t_start: 0.5, t_end: 1.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 1.5 }] }], video: { intro: false, outro: false, template: 'editorial' } });
+  const t = synthTimeline({
+    duration: 2,
+    entries: [{ id: 'a', t_start: 0.5, t_end: 1.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 1.5 }] }],
+    video: { intro: false, outro: false, template: 'editorial' },
+  });
   t.run_id = RUN;
   t.project = 'demo';
   t.scenario = SCENARIO;
@@ -65,7 +72,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const [name, value] of [['RETAKE_HOME', saved.home], ['RETAKE_FFMPEG', saved.ffmpeg], ['RETAKE_FFPROBE', saved.ffprobe]] as const) {
+  for (const [name, value] of [
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_FFMPEG', saved.ffmpeg],
+    ['RETAKE_FFPROBE', saved.ffprobe],
+  ] as const) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
@@ -151,7 +162,7 @@ describe('render jobs on the renderer the worker was handed', () => {
     expect(existsSync(join(dir, 'renders', `${input.render_id}.json`))).toBe(false);
   });
 
-  it('a renderer\'s failure ends the job failed, nothing left', async () => {
+  it("a renderer's failure ends the job failed, nothing left", async () => {
     const { job, input } = await renderJob({
       duringVideo: () => {
         throw new Error('the renderer lost its GPU');
@@ -177,7 +188,8 @@ describe('one renderer, and nothing beside it', () => {
       },
       async open() {
         return {
-          still: async (spec, file) => void (drawn.push(`still ${spec.main.id}`), await writeFile(file, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('poster')]))),
+          still: async (spec, file) =>
+            void (drawn.push(`still ${spec.main.id}`), await writeFile(file, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('poster')]))),
           gif: async (spec, file) => void (drawn.push(`gif ${spec.main.id}`), await writeFile(file, Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]))),
           warnings: () => [],
           close: async () => undefined,
@@ -201,12 +213,12 @@ describe('one renderer, and nothing beside it', () => {
     expect(drawn).toEqual(['gif studio/card-title']);
   });
 
-  it('the options of the editor\'s own driver (a cache folder, a preview backend) are refused beside the renderer, which is asked nothing', async () => {
+  it("the options of the editor's own driver (a cache folder, a preview backend) are refused beside the renderer, which is asked nothing", async () => {
     const project = await openProject(engine.workspace, 'demo');
     const fake = new MemoryRenderer();
     const planned = await planWork({ workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
     const render = { renderer: fake, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, cacheDir: join(root, 'cache') };
-    await expect(renderInProcess(render as never)).rejects.toThrow('render: cacheDir is an option of the editor\'s own renderer and cannot go with a renderer that is handed');
+    await expect(renderInProcess(render as never)).rejects.toThrow("render: cacheDir is an option of the editor's own renderer and cannot go with a renderer that is handed");
     const still = { renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 0, out: join(root, 'stills', 'refused.png'), root, project, cacheDir: join(root, 'cache') };
     await expect(stillInProcess(still as never)).rejects.toThrow('still: cacheDir is an option');
     expect(fake.calls).toEqual([]);
@@ -236,23 +248,31 @@ describe('work in process on the renderer its caller hands', () => {
     ]);
   });
 
-  it('a failure and a cancel of the renderer come back as the editor\'s errors, the record on them: its policy, its warnings, its status; no history line', async () => {
+  it("a failure and a cancel of the renderer come back as the editor's errors, the record on them: its policy, its warnings, its status; no history line", async () => {
     const project = await openProject(engine.workspace, 'demo');
     const before = await historyLines();
-    const path = { gl: { asked: 'angle', source: 'option', resolved: 'angle', used: 'angle' }, encoder: { asked: 'auto', source: 'default', used: 'h264_videotoolbox' }, concurrency_source: 'default' };
+    const path = {
+      gl: { asked: 'angle', source: 'option', resolved: 'angle', used: 'angle' },
+      encoder: { asked: 'auto', source: 'default', used: 'h264_videotoolbox' },
+      concurrency_source: 'default',
+    };
     const failing = new MemoryRenderer({
       duringVideo: () => {
         throw Object.assign(new Error('the renderer lost its GPU'), { renderPath: path, renderWarnings: ['seen before it failed'] });
       },
     });
-    const failed = (await renderInProcess({ renderer: failing, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: systemClock }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
+    const failed = (await renderInProcess({ renderer: failing, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: systemClock }).catch((e: unknown) => e)) as Error & {
+      record: RenderRecord;
+    };
     expect(await editorErrorOf(failed)).toBe('render');
     expect(failed.message).toBe('the renderer lost its GPU');
     expect(failed.record).toMatchObject({ status: 'failed', error: 'the renderer lost its GPU', policy: path });
     expect(failed.record.warnings).toContain('seen before it failed');
     const stop = new AbortController();
     const stopped = new MemoryRenderer({ duringVideo: () => stop.abort() });
-    const cancelled = (await renderInProcess({ renderer: stopped, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, signal: stop.signal, clock: systemClock }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
+    const cancelled = (await renderInProcess({ renderer: stopped, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, signal: stop.signal, clock: systemClock }).catch(
+      (e: unknown) => e,
+    )) as Error & { record: RenderRecord };
     expect(await editorErrorOf(cancelled)).toBe('render_cancelled');
     expect(cancelled.record.status).toBe('cancelled');
     expect(existsSync(cancelled.record.file)).toBe(false);

@@ -114,12 +114,7 @@ function readOnlyRunRefusal(writing: ReturnType<typeof writingHooks>, access: Ru
  * Resolve the secret references of the scenes this run reaches (skipped scenes and the steps after --until excluded)
  * and of the mailbox headers when the run reads mail. A missing one fails the run naming where it is used.
  */
-async function prefetchSecrets(
-  secrets: RunSecrets,
-  sc: Scenario,
-  until: { sceneIndex: number; stepIndex: number } | null,
-  mailbox: MailboxConfig | null,
-): Promise<void> {
+async function prefetchSecrets(secrets: RunSecrets, sc: Scenario, until: { sceneIndex: number; stepIndex: number } | null, mailbox: MailboxConfig | null): Promise<void> {
   const last = until ? until.sceneIndex : sc.scenes.length - 1;
   for (let si = 0; si <= last; si++) {
     const entry = sc.scenes[si];
@@ -156,9 +151,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
   if (opts.until !== undefined) {
     until = resolveStepRef(sc, opts.until);
     if (!until) {
-      throw new RunnerError(
-        `--until "${opts.until}" matches no step (use <scene>.<step id|index>, a unique step id, or a scene id)`,
-      );
+      throw new RunnerError(`--until "${opts.until}" matches no step (use <scene>.<step id|index>, a unique step id, or a scene id)`);
     }
   }
   const runsDir = resolve(opts.runsDir ?? projectPath(project.dir, 'runs'));
@@ -175,9 +168,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
 
   const listed = listSteps(sc);
   // The steps this run executes (all, or up to --until).
-  const toRun = until
-    ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex))
-    : listed;
+  const toRun = until ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex)) : listed;
   const total = toRun.length;
   // L1.8: the sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
   const sandbox: RunSandbox | undefined = env.sandbox ? (opts.sandbox?.name === env.name ? { ...opts.sandbox } : { name: env.name, provider: env.sandbox.provider }) : undefined;
@@ -233,10 +224,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
   const hookGroups = new Set<number>();
   const clock = new CaptureClock();
   const video = timelineVideo(sc, project.config, opts.template?.name);
-  const timeline = new TimelineBuilder(
-    { run_id: runId, project: project.slug, scenario: loaded.name, mode, capture, video, ...(opts.hideCursor ? { cursor: 'hidden' as const } : {}) },
-    clock,
-  );
+  const timeline = new TimelineBuilder({ run_id: runId, project: project.slug, scenario: loaded.name, mode, capture, video, ...(opts.hideCursor ? { cursor: 'hidden' as const } : {}) }, clock);
   timeline.environment = timelineEnvironment(env, access, runClock);
   if (sandbox) timeline.environment.sandbox = { ...sandbox };
   const template: TemplateContext = {
@@ -301,7 +289,11 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     filmingPause: onFilming ? (on: boolean) => void tell(onFilming, on ? 'resume' : 'pause') : undefined,
   };
   const driver = driverOf(run);
-  const removeSignals = installSignalHandlers((sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)), hookGroups, () => driver.cleanupSync());
+  const removeSignals = installSignalHandlers(
+    (sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)),
+    hookGroups,
+    () => driver.cleanupSync(),
+  );
   let hooks: HooksState | null = null;
 
   try {
@@ -315,7 +307,10 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
     if (access.mode === 'read-only' && hooksMode === 'run') {
-      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) }, { projectDir: project.dir, files: nodeFileFacts, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
+      const writing = writingHooks(
+        { setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) },
+        { projectDir: project.dir, files: nodeFileFacts, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) },
+      );
       if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
     }
     await driver.prepare();
@@ -326,7 +321,16 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     // The steps this run executes (L4.4: the Studio's step list), described as step_start will describe them — once
     // every secret is known (the prefetched ones, the sandbox accounts' passwords), so a value written as is in a step
     // is masked here too (review A).
-    emit({ type: 'outline', steps: toRun.map((l) => ({ scene: sceneId(l.scene, l.sceneIndex), step: l.step.index, action: l.step.action, desc: describeStep(secrets.redactDeep(l.step)), ...(l.scene.offscreen === true ? { offscreen: true as const } : {}) })) });
+    emit({
+      type: 'outline',
+      steps: toRun.map((l) => ({
+        scene: sceneId(l.scene, l.sceneIndex),
+        step: l.step.index,
+        action: l.step.action,
+        desc: describeStep(secrets.redactDeep(l.step)),
+        ...(l.scene.offscreen === true ? { offscreen: true as const } : {}),
+      })),
+    });
     await driver.open();
 
     // `hook:` steps (L5.8) run named hooks during the take, in the same context as the setup's (journal, saved results).
@@ -336,10 +340,11 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     if (hasHooks && hooksMode === 'skip') {
       if (sc.setup?.length) record.hooks.setup = 'skipped';
       if (sc.teardown?.length) record.hooks.teardown = 'skipped';
-      if (hookSteps) driver.setHookSteps(async (name) => {
-        log('info', `hook step "${name}" not run: the run's hooks are skipped`);
-        return { hook: name, skipped: true };
-      });
+      if (hookSteps)
+        driver.setHookSteps(async (name) => {
+          log('info', `hook step "${name}" not run: the run's hooks are skipped`);
+          return { hook: name, skipped: true };
+        });
     } else if (hasHooks) {
       const deps: SetupDeps = {
         policy: opts.policy,

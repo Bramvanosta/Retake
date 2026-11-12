@@ -70,7 +70,11 @@ describe('the preview bundle', () => {
     const registry = await loadComponentRegistry({ root: ws });
     const components = await playerComponents(registry);
     const builtins = (await readdir(join(LIBRARY_DIR, 'studio'))).map((d) => `studio/${d}`);
-    for (const id of [...builtins, 'acme/good', 'acme/linked', 'acme/escape', 'acme/planted', 'acme/broken']) expect(components.map((c) => c.id), id).toContain(id);
+    for (const id of [...builtins, 'acme/good', 'acme/linked', 'acme/escape', 'acme/planted', 'acme/broken'])
+      expect(
+        components.map((c) => c.id),
+        id,
+      ).toContain(id);
     const b = await buildPlayerBundle(components);
     expect(b.hash).toMatch(/^[0-9a-f]{16}$/);
     expect(b.excluded.map((e) => e.id).sort()).toEqual(['acme/broken', 'acme/escape', 'acme/linked']);
@@ -159,7 +163,11 @@ describe('the preview bundle', () => {
       }
       const registry = await loadComponentRegistry({ root: ws2 });
       const listed = await workspaceComponents(registry);
-      expect(listed.map((c) => c.id).sort()).toEqual(Object.keys(cases).map((n) => `acme/${n}`).sort());
+      expect(listed.map((c) => c.id).sort()).toEqual(
+        Object.keys(cases)
+          .map((n) => `acme/${n}`)
+          .sort(),
+      );
       // Every one allowed at its current hash: still never bundled.
       const b = await new PlayerBundles().get(registry, (id, hash) => listed.some((c) => c.id === id && c.hash === hash));
       expect(b.held).toEqual([]);

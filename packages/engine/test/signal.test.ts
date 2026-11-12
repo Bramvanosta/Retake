@@ -50,10 +50,13 @@ describe('signalTree (L5.14a fixes)', () => {
     expect(tree.calls.every(([, s]) => s === 'SIGKILL')).toBe(true);
   });
 
-  it('a QoS hold never takes a bad pid (or this process, unless it is a command\'s own tree) as its root', async () => {
+  it("a QoS hold never takes a bad pid (or this process, unless it is a command's own tree) as its root", async () => {
     for (const root of [...BAD, process.pid, ownProcessGroup()!]) {
       const applied: number[][] = [];
-      const table = async () => [{ pid: 1, ppid: 0, pgid: 1, start: 1 }, { pid: 77, ppid: 1, pgid: 77, start: 1 }];
+      const table = async () => [
+        { pid: 1, ppid: 0, pgid: 1, start: 1 },
+        { pid: 77, ppid: 1, pgid: 77, start: 1 },
+      ];
       const q = new QosYield(root, { group: true, deps: { table, apply: async (pids) => void applied.push([...pids]), now: () => 0 } });
       expect(q.usable, String(root)).toBe(false);
       await q.hold();

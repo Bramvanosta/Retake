@@ -34,7 +34,7 @@ describe('runMediaTool: a run to its end', () => {
     expect(Buffer.isBuffer(bytes.stdout) && bytes.stdout.toString()).toBe('out:x');
   });
 
-  it('a failed run answers its status and a MediaToolError with execFile\'s message and the stderr (never rejects)', async () => {
+  it("a failed run answers its status and a MediaToolError with execFile's message and the stderr (never rejects)", async () => {
     const r = await runMediaTool(fails, []);
     expect(r.code).toBe(3);
     expect(r.error).toBeInstanceOf(MediaToolError);
@@ -45,7 +45,7 @@ describe('runMediaTool: a run to its end', () => {
     expect(stderrLines('', 3)).toBe('');
   });
 
-  it('a tool that cannot start: no status, reason `start`, the system\'s code', async () => {
+  it("a tool that cannot start: no status, reason `start`, the system's code", async () => {
     const r = await runMediaTool(missing, []);
     expect(r.code).toBeNull();
     expect(r.error).toMatchObject({ reason: 'start', errno: 'ENOENT', code: null });
@@ -70,7 +70,7 @@ describe('runMediaTool: a run to its end', () => {
 });
 
 describe('runMediaToolSync', () => {
-  it('answers stdout; a failure throws MediaToolError with execFileSync\'s message, not copying the stderr', () => {
+  it("answers stdout; a failure throws MediaToolError with execFileSync's message, not copying the stderr", () => {
     expect(runMediaToolSync(ok, ['s'])).toBe('out:s');
     expect(runMediaToolSync(ok, ['s'], { encoding: 'buffer' })).toEqual(Buffer.from('out:s'));
     let e: unknown;

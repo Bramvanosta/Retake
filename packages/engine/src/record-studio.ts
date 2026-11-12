@@ -59,17 +59,7 @@ import { DEFAULT_TEMPLATE } from '@retake/core/theme';
 import { loadProjectTemplate, readPlainFile } from '@retake/core/io';
 import type { LoadedProject, TargetSpec, WorkFileFacts } from '@retake/core/model';
 import type { ScenarioBlocks } from '@retake/core/scenario';
-import type {
-  DraftIssue,
-  DraftPlaceholder,
-  DraftSource,
-  DraftWrite,
-  RecordAnnotationChange,
-  RecordAnnotations,
-  RecordInsert,
-  RecordedEvent,
-  RecordingDraft,
-} from '@retake/core/run';
+import type { DraftIssue, DraftPlaceholder, DraftSource, DraftWrite, RecordAnnotationChange, RecordAnnotations, RecordInsert, RecordedEvent, RecordingDraft } from '@retake/core/run';
 import type { JobClient, JobState } from './jobs/job-input.js';
 import { stampOf } from './clock.js';
 import { callerOf, drivesRecordScreen, guardsStudioRecordings, submittedInStudio } from './caller.js';
@@ -104,20 +94,7 @@ const RECORD_DEFAULT_MAX_MS = 30 * 60_000;
  * ended with no action (no folder); failed / cancelled: the job's error; discarded: removed from the Studio (an open
  * window discarded too); missing: no folder and no job.
  */
-export type RecordState =
-  | 'queued'
-  | 'preflight'
-  | 'recording'
-  | 'draft'
-  | 'check'
-  | 'done'
-  | 'interrupted'
-  | 'tampered'
-  | 'nothing_recorded'
-  | 'failed'
-  | 'cancelled'
-  | 'discarded'
-  | 'missing';
+export type RecordState = 'queued' | 'preflight' | 'recording' | 'draft' | 'check' | 'done' | 'interrupted' | 'tampered' | 'nothing_recorded' | 'failed' | 'cancelled' | 'discarded' | 'missing';
 
 const LIVE_STATES: ReadonlySet<RecordState> = new Set(['queued', 'preflight', 'recording', 'draft', 'check']);
 const ANNOTATE_STATES: ReadonlySet<RecordState> = new Set(['recording', 'draft', 'check', 'done', 'interrupted']);
@@ -305,7 +282,12 @@ function readRecordJson(dir: string): RecordJson | null {
     events_sha256: typeof j.events_sha256 === 'string' && /^[0-9a-f]{64}$/.test(j.events_sha256) ? j.events_sha256 : null,
     saved: typeof j.saved === 'string' && /^scenarios\/[\w-]{1,100}\.yaml$/.test(j.saved) ? j.saved : null,
     check: j.check && typeof j.check === 'object' && !Array.isArray(j.check) ? (j.check as Record<string, unknown>) : null,
-    warnings: Array.isArray(j.warnings) ? j.warnings.filter((w): w is string => typeof w === 'string').slice(0, 50).map((w) => w.slice(0, 400)) : [],
+    warnings: Array.isArray(j.warnings)
+      ? j.warnings
+          .filter((w): w is string => typeof w === 'string')
+          .slice(0, 50)
+          .map((w) => w.slice(0, 400))
+      : [],
     steps: count((j.stats as { steps?: unknown } | undefined)?.steps),
     actions: count((j.counts as { actions?: unknown } | undefined)?.actions),
   };
@@ -340,7 +322,14 @@ async function folderState(project: LoadedProject, id: string): Promise<'folder'
   if (!dirSt.isDirectory() || dirSt.isSymbolicLink()) return 'link';
   try {
     const [rootSt, realProject, realRoot, realDir] = await Promise.all([lstat(root), realpath(project.dir), realpath(root), realpath(dir)]);
-    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== statePath(realProject, 'records') || realDir !== join(realRoot, id) || !pathInside(realDir, realProject, { dotDotPrefix: true })) return 'link';
+    if (
+      !rootSt.isDirectory() ||
+      rootSt.isSymbolicLink() ||
+      realRoot !== statePath(realProject, 'records') ||
+      realDir !== join(realRoot, id) ||
+      !pathInside(realDir, realProject, { dotDotPrefix: true })
+    )
+      return 'link';
   } catch {
     return 'link';
   }
@@ -358,10 +347,10 @@ async function realRecordsRoot(project: LoadedProject): Promise<string | null> {
   }
 }
 
-const LINK_WORDS = 'the recording\'s folder or the records folder is a symbolic link or leads out of the project: nothing is read, written or removed through a link (remove it by hand)';
-const ORIGIN_WORDS = 'the recording\'s origin cannot be verified (meta.json says the Studio started it, but its job is gone or says otherwise): it is read-only here';
+const LINK_WORDS = "the recording's folder or the records folder is a symbolic link or leads out of the project: nothing is read, written or removed through a link (remove it by hand)";
+const ORIGIN_WORDS = "the recording's origin cannot be verified (meta.json says the Studio started it, but its job is gone or says otherwise): it is read-only here";
 const TAMPERED_WORDS =
-  'the recording\'s files were changed after its job wrote them (record.json is missing or holds no checksum of the events): it cannot be verified, so it cannot be saved — discard it and record again';
+  "the recording's files were changed after its job wrote them (record.json is missing or holds no checksum of the events): it cannot be verified, so it cannot be saved — discard it and record again";
 
 async function mtimeOf(file: string): Promise<string> {
   try {
@@ -524,7 +513,7 @@ function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: Re
   try {
     start = recordStart(s.project, { env: meta.env, persona: meta.persona ?? PERSONA_NONE, page: meta.page, path: meta.path });
   } catch {
-    return { problem: 'the recording\'s environment, page or persona is no longer in project.yaml: the draft cannot be made' };
+    return { problem: "the recording's environment, page or persona is no longer in project.yaml: the draft cannot be made" };
   }
   const config = s.project.config;
   const draft = draftFromRecording(
@@ -638,7 +627,11 @@ async function settleDiscard(s: Situation): Promise<boolean> {
 }
 
 const studioWords = (by: JobClient | null) =>
-  by === 'mcp' ? 'Claude started this recording (its job saved the draft): it is read-only here' : by === 'cli' ? 'this recording was made in a terminal: it is read-only here' : 'this recording was not started from the Studio: it is read-only here';
+  by === 'mcp'
+    ? 'Claude started this recording (its job saved the draft): it is read-only here'
+    : by === 'cli'
+      ? 'this recording was made in a terminal: it is read-only here'
+      : 'this recording was not started from the Studio: it is read-only here';
 
 /** The camera insert's factors under the project theme's max_zoom (B-M3). */
 async function zoomOf(project: LoadedProject, files: WorkFileFacts): Promise<RecordZoomView | null> {
@@ -695,7 +688,11 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
     stats: null,
     issues: { error: 0, warning: 0, info: 0 },
     check: null,
-    saved: ann?.saved ? { name: ann.saved.name, file: ann.saved.file, hash: ann.saved.hash } : s.record?.saved ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved } : null,
+    saved: ann?.saved
+      ? { name: ann.saved.name, file: ann.saved.file, hash: ann.saved.hash }
+      : s.record?.saved
+        ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved }
+        : null,
     warnings: s.record?.warnings ?? [],
     writes: { total: 0, by_steps: 0, ambient: 0 },
     untrusted: null,
@@ -714,7 +711,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
   if ('problem' in annRead && studio) base.problem = annRead.problem;
   if (s.state === 'tampered') base.problem = TAMPERED_WORDS;
   if (!s.folder || !meta) {
-    if (s.folder && !meta) base.problem = 'the recording\'s meta.json is missing or not valid: it is read-only here';
+    if (s.folder && !meta) base.problem = "the recording's meta.json is missing or not valid: it is read-only here";
     return base;
   }
   const read = readRecordEvents(s.dir);
@@ -736,7 +733,11 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
   const d = made.draft;
   base.stats = d.stats;
   base.draft_sha256 = sha256Hex(d.yaml);
-  base.issues = { error: d.issues.filter((i) => i.severity === 'error').length, warning: d.issues.filter((i) => i.severity === 'warning').length, info: d.issues.filter((i) => i.severity === 'info').length };
+  base.issues = {
+    error: d.issues.filter((i) => i.severity === 'error').length,
+    warning: d.issues.filter((i) => i.severity === 'warning').length,
+    info: d.issues.filter((i) => i.severity === 'info').length,
+  };
   base.writes = { total: d.writes.length, by_steps: d.writes.filter((w) => w.step !== null).length, ambient: d.writes.filter((w) => w.step === null).length };
   const annotatable = open && ANNOTATE_STATES.has(s.state) && 'annotations' in annRead;
   base.can.annotate = annotatable;
@@ -803,7 +804,10 @@ export async function recordAnnotate(ctx: RecordStudioContext, project: LoadedPr
     // A factor above the project theme's max_zoom is clamped by the editor and warned by the validator (B-M3).
     const zoom = await zoomOf(project, ctx.files);
     if (!zoom || change.insert.zoom > zoom.max) {
-      throw new EngineError('invalid', `annotate: zoom ${change.insert.zoom} is above the project theme's max_zoom (${zoom ? zoom.max : 'no zoom'}): choose ${zoom ? zoom.options.join(', ') : 'no zoom'}`);
+      throw new EngineError(
+        'invalid',
+        `annotate: zoom ${change.insert.zoom} is above the project theme's max_zoom (${zoom ? zoom.max : 'no zoom'}): choose ${zoom ? zoom.options.join(', ') : 'no zoom'}`,
+      );
     }
   }
   let rev: number;
@@ -877,10 +881,21 @@ function hiddenProblem(yaml: string): string | null {
  * (the Studio never writes one), agent trust (`via: 'studio'`), never over an existing file (a taken name is a
  * conflict), errors without a path — the validator's text located by scene and step and kept under `details.untrusted`.
  */
-export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[], scope: StoreScope, files: WorkFileFacts): Promise<{ file: string; hash: string; warnings: number }> {
+export async function saveRecordedDraft(
+  project: LoadedProject,
+  name: string,
+  yaml: string,
+  sceneIds: readonly string[],
+  scope: StoreScope,
+  files: WorkFileFacts,
+): Promise<{ file: string; hash: string; warnings: number }> {
   checkScenarioName(name);
   const hid = hiddenProblem(yaml);
-  if (hid !== null) throw new EngineError('invalid', `not saved: ${hid} — a hidden character (a direction control, a zero-width or line-separator character) reads as something else than it is, and the Studio never writes one`);
+  if (hid !== null)
+    throw new EngineError(
+      'invalid',
+      `not saved: ${hid} — a hidden character (a direction control, a zero-width or line-separator character) reads as something else than it is, and the Studio never writes one`,
+    );
   const taken = () => new EngineError('conflict', `scenario ${name} exists: choose another name (a recording never replaces a scenario)`, { fix: 'choose another name' });
   if (project.scenarios.includes(name)) throw taken();
   try {
@@ -921,7 +936,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     const read = readRecordEvents(dir);
     if (!read.ok) throw new EngineError('refused', `save: ${read.problem}`);
     if (s.record && s.record.events_sha256 !== sha256Hex(read.bytes)) {
-      throw new EngineError('conflict', 'save: the recording\'s events changed after it was drafted and checked — the draft would not be the one checked; record again');
+      throw new EngineError('conflict', "save: the recording's events changed after it was drafted and checked — the draft would not be the one checked; record again");
     }
     if (!read.events.length) throw new EngineError('conflict', 'save: nothing was recorded');
     const made = draftOf(s, read.events, a, ctx.files);
@@ -929,7 +944,9 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     const d = made.draft;
     // The draft the person saw, or nothing (A-M1): its events, project.yaml (pages, vars) and annotations as they were.
     if (sha256Hex(d.yaml) !== req.draft) {
-      throw new EngineError('conflict', 'save: the draft changed since you read it (its events, project.yaml or the arrangement): read it again, look at it, then save', { fix: 'read the recording again' });
+      throw new EngineError('conflict', 'save: the draft changed since you read it (its events, project.yaml or the arrangement): read it again, look at it, then save', {
+        fix: 'read the recording again',
+      });
     }
     const sceneIds = (d.scenario.scenes as Array<{ id: string }>).map((x) => x.id);
     const errors = d.issues.filter((i) => i.severity === 'error');
@@ -1047,7 +1064,10 @@ export interface RecordListItem {
  */
 export function recordScreenRefused(caller: Caller, what: string): EngineError | undefined {
   if (drivesRecordScreen(caller)) return undefined;
-  return new EngineError('refused', `${what} is the Studio's (its Record screen): ${caller.channel === 'cli' ? 'retake record records in a terminal' : 'scenario_record starts a recording and job_status reads its draft'}`);
+  return new EngineError(
+    'refused',
+    `${what} is the Studio's (its Record screen): ${caller.channel === 'cli' ? 'retake record records in a terminal' : 'scenario_record starts a recording and job_status reads its draft'}`,
+  );
 }
 
 /** Recordings listed, at most (the records folder keeps the newest 20, and unsaved Studio ones for 7 days). */
@@ -1083,7 +1103,11 @@ export async function recordList(ctx: RecordStudioContext, project: LoadedProjec
     if (await settleDiscard(s).catch(() => false)) continue;
     if (s.state === 'missing') continue;
     const ann = 'annotations' in s.ann ? s.ann.annotations : null;
-    const saved = ann?.saved ? { name: ann.saved.name, file: ann.saved.file } : s.record?.saved ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved } : null;
+    const saved = ann?.saved
+      ? { name: ann.saved.name, file: ann.saved.file }
+      : s.record?.saved
+        ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved }
+        : null;
     const input = s.job?.input.kind === 'record' ? s.job.input : null;
     out.push({
       rec_id: w.id,

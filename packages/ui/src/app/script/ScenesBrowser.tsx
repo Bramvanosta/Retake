@@ -20,14 +20,31 @@ function total(seconds: number): string {
   return `${m}:${(seconds - m * 60).toFixed(1).padStart(4, '0')}`;
 }
 
-export function ScenesBrowser({ v, current, onPick }: { v: View; /** The selection's row: 'video', 'before', 'after', `scene:<id>` (a step: its scene's) or `entry:<index>`. */ current: string; onPick: (s: Subject, at: string) => void }) {
+export function ScenesBrowser({
+  v,
+  current,
+  onPick,
+}: {
+  v: View;
+  /** The selection's row: 'video', 'before', 'after', `scene:<id>` (a step: its scene's) or `entry:<index>`. */
+  current: string;
+  onPick: (s: Subject, at: string) => void;
+}) {
   const scenes = v.blocks.entries.filter((e): e is SceneBlock => e.type === 'scene');
   const lengths = scenes.map((s) => v.scenes[s.id]?.captured_s ?? 0);
   const longest = Math.max(0, ...lengths);
   const sum = lengths.reduce((a, b) => a + b, 0);
   const { setup, teardown, named } = v.blocks.hooks;
   const items: SourceItem[] = [];
-  items.push({ key: 'video', label: 'Video', icon: 'film', current: current === 'video', onSelect: () => onPick({ kind: 'video' }, 'entry-before'), ...(sum > 0 ? { value: total(sum) } : {}), testId: 'scenes-video' });
+  items.push({
+    key: 'video',
+    label: 'Video',
+    icon: 'film',
+    current: current === 'video',
+    onSelect: () => onPick({ kind: 'video' }, 'entry-before'),
+    ...(sum > 0 ? { value: total(sum) } : {}),
+    testId: 'scenes-video',
+  });
   if (setup.length > 0 || named.length > 0) {
     items.push({ key: 'before', label: `Before filming · ${hooksLine(setup.length, [])}`, quiet: true, current: current === 'before', onSelect: () => onPick({ kind: 'before' }, 'entry-before') });
   }

@@ -40,7 +40,7 @@ export function buildDirs(): string[] {
   const seen = new Set<string>();
   const queue: Array<{ name: string; from: string }> = [];
   const enqueue = (root: string | undefined, from: string) => {
-    if (root) for (const name of retakeDeps(root)) if (!seen.has(name)) (seen.add(name), queue.push({ name, from }));
+    if (root) for (const name of retakeDeps(root)) if (!seen.has(name)) seen.add(name), queue.push({ name, from });
   };
   enqueue(packageRoot(own), import.meta.url);
   while (queue.length) {

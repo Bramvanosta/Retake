@@ -116,9 +116,31 @@ beforeAll(async () => {
   );
   const scenario = (name: string, lines: string[]) => writeFile(join(project(), 'scenarios', `${name}.yaml`), `${['version: 1', `video: ${name}`, ...lines].join('\n')}\n`);
   await scenario('free', ['scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', ...Array.from({ length: 8 }, () => '      - hold: 0.4')]);
-  await scenario('hooked', ['setup:', '  - http: {method: POST, url: "{{app}}/x", rollback: {method: DELETE, url: "{{app}}/x"}}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.4']);
+  await scenario('hooked', [
+    'setup:',
+    '  - http: {method: POST, url: "{{app}}/x", rollback: {method: DELETE, url: "{{app}}/x"}}',
+    'scenes:',
+    '  - id: one',
+    '    page: app',
+    '    open: /',
+    '    steps:',
+    '      - hold: 0.4',
+  ]);
   await scenario('members', ['env: signed-in', 'scenes:', '  - id: list', '    page: app', '    open: /members', '    steps:', '      - hold: 0.5']);
-  await scenario('team', ['env: team', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.3', '  - id: two', '    page: admin', '    open: /', '    steps:', '      - hold: 0.3']);
+  await scenario('team', [
+    'env: team',
+    'scenes:',
+    '  - id: one',
+    '    page: app',
+    '    open: /',
+    '    steps:',
+    '      - hold: 0.3',
+    '  - id: two',
+    '    page: admin',
+    '    open: /',
+    '    steps:',
+    '      - hold: 0.3',
+  ]);
   // The lead's login steps find their secret where the worker starts: every run signs it in (no "Sign in…").
   process.env[LEAD_VAR] = 'not-a-real-secret';
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
@@ -154,7 +176,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () => {
+describe("Shoot: the status bar's actions, the Scenario menu, the sheet", () => {
   it('⚑ one run per start (a click and two menu commands in one tick: one scenario_run); a browser tab binds none of ⌘R ⇧⌘R ⌘B ⌘.; the palette runs Rehearse', async () => {
     await openScenario('free');
     const dry = page.getByTestId('run-dry');
@@ -210,7 +232,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(consoleErrors).toEqual([]);
   });
 
-  it('⚑ a command acts only when it can: a blocked capture by ⇧⌘R sends nothing, said in the gate\'s words; no scenario in context; the command shown in full in a popover, Copy copies exactly what it shows', async () => {
+  it("⚑ a command acts only when it can: a blocked capture by ⇧⌘R sends nothing, said in the gate's words; no scenario in context; the command shown in full in a popover, Copy copies exactly what it shows", async () => {
     await openScenario('hooked');
     const line = page.getByTestId('blockers-capture');
     await line.waitFor(POLL);
@@ -254,10 +276,13 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(ops('scenario_render', t0)).toEqual([]);
   });
 
-  it('⚑ Stop\'s owner after a reload (critique H1): a terminal\'s run says Ctrl-C and sends nothing; a Studio run\'s live screen stops its own run; the status bar\'s Stop is off for a terminal\'s run (M4)', async () => {
+  it("⚑ Stop's owner after a reload (critique H1): a terminal's run says Ctrl-C and sends nothing; a Studio run's live screen stops its own run; the status bar's Stop is off for a terminal's run (M4)", async () => {
     const term = '20261102-100000-free';
     await writeRun(project(), { id: term, scenario: 'free', mode: 'dry', status: 'running', noTimeline: true, steps_total: 8, events: [] });
-    await appendFile(join(project(), 'runs', term, 'log.jsonl'), `${JSON.stringify({ ts: new Date().toISOString(), type: 'run_start', run: { id: term, scenario: 'free', mode: 'dry', status: 'running', env: 'local', steps_total: 8 } })}\n`);
+    await appendFile(
+      join(project(), 'runs', term, 'log.jsonl'),
+      `${JSON.stringify({ ts: new Date().toISOString(), type: 'run_start', run: { id: term, scenario: 'free', mode: 'dry', status: 'running', env: 'local', steps_total: 8 } })}\n`,
+    );
     try {
       await page.goto(`${studio.url}#/p/${P}/s/free/run/${term}`);
       await page.getByRole('heading', { level: 1, name: 'Rehearsal of free' }).waitFor(POLL);
@@ -361,7 +386,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(consoleErrors).toEqual([]);
   });
 
-  it('⚑ the location: env sent only when the tab chose another than the file\'s — from the Scenario screen and the Project screen — and named in the status bar', async () => {
+  it("⚑ the location: env sent only when the tab chose another than the file's — from the Scenario screen and the Project screen — and named in the status bar", async () => {
     await openScenario('free');
     const select = page.getByTestId('location-select');
     await select.selectOption('staging');
@@ -396,7 +421,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     await stopAll();
   });
 
-  it('⚑ a step\'s progress is never said in the polite line; the Project screen\'s status bar follows it with run_status, not scenario_actions', async () => {
+  it("⚑ a step's progress is never said in the polite line; the Project screen's status bar follows it with run_status, not scenario_actions", async () => {
     const id = '20991231-110000-free'; // newer than every run of this test: the last take once it ends
     await writeRun(project(), { id, scenario: 'free', mode: 'dry', status: 'running', noTimeline: true, steps_total: 8, events: [] });
     await page.goto(`${studio.url}#/p/${P}`);
@@ -425,7 +450,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(consoleErrors).toEqual([]);
   });
 
-  it('⚑ Prepare\'s start leaves the focus on the live title; a refusal shows its words and takes the focus; the polite line is text, goes on a route change and after 6 s; a scenario that cannot be read says so', async () => {
+  it("⚑ Prepare's start leaves the focus on the live title; a refusal shows its words and takes the focus; the polite line is text, goes on a route change and after 6 s; a scenario that cannot be read says so", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/free/run`);
     await page.getByRole('heading', { level: 1, name: 'Prepare a take of free' }).waitFor(POLL);
     const start = page.getByTestId('start-dry');
@@ -451,7 +476,11 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     // The answer is held 1.5 s: while it is sent, the button stays enabled and focused, a second click sends nothing.
     await page.route('**/v1/call/scenario_run', async (route) => {
       await sleep(1500);
-      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'refused \u202Eby the test', fix: `retake -C ${ws} run ${P} free` } }) });
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'refused \u202Eby the test', fix: `retake -C ${ws} run ${P} free` } }),
+      });
     });
     try {
       await page.goto(`${studio.url}#/p/${P}/s/free/run`);
@@ -493,7 +522,9 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     await stopAll();
 
     // Review B-L6: a scenario whose actions cannot be read says so where it would wait (not "Loading…").
-    await page.route('**/v1/call/scenario_actions', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'internal', message: 'unreadable by the test' } }) }));
+    await page.route('**/v1/call/scenario_actions', (route) =>
+      route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'internal', message: 'unreadable by the test' } }) }),
+    );
     try {
       await page.goto(`${studio.url}#/p/${P}/s/free/run`);
       await page.getByTestId('prepare-failed').waitFor(POLL);
@@ -506,7 +537,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(consoleErrors).toEqual([]);
   });
 
-  it('⚑ a run\'s job rewritten at each step (its progress) reads no scenario_actions and no engine_info — on its live screen and on the Project screen; its end reads once', async () => {
+  it("⚑ a run's job rewritten at each step (its progress) reads no scenario_actions and no engine_info — on its live screen and on the Project screen; its end reads once", async () => {
     await openScenario('free');
     await expect.poll(() => page.getByTestId('run-dry').isDisabled(), POLL).toBe(false);
     await command('rehearse');
@@ -559,7 +590,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(consoleErrors).toEqual([]);
   });
 
-  it('⚑ Prepare\'s sessions at 1280 and 900 px: no Location column, no cell under its header word, nothing overlaps, notes on their own line (an issue said once), no Sign in for a persona its login signs in; at 900 px the Start buttons on screen and the status bar cuts no word; ⌘. with the palette open closes it and answers', async () => {
+  it("⚑ Prepare's sessions at 1280 and 900 px: no Location column, no cell under its header word, nothing overlaps, notes on their own line (an issue said once), no Sign in for a persona its login signs in; at 900 px the Start buttons on screen and the status bar cuts no word; ⌘. with the palette open closes it and answers", async () => {
     /** What is wrong with the table's geometry (empty: nothing). Stacked rows (no visible header): every cell ≥ 80 px. */
     const geometry = () =>
       page.evaluate(() => {
@@ -587,10 +618,12 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
             const min = stacked ? 80 : heads[i] && heads[i].textContent && !heads[i].querySelector('.k-sr') ? textWidth(heads[i]) : 0;
             if (w + 0.5 < min) out.push(`${row.getAttribute('data-persona')} cell ${i} ${Math.round(w)} px < ${Math.round(min)} px`);
             // A state word on one line (never a letter per line).
-            for (const m of c.querySelectorAll('.k-mark-word')) if (m.getBoundingClientRect().height > 2 * parseFloat(getComputedStyle(m).lineHeight)) out.push(`${row.getAttribute('data-persona')}: "${m.textContent}" wraps`);
+            for (const m of c.querySelectorAll('.k-mark-word'))
+              if (m.getBoundingClientRect().height > 2 * parseFloat(getComputedStyle(m).lineHeight)) out.push(`${row.getAttribute('data-persona')}: "${m.textContent}" wraps`);
           });
           const rects = cells.map((c) => c.getBoundingClientRect());
-          for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) if (overlap(rects[i], rects[j])) out.push(`${row.getAttribute('data-persona')}: cells ${i} and ${j} overlap`);
+          for (let i = 0; i < rects.length; i++)
+            for (let j = i + 1; j < rects.length; j++) if (overlap(rects[i], rects[j])) out.push(`${row.getAttribute('data-persona')}: cells ${i} and ${j} overlap`);
         }
         if (t.scrollWidth > (t.parentElement?.clientWidth ?? 0) + 1) out.push(`the table is wider than its pane (${t.scrollWidth} px)`);
         return { stacked, out };
@@ -612,7 +645,12 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
       const notes = table.locator('[data-testid="session-notes"][data-persona="editor"]');
       expect(await notes.innerText()).toBe('No check: a run uses its saved session as it is, unverified.');
       expect(await page.getByTestId('preflight-sessions').innerText()).toContain('persona editor: its login steps use SHOOT_E2E_EDITOR_PASSWORD');
-      expect(await page.getByTestId('preflight-sessions').innerText().then((t) => t.match(/SHOOT_E2E_EDITOR_PASSWORD/g)?.length)).toBe(1);
+      expect(
+        await page
+          .getByTestId('preflight-sessions')
+          .innerText()
+          .then((t) => t.match(/SHOOT_E2E_EDITOR_PASSWORD/g)?.length),
+      ).toBe(1);
       const g1280 = await geometry();
       expect(g1280).toEqual({ stacked: false, out: [] });
       const [noteW, tableW] = await Promise.all([notes.locator('td').evaluate((el) => el.getBoundingClientRect().width), table.evaluate((el) => el.getBoundingClientRect().width)]);
@@ -666,7 +704,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(consoleErrors).toEqual([]);
   });
 
-  it('⚑ a terminal\'s run and a Studio run together: Stop acts on the Studio run; ⌘. on each live screen (reloaded) acts on the run it shows only; ⌘. twice says the stop is on its way; the outcome\'s next takes open the new run', async () => {
+  it("⚑ a terminal's run and a Studio run together: Stop acts on the Studio run; ⌘. on each live screen (reloaded) acts on the run it shows only; ⌘. twice says the stop is on its way; the outcome's next takes open the new run", async () => {
     // The Studio's rehearsal first (the status bar waits while any run is unfinished), then a terminal's run of the same scenario.
     await openScenario('free');
     await expect.poll(() => page.getByTestId('run-dry').isDisabled(), POLL).toBe(false);

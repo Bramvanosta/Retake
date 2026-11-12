@@ -121,7 +121,9 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     expect(launchOptions({ policy: policy, args: ['--site-per-process', '--hide-scrollbars'] }).args).toEqual(['--site-per-process', '--hide-scrollbars']);
     expect(() => launchOptions({ policy: policy, args: ['--remote-debugging-port=9222'] })).toThrow(/Chromium was not launched: --remote-debugging-port opens a debugging port/);
     expect(() => launchOptions({ policy: policy, args: ['--hide-scrollbars', '--no-sandbox'] })).toThrow(RunnerError);
-    expect(() => launchOptions({ policy: policy, args: ['--disable-features=Translate,IsolateOrigins'] })).toThrow(/Chromium was not launched: --disable-features=IsolateOrigins turns Chromium's site isolation off/);
+    expect(() => launchOptions({ policy: policy, args: ['--disable-features=Translate,IsolateOrigins'] })).toThrow(
+      /Chromium was not launched: --disable-features=IsolateOrigins turns Chromium's site isolation off/,
+    );
   });
 
   it('under the agent policy (a job of the worker): no argument that is not a switch, none that loads code or files, no executable inside the workspace', () => {
@@ -131,14 +133,18 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     expect(launchTarget({ executable: `${ws}/bin/chrome` }, { policy: policy })).toEqual({ executablePath: `${ws}/bin/chrome`, channel: undefined });
     policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
-      expect(() => launchOptions({ policy: policy, args: [], browserArgs: args })).toThrow(/^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir is not one of the switches these jobs may pass/);
+      expect(() => launchOptions({ policy: policy, args: [], browserArgs: args })).toThrow(
+        /^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir is not one of the switches these jobs may pass/,
+      );
       expect(launchOptions({ policy: policy, args: [], browserArgs: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
       // The allow-list is for browser.args: the runner's own switches come first and are not judged by it.
       expect(launchOptions({ policy: policy, args: ['--a-switch-of-the-runner'], browserArgs: ['--lang=fr'] }).args).toEqual(['--a-switch-of-the-runner', '--lang=fr', '--site-per-process']);
       expect(() => launchOptions({ policy: policy, args: ['--lang=fr'], browserArgs: ['--a-switch-of-the-runner'] })).toThrow(/--a-switch-of-the-runner is not one of the switches/);
       // The always-refused switches stay refused in either list.
       expect(() => launchOptions({ policy: policy, args: ['--no-sandbox'], browserArgs: [] })).toThrow(/--no-sandbox turns Chromium's sandbox off/);
-      expect(() => launchTarget({ executable: `${ws}/bin/chrome` }, { policy: policy })).toThrow(/^Chromium was not launched: browser\.executable \(\/ws-of-an-agent\/bin\/chrome\) lies inside the workspace/);
+      expect(() => launchTarget({ executable: `${ws}/bin/chrome` }, { policy: policy })).toThrow(
+        /^Chromium was not launched: browser\.executable \(\/ws-of-an-agent\/bin\/chrome\) lies inside the workspace/,
+      );
       expect(() => launchTarget({ executable: 'bin/chrome' }, { policy: policy })).toThrow(/browser\.executable \(bin\/chrome\) is a relative path/);
       expect(launchTarget({ executable: '/opt/chromium/chrome' }, { policy: policy }).executablePath).toBe('/opt/chromium/chrome');
       expect(launchTarget({}, { policy: policy })).toEqual({ executablePath: process.env.RETAKE_CHROMIUM, channel: process.env.RETAKE_CHROMIUM ? undefined : 'chromium' });
@@ -147,39 +153,42 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     }
   });
 
-  it.skipIf(!!process.env.RETAKE_CHROMIUM)("under the agent policy, the browser Playwright picks for the channel is checked like browser.executable (PLAYWRIGHT_BROWSERS_PATH inside the workspace: refused); an executable starts by its real path", async () => {
-    const shell = playwrightExecutable(undefined, true);
-    const full = playwrightExecutable('chromium', true);
-    expect(shell).toMatch(/headless_shell/);
-    expect(full).not.toBe(shell);
-    expect(playwrightExecutable(undefined, false)).toBe(full);
-    // A workspace that holds Playwright's browser folder (as when PLAYWRIGHT_BROWSERS_PATH points into it).
-    let browsers = dirname(shell!);
-    while (!full!.startsWith(`${browsers}/`)) browsers = dirname(browsers);
-    expect(launchTarget({ channel: 'headless-shell' }, { policy: policy })).toEqual({ executablePath: undefined, channel: undefined });
-    policy = workPolicyFrom([browsers], policy.ffmpeg, policy.render);
-    try {
-      const why = process.env.PLAYWRIGHT_BROWSERS_PATH ? '\\$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
-      expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy })).toThrow(new RegExp(`^Chromium was not launched: ${why} \\(.*headless_shell.*\\) lies inside the workspace`));
-      expect(() => launchTarget({}, { policy: policy })).toThrow(/lies inside the workspace/);
-      expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy, headless: false })).toThrow(/lies inside the workspace/);
-    } finally {
-      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
-    }
-    const dir = await tempDir('retake-launch-link-');
-    try {
-      await symlink(full!, join(dir, 'chrome'));
-      expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(join(dir, 'chrome'));
-      policy = workPolicyFrom(['/ws-of-an-agent'], policy.ffmpeg, policy.render);
+  it.skipIf(!!process.env.RETAKE_CHROMIUM)(
+    'under the agent policy, the browser Playwright picks for the channel is checked like browser.executable (PLAYWRIGHT_BROWSERS_PATH inside the workspace: refused); an executable starts by its real path',
+    async () => {
+      const shell = playwrightExecutable(undefined, true);
+      const full = playwrightExecutable('chromium', true);
+      expect(shell).toMatch(/headless_shell/);
+      expect(full).not.toBe(shell);
+      expect(playwrightExecutable(undefined, false)).toBe(full);
+      // A workspace that holds Playwright's browser folder (as when PLAYWRIGHT_BROWSERS_PATH points into it).
+      let browsers = dirname(shell!);
+      while (!full!.startsWith(`${browsers}/`)) browsers = dirname(browsers);
+      expect(launchTarget({ channel: 'headless-shell' }, { policy: policy })).toEqual({ executablePath: undefined, channel: undefined });
+      policy = workPolicyFrom([browsers], policy.ffmpeg, policy.render);
       try {
-        expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(realpathSync(full!));
+        const why = process.env.PLAYWRIGHT_BROWSERS_PATH ? '\\$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
+        expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy })).toThrow(new RegExp(`^Chromium was not launched: ${why} \\(.*headless_shell.*\\) lies inside the workspace`));
+        expect(() => launchTarget({}, { policy: policy })).toThrow(/lies inside the workspace/);
+        expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy, headless: false })).toThrow(/lies inside the workspace/);
       } finally {
         policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
       }
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
+      const dir = await tempDir('retake-launch-link-');
+      try {
+        await symlink(full!, join(dir, 'chrome'));
+        expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(join(dir, 'chrome'));
+        policy = workPolicyFrom(['/ws-of-an-agent'], policy.ffmpeg, policy.render);
+        try {
+          expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(realpathSync(full!));
+        } finally {
+          policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
+        }
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 /** The command line of every browser launched while `site` is set, as the browser reports it, and whether it isolates sites. */
@@ -203,7 +212,10 @@ async function isolatesSites(browser: Browser, open: () => Promise<Page>): Promi
     await page.goto(SITE_A);
     await page.waitForFunction(() => document.querySelector('iframe') !== null);
     for (let i = 0; i < 40 && page.frames().length < 2; i++) await new Promise((r) => setTimeout(r, 50));
-    await page.frames()[1]?.waitForLoadState().catch(() => undefined);
+    await page
+      .frames()[1]
+      ?.waitForLoadState()
+      .catch(() => undefined);
     const cdp = await browser.newBrowserCDPSession();
     const { targetInfos } = (await cdp.send('Target.getTargets')) as { targetInfos: Array<{ type: string; url: string }> };
     await cdp.detach();
@@ -339,22 +351,26 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
     expect(commandLineOf('atlas').isolated).toBe(true);
   }, 60_000);
 
-  it.skipIf(!hasOpenssl())('the site extraction (behind its proxy)', async () => {
-    site = 'extract';
-    let brand: BrandSite | undefined;
-    try {
-      brand = await startBrandSite();
-      const out = await tempDir('rw-launch-site-');
-      const r = await extractSite({ policy: policy, url: BRAND_SITE_URL, host: 'brand.test', outDir: out, testResolve: brand.testResolve });
-      expect(r.status, JSON.stringify(r.untrusted)).toBe('ok');
-    } finally {
-      await brand?.close();
-    }
-    const { argv, off, isolated } = commandLineOf('extract');
-    expect(off).toEqual([]);
-    expect(isolated).toBe(true);
-    expect(argv.some((a) => a.startsWith('--proxy-server=http://127.0.0.1:'))).toBe(true);
-  }, 120_000);
+  it.skipIf(!hasOpenssl())(
+    'the site extraction (behind its proxy)',
+    async () => {
+      site = 'extract';
+      let brand: BrandSite | undefined;
+      try {
+        brand = await startBrandSite();
+        const out = await tempDir('rw-launch-site-');
+        const r = await extractSite({ policy: policy, url: BRAND_SITE_URL, host: 'brand.test', outDir: out, testResolve: brand.testResolve });
+        expect(r.status, JSON.stringify(r.untrusted)).toBe('ok');
+      } finally {
+        await brand?.close();
+      }
+      const { argv, off, isolated } = commandLineOf('extract');
+      expect(off).toEqual([]);
+      expect(isolated).toBe(true);
+      expect(argv.some((a) => a.startsWith('--proxy-server=http://127.0.0.1:'))).toBe(true);
+    },
+    120_000,
+  );
 
   it('the sign-in window (headless here)', async () => {
     site = 'login';
@@ -365,7 +381,9 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
       const project = makeProject(await tempDir('rw-launch-login-'), { app: auth.url });
       project.config.auth = { login_url: '/sign-in', personas: { supplier: { pages: ['app'] } } };
       const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'supplier')!;
-      await signIn({ policy: policy, project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) }).catch(() => undefined);
+      await signIn({ policy: policy, project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) }).catch(
+        () => undefined,
+      );
     } finally {
       process.env.RETAKE_HOME = saved;
       await rm(home, { recursive: true, force: true });
@@ -379,7 +397,8 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
     const project = makeProject(await tempDir('rw-launch-record-'), { app: app.url });
     const eventsFile = join(dir, 'events.jsonl');
     await writeFile(eventsFile, '');
-    await recordSession({ policy: policy,
+    await recordSession({
+      policy: policy,
       project,
       env: resolveEnvironment(project, 'test'),
       url: `${app.url}/`,
@@ -440,16 +459,20 @@ describe('each launch site refuses a browser whose own command line turns the sa
     await expect(renderCursorAtlas({ policy: PERSON_POLICY, kit: kitConfigFor(undefined), scale: 1 })).rejects.toThrow(REFUSED);
   }, 60_000);
 
-  it.skipIf(!hasOpenssl())('the site extraction refuses it (a failed extraction, saying why)', async () => {
-    const brand = await startBrandSite();
-    try {
-      const r = await extractSite({ policy: policy, url: BRAND_SITE_URL, host: 'brand.test', outDir: await tempDir('rw-launch-wrap-site-'), testResolve: brand.testResolve });
-      expect(r.status).toBe('failed');
-      expect(r.untrusted.error).toMatch(REFUSED);
-    } finally {
-      await brand.close();
-    }
-  }, 120_000);
+  it.skipIf(!hasOpenssl())(
+    'the site extraction refuses it (a failed extraction, saying why)',
+    async () => {
+      const brand = await startBrandSite();
+      try {
+        const r = await extractSite({ policy: policy, url: BRAND_SITE_URL, host: 'brand.test', outDir: await tempDir('rw-launch-wrap-site-'), testResolve: brand.testResolve });
+        expect(r.status).toBe('failed');
+        expect(r.untrusted.error).toMatch(REFUSED);
+      } finally {
+        await brand.close();
+      }
+    },
+    120_000,
+  );
 
   it('the sign-in window refuses it', async () => {
     const home = await tempDir('rw-launch-wrap-home-');
@@ -459,7 +482,9 @@ describe('each launch site refuses a browser whose own command line turns the sa
       const project = makeProject(await tempDir('rw-launch-wrap-login-'), { app: auth.url });
       project.config.auth = { login_url: '/sign-in', personas: { supplier: { pages: ['app'] } } };
       const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'supplier')!;
-      await expect(signIn({ policy: policy, project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) })).rejects.toThrow(REFUSED);
+      await expect(
+        signIn({ policy: policy, project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) }),
+      ).rejects.toThrow(REFUSED);
     } finally {
       process.env.RETAKE_HOME = savedHome;
       await rm(home, { recursive: true, force: true });
@@ -469,7 +494,15 @@ describe('each launch site refuses a browser whose own command line turns the sa
   it('the recording window refuses it', async () => {
     const project = makeProject(await tempDir('rw-launch-wrap-record-'), { app: app.url });
     await expect(
-      recordSession({ policy: policy, project, env: resolveEnvironment(project, 'test'), url: `${app.url}/`, headless: true, windowSize: { width: 800, height: 600 }, drive: async (page) => void (await page.close()) }),
+      recordSession({
+        policy: policy,
+        project,
+        env: resolveEnvironment(project, 'test'),
+        url: `${app.url}/`,
+        headless: true,
+        windowSize: { width: 800, height: 600 },
+        drive: async (page) => void (await page.close()),
+      }),
     ).rejects.toThrow(REFUSED);
   }, 60_000);
 });
@@ -502,7 +535,13 @@ describe.skipIf(!process.env.RETAKE_TEST_SLOW || !sandboxChecker())('macOS: the 
       const { processInfo } = (await cdp.send('SystemInfo.getProcessInfo')) as { processInfo: Array<{ type: string; id: number }> };
       await cdp.detach();
       const out = execFileSync('python3', ['-I', '-c', SANDBOX_CHECK, ...processInfo.map((p) => String(p.id))], { encoding: 'utf8', timeout: 10_000 });
-      const sandboxed = new Map(out.trim().split('\n').map((l) => l.split(' ')).map(([pid, v]) => [Number(pid), v !== '0']));
+      const sandboxed = new Map(
+        out
+          .trim()
+          .split('\n')
+          .map((l) => l.split(' '))
+          .map(([pid, v]) => [Number(pid), v !== '0']),
+      );
       const byType = (type: string) => processInfo.filter((p) => p.type === type).map((p) => sandboxed.get(p.id));
       expect(byType('renderer').length).toBeGreaterThan(0);
       expect(byType('renderer')).toEqual(byType('renderer').map(() => true));

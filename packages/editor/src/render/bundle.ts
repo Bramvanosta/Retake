@@ -201,10 +201,12 @@ export async function compositionHash(): Promise<string> {
   const kit = kitFiles();
   const geometry = geometryFiles();
   const files = [...comp.files, ...kit.files, ...geometry.files];
-  const stamp = files.map((f) => {
-    const st = statSync(f);
-    return `${f}:${st.size}:${st.mtimeMs}`;
-  }).join('\n');
+  const stamp = files
+    .map((f) => {
+      const st = statSync(f);
+      return `${f}:${st.size}:${st.mtimeMs}`;
+    })
+    .join('\n');
   if (compositionMemo?.stamp === stamp) return compositionMemo.hash;
   const h = createHash('sha256');
   const add = (label: string, data: string | Buffer) => {

@@ -24,22 +24,7 @@ import { describeTarget } from './targets.js';
 import { interpolateAt, TemplateError } from './templating.js';
 import type { TemplateContext } from './templating.js';
 import { isCaptureScene, isCard, isInterstitial } from './types.js';
-import type {
-  BBox,
-  CaptionSpec,
-  CameraHint,
-  OverlaySpec,
-  ProjectConfig,
-  Scenario,
-  Scene,
-  Step,
-  TargetSpec,
-  Timeline,
-  TimelineEvent,
-  TimelineMarker,
-  TimelineScene,
-  TimelineVideo,
-} from './types.js';
+import type { BBox, CaptionSpec, CameraHint, OverlaySpec, ProjectConfig, Scenario, Scene, Step, TargetSpec, Timeline, TimelineEvent, TimelineMarker, TimelineScene, TimelineVideo } from './types.js';
 import { timelineVideo } from './video.js';
 
 export interface ReplanEditInput {
@@ -179,7 +164,13 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
           pg.label = tpl(label, ['scenes', si, 'pages', pg.id, 'label'], before ?? label, `the label of page ${pg.id} of ${where}`);
         }
       }
-      if (!same(scenePageEntries(entry.pages).map((p) => p.spec.label), scenePageEntries(old?.pages).map((p) => p.spec.label))) changes.push(`page labels of ${entry.id}`);
+      if (
+        !same(
+          scenePageEntries(entry.pages).map((p) => p.spec.label),
+          scenePageEntries(old?.pages).map((p) => p.spec.label),
+        )
+      )
+        changes.push(`page labels of ${entry.id}`);
     }
     scenes.push(out);
     tPrev = ts.t_end;
@@ -230,7 +221,14 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
     if (!same(step.overlay, before?.overlay)) {
       changes.push(`overlay of ${key}`);
       if (step.overlay === undefined) delete ev.overlay;
-      else ev.overlay = overlayOn(ev0, step.overlay, before?.overlay, (v, k, keep) => tpl(v, [...path('overlay'), k], keep, `the overlay of step ${key}`), (w) => warnings.push(`step ${key}: ${w}`));
+      else
+        ev.overlay = overlayOn(
+          ev0,
+          step.overlay,
+          before?.overlay,
+          (v, k, keep) => tpl(v, [...path('overlay'), k], keep, `the overlay of step ${key}`),
+          (w) => warnings.push(`step ${key}: ${w}`),
+        );
     }
     if (!same(step.camera, before?.camera)) {
       changes.push(`camera of ${key}`);
@@ -254,15 +252,13 @@ function stepAnchor(ev: TimelineEvent): { target?: string; bbox?: BBox; point?: 
 }
 
 /** A step overlay of today's file on the take's measurements (the runner's overlayFor, without a browser). */
-function overlayOn(
-  ev: TimelineEvent,
-  spec: OverlaySpec,
-  before: OverlaySpec | undefined,
-  tpl: <T>(v: T, key: string, keep: T) => T,
-  warn: (w: string) => void,
-): NonNullable<TimelineEvent['overlay']> {
+function overlayOn(ev: TimelineEvent, spec: OverlaySpec, before: OverlaySpec | undefined, tpl: <T>(v: T, key: string, keep: T) => T, warn: (w: string) => void): NonNullable<TimelineEvent['overlay']> {
   const use = overlayUseOf(spec);
-  const out: NonNullable<TimelineEvent['overlay']> = { component: use.component, slots: tpl(use.slots, 'slots', ev.overlay?.slots ?? use.slots), params: tpl(use.params, 'params', ev.overlay?.params ?? use.params) };
+  const out: NonNullable<TimelineEvent['overlay']> = {
+    component: use.component,
+    slots: tpl(use.slots, 'slots', ev.overlay?.slots ?? use.slots),
+    params: tpl(use.params, 'params', ev.overlay?.params ?? use.params),
+  };
   if (spec.duration !== undefined) out.duration = spec.duration;
   if (spec.at !== undefined) out.at = spec.at;
   if (use.box) out.box = use.box;
@@ -277,7 +273,9 @@ function overlayOn(
       out.target = a.target ?? describeTarget(spec.target);
       if (a.bbox) out.bbox = a.bbox;
       else if (a.point) out.point = a.point;
-      warn(`the overlay names a target this take did not measure (${describeTarget(spec.target)}): it is anchored to ${a.bbox ? "the step's target" : 'the cursor at the end of the step'} — capture again to measure it`);
+      warn(
+        `the overlay names a target this take did not measure (${describeTarget(spec.target)}): it is anchored to ${a.bbox ? "the step's target" : 'the cursor at the end of the step'} — capture again to measure it`,
+      );
     }
   } else {
     const a = stepAnchor(ev);
@@ -311,7 +309,9 @@ function cameraOn(ev: TimelineEvent, hint: CameraHint, before: CameraHint | unde
   } else {
     if (ev.target?.bbox) cam.bbox = { ...ev.target.bbox };
     else if (end) cam.point = { x: end.x, y: end.y };
-    warn(`the camera hint names a target this take did not measure (${describeTarget(t as TargetSpec)}): it centres on ${ev.target?.bbox ? "the step's target" : 'the cursor'} — capture again to measure it`);
+    warn(
+      `the camera hint names a target this take did not measure (${describeTarget(t as TargetSpec)}): it centres on ${ev.target?.bbox ? "the step's target" : 'the cursor'} — capture again to measure it`,
+    );
   }
   return cam;
 }

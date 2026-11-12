@@ -167,7 +167,10 @@ function clock(s: string): number | null {
 
 /** `M:SS` or a range `M:SS–M:SS` (en dash, hyphen, em dash, arrow, "to", "à"). */
 function timeCell(s: string): { start: number; end?: number } | null {
-  const parts = s.trim().split(/\s*(?:–|—|→|->|-)\s*|\s+(?:to|à|a)\s+/i).filter((p) => p !== '');
+  const parts = s
+    .trim()
+    .split(/\s*(?:–|—|→|->|-)\s*|\s+(?:to|à|a)\s+/i)
+    .filter((p) => p !== '');
   if (parts.length === 1) {
     const start = clock(parts[0]);
     return start === null ? null : { start };
@@ -229,8 +232,7 @@ function tables(lines: string[]): Table[] {
   return out;
 }
 
-const usable = (t: Table) =>
-  (t.columns.has('time') || t.columns.has('duration')) && (t.columns.has('scene') || t.columns.has('action') || t.columns.has('caption'));
+const usable = (t: Table) => (t.columns.has('time') || t.columns.has('duration')) && (t.columns.has('scene') || t.columns.has('action') || t.columns.has('caption'));
 
 /** A slug-like scene id from a scene name ("" when nothing is left). */
 function sceneSlug(name: string): string {
@@ -488,9 +490,12 @@ export function draftScenarioFromScript(markdown: string, opts: ScriptDraftOptio
   }
   for (const s of outline.scenes) {
     if (s.kind !== 'scene') continue;
-    if (s.duration_s < t.scene_too_short_s) issues.push({ severity: 'warning', line: s.line, message: `scene "${s.name}" lasts ${s.duration_s} s: too short to read (under ${t.scene_too_short_s} s)` });
-    else if (s.duration_s < t.scene_min_s) issues.push({ severity: 'warning', line: s.line, message: `scene "${s.name}" lasts ${s.duration_s} s: short (the look: ${t.scene_min_s}–${t.scene_max_s} s per scene)` });
-    else if (s.duration_s > t.scene_max_s) issues.push({ severity: 'warning', line: s.line, message: `scene "${s.name}" lasts ${s.duration_s} s: long — split it (the look: ${t.scene_min_s}–${t.scene_max_s} s per scene)` });
+    if (s.duration_s < t.scene_too_short_s)
+      issues.push({ severity: 'warning', line: s.line, message: `scene "${s.name}" lasts ${s.duration_s} s: too short to read (under ${t.scene_too_short_s} s)` });
+    else if (s.duration_s < t.scene_min_s)
+      issues.push({ severity: 'warning', line: s.line, message: `scene "${s.name}" lasts ${s.duration_s} s: short (the look: ${t.scene_min_s}–${t.scene_max_s} s per scene)` });
+    else if (s.duration_s > t.scene_max_s)
+      issues.push({ severity: 'warning', line: s.line, message: `scene "${s.name}" lasts ${s.duration_s} s: long — split it (the look: ${t.scene_min_s}–${t.scene_max_s} s per scene)` });
   }
   if (!outline.scenes.some((s) => s.kind === 'scene')) return fail(table.header, 'the script has no scene row (only title, outro or interstitial rows): a scenario needs at least one captured scene');
 
@@ -521,7 +526,7 @@ function draftYaml(o: ScriptOutline, video: string): string {
   const doc = new Document(value);
   doc.commentBefore = [
     ' Draft from a timecoded script (scenario_from_script): a skeleton, not a video yet.',
-    ' Each beat is a `hold` as long as the script says, with the script\'s action as its `note`: replace the holds with',
+    " Each beat is a `hold` as long as the script says, with the script's action as its `note`: replace the holds with",
     ' real steps (page_inspect gives verified targets), then scenario_validate, scenario_save and run_dry.',
   ].join('\n');
   const FLOW = new Set(['caption', 'title', 'interstitial', 'intro', 'outro']);

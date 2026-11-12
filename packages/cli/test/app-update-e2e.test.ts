@@ -137,14 +137,32 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
       const cliJs: string = bundle.tauriCli(join(base, 'tauri-cli'));
       const keyDir = join(base, 'key');
       mkdirSync(keyDir);
-      const g = spawnSync(process.execPath, [cliJs, 'signer', 'generate', '--ci', '-p', 'e2e-test-password', '-w', join(keyDir, 'test.key')], { encoding: 'utf8', cwd: keyDir, env: { PATH: process.env.PATH ?? '', HOME: keyDir, CI: 'true' } });
+      const g = spawnSync(process.execPath, [cliJs, 'signer', 'generate', '--ci', '-p', 'e2e-test-password', '-w', join(keyDir, 'test.key')], {
+        encoding: 'utf8',
+        cwd: keyDir,
+        env: { PATH: process.env.PATH ?? '', HOME: keyDir, CI: 'true' },
+      });
       if (g.status !== 0) throw new Error(`signer generate: ${g.stderr}`);
       const pubkey = readFileSync(join(keyDir, 'test.key.pub'), 'utf8').trim();
       // The test key for the archive's signature (bundle.mjs gives it to the signer only).
       const buildEnv = { ...toolEnv, TAURI_SIGNING_PRIVATE_KEY: readFileSync(join(keyDir, 'test.key'), 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'e2e-test-password' };
       const ffmpeg = process.env.RETAKE_TEST_BUNDLE_FFMPEG;
-      const v1 = bundle.build({ out: join(base, 'v1'), env: buildEnv, offline: true, dmg: false, updater: bundle.testUpdaterOverlay({ port: PORT, pubkey, version: '0.2.0' }), ...(ffmpeg ? { ffmpeg } : {}) });
-      const v2 = bundle.build({ out: join(base, 'v2'), env: buildEnv, offline: true, dmg: false, stage: join(base, 'v1', 'stage'), updater: bundle.testUpdaterOverlay({ port: PORT, pubkey, version: '0.2.1' }) });
+      const v1 = bundle.build({
+        out: join(base, 'v1'),
+        env: buildEnv,
+        offline: true,
+        dmg: false,
+        updater: bundle.testUpdaterOverlay({ port: PORT, pubkey, version: '0.2.0' }),
+        ...(ffmpeg ? { ffmpeg } : {}),
+      });
+      const v2 = bundle.build({
+        out: join(base, 'v2'),
+        env: buildEnv,
+        offline: true,
+        dmg: false,
+        stage: join(base, 'v1', 'stage'),
+        updater: bundle.testUpdaterOverlay({ port: PORT, pubkey, version: '0.2.1' }),
+      });
       built = { v1, v2 };
       report.build = { v1: { timings_ms: v1.timings_ms, sizes: v1.sizes }, v2: { timings_ms: v2.timings_ms, sizes: v2.sizes, archive: v2.updater?.archive } };
       report.build_ms = Date.now() - t0;
@@ -173,7 +191,19 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
     mkdirSync(dirname(copy), { recursive: true });
     expect(spawnSync('ditto', [built.v1.app, copy]).status).toBe(0);
     for (const d of ['home', 'retake-home', 'tmp', 'ws/projects']) mkdirSync(join(base, d), { recursive: true });
-    runEnv = { HOME: join(base, 'home'), CFFIXED_USER_HOME: join(base, 'home'), RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off', RETAKE_ROOT: join(base, 'ws'), RETAKE_DESKTOP_TEST: '1', RETAKE_DESKTOP_TEST_UPDATE: 'install' };
+    runEnv = {
+      HOME: join(base, 'home'),
+      CFFIXED_USER_HOME: join(base, 'home'),
+      RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '',
+      RETAKE_HOME: join(base, 'retake-home'),
+      TMPDIR: `${join(base, 'tmp')}/`,
+      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+      LANG: 'en_US.UTF-8',
+      RETAKE_DISK_WARN: 'off',
+      RETAKE_ROOT: join(base, 'ws'),
+      RETAKE_DESKTOP_TEST: '1',
+      RETAKE_DESKTOP_TEST_UPDATE: 'install',
+    };
   }, 30 * 60_000);
 
   afterAll(async () => {
@@ -201,84 +231,126 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
     expect(JSON.stringify(readFileSync(join(base, 'v2', 'tauri.bundle.json'), 'utf8'))).toContain(`http://127.0.0.1:${PORT}/retake/latest.json`);
   });
 
-  it('a signature for other bytes: the download is refused, nothing installed, the app keeps running at 0.2.0', async () => {
-    const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
-    const a = built.v2.updater.archive;
-    // A real signature of this key, for version 0.2.1 — but of another file.
-    const other = join(base, 'other.tar.gz');
-    writeFileSync(other, 'not the archive');
-    const keyDir = join(base, 'key');
-    const s = spawnSync(process.execPath, [join(base, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli', 'tauri.js'), 'signer', 'sign', '--app-version', '0.2.1', other], { encoding: 'utf8', cwd: base, env: { PATH: process.env.PATH ?? '', HOME: keyDir, TAURI_SIGNING_PRIVATE_KEY: readFileSync(join(keyDir, 'test.key'), 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'e2e-test-password' } });
-    expect(s.status, s.stderr).toBe(0);
-    served = { archive: a.archive, manifest: JSON.stringify(pub.buildManifest({ version: '0.2.1', notes: 'Retake 0.2.1', pubDate: new Date().toISOString(), platforms: { 'darwin-aarch64': { signature: readFileSync(`${other}.sig`, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/releases/download/v0.2.1/Retake.app.tar.gz` } } })) };
-    const run = launch();
-    await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
-    await run.wait(/updates: Retake 0\.2\.1 is available/, 60_000);
-    await run.wait(/updates: downloading 0\.2\.1/, 30_000);
-    await run.wait(/updates: the download failed/, 180_000);
-    await sleep(1000);
-    expect(alive(run.proc.pid!)).toBe(true);
-    expect(run.lines.some((l) => /quitting to install|installing 0\.2\.1/.test(l))).toBe(false);
-    expect(plist(copy).CFBundleShortVersionString).toBe('0.2.0');
-    // Review d A-M4: nothing was kept (only a verified archive is written to the cache folder).
-    expect(kept()).toEqual([]);
-    run.proc.kill('SIGTERM');
-    await new Promise((r) => run.proc.once('exit', r));
-    report.bad_signature = 'refused';
-  }, 10 * 60_000);
+  it(
+    'a signature for other bytes: the download is refused, nothing installed, the app keeps running at 0.2.0',
+    async () => {
+      const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
+      const a = built.v2.updater.archive;
+      // A real signature of this key, for version 0.2.1 — but of another file.
+      const other = join(base, 'other.tar.gz');
+      writeFileSync(other, 'not the archive');
+      const keyDir = join(base, 'key');
+      const s = spawnSync(process.execPath, [join(base, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli', 'tauri.js'), 'signer', 'sign', '--app-version', '0.2.1', other], {
+        encoding: 'utf8',
+        cwd: base,
+        env: { PATH: process.env.PATH ?? '', HOME: keyDir, TAURI_SIGNING_PRIVATE_KEY: readFileSync(join(keyDir, 'test.key'), 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'e2e-test-password' },
+      });
+      expect(s.status, s.stderr).toBe(0);
+      served = {
+        archive: a.archive,
+        manifest: JSON.stringify(
+          pub.buildManifest({
+            version: '0.2.1',
+            notes: 'Retake 0.2.1',
+            pubDate: new Date().toISOString(),
+            platforms: { 'darwin-aarch64': { signature: readFileSync(`${other}.sig`, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/releases/download/v0.2.1/Retake.app.tar.gz` } },
+          }),
+        ),
+      };
+      const run = launch();
+      await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
+      await run.wait(/updates: Retake 0\.2\.1 is available/, 60_000);
+      await run.wait(/updates: downloading 0\.2\.1/, 30_000);
+      await run.wait(/updates: the download failed/, 180_000);
+      await sleep(1000);
+      expect(alive(run.proc.pid!)).toBe(true);
+      expect(run.lines.some((l) => /quitting to install|installing 0\.2\.1/.test(l))).toBe(false);
+      expect(plist(copy).CFBundleShortVersionString).toBe('0.2.0');
+      // Review d A-M4: nothing was kept (only a verified archive is written to the cache folder).
+      expect(kept()).toEqual([]);
+      run.proc.kill('SIGTERM');
+      await new Promise((r) => run.proc.once('exit', r));
+      report.bad_signature = 'refused';
+    },
+    10 * 60_000,
+  );
 
-  it('the real update: the server stops gracefully, the bundle is swapped, the app restarts at 0.2.1 by itself — signed, whole, and Chromium launches from it', async () => {
-    const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
-    const a = built.v2.updater.archive;
-    served = { archive: a.archive, manifest: JSON.stringify(pub.buildManifest({ version: '0.2.1', notes: 'Retake 0.2.1', pubDate: new Date().toISOString(), platforms: { 'darwin-aarch64': { signature: readFileSync(a.signature, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/releases/download/v0.2.1/Retake.app.tar.gz` } } })) };
-    // The check of the first run is remembered (at most once a day): forget it.
-    rmSync(join(base, 'retake-home', 'desktop-updates.json'), { force: true });
-    hits.length = 0;
-    const t0 = Date.now();
-    const run = launch();
-    await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
-    // Review d A-M4: the verified archive is kept in a 0600 file of the app's cache folder (not in memory)…
-    await run.wait(/updates: 0\.2\.1 downloaded and verified \(\d+ MB\), kept in the cache folder/, 300_000);
-    await run.wait(/updates: quitting to install 0\.2\.1/, 300_000);
-    await run.wait(/updates: 0\.2\.1 installed — restarting/, 300_000);
-    await run.wait(/restarted the app directly \(pid \d+\)/, 30_000);
-    await run.wait(/version 0\.2\.1 \(updates on\)/, 60_000);
-    // Hotfix v0.2.6 (BL-167): the restarted app knows it is the update just installed ("Updated to v0.2.1", said once).
-    await run.wait(/updates: Retake 0\.2\.1 is the update just installed/, 30_000);
-    report.update_ms = Date.now() - t0;
-    // L5.16f: the check and the download each followed the redirect to the other host, as with GitHub's releases.
-    expect(hits).toEqual(expect.arrayContaining(['feed /retake/latest.json', 'storage /storage/latest.json?signed=1', 'feed /releases/download/v0.2.1/Retake.app.tar.gz', 'storage /storage/Retake.app.tar.gz?signed=1']));
-    report.redirects = hits;
-    const at = (re: RegExp) => run.lines.findIndex((l) => re.test(l));
-    // The owned server stopped (gracefully: its exit, not a kill) before the swap.
-    const stopped = at(/stopped the Studio server \(pid \d+, quit\)/);
-    expect(stopped, run.lines.join('\n')).toBeGreaterThan(0);
-    expect(run.lines[stopped]).not.toMatch(/killed/);
-    expect(stopped).toBeLessThan(at(/updates: installing 0\.2\.1/));
-    // The restarted app serves the workspace again (its own server: the first one was stopped).
-    await run.wait(/the Studio server serves http:\/\/127\.0\.0\.1:\d+/, 60_000, 2);
-    expect(run.lines.filter((l) => /attached to the Studio server/.test(l))).toEqual([]);
-    // The swapped bundle: 0.2.1, its signature whole, every link there, no AppleDouble file.
-    expect(plist(copy).CFBundleShortVersionString).toBe('0.2.1');
-    const v = spawnSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', copy], { encoding: 'utf8' });
-    expect(v.status, v.stderr).toBe(0);
-    expect(links(copy)).toBe(links(built.v2.app));
-    expect(walk(copy).filter((p) => p.split('/').pop()!.startsWith('._'))).toEqual([]);
-    // Chromium (new headless) and the headless shell launch from the swapped app, with its own Node.js and engine.
-    const res = join(copy, 'Contents', 'Resources');
-    const probe = join(base, 'probe.cjs');
-    writeFileSync(probe, `const { chromium } = require(${JSON.stringify(join(res, 'engine', 'node_modules', 'playwright-core'))});\n(async () => {\n  for (const o of [{ channel: 'chromium' }, {}]) {\n    const b = await chromium.launch({ headless: true, ...o });\n    const p = await b.newPage();\n    await p.setContent('<p>ok</p>');\n    process.stdout.write((await p.textContent('p')) + ' ' + b.version() + '\\n');\n    await b.close();\n  }\n})().catch((e) => { console.error(e); process.exit(1); });\n`);
-    const c = spawnSync(join(res, 'node', 'bin', 'node'), [probe], { encoding: 'utf8', env: { ...runEnv, PLAYWRIGHT_BROWSERS_PATH: join(res, 'browsers') }, timeout: 120_000 });
-    expect(c.status, c.stderr).toBe(0);
-    expect(c.stdout.trim().split('\n')).toHaveLength(2);
-    for (const l of c.stdout.trim().split('\n')) expect(l).toMatch(/^ok \d+\./);
-    report.browsers = c.stdout.trim().split('\n');
-    // …and removed once installed.
-    expect(kept()).toEqual([]);
-    // The previous app is gone from the scratch temp folder (the plugin's temp dirs are removed on drop).
-    expect(readdirSync(join(base, 'tmp')).filter((n) => n.startsWith('tauri_'))).toEqual([]);
-    await stopAll();
-    expect([...pids].filter(alive)).toEqual([]);
-    expect(homedir()).not.toBe(runEnv.HOME);
-  }, 15 * 60_000);
+  it(
+    'the real update: the server stops gracefully, the bundle is swapped, the app restarts at 0.2.1 by itself — signed, whole, and Chromium launches from it',
+    async () => {
+      const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
+      const a = built.v2.updater.archive;
+      served = {
+        archive: a.archive,
+        manifest: JSON.stringify(
+          pub.buildManifest({
+            version: '0.2.1',
+            notes: 'Retake 0.2.1',
+            pubDate: new Date().toISOString(),
+            platforms: { 'darwin-aarch64': { signature: readFileSync(a.signature, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/releases/download/v0.2.1/Retake.app.tar.gz` } },
+          }),
+        ),
+      };
+      // The check of the first run is remembered (at most once a day): forget it.
+      rmSync(join(base, 'retake-home', 'desktop-updates.json'), { force: true });
+      hits.length = 0;
+      const t0 = Date.now();
+      const run = launch();
+      await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
+      // Review d A-M4: the verified archive is kept in a 0600 file of the app's cache folder (not in memory)…
+      await run.wait(/updates: 0\.2\.1 downloaded and verified \(\d+ MB\), kept in the cache folder/, 300_000);
+      await run.wait(/updates: quitting to install 0\.2\.1/, 300_000);
+      await run.wait(/updates: 0\.2\.1 installed — restarting/, 300_000);
+      await run.wait(/restarted the app directly \(pid \d+\)/, 30_000);
+      await run.wait(/version 0\.2\.1 \(updates on\)/, 60_000);
+      // Hotfix v0.2.6 (BL-167): the restarted app knows it is the update just installed ("Updated to v0.2.1", said once).
+      await run.wait(/updates: Retake 0\.2\.1 is the update just installed/, 30_000);
+      report.update_ms = Date.now() - t0;
+      // L5.16f: the check and the download each followed the redirect to the other host, as with GitHub's releases.
+      expect(hits).toEqual(
+        expect.arrayContaining([
+          'feed /retake/latest.json',
+          'storage /storage/latest.json?signed=1',
+          'feed /releases/download/v0.2.1/Retake.app.tar.gz',
+          'storage /storage/Retake.app.tar.gz?signed=1',
+        ]),
+      );
+      report.redirects = hits;
+      const at = (re: RegExp) => run.lines.findIndex((l) => re.test(l));
+      // The owned server stopped (gracefully: its exit, not a kill) before the swap.
+      const stopped = at(/stopped the Studio server \(pid \d+, quit\)/);
+      expect(stopped, run.lines.join('\n')).toBeGreaterThan(0);
+      expect(run.lines[stopped]).not.toMatch(/killed/);
+      expect(stopped).toBeLessThan(at(/updates: installing 0\.2\.1/));
+      // The restarted app serves the workspace again (its own server: the first one was stopped).
+      await run.wait(/the Studio server serves http:\/\/127\.0\.0\.1:\d+/, 60_000, 2);
+      expect(run.lines.filter((l) => /attached to the Studio server/.test(l))).toEqual([]);
+      // The swapped bundle: 0.2.1, its signature whole, every link there, no AppleDouble file.
+      expect(plist(copy).CFBundleShortVersionString).toBe('0.2.1');
+      const v = spawnSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', copy], { encoding: 'utf8' });
+      expect(v.status, v.stderr).toBe(0);
+      expect(links(copy)).toBe(links(built.v2.app));
+      expect(walk(copy).filter((p) => p.split('/').pop()!.startsWith('._'))).toEqual([]);
+      // Chromium (new headless) and the headless shell launch from the swapped app, with its own Node.js and engine.
+      const res = join(copy, 'Contents', 'Resources');
+      const probe = join(base, 'probe.cjs');
+      writeFileSync(
+        probe,
+        `const { chromium } = require(${JSON.stringify(join(res, 'engine', 'node_modules', 'playwright-core'))});\n(async () => {\n  for (const o of [{ channel: 'chromium' }, {}]) {\n    const b = await chromium.launch({ headless: true, ...o });\n    const p = await b.newPage();\n    await p.setContent('<p>ok</p>');\n    process.stdout.write((await p.textContent('p')) + ' ' + b.version() + '\\n');\n    await b.close();\n  }\n})().catch((e) => { console.error(e); process.exit(1); });\n`,
+      );
+      const c = spawnSync(join(res, 'node', 'bin', 'node'), [probe], { encoding: 'utf8', env: { ...runEnv, PLAYWRIGHT_BROWSERS_PATH: join(res, 'browsers') }, timeout: 120_000 });
+      expect(c.status, c.stderr).toBe(0);
+      expect(c.stdout.trim().split('\n')).toHaveLength(2);
+      for (const l of c.stdout.trim().split('\n')) expect(l).toMatch(/^ok \d+\./);
+      report.browsers = c.stdout.trim().split('\n');
+      // …and removed once installed.
+      expect(kept()).toEqual([]);
+      // The previous app is gone from the scratch temp folder (the plugin's temp dirs are removed on drop).
+      expect(readdirSync(join(base, 'tmp')).filter((n) => n.startsWith('tauri_'))).toEqual([]);
+      await stopAll();
+      expect([...pids].filter(alive)).toEqual([]);
+      expect(homedir()).not.toBe(runEnv.HOME);
+    },
+    15 * 60_000,
+  );
 });

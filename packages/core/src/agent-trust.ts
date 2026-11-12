@@ -205,7 +205,13 @@ export interface AgentTrustOptions {
  */
 export function navigationTrustProblems(sc: Scenario, o: Omit<AgentTrustOptions, 'files'>): Array<{ path: IssuePath; message: string }> {
   if (!o.env) return [];
-  const origins = [...new Set(Object.values(o.env.pages).map(canonicalOrigin).filter((x): x is string => x !== null))];
+  const origins = [
+    ...new Set(
+      Object.values(o.env.pages)
+        .map(canonicalOrigin)
+        .filter((x): x is string => x !== null),
+    ),
+  ];
   return scenarioNavigationProblems(sc, { origins, pageKeys: Object.keys(o.env.pages), envName: o.env.name, ...(o.via ? { via: o.via } : {}) }).map((p) => ({
     path: p.path,
     message: `${formatPath(p.path)}: ${p.message}`,
@@ -232,7 +238,7 @@ export function personaAuthOriginProblem(persona: string, url: string | null, al
   if (origin !== null && allowed.includes(origin)) return null;
   return (
     `${confinementWords(via)} an http hook acting as persona ${persona} (\`auth: {persona}\`) sends its session only to that persona's own pages ` +
-    `(${allowed.join(', ') || 'none'}): ${origin ?? 'its URL\'s origin cannot be told before it runs'}${origin ? ' is not one of them' : ''}`
+    `(${allowed.join(', ') || 'none'}): ${origin ?? "its URL's origin cannot be told before it runs"}${origin ? ' is not one of them' : ''}`
   );
 }
 
@@ -254,11 +260,7 @@ function templateOrigin(url: string, envPages: Readonly<Record<string, string>>)
  * the origin of one of the persona's own pages (personaAuthOriginProblem). Needs the loaded project (its environments
  * and personas); the hooks runner holds the same rule on the rendered URL.
  */
-export function personaAuthTrustProblems(
-  project: { dir: string; slug?: string; config?: object },
-  sc: Scenario,
-  o: Omit<AgentTrustOptions, 'files'>,
-): Array<{ path: IssuePath; message: string }> {
+export function personaAuthTrustProblems(project: { dir: string; slug?: string; config?: object }, sc: Scenario, o: Omit<AgentTrustOptions, 'files'>): Array<{ path: IssuePath; message: string }> {
   const full = project as Partial<Pick<LoadedProject, 'slug' | 'config' | 'sandboxes'>> & { dir: string };
   const environments = full.config && 'environments' in full.config ? full.config.environments : undefined;
   if (!full.slug || !full.config || !environments) return [];
@@ -270,7 +272,10 @@ export function personaAuthTrustProblems(
     const http = (h as { http: unknown }).http;
     if (!http || typeof http !== 'object') return;
     const rb = (http as { rollback?: unknown }).rollback;
-    for (const [req, rp] of [[http, [...path, 'http']], [rb, [...path, 'http', 'rollback']]] as Array<[unknown, IssuePath]>) {
+    for (const [req, rp] of [
+      [http, [...path, 'http']],
+      [rb, [...path, 'http', 'rollback']],
+    ] as Array<[unknown, IssuePath]>) {
       if (!req || typeof req !== 'object') continue;
       const { auth, url } = req as { auth?: { persona?: unknown }; url?: unknown };
       const persona = auth && typeof auth === 'object' ? auth.persona : undefined;
@@ -304,7 +309,7 @@ export function personaAuthTrustProblems(
 export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: AgentTrustOptions): string[] {
   const problems: string[] = [];
   if (project.config && typeof sc.template === 'string') {
-    const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template', o.via);
+    const t = templateRefProblem(sc.template, project.config.template, "the scenario's template", o.via);
     if (t) problems.push(t);
   }
   const secrets = secretRefsProblem([...collectSecretRefs(sc), ...collectSandboxRefs(sc)], 'the scenario', o.via);

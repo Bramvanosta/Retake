@@ -118,11 +118,7 @@ export async function createComponent(root: string, opts: CreateComponentOptions
 
   const validation = await validateComponentDir(dir);
   if (!validation.ok || !validation.manifest) {
-    throw new ComponentError(
-      `the new component ${id} does not validate (scaffold bug):\n${formatComponentIssues(validation.issues, dir)}`,
-      validation.issues,
-      dir,
-    );
+    throw new ComponentError(`the new component ${id} does not validate (scaffold bug):\n${formatComponentIssues(validation.issues, dir)}`, validation.issues, dir);
   }
   const out: CreatedComponent = {
     manifest: validation.manifest,

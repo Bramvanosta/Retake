@@ -26,24 +26,28 @@ const component = (id: string): BundleComponent => ({ id, kind: 'card', dir: `/c
 const SPEC = { width: 1920, height: 1080, fps: 30, durationInFrames: 60, frame: 10 } as unknown as ComponentPreviewSpec;
 
 let n = 0;
-rendererContract('memory', async (name) => {
-  const out = join(ws, `${name}-${n++}`);
-  await mkdir(out, { recursive: true });
-  let abort: AbortController | undefined;
-  const renderer = new MemoryRenderer({ duringVideo: () => abort?.abort(), process: { pid: process.pid } });
-  return {
-    renderer,
-    plan: PLAN,
-    workPolicy: PERSON_POLICY,
-    root: ws,
-    out,
-    cancelDuring: (a) => {
-      abort = a;
-      return { onProgress: () => undefined };
-    },
-    previews: { sets: [[component('acme/one')], [component('acme/two')]], spec: SPEC, assets: 'http://127.0.0.1:1/' },
-  };
-}, { previews: true });
+rendererContract(
+  'memory',
+  async (name) => {
+    const out = join(ws, `${name}-${n++}`);
+    await mkdir(out, { recursive: true });
+    let abort: AbortController | undefined;
+    const renderer = new MemoryRenderer({ duringVideo: () => abort?.abort(), process: { pid: process.pid } });
+    return {
+      renderer,
+      plan: PLAN,
+      workPolicy: PERSON_POLICY,
+      root: ws,
+      out,
+      cancelDuring: (a) => {
+        abort = a;
+        return { onProgress: () => undefined };
+      },
+      previews: { sets: [[component('acme/one')], [component('acme/two')]], spec: SPEC, assets: 'http://127.0.0.1:1/' },
+    };
+  },
+  { previews: true },
+);
 
 describe('the in-memory renderer', () => {
   it('keeps every request, in order', async () => {
@@ -57,9 +61,13 @@ describe('the in-memory renderer', () => {
     expect(r.calls[0].req).toMatchObject({ out: join(out, 'a.mp4') });
   });
 
-  it('a failure thrown while a video renders is the render\'s, with its fields, and leaves nothing at `out`', async () => {
+  it("a failure thrown while a video renders is the render's, with its fields, and leaves nothing at `out`", async () => {
     const failure = Object.assign(new Error('the GPU went away'), { renderWarnings: ['one'], diskFull: true as const });
-    const r = new MemoryRenderer({ duringVideo: () => { throw failure; } });
+    const r = new MemoryRenderer({
+      duringVideo: () => {
+        throw failure;
+      },
+    });
     const out = join(ws, 'failed', 'a.mp4');
     await expect(r.video({ workPolicy: PERSON_POLICY, plan: PLAN, out })).rejects.toBe(failure);
     expect(existsSync(out)).toBe(false);

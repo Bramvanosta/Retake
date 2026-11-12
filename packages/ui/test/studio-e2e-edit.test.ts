@@ -32,7 +32,8 @@ const P = 'northfield-fixture';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const CAPTURE = '20261020-100000-blocks';
 const EMPTY = 'video: empty\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      # the only step\n      - click: Alone\n  - id: b\n    steps: []  # nothing yet\n';
-const KEYS = 'video: keys\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A1\n      - click: A2\n  - card: {slots: {title: Between}, duration: 1}\n  - id: b\n    steps:\n      - click: B1\n      - hold: 0.5\n';
+const KEYS =
+  'video: keys\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A1\n      - click: A2\n  - card: {slots: {title: Between}, duration: 1}\n  - id: b\n    steps:\n      - click: B1\n      - hold: 0.5\n';
 
 let ws: string;
 let studio: StudioServer;
@@ -197,7 +198,12 @@ describe('drag & drop', () => {
     const before = await settled('blocks');
     // The capture's picture of "Second" (one.1) is green; wait for it before the move.
     await row('one.1').scrollIntoViewIfNeeded();
-    await expect.poll(async () => { const c = await centreColour('one.1'); return c ? colourName(c) : 'none'; }, POLL).toBe(colourName(GREEN));
+    await expect
+      .poll(async () => {
+        const c = await centreColour('one.1');
+        return c ? colourName(c) : 'none';
+      }, POLL)
+      .toBe(colourName(GREEN));
     const t0 = Date.now();
     await dragRow('one.1', 'one.0', 'left');
     await expect.poll(() => live(), POLL).toBe('Moved step 2 of one to position 1. Saved.');
@@ -209,7 +215,12 @@ describe('drag & drop', () => {
     await expect.poll(() => row('one.0').getAttribute('aria-selected'), POLL).toBe('true');
     await expect.poll(() => row('one.0').getByTestId('step-state').innerText(), POLL).toContain('moved since this run');
     expect(await row('one.1').getByTestId('step-state').innerText()).not.toContain('moved');
-    await expect.poll(async () => { const c = await centreColour('one.0'); return c && near(c, GREEN, 40) ? 'green' : 'other'; }, POLL).toBe('green');
+    await expect
+      .poll(async () => {
+        const c = await centreColour('one.0');
+        return c && near(c, GREEN, 40) ? 'green' : 'other';
+      }, POLL)
+      .toBe('green');
     expect(ops('run_thumbs', t0).filter((r) => (r.body.keys as string[]).includes('one.1'))).toEqual([]);
     expect(ops('scenario_edit', t0).map((r) => (r.body.edit as { kind: string }).kind)).toEqual(['move_step']);
     await shot('edit-1-moved');
@@ -524,7 +535,9 @@ describe('when block editing is off', () => {
     await openBlocks('owned');
     await page.getByTestId('blocks-edit-off').waitFor(POLL);
     await page.getByTestId('edit-bar').scrollIntoViewIfNeeded();
-    expect(await page.getByTestId('blocks-edit-off').innerText()).toMatch(/^Editing the board is off \(moves, copies, deletes, forms and new steps\): scenarios\/owned\.yaml holds what the Studio never writes \(line 12\)/);
+    expect(await page.getByTestId('blocks-edit-off').innerText()).toMatch(
+      /^Editing the board is off \(moves, copies, deletes, forms and new steps\): scenarios\/owned\.yaml holds what the Studio never writes \(line 12\)/,
+    );
     await shot('edit-6-blocked');
     expect(await page.locator('[data-testid="step"][draggable="true"]').count()).toBe(0);
     expect(await page.getByTestId('step-actions').count()).toBe(0);
@@ -546,13 +559,23 @@ describe('L5.10b: the storyboard grid', () => {
       w.__gridDt = new DataTransfer();
       document.querySelector(`[data-testid="step"][data-key="${key}"]`)!.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: w.__gridDt }));
     }, from);
-    const rects = await page.locator(`[role="listbox"][aria-label="${list}"] > [role="option"]`).evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }));
+    const rects = await page.locator(`[role="listbox"][aria-label="${list}"] > [role="option"]`).evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      }),
+    );
     const p = at(rects);
     for (const type of ['dragover', 'drop']) {
-      await page.evaluate(([type, label, x, y]) => {
-        const w = window as unknown as { __gridDt?: DataTransfer };
-        document.querySelector(`[role="listbox"][aria-label="${label}"]`)!.dispatchEvent(new DragEvent(type as string, { bubbles: true, cancelable: true, dataTransfer: w.__gridDt, clientX: x as number, clientY: y as number }));
-      }, [type, list, p.x, p.y] as const);
+      await page.evaluate(
+        ([type, label, x, y]) => {
+          const w = window as unknown as { __gridDt?: DataTransfer };
+          document
+            .querySelector(`[role="listbox"][aria-label="${label}"]`)!
+            .dispatchEvent(new DragEvent(type as string, { bubbles: true, cancelable: true, dataTransfer: w.__gridDt, clientX: x as number, clientY: y as number }));
+        },
+        [type, list, p.x, p.y] as const,
+      );
       if (type === 'dragover') await expect.poll(() => page.locator('.k-frame.is-drop-before, .k-frame.is-drop-after').count(), POLL).toBe(1);
     }
     await page.evaluate((key) => document.querySelector(`[data-testid="step"][data-key="${key}"]`)?.dispatchEvent(new DragEvent('dragend', { bubbles: true })), from);
@@ -569,7 +592,9 @@ describe('L5.10b: the storyboard grid', () => {
     await expect.poll(() => live(), POLL).toBe('Moved step 1 of one to position 2. Saved.');
     const b1 = await settled('blocks');
     expect(value(b1)).toEqual(moved(b0, 'one', 0, 'one', 1));
-    expect(ops('scenario_edit', t0).map((r) => r.body.edit)).toEqual([{ kind: 'move_step', from: { scene: 'one', index: 0, guard: expect.stringMatching(/^[0-9a-f]{16}$/) }, to: { scene: 'one', index: 1 } }]);
+    expect(ops('scenario_edit', t0).map((r) => r.body.edit)).toEqual([
+      { kind: 'move_step', from: { scene: 'one', index: 0, guard: expect.stringMatching(/^[0-9a-f]{16}$/) }, to: { scene: 'one', index: 1 } },
+    ]);
     // Scene two's trailing empty cell (two frames in a row of three): the end of the scene.
     const t1 = Date.now();
     await dropAt('one.0', 'Steps of scene two', (r) => ({ x: r[1].right + (r[1].right - r[1].left) / 2 + 24, y: (r[1].top + r[1].bottom) / 2 }));
@@ -580,7 +605,7 @@ describe('L5.10b: the storyboard grid', () => {
     await writeFile(file('blocks'), BLOCKS_YAML);
   });
 
-  it('⚑ the write path is unchanged: add, move, duplicate, delete, a form\'s change and undo are each one scenario_edit naming the version shown (the file\'s sha256: if_match)', async () => {
+  it("⚑ the write path is unchanged: add, move, duplicate, delete, a form's change and undo are each one scenario_edit naming the version shown (the file's sha256: if_match)", async () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     let text = await settled('keys');

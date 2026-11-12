@@ -11,7 +11,27 @@ export const BASELINE = 'scripts/audit/baseline.json';
 export const WRITE_HINT = 'node scripts/audit/rules.mjs . --write-baseline';
 
 const IO_PACKAGES = /^(playwright|playwright-core|pg|sharp|@remotion\/(renderer|bundler)|esbuild|@modelcontextprotocol|pdfjs-dist)/;
-const IO_BUILTINS = new Set(['fs', 'fs/promises', 'child_process', 'net', 'http', 'https', 'http2', 'dgram', 'tls', 'worker_threads', 'cluster', 'os', 'process', 'readline', 'dns', 'inspector', 'v8', 'vm', 'sqlite']);
+const IO_BUILTINS = new Set([
+  'fs',
+  'fs/promises',
+  'child_process',
+  'net',
+  'http',
+  'https',
+  'http2',
+  'dgram',
+  'tls',
+  'worker_threads',
+  'cluster',
+  'os',
+  'process',
+  'readline',
+  'dns',
+  'inspector',
+  'v8',
+  'vm',
+  'sqlite',
+]);
 
 /** The TypeScript compiler of the scanned tree, else the one of this repository (no install of its own). */
 export function loadTs(root) {
@@ -31,8 +51,9 @@ function walk(dir, out = [], keep = isScanned) {
   if (!fs.existsSync(dir)) return out;
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== 'dist') walk(p, out, keep); }
-    else if (keep(e.name)) out.push(p);
+    if (e.isDirectory()) {
+      if (e.name !== 'node_modules' && e.name !== 'dist') walk(p, out, keep);
+    } else if (keep(e.name)) out.push(p);
   }
   return out;
 }
@@ -51,7 +72,9 @@ export function scan(root) {
   for (const d of pkgs) {
     const pj = JSON.parse(fs.readFileSync(path.join(pkgsDir, d, 'package.json'), 'utf8'));
     nameToDir[pj.name] = d;
-    declared[d] = Object.keys({ ...pj.dependencies }).filter((n) => n.startsWith('@retake/')).map((n) => n.replace('@retake/', ''));
+    declared[d] = Object.keys({ ...pj.dependencies })
+      .filter((n) => n.startsWith('@retake/'))
+      .map((n) => n.replace('@retake/', ''));
   }
   const files = [];
   const fileImports = {};
@@ -80,14 +103,31 @@ export function ioKind(spec, builtins) {
 /** Strongly connected components with more than one node (Tarjan). */
 export function cycles(graph) {
   const out = [];
-  const idx = {}; const low = {}; const on = new Set(); const st = []; let i = 0;
+  const idx = {};
+  const low = {};
+  const on = new Set();
+  const st = [];
+  let i = 0;
   function sc(v) {
-    idx[v] = low[v] = i++; st.push(v); on.add(v);
+    idx[v] = low[v] = i++;
+    st.push(v);
+    on.add(v);
     for (const w of graph[v] ?? []) {
-      if (!(w in idx)) { sc(w); low[v] = Math.min(low[v], low[w]); }
-      else if (on.has(w)) low[v] = Math.min(low[v], idx[w]);
+      if (!(w in idx)) {
+        sc(w);
+        low[v] = Math.min(low[v], low[w]);
+      } else if (on.has(w)) low[v] = Math.min(low[v], idx[w]);
     }
-    if (low[v] === idx[v]) { const c = []; let w; do { w = st.pop(); on.delete(w); c.push(w); } while (w !== v); if (c.length > 1) out.push(c); }
+    if (low[v] === idx[v]) {
+      const c = [];
+      let w;
+      do {
+        w = st.pop();
+        on.delete(w);
+        c.push(w);
+      } while (w !== v);
+      if (c.length > 1) out.push(c);
+    }
   }
   for (const v of Object.keys(graph)) if (!(v in idx)) sc(v);
   return out;
@@ -102,7 +142,10 @@ export function fileGraph(fileImports) {
       if (!s.startsWith('.')) continue;
       const target = path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).replace(/\.js$/, '');
       for (const ext of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
-        if (fileImports[target + ext] !== undefined) { to.add(target + ext); break; }
+        if (fileImports[target + ext] !== undefined) {
+          to.add(target + ext);
+          break;
+        }
       }
     }
     fg[f] = [...to];
@@ -124,7 +167,8 @@ export function cycleEdges(graph, cycle) {
 // The layer rules of docs/audit/target-architecture.md. `files` selects importing files; `bad(spec, file)` says whether
 // one import breaks the rule.
 // A module loader (node:module's createRequire) loads any package at run time, so it counts as I/O too.
-const IO = /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|dgram|os|dns|dns\/promises|worker_threads|readline|sqlite|zlib|stream|vm|module)$|^(playwright|playwright-core|pg|sharp|esbuild|@remotion\/(renderer|bundler)|@modelcontextprotocol|pdfjs-dist)/;
+const IO =
+  /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|dgram|os|dns|dns\/promises|worker_threads|readline|sqlite|zlib|stream|vm|module)$|^(playwright|playwright-core|pg|sharp|esbuild|@remotion\/(renderer|bundler)|@modelcontextprotocol|pdfjs-dist)/;
 const pkgOf = (f) => f.split('/')[1];
 const retake = (s) => (s.startsWith('@retake/') ? s.slice(8).split('/')[0] : null);
 const SHELLS = ['cli', 'mcp', 'ui'];
@@ -189,12 +233,26 @@ export const PORT_ROOTS = {
   packageSandboxes: ['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts'],
 };
 /** The check that holds each product adapter of PORT_ROOTS to its roots (its entries: `<name> outside a root`). */
-export const PORT_ROOT_RULE = { systemClock: 'clock-read', enginePorts: 'clock-read', diskProjectStores: 'store-new', packageHookRunner: 'loader-use', packageReviewer: 'loader-use', runnerWebCapture: 'loader-use', packageSandboxes: 'loader-use' };
+export const PORT_ROOT_RULE = {
+  systemClock: 'clock-read',
+  enginePorts: 'clock-read',
+  diskProjectStores: 'store-new',
+  packageHookRunner: 'loader-use',
+  packageReviewer: 'loader-use',
+  runnerWebCapture: 'loader-use',
+  packageSandboxes: 'loader-use',
+};
 /**
  * The loaders of lazy.ts held to a home (loader-use): each is imported from lazy.ts only in its port's folder, where the
  * port's package adapter lives. The editor's loader is not here: R9 and render-call hold the editor.
  */
-export const LOADER_HOMES = { hooks: 'packages/engine/src/hook-run/', review: 'packages/engine/src/review/', thumbs: 'packages/engine/src/review/', runnerWeb: 'packages/engine/src/capture/', sandbox: 'packages/engine/src/sandboxes/' };
+export const LOADER_HOMES = {
+  hooks: 'packages/engine/src/hook-run/',
+  review: 'packages/engine/src/review/',
+  thumbs: 'packages/engine/src/review/',
+  runnerWeb: 'packages/engine/src/capture/',
+  sandbox: 'packages/engine/src/sandboxes/',
+};
 /**
  * The engine's port files (port-types): the interfaces its adapters satisfy, which name no adapter package — types
  * included — but through a domain entry (an adapter satisfies a port structurally: R2 forbids it the engine's types).
@@ -214,7 +272,19 @@ export const PORT_FILES = [
  * and what makes its renderer or a part of one (the driver, the plan's part, the previews' part and their backend).
  * A render entry the editor exports and this list misses fails packages/core/test/import-rules.test.ts.
  */
-export const RENDER_CALLS = ['renderVideo', 'renderStill', 'renderStills', 'renderPlan', 'renderComponentPreviews', 'renderComponentLoops', 'exportRender', 'createRenderer', 'planDriver', 'previewDriver', 'REMOTION_PREVIEW_BACKEND'];
+export const RENDER_CALLS = [
+  'renderVideo',
+  'renderStill',
+  'renderStills',
+  'renderPlan',
+  'renderComponentPreviews',
+  'renderComponentLoops',
+  'exportRender',
+  'createRenderer',
+  'planDriver',
+  'previewDriver',
+  'REMOTION_PREVIEW_BACKEND',
+];
 /** The one module that names playwright-core's private browser registry (browser-registry, L7.25). */
 export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
 /** The one module that starts the media tools, ffmpeg and ffprobe (media-call, L7.31). */
@@ -228,7 +298,30 @@ export const MEDIA_RUN_HOME = 'packages/core/src/io/media-run.ts';
  * packages/core/src.
  */
 export const CORE_CONTEXTS = [
-  { name: 'base', files: ['util', 'issues', 'error-kind', 'formats', 'canonical-json', 'printable', 'dates', 'line-diff', 'path-inside', 'client-path', 'templating', 'sql-text', 'shell-words', 'validation/document', 'validation/located', 'validation/suggest', 'validation/yaml-source', 'validation/zod-issues', 'schemas/keyed'] },
+  {
+    name: 'base',
+    files: [
+      'util',
+      'issues',
+      'error-kind',
+      'formats',
+      'canonical-json',
+      'printable',
+      'dates',
+      'line-diff',
+      'path-inside',
+      'client-path',
+      'templating',
+      'sql-text',
+      'shell-words',
+      'validation/document',
+      'validation/located',
+      'validation/suggest',
+      'validation/yaml-source',
+      'validation/zod-issues',
+      'schemas/keyed',
+    ],
+  },
   { name: 'model', files: ['types', 'schemas/primitives', 'media', 'file-facts', 'render-settings', 'confinement', 'checks/context', 'checks/tokens', 'checks/media'] },
   { name: 'ids', files: ['id-grammar', 'ids'] },
   { name: 'language', files: ['steps', 'targets', 'pages', 'tutorial', 'video', 'scenario-template', 'schemas/steps', 'schemas/settings'] },
@@ -237,7 +330,26 @@ export const CORE_CONTEXTS = [
   { name: 'hooks', files: ['hookfile', 'hook-run', 'hook-writes', 'named-hooks', 'destructive', 'shell-hosts', 'checks/hooks', 'schemas/hooks'] },
   { name: 'project', files: ['workspace', 'project', 'layout', 'checks/project', 'schemas/project'] },
   { name: 'sandbox', files: ['sandbox', 'sandbox-error', 'checks/sandbox', 'schemas/sandbox'] },
-  { name: 'scenario', files: ['scenario', 'schemas/scenario', 'checks/scenario', 'checks/actions', 'blocks', 'edit-replan', 'scenario-edit', 'step-edits', 'field-edits', 'map-edits', 'step-forms', 'script-draft', 'step-match', 'filmed', 'agent-trust'] },
+  {
+    name: 'scenario',
+    files: [
+      'scenario',
+      'schemas/scenario',
+      'checks/scenario',
+      'checks/actions',
+      'blocks',
+      'edit-replan',
+      'scenario-edit',
+      'step-edits',
+      'field-edits',
+      'map-edits',
+      'step-forms',
+      'script-draft',
+      'step-match',
+      'filmed',
+      'agent-trust',
+    ],
+  },
   { name: 'comments', files: ['comments'] },
   { name: 'run', files: ['run-record', 'take', 'perf', 'record-read', 'schemas/timeline', 'recording', 'record-annotations', 'record-change', 'inspect', 'inspect-pacing'] },
   { name: 'render', files: ['render-record', 'schemas/render', 'ffprobe', 'gpu', 'export-formats'] },
@@ -250,41 +362,174 @@ const CORE_SRC = 'packages/core/src/';
 const CORE_ENTRIES_DIR = `${CORE_SRC}entries/`;
 export const PURE_BINDINGS = { 'node:net': ['isIP', 'isIPv4', 'isIPv6', 'BlockList'], net: ['isIP', 'isIPv4', 'isIPv6', 'BlockList'] };
 export const RULES = [
-  { id: 'R1', title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`, files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR), bad: (s, f) => IO.test(s) || coreIoImport(s, f), loaders: true, pure: PURE_BINDINGS },
+  {
+    id: 'R1',
+    title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`,
+    files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR),
+    bad: (s, f) => IO.test(s) || coreIoImport(s, f),
+    loaders: true,
+    pure: PURE_BINDINGS,
+  },
   { id: 'R2', title: 'adapters never import application or shells', files: (f) => ADAPTERS.includes(pkgOf(f)), bad: (s) => ['engine', 'mcp', 'ui', 'cli'].includes(retake(s)) },
-  { id: 'R3', title: 'shells never import another shell (ui→mcp, mcp→ui; cli is the composition root and may)', files: (f) => ['mcp', 'ui'].includes(pkgOf(f)), bad: (s, f) => { const p = retake(s); return !!p && SHELLS.includes(p) && p !== pkgOf(f); } },
-  { id: 'R4', title: 'shells call the application only (no direct adapter import; the types of their domain entries are free — pure, no adapter code — a value of one is a hit like any adapter import)', files: (f) => SHELLS.includes(pkgOf(f)), bad: (s) => ADAPTERS.includes(retake(s)), typeOnlyCheck: (s) => DOMAIN_ENTRIES.includes(s) },
-  { id: 'R5', title: 'the Studio front end imports types only from other packages (checked: any @retake value import, re-export, side-effect import or import() in src/app)', files: (f) => f.startsWith('packages/ui/src/app/'), bad: (s) => !!retake(s), typeOnlyCheck: true },
-  { id: 'R6', title: 'shells do not touch the file system / processes themselves', files: (f) => ['packages/mcp/src/tools/', 'packages/ui/src/server/', 'packages/cli/src/commands/'].some((p) => f.startsWith(p)), bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s) },
-  { id: 'R7', title: 'the planner and review checks stay renderer-free (editor/review pure modules; for the review: REVIEW_PURE)', files: (f) => /packages\/editor\/src\/(plan|plan-entry|plan-types|render-record|timing|camera|layout|panes|timeline|resolve|tutorial|summary|util|remotion\/frames|planner\/[a-z-]+)\.ts$/.test(f) || reviewPure(f), bad: (s) => IO.test(s) || /^remotion|^react/.test(s) },
-  { id: 'R8', title: 'the review imports the editor only through its planner entry (@retake/editor/plan: loads no renderer, Remotion, React or esbuild)', files: (f) => pkgOf(f) === 'review', bad: (s) => retake(s) === 'editor' && s !== '@retake/editor/plan' },
-  { id: 'R9', title: `the engine loads the editor's code in its loader only (${ENGINE_LOADER}): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit, and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; the other adapters' loaders are not checked yet)`, files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER, bad: (s) => retake(s) === 'editor', typeOnlyCheck: true, loaders: true },
-  { id: 'R11', title: `the engine imports the adapter packages as types only outside its loader (${ENGINE_LOADER}; the editor is R9's): a value import, re-export or import() of runner-web, review, sandbox, hooks or components is a hit; their domain entries are free (the editor's, @retake/editor/plan, is not: R9 holds the editor whole). Not seen: a value reached through another engine file (the loader included) and \`typeof import()\` in a type position, which loads nothing`, files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER, bad: (s) => ADAPTERS.includes(retake(s)) && retake(s) !== 'editor' && !DOMAIN_ENTRIES.includes(s), typeOnlyCheck: true },
-  { id: 'R12', title: "the review's pure modules (REVIEW_PURE) import the components through their geometry entry only (@retake/components/geometry: no renderer, no registry, no compile check), types included", files: reviewPure, bad: (s) => retake(s) === 'components' && s !== '@retake/components/geometry' },
-  { id: 'R13', title: "a relative import never leaves its package (another package is imported by its name, so that the layer rules, which read names, see it: `../../sandbox/dist/index.js` would compile and be invisible to R2, R4 and R11)", files: () => true, bad: (s, f) => s.startsWith('.') && !path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).startsWith(`packages/${pkgOf(f)}/`) },
+  {
+    id: 'R3',
+    title: 'shells never import another shell (ui→mcp, mcp→ui; cli is the composition root and may)',
+    files: (f) => ['mcp', 'ui'].includes(pkgOf(f)),
+    bad: (s, f) => {
+      const p = retake(s);
+      return !!p && SHELLS.includes(p) && p !== pkgOf(f);
+    },
+  },
+  {
+    id: 'R4',
+    title: 'shells call the application only (no direct adapter import; the types of their domain entries are free — pure, no adapter code — a value of one is a hit like any adapter import)',
+    files: (f) => SHELLS.includes(pkgOf(f)),
+    bad: (s) => ADAPTERS.includes(retake(s)),
+    typeOnlyCheck: (s) => DOMAIN_ENTRIES.includes(s),
+  },
+  {
+    id: 'R5',
+    title: 'the Studio front end imports types only from other packages (checked: any @retake value import, re-export, side-effect import or import() in src/app)',
+    files: (f) => f.startsWith('packages/ui/src/app/'),
+    bad: (s) => !!retake(s),
+    typeOnlyCheck: true,
+  },
+  {
+    id: 'R6',
+    title: 'shells do not touch the file system / processes themselves',
+    files: (f) => ['packages/mcp/src/tools/', 'packages/ui/src/server/', 'packages/cli/src/commands/'].some((p) => f.startsWith(p)),
+    bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s),
+  },
+  {
+    id: 'R7',
+    title: 'the planner and review checks stay renderer-free (editor/review pure modules; for the review: REVIEW_PURE)',
+    files: (f) =>
+      /packages\/editor\/src\/(plan|plan-entry|plan-types|render-record|timing|camera|layout|panes|timeline|resolve|tutorial|summary|util|remotion\/frames|planner\/[a-z-]+)\.ts$/.test(f) ||
+      reviewPure(f),
+    bad: (s) => IO.test(s) || /^remotion|^react/.test(s),
+  },
+  {
+    id: 'R8',
+    title: 'the review imports the editor only through its planner entry (@retake/editor/plan: loads no renderer, Remotion, React or esbuild)',
+    files: (f) => pkgOf(f) === 'review',
+    bad: (s) => retake(s) === 'editor' && s !== '@retake/editor/plan',
+  },
+  {
+    id: 'R9',
+    title: `the engine loads the editor's code in its loader only (${ENGINE_LOADER}): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit, and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; the other adapters' loaders are not checked yet)`,
+    files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER,
+    bad: (s) => retake(s) === 'editor',
+    typeOnlyCheck: true,
+    loaders: true,
+  },
+  {
+    id: 'R11',
+    title: `the engine imports the adapter packages as types only outside its loader (${ENGINE_LOADER}; the editor is R9's): a value import, re-export or import() of runner-web, review, sandbox, hooks or components is a hit; their domain entries are free (the editor's, @retake/editor/plan, is not: R9 holds the editor whole). Not seen: a value reached through another engine file (the loader included) and \`typeof import()\` in a type position, which loads nothing`,
+    files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER,
+    bad: (s) => ADAPTERS.includes(retake(s)) && retake(s) !== 'editor' && !DOMAIN_ENTRIES.includes(s),
+    typeOnlyCheck: true,
+  },
+  {
+    id: 'R12',
+    title: "the review's pure modules (REVIEW_PURE) import the components through their geometry entry only (@retake/components/geometry: no renderer, no registry, no compile check), types included",
+    files: reviewPure,
+    bad: (s) => retake(s) === 'components' && s !== '@retake/components/geometry',
+  },
+  {
+    id: 'R13',
+    title:
+      'a relative import never leaves its package (another package is imported by its name, so that the layer rules, which read names, see it: `../../sandbox/dist/index.js` would compile and be invisible to R2, R4 and R11)',
+    files: () => true,
+    bad: (s, f) => s.startsWith('.') && !path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).startsWith(`packages/${pkgOf(f)}/`),
+  },
 ];
 
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
-  { id: 'core-context', title: "core's contexts (CORE_CONTEXTS, L7.35) import only the contexts before them: in packages/core/src outside io/ and the root index.ts, an import, re-export or import() of a core file of a later context is a hit (entries: the file and the file it imports), a type-only import of `model` excepted; and so are a file of no context (`unassigned`: a new file gets its context on purpose), an entry (entries/<name>.ts) that re-exports a file outside its context, and a context file or an entry that imports an entry or the root — by a relative path or by core's own package name (`@retake/core`, `@retake/core/<x>`; `@retake/core/io` is R1's). Read: relative specifiers, resolved to their file, and core's package name. Not seen: a name a file re-exports from a file of its own context that took it from another (the entry then exports it under the wrong context: the generator's rule, a name exported by the entry of the file that declares it, is not checked)" },
-  { id: 'core-root', title: "the packages' sources import core's entries, never its root (L7.35): in packages/*/src outside core, an import, re-export, import() or `import('…')` type of `@retake/core` is a hit, and so is a sub-path that is no `exports` key of core's package.json (`@retake/core/<x> (no entry)`; `./schema/*.json` read as a pattern). Not seen: a specifier computed at run time, tests, scripts and apps (the root stays for them)" },
-  { id: 'R10', title: 'the rendering library (`remotion`, `@remotion/*`) is named in its seam files only (LIBRARY_SEAMS: each with the packages it may load or resolve; the built-in components and the scaffolds name it nowhere): a static, type or dynamic import, a re-export, a require, a `resolve()` of its path, a seam file re-exported wholesale by another file, or a seam file that hands the library on imported from outside its folder (LIBRARY_SEAM_IMPORTERS). Not seen: a specifier computed at run time (LIBRARY_COMPUTED_READS), a require reached under another name, the library\'s name inside a data string, what a seam file itself exports, and tests, scripts, fixtures and apps' },
+  {
+    id: 'core-context',
+    title:
+      "core's contexts (CORE_CONTEXTS, L7.35) import only the contexts before them: in packages/core/src outside io/ and the root index.ts, an import, re-export or import() of a core file of a later context is a hit (entries: the file and the file it imports), a type-only import of `model` excepted; and so are a file of no context (`unassigned`: a new file gets its context on purpose), an entry (entries/<name>.ts) that re-exports a file outside its context, and a context file or an entry that imports an entry or the root — by a relative path or by core's own package name (`@retake/core`, `@retake/core/<x>`; `@retake/core/io` is R1's). Read: relative specifiers, resolved to their file, and core's package name. Not seen: a name a file re-exports from a file of its own context that took it from another (the entry then exports it under the wrong context: the generator's rule, a name exported by the entry of the file that declares it, is not checked)",
+  },
+  {
+    id: 'core-root',
+    title:
+      "the packages' sources import core's entries, never its root (L7.35): in packages/*/src outside core, an import, re-export, import() or `import('…')` type of `@retake/core` is a hit, and so is a sub-path that is no `exports` key of core's package.json (`@retake/core/<x> (no entry)`; `./schema/*.json` read as a pattern). Not seen: a specifier computed at run time, tests, scripts and apps (the root stays for them)",
+  },
+  {
+    id: 'R10',
+    title:
+      "the rendering library (`remotion`, `@remotion/*`) is named in its seam files only (LIBRARY_SEAMS: each with the packages it may load or resolve; the built-in components and the scaffolds name it nowhere): a static, type or dynamic import, a re-export, a require, a `resolve()` of its path, a seam file re-exported wholesale by another file, or a seam file that hands the library on imported from outside its folder (LIBRARY_SEAM_IMPORTERS). Not seen: a specifier computed at run time (LIBRARY_COMPUTED_READS), a require reached under another name, the library's name inside a data string, what a seam file itself exports, and tests, scripts, fixtures and apps",
+  },
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
-  { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter\'s own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)' },
-  { id: 'clock-read', title: `the engine stamps what it writes with its Clock port (${CLOCK_HOME}): in packages/engine/src outside it, every wall-clock read is counted per file — \`new Date()\` with no argument, \`Date.now\` (called or passed on as a value, \`Date['now']\` too) and \`Date()\` called as a function — and the pinned files are elapsed time, deadlines, memo lifetimes and file times, never a stamp (entries: each file and its count); and the product's ports are named at the composition roots only: \`systemClock\` and \`enginePorts\` as values anywhere in packages/*/src outside PORT_ROOTS (a default parameter included; import and export declarations are not uses). Also read: a name imported under another (\`{ systemClock as sc }\`), a member of a namespace import (\`k.systemClock\`, \`k['enginePorts']\`) and \`now\` taken out of \`Date\` by a pattern (\`const { now } = Date\`). Not seen: \`globalThis.Date\`, \`Date\` or a port under another name made in the file (\`const D = Date\`, \`const c = systemClock\` then \`c\`: the first is counted, not the uses), a name reached through \`Reflect\`, \`Function.prototype.call\` or a computed key, a namespace from \`await import()\`, and \`performance.now()\`, which is allowed (elapsed time)` },
-  { id: 'store-new', title: `only the project store builds a store or a storage of a folder: in packages/*/src outside ${STORE_HOME} and ${STORAGE_FILE}, \`new LocalStorage(…)\`, \`new DiskProjectStore(…)\`, a class extending either, or either class passed on as a value is a hit, and so is the disk adapter \`diskProjectStores\` named as a value outside PORT_ROOTS (entries: the file and the form; a type position, an import and an export are not uses), under its own name, an import alias (\`{ LocalStorage as LS }\`) or off a namespace import (\`new st.LocalStorage()\`, \`ps.diskProjectStores\`): every authored write is handed a ProjectStores port in its StoreScope. Not seen: \`Reflect.construct(LocalStorage, …)\` counted only as the class used as a value, a class reached through another variable, a namespace from \`await import()\`` },
-  { id: 'loader-use', title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\` and \`packageSandboxes\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it` },
-  { id: 'port-types', title: `the engine's port files (PORT_FILES) name no adapter package — a type import, \`typeof import()\` and a value alike (entries: the file and the specifier) — but through a domain entry (DOMAIN_ENTRIES): an adapter satisfies a port structurally, so the vocabulary they share lives in core or a domain entry. Not seen: what a port file names through a relative engine module (not followed)` },
-  { id: 'shell-op', title: 'an operation is defined in the engine (packages/engine/src/operations/, U7): in the shells\' sources (SHELL_OP_DIRS: packages/mcp/src, packages/ui/src) every call of `defineTool` or `defineOperation` — by its name, an import alias or a member of a namespace import — is counted per file (entries: each file and its count), so that an operation moved into the engine lowers the baseline and a new one in a shell fails it; and in packages/*/src outside DEFINER_HOMES (the engine\'s operations/, MCP\'s tools/define.ts) a definer re-exported under another name (`export { defineTool as op }`) is a hit. Not seen: a definer under another name made in a file (`const d = defineTool`), a wrapper of one, a parenthesised or computed callee (`(defineTool)(…)`, `c[name](…)`), a member of a namespace from `await import()`, and an operation written as a `ToolDef` object literal with no definer' },
-  { id: 'hook-call', title: 'the hooks use cases outside a capture are orchestrated in the engine only (packages/engine/src/hooks-work.ts, U8b: shared by the CLI\'s `hooks run` / `hooks rollback` / `env reset` and the jobs): in packages/*/src outside packages/engine/src every call of `createHookContext` (by its name, an import alias or a member of a namespace import), of `hooks.run` (on something named `hooks`, also `x.hooks`) and of `journals.rollback|openPending|rollbackPending` (on something named `journals`, also `x.journals`), and in the shells (cli, mcp, ui) of `.rollbackAll` on anything, is counted per file (entries: each file and its count; the adapters replay their own journals). Read through parentheses, a comma (`(0, hooks.run)(…)`), a cast or `!`, and as `.call` / `.apply` / `.bind` of a counted function. Not seen: a destructured member (`const { run } = hooks`), a member or port held in a variable (`const r = hooks.run`, `const h = ports.hooks` then `h.run`), a dynamic import\'s destructuring (`const { createHookContext } = await import(…)`) or namespace, an import-equals alias (`import c = e.createHookContext`), a key computed at run time' },
-  { id: 'browser-registry', title: `playwright-core's private modules (\`playwright-core/lib/…\`: its browser registry) are named in ${BROWSER_REGISTRY_HOME} only (U14, finding X9: one browser-discovery module; each caller hands it its own require): in packages/*/src elsewhere, every string or template that holds \`playwright-core/lib/\` is counted per file (entries: each file and its count). Not seen: the path put together from pieces (\`'playwright-core' + '/lib'\`), a specifier computed at run time, and everything outside packages/*/src` },
-  { id: 'media-call', title: `the media tools (ffmpeg, ffprobe) are started in ${MEDIA_RUN_HOME} only (U11, finding X3: one wrapper for their runs — arguments, time limits, cancels, stderr — and one error type): in packages/*/src elsewhere, a file that names a media tool (an identifier holding \`ffmpeg\` or \`ffprobe\`, such as ffmpegBin, or a string or template holding either word) and calls node:child_process to start a process (\`spawn\`, \`spawnSync\`, \`execFile\`, \`execFileSync\`, \`exec\`, \`execSync\`, \`fork\`: by its name, an import alias or a member of a namespace or default import, by a key spelt as a string or a template without substitution; read through parentheses, a comma, a cast or \`!\`, and as \`.call\` / \`.apply\` / \`.bind\` of a starter) is counted, its calls per file (entries: each file and its count); a type import of the module starts nothing. Not seen: a file that starts a program whose name it reads elsewhere and names no media tool, a call reached through another module or under another name made in the file (\`const run = execFile\`, a destructured member), an import-equals alias (\`import cp = require('node:child_process')\`), a key computed at run time or a template key with a substitution (\`cp[\`ex${'${'}k}\`]\`), \`require('node:child_process')\` and a namespace from \`await import()\`, and everything outside packages/*/src` },
-  { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append|exclusive(…)`, also `x.queue.…`): the engine\'s operations submit after their checks (under the queue\'s lock: `exclusive`), the worker writes' },
-  { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
-  { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
-  { id: 'layout', title: 'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)' },
-  { id: 'id-grammar', title: 'the grammars of the run id, the render id, the ULID ids and the theme names are written in their two homes only (ID_HOMES; the Studio front end has one mirror, ID_MIRRORS), in packages/*/src (entries: each file and how many id patterns it writes by hand — (1) a regular expression, string or template holding the date stamp `\\d{8}-\\d{6}`, the version suffix `-v\\d` / `-v(\\d` (whatever follows the digit: `+`, `{1,6}`; a named or a non-capturing group) or the ULID character class; (2) a string holding the ULID alphabet; (3) a regular expression, or a string (what `new RegExp` is given), that is the run-folder grammar or a theme-name grammar, a final `{0,N}` read as `*`; (4) a template with a text part ending in `-v`, or starting with a ULID prefix before a substitution; (5) a string or template part starting with `-vertical` or `-square`; (6) a capped grammar used without its cap: `.test()` / `.exec()` on RUN_ID_RE, RENDER_ID_RE, ANY_THEME_NAME_RE or NEW_THEME_NAME_RE, or one of them handed to `.match()` / `.matchAll()` / `.search()` / `.replace()` / `.split()`, or to the `.regex()` of a schema — with or without a `.max()` beside it: the `z…` helpers of ids.ts hold the cap). Not seen: a grammar spelt another way (`[0-9]{8}`, a character class in another order), a pattern put together from pieces or by `+` (`s + \'-v\' + n`), a capped grammar reached under another name or handed to a helper, a parser made of `.startsWith(\'j_\')` / `.slice(2)` / `.split(\'-\')`, the mirror\'s patterns used without their caps, and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell, docs)' },
-  { id: 'record-read', title: 'a run.json, a timeline.json or a render record (renders/*.json) is read in one place (RECORD_READ_HOME: the readers answer a record or a typed problem), in packages/*/src (entries: each file and how many times it gives a value the type of a run record, a timeline or a render record without the reader (RECORD_READ_TYPES; also inside `Partial<…>`, a union, a list or a `Promise<…>`; a member\'s type such as `RunRecord[\'status\']` is not one) — the result of `JSON.parse(…)` or of a `readJson(…)` call typed (1) by a cast (`as T`, `as unknown as T`, `<T>…`, through `await`, parentheses and `!`), (2) by a type argument (`readJson<T>(…)`), (3) by the annotation of the variable it initialises, (4) by the declared return type of the function that returns it; (5) any other value cast to one of those types, wherever it came from; (6) a type guard or an assertion function that says a value is one (`v is T`, `asserts v is T`); (7) a call that names one as its type argument (`cast<T>(…)`: a generic cast helper); (8) a parse through a record\'s or a timeline\'s schema itself (RECORD_READ_SCHEMAS: `.parse(…)`, `.safeParse(…)` — typed, and past the reader\'s link, size and version rules); (9) an interface that extends one; and, for each file of RECORD_READ_OWN — the files that read a run folder\'s or renders/\'s file on their own, on purpose, into a shape of their own — every `JSON.parse(…)` it holds, so that such a read is an entry with its reason and one more is a new entry). The types counted include the render record\'s base types under their own names (RenderBase, StoredRenderBase, RenderFields) and the answers that hold a record (NamedRenderFound, FoundRender, FoundReviewRender). Not seen: a type under an alias or an own interface of the same members (outside RECORD_READ_OWN, that is how a file would read a record out of sight — a render record\'s members copied into a view of the engine\'s are such an interface, on purpose); a `JSON.parse(…)` of a record in a file that reads a record on its own and is not in RECORD_READ_OWN, into an untyped value or a shape of its own; a file\'s own bytes handed to the reader\'s parsers (parseRunRecord, parseTimeline, parseRenderRecord: the type is the reader\'s, the link, size and version rules are the caller\'s); a stored record\'s plan typed as an edit plan by a member\'s type (`StoredRender[\'plan\']` is a member\'s type, not a record); an untyped (`any`) parse result that reaches a record without a cast — behind a helper of another name, or assigned, returned or passed in a later statement; a property or a parameter typed so; and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell)' },
+  {
+    id: 'queue',
+    title:
+      "only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI's workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter's own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)",
+  },
+  {
+    id: 'clock-read',
+    title: `the engine stamps what it writes with its Clock port (${CLOCK_HOME}): in packages/engine/src outside it, every wall-clock read is counted per file — \`new Date()\` with no argument, \`Date.now\` (called or passed on as a value, \`Date['now']\` too) and \`Date()\` called as a function — and the pinned files are elapsed time, deadlines, memo lifetimes and file times, never a stamp (entries: each file and its count); and the product's ports are named at the composition roots only: \`systemClock\` and \`enginePorts\` as values anywhere in packages/*/src outside PORT_ROOTS (a default parameter included; import and export declarations are not uses). Also read: a name imported under another (\`{ systemClock as sc }\`), a member of a namespace import (\`k.systemClock\`, \`k['enginePorts']\`) and \`now\` taken out of \`Date\` by a pattern (\`const { now } = Date\`). Not seen: \`globalThis.Date\`, \`Date\` or a port under another name made in the file (\`const D = Date\`, \`const c = systemClock\` then \`c\`: the first is counted, not the uses), a name reached through \`Reflect\`, \`Function.prototype.call\` or a computed key, a namespace from \`await import()\`, and \`performance.now()\`, which is allowed (elapsed time)`,
+  },
+  {
+    id: 'store-new',
+    title: `only the project store builds a store or a storage of a folder: in packages/*/src outside ${STORE_HOME} and ${STORAGE_FILE}, \`new LocalStorage(…)\`, \`new DiskProjectStore(…)\`, a class extending either, or either class passed on as a value is a hit, and so is the disk adapter \`diskProjectStores\` named as a value outside PORT_ROOTS (entries: the file and the form; a type position, an import and an export are not uses), under its own name, an import alias (\`{ LocalStorage as LS }\`) or off a namespace import (\`new st.LocalStorage()\`, \`ps.diskProjectStores\`): every authored write is handed a ProjectStores port in its StoreScope. Not seen: \`Reflect.construct(LocalStorage, …)\` counted only as the class used as a value, a class reached through another variable, a namespace from \`await import()\``,
+  },
+  {
+    id: 'loader-use',
+    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\` and \`packageSandboxes\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
+  },
+  {
+    id: 'port-types',
+    title: `the engine's port files (PORT_FILES) name no adapter package — a type import, \`typeof import()\` and a value alike (entries: the file and the specifier) — but through a domain entry (DOMAIN_ENTRIES): an adapter satisfies a port structurally, so the vocabulary they share lives in core or a domain entry. Not seen: what a port file names through a relative engine module (not followed)`,
+  },
+  {
+    id: 'shell-op',
+    title:
+      "an operation is defined in the engine (packages/engine/src/operations/, U7): in the shells' sources (SHELL_OP_DIRS: packages/mcp/src, packages/ui/src) every call of `defineTool` or `defineOperation` — by its name, an import alias or a member of a namespace import — is counted per file (entries: each file and its count), so that an operation moved into the engine lowers the baseline and a new one in a shell fails it; and in packages/*/src outside DEFINER_HOMES (the engine's operations/, MCP's tools/define.ts) a definer re-exported under another name (`export { defineTool as op }`) is a hit. Not seen: a definer under another name made in a file (`const d = defineTool`), a wrapper of one, a parenthesised or computed callee (`(defineTool)(…)`, `c[name](…)`), a member of a namespace from `await import()`, and an operation written as a `ToolDef` object literal with no definer",
+  },
+  {
+    id: 'hook-call',
+    title:
+      "the hooks use cases outside a capture are orchestrated in the engine only (packages/engine/src/hooks-work.ts, U8b: shared by the CLI's `hooks run` / `hooks rollback` / `env reset` and the jobs): in packages/*/src outside packages/engine/src every call of `createHookContext` (by its name, an import alias or a member of a namespace import), of `hooks.run` (on something named `hooks`, also `x.hooks`) and of `journals.rollback|openPending|rollbackPending` (on something named `journals`, also `x.journals`), and in the shells (cli, mcp, ui) of `.rollbackAll` on anything, is counted per file (entries: each file and its count; the adapters replay their own journals). Read through parentheses, a comma (`(0, hooks.run)(…)`), a cast or `!`, and as `.call` / `.apply` / `.bind` of a counted function. Not seen: a destructured member (`const { run } = hooks`), a member or port held in a variable (`const r = hooks.run`, `const h = ports.hooks` then `h.run`), a dynamic import's destructuring (`const { createHookContext } = await import(…)`) or namespace, an import-equals alias (`import c = e.createHookContext`), a key computed at run time",
+  },
+  {
+    id: 'browser-registry',
+    title: `playwright-core's private modules (\`playwright-core/lib/…\`: its browser registry) are named in ${BROWSER_REGISTRY_HOME} only (U14, finding X9: one browser-discovery module; each caller hands it its own require): in packages/*/src elsewhere, every string or template that holds \`playwright-core/lib/\` is counted per file (entries: each file and its count). Not seen: the path put together from pieces (\`'playwright-core' + '/lib'\`), a specifier computed at run time, and everything outside packages/*/src`,
+  },
+  {
+    id: 'media-call',
+    title: `the media tools (ffmpeg, ffprobe) are started in ${MEDIA_RUN_HOME} only (U11, finding X3: one wrapper for their runs — arguments, time limits, cancels, stderr — and one error type): in packages/*/src elsewhere, a file that names a media tool (an identifier holding \`ffmpeg\` or \`ffprobe\`, such as ffmpegBin, or a string or template holding either word) and calls node:child_process to start a process (\`spawn\`, \`spawnSync\`, \`execFile\`, \`execFileSync\`, \`exec\`, \`execSync\`, \`fork\`: by its name, an import alias or a member of a namespace or default import, by a key spelt as a string or a template without substitution; read through parentheses, a comma, a cast or \`!\`, and as \`.call\` / \`.apply\` / \`.bind\` of a starter) is counted, its calls per file (entries: each file and its count); a type import of the module starts nothing. Not seen: a file that starts a program whose name it reads elsewhere and names no media tool, a call reached through another module or under another name made in the file (\`const run = execFile\`, a destructured member), an import-equals alias (\`import cp = require('node:child_process')\`), a key computed at run time or a template key with a substitution (\`cp[\`ex${'${'}k}\`]\`), \`require('node:child_process')\` and a namespace from \`await import()\`, and everything outside packages/*/src`,
+  },
+  {
+    id: 'queue-call',
+    title:
+      "outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append|exclusive(…)`, also `x.queue.…`): the engine's operations submit after their checks (under the queue's lock: `exclusive`), the worker writes",
+  },
+  {
+    id: 'render-call',
+    title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function`,
+  },
+  {
+    id: 'policy-state',
+    title:
+      'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters',
+  },
+  {
+    id: 'layout',
+    title:
+      'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)',
+  },
+  {
+    id: 'id-grammar',
+    title:
+      "the grammars of the run id, the render id, the ULID ids and the theme names are written in their two homes only (ID_HOMES; the Studio front end has one mirror, ID_MIRRORS), in packages/*/src (entries: each file and how many id patterns it writes by hand — (1) a regular expression, string or template holding the date stamp `\\d{8}-\\d{6}`, the version suffix `-v\\d` / `-v(\\d` (whatever follows the digit: `+`, `{1,6}`; a named or a non-capturing group) or the ULID character class; (2) a string holding the ULID alphabet; (3) a regular expression, or a string (what `new RegExp` is given), that is the run-folder grammar or a theme-name grammar, a final `{0,N}` read as `*`; (4) a template with a text part ending in `-v`, or starting with a ULID prefix before a substitution; (5) a string or template part starting with `-vertical` or `-square`; (6) a capped grammar used without its cap: `.test()` / `.exec()` on RUN_ID_RE, RENDER_ID_RE, ANY_THEME_NAME_RE or NEW_THEME_NAME_RE, or one of them handed to `.match()` / `.matchAll()` / `.search()` / `.replace()` / `.split()`, or to the `.regex()` of a schema — with or without a `.max()` beside it: the `z…` helpers of ids.ts hold the cap). Not seen: a grammar spelt another way (`[0-9]{8}`, a character class in another order), a pattern put together from pieces or by `+` (`s + '-v' + n`), a capped grammar reached under another name or handed to a helper, a parser made of `.startsWith('j_')` / `.slice(2)` / `.split('-')`, the mirror's patterns used without their caps, and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell, docs)",
+  },
+  {
+    id: 'record-read',
+    title:
+      "a run.json, a timeline.json or a render record (renders/*.json) is read in one place (RECORD_READ_HOME: the readers answer a record or a typed problem), in packages/*/src (entries: each file and how many times it gives a value the type of a run record, a timeline or a render record without the reader (RECORD_READ_TYPES; also inside `Partial<…>`, a union, a list or a `Promise<…>`; a member's type such as `RunRecord['status']` is not one) — the result of `JSON.parse(…)` or of a `readJson(…)` call typed (1) by a cast (`as T`, `as unknown as T`, `<T>…`, through `await`, parentheses and `!`), (2) by a type argument (`readJson<T>(…)`), (3) by the annotation of the variable it initialises, (4) by the declared return type of the function that returns it; (5) any other value cast to one of those types, wherever it came from; (6) a type guard or an assertion function that says a value is one (`v is T`, `asserts v is T`); (7) a call that names one as its type argument (`cast<T>(…)`: a generic cast helper); (8) a parse through a record's or a timeline's schema itself (RECORD_READ_SCHEMAS: `.parse(…)`, `.safeParse(…)` — typed, and past the reader's link, size and version rules); (9) an interface that extends one; and, for each file of RECORD_READ_OWN — the files that read a run folder's or renders/'s file on their own, on purpose, into a shape of their own — every `JSON.parse(…)` it holds, so that such a read is an entry with its reason and one more is a new entry). The types counted include the render record's base types under their own names (RenderBase, StoredRenderBase, RenderFields) and the answers that hold a record (NamedRenderFound, FoundRender, FoundReviewRender). Not seen: a type under an alias or an own interface of the same members (outside RECORD_READ_OWN, that is how a file would read a record out of sight — a render record's members copied into a view of the engine's are such an interface, on purpose); a `JSON.parse(…)` of a record in a file that reads a record on its own and is not in RECORD_READ_OWN, into an untyped value or a shape of its own; a file's own bytes handed to the reader's parsers (parseRunRecord, parseTimeline, parseRenderRecord: the type is the reader's, the link, size and version rules are the caller's); a stored record's plan typed as an edit plan by a member's type (`StoredRender['plan']` is a member's type, not a record); an untyped (`any`) parse result that reaches a record without a cast — behind a helper of another name, or assigned, returned or passed in a later statement; a property or a parameter typed so; and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell)",
+  },
 ];
 
 function parse(ts, rel, text) {
@@ -325,7 +570,11 @@ export function declaredSpecifiers(ts, rel, text) {
 export function specifiersOf(ts, rel, text) {
   const specs = ts.preProcessFile(text, true, true).importedFiles.map((x) => x.fileName);
   const listed = new Set(specs);
-  for (const s of declaredSpecifiers(ts, rel, text)) if (!listed.has(s)) { listed.add(s); specs.push(s); }
+  for (const s of declaredSpecifiers(ts, rel, text))
+    if (!listed.has(s)) {
+      listed.add(s);
+      specs.push(s);
+    }
   return specs;
 }
 
@@ -345,8 +594,18 @@ export function moduleUses(ts, rel, text) {
   const sf = parse(ts, rel, text);
   // The names a `createRequire(…)` result is kept under (a variable or an assignment), whatever createRequire is called.
   const requires = new Set();
-  const inner = (e) => { while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e))) e = e.expression; return e; };
-  const makesRequire = (e) => { e = inner(e); return !!e && ts.isCallExpression(e) && ((ts.isIdentifier(e.expression) && e.expression.text === 'createRequire') || (ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'createRequire')); };
+  const inner = (e) => {
+    while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e))) e = e.expression;
+    return e;
+  };
+  const makesRequire = (e) => {
+    e = inner(e);
+    return (
+      !!e &&
+      ts.isCallExpression(e) &&
+      ((ts.isIdentifier(e.expression) && e.expression.text === 'createRequire') || (ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'createRequire'))
+    );
+  };
   if (text.includes('createRequire')) {
     (function collect(n) {
       if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && makesRequire(n.initializer)) requires.add(n.name.text);
@@ -354,24 +613,36 @@ export function moduleUses(ts, rel, text) {
       n.forEachChild(collect);
     })(sf);
   }
-  const madeRequire = (callee) => { callee = inner(callee); return makesRequire(callee) || (!!callee && ts.isIdentifier(callee) && requires.has(callee.text)); };
+  const madeRequire = (callee) => {
+    callee = inner(callee);
+    return makesRequire(callee) || (!!callee && ts.isIdentifier(callee) && requires.has(callee.text));
+  };
   (function visit(n) {
     if (ts.isImportDeclaration(n)) {
       const c = n.importClause;
       const typeOnly = !!c && (c.isTypeOnly || (!c.name && !!c.namedBindings && ts.isNamedImports(c.namedBindings) && allTypes(c.namedBindings.elements)));
       const spec = literal(ts, n.moduleSpecifier);
-      if (spec !== undefined && !typeOnly) { values.add(spec); statics.add(spec); }
+      if (spec !== undefined && !typeOnly) {
+        values.add(spec);
+        statics.add(spec);
+      }
       return;
     }
     if (ts.isExportDeclaration(n)) {
       const spec = literal(ts, n.moduleSpecifier);
       const typeOnly = n.isTypeOnly || (!!n.exportClause && ts.isNamedExports(n.exportClause) && allTypes(n.exportClause.elements));
-      if (spec !== undefined && !typeOnly) { values.add(spec); statics.add(spec); }
+      if (spec !== undefined && !typeOnly) {
+        values.add(spec);
+        statics.add(spec);
+      }
       return;
     }
     if (ts.isImportEqualsDeclaration(n)) {
       const spec = ts.isExternalModuleReference(n.moduleReference) ? literal(ts, n.moduleReference.expression) : undefined;
-      if (spec !== undefined && !n.isTypeOnly) { values.add(spec); statics.add(spec); }
+      if (spec !== undefined && !n.isTypeOnly) {
+        values.add(spec);
+        statics.add(spec);
+      }
       return;
     }
     if (ts.isCallExpression(n)) {
@@ -412,9 +683,18 @@ export function importsOnly(ts, rel, text, spec, allowed) {
       if (!c || c.name || !b || !ts.isNamedImports(b) || !b.elements.every((e) => e.isTypeOnly || allowed.includes((e.propertyName ?? e.name).text))) ok = false;
       return;
     }
-    if (ts.isExportDeclaration(n) && literal(ts, n.moduleSpecifier) === spec) { ok = false; return; }
-    if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference) && literal(ts, n.moduleReference.expression) === spec) { ok = false; return; }
-    if (ts.isCallExpression(n) && (n.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(n.expression) && n.expression.text === 'require')) && literal(ts, n.arguments[0]) === spec) { ok = false; return; }
+    if (ts.isExportDeclaration(n) && literal(ts, n.moduleSpecifier) === spec) {
+      ok = false;
+      return;
+    }
+    if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference) && literal(ts, n.moduleReference.expression) === spec) {
+      ok = false;
+      return;
+    }
+    if (ts.isCallExpression(n) && (n.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(n.expression) && n.expression.text === 'require')) && literal(ts, n.arguments[0]) === spec) {
+      ok = false;
+      return;
+    }
     n.forEachChild(visit);
   })(parse(ts, rel, text));
   return ok && seen;
@@ -481,7 +761,13 @@ const QUEUE_CLASS = 'FileJobQueue';
  * workspaceQueue (its in-process commands read the queue so that their pruning spares the folders of active jobs) —
  * and the adapter's own file (its withOwnMemory() makes one).
  */
-const QUEUE_ROOTS = ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts', 'packages/cli/src/workspace.ts'];
+const QUEUE_ROOTS = [
+  'packages/engine/src/engine.ts',
+  'packages/engine/src/jobs/worker.ts',
+  'packages/engine/src/jobs/job-child.ts',
+  'packages/engine/src/jobs/queue.ts',
+  'packages/cli/src/workspace.ts',
+];
 /** The file queue's own file: its withOwnMemory() hands its clock on through `this.clock`, its constructor has the default. */
 const QUEUE_ADAPTER = 'packages/engine/src/jobs/queue.ts';
 const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
@@ -518,18 +804,31 @@ const constText = (ts, e) => {
   return undefined;
 };
 /** The name a property key spells (`a`, `'a'`, `['a']`, `['a' + 'b']`), undefined when it is computed at run time. */
-const keyText = (ts, name) => (!name ? undefined : ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name) ? name.text : ts.isComputedPropertyName(name) ? constText(ts, name.expression) : undefined);
+const keyText = (ts, name) =>
+  !name
+    ? undefined
+    : ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)
+      ? name.text
+      : ts.isComputedPropertyName(name)
+        ? constText(ts, name.expression)
+        : undefined;
 /** Whether an object literal is written to, not read: the left side of `=`, a `for … of` target, or nested in one. */
 const assignedTo = (ts, obj) => {
   let n = obj;
   for (;;) {
     const p = n.parent;
     if (!p) return false;
-    if (ts.isParenthesizedExpression(p)) { n = p; continue; }
+    if (ts.isParenthesizedExpression(p)) {
+      n = p;
+      continue;
+    }
     if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return p.left === n;
     if (ts.isForOfStatement(p) || ts.isForInStatement(p)) return p.initializer === n;
     // Nested patterns: `({ a: { renderVideo: f } } = x)`, `[{ renderVideo: f }] = xs`, a default (`{ … } = {}` inside).
-    if ((ts.isPropertyAssignment(p) && p.initializer === n) || ts.isArrayLiteralExpression(p) || ts.isObjectLiteralExpression(p) || ts.isSpreadElement(p) || ts.isSpreadAssignment(p)) { n = p; continue; }
+    if ((ts.isPropertyAssignment(p) && p.initializer === n) || ts.isArrayLiteralExpression(p) || ts.isObjectLiteralExpression(p) || ts.isSpreadElement(p) || ts.isSpreadAssignment(p)) {
+      n = p;
+      continue;
+    }
     return false;
   }
 };
@@ -596,14 +895,29 @@ export function wiringHits(root, files) {
       const p = n.parent;
       if (!p) return false;
       if ((ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n)) return true;
-      if ((ts.isClassDeclaration(p) || ts.isFunctionDeclaration(p) || ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isPropertyDeclaration(p) || ts.isMethodDeclaration(p) || ts.isBindingElement(p)) && p.name === n) return true;
+      if (
+        (ts.isClassDeclaration(p) ||
+          ts.isFunctionDeclaration(p) ||
+          ts.isVariableDeclaration(p) ||
+          ts.isParameter(p) ||
+          ts.isPropertyDeclaration(p) ||
+          ts.isMethodDeclaration(p) ||
+          ts.isBindingElement(p)) &&
+        p.name === n
+      )
+        return true;
       if (ts.isNewExpression(p) && p.expression === n) return true;
       return ts.isExpressionWithTypeArguments(p) && p.expression === n;
     };
     (function visit(n, inType = false) {
       if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) return;
       // Type positions (annotations, `typeof`, generics, `implements`, type declarations) never use the class as a value.
-      const typeHere = inType || (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
+      const typeHere =
+        inType ||
+        (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) ||
+        ts.isInterfaceDeclaration(n) ||
+        ts.isTypeAliasDeclaration(n) ||
+        (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
       if (queue && !typeHere && ts.isNewExpression(n) && nameOf(n.expression) === QUEUE_CLASS) found.add(`queue:new ${QUEUE_CLASS}`);
       if (queueClock && !typeHere && ts.isNewExpression(n) && nameOf(n.expression) === QUEUE_CLASS) {
         // Fewer than three arguments, or a third that says none: `undefined`, `void 0` (the adapter's default would apply).
@@ -622,14 +936,24 @@ export function wiringHits(root, files) {
       }
       if (render && !typeHere) {
         // Any way a render function is taken off something: called or not, so an alias (`const f = ed.renderVideo`) counts.
-        const member = ts.isPropertyAccessExpression(n) ? n.name.text
-          : ts.isElementAccessExpression(n) ? constText(ts, n.argumentExpression)
-            : ts.isBindingElement(n) ? (n.propertyName ? keyText(ts, n.propertyName) : ts.isIdentifier(n.name) ? n.name.text : undefined)
-              : ts.isShorthandPropertyAssignment(n) ? n.name.text
-                // An assignment's pattern: `({ renderVideo: f } = ed)` (a key being defined in an object that is read is not a use).
-                : ts.isPropertyAssignment(n) && assignedTo(ts, n.parent) ? keyText(ts, n.name)
-                  // `import f = ed.renderVideo` (an alias of a namespace's member).
-                  : ts.isImportEqualsDeclaration(n) && ts.isQualifiedName(n.moduleReference) ? n.moduleReference.right.text
+        const member = ts.isPropertyAccessExpression(n)
+          ? n.name.text
+          : ts.isElementAccessExpression(n)
+            ? constText(ts, n.argumentExpression)
+            : ts.isBindingElement(n)
+              ? n.propertyName
+                ? keyText(ts, n.propertyName)
+                : ts.isIdentifier(n.name)
+                  ? n.name.text
+                  : undefined
+              : ts.isShorthandPropertyAssignment(n)
+                ? n.name.text
+                : // An assignment's pattern: `({ renderVideo: f } = ed)` (a key being defined in an object that is read is not a use).
+                  ts.isPropertyAssignment(n) && assignedTo(ts, n.parent)
+                  ? keyText(ts, n.name)
+                  : // `import f = ed.renderVideo` (an alias of a namespace's member).
+                    ts.isImportEqualsDeclaration(n) && ts.isQualifiedName(n.moduleReference)
+                    ? n.moduleReference.right.text
                     : undefined;
         if (member !== undefined && RENDER_CALL_SET.has(member)) found.add(`render-call:${member}`);
       }
@@ -642,7 +966,10 @@ export function wiringHits(root, files) {
       }
       n.forEachChild((c) => visit(c, typeHere));
     })(sf);
-    for (const k of found) { const i = k.indexOf(':'); hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) }); }
+    for (const k of found) {
+      const i = k.indexOf(':');
+      hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) });
+    }
   }
   return hits;
 }
@@ -717,18 +1044,31 @@ export function portHits(root, files) {
     const notAValue = (n) => {
       const p = n.parent;
       if (!p) return true;
-      if ((ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n) || (ts.isMethodDeclaration(p) && p.name === n) || (ts.isPropertySignature(p) && p.name === n)) return true;
-      if ((ts.isClassDeclaration(p) || ts.isFunctionDeclaration(p) || ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isPropertyDeclaration(p) || ts.isBindingElement(p)) && p.name === n) return true;
+      if (
+        (ts.isPropertyAccessExpression(p) && p.name === n) ||
+        (ts.isPropertyAssignment(p) && p.name === n) ||
+        (ts.isMethodDeclaration(p) && p.name === n) ||
+        (ts.isPropertySignature(p) && p.name === n)
+      )
+        return true;
+      if ((ts.isClassDeclaration(p) || ts.isFunctionDeclaration(p) || ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isPropertyDeclaration(p) || ts.isBindingElement(p)) && p.name === n)
+        return true;
       return false;
     };
     // `now` taken out of Date by a pattern: `const { now } = Date`, `const { now: t } = Date`, `({ now } = Date)`.
     const patternNow = (pattern) =>
       (ts.isObjectBindingPattern(pattern) && pattern.elements.some((e) => (e.propertyName ? keyText(ts, e.propertyName) : ts.isIdentifier(e.name) ? e.name.text : undefined) === 'now')) ||
-      (ts.isObjectLiteralExpression(pattern) && pattern.properties.some((p) => (ts.isShorthandPropertyAssignment(p) ? p.name.text : ts.isPropertyAssignment(p) ? keyText(ts, p.name) : undefined) === 'now'));
+      (ts.isObjectLiteralExpression(pattern) &&
+        pattern.properties.some((p) => (ts.isShorthandPropertyAssignment(p) ? p.name.text : ts.isPropertyAssignment(p) ? keyText(ts, p.name) : undefined) === 'now'));
     const portHit = (name) => found.add(`${PORT_ROOT_RULE[name]}:${name} outside a root`);
     (function visit(n, inType = false) {
       if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) return;
-      const typeHere = inType || (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
+      const typeHere =
+        inType ||
+        (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) ||
+        ts.isInterfaceDeclaration(n) ||
+        ts.isTypeAliasDeclaration(n) ||
+        (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
       if (!typeHere) {
         if (reads) {
           const read =
@@ -741,7 +1081,15 @@ export function portHits(root, files) {
           if (read) lines.push(sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1);
         }
         // A watched name used as a value: under its name, an alias, or off a namespace import.
-        const name = ts.isIdentifier(n) ? (notAValue(n) ? undefined : origOf(n)) : ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n) ? origOf(n) : ts.isShorthandPropertyAssignment(n) ? origOf(n.name) : undefined;
+        const name = ts.isIdentifier(n)
+          ? notAValue(n)
+            ? undefined
+            : origOf(n)
+          : ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)
+            ? origOf(n)
+            : ts.isShorthandPropertyAssignment(n)
+              ? origOf(n.name)
+              : undefined;
         if (name !== undefined && named.includes(name)) portHit(name);
         if (stores) {
           if (ts.isNewExpression(n) && STORE_CLASSES.has(origOf(n.expression) ?? '')) found.add(`store-new:new ${origOf(n.expression)}`);
@@ -756,7 +1104,10 @@ export function portHits(root, files) {
       n.forEachChild((c) => visit(c, typeHere));
     })(sf);
     if (lines.length) clock.push({ file: rel, count: lines.length, lines });
-    for (const k of found) { const i = k.indexOf(':'); hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) }); }
+    for (const k of found) {
+      const i = k.indexOf(':');
+      hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) });
+    }
   }
   return { clock, hits };
 }
@@ -811,7 +1162,8 @@ export function loaderHits(root, files) {
       if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && namesLoader(rel, literal(ts, n.arguments[0]) ?? '')) found.add('import() of lazy.ts');
       if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'require' && namesLoader(rel, literal(ts, n.arguments[0]) ?? '')) found.add('require() of lazy.ts');
       // `import lazy = require('./lazy.js')`: the loader file whole, as `import * as` (a type-only one loads nothing).
-      if (ts.isImportEqualsDeclaration(n) && !n.isTypeOnly && ts.isExternalModuleReference(n.moduleReference) && namesLoader(rel, literal(ts, n.moduleReference.expression) ?? '')) found.add('* as lazy');
+      if (ts.isImportEqualsDeclaration(n) && !n.isTypeOnly && ts.isExternalModuleReference(n.moduleReference) && namesLoader(rel, literal(ts, n.moduleReference.expression) ?? ''))
+        found.add('* as lazy');
       n.forEachChild(visit);
     })(sf);
     for (const k of found) hits.push({ rule: 'loader-use', file: rel, spec: k });
@@ -868,7 +1220,13 @@ export function shellOpHits(root, files) {
       if (ts.isCallExpression(n)) {
         const e = n.expression;
         if (ts.isIdentifier(e) && names.has(e.text)) count++;
-        else if ((ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) && ts.isIdentifier(e.expression) && spaces.has(e.expression.text) && OPERATION_DEFINERS.includes(member(e) ?? '')) count++;
+        else if (
+          (ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) &&
+          ts.isIdentifier(e.expression) &&
+          spaces.has(e.expression.text) &&
+          OPERATION_DEFINERS.includes(member(e) ?? '')
+        )
+          count++;
       }
       n.forEachChild(visit);
     })(sf);
@@ -878,7 +1236,10 @@ export function shellOpHits(root, files) {
 }
 
 /** The HookRunner members of the hooks use cases (hook-call): `<hooks>.run`, `<journals>.…`. */
-const HOOK_RUN_MEMBERS = new Map([['hooks', new Set(['run'])], ['journals', new Set(['rollback', 'openPending', 'rollbackPending'])]]);
+const HOOK_RUN_MEMBERS = new Map([
+  ['hooks', new Set(['run'])],
+  ['journals', new Set(['rollback', 'openPending', 'rollbackPending'])],
+]);
 const HOOK_CONTEXT = 'createHookContext';
 
 /**
@@ -914,7 +1275,8 @@ export function hookCallHits(root, files) {
     // `(f)`, `(0, f)`, `f as T`, `f!`, `<T>f`, `f satisfies T`: the expression that is called.
     const unwrap = (e) => {
       for (;;) {
-        if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e) || (ts.isTypeAssertionExpression?.(e) ?? false) || (ts.isSatisfiesExpression?.(e) ?? false)) e = e.expression;
+        if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e) || (ts.isTypeAssertionExpression?.(e) ?? false) || (ts.isSatisfiesExpression?.(e) ?? false))
+          e = e.expression;
         else if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.CommaToken) e = e.right;
         else return e;
       }
@@ -1000,7 +1362,8 @@ export function mediaCallHits(root, files) {
     // `(f)`, `(0, f)`, `f as T`, `f!`, `<T>f`, `f satisfies T`: the expression that is called (as hook-call reads it).
     const unwrap = (e) => {
       for (;;) {
-        if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e) || (ts.isTypeAssertionExpression?.(e) ?? false) || (ts.isSatisfiesExpression?.(e) ?? false)) e = e.expression;
+        if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e) || (ts.isTypeAssertionExpression?.(e) ?? false) || (ts.isSatisfiesExpression?.(e) ?? false))
+          e = e.expression;
         else if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.CommaToken) e = e.right;
         else return e;
       }
@@ -1048,19 +1411,34 @@ export function coreContextHits(root, files) {
     if (!rel.startsWith(CORE_SRC) || rel.startsWith(CORE_IO_DIR) || rel === `${CORE_SRC}index.ts`) continue;
     const entry = rel.startsWith(CORE_ENTRIES_DIR) ? rel.slice(CORE_ENTRIES_DIR.length, -3) : undefined;
     const own = entry ?? coreContextOf(rel);
-    if (entry !== undefined && !rank.has(entry)) { hits.push({ rule: 'core-context', file: rel, spec: 'an entry of no context' }); continue; }
-    if (own === undefined) { hits.push({ rule: 'core-context', file: rel, spec: 'unassigned' }); continue; }
+    if (entry !== undefined && !rank.has(entry)) {
+      hits.push({ rule: 'core-context', file: rel, spec: 'an entry of no context' });
+      continue;
+    }
+    if (own === undefined) {
+      hits.push({ rule: 'core-context', file: rel, spec: 'unassigned' });
+      continue;
+    }
     const values = moduleUses(ts, rel, text).values;
     for (const s of new Set(specifiersOf(ts, rel, text))) {
       // Core's own package name: the root or an entry, never a context's file (the io side is R1's).
-      if (s === '@retake/core' || (s.startsWith('@retake/core/') && s !== '@retake/core/io' && !s.startsWith('@retake/core/io/'))) { hits.push({ rule: 'core-context', file: rel, spec: `${s} (an entry)` }); continue; }
+      if (s === '@retake/core' || (s.startsWith('@retake/core/') && s !== '@retake/core/io' && !s.startsWith('@retake/core/io/'))) {
+        hits.push({ rule: 'core-context', file: rel, spec: `${s} (an entry)` });
+        continue;
+      }
       if (!s.startsWith('.')) continue;
       const to = path.posix.normalize(path.posix.join(path.posix.dirname(rel), s)).replace(/\.js$/, '.ts');
       if (!to.startsWith(CORE_SRC) || to.startsWith(CORE_IO_DIR)) continue;
-      if (to.startsWith(CORE_ENTRIES_DIR) || to === `${CORE_SRC}index.ts`) { hits.push({ rule: 'core-context', file: rel, spec: `${to} (an entry)` }); continue; }
+      if (to.startsWith(CORE_ENTRIES_DIR) || to === `${CORE_SRC}index.ts`) {
+        hits.push({ rule: 'core-context', file: rel, spec: `${to} (an entry)` });
+        continue;
+      }
       const theirs = coreContextOf(to);
       if (theirs === undefined) continue;
-      if (entry !== undefined) { if (theirs !== entry) hits.push({ rule: 'core-context', file: rel, spec: `${to} (outside its context)` }); continue; }
+      if (entry !== undefined) {
+        if (theirs !== entry) hits.push({ rule: 'core-context', file: rel, spec: `${to} (outside its context)` });
+        continue;
+      }
       if (rank.get(theirs) <= rank.get(own)) continue;
       if (theirs === CORE_SHARED_CONTEXT && !values.has(s)) continue;
       hits.push({ rule: 'core-context', file: rel, spec: to });
@@ -1074,9 +1452,19 @@ export function coreRootHits(root, files) {
   const ts = loadTs(root);
   const pj = path.join(root, 'packages', 'core', 'package.json');
   // A tree without core's package.json (a test's scratch tree): its root is still a hit, its sub-paths are not read.
-  const exportsOf = fs.existsSync(pj) ? JSON.parse(fs.readFileSync(pj, 'utf8')).exports ?? {} : { './*': {} };
-  const keys = Object.keys(exportsOf).filter((k) => k !== '.').map((k) => `@retake/core/${k.slice(2)}`);
-  const patterns = keys.map((k) => new RegExp(`^${k.split('*').map((x) => x.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('[^/]+')}$`));
+  const exportsOf = fs.existsSync(pj) ? (JSON.parse(fs.readFileSync(pj, 'utf8')).exports ?? {}) : { './*': {} };
+  const keys = Object.keys(exportsOf)
+    .filter((k) => k !== '.')
+    .map((k) => `@retake/core/${k.slice(2)}`);
+  const patterns = keys.map(
+    (k) =>
+      new RegExp(
+        `^${k
+          .split('*')
+          .map((x) => x.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'))
+          .join('[^/]+')}$`,
+      ),
+  );
   const isEntry = (s) => patterns.some((p) => p.test(s));
   const hits = [];
   for (const { rel, pkg, text } of files) {
@@ -1145,8 +1533,15 @@ export function layoutHits(root, files) {
       }
     });
     const isSpace = (e) => (ts.isIdentifier(e) && spaces.has(e.text)) || (ts.isPropertyAccessExpression(e) && ['posix', 'win32'].includes(e.name.text) && isSpace(e.expression));
-    const isPathCall = (callee) => (ts.isIdentifier(callee) && fns.has(callee.text)) || (ts.isPropertyAccessExpression(callee) && ['join', 'resolve'].includes(callee.name.text) && isSpace(callee.expression));
-    const isSpecifier = (n) => n.parent && (ts.isImportDeclaration(n.parent) || ts.isExportDeclaration(n.parent) || ts.isExternalModuleReference(n.parent) || (ts.isCallExpression(n.parent) && n.parent.expression.kind === ts.SyntaxKind.ImportKeyword) || ts.isLiteralTypeNode(n.parent) && ts.isImportTypeNode(n.parent.parent));
+    const isPathCall = (callee) =>
+      (ts.isIdentifier(callee) && fns.has(callee.text)) || (ts.isPropertyAccessExpression(callee) && ['join', 'resolve'].includes(callee.name.text) && isSpace(callee.expression));
+    const isSpecifier = (n) =>
+      n.parent &&
+      (ts.isImportDeclaration(n.parent) ||
+        ts.isExportDeclaration(n.parent) ||
+        ts.isExternalModuleReference(n.parent) ||
+        (ts.isCallExpression(n.parent) && n.parent.expression.kind === ts.SyntaxKind.ImportKeyword) ||
+        (ts.isLiteralTypeNode(n.parent) && ts.isImportTypeNode(n.parent.parent)));
     const hit = new Set();
     (function visit(n) {
       if (ts.isCallExpression(n) && isPathCall(n.expression)) {
@@ -1194,9 +1589,17 @@ export function idGrammarHits(root, files) {
   for (const { rel, text } of files) {
     if (ID_HOMES.includes(rel) || ID_MIRRORS.includes(rel)) continue;
     const sf = parse(ts, rel, text);
-    const isSpecifier = (n) => n.parent && (ts.isImportDeclaration(n.parent) || ts.isExportDeclaration(n.parent) || ts.isExternalModuleReference(n.parent) || (ts.isCallExpression(n.parent) && n.parent.expression.kind === ts.SyntaxKind.ImportKeyword) || (ts.isLiteralTypeNode(n.parent) && ts.isImportTypeNode(n.parent.parent)));
+    const isSpecifier = (n) =>
+      n.parent &&
+      (ts.isImportDeclaration(n.parent) ||
+        ts.isExportDeclaration(n.parent) ||
+        ts.isExternalModuleReference(n.parent) ||
+        (ts.isCallExpression(n.parent) && n.parent.expression.kind === ts.SyntaxKind.ImportKeyword) ||
+        (ts.isLiteralTypeNode(n.parent) && ts.isImportTypeNode(n.parent.parent)));
     const hit = new Map(); // node → kind (the first that matched)
-    const add = (n, kind) => { if (!hit.has(n)) hit.set(n, kind); };
+    const add = (n, kind) => {
+      if (!hit.has(n)) hit.set(n, kind);
+    };
     (function visit(n) {
       if (ts.isRegularExpressionLiteral(n)) {
         const source = n.text.slice(1, n.text.lastIndexOf('/'));
@@ -1245,21 +1648,52 @@ export const RECORD_READ_HOME = [
  * record type is named, so kinds 1-9 see nothing): each `JSON.parse(…)` there is counted, and the baseline holds the
  * reason.
  */
-export const RECORD_READ_OWN = [
-  'packages/engine/src/prune.ts',
-  'packages/engine/src/jobs/run-job.ts',
-];
+export const RECORD_READ_OWN = ['packages/engine/src/prune.ts', 'packages/engine/src/jobs/run-job.ts'];
 /** The schemas of a run record, of a timeline and of a render record: a parse through one outside the reader is typed without it. */
-export const RECORD_READ_SCHEMAS = ['RunRecordSchema', 'StoredRunRecordSchema', 'UnknownStatusRunSchema', 'TimelineSchema', 'RenderRecordSchema', 'RenderAttemptSchema', 'StoredRenderRecordSchema', 'UnknownStatusRenderSchema'];
+export const RECORD_READ_SCHEMAS = [
+  'RunRecordSchema',
+  'StoredRunRecordSchema',
+  'UnknownStatusRunSchema',
+  'TimelineSchema',
+  'RenderRecordSchema',
+  'RenderAttemptSchema',
+  'StoredRenderRecordSchema',
+  'UnknownStatusRenderSchema',
+];
 /**
  * The types of a run record, of a timeline and of a render record (core run-record.ts, types.ts, render-record.ts; the
  * editor's names for a render record with its plan; the engine's names for a read record).
  */
 export const RECORD_READ_TYPES = [
-  'RunRecord', 'StoredRunRecord', 'UnknownStatusRun', 'RunRecordOnDisk', 'QueuedRun', 'RunningRun', 'SucceededRun', 'FailedRun', 'CancelledRun', 'FinishedRun', 'Timeline', 'TimelineHead',
-  'RenderRecord', 'StoredRenderRecord', 'StoredRender', 'NamedRender', 'ProjectRender', 'FinishedRender', 'RenderAttempt', 'UnknownStatusRender', 'RenderForWork',
+  'RunRecord',
+  'StoredRunRecord',
+  'UnknownStatusRun',
+  'RunRecordOnDisk',
+  'QueuedRun',
+  'RunningRun',
+  'SucceededRun',
+  'FailedRun',
+  'CancelledRun',
+  'FinishedRun',
+  'Timeline',
+  'TimelineHead',
+  'RenderRecord',
+  'StoredRenderRecord',
+  'StoredRender',
+  'NamedRender',
+  'ProjectRender',
+  'FinishedRender',
+  'RenderAttempt',
+  'UnknownStatusRender',
+  'RenderForWork',
   // The render record's base types (exported under their own names) and the answers that hold a record (L7.6b fix pass).
-  'RenderBase', 'StoredRenderBase', 'RenderFields', 'CompleteRender', 'NamedRenderFound', 'FoundRender', 'FoundReviewRender',
+  'RenderBase',
+  'StoredRenderBase',
+  'RenderFields',
+  'CompleteRender',
+  'NamedRenderFound',
+  'FoundRender',
+  'FoundReviewRender',
 ];
 /** The calls whose result is a parsed file: `JSON.parse(…)`, and `readJson(…)` under that name (also `x.readJson(…)`). */
 const RECORD_PARSERS = ['readJson'];
@@ -1279,7 +1713,10 @@ export function recordReadHits(root, files) {
       if (yes || ts.isIndexedAccessTypeNode(n) || ts.isTypeOperatorNode(n) || ts.isTypeQueryNode(n)) return;
       // `RunRecord`, `core.RunRecord`, and the type reached without an import: `import('@retake/core').RunRecord`.
       const ref = ts.isTypeReferenceNode(n) ? n.typeName : ts.isImportTypeNode(n) ? n.qualifier : undefined;
-      if (ref && RECORD_READ_TYPES.includes(ts.isIdentifier(ref) ? ref.text : ref.right.text)) { yes = true; return; }
+      if (ref && RECORD_READ_TYPES.includes(ts.isIdentifier(ref) ? ref.text : ref.right.text)) {
+        yes = true;
+        return;
+      }
       n.forEachChild(visit);
     })(t);
     return yes;
@@ -1289,8 +1726,10 @@ export function recordReadHits(root, files) {
   const bare = (e, casts = []) => {
     for (;;) {
       if (ts.isParenthesizedExpression(e) || ts.isAwaitExpression(e) || ts.isNonNullExpression(e) || (ts.isSatisfiesExpression?.(e) ?? false)) e = e.expression;
-      else if (isAssertion(e)) { casts.push(e.type); e = e.expression; }
-      else return e;
+      else if (isAssertion(e)) {
+        casts.push(e.type);
+        e = e.expression;
+      } else return e;
     }
   };
   const parser = (e) => {
@@ -1309,7 +1748,9 @@ export function recordReadHits(root, files) {
     const own = RECORD_READ_OWN.includes(rel);
     const schemaName = (e) => (ts.isIdentifier(e) ? RECORD_READ_SCHEMAS.includes(e.text) : ts.isPropertyAccessExpression(e) && RECORD_READ_SCHEMAS.includes(e.name.text));
     const hit = new Map(); // the parse call, or the cast → kind (the first that matched)
-    const add = (n, kind) => { if (!hit.has(n)) hit.set(n, kind); };
+    const add = (n, kind) => {
+      if (!hit.has(n)) hit.set(n, kind);
+    };
     (function visit(n) {
       if (isAssertion(n)) {
         const casts = [];
@@ -1320,7 +1761,13 @@ export function recordReadHits(root, files) {
       } else if (ts.isCallExpression(n) && parser(n) && (n.typeArguments ?? []).some(named)) add(n, 2);
       // A generic cast helper: any other call that names a record as its type argument.
       else if (ts.isCallExpression(n) && (n.typeArguments ?? []).some(named)) add(n, 7);
-      else if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ['parse', 'safeParse', 'parseAsync', 'safeParseAsync'].includes(n.expression.name.text) && schemaName(n.expression.expression)) add(n, 8);
+      else if (
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        ['parse', 'safeParse', 'parseAsync', 'safeParseAsync'].includes(n.expression.name.text) &&
+        schemaName(n.expression.expression)
+      )
+        add(n, 8);
       else if (ts.isTypePredicateNode(n) && n.type && named(n.type)) add(n, 6);
       else if (ts.isHeritageClause(n) && n.types.some((t) => ts.isIdentifier(t.expression) && RECORD_READ_TYPES.includes(t.expression.text))) add(n, 9);
       else if (own && ts.isCallExpression(n) && parser(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'parse') add(n, 10);
@@ -1384,11 +1831,11 @@ export const LIBRARY_FREE_DIRS = ['packages/components/library', 'packages/compo
  */
 export function libraryFreeSources(root) {
   const pkgsDir = path.join(root, 'packages');
-  const unscanned = fs.existsSync(pkgsDir)
-    ? fs.readdirSync(pkgsDir).flatMap((d) => walk(path.join(pkgsDir, d, 'src'), [], (name) => isSource(name) && !isScanned(name)))
-    : [];
-  return [...LIBRARY_FREE_DIRS.flatMap((d) => walk(path.join(root, d), [], isSource)), ...unscanned]
-    .map((f) => ({ rel: path.relative(root, f).split(path.sep).join('/'), text: fs.readFileSync(f, 'utf8') }));
+  const unscanned = fs.existsSync(pkgsDir) ? fs.readdirSync(pkgsDir).flatMap((d) => walk(path.join(pkgsDir, d, 'src'), [], (name) => isSource(name) && !isScanned(name))) : [];
+  return [...LIBRARY_FREE_DIRS.flatMap((d) => walk(path.join(root, d), [], isSource)), ...unscanned].map((f) => ({
+    rel: path.relative(root, f).split(path.sep).join('/'),
+    text: fs.readFileSync(f, 'utf8'),
+  }));
 }
 
 /**
@@ -1418,7 +1865,11 @@ export function libraryFreeSources(root) {
 export function seamHits(root, files) {
   const ts = loadTs(root);
   const hits = [];
-  const pkgName = (s) => s.split('/').slice(0, s.startsWith('@') ? 2 : 1).join('/');
+  const pkgName = (s) =>
+    s
+      .split('/')
+      .slice(0, s.startsWith('@') ? 2 : 1)
+      .join('/');
   /** The seam file a relative specifier of `rel` points at, if any. */
   const seamAt = (rel, spec) => {
     if (!spec?.startsWith('.')) return undefined;
@@ -1436,16 +1887,31 @@ export function seamHits(root, files) {
       const target = seamAt(rel, s);
       if (target && target !== rel && Object.hasOwn(LIBRARY_SEAM_IMPORTERS, target) && path.posix.dirname(rel) !== LIBRARY_SEAM_IMPORTERS[target]) found.add(`seam ${target}`);
     };
-    const resolves = (s) => { if (s !== undefined && LIBRARY_SPEC.test(s) && !seam?.resolve.includes(pkgName(s)) && !seam?.load.includes(pkgName(s))) found.add(`resolve(${s})`); };
-    const inner = (e) => { while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e))) e = e.expression; return e; };
-    const makesRequire = (e) => { e = inner(e); return !!e && ts.isCallExpression(e) && ((ts.isIdentifier(e.expression) && e.expression.text === 'createRequire') || (ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'createRequire')); };
+    const resolves = (s) => {
+      if (s !== undefined && LIBRARY_SPEC.test(s) && !seam?.resolve.includes(pkgName(s)) && !seam?.load.includes(pkgName(s))) found.add(`resolve(${s})`);
+    };
+    const inner = (e) => {
+      while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e))) e = e.expression;
+      return e;
+    };
+    const makesRequire = (e) => {
+      e = inner(e);
+      return (
+        !!e &&
+        ts.isCallExpression(e) &&
+        ((ts.isIdentifier(e.expression) && e.expression.text === 'createRequire') || (ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'createRequire'))
+      );
+    };
     const requires = new Set(['require']);
     (function collect(n) {
       if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && makesRequire(n.initializer)) requires.add(n.name.text);
       if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.left) && makesRequire(n.right)) requires.add(n.left.text);
       n.forEachChild(collect);
     })(sf);
-    const isRequire = (e) => { e = inner(e); return !!e && ((ts.isIdentifier(e) && requires.has(e.text)) || makesRequire(e)); };
+    const isRequire = (e) => {
+      e = inner(e);
+      return !!e && ((ts.isIdentifier(e) && requires.has(e.text)) || makesRequire(e));
+    };
     (function visit(n) {
       if (ts.isImportDeclaration(n)) loads(literal(ts, n.moduleSpecifier));
       else if (ts.isExportDeclaration(n)) {
@@ -1453,12 +1919,19 @@ export function seamHits(root, files) {
         loads(spec);
         const target = seam ? undefined : seamAt(rel, spec);
         if (target && !found.has(`seam ${target}`) && (!n.exportClause || ts.isNamespaceExport(n.exportClause))) found.add(`export * from ${target}`);
-      } else if (ts.isImportEqualsDeclaration(n)) { if (ts.isExternalModuleReference(n.moduleReference)) loads(literal(ts, n.moduleReference.expression)); }
-      else if (ts.isImportTypeNode(n)) { if (ts.isLiteralTypeNode(n.argument)) loads(literal(ts, n.argument.literal)); }
-      else if (ts.isCallExpression(n)) {
+      } else if (ts.isImportEqualsDeclaration(n)) {
+        if (ts.isExternalModuleReference(n.moduleReference)) loads(literal(ts, n.moduleReference.expression));
+      } else if (ts.isImportTypeNode(n)) {
+        if (ts.isLiteralTypeNode(n.argument)) loads(literal(ts, n.argument.literal));
+      } else if (ts.isCallExpression(n)) {
         const callee = inner(n.expression);
         if (callee.kind === ts.SyntaxKind.ImportKeyword || isRequire(callee)) loads(literal(ts, n.arguments[0]));
-        else if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'resolve' && (isRequire(callee.expression) || (ts.isMetaProperty(inner(callee.expression)) && inner(callee.expression).name.text === 'meta'))) resolves(literal(ts, n.arguments[0]));
+        else if (
+          ts.isPropertyAccessExpression(callee) &&
+          callee.name.text === 'resolve' &&
+          (isRequire(callee.expression) || (ts.isMetaProperty(inner(callee.expression)) && inner(callee.expression).name.text === 'meta'))
+        )
+          resolves(literal(ts, n.arguments[0]));
       }
       n.forEachChild(visit);
     })(sf);
@@ -1473,7 +1946,16 @@ export function seamHits(root, files) {
  */
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
-  for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)]), ...loaderHits(root, scanned.files), ...portTypeHits(scanned.fileImports), ...coreContextHits(root, scanned.files), ...coreRootHits(root, scanned.files)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
+  for (const h of [
+    ...ruleHits(root, scanned.fileImports),
+    ...wiringHits(root, scanned.files),
+    ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)]),
+    ...loaderHits(root, scanned.files),
+    ...portTypeHits(scanned.fileImports),
+    ...coreContextHits(root, scanned.files),
+    ...coreRootHits(root, scanned.files),
+  ])
+    set.add(`${h.rule} ${h.file} → ${h.spec}`);
   const ports = portHits(root, scanned.files);
   for (const h of ports.hits) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   for (const h of ports.clock) set.add(`clock-read ${h.file} → ${h.count} wall-clock read${h.count === 1 ? '' : 's'}`);
@@ -1554,9 +2036,14 @@ export function rewriteBaseline(entries, baseline) {
   }
   for (const e of entries) {
     const group = e.startsWith('cycle ') && !kept.has(e) ? cycleGroups.get(cycleOf(e.slice(6))) : undefined;
-    if (group) { group.entries.push(e.slice(6)); kept.add(e); }
+    if (group) {
+      group.entries.push(e.slice(6));
+      kept.add(e);
+    }
   }
-  for (let i = groups.length - 1; i >= 0; i--) if (groups[i].entries.length) groups[i].entries.sort(); else groups.splice(i, 1);
+  for (let i = groups.length - 1; i >= 0; i--)
+    if (groups[i].entries.length) groups[i].entries.sort();
+    else groups.splice(i, 1);
   for (const c of CHECKS) {
     const fresh = entries.filter((e) => e.startsWith(`${c.id} `) && !kept.has(e)).map((e) => e.slice(c.id.length + 1));
     if (fresh.length) groups.push({ rule: c.id, reason: '', entries: fresh });

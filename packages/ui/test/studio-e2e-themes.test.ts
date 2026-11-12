@@ -83,7 +83,11 @@ async function settledAfter(n: number): Promise<void> {
 /** The colour at a point of the live frame (fractions of its size), from a screenshot of it. */
 async function colourAt(fx: number, fy: number): Promise<[number, number, number]> {
   const png = await page.getByTestId('theme-preview').screenshot();
-  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png }).toString().trim().split(',').map(Number);
+  const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', '-i', 'pipe:0'], { input: png })
+    .toString()
+    .trim()
+    .split(',')
+    .map(Number);
   const rgb = execFileSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { input: png, maxBuffer: 64 * 1024 * 1024 });
   const i = (Math.floor(h * fy) * w + Math.floor(w * fx)) * 3;
   return [rgb[i], rgb[i + 1], rgb[i + 2]];
@@ -185,7 +189,7 @@ afterAll(async () => {
 });
 
 describe.skipIf(!canRun)('the theme screens in Chromium', () => {
-  it('⚑ the list: starters read-only with why and Copy to edit; the project\'s theme; the site panel\'s page text as text', async () => {
+  it("⚑ the list: starters read-only with why and Copy to edit; the project's theme; the site panel's page text as text", async () => {
     await page.goto(`${studio.url}#/p/${P}`);
     await page.getByRole('link', { name: 'Themes', exact: true }).click();
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/themes`);
@@ -208,7 +212,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await page.setViewportSize({ width: 1280, height: 960 });
   });
 
-  it('⚑ a starter opens read-only (every control off); Copy to edit → the copy\'s editor, editable', async () => {
+  it("⚑ a starter opens read-only (every control off); Copy to edit → the copy's editor, editable", async () => {
     await page.locator('[data-testid="theme-row"][data-theme="editorial"]').getByTestId('theme-open').click();
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/themes/editorial`);
     const ed = page.getByTestId('theme-editor');
@@ -223,9 +227,21 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(opsOf('theme_edit')).toHaveLength(0);
     // Review B L2: every control of the editor has a name (the Default zoom select was the one without).
     expect(await page.getByRole('combobox', { name: 'Default zoom', exact: true }).count()).toBe(1);
-    const unnamed = await page.locator('[data-testid="theme-editor"] :is(select, input, button), [data-testid="theme-fields"] :is(select, input, button)').evaluateAll((els) =>
-      els.filter((e) => !(e as HTMLElement).closest('[hidden]') && !e.getAttribute('aria-label') && !e.getAttribute('aria-labelledby') && !(e as HTMLInputElement).labels?.length && !(e.textContent ?? '').trim() && (e as HTMLInputElement).type !== 'hidden').map((e) => e.outerHTML.slice(0, 80)),
-    );
+    const unnamed = await page
+      .locator('[data-testid="theme-editor"] :is(select, input, button), [data-testid="theme-fields"] :is(select, input, button)')
+      .evaluateAll((els) =>
+        els
+          .filter(
+            (e) =>
+              !(e as HTMLElement).closest('[hidden]') &&
+              !e.getAttribute('aria-label') &&
+              !e.getAttribute('aria-labelledby') &&
+              !(e as HTMLInputElement).labels?.length &&
+              !(e.textContent ?? '').trim() &&
+              (e as HTMLInputElement).type !== 'hidden',
+          )
+          .map((e) => e.outerHTML.slice(0, 80)),
+      );
     expect(unnamed).toEqual([]);
     // L5.12c: Copy to edit… asks the copy's name in a kit Sheet.
     await page.getByTestId('theme-copy-open').click();
@@ -245,7 +261,10 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await page.getByTestId('background-type').selectOption('solid');
     await expect.poll(status, POLL).toMatch(/^Set the background to solid #f8f4ef/);
     expect((await themeYaml()).background).toEqual({ type: 'solid', color: '#f8f4ef' });
-    expect(JSON.parse(opsOf('theme_edit').at(-1)!.body)).toMatchObject({ theme: COPY, edit: { kind: 'set_background', from: { type: 'radial', from: '#f8f4ef', to: '#ebe4dc' }, to: { type: 'solid', color: '#f8f4ef' } } });
+    expect(JSON.parse(opsOf('theme_edit').at(-1)!.body)).toMatchObject({
+      theme: COPY,
+      edit: { kind: 'set_background', from: { type: 'radial', from: '#f8f4ef', to: '#ebe4dc' }, to: { type: 'solid', color: '#f8f4ef' } },
+    });
     await settledAfter(n0);
     const beforeDrag = await readFile(themeFile());
     // A drag of one second, a move every 20 ms, ending on green.
@@ -459,7 +478,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(opsOf('preview_allow')).toHaveLength(1);
   });
 
-  it('Use in a scenario: the scenario\'s template through scenario_edit; Undo → the exact bytes', async () => {
+  it("Use in a scenario: the scenario's template through scenario_edit; Undo → the exact bytes", async () => {
     const file = join(ws, 'projects', P, 'scenarios', 'quote.yaml');
     const before = await readFile(file);
     await page.getByTestId('use-scenario').selectOption('quote');
@@ -476,7 +495,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await expect.poll(async () => Buffer.compare(await readFile(file), before), POLL).toBe(0);
   });
 
-  it('⚑ L5.12c: the editor in the shell — the browser\'s sections bring the inspector\'s fields, its components go to the library; one live preview whatever the target; the status bar\'s Use in a scenario… brings the scenario', async () => {
+  it("⚑ L5.12c: the editor in the shell — the browser's sections bring the inspector's fields, its components go to the library; one live preview whatever the target; the status bar's Use in a scenario… brings the scenario", async () => {
     const pane = page.getByRole('complementary', { name: 'Browser' });
     await pane.getByRole('button', { name: 'Colours', exact: true }).click();
     await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-section')), POLL).toBe('colours');
@@ -503,7 +522,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('use-scenario');
   });
 
-  it('⚑ L5.12c: the list\'s Copy to edit… asks the name in a kit Sheet — Escape closes it, nothing copied', async () => {
+  it("⚑ L5.12c: the list's Copy to edit… asks the name in a kit Sheet — Escape closes it, nothing copied", async () => {
     await page.goto(`${studio.url}#/p/${P}/themes`);
     const row = page.locator('[data-testid="theme-row"][data-theme="motion"]');
     await row.waitFor();
@@ -518,7 +537,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(opsOf('theme_copy').filter((o) => JSON.parse(o.body).from === 'motion')).toHaveLength(0);
   });
 
-  it('⚑ L5.12c fixes (review A-L2 / B-L2): Return in the copy\'s name field copies — the name as edited — and opens the copy', async () => {
+  it("⚑ L5.12c fixes (review A-L2 / B-L2): Return in the copy's name field copies — the name as edited — and opens the copy", async () => {
     await page.goto(`${studio.url}#/p/${P}/themes`);
     const row = page.locator('[data-testid="theme-row"][data-theme="motion"]');
     await row.waitFor();
@@ -578,7 +597,12 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await page.setViewportSize({ width: 1280, height: 960 });
     await page.getByTestId('new-create').click();
     await page.getByTestId('theme-new-made').waitFor({ timeout: 30_000 });
-    expect(JSON.parse(opsOf('theme_create').at(-1)!.body)).toEqual({ name: 'site-theme', base: 'editorial', colors: { accent: '#0f6e5a', text: '#1b1b1f', paper: '#fbfaf7' }, logo: `site:${SITE}/logo-1` });
+    expect(JSON.parse(opsOf('theme_create').at(-1)!.body)).toEqual({
+      name: 'site-theme',
+      base: 'editorial',
+      colors: { accent: '#0f6e5a', text: '#1b1b1f', paper: '#fbfaf7' },
+      logo: `site:${SITE}/logo-1`,
+    });
     await page.getByTestId('theme-new-edit').click();
     await expect.poll(() => page.getByTestId('theme-editor').getAttribute('data-theme'), POLL).toBe('site-theme');
     expect(await page.getByTestId('theme-editor').getAttribute('data-editable')).toBe('yes');
@@ -586,7 +610,25 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
   }, 60_000);
 
   it('⚑ only theme_edit / theme_copy / theme_create wrote themes, never on a starter; no model call; no site op', async () => {
-    const reads = new Set(['engine_info', 'auth_status', 'project_list', 'project_get', 'project_board', 'run_list', 'job_list', 'activity_list', 'projects_overview', 'search', 'theme_list', 'theme_view', 'theme_preview', 'timeline_leave', 'site_list', 'brand_files', 'scenario_blocks']);
+    const reads = new Set([
+      'engine_info',
+      'auth_status',
+      'project_list',
+      'project_get',
+      'project_board',
+      'run_list',
+      'job_list',
+      'activity_list',
+      'projects_overview',
+      'search',
+      'theme_list',
+      'theme_view',
+      'theme_preview',
+      'timeline_leave',
+      'site_list',
+      'brand_files',
+      'scenario_blocks',
+    ]);
     // L5.2b review B L7: a colour draft or a changed new-theme form reports unsaved text (kinds only; it writes no file).
     reads.add('unsaved_report');
     const writes = [...new Set(ops.map((o) => o.op))].filter((op) => !reads.has(op));

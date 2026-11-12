@@ -281,7 +281,11 @@ export const libraryView = defineOperation({
       const s = states.get(c.id);
       if (!s) continue;
       const picked_by = m.themes.templates.filter((t) => Object.values(t.components).includes(c.id)).map((t) => t.name);
-      const theme_default = selected ? Object.entries(selected.components).filter(([, id]) => id === c.id).map(([k]) => k) : [];
+      const theme_default = selected
+        ? Object.entries(selected.components)
+            .filter(([, id]) => id === c.id)
+            .map(([k]) => k)
+        : [];
       const pq = queued.has(s.poster.key);
       const lq = queued.has(s.loop.key);
       queuedHere += Number(pq) + Number(lq);
@@ -418,7 +422,9 @@ export const libraryRender = defineOperation({
   async run(a, { engine }) {
     const r = await queueLibrary(engine, a);
     return {
-      summary: r.job ? `library previews of ${r.components.length} components queued (job ${r.job.id})${r.skipped.length ? `, ${r.skipped.length} already queued` : ''}` : `nothing queued: ${r.skipped.length} previews already queued or running`,
+      summary: r.job
+        ? `library previews of ${r.components.length} components queued (job ${r.job.id})${r.skipped.length ? `, ${r.skipped.length} already queued` : ''}`
+        : `nothing queued: ${r.skipped.length} previews already queued or running`,
       data: r,
     };
   },
@@ -511,7 +517,13 @@ export async function componentAnswer(c: Awaited<ReturnType<Engine['components']
   const slots: LibrarySlot[] = [];
   const slotWords: Record<string, string> = {};
   for (const [name, s] of Object.entries(m.slots ?? {}).slice(0, DETAIL_ROWS_MAX)) {
-    slots.push({ name, type: s.type, required: s.required === true, ...(s.default_from ? { default_from: s.default_from } : {}), ...(num(s.max_chars) !== undefined ? { max_chars: s.max_chars } : {}) });
+    slots.push({
+      name,
+      type: s.type,
+      required: s.required === true,
+      ...(s.default_from ? { default_from: s.default_from } : {}),
+      ...(num(s.max_chars) !== undefined ? { max_chars: s.max_chars } : {}),
+    });
     if (s.description) slotWords[name] = free(s.description);
   }
   const params: LibraryParam[] = [];
@@ -540,7 +552,9 @@ export async function componentAnswer(c: Awaited<ReturnType<Engine['components']
     source: c.source,
     ...(c.overrides_builtin ? { overrides_builtin: true as const } : {}),
     kit: { needs, provided: KIT_API_VERSION, compatible: needs === KIT_API_VERSION },
-    ...(m.duration ? { duration: { default: m.duration.default, ...(m.duration.min !== undefined ? { min: m.duration.min } : {}), ...(m.duration.max !== undefined ? { max: m.duration.max } : {}) } } : {}),
+    ...(m.duration
+      ? { duration: { default: m.duration.default, ...(m.duration.min !== undefined ? { min: m.duration.min } : {}), ...(m.duration.max !== undefined ? { max: m.duration.max } : {}) } }
+      : {}),
     variants: [...(m.variants ?? ['landscape'])],
     slots,
     untrusted: {

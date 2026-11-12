@@ -120,7 +120,11 @@ describe('a theme that exists under a long name keeps working', () => {
     expect(await ok<{ name: string; from: string }>('theme_copy', { from: LONGEST, name: 'short-two' })).toMatchObject({ name: 'short-two', from: LONGEST });
     expect((await ok<ThemeEditView>('theme_view', { theme: 'short-one' })).name).toBe('short-one');
     expect(await readFile(join(ws, 'templates', 'short-two', 'template.yaml'), 'utf8')).toMatch(/^name: short-two$/m);
-    expect(await ok<Record<string, unknown>>('theme_create', { name: 'branded', base: LONG, colors: { accent: '#3355aa' }, logo: 'brand/logo.png' })).toMatchObject({ name: 'branded', base: LONG, replaced: false });
+    expect(await ok<Record<string, unknown>>('theme_create', { name: 'branded', base: LONG, colors: { accent: '#3355aa' }, logo: 'brand/logo.png' })).toMatchObject({
+      name: 'branded',
+      base: LONG,
+      replaced: false,
+    });
     // The long themes themselves are as they were.
     expect(await themeFolders()).toEqual(expect.arrayContaining([LONG, LONGEST, 'short-one', 'short-two', 'branded']));
   });
@@ -138,7 +142,7 @@ describe('a theme that exists under a long name keeps working', () => {
   });
 });
 
-describe('a new theme\'s name takes at most 60 characters', () => {
+describe("a new theme's name takes at most 60 characters", () => {
   it('⚑ theme_copy: 61, 64 and 100 characters refused at the door, nothing written; 60 taken', async () => {
     const before = await themeFolders();
     for (const n of [61, 64, 65, 100, 101]) {
@@ -160,7 +164,7 @@ describe('a new theme\'s name takes at most 60 characters', () => {
     expect(await ok<Record<string, unknown>>('theme_create', { ...input, name: a(60, 'd') })).toMatchObject({ name: a(60, 'd') });
   });
 
-  it('the op\'s schema: the new name at 60 with its sentence; the theme copied from, viewed or edited at 100', () => {
+  it("the op's schema: the new name at 60 with its sentence; the theme copied from, viewed or edited at 100", () => {
     const tools = stubTools();
     const issues = (op: string, args: unknown) => {
       const r = tools.get(op)!.input.safeParse(args);

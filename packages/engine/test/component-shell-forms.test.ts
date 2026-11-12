@@ -45,7 +45,7 @@ afterAll(async () => {
 });
 
 describe('the component use cases a shell calls (L7.24)', () => {
-  it('create: a shell may scaffold over a built-in id (overrides names the built-in), the MCP form refuses it; a bad id is the scaffold\'s own words', async () => {
+  it("create: a shell may scaffold over a built-in id (overrides names the built-in), the MCP form refuses it; a bad id is the scaffold's own words", async () => {
     await expect(componentCreate(ws, { id: 'studio/intro-stack', kind: 'intro', description: 'Mine.' }, scope())).rejects.toMatchObject({ code: 'refused' });
     const created = await componentCreateShell(ws, { id: 'studio/intro-stack', kind: 'intro', description: 'Mine.' }, scope());
     expect(created.overrides).toMatch(/library[/\\]studio[/\\]intro-stack$/);
@@ -61,7 +61,7 @@ describe('the component use cases a shell calls (L7.24)', () => {
     await rm(join(ws.componentsDir, 'studio'), { recursive: true, force: true });
   });
 
-  it('validate by folder and by id; every workspace component, a broken one by its folder\'s id', async () => {
+  it("validate by folder and by id; every workspace component, a broken one by its folder's id", async () => {
     await componentCreateShell(ws, { id: 'acme/badge', kind: 'overlay', description: 'A badge.' }, scope());
     const broken = join(ws.componentsDir, 'acme', 'broken');
     await mkdir(broken, { recursive: true });
@@ -78,7 +78,7 @@ describe('the component use cases a shell calls (L7.24)', () => {
     await expect(componentValidate(ws, join(root, 'nowhere'))).rejects.toMatchObject({ code: 'invalid' });
   });
 
-  it('preview targets: a kind\'s scaffold by name, a manifest that does not validate refused, --all with and without the scaffolds', async () => {
+  it("preview targets: a kind's scaffold by name, a manifest that does not validate refused, --all with and without the scaffolds", async () => {
     const card = await componentPreviewTargets(ws, { ref: { ref: 'scaffolds/card', dir: join(root, 'scaffolds', 'card') } });
     expect('targets' in card && card.targets.map((t) => t.dir)).toEqual([expect.stringMatching(/scaffolds[/\\]card$/)]);
     expect('theme' in card && card.theme).toBe('editorial');
@@ -100,7 +100,7 @@ describe('the component use cases a shell calls (L7.24)', () => {
     expect('targets' in stale && stale.targets.map((t) => t.id)).toEqual(['acme/badge']);
   });
 
-  it('the preview theme: the previews\' own by default, by name; the README writer journals as its caller, under <components_dir> outside the workspace', async () => {
+  it("the preview theme: the previews' own by default, by name; the README writer journals as its caller, under <components_dir> outside the workspace", async () => {
     const t = await componentPreviewTheme(ws);
     expect([t.theme, t.template.name]).toEqual(['editorial', 'editorial']);
     expect((await componentPreviewTheme(ws, 'motion')).template.name).toBe('motion');

@@ -187,7 +187,8 @@ describe('a run named by its folder, state by state: at a terminal, then through
 });
 
 describe('readRunFolder: the facts of a folder met in a listing', () => {
-  const facts = (f: RunFolderFacts) => `${f.folder} | record ${problemOf(f.record)}${f.recordLink ? ' (link)' : ''} | timeline ${problemOf(f.timeline)}${f.timelineLink ? ' (link)' : ''} | film ${f.film}`;
+  const facts = (f: RunFolderFacts) =>
+    `${f.folder} | record ${problemOf(f.record)}${f.recordLink ? ' (link)' : ''} | timeline ${problemOf(f.timeline)}${f.timelineLink ? ' (link)' : ''} | film ${f.film}`;
 
   it('a real folder, a linked one (nothing behind it is read), a dangling link, a plain file, a name that is not there', async () => {
     const b = buildState(root, 'k1', { slug: 'facts' });
@@ -227,7 +228,13 @@ describe('readRunFolder: the facts of a folder met in a listing', () => {
 
   it('the film is a file of the folder: a name that leaves it is not one', async () => {
     const b = buildState(root, 'ctl', { slug: 'film-name' });
-    for (const [name, want] of [['../' + b.old + '/capture.mp4', 'other'], ['sub/capture.mp4', 'other'], ['..', 'other'], ['film.mp4', 'missing'], ['capture.mp4', 'file']] as const) {
+    for (const [name, want] of [
+      ['../' + b.old + '/capture.mp4', 'other'],
+      ['sub/capture.mp4', 'other'],
+      ['..', 'other'],
+      ['film.mp4', 'missing'],
+      ['capture.mp4', 'file'],
+    ] as const) {
       const dir = join(b.runs, b.new);
       const tl = JSON.parse(await readFile(join(b.runs, b.old, 'timeline.json'), 'utf8')) as { capture: { file: string } };
       tl.capture.file = name;
@@ -258,7 +265,21 @@ describe('readRunFolder for a walk over many runs: the record first, the timelin
   const counting = (reads: string[]): RunFolderFs => ({ lstat, stat, readFile: (p) => (reads.push(p.split('/').slice(-2).join('/')), readFile(p, 'utf8')) });
 
   it('a record that already rules the run out: timeline.json is not opened (said `not-read`), and the verdict is the same', async () => {
-    for (const [id, opened] of [['ctl', true], ['c', false], ['e', false], ['f', false], ['a', false], ['r', false], ['o', false], ['k', false], ['s', false], ['t7', false], ['t6', true], ['g', true], ['l', true]] as const) {
+    for (const [id, opened] of [
+      ['ctl', true],
+      ['c', false],
+      ['e', false],
+      ['f', false],
+      ['a', false],
+      ['r', false],
+      ['o', false],
+      ['k', false],
+      ['s', false],
+      ['t7', false],
+      ['t6', true],
+      ['g', true],
+      ['l', true],
+    ] as const) {
       const b = buildState(root, id, { slug: `lazy-read-${id}` });
       const reads: string[] = [];
       const lazy = await readRunFolder(b.runs, b.new, { fs: counting(reads), timeline: (record) => takeNeedsTimeline(record, STATES.scenario) });
@@ -327,7 +348,7 @@ describe('readRunFolder for a walk over many runs: the record first, the timelin
     expect(takeOf(await readRunFolder(t9.runs, t9.new, { timeline: (record) => takeNeedsTimeline(record) }))).toMatchObject({ usable: false, why: 'linked' });
   });
 
-  it('`latest` under 200 newer runs its record rules out opens one timeline: the take\'s', async () => {
+  it("`latest` under 200 newer runs its record rules out opens one timeline: the take's", async () => {
     const b = buildState(root, 'ctl', { slug: 'lazy-walk' });
     for (let i = 0; i < 200; i++) {
       const id = `202611${String(1 + (i % 28)).padStart(2, '0')}-10${String(Math.floor(i / 28)).padStart(2, '0')}${String(i % 60).padStart(2, '0')}-${i % 2 ? 'other' : 'quote'}`;
@@ -336,7 +357,9 @@ describe('readRunFolder for a walk over many runs: the record first, the timelin
     }
     const reads: string[] = [];
     const fs = counting(reads);
-    const pick = await latestTake(orderRuns(readdirSync(b.runs)), STATES.scenario, async (id) => takeOf(await readRunFolder(b.runs, id, { fs, timeline: (record) => takeNeedsTimeline(record, STATES.scenario) })));
+    const pick = await latestTake(orderRuns(readdirSync(b.runs)), STATES.scenario, async (id) =>
+      takeOf(await readRunFolder(b.runs, id, { fs, timeline: (record) => takeNeedsTimeline(record, STATES.scenario) })),
+    );
     expect([pick.take?.run, pick.passed.length + pick.passed_more]).toEqual([b.new, 100]);
     expect(reads.filter((f) => f.endsWith('/timeline.json'))).toEqual([`${b.new}/timeline.json`]);
     expect(reads.filter((f) => f.endsWith('/run.json')).length).toBe(201);
@@ -390,7 +413,10 @@ describe('readNamedRun: a named run and its whole timeline in one read', () => {
     // A folder that is not there: no timeline, never a throw.
     expect(await readNamedRun(join(b.runs, 'nope'))).toMatchObject({ facts: { folder: 'gone' }, timeline: { ok: false, problem: 'missing' } });
     // A head that reads and lists that are not lists: the facts say a timeline, the whole says why not.
-    writeFileSync(join(b.runs, b.new, 'timeline.json'), JSON.stringify({ version: 1, run_id: b.new, scenario: 'quote', mode: 'capture', capture: { file: '' }, events: 'none', markers: [], scenes: [] }));
+    writeFileSync(
+      join(b.runs, b.new, 'timeline.json'),
+      JSON.stringify({ version: 1, run_id: b.new, scenario: 'quote', mode: 'capture', capture: { file: '' }, events: 'none', markers: [], scenes: [] }),
+    );
     const half = await readNamedRun(join(b.runs, b.new));
     expect([half.facts.timeline.ok, half.timeline]).toEqual([true, { ok: false, problem: 'invalid', detail: 'events' }]);
   });

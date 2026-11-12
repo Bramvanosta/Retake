@@ -114,10 +114,18 @@ export function resolveRenderPolicy(o: ResolvePolicyInput = {}): RenderPolicy {
   let concurrency: number;
   if (c) {
     concurrency = Math.round(c[0]);
-    if (!(concurrency >= 1 && concurrency <= RENDER_CONCURRENCY_MAX)) throw new RenderError(`render concurrency ${c[0]} (${sourceWords(c[1], 'concurrency')}) must be from 1 to ${RENDER_CONCURRENCY_MAX}`);
+    if (!(concurrency >= 1 && concurrency <= RENDER_CONCURRENCY_MAX))
+      throw new RenderError(`render concurrency ${c[0]} (${sourceWords(c[1], 'concurrency')}) must be from 1 to ${RENDER_CONCURRENCY_MAX}`);
   } else concurrency = resolved === 'angle' ? GPU_CONCURRENCY : defaultConcurrency(o.cpus);
   const [ffAsked, ffSource] = pick('ffmpeg') ?? ['auto', 'default'];
-  return { gl: { asked: glAsked, resolved, source: glSource }, encoder: { asked: encAsked, source: encSource }, ffmpeg: { asked: ffAsked, source: ffSource }, concurrency, concurrencySource: c ? c[1] : 'default', platform };
+  return {
+    gl: { asked: glAsked, resolved, source: glSource },
+    encoder: { asked: encAsked, source: encSource },
+    ffmpeg: { asked: ffAsked, source: ffSource },
+    concurrency,
+    concurrencySource: c ? c[1] : 'default',
+    platform,
+  };
 }
 
 /** "retake.yaml render.gl", "$RETAKE_RENDER_GL"… */
@@ -220,11 +228,27 @@ export function videotoolboxRenderWorks(s: FrameSize, o: { binariesDirectory?: s
 /** The probe's ffmpeg arguments: three `nullsrc` frames at the render's size, bitrate and GOP. Pure. */
 export function videotoolboxProbeArgs(s: FrameSize): string[] {
   return [
-    '-hide_banner', '-loglevel', 'error', '-nostdin',
-    '-f', 'lavfi', '-i', `nullsrc=s=${s.width}x${s.height}:r=${s.fps}`,
-    '-frames:v', '3', '-pix_fmt', 'yuv420p',
-    '-c:v', 'h264_videotoolbox', '-b:v', `${videotoolboxMbps(s)}M`, '-g', String(gopFrames(s.fps)),
-    '-f', 'null', '-',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-nostdin',
+    '-f',
+    'lavfi',
+    '-i',
+    `nullsrc=s=${s.width}x${s.height}:r=${s.fps}`,
+    '-frames:v',
+    '3',
+    '-pix_fmt',
+    'yuv420p',
+    '-c:v',
+    'h264_videotoolbox',
+    '-b:v',
+    `${videotoolboxMbps(s)}M`,
+    '-g',
+    String(gopFrames(s.fps)),
+    '-f',
+    'null',
+    '-',
   ];
 }
 
@@ -232,12 +256,28 @@ async function runProbe(s: FrameSize, binariesDirectory: string | null): Promise
   const args = videotoolboxProbeArgs(s);
   try {
     const { RenderInternals } = await rendererLibrary();
-    const res = await RenderInternals.callFf({ bin: 'ffmpeg', args, indent: false, logLevel: 'error', binariesDirectory, cancelSignal: undefined, options: { reject: false, timeout: 15_000, stdin: 'ignore' } });
+    const res = await RenderInternals.callFf({
+      bin: 'ffmpeg',
+      args,
+      indent: false,
+      logLevel: 'error',
+      binariesDirectory,
+      cancelSignal: undefined,
+      options: { reject: false, timeout: 15_000, stdin: 'ignore' },
+    });
     if (res.exitCode === 0) return { ok: true };
-    const line = String(res.stderr ?? '').split('\n').map((l) => l.trim()).find((l) => l && !/^Try\b/.test(l));
+    const line = String(res.stderr ?? '')
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l && !/^Try\b/.test(l));
     return { ok: false, error: (line ?? `exit ${res.exitCode ?? res.signal ?? '?'}`).slice(0, 200) };
   } catch (e) {
-    return { ok: false, error: `the compositor's ffmpeg did not run: ${String((e as Error)?.message ?? e).split('\n')[0].slice(0, 200)}` };
+    return {
+      ok: false,
+      error: `the compositor's ffmpeg did not run: ${String((e as Error)?.message ?? e)
+        .split('\n')[0]
+        .slice(0, 200)}`,
+    };
   }
 }
 
@@ -464,7 +504,8 @@ export async function chooseEncode(policy: RenderPolicy, gl: RenderGl, s: FrameS
   // Judged before anything is written, and for `retake doctor` too: a Retake home inside the workspace gets no program of ours.
   const home = o.home ?? retakeHome();
   try {
-    if (programProblem(o.workPolicy, realTarget(join(home, ENCODE_TOOLS_DIR, 'ffmpeg')), 'the encode tools', programLookup())) return library('the encode tools would lie inside the workspace (the Retake home is there)');
+    if (programProblem(o.workPolicy, realTarget(join(home, ENCODE_TOOLS_DIR, 'ffmpeg')), 'the encode tools', programLookup()))
+      return library('the encode tools would lie inside the workspace (the Retake home is there)');
     if (o.dry) return { ...choice, ffmpeg: { used: 'own', version: own.facts.version, path: own.path } };
     const folder = encodeFolder({ home, compositorDir: dir, ffmpegPath: own.path });
     return { ...choice, ffmpeg: { used: 'own', version: own.facts.version, path: own.path, binariesDirectory: folder } };
@@ -475,7 +516,9 @@ export async function chooseEncode(policy: RenderPolicy, gl: RenderGl, s: FrameS
 }
 
 function firstLine(e: unknown): string {
-  return String((e as Error)?.message ?? e).split('\n')[0].slice(0, 200);
+  return String((e as Error)?.message ?? e)
+    .split('\n')[0]
+    .slice(0, 200);
 }
 
 /** The library's own messages when the frame encode's ffmpeg is gone or quits while frames are piped to it. */
@@ -498,16 +541,23 @@ export function ownEncodeFailure(e: unknown, own: { version?: string; folder?: s
   if (err?.name === 'AbortError' || /cancel/i.test(message)) return null;
   if (/time(?:d)? ?out|timeout|out of memory|\bOOM\b|ENOMEM|cannot allocate|page crashed|aw, snap|delayRender/i.test(message)) return null;
   const notStarted = /\b(ENOENT|EACCES)\b/.exec(`${typeof err?.code === 'string' ? err.code : ''} ${message}`)?.[1];
-  if (notStarted && own.folder && (message.includes(own.folder) || (typeof err?.path === 'string' && err.path.startsWith(own.folder)))) return `a program of the encode tools could not be started (${notStarted})`;
+  if (notStarted && own.folder && (message.includes(own.folder) || (typeof err?.path === 'string' && err.path.startsWith(own.folder))))
+    return `a program of the encode tools could not be started (${notStarted})`;
   if (message.includes('The FFmpeg output was')) return null;
   if (err?.code !== 'EPIPE' && !/\bEPIPE\b/.test(message) && !FRAME_ENCODE_FAILED.test(message)) return null;
   // A second guard: the output of another ffmpeg than ours (its banner names its version).
   const banner = /^(?:.*Stderr: )?ffmpeg version\s+n?(\S+)/m.exec(message)?.[1];
   if (banner && own.version && banner !== own.version.replace(/^n/, '')) return null;
-  const lines = message.split('\n').map((l) => l.replace(/^.*?Stderr: /, '').trim()).filter(Boolean);
+  const lines = message
+    .split('\n')
+    .map((l) => l.replace(/^.*?Stderr: /, '').trim())
+    .filter(Boolean);
   const said = lines.find((l) => /error|invalid|unrecognized|unknown|no such|not found|cannot|unable|failed/i.test(l) && !/^FFmpeg (?:quit|already|is not)/.test(l));
   // Else the library's own sentence, without the output it quotes.
-  const head = message.split('\n')[0].replace(/\.? Stderr:.*$/, '').trim();
+  const head = message
+    .split('\n')[0]
+    .replace(/\.? Stderr:.*$/, '')
+    .trim();
   return (said ?? (head || 'the frame encode failed')).slice(0, 200);
 }
 
@@ -640,8 +690,12 @@ export function gpuPathFailureOf(e: unknown, path: { gl: RenderGl; encoder: Rend
   if (/time(?:d)? ?out|timeout|out of memory|\bOOM\b|ENOMEM|cannot allocate|page crashed|aw, snap|delayRender/i.test(message)) return null;
   // ffmpeg's errors come after its banner, whose configuration line names videotoolbox on every build: only the
   // other lines count, and the reason is the line that says it.
-  const lines = message.split('\n').map((l) => l.trim()).filter(Boolean);
-  const banner = /^(?:ffmpeg version|built with|configuration:|lib(?:av|sw|post)\w*\s|Input #|Output #|Stream #|Duration:|Metadata:|Stream mapping|Press \[q\]|(?:encoder|handler_name|vendor_id|major_brand|compatible_brands|minor_version|creation_time)\s*:)/i;
+  const lines = message
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const banner =
+    /^(?:ffmpeg version|built with|configuration:|lib(?:av|sw|post)\w*\s|Input #|Output #|Stream #|Duration:|Metadata:|Stream mapping|Press \[q\]|(?:encoder|handler_name|vendor_id|major_brand|compatible_brands|minor_version|creation_time)\s*:)/i;
   const useful = lines.filter((l) => !banner.test(l));
   const said = (...res: RegExp[]) => {
     for (const re of res) {
@@ -688,7 +742,13 @@ export interface RenderPathProbe {
  * The render path of this machine as a 1080p30 render would take it — the same checks, nothing written: the policy,
  * the render browser opened as renders open it (ANGLE: its GPU), and the VideoToolbox probe. Never throws.
  */
-export async function probeRenderPath(o: { workPolicy: WorkPolicy; gpuInfo?: (b: RenderBrowserHandle) => Promise<GpuInfo | undefined>; videotoolbox?: VideotoolboxProbe; own?: ChooseEncodeOptions['own']; ownEncodes?: ChooseEncodeOptions['ownEncodes'] }): Promise<RenderPathProbe> {
+export async function probeRenderPath(o: {
+  workPolicy: WorkPolicy;
+  gpuInfo?: (b: RenderBrowserHandle) => Promise<GpuInfo | undefined>;
+  videotoolbox?: VideotoolboxProbe;
+  own?: ChooseEncodeOptions['own'];
+  ownEncodes?: ChooseEncodeOptions['ownEncodes'];
+}): Promise<RenderPathProbe> {
   let policy: RenderPolicy;
   try {
     policy = renderPolicy(o.workPolicy);
@@ -713,7 +773,9 @@ export async function probeRenderPath(o: { workPolicy: WorkPolicy; gpuInfo?: (b:
         }
       }
     } catch (e) {
-      out.browserError = String((e as Error)?.message ?? e).split('\n')[0].slice(0, 200);
+      out.browserError = String((e as Error)?.message ?? e)
+        .split('\n')[0]
+        .slice(0, 200);
     }
     if (!out.gpu?.accelerated && policy.gl.asked !== 'gpu') out.gl = 'software';
   }
@@ -725,7 +787,13 @@ export async function probeRenderPath(o: { workPolicy: WorkPolicy; gpuInfo?: (b:
   if (maybeVt) out.videotoolbox = await (o.videotoolbox ?? ((s: FrameSize) => videotoolboxRenderWorks(s, { platform: policy.platform })))(size);
   try {
     // The encoder and which ffmpeg would encode: the same choice a render makes, without writing its folder.
-    const c = await chooseEncode(p, gl, size, { workPolicy: o.workPolicy, dry: true, ...(o.videotoolbox ? { videotoolbox: o.videotoolbox } : {}), ...(o.own ? { own: o.own } : {}), ...(o.ownEncodes ? { ownEncodes: o.ownEncodes } : {}) });
+    const c = await chooseEncode(p, gl, size, {
+      workPolicy: o.workPolicy,
+      dry: true,
+      ...(o.videotoolbox ? { videotoolbox: o.videotoolbox } : {}),
+      ...(o.own ? { own: o.own } : {}),
+      ...(o.ownEncodes ? { ownEncodes: o.ownEncodes } : {}),
+    });
     out.encoder = c.encoder;
     out.ffmpeg = c.ffmpeg;
     // VideoToolbox through our ffmpeg where the library's does not encode it: the line says what renders do.

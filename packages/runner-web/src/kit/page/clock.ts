@@ -8,7 +8,7 @@ export const RT = (() => {
   const g = globalThis as unknown as Record<string | symbol, unknown>;
   const clock = g[Symbol.for('retake.clock')] as { Date?: DateConstructor } | undefined;
   const saved: Record<string, unknown> = clock?.Date ? { Date: clock.Date } : {};
-  const pick = <T,>(name: string, bind: boolean): T => {
+  const pick = <T>(name: string, bind: boolean): T => {
     const v = saved[name] ?? g[name];
     return (bind && typeof v === 'function' && saved[name] === undefined ? (v as (...a: unknown[]) => unknown).bind(g) : v) as T;
   };

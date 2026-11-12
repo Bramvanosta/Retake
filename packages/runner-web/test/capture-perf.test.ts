@@ -51,7 +51,8 @@ afterAll(async () => {
 });
 
 function capture(runId: string, keepFrames: boolean): Promise<RunRecord> {
-  return runScenario({ policy: PERSON_POLICY,
+  return runScenario({
+    policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }, { keepFrames }),
     mode: 'capture',
     runId,

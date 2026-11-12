@@ -58,7 +58,7 @@ const SessionsInput = z.strictObject({
   project,
   name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
   env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
-  mode: z.enum(['dry', 'capture']).optional().describe('capture (default) counts the personas of the hooks\' tabs too.'),
+  mode: z.enum(['dry', 'capture']).optional().describe("capture (default) counts the personas of the hooks' tabs too."),
 });
 
 const FormsInput = z.strictObject({});
@@ -125,7 +125,8 @@ async function sessionsOf(engine: Engine, a: z.infer<typeof SessionsInput>): Pro
 export const scenarioSessions = defineOperation({
   name: 'scenario_sessions',
   title: 'Sessions a scenario needs',
-  description: "The personas a run of a scenario signs in on an environment, with their stored state (no browser), whether every run signs them in by itself, and those a capture must confirm (`confirm`).",
+  description:
+    'The personas a run of a scenario signs in on an environment, with their stored state (no browser), whether every run signs them in by itself, and those a capture must confirm (`confirm`).',
   input: SessionsInput,
   annotations: READ,
   async run(a, { engine }) {

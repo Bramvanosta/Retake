@@ -8,7 +8,20 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { authFor, isGlobalAuth, loginCommand, loginMatchers, matchLoginUrl, parseProjectYaml, parseScenario, personaPaths, planPersonas, projectPersonaNames, resolveCheckUrl, resolvePersonas } from '@retake/core';
+import {
+  authFor,
+  isGlobalAuth,
+  loginCommand,
+  loginMatchers,
+  matchLoginUrl,
+  parseProjectYaml,
+  parseScenario,
+  personaPaths,
+  planPersonas,
+  projectPersonaNames,
+  resolveCheckUrl,
+  resolvePersonas,
+} from '@retake/core';
 import { retakeHome, writeTextAtomic } from '@retake/core/io';
 import type { LoadedProject, Scenario, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
@@ -87,7 +100,10 @@ describe('where sessions live (R-AUTH-02, paths)', () => {
   });
 
   it('the legacy auth.profile is persona "default" on every page, its paths relative to the project (still works)', () => {
-    const p = project(['name: N', 'environments:', '  staging: {app: "https://app.example.com", admin: "https://admin.example.com"}', 'auth: {profile: profiles/main, storage_state: ~/state.json, login_url: /login}'], '/work/projects/northfield');
+    const p = project(
+      ['name: N', 'environments:', '  staging: {app: "https://app.example.com", admin: "https://admin.example.com"}', 'auth: {profile: profiles/main, storage_state: ~/state.json, login_url: /login}'],
+      '/work/projects/northfield',
+    );
     expect(isGlobalAuth(p.config.auth)).toBe(true);
     expect(authFor(p.config, 'staging')).toEqual(p.config.auth);
     expect(resolvePersonas(p, 'staging', { home: '/h' })).toEqual([
@@ -264,14 +280,16 @@ describe('which persona films each page (R-AUTH-01, static plan)', () => {
     expect([...r.none]).toEqual(['shop', 'help', 'tab2']);
     // A tab of a persona page written `persona: none` later is a conflict (it keeps its persona).
     expect(r.issues.map((i) => i.kind)).toEqual(['conflict']);
-    const later = plan(scenario(['scenes:', '  - id: a', '    page: shop', '    persona: none', '    steps: [{new_tab: {href: /x, as: t}}]', '  - id: b', '    page: t', '    persona: none', '    steps: [{wait: 1}]']));
+    const later = plan(
+      scenario(['scenes:', '  - id: a', '    page: shop', '    persona: none', '    steps: [{new_tab: {href: /x, as: t}}]', '  - id: b', '    page: t', '    persona: none', '    steps: [{wait: 1}]']),
+    );
     expect(later.issues).toEqual([]);
     expect([...later.none]).toEqual(['shop', 't']);
     const unbound = plan(scenario(['scenes:', '  - id: a', '    page: other', '    steps: [{wait: 1}]', '  - id: b', '    page: other', '    persona: none', '    steps: [{wait: 1}]']));
     expect([...unbound.none]).toEqual(['other']);
   });
 
-  it('switch_page: previous follows the page history (closed pages aside): a tab opened there takes that page\'s persona', () => {
+  it("switch_page: previous follows the page history (closed pages aside): a tab opened there takes that page's persona", () => {
     const s = scenario([
       'scenes:',
       '  - id: a',
@@ -289,7 +307,17 @@ describe('which persona films each page (R-AUTH-01, static plan)', () => {
     expect(r.pages.get('t')).toBe('supplier');
     // t was closed when leaving it: "previous" is console again.
     expect(r.pages.get('u')).toBe('supplier');
-    const m = plan(scenario(['scenes:', '  - id: a', '    pages: [console, shop]', '    steps: [{on: shop, wait: 1}]', '  - id: b', '    page: console', '    steps: [{switch_page: previous}, {new_tab: {href: /q, as: q}}]']));
+    const m = plan(
+      scenario([
+        'scenes:',
+        '  - id: a',
+        '    pages: [console, shop]',
+        '    steps: [{on: shop, wait: 1}]',
+        '  - id: b',
+        '    page: console',
+        '    steps: [{switch_page: previous}, {new_tab: {href: /q, as: q}}]',
+      ]),
+    );
     expect(m.pages.get('q')).toBe('buyer');
   });
 
@@ -350,7 +378,16 @@ describe('which persona films each page (R-AUTH-01, static plan)', () => {
   });
 
   it('one page, several personas (hotfix v0.2.2): the project validates; the first one declared is the page’s default, `persona:` names another, two page ids film both', () => {
-    const text = ['name: N', 'environments:', '  local: {admin: "http://localhost:4810"}', 'auth:', '  login_url: /login', '  personas:', '    owner: {pages: [admin]}', '    staff: {pages: [admin]}'].join('\n');
+    const text = [
+      'name: N',
+      'environments:',
+      '  local: {admin: "http://localhost:4810"}',
+      'auth:',
+      '  login_url: /login',
+      '  personas:',
+      '    owner: {pages: [admin]}',
+      '    staff: {pages: [admin]}',
+    ].join('\n');
     expect(parseProjectYaml(text).issues.filter((i) => i.severity === 'error')).toEqual([]);
     const shared = project(text.split('\n'));
     const opts = { env: 'local', envPages: shared.config.environments.local, personas: resolvePersonas(shared, 'local', { home: '/h' }), hooks: true };
@@ -359,7 +396,10 @@ describe('which persona films each page (R-AUTH-01, static plan)', () => {
     const named = planPersonas(scenario(['scenes:', '  - id: a', '    page: admin', '    persona: staff', '    open: /', '    steps: [{wait: 1}]']), opts);
     expect([...named.pages]).toEqual([['admin', 'staff']]);
     expect(named).toMatchObject({ used: ['staff'], issues: [] });
-    const both = planPersonas(scenario(['scenes:', '  - id: a', '    pages:', '      theirs: {page: admin, open: /}', '      ours: {page: admin, persona: staff, open: /}', '    steps: [{wait: 1}]']), opts);
+    const both = planPersonas(
+      scenario(['scenes:', '  - id: a', '    pages:', '      theirs: {page: admin, open: /}', '      ours: {page: admin, persona: staff, open: /}', '    steps: [{wait: 1}]']),
+      opts,
+    );
     expect([...both.pages]).toEqual([
       ['theirs', 'owner'],
       ['ours', 'staff'],
@@ -488,9 +528,7 @@ describe('validation (R-AUTH-01, R-AUTH-02)', () => {
   it('a persona with no check and no sign-in pattern is warned about; an environment named like an auth key is refused', () => {
     const { issues } = parseProjectYaml(['name: N', 'environments: {personas: {app: "http://localhost:1"}}', 'auth: {personas: {admin: {pages: [app]}}}'].join('\n'));
     expect(errs(issues)).toEqual(['environments.personas: environment name "personas" is also an `auth` key (profile, storage_state, login_url, personas): rename the environment']);
-    expect(warns(issues)).toEqual([
-      'auth.personas.admin: persona "admin" has no `check` and no `login_url`: an expired session is only noticed when a step fails (add check: {url, expect_text})',
-    ]);
+    expect(warns(issues)).toEqual(['auth.personas.admin: persona "admin" has no `check` and no `login_url`: an expired session is only noticed when a step fails (add check: {url, expect_text})']);
   });
 
   it('scenarios: persona names (any environment) and one persona per page (each environment with personas)', () => {
@@ -528,7 +566,8 @@ describe('validation (R-AUTH-01, R-AUTH-02)', () => {
       'scenes.3.persona: page "shop" is filmed as buyer since scenes[2].page and as supplier here: a page keeps one persona for the whole run — film the other account on a page id of its own (a multi-page scene\'s `pages`) (environment signed-in)',
     ]);
     const bare = parseScenario(['video: demo', 'scenes:', '  - id: a', '    page: console', '    persona: x', '    open: /', '    steps: [{wait: 1}]', ''].join('\n'), {
-      files: NO_DISK, project: project(['name: N', 'environments: {local: {console: "http://localhost:1"}}']),
+      files: NO_DISK,
+      project: project(['name: N', 'environments: {local: {console: "http://localhost:1"}}']),
     });
     expect(errs(bare.issues)).toEqual(['scenes.0.persona: unknown persona "x": project "northfield" declares no personas (auth.personas in project.yaml)']);
   });

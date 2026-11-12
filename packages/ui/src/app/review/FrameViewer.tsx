@@ -163,13 +163,31 @@ export function FrameViewer(p: {
         </p>
       )}
       <div className="cm-lanes">
-        <Scrubber label="Frame" testId="frame-slider" time={frameTime(frame, d.fps)} max={last} value={Math.min(frame, last)} valueText={`frame ${frame.toLocaleString('en')}, ${frameTime(frame, d.fps)}`} onChange={go} />
+        <Scrubber
+          label="Frame"
+          testId="frame-slider"
+          time={frameTime(frame, d.fps)}
+          max={last}
+          value={Math.min(frame, last)}
+          valueText={`frame ${frame.toLocaleString('en')}, ${frameTime(frame, d.fps)}`}
+          onChange={go}
+        />
         {ticks > 0 && (
           <Track name="Marks & pins" testId="viewer-ticks" count={ticks}>
             {d.markers.map((k, i) => {
               const words = `Marker ${d.untrusted.markers[i] ?? ''} at ${frameTime(k.frame, d.fps)}`;
               return (
-                <TrackItem key={`m${i}`} variant="marker" place={{ at: k.frame }} frames={d.frames} label={words} title={words} testId="viewer-marker" data={{ frame: k.frame }} onActivate={() => go(k.frame)}>
+                <TrackItem
+                  key={`m${i}`}
+                  variant="marker"
+                  place={{ at: k.frame }}
+                  frames={d.frames}
+                  label={words}
+                  title={words}
+                  testId="viewer-marker"
+                  data={{ frame: k.frame }}
+                  onActivate={() => go(k.frame)}
+                >
                   <span aria-hidden="true">◆</span>
                 </TrackItem>
               );
@@ -177,7 +195,18 @@ export function FrameViewer(p: {
             {d.pins.map((pin) => {
               const words = `Comment, ${pin.status}, at ${frameTime(pin.frame, d.fps)}: open the thread`;
               return (
-                <TrackItem key={pin.id} variant="pin" place={{ at: pin.frame }} frames={d.frames} label={words} title={words} states={[pin.status]} testId="viewer-pin" data={{ id: pin.id, frame: pin.frame, status: pin.status }} to={{ name: 'comments', slug, scenario: p.name, thread: pin.id }}>
+                <TrackItem
+                  key={pin.id}
+                  variant="pin"
+                  place={{ at: pin.frame }}
+                  frames={d.frames}
+                  label={words}
+                  title={words}
+                  states={[pin.status]}
+                  testId="viewer-pin"
+                  data={{ id: pin.id, frame: pin.frame, status: pin.status }}
+                  to={{ name: 'comments', slug, scenario: p.name, thread: pin.id }}
+                >
                   <span aria-hidden="true">{pin.status === 'open' ? '●' : '○'}</span>
                 </TrackItem>
               );
@@ -213,7 +242,21 @@ export function FrameViewer(p: {
             }
           }}
         >
-          <TextField id={timeId} label="Go to a time" labelHidden layout="inline" inputMode="decimal" placeholder={timeExample(d.frames, d.fps)} value={time} onChange={setTime} unsaved={null} error={timeError ?? undefined} testId="viewer-time-input" autoComplete="off" spellCheck={false} />
+          <TextField
+            id={timeId}
+            label="Go to a time"
+            labelHidden
+            layout="inline"
+            inputMode="decimal"
+            placeholder={timeExample(d.frames, d.fps)}
+            value={time}
+            onChange={setTime}
+            unsaved={null}
+            error={timeError ?? undefined}
+            testId="viewer-time-input"
+            autoComplete="off"
+            spellCheck={false}
+          />
           <Button size="sm" submit>
             Go
           </Button>
@@ -307,7 +350,13 @@ function FramePicture(p: { o: Outline; image: FrameAnswer | null; frame: number;
       onPointerCancel={onCancel}
     >
       {p.image ? (
-        <Jpeg base64={p.image.base64} max={SHEET_DATA_MAX} width={p.image.width} height={p.image.height} alt={`Frame ${p.image.frame.toLocaleString('en')} of ${renderWords(p.o.render_id)} (${frameTime(p.image.frame, p.o.fps)})`} />
+        <Jpeg
+          base64={p.image.base64}
+          max={SHEET_DATA_MAX}
+          width={p.image.width}
+          height={p.image.height}
+          alt={`Frame ${p.image.frame.toLocaleString('en')} of ${renderWords(p.o.render_id)} (${frameTime(p.image.frame, p.o.fps)})`}
+        />
       ) : (
         <span className="cm-frame-note" aria-hidden="true">
           Loading the frame…

@@ -35,7 +35,8 @@ beforeAll(async () => {
   const { port } = srv.address() as AddressInfo;
   server = { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((r) => (srv.closeAllConnections(), srv.close(() => r()))) };
   dir = await tempDir('rw-tutorial-');
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }),
     scenario: makeScenario('tutorial', {
       pacing: FAST,

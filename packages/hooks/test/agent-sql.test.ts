@@ -61,7 +61,8 @@ describe("an agent's sql hooks under trust mcp", () => {
     const fpOf = (hook: HookStep) => hookFingerprint(hook, { phase: 'setup', index: 0, env: 'local', files: hookFiles(hook, { projectDir: tmp.dir }).files });
     const approved = [fpOf(SELECT), fpOf(FILE)];
     const changed: HookStep = { ...SELECT, sql: 'SELECT count(*) FROM orders' };
-    const run = async (hook: HookStep) => (await runHooks([hook], context(CLOSED, { trust: 'mcp', confirmDestructive: approver(approved).confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true })).results[0];
+    const run = async (hook: HookStep) =>
+      (await runHooks([hook], context(CLOSED, { trust: 'mcp', confirmDestructive: approver(approved).confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true })).results[0];
     expect((await run(changed)).status).toBe('refused');
     expect((await run(FILE)).status).toBe('failed'); // approved: it connects (and fails there)
     await writeFile(join(tmp.dir, 'hooks/seed.sql'), "INSERT INTO replies (text) VALUES ('b');\n");
@@ -84,7 +85,11 @@ describe("an agent's sql hooks under trust mcp", () => {
   });
 
   it("a person's hook whose file, rollback file or database URL uses the agent's vars counts as the agent's", async () => {
-    await writeFiles(tmp.dir, { 'hooks/add.sql': "INSERT INTO users (name) VALUES ('{{vars.name}}');\n", 'hooks/plain.sql': 'SELECT 1;\n', 'hooks/undo.sql': "DELETE FROM users WHERE name = '{{name}}';\n" });
+    await writeFiles(tmp.dir, {
+      'hooks/add.sql': "INSERT INTO users (name) VALUES ('{{vars.name}}');\n",
+      'hooks/plain.sql': 'SELECT 1;\n',
+      'hooks/undo.sql': "DELETE FROM users WHERE name = '{{name}}';\n",
+    });
     const over = { trust: 'mcp' as const, dryRun: true, vars: { name: 'x' }, agentVars: ['name'] };
     const reasons = async (hooks: HookStep[], url = CLOSED, phase: 'step' | 'setup' = 'step') =>
       (await runHooks(hooks, context(url, over).ctx, { phase, journal: await journal() })).results.map((r) => r.approval?.reason);
@@ -98,12 +103,19 @@ describe("an agent's sql hooks under trust mcp", () => {
     expect(own.results[0].approval).toBeUndefined();
   });
 
-  it('the approval shows a file hook\'s statement as it will run, rendered with the vars, beside the file and its database', async () => {
+  it("the approval shows a file hook's statement as it will run, rendered with the vars, beside the file and its database", async () => {
     await writeFiles(tmp.dir, { 'hooks/add.sql': "INSERT INTO users (name) VALUES ('{{vars.name}}');\n", 'hooks/undo.sql': "INSERT INTO undone VALUES ('{{vars.name}}');\n" });
     const { ctx } = context(CLOSED, { trust: 'mcp', dryRun: true, vars: { name: "x'); SELECT ('y" } });
     const res = await runHooks([{ sql: { file: 'hooks/add.sql', rollback: 'hooks/undo.sql' } }], ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
     const lines = res.results[0].shown ?? [];
-    expect(lines).toEqual(expect.arrayContaining(['file: hooks/add.sql', "query: INSERT INTO users (name) VALUES ('x'); SELECT ('y');", 'rollback file: hooks/undo.sql', "rollback query: INSERT INTO undone VALUES ('x'); SELECT ('y');"]));
+    expect(lines).toEqual(
+      expect.arrayContaining([
+        'file: hooks/add.sql',
+        "query: INSERT INTO users (name) VALUES ('x'); SELECT ('y');",
+        'rollback file: hooks/undo.sql',
+        "rollback query: INSERT INTO undone VALUES ('x'); SELECT ('y');",
+      ]),
+    );
   });
 
   it("a person's sql hook (not the agent's) keeps the destructive rule only; a sandbox's seed is not asked", async () => {
@@ -167,7 +179,8 @@ describe.skipIf(!PG)("an agent's sql hooks under trust mcp, against Postgres", (
     const hook: HookStep = { name: 'seed', sql: `INSERT INTO ${table} (text) VALUES ('agent')` };
     const fp = hookFingerprint(hook, { phase: 'setup', index: 0, env: 'local' });
     const run = async (h: HookStep, approved: string[]) =>
-      (await runHooks([h], context('{{env:RETAKE_TEST_PG}}', { trust: 'mcp', confirmDestructive: approver(approved).confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true })).results[0];
+      (await runHooks([h], context('{{env:RETAKE_TEST_PG}}', { trust: 'mcp', confirmDestructive: approver(approved).confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true }))
+        .results[0];
     expect((await run(hook, [])).status).toBe('refused');
     expect(await texts()).toEqual([]);
     expect(await run(hook, [fp])).toMatchObject({ status: 'ok', message: '1 statement, 1 row affected' });

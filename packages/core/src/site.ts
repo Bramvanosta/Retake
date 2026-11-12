@@ -49,7 +49,10 @@ export interface SiteTestTarget {
 export function unsafeTestResolve(env: NodeJS.ProcessEnv = process.env): { map: Map<string, SiteTestTarget>; ignored: string[] } {
   const map = new Map<string, SiteTestTarget>();
   const ignored: string[] = [];
-  for (const entry of (env[UNSAFE_TEST_RESOLVE_ENV] ?? '').split(',').map((e) => e.trim()).filter(Boolean)) {
+  for (const entry of (env[UNSAFE_TEST_RESOLVE_ENV] ?? '')
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean)) {
     const m = /^([a-z0-9-]+(?:\.[a-z0-9-]+)*\.test)=(127\.0\.0\.1|\[::1\]):(\d{1,5})$/.exec(entry);
     const port = m ? Number(m[3]) : 0;
     if (!m || port < 1 || port > 65535) {
@@ -106,6 +109,10 @@ export function siteApprovalFingerprint(href: string): string {
 export function siteThemeName(host: string): string {
   const labels = host.split('.').filter((l) => l && l !== 'www');
   const label = (labels.length >= 2 ? labels[labels.length - 2] : (labels[0] ?? 'site')).replace(/^xn--/, '');
-  const slug = label.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
   return /^[a-z0-9]/.test(slug) ? slug : `site-${slug || 'theme'}`.slice(0, 50);
 }

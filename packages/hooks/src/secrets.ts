@@ -27,7 +27,10 @@ export function addSecret(ctx: HookContext, value: string): void {
 export function redactText(ctx: HookContext, text: string): string {
   const set = registry.get(ctx);
   if (!set?.size) return text;
-  return redact(text, [...set].sort((a, b) => b.length - a.length));
+  return redact(
+    text,
+    [...set].sort((a, b) => b.length - a.length),
+  );
 }
 
 /** Redact every string inside a JSON-like value. */

@@ -52,7 +52,10 @@ export function chroma(hex: string): number {
   return (Math.max(...c) - Math.min(...c)) / 255;
 }
 
-const bucketOf = (hex: string) => rgb(hex).map((c) => c >> 5).join('.');
+const bucketOf = (hex: string) =>
+  rgb(hex)
+    .map((c) => c >> 5)
+    .join('.');
 
 interface Bucket {
   key: string;

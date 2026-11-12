@@ -69,7 +69,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const [name, value] of [['RETAKE_HOME', saved.home], ['RETAKE_FFMPEG', saved.ffmpeg], ['RETAKE_FFPROBE', saved.ffprobe]] as const) {
+  for (const [name, value] of [
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_FFMPEG', saved.ffmpeg],
+    ['RETAKE_FFPROBE', saved.ffprobe],
+  ] as const) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }

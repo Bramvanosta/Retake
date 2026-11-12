@@ -140,7 +140,8 @@ const authLoginHandler: JobHandler<'auth_login'> = async (job, run) => {
   return { result, state: 'cancelled', error: { code: 'cancelled', message: `sign-in ${result.timed_out ? 'stopped' : 'cancelled'}: ${signInStoppedText(result)}` } };
 };
 
-const sandboxHandler = async (job: JobOfKind<'sandbox_up' | 'sandbox_reset'>, run: JobRun): Promise<JobOutcome> => succeeded(await executeSandboxJob({ ...run.base, input: job, interrupts: run.interrupts() }));
+const sandboxHandler = async (job: JobOfKind<'sandbox_up' | 'sandbox_reset'>, run: JobRun): Promise<JobOutcome> =>
+  succeeded(await executeSandboxJob({ ...run.base, input: job, interrupts: run.interrupts() }));
 
 const renderHandler: JobHandler<'render'> = async (job, run) => {
   // Lazy: Remotion is loaded by the first render, never by a capture-only worker.
@@ -173,7 +174,10 @@ const exportHandler: JobHandler<'export'> = async (job, run) => {
 const previewHandler: JobHandler<'preview'> = async (job, run) => {
   // Lazy: Remotion is loaded by the first preview. A cancel stops between images.
   const { executePreviewJob } = await import('./preview-job.js');
-  return succeeded(await executePreviewJob({ ...run.base, input: job, progress: run.progress, browser: run.browser, renderer: run.renderer, ...(run.freeBytes ? { freeBytes: run.freeBytes } : {}) }), true);
+  return succeeded(
+    await executePreviewJob({ ...run.base, input: job, progress: run.progress, browser: run.browser, renderer: run.renderer, ...(run.freeBytes ? { freeBytes: run.freeBytes } : {}) }),
+    true,
+  );
 };
 
 const inspectHandler: JobHandler<'inspect'> = async (job, run) => {
@@ -190,7 +194,18 @@ const recordHandler: JobHandler<'record'> = async (job, run) => {
   // A Stop asked before the worker took the job (the Studio's Stop as it was taken): seen before anything opens.
   if (!run.stopAsked.signal.aborted && (await run.base.queue.stopOf(run.id).catch(() => undefined)) !== undefined) run.stopAsked.abort();
   try {
-    return succeeded(await executeRecordJob({ ...run.base, input: job, jobId: run.id, stop: stop.signal, finish: run.stopAsked.signal, progress: run.progress, ...(run.recordWindow ? { window: run.recordWindow } : {}) }), true);
+    return succeeded(
+      await executeRecordJob({
+        ...run.base,
+        input: job,
+        jobId: run.id,
+        stop: stop.signal,
+        finish: run.stopAsked.signal,
+        progress: run.progress,
+        ...(run.recordWindow ? { window: run.recordWindow } : {}),
+      }),
+      true,
+    );
   } finally {
     run.slot.currentStop = undefined;
   }

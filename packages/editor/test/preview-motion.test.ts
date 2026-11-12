@@ -56,7 +56,10 @@ const STILL: Record<string, [number, number, number, 'crossfade' | 'fade-black']
 
 describe('motion mode of component previews', () => {
   it('the still spec of every transition is unchanged in three themes (same frame and length, no motion)', () => {
-    const transitions = registry.list('transition').map((i) => i.manifest.id).sort();
+    const transitions = registry
+      .list('transition')
+      .map((i) => i.manifest.id)
+      .sort();
     expect(transitions).toEqual(Object.keys(STILL).sort());
     for (const theme of Object.keys(themes)) {
       for (const id of transitions) {

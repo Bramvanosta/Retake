@@ -80,7 +80,9 @@ export async function verifiedApprovals(input: JobInput, o: SigningOptions): Pro
 
 /** sha256 of a job's id and input (canonical JSON): what the worker claimed, checked again by the job process. */
 export function recordDigest(rec: { id: string; input: unknown }): string {
-  return createHash('sha256').update(canonicalJson({ id: rec.id, input: rec.input })).digest('hex');
+  return createHash('sha256')
+    .update(canonicalJson({ id: rec.id, input: rec.input }))
+    .digest('hex');
 }
 
 /** `<RETAKE_HOME>/approvals-used`. */

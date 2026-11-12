@@ -41,7 +41,13 @@ export function ProposalBanner({ slug, name, proposal, shown }: { slug: string; 
           </p>
         )}
         <div className="cm-actions">
-          <LinkButton size="sm" variant="primary" to={{ name: 'comments', slug, scenario: name, thread: proposal.comment_id }} testId="banner-back" onClick={() => focusProposalOf(slug, proposal.comment_id)}>
+          <LinkButton
+            size="sm"
+            variant="primary"
+            to={{ name: 'comments', slug, scenario: name, thread: proposal.comment_id }}
+            testId="banner-back"
+            onClick={() => focusProposalOf(slug, proposal.comment_id)}
+          >
             Back to the comment
           </LinkButton>
         </div>

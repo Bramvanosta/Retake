@@ -286,7 +286,16 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     expect(calls.filter((c) => c.op === 'run_pause').at(-1)?.body).toEqual({ project: P, run_id: runId, paused: false });
 
     // The outcome: succeeded, every step done, the stream ended (no upstream left).
-    await expect.poll(() => page.getByTestId('run-outcome').getAttribute('data-status').catch(() => null), RUN).toBe('succeeded');
+    await expect
+      .poll(
+        () =>
+          page
+            .getByTestId('run-outcome')
+            .getAttribute('data-status')
+            .catch(() => null),
+        RUN,
+      )
+      .toBe('succeeded');
     expect(await stepsDone()).toBe(27);
     expect(await page.getByTestId('run-pause').count()).toBe(0);
     await expect.poll(() => studio.runLive.streamCount, RUN).toBe(0);
@@ -338,7 +347,18 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     await expect.poll(() => studio.runLive.streamCount, RUN).toBe(2);
     const third = await open();
     await third.getByTestId('run-busy').waitFor({ timeout: 30_000 });
-    await expect.poll(async () => (await third.getByTestId('run-steps-done').innerText().catch(() => '')).match(/^\d+ \/ 30 steps done/) !== null, RUN).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (
+            await third
+              .getByTestId('run-steps-done')
+              .innerText()
+              .catch(() => '')
+          ).match(/^\d+ \/ 30 steps done/) !== null,
+        RUN,
+      )
+      .toBe(true);
     expect(await third.getByTestId('picture-state').innerText()).toContain('another live screen');
     await shot('46-run-third-tab-fallback', third);
     await third.close();
@@ -357,7 +377,16 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     await shot('46b-run-capture-paused');
     await page.getByTestId('run-stop').click();
     expect(calls.filter((c) => c.op === 'run_cancel').at(-1)?.body).toEqual({ project: P, run_id: runId });
-    await expect.poll(() => page.getByTestId('run-outcome').getAttribute('data-status').catch(() => null), RUN).toBe('cancelled');
+    await expect
+      .poll(
+        () =>
+          page
+            .getByTestId('run-outcome')
+            .getAttribute('data-status')
+            .catch(() => null),
+        RUN,
+      )
+      .toBe('cancelled');
     const outcome = await page.getByTestId('run-outcome').innerText();
     expect(outcome).toContain('Its teardown ran: reset ok');
     expect(outcome).toContain('No rollback was pending');
@@ -376,7 +405,9 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     const job = { id: 'j_20261026T120000Z_abcdef', kind: 'auth_login', state: 'running', created_at: new Date().toISOString(), started_at: new Date().toISOString() };
     await page.route('**/v1/call/auth_login', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: job }) }));
     await page.route('**/v1/call/job_list', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { jobs: [job], worker: null } }) }));
-    await page.route('**/v1/call/sign_in_cancel', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: job.id, kind: 'auth_login', state: 'cancelled' } }) }));
+    await page.route('**/v1/call/sign_in_cancel', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: job.id, kind: 'auth_login', state: 'cancelled' } }) }),
+    );
     // L5.10a: the Sessions panel lives on the Cast (the project page it was on is the poster grid now).
     await page.goto(`${studio.url}#/p/${P}/cast`);
     const panel = page.getByTestId('sessions-panel');
@@ -425,7 +456,16 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
     expect(calls.filter((c) => c.op === 'scenario_run' && c.body.name === 'members').map((c) => c.body.sessions_ack)).toEqual([['owner']]);
     noteWorker();
     // The run's own preflight is the authority: its result is the first row, and nothing is filmed.
-    await expect.poll(() => page.getByTestId('run-outcome').getAttribute('data-status').catch(() => null), RUN).toBe('failed');
+    await expect
+      .poll(
+        () =>
+          page
+            .getByTestId('run-outcome')
+            .getAttribute('data-status')
+            .catch(() => null),
+        RUN,
+      )
+      .toBe('failed');
     const first = page.locator('[data-testid="run-steps"] [data-testid="run-session"]').first();
     expect(await first.getAttribute('data-persona')).toBe('owner');
     expect(await first.getAttribute('data-status')).toBe('failed');

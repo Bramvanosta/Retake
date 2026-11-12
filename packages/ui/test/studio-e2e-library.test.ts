@@ -69,14 +69,20 @@ async function seed(key: string, kind: 'poster' | 'loop', component: string, ima
   const e = join(libraryCacheDir({ root: ws }), key);
   await mkdir(e, { recursive: true });
   await writeFile(join(e, LIBRARY_FILES[kind]), image);
-  await writeFile(join(e, LIBRARY_FILES.meta), JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key, kind, component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), state: 'ok', bytes: image.length }));
+  await writeFile(
+    join(e, LIBRARY_FILES.meta),
+    JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key, kind, component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), state: 'ok', bytes: image.length }),
+  );
 }
 async function seedFailed(key: string, kind: 'poster' | 'loop', component: string, reason: string): Promise<void> {
   const e = join(libraryCacheDir({ root: ws }), key);
   await mkdir(e, { recursive: true });
   // Recorded under the registry as it is now (review A M3 / B H1: a failure under another registry reads as missing).
   const bundle = await libraryRegistryHash((await memoRegistry(studio.engine.workspace)).registry);
-  await writeFile(join(e, LIBRARY_FILES.failed), JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key, kind, component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), reason, bundle }));
+  await writeFile(
+    join(e, LIBRARY_FILES.failed),
+    JSON.stringify({ format: LIBRARY_PREVIEW_FORMAT, key, kind, component, theme: { name: 'editorial', hash: 'x' }, at: new Date().toISOString(), reason, bundle }),
+  );
 }
 
 const view = async (theme?: string) => (await studio.engine.components.library({ project: P, ...(theme ? { template: theme } : {}) })).items;
@@ -323,7 +329,7 @@ describe('the component library in Chromium', () => {
     expect(await readFile(file, 'utf8')).toBe(original);
   });
 
-  it('⚑ L5.12c: in the shell — the browser\'s Library group and themes, the Theme select, the selected card\'s inspector, the status bar; targets ≥ 24 px; the set-default sheets: Escape cancels, Return sets', async () => {
+  it("⚑ L5.12c: in the shell — the browser's Library group and themes, the Theme select, the selected card's inspector, the status bar; targets ≥ 24 px; the set-default sheets: Escape cancels, Return sets", async () => {
     // A scenario in context first (the status bar's scenario line follows the tab): the Library's line replaces it.
     await page.goto(`${studio.url}#/p/${P}/s/quote`);
     await page.getByTestId('status-scenario').waitFor(POLL);
@@ -344,7 +350,9 @@ describe('the component library in Chromium', () => {
     await expect.poll(() => page.getByTestId('library').getAttribute('data-theme'), POLL).toBe('editorial');
     // The status bar: the previews' state in words, Render all loops, Open the theme editor (this theme's).
     const bar = page.getByRole('region', { name: 'Status' });
-    expect((await bar.getByTestId('lib-status').textContent())!.replace(/\s+/g, ' ').trim()).toMatch(/^(?:Idle|\d+ previews? queued: waiting for the worker) · Posters render while their cards are on screen$/);
+    expect((await bar.getByTestId('lib-status').textContent())!.replace(/\s+/g, ' ').trim()).toMatch(
+      /^(?:Idle|\d+ previews? queued: waiting for the worker) · Posters render while their cards are on screen$/,
+    );
     expect(await bar.getByTestId('lib-render-all').count()).toBe(1);
     expect(await bar.getByTestId('lib-theme-editor').getAttribute('href')).toBe(`#/p/${P}/themes/editorial`);
     expect(await bar.getByTestId('status-actions').count()).toBe(0);
@@ -369,7 +377,8 @@ describe('the component library in Chromium', () => {
     await page.getByTestId('lib-inspector-play').click();
     await expect.poll(() => cta.getByTestId('lib-play').getAttribute('aria-pressed'), POLL).toBe('false');
     // Targets: the card, its Play, the inspector's actions at least 24 px tall.
-    for (const l of [cta.locator('.k-card'), cta.getByTestId('lib-play'), page.getByTestId('lib-inspector-play'), page.getByTestId('lib-open'), page.getByTestId('lib-set-start')]) expect((await l.boundingBox())!.height).toBeGreaterThanOrEqual(24);
+    for (const l of [cta.locator('.k-card'), cta.getByTestId('lib-play'), page.getByTestId('lib-inspector-play'), page.getByTestId('lib-open'), page.getByTestId('lib-set-start')])
+      expect((await l.boundingBox())!.height).toBeGreaterThanOrEqual(24);
     // A starter: the copy-first sheet; Escape cancels — nothing copied, nothing written.
     const themesBefore = (await readdir(join(ws, 'templates'))).sort();
     await page.getByTestId('lib-set-start').click();
@@ -404,13 +413,23 @@ describe('the component library in Chromium', () => {
     await expect.poll(() => page.getByTestId('lib-card').count(), POLL).toBe(0);
     const asked = rendered.length;
     await page.getByTestId('lib-theme').selectOption('motion');
-    await expect.poll(() => rendered.slice(asked).some((r) => (JSON.parse(r.body) as { items: Array<{ component: string; poster?: string; loop?: string }> }).items.some((i) => i.component === 'studio/intro-minimal' && i.poster && !i.loop)), POLL).toBe(true);
+    await expect
+      .poll(
+        () =>
+          rendered
+            .slice(asked)
+            .some((r) =>
+              (JSON.parse(r.body) as { items: Array<{ component: string; poster?: string; loop?: string }> }).items.some((i) => i.component === 'studio/intro-minimal' && i.poster && !i.loop),
+            ),
+        POLL,
+      )
+      .toBe(true);
     for (const j of await libraryJobs()) if (j.state === 'queued') await studio.engine.jobs.cancel(j.id);
     await page.getByTestId('lib-find').fill('');
     expect(dialogs).toEqual([]);
   });
 
-  it('⚑ L5.12c fixes (review B-H1): Set as default on a starter from the GRID\'s inspector — Return in the copy\'s name field copies, the Library moves to the copy\'s page and keeps the result, Undo and the next step; Undo → the exact bytes', async () => {
+  it("⚑ L5.12c fixes (review B-H1): Set as default on a starter from the GRID's inspector — Return in the copy's name field copies, the Library moves to the copy's page and keeps the result, Undo and the next step; Undo → the exact bytes", async () => {
     await page.goto(`${studio.url}#/p/${P}/library/motion`);
     await expect.poll(() => page.getByTestId('library').getAttribute('data-theme'), POLL).toBe('motion');
     const h = card('acme/hostile');
@@ -433,12 +452,15 @@ describe('the component library in Chromium', () => {
     expect(await readFile(file, 'utf8')).toBe((await readFile(join(REPO, 'templates', 'motion', 'template.yaml'), 'utf8')).replace(/^name: motion$/m, 'name: motion-set'));
   });
 
-  it('⚑ L5.12c fixes (review A-M3, A-L7, B-M1, A-L6): the grid is one tab stop — arrows, Home / End, Escape, Enter to the inspector; a card named by its name; its frame holds Play; Play pressed is not the ring\'s look', async () => {
+  it("⚑ L5.12c fixes (review A-M3, A-L7, B-M1, A-L6): the grid is one tab stop — arrows, Home / End, Escape, Enter to the inspector; a card named by its name; its frame holds Play; Play pressed is not the ring's look", async () => {
     await page.goto(`${studio.url}#/p/${P}`);
     await page.goto(`${studio.url}#/p/${P}/library`);
     await expect.poll(() => page.getByTestId('library').getAttribute('data-theme'), POLL).toBe('editorial');
     const ids = await page.getByTestId('lib-card').evaluateAll((els) => els.map((e) => e.getAttribute('data-component')!));
-    const stops = () => page.locator('.lb-grid [tabindex="0"], .lb-grid button:not([tabindex="-1"]), .lb-grid a:not([tabindex="-1"])').evaluateAll((els) => [...new Set(els.map((e) => e.closest('[data-testid="lib-card"]')!.getAttribute('data-component')))]);
+    const stops = () =>
+      page
+        .locator('.lb-grid [tabindex="0"], .lb-grid button:not([tabindex="-1"]), .lb-grid a:not([tabindex="-1"])')
+        .evaluateAll((els) => [...new Set(els.map((e) => e.closest('[data-testid="lib-card"]')!.getAttribute('data-component')))]);
     // One card holds the stop (the first, nothing selected): its controls only.
     expect(await stops()).toEqual([ids[0]]);
     const at = () => page.evaluate(() => document.activeElement?.closest('[data-testid="lib-card"]')?.getAttribute('data-component') ?? null);
@@ -590,11 +612,17 @@ describe('the component library in Chromium', () => {
     await expect.poll(() => c.getByTestId('lib-retry-poster').count(), POLL).toBe(1);
     const asked = rendered.length;
     await c.getByTestId('lib-retry-poster').click();
-    await expect.poll(() => rendered.slice(asked).some((r) => JSON.parse(r.body).retry === true && JSON.stringify(JSON.parse(r.body).items) === JSON.stringify([{ component: key.component, poster: key.poster.key }])), POLL).toBe(true);
+    await expect
+      .poll(
+        () =>
+          rendered.slice(asked).some((r) => JSON.parse(r.body).retry === true && JSON.stringify(JSON.parse(r.body).items) === JSON.stringify([{ component: key.component, poster: key.poster.key }])),
+        POLL,
+      )
+      .toBe(true);
     for (const j of await libraryJobs()) if (j.state === 'queued') await studio.engine.jobs.cancel(j.id);
   });
 
-  it('Create with Claude: a prompt of checked names and the person\'s words, copied; ⚑ no request leaves the Studio, only library jobs', async () => {
+  it("Create with Claude: a prompt of checked names and the person's words, copied; ⚑ no request leaves the Studio, only library jobs", async () => {
     await page.goto(`${studio.url}#/p/${P}/library`);
     await expect.poll(() => page.getByTestId('library').getAttribute('data-theme'), POLL).toBe('editorial');
     await page.getByTestId('lib-create-open').click();
@@ -617,7 +645,10 @@ describe('the component library in Chromium', () => {
     await expect.poll(() => page.getByTestId('lib-create-copied').innerText(), POLL).toBe('Copied.');
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(expected.prompt);
     await page.keyboard.press('Escape');
-    await page.locator('[data-testid="lib-create"][open]').waitFor({ state: 'detached' }).catch(() => undefined);
+    await page
+      .locator('[data-testid="lib-create"][open]')
+      .waitFor({ state: 'detached' })
+      .catch(() => undefined);
     await expect.poll(() => page.locator('dialog[open]').count(), POLL).toBe(0);
     // ⚑ L5.12c: the person's words outlive the sheet — reopened, the brief is still there (and still unsaved).
     await page.getByTestId('lib-create-open').click();

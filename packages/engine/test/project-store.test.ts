@@ -36,7 +36,11 @@ import { projectStoreContract } from './project-store-contract.js';
 
 let root: string;
 const savedHome = process.env.RETAKE_HOME;
-const lines = (): JournalEntry[] => readFileSync(journalFile(root), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as JournalEntry);
+const lines = (): JournalEntry[] =>
+  readFileSync(journalFile(root), 'utf8')
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l) as JournalEntry);
 const last = (): JournalEntry => lines().at(-1)!;
 
 async function failure(p: Promise<unknown>): Promise<EngineError> {
@@ -155,7 +159,13 @@ describe('the project store', () => {
     expect(await readFile(join(root, 'outside.md'), 'utf8')).toBe('# Outside\n');
     // A project's store keeps its words.
     await symlink(join(root, 'outside.md'), join(root, 'projects', 'acme', 'linked.md'));
-    const p = await failure(fileWriter(diskProjectStores.of({ dir: join(root, 'projects', 'acme'), slug: 'acme' }, personScope(root, enginePorts())), 'readme')(join(root, 'projects', 'acme', 'linked.md'), 'x', '# Outside\n'));
+    const p = await failure(
+      fileWriter(diskProjectStores.of({ dir: join(root, 'projects', 'acme'), slug: 'acme' }, personScope(root, enginePorts())), 'readme')(
+        join(root, 'projects', 'acme', 'linked.md'),
+        'x',
+        '# Outside\n',
+      ),
+    );
     expect(p.message).toMatch(/linked\.md leads out of the project folder \(a symbolic link\): not written$/);
   });
 
@@ -174,7 +184,14 @@ describe('the project store', () => {
     });
     expect(made).toEqual({ result: 'built', dir: join(root, 'templates', 'mine'), replaced: false });
     expect(readdirSync(join(root, 'templates')).sort()).toEqual(['mine']);
-    expect(last()).toMatchObject({ by: { client: 'cli', channel: 'cli', trust: 'author' }, op: 'folder', what: 'theme', path: 'templates/mine', files: ['template.yaml', 'fonts/a.ttf'], outcome: 'ok' });
+    expect(last()).toMatchObject({
+      by: { client: 'cli', channel: 'cli', trust: 'author' },
+      op: 'folder',
+      what: 'theme',
+      path: 'templates/mine',
+      files: ['template.yaml', 'fonts/a.ttf'],
+      outcome: 'ok',
+    });
     const e = await failure(
       store.createFolder(join(root, 'templates'), 'broken', {
         what: 'theme',
@@ -190,7 +207,11 @@ describe('the project store', () => {
     expect(last()).toMatchObject({ op: 'folder', path: 'templates/broken', outcome: 'internal' });
     // A name the recheck finds taken: refused, the stage removed.
     const taken = await failure(
-      store.createFolder(join(root, 'templates'), 'mine', { what: 'theme', build: async () => undefined, recheck: async () => Promise.reject(Object.assign(new Error('taken'), { errorKind: 'conflict' })) }),
+      store.createFolder(join(root, 'templates'), 'mine', {
+        what: 'theme',
+        build: async () => undefined,
+        recheck: async () => Promise.reject(Object.assign(new Error('taken'), { errorKind: 'conflict' })),
+      }),
     );
     expect(taken.message).toBe('taken');
     expect(readdirSync(join(root, 'templates')).sort()).toEqual(['mine']);
@@ -207,7 +228,17 @@ describe('the workspace journal', () => {
     expect(after.slice(before.length).split('\n').filter(Boolean)).toHaveLength(1);
     // The module's API: append, read and the names it builds — nothing that truncates, rewrites or removes.
     // journalLine formats a line (the memory store journals the same shape); appendJournal is the one that writes.
-    expect(Object.keys(journalModule).sort()).toEqual(['JOURNAL_FILES_MAX', 'JOURNAL_VERSION', 'appendJournal', 'hookEntry', 'hookRunRecorder', 'journalFile', 'journalLine', 'journalPath', 'readJournal']);
+    expect(Object.keys(journalModule).sort()).toEqual([
+      'JOURNAL_FILES_MAX',
+      'JOURNAL_VERSION',
+      'appendJournal',
+      'hookEntry',
+      'hookRunRecorder',
+      'journalFile',
+      'journalLine',
+      'journalPath',
+      'readJournal',
+    ]);
     const src = readFileSync(join(REPO, 'packages/engine/src/store/journal.ts'), 'utf8');
     // L7.26: the journal appends and reads through the line logs' one discipline (store/append-log.ts), which the
     // history shares; neither file truncates, rewrites or removes.
@@ -249,15 +280,36 @@ describe('the workspace journal', () => {
       await rm(ws, { recursive: true, force: true });
     }
     // The only module naming the journal's file (core's layout names it once).
-    const naming = sourceFiles().filter((f) => /WORKSPACE_JOURNAL_FILE|['"]journal\.jsonl['"]/.test(readFileSync(f, 'utf8'))).map((f) => relative(REPO, f));
+    const naming = sourceFiles()
+      .filter((f) => /WORKSPACE_JOURNAL_FILE|['"]journal\.jsonl['"]/.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(REPO, f));
     expect(naming.sort()).toEqual(['packages/core/src/layout.ts', 'packages/engine/src/store/journal.ts']);
   });
 
   it('reads by project and kind, the newest last, skipping torn and foreign lines', async () => {
     await writeFile(journalFile(root), `${readFileSync(journalFile(root), 'utf8')}{"torn\n{"v":99,"op":"write","at":"x"}\n`);
-    await hookRunRecorder(root, { caller: callerOf('mcp'), clock: systemClock }, { project: 'acme', run: 'hooks-x' })({ index: 0, name: 'reset', kind: 'http', phase: 'setup', status: 'ok', ms: 12.4 });
+    await hookRunRecorder(
+      root,
+      { caller: callerOf('mcp'), clock: systemClock },
+      { project: 'acme', run: 'hooks-x' },
+    )({ index: 0, name: 'reset', kind: 'http', phase: 'setup', status: 'ok', ms: 12.4 });
     const hooks = await readJournal(root, { op: 'hook' });
-    expect(hooks).toEqual([{ v: 1, at: expect.any(String), by: { client: 'mcp', channel: 'mcp', trust: 'mcp' }, project: 'acme', op: 'hook', hook: 'reset', index: 0, kind: 'http', phase: 'setup', ms: 12, outcome: 'ok', run: 'hooks-x' }]);
+    expect(hooks).toEqual([
+      {
+        v: 1,
+        at: expect.any(String),
+        by: { client: 'mcp', channel: 'mcp', trust: 'mcp' },
+        project: 'acme',
+        op: 'hook',
+        hook: 'reset',
+        index: 0,
+        kind: 'http',
+        phase: 'setup',
+        ms: 12,
+        outcome: 'ok',
+        run: 'hooks-x',
+      },
+    ]);
     expect((await readJournal(root, { op: 'write', limit: 2 })).map((e) => e.op)).toEqual(['folder', 'write']);
     expect((await readJournal(root, { project: 'acme' })).every((e) => e.project === 'acme')).toBe(true);
     expect(await readJournal(join(root, 'nowhere'))).toEqual([]);
@@ -328,7 +380,7 @@ describe('the workspace journal', () => {
     }
   });
 
-  it('names a path workspace-relative however the workspace is spelt (its real path, a link), else by its store\'s label — never absolute', async () => {
+  it("names a path workspace-relative however the workspace is spelt (its real path, a link), else by its store's label — never absolute", async () => {
     const base = await mkdtemp(join(tmpdir(), 'retake-journal-path-'));
     try {
       const ws = join(base, 'ws');
@@ -356,7 +408,9 @@ describe('the workspace journal', () => {
       await diskProjectStores.of({ dir: join(base, 'elsewhere', 'gamma'), slug: 'gamma' }, personScope(ws, enginePorts())).writeText('README.md', '# G\n', { ifMatch: null, what: 'readme' });
       expect((await readJournal(ws)).at(-1)).toMatchObject({ project: 'gamma', path: '<project>/README.md' });
       await mkdir(outside, { recursive: true });
-      await diskProjectStores.at(outside, personScope(ws, enginePorts()), { label: '<templates_dir>' }).createFolder(outside, 'mine', { what: 'theme', build: async (st) => st.write('template.yaml', 'name: mine\n'), recheck: async () => ({ existing: false }) });
+      await diskProjectStores
+        .at(outside, personScope(ws, enginePorts()), { label: '<templates_dir>' })
+        .createFolder(outside, 'mine', { what: 'theme', build: async (st) => st.write('template.yaml', 'name: mine\n'), recheck: async () => ({ existing: false }) });
       expect((await readJournal(ws)).at(-1)).toMatchObject({ op: 'folder', path: '<templates_dir>/mine', outcome: 'ok' });
       for (const e of await readJournal(ws)) if (e.op !== 'hook') expect(e.path.startsWith('/') || /^[A-Za-z]:/.test(e.path), e.path).toBe(false);
     } finally {
@@ -364,7 +418,7 @@ describe('the workspace journal', () => {
     }
   });
 
-  it('a folder\'s creation lock is the same however its parent is spelt (a link, its real path)', async () => {
+  it("a folder's creation lock is the same however its parent is spelt (a link, its real path)", async () => {
     const base = await mkdtemp(join(tmpdir(), 'retake-journal-lock-'));
     try {
       const ws = join(base, 'ws');
@@ -373,14 +427,17 @@ describe('the workspace journal', () => {
       const name = 'same';
       const seenOf = async (parent: string) => {
         let seen: string[] = [];
-        await diskProjectStores.at(parent, personScope(ws, enginePorts())).createFolder(parent, name, {
-          what: 'theme',
-          build: async () => undefined,
-          recheck: async () => {
-            seen = (await readdir(join(ws, '.retake', 'locks'))).filter((f) => f.startsWith('create-'));
-            throw Object.assign(new Error('stop here'), { errorKind: 'conflict' });
-          },
-        }).catch(() => undefined);
+        await diskProjectStores
+          .at(parent, personScope(ws, enginePorts()))
+          .createFolder(parent, name, {
+            what: 'theme',
+            build: async () => undefined,
+            recheck: async () => {
+              seen = (await readdir(join(ws, '.retake', 'locks'))).filter((f) => f.startsWith('create-'));
+              throw Object.assign(new Error('stop here'), { errorKind: 'conflict' });
+            },
+          })
+          .catch(() => undefined);
         return seen;
       };
       const a = await seenOf(join(ws, 'templates'));
@@ -395,7 +452,15 @@ describe('the workspace journal', () => {
   });
 
   it('a hook line never holds a value: no description, message or error of the hook', () => {
-    const entry = hookEntry({ index: 1, name: 'seed', kind: 'sql', phase: 'seed', status: 'failed', ms: 3, ...{ description: 'sql INSERT … password=hunter2', message: 'secret row', error: 'token=abc' } } as never);
+    const entry = hookEntry({
+      index: 1,
+      name: 'seed',
+      kind: 'sql',
+      phase: 'seed',
+      status: 'failed',
+      ms: 3,
+      ...{ description: 'sql INSERT … password=hunter2', message: 'secret row', error: 'token=abc' },
+    } as never);
     expect(entry).toEqual({ op: 'hook', hook: 'seed', index: 1, kind: 'sql', phase: 'seed', ms: 3, outcome: 'failed' });
     expect(JSON.stringify(entry)).not.toMatch(/hunter2|secret row|token=abc/);
   });
@@ -421,7 +486,14 @@ describe('the engine journals its writes as its caller', () => {
     expect(project.every((e) => e.by.client === 'mcp' && e.by.trust === 'mcp')).toBe(true);
     const view = await engine.projects.get('beta');
     await engine.projects.updateReadme('beta', '# Beta', view.readme_hash);
-    expect((await readJournal(root, { project: 'beta' })).at(-1)).toMatchObject({ by: { client: 'mcp', channel: 'mcp', trust: 'mcp' }, what: 'readme', path: 'projects/beta/README.md', if_match: view.readme_hash, sha256: sha256Hex('# Beta\n'), outcome: 'ok' });
+    expect((await readJournal(root, { project: 'beta' })).at(-1)).toMatchObject({
+      by: { client: 'mcp', channel: 'mcp', trust: 'mcp' },
+      what: 'readme',
+      path: 'projects/beta/README.md',
+      if_match: view.readme_hash,
+      sha256: sha256Hex('# Beta\n'),
+      outcome: 'ok',
+    });
   });
 });
 
@@ -482,7 +554,15 @@ describe('no authored write around the store', () => {
       for (const m of made) expect(m, relative(REPO, f)).toMatch(/^(storeOf\(|[\w.]*stores\.(?:of|at)\()/);
     }
     // The modules that wrote authored files by hand before the store: no file write of their own left.
-    const former = ['packages/core/src/project.ts', 'packages/core/src/scenario.ts', 'packages/components/src/create.ts', 'packages/sandbox/src/init.ts', 'packages/cli/src/commands/init.ts', 'packages/engine/src/brand/create.ts', 'packages/engine/src/brand/copy.ts'];
+    const former = [
+      'packages/core/src/project.ts',
+      'packages/core/src/scenario.ts',
+      'packages/components/src/create.ts',
+      'packages/sandbox/src/init.ts',
+      'packages/cli/src/commands/init.ts',
+      'packages/engine/src/brand/create.ts',
+      'packages/engine/src/brand/copy.ts',
+    ];
     for (const f of former) expect(readFileSync(join(REPO, f), 'utf8'), f).not.toMatch(/\b(writeFile|writeFileSync|writeTextAtomic|copyFile|rename)\s*\(/);
   });
 });

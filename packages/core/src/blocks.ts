@@ -238,10 +238,7 @@ export interface HookBlock {
 }
 
 /** The intro or the outro: the theme's, none, or overridden. */
-export type EndCardBlock =
-  | { mode: 'theme' }
-  | { mode: 'off' }
-  | { mode: 'custom'; component?: string; file?: MediaFileRef; duration?: number; tagline?: string; url?: string };
+export type EndCardBlock = { mode: 'theme' } | { mode: 'off' } | { mode: 'custom'; component?: string; file?: MediaFileRef; duration?: number; tagline?: string; url?: string };
 
 export interface VideoBlock {
   /** `video:`. */
@@ -378,7 +375,10 @@ const q = (s: string) => `“${s}”`;
 
 /** The first line of a text, at most `max` characters (… when cut). */
 function oneLine(s: string, max = 160): string {
-  const first = s.replace(/^\s*\n/, '').split('\n')[0].trim();
+  const first = s
+    .replace(/^\s*\n/, '')
+    .split('\n')[0]
+    .trim();
   const cut = first.length > max ? `${first.slice(0, max - 1)}…` : first;
   return s.trim().includes('\n') && cut === first ? `${cut} …` : cut;
 }
@@ -491,7 +491,10 @@ function describeStep(action: ActionName, args: unknown): { target?: string; sum
     case 'press':
       return { summary: str(a.key) !== undefined ? `${a.key}${num(a.times) !== undefined && (a.times as number) > 1 ? ` × ${a.times}` : ''}` : undefined };
     case 'select':
-      return { target: a.combobox !== undefined ? plainTarget(a.combobox) : fieldWords(a.field), summary: join(str(a.option) !== undefined && `option ${q(a.option as string)}`, str(a.search) !== undefined && `search ${q(a.search as string)}`) };
+      return {
+        target: a.combobox !== undefined ? plainTarget(a.combobox) : fieldWords(a.field),
+        summary: join(str(a.option) !== undefined && `option ${q(a.option as string)}`, str(a.search) !== undefined && `search ${q(a.search as string)}`),
+      };
     case 'pick': {
       const options = typeof a.option === 'string' ? [a.option] : Array.isArray(a.option) ? a.option.filter((o): o is string => typeof o === 'string') : [];
       return {
@@ -512,7 +515,10 @@ function describeStep(action: ActionName, args: unknown): { target?: string; sum
       const to = a.to;
       const target = isObj(to) || (typeof to === 'string' && to !== 'top' && to !== 'bottom') ? plainTarget(to) : undefined;
       const where = typeof to === 'number' ? `to ${to} px` : to === 'top' || to === 'bottom' ? `to the ${to}` : num(a.by) !== undefined ? `by ${a.by} px` : undefined;
-      return { target: target !== undefined && a.in !== undefined ? `${target} in ${plainTarget(a.in)}` : target, summary: join(where, num(a.duration) !== undefined && seconds(a.duration as number)) };
+      return {
+        target: target !== undefined && a.in !== undefined ? `${target} in ${plainTarget(a.in)}` : target,
+        summary: join(where, num(a.duration) !== undefined && seconds(a.duration as number)),
+      };
     }
     case 'drag':
       return { target: a.from !== undefined ? plainTarget(a.from) : undefined, summary: a.to !== undefined ? `to ${plainTarget(a.to)}` : undefined };
@@ -546,7 +552,12 @@ function describeStep(action: ActionName, args: unknown): { target?: string; sum
     }
     case 'wait_for_email':
       return {
-        summary: join(str(a.to) !== undefined && `to ${q(a.to as string)}`, str(a.from) !== undefined && `from ${q(a.from as string)}`, str(a.subject) !== undefined && `subject ${q(a.subject as string)}`, str(a.as) && `as ${a.as}`),
+        summary: join(
+          str(a.to) !== undefined && `to ${q(a.to as string)}`,
+          str(a.from) !== undefined && `from ${q(a.from as string)}`,
+          str(a.subject) !== undefined && `subject ${q(a.subject as string)}`,
+          str(a.as) && `as ${a.as}`,
+        ),
       };
     case 'download':
       return { target: a.click !== undefined ? plainTarget(pickTarget(isObj(a.click) ? a.click : {})) : undefined, summary: str(a.as) && `as ${a.as}` };
@@ -648,7 +659,14 @@ function rangeOf(at: At, src: Src): SourceRange | undefined {
 function commentOf(seq: At, item: At, i: number): string | undefined {
   if (item.aliased) return undefined;
   const own = item.node?.commentBefore ?? (i === 0 && !seq.aliased && isSeq(seq.node) ? seq.node.commentBefore : undefined);
-  return typeof own === 'string' && own !== '' ? stripUrlUserinfo(own.split('\n').map((l) => l.replace(/^ /, '')).join('\n')) : undefined;
+  return typeof own === 'string' && own !== ''
+    ? stripUrlUserinfo(
+        own
+          .split('\n')
+          .map((l) => l.replace(/^ /, ''))
+          .join('\n'),
+      )
+    : undefined;
 }
 
 /** An editor's directive line: `yaml-language-server: $schema=…`, an Emacs `-*- … -*-` or a vim / vi / ex modeline. */
@@ -705,7 +723,8 @@ function endCard(v: unknown, outro: boolean): EndCardBlock {
 function videoBlock(sc: Record<string, unknown>, src: Src): VideoBlock {
   const v = emptyVideo();
   if (str(sc.video) !== undefined) v.name = sc.video as string;
-  if (isObj(sc.title)) v.title = { ...(str(sc.title.kicker) !== undefined ? { kicker: sc.title.kicker as string } : {}), ...(str(sc.title.text) !== undefined ? { text: sc.title.text as string } : {}) };
+  if (isObj(sc.title))
+    v.title = { ...(str(sc.title.kicker) !== undefined ? { kicker: sc.title.kicker as string } : {}), ...(str(sc.title.text) !== undefined ? { text: sc.title.text as string } : {}) };
   if (str(sc.env) !== undefined) v.env = sc.env as string;
   if (str(sc.template) !== undefined) v.template = sc.template as string;
   if (str(sc.frame) !== undefined) v.frame = sc.frame as string;
@@ -911,7 +930,13 @@ function entryBlock(entry: unknown, index: number, scenes: At, src: Src, page: s
   if (entry.card !== undefined) {
     const s = isObj(entry.card) ? entry.card : {};
     const file = mediaFile(s);
-    const slots = isObj(s.slots) ? Object.fromEntries(Object.entries(s.slots).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k, stripUrlUserinfo(v as string)])) : undefined;
+    const slots = isObj(s.slots)
+      ? Object.fromEntries(
+          Object.entries(s.slots)
+            .filter(([, v]) => typeof v === 'string')
+            .map(([k, v]) => [k, stripUrlUserinfo(v as string)]),
+        )
+      : undefined;
     const transition = transitionWords(s.transition);
     return {
       type: 'card',

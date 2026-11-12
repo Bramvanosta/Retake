@@ -82,12 +82,33 @@ describe('the frames encode, the raw clips and the 1080p export', () => {
     const frames = join(tmp, 'clip-frames');
     mkdirSync(frames);
     for (const f of ['a.jpg', 'b.jpg']) writeFileSync(join(frames, f), 'x');
-    const source = { dir: frames, frames: [{ file: 'a.jpg', t: 0 }, { file: 'b.jpg', t: 0.1 }], ext: 'jpg', jpeg: true, fromVideo: false };
+    const source = {
+      dir: frames,
+      frames: [
+        { file: 'a.jpg', t: 0 },
+        { file: 'b.jpg', t: 0.1 },
+      ],
+      ext: 'jpg',
+      jpeg: true,
+      fromVideo: false,
+    };
     for (const x264 of [true, false]) {
       const ff = fakeFfmpeg({ x264, vtWorks: true });
       const work = join(tmp, `clip-work-${n}`);
       mkdirSync(work);
-      const used = await encodeClip({ policy: PERSON_POLICY, source, files: ['a.jpg', 'b.jpg'], fps: 30, width: 1280, height: 720, format: 'mp4', timecode: '00:00:00:00', out: join(work, 'c.mp4'), tmp: work, ffmpeg: ff.bin });
+      const used = await encodeClip({
+        policy: PERSON_POLICY,
+        source,
+        files: ['a.jpg', 'b.jpg'],
+        fps: 30,
+        width: 1280,
+        height: 720,
+        format: 'mp4',
+        timecode: '00:00:00:00',
+        out: join(work, 'c.mp4'),
+        tmp: work,
+        ffmpeg: ff.bin,
+      });
       expect(used).toBe(x264 ? 'libx264' : 'h264_videotoolbox');
       const args = readFileSync(ff.log, 'utf8');
       expect(args).toContain(x264 ? '-c:v libx264 -profile:v high' : '-c:v h264_videotoolbox -q:v 85 -profile:v high -g 30');
@@ -96,7 +117,21 @@ describe('the frames encode, the raw clips and the 1080p export', () => {
     const ff = fakeFfmpeg({ x264: false, vtWorks: true });
     const work = join(tmp, 'clip-prores');
     mkdirSync(work);
-    expect(await encodeClip({ policy: PERSON_POLICY, source, files: ['a.jpg'], fps: 30, width: 1280, height: 720, format: 'prores', timecode: '00:00:00:00', out: join(work, 'c.mov'), tmp: work, ffmpeg: ff.bin })).toBeUndefined();
+    expect(
+      await encodeClip({
+        policy: PERSON_POLICY,
+        source,
+        files: ['a.jpg'],
+        fps: 30,
+        width: 1280,
+        height: 720,
+        format: 'prores',
+        timecode: '00:00:00:00',
+        out: join(work, 'c.mov'),
+        tmp: work,
+        ffmpeg: ff.bin,
+      }),
+    ).toBeUndefined();
     expect(readFileSync(ff.log, 'utf8')).toContain('-c:v prores_ks');
   });
 

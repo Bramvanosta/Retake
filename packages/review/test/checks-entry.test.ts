@@ -30,7 +30,16 @@ const PURE = (rules.REVIEW_PURE as string[]).map((n) => `${n}.ts`).sort();
 /** The review's side that reads files, runs ffmpeg or draws images: never reached. */
 const IO_SIDE = ['index.ts', 'pixels.ts', 'ffmpeg.ts', 'fonts.ts', 'report.ts', 'review.ts', 'load.ts', 'sheets.ts', 'still.ts', 'thumbs.ts'];
 /** The packages the entry's modules import (each is a domain entry: pure; core by its entries since L7.35). */
-const PACKAGES = ['@retake/components/geometry', '@retake/core/base', '@retake/core/comments', '@retake/core/environment', '@retake/core/model', '@retake/core/policy', '@retake/core/run', '@retake/editor/plan'];
+const PACKAGES = [
+  '@retake/components/geometry',
+  '@retake/core/base',
+  '@retake/core/comments',
+  '@retake/core/environment',
+  '@retake/core/model',
+  '@retake/core/policy',
+  '@retake/core/run',
+  '@retake/editor/plan',
+];
 
 /** The value imports and re-exports of a module (type-only ones load nothing at run time). */
 function valueSpecifiers(file: string): string[] {
@@ -111,7 +120,8 @@ describe('@retake/review/checks (the pure entry)', () => {
     const names = Object.keys(entry);
     expect(names.length).toBeGreaterThan(50);
     for (const n of names) expect((root as Record<string, unknown>)[n], n).toBe((entry as Record<string, unknown>)[n]);
-    for (const n of ['checkCaptions', 'checkPixels', 'regionStats', 'compareSignatures', 'bbox', 'frameAnchor', 'diffRecords', 'buildOutputTimeline', 'segmentSpans', 'fitCaption']) expect(n in entry, n).toBe(true);
+    for (const n of ['checkCaptions', 'checkPixels', 'regionStats', 'compareSignatures', 'bbox', 'frameAnchor', 'diffRecords', 'buildOutputTimeline', 'segmentSpans', 'fitCaption'])
+      expect(n in entry, n).toBe(true);
     for (const n of ['readImage', 'reviewRender', 'extractFrames', 'fontFileMeasurer', 'reportMarkdown', 'extractStill']) {
       expect(n in root, n).toBe(true);
       expect(n in entry, n).toBe(false);
@@ -155,7 +165,10 @@ function loadTrace(file: string): Array<[string, string]> {
     ].join('\n');
     const r = spawnSync(process.execPath, ['--input-type=module', '-e', main], { encoding: 'utf8' });
     expect(r.status, r.stderr).toBe(0);
-    return readFileSync(out, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as [string, string]);
+    return readFileSync(out, 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as [string, string]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -154,7 +154,10 @@ describe('catalogue (real timeline)', () => {
     expect(mid.every((d) => d === 1 || d === 2)).toBe(true);
     // Speed spans: two ramps of 9 output frames (0.3 s) between 1× and 1.6×, protected spans at 1×.
     const ramps = av.speeds.filter((s) => s.speed !== s.to_speed && s.speed > 0);
-    expect(ramps.map((r) => [r.speed, r.to_speed])).toEqual([[1, 1.6], [1.6, 1]]);
+    expect(ramps.map((r) => [r.speed, r.to_speed])).toEqual([
+      [1, 1.6],
+      [1.6, 1],
+    ]);
     for (const r of ramps) expect(r.to - r.from).toBeCloseTo(9, 3);
     expect(av.speeds.filter((s) => s.protected).every((s) => s.speed === 1 && s.to_speed === 1)).toBe(true);
     // Output length = still + hold at 1× + the rest at 1.6× (+ the ramps' share).
@@ -214,7 +217,7 @@ describe('catalogue (real timeline)', () => {
     expect(p.markers[0].frame).toBe(imp.from + imp.srcFrames.findIndex((f) => f >= Math.ceil(mk.t * FPS - 1e-6)));
   });
 
-  it('places each marker\'s `done` frame on the screen once its step is done (a marked wait: its awaited state)', () => {
+  it("places each marker's `done` frame on the screen once its step is done (a marked wait: its awaited state)", () => {
     for (const m of p.markers) {
       const mk = tl.markers.find((x) => x.name === m.name)!;
       const ev = tl.events.find((e) => e.scene === mk.scene && e.step === mk.step)!;
@@ -237,15 +240,7 @@ describe('quote (real timeline)', () => {
   });
 
   it('places the chapter card and the interstitial in scenario order, with crossfades around them', () => {
-    expect(p.segments.map((s) => `${s.kind}:${s.id}`)).toEqual([
-      'intro:intro',
-      'clip:discover',
-      'card:chapter-request',
-      'clip:request',
-      'interstitial:interstitial-3',
-      'clip:proposal',
-      'outro:outro',
-    ]);
+    expect(p.segments.map((s) => `${s.kind}:${s.id}`)).toEqual(['intro:intro', 'clip:discover', 'card:chapter-request', 'clip:request', 'interstitial:interstitial-3', 'clip:proposal', 'outro:outro']);
     const card = seg(p, 'chapter-request');
     expect(card.component).toMatchObject({ id: 'studio/card-title', source: 'theme', slots: { title: 'Ask the roaster for a quote', kicker: 'Step two' } });
     expect(card.durationInFrames).toBe(Math.round(2.2 * FPS));
@@ -342,11 +337,7 @@ describe('quote (real timeline)', () => {
       expect(entries[entries.length - 1].out_to).toBe(c.from + c.durationInFrames);
       for (let i = 1; i < entries.length; i++) expect(entries[i].out_from).toBeCloseTo(entries[i - 1].out_to, 3);
     }
-    expect(clip(p, 'proposal').urls.map((u) => u.url)).toEqual([
-      'http://localhost:4402/',
-      'http://localhost:4402/quotes/1043',
-      'http://localhost:4402/quotes/1043/pdf',
-    ]);
+    expect(clip(p, 'proposal').urls.map((u) => u.url)).toEqual(['http://localhost:4402/', 'http://localhost:4402/quotes/1043', 'http://localhost:4402/quotes/1043/pdf']);
   });
 
   it('is deterministic and does not modify its input', () => {

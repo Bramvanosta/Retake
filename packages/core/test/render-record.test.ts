@@ -41,7 +41,10 @@ const ok = (r: RenderRead): Extract<RenderRead, { ok: true }> => {
   if (!r.ok) throw new Error(`not read: ${r.problem}`);
   return r;
 };
-const said = (r: RenderRead): string => (r.ok ? `ok${r.lacks.length ? ` lacks ${r.lacks.join(',')}` : ''}${r.notes.length ? ` notes ${r.notes.join(',')}` : ''}` : `${r.problem}${'detail' in r && r.detail ? ` at ${r.detail}` : ''}${r.problem === 'unknown-status' && r.lacks.length ? ` lacks ${r.lacks.join(',')}` : ''}`);
+const said = (r: RenderRead): string =>
+  r.ok
+    ? `ok${r.lacks.length ? ` lacks ${r.lacks.join(',')}` : ''}${r.notes.length ? ` notes ${r.notes.join(',')}` : ''}`
+    : `${r.problem}${'detail' in r && r.detail ? ` at ${r.detail}` : ''}${r.problem === 'unknown-status' && r.lacks.length ? ` lacks ${r.lacks.join(',')}` : ''}`;
 
 describe('parseRenderRecord: what decides, and nothing else', () => {
   it('every state of render-states.json: a record, what it lacks, or the typed problem', () => {
@@ -118,7 +121,12 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
     expect(said(parseRenderRecord({ version: 1 }))).toBe('invalid at status');
     // A newer format is said before anything else is looked at, with its sentence and what the object says.
     const newer = parseRenderRecord({ version: 2, id: 'quote-v2', scenario: 'quote', run_id: 'r', created_at: at(2), status: 9 });
-    expect(newer).toEqual({ ok: false, problem: 'newer-format', message: 'this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake', said: { id: 'quote-v2', scenario: 'quote', run_id: 'r', created_at: at(2) } });
+    expect(newer).toEqual({
+      ok: false,
+      problem: 'newer-format',
+      message: 'this render record is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
+      said: { id: 'quote-v2', scenario: 'quote', run_id: 'r', created_at: at(2) },
+    });
     // What a file that is no record says all the same: texts only.
     expect(parseRenderRecord({ ...without('status'), run_id: 5 })).toMatchObject({ problem: 'invalid', detail: 'status', said: { id: 'quote-v1', scenario: 'quote', created_at: at(1) } });
     expect((parseRenderRecord({ ...without('status'), run_id: 5 }) as { said: object }).said).not.toHaveProperty('run_id');
@@ -126,7 +134,13 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
 
   it('`created_at`, `scenario` and `plan` decide nothing: the record reads and says what it lacks (decision iii)', () => {
     const base = value({ file: 'quote-v1', at: at(1) }) as Record<string, unknown>;
-    for (const [member, bad, empty] of [['created_at', 5, ''], ['scenario', ['x'], ''], ['plan', 5, undefined], ['plan', [1], undefined], ['plan', null, undefined]] as const) {
+    for (const [member, bad, empty] of [
+      ['created_at', 5, ''],
+      ['scenario', ['x'], ''],
+      ['plan', 5, undefined],
+      ['plan', [1], undefined],
+      ['plan', null, undefined],
+    ] as const) {
       const r = ok(parseRenderRecord({ ...base, [member]: bad }));
       expect([member, r.lacks, (r.value as unknown as Record<string, unknown>)[member]], member).toEqual([member, [member], empty]);
       expect(member in r.value, member).toBe(empty !== undefined);
@@ -134,7 +148,28 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
     const bare = ok(parseRenderRecord({ version: 1, id: 'x', status: 'succeeded' }));
     expect(bare.lacks).toEqual(['scenario', 'created_at', 'plan']);
     // Every member every record holds reads as its empty value; nothing else is invented.
-    expect(bare.value).toEqual({ version: 1, id: 'x', status: 'succeeded', project: '', scenario: '', run_id: '', run_dir: '', template: '', overrides: {}, file: '', record: '', created_at: '', finished_at: '', duration_s: 0, frames: 0, fps: 0, width: 0, height: 0, size_bytes: 0, warnings: [] });
+    expect(bare.value).toEqual({
+      version: 1,
+      id: 'x',
+      status: 'succeeded',
+      project: '',
+      scenario: '',
+      run_id: '',
+      run_dir: '',
+      template: '',
+      overrides: {},
+      file: '',
+      record: '',
+      created_at: '',
+      finished_at: '',
+      duration_s: 0,
+      frames: 0,
+      fps: 0,
+      width: 0,
+      height: 0,
+      size_bytes: 0,
+      warnings: [],
+    });
     expect(bare.notes).toEqual([]);
   });
 
@@ -145,18 +180,36 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
     expect(['variant' in r.value, r.value.variant, r.lacks, r.notes]).toEqual([false, undefined, [], []]);
     const odd = ok(parseRenderRecord({ ...base, variant: 7 }));
     expect(['variant' in odd.value, odd.notes]).toEqual([false, ['variant-dropped']]);
-    const words = ok(parseRenderRecord(value({ file: 'quote-v2', at: at(2), set: { variant: 'cube', 'encoding.audio': 'voice', 'browser.source': 'system', 'policy.gl.used': 'metal', 'edit.from': 'draft' } })));
-    expect([words.value.variant, words.value.encoding?.audio, words.value.browser?.source, words.value.policy?.gl.used, words.value.edit?.from, words.notes]).toEqual(['cube', 'voice', 'system', 'metal', 'draft', []]);
+    const words = ok(
+      parseRenderRecord(value({ file: 'quote-v2', at: at(2), set: { variant: 'cube', 'encoding.audio': 'voice', 'browser.source': 'system', 'policy.gl.used': 'metal', 'edit.from': 'draft' } })),
+    );
+    expect([words.value.variant, words.value.encoding?.audio, words.value.browser?.source, words.value.policy?.gl.used, words.value.edit?.from, words.notes]).toEqual([
+      'cube',
+      'voice',
+      'system',
+      'metal',
+      'draft',
+      [],
+    ]);
   });
 
   it('a block that does not read is dropped whole and noted; unknown keys are kept at every level', () => {
     const base = value({ file: 'quote-v1', at: at(1) }) as Record<string, unknown>;
-    const r = ok(parseRenderRecord({ ...base, policy: 'fast', encoding: { codec: 'h264' }, timings: { plan_ms: 'x' }, probe: 5, later: { a: 1 }, bundle: { hash: 'h', cached: true, ms: 1, more: 2 } }));
+    const r = ok(
+      parseRenderRecord({ ...base, policy: 'fast', encoding: { codec: 'h264' }, timings: { plan_ms: 'x' }, probe: 5, later: { a: 1 }, bundle: { hash: 'h', cached: true, ms: 1, more: 2 } }),
+    );
     expect(r.notes.sort()).toEqual(['encoding-dropped', 'policy-dropped', 'probe-dropped', 'timings-dropped']);
-    expect([r.value.policy, r.value.encoding, r.value.timings, r.value.probe, (r.value as unknown as { later: unknown }).later, r.value.bundle]).toEqual([undefined, undefined, undefined, undefined, { a: 1 }, { hash: 'h', cached: true, ms: 1, more: 2 }]);
+    expect([r.value.policy, r.value.encoding, r.value.timings, r.value.probe, (r.value as unknown as { later: unknown }).later, r.value.bundle]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { a: 1 },
+      { hash: 'h', cached: true, ms: 1, more: 2 },
+    ]);
   });
 
-  it('what a state never has decides nothing: an error on a succeeded record, a probe on a failed one — dropped, noted; a failed record\'s error reads leniently', () => {
+  it("what a state never has decides nothing: an error on a succeeded record, a probe on a failed one — dropped, noted; a failed record's error reads leniently", () => {
     const base = value({ file: 'quote-v1', at: at(1) }) as Record<string, unknown>;
     const withError = ok(parseRenderRecord({ ...base, error: 'x' }));
     expect([withError.value.status, 'error' in withError.value, withError.notes]).toEqual(['succeeded', false, ['error-dropped']]);
@@ -173,9 +226,25 @@ describe('parseRenderRecord: what decides, and nothing else', () => {
     expect([r.record.status, r.record.id, r.record.created_at, r.lacks]).toEqual(['paused', 'quote-v1', '', ['created_at', 'plan']]);
   });
 
-  it('the run record\'s reader still holds its own tables: its scenario decides, where a render record\'s does not', () => {
+  it("the run record's reader still holds its own tables: its scenario decides, where a render record's does not", () => {
     // (the shared lenient read takes each parser's tables: a run record without its scenario is no record)
-    const run = { version: 1, id: '20261002-100000-quote', project: 'p', mode: 'capture', status: 'succeeded', started_at: 'a', finished_at: 'b', dir: '/d', env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] };
+    const run = {
+      version: 1,
+      id: '20261002-100000-quote',
+      project: 'p',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: 'a',
+      finished_at: 'b',
+      dir: '/d',
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+    };
     expect(parseRunRecord(run)).toMatchObject({ ok: false, problem: 'invalid', detail: 'scenario' });
     expect(parseRunRecord({ ...run, scenario: 'quote', warnings: 5 })).toMatchObject({ ok: true, notes: ['warnings-dropped'], value: { warnings: [] } });
     expect(parseRunRecord({ ...run, scenario: 'quote', error: 'x' })).toMatchObject({ ok: false, problem: 'invalid', detail: 'error' });
@@ -222,7 +291,8 @@ describe('the two transitions', () => {
       // @ts-expect-error — wrong on purpose: a policy is what the end adds, never a field
       () => finishedRender(withPolicy),
     ];
-    for (const make of made) expect(make).toThrow(/^internal: a render record is made from its fields only, and these hold "status"|^internal: a render record is made from its fields only, and these hold "policy"/);
+    for (const make of made)
+      expect(make).toThrow(/^internal: a render record is made from its fields only, and these hold "status"|^internal: a render record is made from its fields only, and these hold "policy"/);
     expect(() => finishedRender(failed as never)).toThrow('internal: a render record is made from its fields only, and these hold "status", "error"');
   });
 });
@@ -262,14 +332,30 @@ describe('the rules over the entries of renders/', () => {
   });
 
   it('the order of renders: creation time, then id, both as text; no creation time is the oldest', () => {
-    const list = [{ id: 'quote-v9', created_at: at(5) }, { id: 'quote-v10', created_at: at(5) }, { id: 'quote-v2', created_at: at(9) }, { id: 'quote-v3', created_at: '' }, { id: 'quote-v1', created_at: at(1) }];
+    const list = [
+      { id: 'quote-v9', created_at: at(5) },
+      { id: 'quote-v10', created_at: at(5) },
+      { id: 'quote-v2', created_at: at(9) },
+      { id: 'quote-v3', created_at: '' },
+      { id: 'quote-v1', created_at: at(1) },
+    ];
     expect(orderRenders(list).map((r) => r.id)).toEqual(['quote-v3', 'quote-v1', 'quote-v10', 'quote-v9', 'quote-v2']);
     expect(list[0]!.id).toBe('quote-v9');
   });
 
   it('the previous render: succeeded, same scenario and variant, another video, earlier by creation time then by version, its video there — the last of the order', () => {
     const rec = (n: number, m: number, more: Partial<RenderFileSpec> = {}) => ok(entry({ file: `quote-v${n}`, at: at(m), ...more }).read).value;
-    const all = [rec(1, 1), rec(2, 2), rec(3, 3, { set: { status: 'failed', error: 'x' } }), rec(4, 4, { set: { variant: 'vertical' } }), rec(5, 5, { set: { scenario: 'other' } }), rec(6, 6), rec(9, 10), rec(10, 10), rec(11, 10)];
+    const all = [
+      rec(1, 1),
+      rec(2, 2),
+      rec(3, 3, { set: { status: 'failed', error: 'x' } }),
+      rec(4, 4, { set: { variant: 'vertical' } }),
+      rec(5, 5, { set: { scenario: 'other' } }),
+      rec(6, 6),
+      rec(9, 10),
+      rec(10, 10),
+      rec(11, 10),
+    ];
     const prev = (n: number, exists: (f: string) => boolean = () => true) => previousRender(all, all.find((r) => r.id === `quote-v${n}`)!, exists)?.id ?? 'none';
     expect([prev(1), prev(2), prev(6), prev(4)]).toEqual(['none', 'quote-v1', 'quote-v2', 'none']);
     expect(prev(6, (f) => !f.endsWith('quote-v2.mp4'))).toBe('quote-v1');
@@ -321,7 +407,11 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
   };
   const named = (entries: RenderEntry[], scenario: string | null = 'quote') => {
     const r = latestNamedRender(entries, scenario !== null ? { scenario } : {});
-    return { pick: r.pick ? `${r.pick.entry.name}.json${r.pick.renamed ? ` (says ${r.pick.record.id || 'an empty id'})` : ''}` : '-', passed: r.passed.map((p) => `${p.file}: ${p.why}`), not_considered: r.not_considered };
+    return {
+      pick: r.pick ? `${r.pick.entry.name}.json${r.pick.renamed ? ` (says ${r.pick.record.id || 'an empty id'})` : ''}` : '-',
+      passed: r.passed.map((p) => `${p.file}: ${p.why}`),
+      not_considered: r.not_considered,
+    };
   };
 
   it('held apart by the `--out` state: a terminal takes quote-final, the engine quote-v1 and says the file it passed over', () => {
@@ -330,7 +420,7 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
     expect(project(entries)).toEqual({ pick: 'quote-v1', passed: ['quote-final.json: other-name'], more: 0, not_considered: 0 });
   });
 
-  it('the engine\'s: a render of its scenario only — a renamed, linked, incomplete, newer, unknown or failed newer file is passed over and said', () => {
+  it("the engine's: a render of its scenario only — a renamed, linked, incomplete, newer, unknown or failed newer file is passed over and said", () => {
     const newer: Array<[RenderEntry, string]> = [
       [entry({ file: 'quote-final', id: 'quote-v2', at: at(2) }), 'quote-final.json: renamed'],
       [problem('quote-v2', 'not-a-file', true), 'quote-v2.json: linked'],
@@ -347,12 +437,14 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
     // A file that says nothing and whose name is no render id: counted, never named.
     expect(project([good(1), problem('notes', 'not-json'), problem('x', 'not-a-file', true)])).toEqual({ pick: 'quote-v1', passed: [], more: 0, not_considered: 2 });
     // Older than the pick, or of another scenario: not "passed over".
-    expect(project([good(3), good(2, { set: { status: 'failed', error: 'x' } }), entry({ file: 'other-v9', at: at(9), set: { scenario: 'other' } }), good(4, { set: { scenario: 'other' } })]).passed).toEqual([]);
+    expect(
+      project([good(3), good(2, { set: { status: 'failed', error: 'x' } }), entry({ file: 'other-v9', at: at(9), set: { scenario: 'other' } }), good(4, { set: { scenario: 'other' } })]).passed,
+    ).toEqual([]);
     // Nothing to take: everything of the scenario is said.
     expect(project([good(2, { set: { status: 'failed', error: 'x' } })])).toEqual({ pick: '-', passed: ['quote-v2.json: not-succeeded'], more: 0, not_considered: 0 });
   });
 
-  it('the engine\'s options: without a scenario, of a variant, of any status (a status Retake never writes included: a status question), quotable', () => {
+  it("the engine's options: without a scenario, of a variant, of any status (a status Retake never writes included: a status question), quotable", () => {
     const vertical = entry({ file: 'quote-v3-vertical', at: at(3), set: { variant: 'vertical' } });
     const other = entry({ file: 'other-v4', at: at(4), set: { scenario: 'other' } });
     const failed = good(5, { set: { status: 'failed', error: 'x' } });
@@ -370,16 +462,28 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
     expect(any.pick && 'unknown' in any.pick ? [any.pick.id, any.pick.unknown.status] : any.pick?.id).toEqual(['quote-v6', 'paused']);
     expect(project([good(1), failed], { status: 'any', scenario: 'quote' }).pick).toBe('quote-v5');
     // … but never a file that is no record, a renamed one or an incomplete one.
-    expect(project([good(1), good(2, { unset: ['status'] }), good(3, { set: { status: 'paused' }, unset: ['plan'] })], { status: 'any', scenario: 'quote' })).toEqual({ pick: 'quote-v1', passed: ['quote-v3.json: unknown-status', 'quote-v2.json: unreadable'], more: 0, not_considered: 0 });
+    expect(project([good(1), good(2, { unset: ['status'] }), good(3, { set: { status: 'paused' }, unset: ['plan'] })], { status: 'any', scenario: 'quote' })).toEqual({
+      pick: 'quote-v1',
+      passed: ['quote-v3.json: unknown-status', 'quote-v2.json: unreadable'],
+      more: 0,
+      not_considered: 0,
+    });
   });
 
   it('more than five passed over: five are named, newest first (those that say no creation time first), the rest counted, every one in the reasons', () => {
     const entries = [good(1), ...[2, 3, 4, 5, 6, 7].map((n) => good(n, { set: { status: 'failed', error: 'x' } })), problem('quote-v8', 'not-a-file', true)];
     const r = latestProjectRender(entries, { status: 'succeeded', scenario: 'quote' });
-    expect([r.passed.map((p) => p.file), r.passed_more, r.reasons]).toEqual([['quote-v8.json', 'quote-v7.json', 'quote-v6.json', 'quote-v5.json', 'quote-v4.json'], 2, [{ why: 'linked', count: 1 }, { why: 'not-succeeded', count: 6 }]]);
+    expect([r.passed.map((p) => p.file), r.passed_more, r.reasons]).toEqual([
+      ['quote-v8.json', 'quote-v7.json', 'quote-v6.json', 'quote-v5.json', 'quote-v4.json'],
+      2,
+      [
+        { why: 'linked', count: 1 },
+        { why: 'not-succeeded', count: 6 },
+      ],
+    ]);
   });
 
-  it('a terminal\'s: the newest succeeded complete record whatever its file is called and whatever id it says — the command acts on the file', () => {
+  it("a terminal's: the newest succeeded complete record whatever its file is called and whatever id it says — the command acts on the file", () => {
     // The lead's ruling: a renamed newest record is picked (by its file), not passed over; so is one with an empty id.
     expect(named([good(1), entry({ file: 'quote-final', id: 'quote-v2', at: at(2) })])).toEqual({ pick: 'quote-final.json (says quote-v2)', passed: [], not_considered: 0 });
     expect(named([good(1), entry({ file: 'x', id: '', at: at(2) })]).pick).toBe('x.json (says an empty id)');
@@ -399,7 +503,7 @@ describe('the two `latest` (D-11: two rules, on purpose)', () => {
   });
 });
 
-describe('a render\'s identity (sameRender, L7.6c)', () => {
+describe("a render's identity (sameRender, L7.6c)", () => {
   it('its id and its creation time: the same id made at another time is another render; a record without its creation time is none a caller read', () => {
     const now = { id: 'quote-v2', created_at: '2026-10-02T09:02:00.000Z' };
     expect(sameRender(now, { id: 'quote-v2', created_at: '2026-10-02T09:02:00.000Z' })).toBe(true);
@@ -412,7 +516,7 @@ describe('a render\'s identity (sameRender, L7.6c)', () => {
 });
 
 describe('a render someone named', () => {
-  it('decision iv: a renamed record is refused only when the video it names is now another render\'s', () => {
+  it("decision iv: a renamed record is refused only when the video it names is now another render's", () => {
     const renamed = entry({ file: 'quote-final', id: 'quote-v1', at: at(0) });
     const newV1 = good(1);
     expect(renamedProblem(renamed, newV1)).toEqual({ why: 'video-of-another-render', id: 'quote-v1', other: 'quote-v1' });

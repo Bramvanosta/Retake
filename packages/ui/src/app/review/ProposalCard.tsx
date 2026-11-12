@@ -149,7 +149,8 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
           else {
             // What the apply said beside the write: its problems, the scenario's warnings.
             const after = appliedWords(o.record.answer);
-            if (o.record.render?.state === 'refused') setSaid({ state: 'fail', title: 'Applied, the render failed to start', words: `Applied, but the render was not started: ${o.record.render.message}${after ? `\n${after.words}` : ''}` });
+            if (o.record.render?.state === 'refused')
+              setSaid({ state: 'fail', title: 'Applied, the render failed to start', words: `Applied, but the render was not started: ${o.record.render.message}${after ? `\n${after.words}` : ''}` });
             else if (after) setSaid({ state: 'warn', title: 'Applied, with a warning', words: after.words });
           }
           if (render) reloadRenders();
@@ -243,7 +244,14 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
                 {shown(BUTTON_WORDS[b])}
               </LinkButton>
             ) : (
-              <Button key={b} size="sm" variant={b === 'apply_render' ? 'primary' : 'secondary'} data-testid={b === 'apply' ? 'proposal-apply' : 'proposal-apply-render'} disabled={busy !== null} onClick={() => apply(b === 'apply_render')}>
+              <Button
+                key={b}
+                size="sm"
+                variant={b === 'apply_render' ? 'primary' : 'secondary'}
+                data-testid={b === 'apply' ? 'proposal-apply' : 'proposal-apply-render'}
+                disabled={busy !== null}
+                onClick={() => apply(b === 'apply_render')}
+              >
                 {shown(busy === b ? (b === 'apply' ? 'Applying…' : 'Applying, then rendering…') : BUTTON_WORDS[b])}
               </Button>
             ),
@@ -279,7 +287,11 @@ export function ProposalCard({ slug, name, th, p, rs, reload }: { slug: string; 
             )}
           </div>
         )}
-        {rid && !job && !done && !failed && <p className="cm-quiet"><Txt text={`${versionWords(rid)} is queued…`} /></p>}
+        {rid && !job && !done && !failed && (
+          <p className="cm-quiet">
+            <Txt text={`${versionWords(rid)} is queued…`} />
+          </p>
+        )}
         {failed && (
           <p className="cm-small" data-testid="proposal-render-failed">
             <Txt text={`${versionWords(failed.render_id)} ended without a video (${failed.state}): its reason is in the Review report's Renders.`} />

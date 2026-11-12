@@ -159,9 +159,7 @@ export async function dropFile(ctx: StepContext, args: DropFileArgs): Promise<Ac
   if (!delivered) {
     const inputRef = input?.ref ?? (await kit.fileInputFor(zone.ref));
     if (!inputRef) {
-      throw new StepError(
-        `drop_file: ${zone.spec} did not accept the dropped file and no <input type=file> was found in or around it (pass \`input\`)`,
-      );
+      throw new StepError(`drop_file: ${zone.spec} did not accept the dropped file and no <input type=file> was found in or around it (pass \`input\`)`);
     }
     const handle = await elementHandle(ctx, inputRef);
     await handle.setInputFiles({

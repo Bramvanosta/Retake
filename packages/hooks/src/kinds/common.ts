@@ -85,9 +85,7 @@ export async function readProjectFile(projectDir: string, rel: string, what: str
     return await readFile(abs, 'utf8');
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    throw new HookError(
-      code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${(e as Error).message}`,
-    );
+    throw new HookError(code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${(e as Error).message}`);
   }
 }
 

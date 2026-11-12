@@ -7,14 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LoadedTemplate } from '@retake/core/model';
-import {
-  PREVIEW_SAMPLES_DIR,
-  applyParamDefaults,
-  evalLayoutGeometry,
-  fillSlots,
-  isMultiPaneGeometry,
-  previewMoment,
-} from '@retake/components';
+import { PREVIEW_SAMPLES_DIR, applyParamDefaults, evalLayoutGeometry, fillSlots, isMultiPaneGeometry, previewMoment } from '@retake/components';
 import type { LayoutPaneRects } from '@retake/components';
 import { planPaneLayout } from './panes.js';
 import { MEDIA_SLOT_TYPES } from '@retake/components';
@@ -198,16 +191,47 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
       }
       if (spec.type === 'lottie' && m?.lottie) {
         const l = m.lottie;
-        (out ??= {})[name] = { kind: 'lottie', name: 'sample', url: opts.sampleUrl(l.file), width: l.width, height: l.height, fps: l.fps, frames: l.frames, duration_s: Math.round((l.frames / l.fps) * 1000) / 1000 };
+        (out ??= {})[name] = {
+          kind: 'lottie',
+          name: 'sample',
+          url: opts.sampleUrl(l.file),
+          width: l.width,
+          height: l.height,
+          fps: l.fps,
+          frames: l.frames,
+          duration_s: Math.round((l.frames / l.fps) * 1000) / 1000,
+        };
         continue;
       }
       if (spec.type === 'email' && m?.email) {
         const e = m.email;
-        (out ??= {})[name] = { kind: 'email', name: 'sample', from: e.from, ...(e.from_name ? { from_name: e.from_name } : {}), to: e.to, subject: e.subject, date: e.date, preview: e.preview, image: { url: opts.sampleUrl(e.file), width: e.width, height: e.height } };
+        (out ??= {})[name] = {
+          kind: 'email',
+          name: 'sample',
+          from: e.from,
+          ...(e.from_name ? { from_name: e.from_name } : {}),
+          to: e.to,
+          subject: e.subject,
+          date: e.date,
+          preview: e.preview,
+          image: { url: opts.sampleUrl(e.file), width: e.width, height: e.height },
+        };
       } else if (spec.type === 'document' && m?.document) {
-        (out ??= {})[name] = { kind: 'document', name: 'sample', file_name: m.document.file_name, pages: m.document.pages.map((p, i) => ({ url: opts.sampleUrl(p.file), width: p.width, height: p.height, width_pt: p.width_pt, height_pt: p.height_pt, number: i + 1 })) };
+        (out ??= {})[name] = {
+          kind: 'document',
+          name: 'sample',
+          file_name: m.document.file_name,
+          pages: m.document.pages.map((p, i) => ({ url: opts.sampleUrl(p.file), width: p.width, height: p.height, width_pt: p.width_pt, height_pt: p.height_pt, number: i + 1 })),
+        };
       } else if (spec.type === 'notification') {
-        (out ??= {})[name] = { kind: 'notification', name: 'sample', title: 'New quote request', body: 'Café Lumen asks for 10 × 5 kg of Selowa Ridge.', app: 'console.northfield.example', time: '2026-10-12T09:41:00.000Z' };
+        (out ??= {})[name] = {
+          kind: 'notification',
+          name: 'sample',
+          title: 'New quote request',
+          body: 'Café Lumen asks for 10 × 5 kg of Selowa Ridge.',
+          app: 'console.northfield.example',
+          time: '2026-10-12T09:41:00.000Z',
+        };
       }
     }
     return out;
@@ -247,7 +271,7 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
     return out;
   };
   const captionUse = (rc: ResolvedComponentRef, given?: { text?: string; kicker?: string }): PreviewUse & { cues: CaptionCue[] } => {
-    const slots = given ?? ((rc.manifest.preview?.slots as { text?: string; kicker?: string } | undefined) ?? SAMPLE_CAPTION);
+    const slots = given ?? (rc.manifest.preview?.slots as { text?: string; kicker?: string } | undefined) ?? SAMPLE_CAPTION;
     const text = slots.text ?? SAMPLE_CAPTION.text;
     return {
       ...use(rc.id, rc.manifest, { text, ...(slots.kicker ? { kicker: slots.kicker } : {}) }, rc.params, 4),

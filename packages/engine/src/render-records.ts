@@ -39,7 +39,9 @@ export function latestRenderNotice(pick: Pick<RenderLatestPick<unknown>, 'passed
 }
 
 /** The members an answer gains from a `latest` of renders (none when nothing was passed over). */
-export function latestRenderMembers(pick: Pick<RenderLatestPick<unknown>, 'passed' | 'passed_more' | 'not_considered'> | undefined): LatestRenderNotice & { untrusted?: { renders_passed_over: PassedOverRenders } } {
+export function latestRenderMembers(
+  pick: Pick<RenderLatestPick<unknown>, 'passed' | 'passed_more' | 'not_considered'> | undefined,
+): LatestRenderNotice & { untrusted?: { renders_passed_over: PassedOverRenders } } {
   if (!pick) return {};
   const { notice, passed } = latestRenderNotice(pick);
   return { ...notice, ...(passed.length ? { untrusted: { renders_passed_over: passed } } : {}) };
@@ -70,9 +72,6 @@ export function renderFileProblem(entry: RenderEntry, id: string): EngineError |
  * runs, over core, not the reviewer's): core previousRender over the complete records of their own file of renders/
  * (core renderRecordsOf), whose video is there. Undefined when there is none.
  */
-export async function previousOfRender(
-  projectDir: string,
-  current: Pick<StoredRenderRecord, 'file' | 'scenario' | 'variant' | 'created_at' | 'render_version'>,
-): Promise<CompleteRender | undefined> {
+export async function previousOfRender(projectDir: string, current: Pick<StoredRenderRecord, 'file' | 'scenario' | 'variant' | 'created_at' | 'render_version'>): Promise<CompleteRender | undefined> {
   return previousRender(renderRecordsOf(await renderEntries(projectDir)), current, existsSync);
 }

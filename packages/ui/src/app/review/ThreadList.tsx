@@ -54,7 +54,9 @@ function ThreadRow({ t, slug, name, current }: { t: ThreadItem; slug: string; na
         meta={
           <>
             <StatusMark state={threadMark(t.status)} word={statusWords(t.status)} />
-            <Txt text={` · ${t.render_present ? `on ${renderWords(t.render_id)}` : 'render gone'} · ${whereWords(t.anchor)} · ${channelWords(t.via)}${t.entries_total > 0 ? ` · ${plural(t.entries_total, 'entry', 'entries')}` : ''}`} />
+            <Txt
+              text={` · ${t.render_present ? `on ${renderWords(t.render_id)}` : 'render gone'} · ${whereWords(t.anchor)} · ${channelWords(t.via)}${t.entries_total > 0 ? ` · ${plural(t.entries_total, 'entry', 'entries')}` : ''}`}
+            />
             {t.proposal && (
               <>
                 {' · '}
@@ -69,7 +71,17 @@ function ThreadRow({ t, slug, name, current }: { t: ThreadItem; slug: string; na
 }
 
 /** Memoised (review A-L2): a frame step of the viewer re-renders the screen, never this list (its props are stable). */
-export const ThreadList = memo(function ThreadList(p: { slug: string; name: string; filter: Filter; setFilter: (f: Filter) => void; onlyRender: boolean; setOnlyRender: (b: boolean) => void; render: string | null; current?: string; tick: number }) {
+export const ThreadList = memo(function ThreadList(p: {
+  slug: string;
+  name: string;
+  filter: Filter;
+  setFilter: (f: Filter) => void;
+  onlyRender: boolean;
+  setOnlyRender: (b: boolean) => void;
+  render: string | null;
+  current?: string;
+  tick: number;
+}) {
   const only = p.onlyRender && p.render !== null;
   const args = { project: p.slug, name: p.name, status: p.filter, ...(p.onlyRender && p.render !== null ? { render: p.render } : {}) };
   const [loaded, reload] = useThreadsList(args, `${p.slug}\0${p.name}\0${p.filter}\0${only ? p.render : ''}`);
@@ -133,7 +145,9 @@ export const ThreadList = memo(function ThreadList(p: { slug: string; name: stri
         <div className="cm-list-body" aria-busy={list.busy}>
           {d.threads.length === 0 ? (
             <p className="cm-quiet" data-testid="no-threads">
-              <Txt text={`${shownFilter === 'open' ? 'No open comment' : shownFilter === 'resolved' ? 'No resolved comment' : 'No comment'}${shownRender !== null ? ` on ${renderWords(shownRender)}` : ' on this scenario'} yet.`} />
+              <Txt
+                text={`${shownFilter === 'open' ? 'No open comment' : shownFilter === 'resolved' ? 'No resolved comment' : 'No comment'}${shownRender !== null ? ` on ${renderWords(shownRender)}` : ' on this scenario'} yet.`}
+              />
             </p>
           ) : (
             groups.map((g) => (

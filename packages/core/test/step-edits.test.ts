@@ -11,7 +11,19 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { StepEditError, applyStepEdit, locateAnchorStep, matchRunSteps, movedSteps, parseYaml, scenarioBlocks, sceneStepFingerprints, stepFingerprint, stepGuard, verifyEditText } from '../src/index.js';
+import {
+  StepEditError,
+  applyStepEdit,
+  locateAnchorStep,
+  matchRunSteps,
+  movedSteps,
+  parseYaml,
+  scenarioBlocks,
+  sceneStepFingerprints,
+  stepFingerprint,
+  stepGuard,
+  verifyEditText,
+} from '../src/index.js';
 import type { StepEdit } from '../src/index.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -52,45 +64,59 @@ describe('step edits on every step of the fixture scenarios (goldens)', () => {
   const names = readdirSync(SCENARIOS).filter((f) => f.endsWith('.yaml'));
   it('the fixture has its 15 scenarios', () => expect(names).toHaveLength(15));
 
-  it.each(names)('%s: every move (in its scene, to the start / end of every other scene) re-parses to the moved value, keeps every line and comment, and moves back to the same bytes; every delete and duplicate re-parses to its value and touches one run of lines', (name) => {
-    const text = readFileSync(join(SCENARIOS, name), 'utf8');
-    const v = valueOf(text);
-    const scenes = v.scenes.filter((s) => typeof s.id === 'string' && Array.isArray(s.steps)) as Array<{ id: string; steps: unknown[] }>;
-    const w0 = warnings(text);
-    let n = 0;
-    for (const s of scenes) {
-      for (let i = 0; i < s.steps.length; i++) {
-        const targets: Array<[string, number]> = [];
-        for (let j = 0; j < s.steps.length; j++) if (j !== i) targets.push([s.id, j]);
-        for (const t of scenes) if (t !== s) targets.push([t.id, 0], [t.id, t.steps.length]);
-        for (const [b, j] of targets) {
-          const r = move(text, s.id, i, b, j);
-          expect(verifyEditText(r.text, r.intended), `${name} ${s.id}.${i} → ${b}.${j}`).toBeNull();
-          expect(r.intended).toEqual(expected(text, (d) => scene(d, b).splice(j, 0, scene(d, s.id).splice(i, 1)[0])));
-          if (s.steps.length > 1 || b === s.id) expect(r.text.split('\n').map((l) => l.trimStart()).sort()).toEqual(text.split('\n').map((l) => l.trimStart()).sort());
-          expect(comments(r.text)).toBe(comments(text));
-          expect(warnings(r.text)).toBeLessThanOrEqual(w0);
-          expect(r.select).toBe(`${b}.${j}`);
-          const back = move(r.text, b, j, s.id, i);
-          expect(back.text, `${name} ${s.id}.${i} → ${b}.${j} and back`).toBe(text);
-          n++;
+  it.each(names)(
+    '%s: every move (in its scene, to the start / end of every other scene) re-parses to the moved value, keeps every line and comment, and moves back to the same bytes; every delete and duplicate re-parses to its value and touches one run of lines',
+    (name) => {
+      const text = readFileSync(join(SCENARIOS, name), 'utf8');
+      const v = valueOf(text);
+      const scenes = v.scenes.filter((s) => typeof s.id === 'string' && Array.isArray(s.steps)) as Array<{ id: string; steps: unknown[] }>;
+      const w0 = warnings(text);
+      let n = 0;
+      for (const s of scenes) {
+        for (let i = 0; i < s.steps.length; i++) {
+          const targets: Array<[string, number]> = [];
+          for (let j = 0; j < s.steps.length; j++) if (j !== i) targets.push([s.id, j]);
+          for (const t of scenes) if (t !== s) targets.push([t.id, 0], [t.id, t.steps.length]);
+          for (const [b, j] of targets) {
+            const r = move(text, s.id, i, b, j);
+            expect(verifyEditText(r.text, r.intended), `${name} ${s.id}.${i} → ${b}.${j}`).toBeNull();
+            expect(r.intended).toEqual(expected(text, (d) => scene(d, b).splice(j, 0, scene(d, s.id).splice(i, 1)[0])));
+            if (s.steps.length > 1 || b === s.id)
+              expect(
+                r.text
+                  .split('\n')
+                  .map((l) => l.trimStart())
+                  .sort(),
+              ).toEqual(
+                text
+                  .split('\n')
+                  .map((l) => l.trimStart())
+                  .sort(),
+              );
+            expect(comments(r.text)).toBe(comments(text));
+            expect(warnings(r.text)).toBeLessThanOrEqual(w0);
+            expect(r.select).toBe(`${b}.${j}`);
+            const back = move(r.text, b, j, s.id, i);
+            expect(back.text, `${name} ${s.id}.${i} → ${b}.${j} and back`).toBe(text);
+            n++;
+          }
+          const d = del(text, s.id, i);
+          expect(verifyEditText(d.text, d.intended)).toBeNull();
+          expect(d.intended).toEqual(expected(text, (x) => scene(x, s.id).splice(i, 1)));
+          const removed = oneRun(text, d.text);
+          expect(removed, `${name} delete ${s.id}.${i}: one run of whole lines`).not.toBeNull();
+          expect(removed!.endsWith('\n')).toBe(true);
+          const c = dup(text, s.id, i);
+          expect(verifyEditText(c.text, c.intended)).toBeNull();
+          const added = oneRun(c.text, text);
+          expect(added, `${name} duplicate ${s.id}.${i}: one run of whole lines`).not.toBeNull();
+          expect(c.select).toBe(`${s.id}.${i + 1}`);
+          n += 2;
         }
-        const d = del(text, s.id, i);
-        expect(verifyEditText(d.text, d.intended)).toBeNull();
-        expect(d.intended).toEqual(expected(text, (x) => scene(x, s.id).splice(i, 1)));
-        const removed = oneRun(text, d.text);
-        expect(removed, `${name} delete ${s.id}.${i}: one run of whole lines`).not.toBeNull();
-        expect(removed!.endsWith('\n')).toBe(true);
-        const c = dup(text, s.id, i);
-        expect(verifyEditText(c.text, c.intended)).toBeNull();
-        const added = oneRun(c.text, text);
-        expect(added, `${name} duplicate ${s.id}.${i}: one run of whole lines`).not.toBeNull();
-        expect(c.select).toBe(`${s.id}.${i + 1}`);
-        n += 2;
       }
-    }
-    expect(n).toBeGreaterThan(0);
-  });
+      expect(n).toBeGreaterThan(0);
+    },
+  );
 });
 
 describe('comment ownership by the dash column (critique B6)', () => {
@@ -198,7 +224,11 @@ describe('what the splices refuse rather than corrupt', () => {
 describe('layouts the splices handle', () => {
   it('CR LF, a BOM and no final line break: moves keep CR LF and the missing final break, and move back to the same bytes', () => {
     const t = '\ufeffscenes:\r\n  - id: a\r\n    steps:\r\n      - click: A\r\n      - click: B\r\n  - id: b\r\n    steps:\r\n      - click: C';
-    for (const [a, i, b, j] of [['b', 0, 'a', 0], ['a', 0, 'b', 1], ['a', 1, 'b', 0]] as const) {
+    for (const [a, i, b, j] of [
+      ['b', 0, 'a', 0],
+      ['a', 0, 'b', 1],
+      ['a', 1, 'b', 0],
+    ] as const) {
       const r = move(t, a, i, b, j);
       expect(verifyEditText(r.text, r.intended)).toBeNull();
       expect(r.text.replace(/\r\n/g, '').includes('\n')).toBe(false);
@@ -274,7 +304,7 @@ describe('duplicate (critique B8)', () => {
   });
 });
 
-describe('pictures after edits: moved (LIS) and where a comment\'s step is today (critique B10)', () => {
+describe("pictures after edits: moved (LIS) and where a comment's step is today (critique B10)", () => {
   const RUN = 'scenes:\n  - id: a\n    steps:\n      - click: A\n      - click: B\n      - click: C\n      - click: D\n';
   it('a step moved to the top is the only one marked moved; an unchanged file has none', () => {
     const run = sceneStepFingerprints(RUN)!;
@@ -312,7 +342,7 @@ describe('pictures after edits: moved (LIS) and where a comment\'s step is today
 });
 
 describe('review B fixes', () => {
-  it('L4: an anchor, a tag or a comment on a step\'s dash line travels with it (edits verified); a dash item not written plainly locks its scene with why', () => {
+  it("L4: an anchor, a tag or a comment on a step's dash line travels with it (edits verified); a dash item not written plainly locks its scene with why", () => {
     for (const dash of ['- &s', '- !!map', '- # the save', '- &s # note', '- !!map &t']) {
       const t = `video: x\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A\n      ${dash}\n        id: s\n        click: Save\n  - id: b\n    page: shop\n    open: /\n    steps:\n      - click: C\n`;
       const scene = scenarioBlocks(t).entries.find((e) => e.type === 'scene' && e.id === 'a');
@@ -339,11 +369,13 @@ describe('review B fixes', () => {
     expect(() => del(odd, 'a', 1)).toThrow('step 2 of a is not written as a plain "- " item');
   });
 
-  it('a duplicate copies the step\'s own lines, not a comment after its last value (even one the node takes in)', () => {
+  it("a duplicate copies the step's own lines, not a comment after its last value (even one the node takes in)", () => {
     const t = 'scenes:\n  - id: a\n    steps:\n      - id: u3\n        wait_for: {text: Fresh arrivals}\n          # T:u3 deeper still\n      - click: B\n';
     const r = dup(t, 'a', 0);
     expect(verifyEditText(r.text, r.intended)).toBeNull();
-    expect(r.text).toBe('scenes:\n  - id: a\n    steps:\n      - id: u3\n        wait_for: {text: Fresh arrivals}\n          # T:u3 deeper still\n      - wait_for: {text: Fresh arrivals}\n      - click: B\n');
+    expect(r.text).toBe(
+      'scenes:\n  - id: a\n    steps:\n      - id: u3\n        wait_for: {text: Fresh arrivals}\n          # T:u3 deeper still\n      - wait_for: {text: Fresh arrivals}\n      - click: B\n',
+    );
     // A block scalar's last line starting with "#" is a value: copied.
     const e = 'scenes:\n  - id: a\n    steps:\n      - eval: |\n          return 1\n          # kept\n';
     const d = dup(e, 'a', 0);

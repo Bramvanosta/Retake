@@ -115,9 +115,7 @@ describe('scenario_edit', () => {
     const stale = await call('scenario_edit', { project: P, name: 'short', hash: h0, edit: { kind: 'replace_text', text: SHORT } });
     expect(stale.status).toBe(409);
     expect(stale.json<Answer<unknown>>().error?.details).toEqual({ current: sha(one) });
-    const [x, y] = await Promise.all(
-      ['0.4', '0.5'].map((v) => call('scenario_edit', { project: P, name: 'short', hash: sha(one), edit: { kind: 'replace_text', text: SHORT.replace('0.2', v) } })),
-    );
+    const [x, y] = await Promise.all(['0.4', '0.5'].map((v) => call('scenario_edit', { project: P, name: 'short', hash: sha(one), edit: { kind: 'replace_text', text: SHORT.replace('0.2', v) } })));
     expect([x.status, y.status].sort()).toEqual([200, 409]);
     const won = x.status === 200 ? '0.4' : '0.5';
     expect(await readFile(file('short'), 'utf8')).toBe(SHORT.replace('0.2', won));
@@ -143,20 +141,23 @@ describe('scenario_edit', () => {
 
   it('an edit → the workspace event names the scenario file', async () => {
     const events: Array<{ event: string; data: Record<string, unknown> }> = [];
-    const req = request({ host: '127.0.0.1', port: studio.port, path: '/v1/events', method: 'GET', headers: { host: `127.0.0.1:${studio.port}`, authorization: `Bearer ${studio.token}` }, setHost: false, agent: false }, (res) => {
-      let buf = '';
-      res.on('data', (d: Buffer) => {
-        buf += d.toString();
-        let i;
-        while ((i = buf.indexOf('\n\n')) !== -1) {
-          const chunk = buf.slice(0, i);
-          buf = buf.slice(i + 2);
-          const ev = /^event: (.+)$/m.exec(chunk)?.[1];
-          const data = /^data: (.+)$/m.exec(chunk)?.[1];
-          if (ev && data) events.push({ event: ev, data: JSON.parse(data) as Record<string, unknown> });
-        }
-      });
-    });
+    const req = request(
+      { host: '127.0.0.1', port: studio.port, path: '/v1/events', method: 'GET', headers: { host: `127.0.0.1:${studio.port}`, authorization: `Bearer ${studio.token}` }, setHost: false, agent: false },
+      (res) => {
+        let buf = '';
+        res.on('data', (d: Buffer) => {
+          buf += d.toString();
+          let i;
+          while ((i = buf.indexOf('\n\n')) !== -1) {
+            const chunk = buf.slice(0, i);
+            buf = buf.slice(i + 2);
+            const ev = /^event: (.+)$/m.exec(chunk)?.[1];
+            const data = /^data: (.+)$/m.exec(chunk)?.[1];
+            if (ev && data) events.push({ event: ev, data: JSON.parse(data) as Record<string, unknown> });
+          }
+        });
+      },
+    );
     req.end();
     const until = async (pred: (e: (typeof events)[number]) => boolean, what: string) => {
       const t0 = Date.now();
@@ -212,7 +213,12 @@ describe('step edits over HTTP (part 2)', () => {
     await writeFile(file('keys'), KEYS);
     const h0 = sha(KEYS);
     // The guard is core stepGuard: the canonical JSON of the step (keys sorted; one key here).
-    const r = await call('scenario_edit', { project: P, name: 'keys', hash: h0, edit: { kind: 'move_step', from: { scene: 'a', index: 2, guard: guardOf({ click: 'A3' }) }, to: { scene: 'a', index: 0 } } });
+    const r = await call('scenario_edit', {
+      project: P,
+      name: 'keys',
+      hash: h0,
+      edit: { kind: 'move_step', from: { scene: 'a', index: 2, guard: guardOf({ click: 'A3' }) }, to: { scene: 'a', index: 0 } },
+    });
     expect(r.status).toBe(200);
     expect(r.json<Answer<{ label: string; select: string }>>().data).toMatchObject({ label: 'Moved step 3 of a to position 1', select: 'a.0' });
     const t1 = await readFile(file('keys'), 'utf8');
@@ -221,7 +227,14 @@ describe('step edits over HTTP (part 2)', () => {
     expect(stale.status).toBe(409);
     expect(stale.json<Answer<unknown>>().error?.details).toEqual({ current: sha(t1), stale: true });
     const [x, y] = await Promise.all(
-      [0, 1].map((i) => call('scenario_edit', { project: P, name: 'keys', hash: sha(t1), edit: { kind: 'move_step', from: { scene: 'a', index: i, guard: guardOf({ click: i === 0 ? 'A3' : 'A1' }) }, to: { scene: 'a', index: 2 } } })),
+      [0, 1].map((i) =>
+        call('scenario_edit', {
+          project: P,
+          name: 'keys',
+          hash: sha(t1),
+          edit: { kind: 'move_step', from: { scene: 'a', index: i, guard: guardOf({ click: i === 0 ? 'A3' : 'A1' }) }, to: { scene: 'a', index: 2 } },
+        }),
+      ),
     );
     expect([x.status, y.status].sort()).toEqual([200, 409]);
   });
@@ -272,25 +285,50 @@ describe('forms and the palette over HTTP (part 3)', () => {
     }
     expect((await stat(file('form'))).mtimeMs).toBe(before.mtimeMs);
     // Before any read: a scenario that does not exist still answers 400 for an action outside the palette (not 404).
-    const ghost = await call('scenario_edit', { project: P, name: 'no-such-scenario', hash: h, edit: { kind: 'insert_step', to: { scene: 'a', index: 0 }, after: null, action: 'eval', values: { 'eval.js': 'x' } } });
+    const ghost = await call('scenario_edit', {
+      project: P,
+      name: 'no-such-scenario',
+      hash: h,
+      edit: { kind: 'insert_step', to: { scene: 'a', index: 0 }, after: null, action: 'eval', values: { 'eval.js': 'x' } },
+    });
     expect(ghost.status).toBe(400);
   });
 
   it('a form change and a palette step are written (one line each); a field changed meanwhile is a 409 with stale and the field; a secret reference typed in is refused for the Studio', async () => {
     await writeFile(file('form'), FORM);
-    const r = await call('scenario_edit', { project: P, name: 'form', hash: sha(FORM), edit: { kind: 'set_step', at: { scene: 'a', index: 0, guard: g0 }, changes: [{ path: ['click', 'aria'], from: 'Increase', to: 'Decrease' }] } });
+    const r = await call('scenario_edit', {
+      project: P,
+      name: 'form',
+      hash: sha(FORM),
+      edit: { kind: 'set_step', at: { scene: 'a', index: 0, guard: g0 }, changes: [{ path: ['click', 'aria'], from: 'Increase', to: 'Decrease' }] },
+    });
     expect(r.status).toBe(200);
     expect(r.json<Answer<{ label: string }>>().data.label).toBe('Changed click aria of step 1 of a');
     const t1 = await readFile(file('form'), 'utf8');
     expect(t1).toBe(FORM.replace('aria: Increase', 'aria: Decrease'));
     const g1 = guardOf({ click: { aria: 'Decrease', in: 'dialog' } });
-    const stale = await call('scenario_edit', { project: P, name: 'form', hash: sha(t1), edit: { kind: 'set_step', at: { scene: 'a', index: 0, guard: g1 }, changes: [{ path: ['click', 'aria'], from: 'Increase', to: 'Other' }] } });
+    const stale = await call('scenario_edit', {
+      project: P,
+      name: 'form',
+      hash: sha(t1),
+      edit: { kind: 'set_step', at: { scene: 'a', index: 0, guard: g1 }, changes: [{ path: ['click', 'aria'], from: 'Increase', to: 'Other' }] },
+    });
     expect(stale.status).toBe(409);
     expect(stale.json<Answer<unknown>>().error?.details).toEqual({ current: sha(t1), stale: true, field: 'click.aria' });
-    const leak = await call('scenario_edit', { project: P, name: 'form', hash: sha(t1), edit: { kind: 'set_step', at: { scene: 'a', index: 0, guard: g1 }, changes: [{ path: ['click', 'aria'], from: 'Decrease', to: '{{env:SHOP_TOKEN}}' }] } });
+    const leak = await call('scenario_edit', {
+      project: P,
+      name: 'form',
+      hash: sha(t1),
+      edit: { kind: 'set_step', at: { scene: 'a', index: 0, guard: g1 }, changes: [{ path: ['click', 'aria'], from: 'Decrease', to: '{{env:SHOP_TOKEN}}' }] },
+    });
     expect(leak.status).toBe(400);
     expect(leak.body).toContain('from the Studio a scenario never resolves a secret');
-    const ins = await call('scenario_edit', { project: P, name: 'form', hash: sha(t1), edit: { kind: 'insert_step', to: { scene: 'a', index: 2 }, after: guardOf({ hold: 0.5 }), action: 'click', values: { 'click.text': 'Save', 'click.in': 'dialog' } } });
+    const ins = await call('scenario_edit', {
+      project: P,
+      name: 'form',
+      hash: sha(t1),
+      edit: { kind: 'insert_step', to: { scene: 'a', index: 2 }, after: guardOf({ hold: 0.5 }), action: 'click', values: { 'click.text': 'Save', 'click.in': 'dialog' } },
+    });
     expect(ins.status).toBe(200);
     expect(await readFile(file('form'), 'utf8')).toBe(`${t1}      - click: {text: Save, in: dialog}\n`);
   });
@@ -337,20 +375,35 @@ describe('timeline switches over HTTP (L4.5 part D)', () => {
 
   it('a switch is one line and an edit change; the default removes it; a value changed meanwhile is a 409 with stale', async () => {
     await writeFile(file('field'), FIELD);
-    const r = await call('scenario_edit', { project: P, name: 'field', hash: sha(FIELD), edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(FIELD, 0) }, field: 'frame', to: 'laptop' } });
+    const r = await call('scenario_edit', {
+      project: P,
+      name: 'field',
+      hash: sha(FIELD),
+      edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(FIELD, 0) }, field: 'frame', to: 'laptop' },
+    });
     expect(r.status, r.body.slice(0, 300)).toBe(200);
     expect(r.json<Answer<{ label: string; change: string }>>().data).toMatchObject({ label: 'Set the layout of scene a to laptop', change: 'edit' });
     const t1 = await readFile(file('field'), 'utf8');
     expect(t1).toBe(FIELD.replace('    open: /\n', '    open: /\n    frame: laptop\n'));
-    const stale = await call('scenario_edit', { project: P, name: 'field', hash: sha(t1), edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(t1, 0) }, field: 'frame', from: 'browser', to: 'phone' } });
+    const stale = await call('scenario_edit', {
+      project: P,
+      name: 'field',
+      hash: sha(t1),
+      edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(t1, 0) }, field: 'frame', from: 'browser', to: 'phone' },
+    });
     expect(stale.status).toBe(409);
     expect(stale.json<Answer<unknown>>().error?.details).toMatchObject({ current: sha(t1), stale: true });
-    const back = await call('scenario_edit', { project: P, name: 'field', hash: sha(t1), edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(t1, 0) }, field: 'frame', from: 'laptop' } });
+    const back = await call('scenario_edit', {
+      project: P,
+      name: 'field',
+      hash: sha(t1),
+      edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(t1, 0) }, field: 'frame', from: 'laptop' },
+    });
     expect(back.status).toBe(200);
     expect(await readFile(file('field'), 'utf8')).toBe(FIELD);
   });
 
-  it("review B H2: the outro switch over an outro with its own tagline is refused — the tagline survives, nothing written", async () => {
+  it('review B H2: the outro switch over an outro with its own tagline is refused — the tagline survives, nothing written', async () => {
     const text = FIELD.replace('video: field\n', 'video: field\noutro:\n  tagline: Order in two clicks\n');
     await writeFile(file('field'), text);
     for (const edit of [

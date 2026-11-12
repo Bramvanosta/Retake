@@ -100,24 +100,28 @@ describe('the façade draws with the reviewer it is handed (ports.reviewer)', ()
     expect(fake.calls.at(-1)).toEqual({ op: 'frames.thumbnailOf', file: shot, maxPx: 64 });
   });
 
-  it.skipIf(!can)('a render frame and a review image: the handed reviewer frames (the render probed by the engine)', async () => {
-    const { ws, c } = await real();
-    const fake = new MemoryReviewer();
-    const engine = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false, ports: { reviewer: fake } });
-    const f = await engine.renders.frame('demo', { render_id: c.record.id, created_at: c.record.created_at, frame: 3 });
-    expect(f).toMatchObject({ render_id: c.record.id, frame: 3, width: 1, height: 1, base64: MEMORY_JPEG.toString('base64') });
-    expect(ops(fake.calls)).toEqual(['frames.at', 'frames.thumb']);
-    expect(fake.calls[0]).toMatchObject({ op: 'frames.at', o: { maxPx: RENDER_FRAME_MAX_PX } });
-    expect(fake.calls[1]).toMatchObject({ op: 'frames.thumb', o: { maxPx: RENDER_FRAME_MAX_PX, quality: RENDER_FRAME_QUALITY } });
-    // A real review folder, its sheet then shown through the handed reviewer.
-    await packageReviewer().review({ policy: PERSON_POLICY, project: ws.project, render: c.record.id, thumbnails: false });
-    const img = await engine.reviews.image('demo', c.record.id, 'sheet_1fps.jpg');
-    expect(img).toMatchObject({ mime: 'image/jpeg', width: 1, height: 1 });
-    expect(fake.calls.at(-1)).toMatchObject({ op: 'frames.thumb', o: { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 } });
-  }, 300_000);
+  it.skipIf(!can)(
+    'a render frame and a review image: the handed reviewer frames (the render probed by the engine)',
+    async () => {
+      const { ws, c } = await real();
+      const fake = new MemoryReviewer();
+      const engine = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false, ports: { reviewer: fake } });
+      const f = await engine.renders.frame('demo', { render_id: c.record.id, created_at: c.record.created_at, frame: 3 });
+      expect(f).toMatchObject({ render_id: c.record.id, frame: 3, width: 1, height: 1, base64: MEMORY_JPEG.toString('base64') });
+      expect(ops(fake.calls)).toEqual(['frames.at', 'frames.thumb']);
+      expect(fake.calls[0]).toMatchObject({ op: 'frames.at', o: { maxPx: RENDER_FRAME_MAX_PX } });
+      expect(fake.calls[1]).toMatchObject({ op: 'frames.thumb', o: { maxPx: RENDER_FRAME_MAX_PX, quality: RENDER_FRAME_QUALITY } });
+      // A real review folder, its sheet then shown through the handed reviewer.
+      await packageReviewer().review({ policy: PERSON_POLICY, project: ws.project, render: c.record.id, thumbnails: false });
+      const img = await engine.reviews.image('demo', c.record.id, 'sheet_1fps.jpg');
+      expect(img).toMatchObject({ mime: 'image/jpeg', width: 1, height: 1 });
+      expect(fake.calls.at(-1)).toMatchObject({ op: 'frames.thumb', o: { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 } });
+    },
+    300_000,
+  );
 });
 
-describe('a review image: the engine\'s caps around the reviewer\'s thumb (reviews.image)', () => {
+describe("a review image: the engine's caps around the reviewer's thumb (reviews.image)", () => {
   it('a JPEG over REVIEW_IMAGE_BASE64_MAX is made again smaller (1100 px, quality 70); one still too large is refused', async () => {
     const { ws, c } = await memory();
     const fake = new MemoryReviewer();
@@ -133,7 +137,10 @@ describe('a review image: the engine\'s caps around the reviewer\'s thumb (revie
     };
     const engine = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false, ports: { reviewer } });
     const img = await engine.reviews.image('demo', c.record.id, 'sheet_1fps.jpg');
-    expect(asked).toEqual([{ maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 }, { maxPx: 1100, quality: 70 }]);
+    expect(asked).toEqual([
+      { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 },
+      { maxPx: 1100, quality: 70 },
+    ]);
     expect(img).toMatchObject({ width: 1100, height: 619, base64: MEMORY_JPEG.toString('base64') });
     // Within the cap the first time: no second pass.
     asked.length = 0;
@@ -150,15 +157,19 @@ describe('a review image: the engine\'s caps around the reviewer\'s thumb (revie
     const fake = new MemoryReviewer();
     await fake.review({ policy: PERSON_POLICY, project: ws.project, render: c.record.id, thumbnails: false });
     const broken = new Error('the thumbnail entry cannot be loaded');
-    const reviewer = { review: (o: Parameters<MemoryReviewer['review']>[0]) => fake.review(o), recover: (d: string) => fake.recover(d), frames: { ...fake.frames, load: () => Promise.reject(broken) } };
+    const reviewer = {
+      review: (o: Parameters<MemoryReviewer['review']>[0]) => fake.review(o),
+      recover: (d: string) => fake.recover(d),
+      frames: { ...fake.frames, load: () => Promise.reject(broken) },
+    };
     const engine = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false, ports: { reviewer } });
     await expect(engine.reviews.image('demo', c.record.id, 'sheet_1fps.jpg')).rejects.toBe(broken);
     expect(fake.calls.filter((x) => x.op === 'frames.thumb')).toEqual([]);
   });
 });
 
-describe('the render a review job compares with (the engine\'s previousOfRender, over core)', () => {
-  it('is the review package\'s default (findPrevious): the last succeeded render of the scenario and variant before it, whose video is there', async () => {
+describe("the render a review job compares with (the engine's previousOfRender, over core)", () => {
+  it("is the review package's default (findPrevious): the last succeeded render of the scenario and variant before it, whose video is there", async () => {
     const ws = await workspace();
     spaces.push(ws);
     const t = () => scenesTimeline([2, 2]);

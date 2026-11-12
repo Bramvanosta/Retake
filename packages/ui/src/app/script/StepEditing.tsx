@@ -100,11 +100,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
     if (!h.knows(hash)) {
       h.clear();
       h.know(hash);
-      setAnnounce(
-        ownSaves.current.has(hash)
-          ? 'Saved from the YAML view: the undo history of block edits was cleared.'
-          : 'The file changed outside this screen: the undo history was cleared.',
-      );
+      setAnnounce(ownSaves.current.has(hash) ? 'Saved from the YAML view: the undo history of block edits was cleared.' : 'The file changed outside this screen: the undo history was cleared.');
       ownSaves.current.clear();
       bump((n) => n + 1);
     }
@@ -253,16 +249,30 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
  * The line above the board (L5.10b: on the kit): undo / redo naming the edit, Add a step, the saving mark, the live
  * region; then why editing is off, the conflict offer, a refusal (each a callout: its state as a shape and words).
  */
-export function EditBar({ ed, add }: { ed: StepEditor; /** The board's "Add a step…" (the palette). */ add?: ReactNode }) {
+export function EditBar({ ed, add }: { ed: StepEditor /** The board's "Add a step…" (the palette). */; add?: ReactNode }) {
   return (
     <div className="sb-editbar" data-testid="edit-bar">
       <div className="sb-editbar-line">
         <Toolbar label="Edits">
           <Button size="sm" icon="undo" data-testid="undo" disabled={!ed.enabled || ed.busy || ed.undoLabel === null} onClick={ed.undo} aria-keyshortcuts="Meta+Z Control+Z">
-            {ed.undoLabel ? <span>{'Undo: '}<Txt text={ed.undoLabel} /></span> : 'Undo'}
+            {ed.undoLabel ? (
+              <span>
+                {'Undo: '}
+                <Txt text={ed.undoLabel} />
+              </span>
+            ) : (
+              'Undo'
+            )}
           </Button>
           <Button size="sm" icon="redo" data-testid="redo" disabled={!ed.enabled || ed.busy || ed.redoLabel === null} onClick={ed.redo} aria-keyshortcuts="Shift+Meta+Z Shift+Control+Z">
-            {ed.redoLabel ? <span>{'Redo: '}<Txt text={ed.redoLabel} /></span> : 'Redo'}
+            {ed.redoLabel ? (
+              <span>
+                {'Redo: '}
+                <Txt text={ed.redoLabel} />
+              </span>
+            ) : (
+              'Redo'
+            )}
           </Button>
           {shown(add)}
         </Toolbar>

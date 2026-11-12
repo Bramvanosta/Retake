@@ -38,7 +38,8 @@ describe('capture through web components and iframes (R-ISS-07)', () => {
 
   it('runs a scenario whose targets live in shadow roots and frames', async () => {
     const project = makeProject(dir, { app: server.url }, { width: W, height: H });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       template: debugTemplate(),
       mode: 'capture',

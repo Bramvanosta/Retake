@@ -103,9 +103,7 @@ export async function sandboxAccounts(ctx: HookContext, value: unknown, env: str
   const accounts = sandbox?.manifest.accounts;
   if (!accounts || !Object.keys(accounts).length) {
     if (Object.hasOwn({ ...(ctx.project.config.vars ?? {}), ...ctx.vars }, 'accounts')) return undefined;
-    throw new HookError(
-      `{{${refs[0]}}} reads an account of a sandbox: ${sandbox ? `sandbox ${env} declares no accounts (accounts: in its sandbox.yaml)` : `environment "${env}" is not a sandbox`}`,
-    );
+    throw new HookError(`{{${refs[0]}}} reads an account of a sandbox: ${sandbox ? `sandbox ${env} declares no accounts (accounts: in its sandbox.yaml)` : `environment "${env}" is not a sandbox`}`);
   }
   const out: SandboxAccounts = { root: {}, secrets: [] };
   roots.add(out.root);

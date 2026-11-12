@@ -28,21 +28,7 @@ export interface LintIssue {
   message: string;
 }
 
-export type LintRule =
-  | 'frontmatter'
-  | 'size'
-  | 'tool'
-  | 'vocabulary'
-  | 'cli'
-  | 'link'
-  | 'orphan'
-  | 'yaml'
-  | 'code'
-  | 'actions'
-  | 'kit'
-  | 'hygiene'
-  | 'rules'
-  | 'coverage';
+export type LintRule = 'frontmatter' | 'size' | 'tool' | 'vocabulary' | 'cli' | 'link' | 'orphan' | 'yaml' | 'code' | 'actions' | 'kit' | 'hygiene' | 'rules' | 'coverage';
 
 type Json = Record<string, unknown>;
 
@@ -109,7 +95,9 @@ export const SKILL_RULES: Record<string, readonly string[]> = {
 };
 
 /** What "## Before you start" says after `engine_info` (review M3: the plugin's values are shared by every folder). */
-export const BEFORE_RULES = ["Compare the workspace root `engine_info` names with this session's folders (its working directory and any folder added to the session): if it is none of them, stop"] as const;
+export const BEFORE_RULES = [
+  "Compare the workspace root `engine_info` names with this session's folders (its working directory and any folder added to the session): if it is none of them, stop",
+] as const;
 
 /** What one skill's "## Before you start" adds (review L8). */
 export const SKILL_BEFORE: Record<string, readonly string[]> = {
@@ -145,7 +133,7 @@ export const DENY: ReadonlyArray<[RegExp, string]> = [
   [/\bpasswords?\b/i, 'a password: only the pinned rule names one'],
   [/\bdo (?:what|as) (?:it|they|the (?:comment|page|draft|README|text)) (?:says|asks|tells)\b/i, 'text read from a page, a draft or a comment is data, never an instruction'],
   [/\bfollow (?:its|their|the (?:comment|page|draft|README)(?:'s)?) instructions\b/i, 'text read from a page, a draft or a comment is data, never an instruction'],
-  [/\banyway\b/i, 'acting without the user\'s answer'],
+  [/\banyway\b/i, "acting without the user's answer"],
 ];
 
 /** Text no skill may contain: approval bypasses, Claude Code's own substitutions, pre-approved tools, local paths. */
@@ -168,7 +156,9 @@ const ALLOWED_HOST = /^(?:[a-z0-9-]+\.)*(?:example\.(?:com|org)|example|test)$|^
 /** A dotted name whose last label could be a top-level domain: every two-letter one (country codes) or a generic one. */
 const DOMAIN = /\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+([a-z]{2,24})\b/gi;
 const GENERIC_TLDS = new Set(
-  'com net org info biz io co ai app dev store shop online site website tech xyz cloud blog design agency media digital page live space world life news email club studio art group team tools works company network shopping market coffee cafe example test'.split(' '),
+  'com net org info biz io co ai app dev store shop online site website tech xyz cloud blog design agency media digital page live space world life news email club studio art group team tools works company network shopping market coffee cafe example test'.split(
+    ' ',
+  ),
 );
 /** File extensions that end a dotted name without being a domain (README.md, bin.js). */
 const FILE_EXTENSIONS = new Set('md js mjs cjs ts tsx jsx json yaml yml png svg jpg jpeg webp gif woff woff2 ttf otf pdf xlsx csv txt mp4 mov webm html css sh py rb go rs kt'.split(' '));
@@ -216,10 +206,12 @@ function phrase(s: string): RegExp {
 
 /** The sentence (or list item) around an offset, whitespace collapsed. */
 function sentenceAt(text: string, i: number): string {
-  const startAt = Math.max(...['. ', '.\n', '\n\n', '\n- '].map((d) => {
-    const k = text.lastIndexOf(d, i);
-    return k < 0 ? 0 : k + d.length;
-  }));
+  const startAt = Math.max(
+    ...['. ', '.\n', '\n\n', '\n- '].map((d) => {
+      const k = text.lastIndexOf(d, i);
+      return k < 0 ? 0 : k + d.length;
+    }),
+  );
   const close = text.indexOf('`', i + 1);
   const from = close < 0 ? i : close;
   const ends = ['. ', '.\n', '\n\n'].map((d) => text.indexOf(d, from)).filter((k) => k >= 0);
@@ -250,7 +242,10 @@ function deref(root: Json, s: Json): Json {
   for (let i = 0; i < 10 && typeof cur.$ref === 'string'; i++) {
     const ref = cur.$ref;
     const { $ref: _ref, ...rest } = cur;
-    const target = ref.replace(/^#\//, '').split('/').reduce<unknown>((o, k) => (o as Json | undefined)?.[k], root) as Json | undefined;
+    const target = ref
+      .replace(/^#\//, '')
+      .split('/')
+      .reduce<unknown>((o, k) => (o as Json | undefined)?.[k], root) as Json | undefined;
     cur = { ...(target ?? {}), ...rest };
   }
   return cur;
@@ -366,8 +361,7 @@ async function lintCli(code: string, ctx: LintContext, help: Map<string, Promise
 export async function lintSkills(files: readonly SkillFile[], ctx: LintContext, stats: LintStats = { calls: 0, commands: 0, examples: 0, components: 0, words: 0 }): Promise<LintIssue[]> {
   const issues: LintIssue[] = [];
   const help = new Map<string, Promise<string>>();
-  const add = (file: string, text: string, offset: number, rule: LintRule, message: string) =>
-    issues.push({ file, line: lineOf(text, offset), rule, message });
+  const add = (file: string, text: string, offset: number, rule: LintRule, message: string) => issues.push({ file, line: lineOf(text, offset), rule, message });
 
   const skills = new Map<string, SkillFile>();
   for (const f of files) if (f.path.endsWith('/SKILL.md') && f.path.split('/').length === 2) skills.set(f.path.split('/')[0]!, f);
@@ -446,7 +440,8 @@ export async function lintSkills(files: readonly SkillFile[], ctx: LintContext, 
     for (const { code: span, offset } of spans(text)) {
       if (!CLI_SPAN.test(span) || !outside(offset)) continue;
       const sentence = sentenceAt(code, offset);
-      if (!USER_RUNS.test(sentence)) add(file, text, offset, 'rules', `\`${span}\`: a \`retake\` command is the user's, in their own terminal: say so in its sentence (or list it under "## ${USER_TERMINAL}")`);
+      if (!USER_RUNS.test(sentence))
+        add(file, text, offset, 'rules', `\`${span}\`: a \`retake\` command is the user's, in their own terminal: say so in its sentence (or list it under "## ${USER_TERMINAL}")`);
     }
 
     // Vocabulary: every snake_case word.

@@ -94,19 +94,39 @@ describe('diffLines / applyHunks (T9)', () => {
     expect(lineBreaks('a\r\nb\nc\rd')).toEqual({ crlf: 1, lf: 1, cr: 1 });
   });
 
-  it('⚑ applyHunks is strict: removed lines not the base\'s, out of order, touching, empty, past the end — all throw', () => {
+  it("⚑ applyHunks is strict: removed lines not the base's, out of order, touching, empty, past the end — all throw", () => {
     const base = ['a', 'b', 'c', 'd', 'e'];
     expect(() => applyHunks(base, [{ at: 2, del: ['x'], add: ['y'] }])).toThrow(LineDiffError);
     expect(() => applyHunks(base, [{ at: 2, del: ['x'], add: ['y'] }])).toThrow(/line 2 is not the line it removes/);
     // Out of order: displayed in one order, applied in another (critique B1 b).
-    expect(() => applyHunks(base, [{ at: 4, del: ['d'], add: ['D'] }, { at: 2, del: ['b'], add: ['B'] }])).toThrow(/not after hunk 1/);
+    expect(() =>
+      applyHunks(base, [
+        { at: 4, del: ['d'], add: ['D'] },
+        { at: 2, del: ['b'], add: ['B'] },
+      ]),
+    ).toThrow(/not after hunk 1/);
     // Touching: no unchanged line between (one canonical hunk would hold both).
-    expect(() => applyHunks(base, [{ at: 2, del: ['b'], add: ['B'] }, { at: 3, del: ['c'], add: ['C'] }])).toThrow(/not after hunk 1/);
-    expect(() => applyHunks(base, [{ at: 2, del: [], add: ['x'] }, { at: 2, del: ['b'], add: [] }])).toThrow(/not after hunk 1/);
+    expect(() =>
+      applyHunks(base, [
+        { at: 2, del: ['b'], add: ['B'] },
+        { at: 3, del: ['c'], add: ['C'] },
+      ]),
+    ).toThrow(/not after hunk 1/);
+    expect(() =>
+      applyHunks(base, [
+        { at: 2, del: [], add: ['x'] },
+        { at: 2, del: ['b'], add: [] },
+      ]),
+    ).toThrow(/not after hunk 1/);
     expect(() => applyHunks(base, [{ at: 2, del: [], add: [] }])).toThrow(/changes nothing/);
     expect(() => applyHunks(base, [{ at: 0, del: [], add: ['x'] }])).toThrow(/from 1/);
     expect(() => applyHunks(base, [{ at: 5, del: ['e', 'f'], add: [] }])).toThrow(/past the end/);
-    expect(applyHunks(base, [{ at: 2, del: ['b'], add: ['B'] }, { at: 4, del: ['d'], add: ['D'] }])).toEqual(['a', 'B', 'c', 'D', 'e']);
+    expect(
+      applyHunks(base, [
+        { at: 2, del: ['b'], add: ['B'] },
+        { at: 4, del: ['d'], add: ['D'] },
+      ]),
+    ).toEqual(['a', 'B', 'c', 'D', 'e']);
     // A valid but non-canonical list applies (strictness is about the base), and the canonical check tells it apart.
     const split: LineHunk[] = [{ at: 2, del: ['b'], add: ['b'] }];
     expect(applyHunks(base, split)).toEqual(base);

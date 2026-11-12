@@ -12,7 +12,13 @@ const FILE = fileURLToPath(new URL('./fixtures/tool-list.json', import.meta.url)
 
 /** The published list: what protocolTool hands the protocol layer, without the handler. */
 function toolListText(): string {
-  const list = TOOLS.map((t) => protocolTool(t, () => Promise.reject(new Error('no engine')))).map((p) => ({ name: p.name, title: p.title, description: p.description, inputSchema: p.inputSchema, annotations: p.annotations }));
+  const list = TOOLS.map((t) => protocolTool(t, () => Promise.reject(new Error('no engine')))).map((p) => ({
+    name: p.name,
+    title: p.title,
+    description: p.description,
+    inputSchema: p.inputSchema,
+    annotations: p.annotations,
+  }));
   return `${JSON.stringify(list, null, 1)}\n`;
 }
 

@@ -53,7 +53,26 @@ export function memoryRaw(calls: { push(call: MemoryRawCall): unknown } = []): C
         o.onProgress?.({ stage: 'clip', done: i, total: scenes.length });
         const file = `${String(i + 1).padStart(2, '0')}-${sc.id}.${ext}`;
         await writeFile(join(dir, file), 'memory clip');
-        clips.push({ file, name: sc.id, scene: sc.id, scene_number: i + 1, primary: true, width: 1920, height: 1080, fps, frames: fps, duration_s: 1, codec: 'h264', pix_fmt: 'yuv420p', timecode: '00:00:00:00', size_bytes: 11, seq_start_frame: i * fps, seq_start_tc: `00:00:${String(i).padStart(2, '0')}:00`, capture: { from: i, to: i + 1 }, cuts: [] });
+        clips.push({
+          file,
+          name: sc.id,
+          scene: sc.id,
+          scene_number: i + 1,
+          primary: true,
+          width: 1920,
+          height: 1080,
+          fps,
+          frames: fps,
+          duration_s: 1,
+          codec: 'h264',
+          pix_fmt: 'yuv420p',
+          timecode: '00:00:00:00',
+          size_bytes: 11,
+          seq_start_frame: i * fps,
+          seq_start_tc: `00:00:${String(i).padStart(2, '0')}:00`,
+          capture: { from: i, to: i + 1 },
+          cuts: [],
+        });
       }
       const count = { scene: scenes.length, step: 0, mark: 0, caption: 0, cut: 0 };
       const colors = { scene: 'Blue', step: 'Green', mark: 'Purple', caption: 'Yellow', cut: 'Red' };
@@ -63,7 +82,13 @@ export function memoryRaw(calls: { push(call: MemoryRawCall): unknown } = []): C
         created_at: '2026-01-01T00:00:00.000Z',
         project: { slug: o.project.slug, name: o.project.config.name },
         scenario: timeline.scenario,
-        run: { id: timeline.run_id, dir: resolve(o.runDir), captured_at: '2026-01-01T00:00:00.000Z', capture: { width: 1920, height: 1080, scale: 1, fps: 30, duration_s: scenes.length, frames: 30 * scenes.length }, cursor: timeline.capture.cursor === 'hidden' ? 'hidden' : 'visible' },
+        run: {
+          id: timeline.run_id,
+          dir: resolve(o.runDir),
+          captured_at: '2026-01-01T00:00:00.000Z',
+          capture: { width: 1920, height: 1080, scale: 1, fps: 30, duration_s: scenes.length, frames: 30 * scenes.length },
+          cursor: timeline.capture.cursor === 'hidden' ? 'hidden' : 'visible',
+        },
         settings: { format, codec: 'h264', fps, cursor, cuts: o.cuts ?? true, selects: o.selects ?? false, frames_from: 'capture video' },
         sequence: { fps, frames: fps * scenes.length, duration_s: scenes.length, start_tc: '00:00:00:00', end_tc: `00:00:${String(scenes.length).padStart(2, '0')}:00` },
         clips,

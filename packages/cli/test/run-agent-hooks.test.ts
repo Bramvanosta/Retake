@@ -59,8 +59,7 @@ const savedHome = process.env.RETAKE_HOME;
 
 const SCENES = 'scenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
 /** A scenario with a shell setup hook (with its rollback) and a shell teardown. */
-const AGENT = (video: string) =>
-  `video: ${video}\nsetup:\n  - name: seed\n    shell: {run: "touch seeded.txt", rollback: "rm -f seeded.txt"}\nteardown:\n  - shell: "touch cleaned.txt"\n${SCENES}`;
+const AGENT = (video: string) => `video: ${video}\nsetup:\n  - name: seed\n    shell: {run: "touch seeded.txt", rollback: "rm -f seeded.txt"}\nteardown:\n  - shell: "touch cleaned.txt"\n${SCENES}`;
 const PLAIN = (video: string) => `video: ${video}\n${SCENES}`;
 
 async function retake(args: string[], answers?: string[]) {
@@ -204,7 +203,10 @@ describe('retake run: the shell hooks of a scenario an agent wrote', () => {
   it('--json: the listing and the refusal are log events on stdout', async () => {
     const r = await retake(['run', 'demo', 'agent', '--json']);
     expect(r.code).toBe(EXIT.failure);
-    const events = r.out.split('\n').filter(Boolean).map((l) => JSON.parse(l) as { type: string; level: string; message: string });
+    const events = r.out
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { type: string; level: string; message: string });
     expect(events.map((e) => e.level)).toEqual(['warn', 'error']);
     expect(events[0]!.message).toContain('\n  setup 1 (seed): touch seeded.txt');
     expect(events[1]!.message).toContain('pass --yes');

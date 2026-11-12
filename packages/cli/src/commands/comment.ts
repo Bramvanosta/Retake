@@ -103,7 +103,9 @@ const PROPOSAL_STATE_WORDS: Record<NonNullable<CommentView['entries'][number]['p
 function printThread(ui: Ui, t: CommentView): void {
   const k = ui.c;
   const status = t.status === 'open' ? k.yellow('open') : k.green('resolved');
-  ui.line(`${k.bold(t.id)} ${status} · ${t.render_id} frame ${t.frame} (${t.timecode})${t.region ? ` region ${t.region.x},${t.region.y},${t.region.w},${t.region.h}` : ''}${t.render_present ? '' : k.dim(' · render no longer on disk')}`);
+  ui.line(
+    `${k.bold(t.id)} ${status} · ${t.render_id} frame ${t.frame} (${t.timecode})${t.region ? ` region ${t.region.x},${t.region.y},${t.region.w},${t.region.h}` : ''}${t.render_present ? '' : k.dim(' · render no longer on disk')}`,
+  );
   ui.line(k.dim(`  ${anchorLine(t)}`));
   ui.line(`  ${printableText(t.untrusted.author)} (${t.via}), ${t.created_at}:`);
   for (const l of textLines(t.untrusted.text, '    ')) ui.line(l);
@@ -224,7 +226,9 @@ export async function commentResolveCommand(ui: Ui, global: GlobalOptions, proje
   if (opts.note === undefined) throw new UsageError('--note "<what was changed>" is required');
   const by = author(opts.author);
   const project = await openProject(await openWorkspace(global), projectArg);
-  const w = await engineCall(() => resolveComment(project, id, { note: opts.note as string, ...(opts.render !== undefined ? { render_id: opts.render } : {}) }, by, { scope: personScope(project.root, cliPorts) }));
+  const w = await engineCall(() =>
+    resolveComment(project, id, { note: opts.note as string, ...(opts.render !== undefined ? { render_id: opts.render } : {}) }, by, { scope: personScope(project.root, cliPorts) }),
+  );
   return printWritten(ui, 'resolved', w, opts.json);
 }
 

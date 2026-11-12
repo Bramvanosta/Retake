@@ -45,7 +45,11 @@ function fake() {
 describe('the background hold of a job process tree (L5.14a)', () => {
   it('the tree: its group and every descendant by parent pid, not a stranger', () => {
     const f = fake();
-    expect(treeOf(f.table, 100, { group: true }).map((p) => p.pid).sort()).toEqual([100, 101, 102]);
+    expect(
+      treeOf(f.table, 100, { group: true })
+        .map((p) => p.pid)
+        .sort(),
+    ).toEqual([100, 101, 102]);
   });
 
   it('hold: -b on every pid; walked again when due, -b on the new pids only (review A L5); release: -B per pid', async () => {
@@ -102,12 +106,23 @@ describe('the background hold of a job process tree (L5.14a)', () => {
       // The sandbox's table (killTree, the second signal) reads PATH when it loads: in a process of its own.
       const mod = join(import.meta.dirname, '..', '..', 'sandbox', 'src', 'proc.ts');
       t0 = Date.now();
-      const r = spawnSync(process.execPath, ['--conditions=source', '--import', 'tsx', '--input-type=module', '-e', `const { processTable } = await import(${JSON.stringify(mod)}); process.stdout.write(JSON.stringify(await processTable()))`], {
-        cwd: join(import.meta.dirname, '..', '..', '..'),
-        env: process.env,
-        encoding: 'utf8',
-        timeout: 30_000,
-      });
+      const r = spawnSync(
+        process.execPath,
+        [
+          '--conditions=source',
+          '--import',
+          'tsx',
+          '--input-type=module',
+          '-e',
+          `const { processTable } = await import(${JSON.stringify(mod)}); process.stdout.write(JSON.stringify(await processTable()))`,
+        ],
+        {
+          cwd: join(import.meta.dirname, '..', '..', '..'),
+          env: process.env,
+          encoding: 'utf8',
+          timeout: 30_000,
+        },
+      );
       expect(r.stdout).toBe('[]');
       expect(Date.now() - t0).toBeLessThan(12_000);
     } finally {
@@ -143,7 +158,10 @@ describe('the background hold of a job process tree (L5.14a)', () => {
     children.push(leader);
     const pri = () => {
       const out = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,pgid=,pri='], { encoding: 'utf8' }).stdout;
-      const rows = out.split('\n').map((l) => l.trim().split(/\s+/).map(Number)).filter((r) => r.length === 4);
+      const rows = out
+        .split('\n')
+        .map((l) => l.trim().split(/\s+/).map(Number))
+        .filter((r) => r.length === 4);
       const table = rows.map(([pid, ppid, pgid]) => ({ pid: pid!, ppid: ppid!, pgid: pgid!, start: null }));
       const tree = new Set(treeOf(table, leader.pid!, { group: true }).map((p) => p.pid));
       return rows.filter(([pid]) => tree.has(pid!)).map(([pid, , , p]) => ({ pid: pid!, pri: p! }));

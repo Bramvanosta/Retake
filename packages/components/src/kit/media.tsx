@@ -185,7 +185,18 @@ export function recolorLottie<T>(data: T, map: Record<string, string>, tolerance
   for (const [a, b] of Object.entries(map)) {
     const from = parseColor01(a);
     const to = parseColor01(b);
-    if (from && to) pairs.push({ from, to, hex: `#${to.map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')}` });
+    if (from && to)
+      pairs.push({
+        from,
+        to,
+        hex: `#${to
+          .map((x) =>
+            Math.round(x * 255)
+              .toString(16)
+              .padStart(2, '0'),
+          )
+          .join('')}`,
+      });
   }
   if (pairs.length === 0) return data;
   const swap = (rgb: number[]): number[] | undefined => {
@@ -278,14 +289,7 @@ export function LottieFile(props: { media: LottieMedia; fit?: MediaFitMode; loop
   if (!data) return null;
   const rate = props.media.fps / fps;
   const style: CSSProperties = { width: '100%', height: '100%', ...props.style };
-  const player = (
-    <Lottie
-      animationData={data}
-      playbackRate={rate}
-      preserveAspectRatio={props.fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'}
-      style={style}
-    />
-  );
+  const player = <Lottie animationData={data} playbackRate={rate} preserveAspectRatio={props.fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'} style={style} />;
   if (props.loop) {
     return (
       <Loop durationInFrames={lottieFrames(props.media, fps)} layout="none" name="lottie loop">

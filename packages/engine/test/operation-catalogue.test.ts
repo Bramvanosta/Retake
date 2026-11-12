@@ -128,7 +128,11 @@ describe('the operation catalogue', () => {
       export: { submit: 'export' },
       review_export: { submit: 'export' },
     };
-    expect(CATALOGUE.filter((o) => o.admission).map((o) => o.name).sort()).toEqual(Object.keys(SUBMIT).sort());
+    expect(
+      CATALOGUE.filter((o) => o.admission)
+        .map((o) => o.name)
+        .sort(),
+    ).toEqual(Object.keys(SUBMIT).sort());
     for (const o of CATALOGUE.filter((x) => x.admission)) {
       const { submit, dry } = SUBMIT[o.name]!;
       // A dry run meets every rule of the run submit but the capture's sessions acknowledgement.
@@ -169,12 +173,32 @@ describe('the operation catalogue', () => {
     visit('catalogue.ts');
     expect([...seen]).toEqual(['catalogue.ts']);
     // The entry is the catalogue itself (functions and data, no class or engine).
-    expect(Object.keys(catalogueEntry).sort()).toEqual(['ADMISSION_RULES', 'CATALOGUE', 'CODE_RUNS', 'EFFECTS', 'SHELLS', 'annotationProblem', 'catalogueOperation', 'cliCommandsOf', 'facetProblem', 'hintsOf', 'servedBy', 'servedNames', 'studioPins', 'studioStatus', 'useCaseGroups', 'useCaseProblem']);
+    expect(Object.keys(catalogueEntry).sort()).toEqual([
+      'ADMISSION_RULES',
+      'CATALOGUE',
+      'CODE_RUNS',
+      'EFFECTS',
+      'SHELLS',
+      'annotationProblem',
+      'catalogueOperation',
+      'cliCommandsOf',
+      'facetProblem',
+      'hintsOf',
+      'servedBy',
+      'servedNames',
+      'studioPins',
+      'studioStatus',
+      'useCaseGroups',
+      'useCaseProblem',
+    ]);
   });
 
   it('gives every shell that does not serve an operation a one-line reason, and some shell serves each one', () => {
     for (const o of CATALOGUE) {
-      expect(SHELLS.some((s) => servedBy(o, s)), o.name).toBe(true);
+      expect(
+        SHELLS.some((s) => servedBy(o, s)),
+        o.name,
+      ).toBe(true);
       for (const s of SHELLS) {
         if (servedBy(o, s)) continue;
         const reason = why(o[s]);
@@ -193,7 +217,7 @@ describe('the operation catalogue', () => {
     for (const p of cliCommandsOf()) expect(p).toMatch(/^[a-z][a-z-]*( [a-z][a-z-]*)?$/);
   });
 
-  it("pins arguments and maps statuses only where the Studio serves the operation, to valid values", () => {
+  it('pins arguments and maps statuses only where the Studio serves the operation, to valid values', () => {
     const codes = new Set<string>(ENGINE_ERROR_CODES);
     for (const o of CATALOGUE) {
       if (!servedBy(o, 'studio')) {
@@ -213,11 +237,18 @@ describe('the operation catalogue', () => {
       }
     }
     expect(studioPins('run_status').map((p) => [p.arg, p.value, p.absent])).toEqual([['wait_s', 0, 'optional']]);
-    expect(studioPins('auth_login').map((p) => [p.arg, p.value, p.absent])).toEqual([['mode', 'headed', 'default'], ['wait_s', 0, 'default']]);
+    expect(studioPins('auth_login').map((p) => [p.arg, p.value, p.absent])).toEqual([
+      ['mode', 'headed', 'default'],
+      ['wait_s', 0, 'default'],
+    ]);
     expect(studioStatus('render_frame', 'busy')).toBe(429);
     expect(studioStatus('render_frame', 'invalid')).toBeUndefined();
     expect(studioStatus('run_capture', 'busy')).toBeUndefined();
-    expect(CATALOGUE.filter((o) => servedBy(o, 'studio') && ((o.studio as StudioServe).pins?.length || (o.studio as StudioServe).status)).map((o) => o.name)).toEqual(['run_status', 'auth_login', 'render_frame']);
+    expect(CATALOGUE.filter((o) => servedBy(o, 'studio') && ((o.studio as StudioServe).pins?.length || (o.studio as StudioServe).status)).map((o) => o.name)).toEqual([
+      'run_status',
+      'auth_login',
+      'render_frame',
+    ]);
   });
 
   it('counts 124 operations: 45 MCP tools, 76 Studio ops, 56 served by 46 CLI commands; 56 read, 57 write, 11 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
@@ -230,12 +261,50 @@ describe('the operation catalogue', () => {
     expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 56, write: 57, destructive: 11 });
     expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 107, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
-      'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'render', 'review', 'export', 'template_preview', 'template_from_site', 'component_preview',
-      'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'scenario_run', 'scenario_render', 'review_export', 'library_render', 'record_start',
+      'page_inspect',
+      'scenario_record',
+      'run_dry',
+      'run_capture',
+      'render',
+      'review',
+      'export',
+      'template_preview',
+      'template_from_site',
+      'component_preview',
+      'hooks_run',
+      'env_reset',
+      'auth_login',
+      'sandbox_up',
+      'sandbox_reset',
+      'scenario_run',
+      'scenario_render',
+      'review_export',
+      'library_render',
+      'record_start',
     ]);
-    expect(CATALOGUE.filter((o) => o.code === 'project').map((o) => o.name)).toEqual(['run_dry', 'run_capture', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'scenario_run', 'hooks_rollback', 'sandbox_down']);
+    expect(CATALOGUE.filter((o) => o.code === 'project').map((o) => o.name)).toEqual([
+      'run_dry',
+      'run_capture',
+      'hooks_run',
+      'env_reset',
+      'sandbox_up',
+      'sandbox_reset',
+      'scenario_run',
+      'hooks_rollback',
+      'sandbox_down',
+    ]);
     expect(CATALOGUE.filter((o) => o.effect === 'destructive').map((o) => o.name)).toEqual([
-      'project_prune', 'template_create_from_brand', 'job_cancel', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'record_discard', 'setup_cli_remove', 'hooks_rollback', 'sandbox_down',
+      'project_prune',
+      'template_create_from_brand',
+      'job_cancel',
+      'hooks_run',
+      'env_reset',
+      'sandbox_up',
+      'sandbox_reset',
+      'record_discard',
+      'setup_cli_remove',
+      'hooks_rollback',
+      'sandbox_down',
     ]);
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
@@ -269,15 +338,26 @@ describe('the operation catalogue', () => {
     // Every linked name is an operation of the catalogue, and each group is an MCP tool and a Studio op (one each).
     for (const [key, names] of Object.entries(groups)) {
       for (const n of names) expect(catalogueOperation(n), `${key} ${n}`).toBeDefined();
-      expect(names.map((n) => [servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')]), key).toEqual([[true, false], [false, true]]);
+      expect(
+        names.map((n) => [servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')]),
+        key,
+      ).toEqual([
+        [true, false],
+        [false, true],
+      ]);
     }
     // Not linked on purpose: a shell's split of one use case by an argument (a use case holds one name per shell).
-    for (const n of ['run_dry', 'job_cancel', 'render_cancel', 'sign_in_cancel', 'template_from_site', 'site_list', 'theme_view', 'review_image', 'library_images']) expect(catalogueOperation(n)?.useCase, n).toBeUndefined();
+    for (const n of ['run_dry', 'job_cancel', 'render_cancel', 'sign_in_cancel', 'template_from_site', 'site_list', 'theme_view', 'review_image', 'library_images'])
+      expect(catalogueOperation(n)?.useCase, n).toBeUndefined();
   });
 
   it('marks the three Studio narrowings of an MCP tool, each with why they stay apart (a later lot may merge them)', () => {
     const narrowings = CATALOGUE.filter((o) => o.narrows).map((o) => [o.name, o.narrows!.of]);
-    expect(narrowings).toEqual([['thread_reply', 'comment_reply'], ['thread_resolve', 'comment_resolve'], ['theme_create', 'template_create_from_brand']]);
+    expect(narrowings).toEqual([
+      ['thread_reply', 'comment_reply'],
+      ['thread_resolve', 'comment_resolve'],
+      ['theme_create', 'template_create_from_brand'],
+    ]);
     for (const o of CATALOGUE.filter((x) => x.narrows)) {
       expect(catalogueOperation(o.narrows!.of)?.useCase, o.name).toBe(o.useCase);
       expect(o.narrows!.apart, o.name).toMatch(/^[^\n]{40,320}$/);
@@ -294,7 +374,12 @@ describe('the operation catalogue', () => {
     const mcp = op('a_tool', { mcp: true, useCase: 'x.read', cli: ['x'] });
     const studio = op('a_op', { studio: {}, useCase: 'x.read', cli: ['x'] });
     expect(useCaseProblem([mcp, studio])).toBeUndefined();
-    expect(useCaseProblem([{ ...mcp, useCase: 'X read' }, { ...studio, useCase: 'X read' }])).toMatch(/family\.verb/);
+    expect(
+      useCaseProblem([
+        { ...mcp, useCase: 'X read' },
+        { ...studio, useCase: 'X read' },
+      ]),
+    ).toMatch(/family\.verb/);
     expect(useCaseProblem([mcp])).toMatch(/one operation \(a_tool\) is no other name/);
     expect(useCaseProblem([mcp, { ...studio, mcp: true }])).toMatch(/mcp serves a_tool and a_op: one name per shell/);
     expect(useCaseProblem([{ ...mcp, studio: {} }, studio])).toMatch(/studio serves a_tool and a_op/);
@@ -306,7 +391,9 @@ describe('the operation catalogue', () => {
     expect(useCaseProblem([mcp, studio, op('c', { studio: {}, narrows: { of: 'a_tool', apart } })])).toMatch(/of its own use case/);
     expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_op', apart } }])).toMatch(/of its own use case/);
     // A narrowing of an MCP tool of another use case.
-    expect(useCaseProblem([mcp, studio, op('b_tool', { mcp: true, useCase: 'y.read' }), op('b_op', { studio: {}, useCase: 'y.read', narrows: { of: 'a_tool', apart } })])).toMatch(/b_op narrows a_tool: a narrowing names another operation of its own use case/);
+    expect(useCaseProblem([mcp, studio, op('b_tool', { mcp: true, useCase: 'y.read' }), op('b_op', { studio: {}, useCase: 'y.read', narrows: { of: 'a_tool', apart } })])).toMatch(
+      /b_op narrows a_tool: a narrowing names another operation of its own use case/,
+    );
     expect(useCaseProblem([{ ...mcp, narrows: { of: 'a_op', apart } }, studio])).toMatch(/a Studio op of an MCP operation/);
     expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart: 'short' } }])).toMatch(/why they stay apart/);
     expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart: `${apart}\nmore` } }])).toMatch(/why they stay apart/);
@@ -319,7 +406,12 @@ describe('the operation catalogue', () => {
     expect(SHELLS.map((s) => servedBy(op, s))).toEqual([false, false, true]);
     expect(servedBy({ ...op, studio: { why: 'none' } }, 'studio')).toBe(false);
     expect(servedBy({ ...op, cli: ['run'] }, 'cli')).toBe(true);
-    expect(cliCommandsOf([{ ...op, cli: ['run'] }, { ...op, cli: ['run', 'still'] }])).toEqual(['run', 'still']);
+    expect(
+      cliCommandsOf([
+        { ...op, cli: ['run'] },
+        { ...op, cli: ['run', 'still'] },
+      ]),
+    ).toEqual(['run', 'still']);
   });
 });
 
@@ -345,7 +437,10 @@ describe('the operation contract', () => {
     expect(t.input.safeParse({ project: 'p', mode: 'auto' }).success).toBe(false);
     expect(t.input.safeParse({ wait_s: 0 }).success).toBe(false);
     expect(t.input.safeParse({ project: 'p', other: 1 }).success).toBe(false);
-    expect(z.toJSONSchema(t.input, { io: 'input' }).properties).toMatchObject({ wait_s: { const: 0, description: 'Always 0 here.' }, mode: { const: 'headed', default: 'headed', description: 'Always headed here.' } });
+    expect(z.toJSONSchema(t.input, { io: 'input' }).properties).toMatchObject({
+      wait_s: { const: 0, description: 'Always 0 here.' },
+      mode: { const: 'headed', default: 'headed', description: 'Always headed here.' },
+    });
     expect(tool.input.parse({ project: 'p' })).toEqual({ project: 'p', wait_s: 5, mode: 'auto' });
     expect(pinArguments(tool, []).input.parse({ project: 'p', wait_s: 25 })).toMatchObject({ wait_s: 25 });
   });
@@ -361,7 +456,17 @@ describe('the operation contract', () => {
     expect(bad.error.code).toBe('invalid');
     expect(bad.error.message).toMatch(/^invalid arguments for job_list:\n/);
     expect(bad.error.details?.arguments).toEqual(expect.arrayContaining(['project: Invalid input: expected string, received undefined', '(arguments): unknown argument extra']));
-    const thrown = await invoke({ ...probe, run: async () => { throw new EngineError('conflict', 'changed'); } }, engine, { project: 'p' }, o);
+    const thrown = await invoke(
+      {
+        ...probe,
+        run: async () => {
+          throw new EngineError('conflict', 'changed');
+        },
+      },
+      engine,
+      { project: 'p' },
+      o,
+    );
     expect(!thrown.ok && thrown.error.code).toBe('conflict');
     const ok = await invoke(probe, engine, { project: 'p' }, o);
     expect(ok.ok && ok.output.data.args).toEqual({ project: 'p', wait_s: 5, mode: 'auto' });

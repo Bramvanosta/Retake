@@ -111,13 +111,23 @@ describe('shellHostRefs (R-SEC-06)', () => {
     ['an unknown option value is not a host', 'curl --future-opt 30 --other data.json http://localhost:4401', run, ['localhost URL']],
     ['a single-label host with a port or a path', 'curl api:8080/reset; curl svc/health', run, ['api curl', 'svc curl']],
     ['a git commit message', 'git commit -m "deploy@staging: bump" && git push origin main', run, []],
-    ['git repository operands', 'git -C ../app fetch --depth 1 deploy@git.example.com:app.git && git remote add up gh.example.com:o/r', run, ['git.example.com git fetch', 'gh.example.com git remote']],
+    [
+      'git repository operands',
+      'git -C ../app fetch --depth 1 deploy@git.example.com:app.git && git remote add up gh.example.com:o/r',
+      run,
+      ['git.example.com git fetch', 'gh.example.com git remote'],
+    ],
     // S5: proxies and other ways curl connects elsewhere; HTTPie / xh; shells fed by pipes and here-strings.
     ['curl -x without a scheme', 'curl -x proxy.example.com:3128 http://localhost:4401/x', run, ['localhost URL', 'proxy.example.com curl -x']],
     ['curl --socks5-hostname', 'curl --socks5-hostname socks.example.com:1080 http://localhost:4401', run, ['localhost URL', 'socks.example.com curl --socks5-hostname']],
     ['curl --resolve', 'curl --resolve localhost:4401:203.0.113.5 http://localhost:4401/x', run, ['localhost URL', '203.0.113.5 curl --resolve']],
     ['curl --connect-to', 'curl --connect-to localhost:4401:other.example.com:443 http://localhost:4401/x', run, ['localhost URL', 'other.example.com curl --connect-to']],
-    ['proxy variables', 'HTTPS_PROXY=p1.example.com:3128 curl https://localhost:4401; export http_proxy=http://p2.example.com:8080', run, ['localhost URL', 'p1.example.com HTTPS_PROXY=', 'p2.example.com http_proxy=']],
+    [
+      'proxy variables',
+      'HTTPS_PROXY=p1.example.com:3128 curl https://localhost:4401; export http_proxy=http://p2.example.com:8080',
+      run,
+      ['localhost URL', 'p1.example.com HTTPS_PROXY=', 'p2.example.com http_proxy='],
+    ],
     ['wget -e https_proxy=', 'wget -e https_proxy=p3.example.com:3128 http://localhost:4401', run, ['localhost URL', 'p3.example.com wget -e https_proxy']],
     ['HTTPie and xh without a scheme', 'http POST :4401/api/reset && http --form POST api.example.com/x a=1 && xh h.example.com/x', run, ['api.example.com http', 'h.example.com xh']],
     ['xh --proxy', 'xh --proxy=https:http://p4.example.com:3128 :4401/x', run, ['p4.example.com xh --proxy']],
@@ -130,8 +140,18 @@ describe('shellHostRefs (R-SEC-06)', () => {
     // D2: URLs in inline interpreter code.
     ['node -e', `node -e "fetch('https://node.example.com/x')"`, run, ['node.example.com node -e']],
     ['python -c', `python3 -c "import urllib.request; urllib.request.urlopen('https://py.example.com')"`, run, ['py.example.com python3 -c']],
-    ['ruby and perl clusters', `ruby -rnet/http -e 'Net::HTTP.get(URI("https://rb.example.com"))'; perl -MLWP::Simple -lne 'get("http://pl.example.com")' f`, run, ['rb.example.com ruby -e', 'pl.example.com perl -lne']],
-    ['php -r, deno eval, mongosh --eval', `php -r 'file_get_contents("https://php.example.com");'; deno eval "fetch('https://deno.example.com')"; mongosh --eval "connect('mongodb://mg.example.com/d')"`, run, ['php.example.com php -r', 'deno.example.com deno eval', 'mg.example.com mongosh --eval']],
+    [
+      'ruby and perl clusters',
+      `ruby -rnet/http -e 'Net::HTTP.get(URI("https://rb.example.com"))'; perl -MLWP::Simple -lne 'get("http://pl.example.com")' f`,
+      run,
+      ['rb.example.com ruby -e', 'pl.example.com perl -lne'],
+    ],
+    [
+      'php -r, deno eval, mongosh --eval',
+      `php -r 'file_get_contents("https://php.example.com");'; deno eval "fetch('https://deno.example.com')"; mongosh --eval "connect('mongodb://mg.example.com/d')"`,
+      run,
+      ['php.example.com php -r', 'deno.example.com deno eval', 'mg.example.com mongosh --eval'],
+    ],
     ['node --eval=', `node --eval="fetch('http://ev.example.com')"`, run, ['ev.example.com node --eval']],
     ['inline code without a URL', 'node -pe "1+1" && python3 -c "print(1)"', run, []],
     // D3: a computed connection target is refused like a computed curl URL.

@@ -17,7 +17,12 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExportJobInput, RenderJobInput, ReviewJobInput } from '@retake/engine';
 
-const seen = vi.hoisted(() => ({ calls: [] as Array<{ call: string; options: Record<string, unknown> }>, record: undefined as unknown, exportMethod: 'render' as 'render' | 'transcode', editorLoads: 0 }));
+const seen = vi.hoisted(() => ({
+  calls: [] as Array<{ call: string; options: Record<string, unknown> }>,
+  record: undefined as unknown,
+  exportMethod: 'render' as 'render' | 'transcode',
+  editorLoads: 0,
+}));
 
 // The engine's loader of the editor, counted (the real one loads it): a renderer refused is refused before any load.
 vi.mock('../src/lazy.js', async (importOriginal) => {
@@ -79,7 +84,17 @@ const savedHome = process.env.RETAKE_HOME;
 const historyLines = async (): Promise<string[]> => (await readFile(historyFile(root), 'utf8').catch(() => '')).split('\n').filter(Boolean);
 /** The renderer every caller here hands: the editor's use cases are replaced above, so nothing is asked of it. */
 const renderer = new MemoryRenderer();
-const ctx = <I>(input: I) => ({ ...enginePorts(), ws: engine.workspace, cli: 'retake', input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined, browser: () => undefined, renderer });
+const ctx = <I>(input: I) => ({
+  ...enginePorts(),
+  ws: engine.workspace,
+  cli: 'retake',
+  input,
+  signal: new AbortController().signal,
+  event: () => undefined,
+  progress: () => undefined,
+  browser: () => undefined,
+  renderer,
+});
 
 function recordOf(id: string) {
   return {
@@ -117,7 +132,11 @@ beforeAll(async () => {
   await mkdir(runDir, { recursive: true });
   await mkdir(join(dir, 'renders'), { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  const t = synthTimeline({ duration: 2, entries: [{ id: 'a', t_start: 0.5, t_end: 1.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 1.5 }] }], video: { intro: false, outro: false, template: 'editorial' } });
+  const t = synthTimeline({
+    duration: 2,
+    entries: [{ id: 'a', t_start: 0.5, t_end: 1.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 1.5 }] }],
+    video: { intro: false, outro: false, template: 'editorial' },
+  });
   t.run_id = RUN;
   t.project = 'demo';
   t.scenario = SCENARIO;
@@ -149,7 +168,15 @@ describe('the jobs run the shared pipeline with their own options', () => {
     const c = ctx(input);
     const result = await executeRenderJob(c);
     expect(seen.calls.map((x) => x.call)).toEqual(['renderVideo']);
-    expect(seen.calls[0].options).toMatchObject({ run: RUN, scenario: SCENARIO, overrides: { scale: 0.5 }, root, trust: 'mcp', network: 'guard', reserved: { scenario: SCENARIO, version: 2, variant: 'landscape' } });
+    expect(seen.calls[0].options).toMatchObject({
+      run: RUN,
+      scenario: SCENARIO,
+      overrides: { scale: 0.5 },
+      root,
+      trust: 'mcp',
+      network: 'guard',
+      reserved: { scenario: SCENARIO, version: 2, variant: 'landscape' },
+    });
     expect(seen.calls[0].options.signal).toBe(c.signal);
     // The job's renderer is the one the editor's use case draws with.
     expect(seen.calls[0].options.renderer).toBe(renderer);
@@ -191,7 +218,9 @@ describe('the in-process functions write one history line each; the pipeline non
     // The line is stamped with the clock the caller hands (the CLI's cliPorts), never the system's.
     await renderInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: new ManualClock('2026-02-03T04:05:06.789Z') });
     const added = (await historyLines()).slice(before.length).map((l) => JSON.parse(l) as Record<string, unknown>);
-    expect(added).toEqual([{ v: 1, at: '2026-02-03T04:05:06.789Z', kind: 'render', project: 'demo', submitted_by: 'cli', state: 'succeeded', ms: 4321, counted: { captures: 0, dry_runs: 0, renders: 1 } }]);
+    expect(added).toEqual([
+      { v: 1, at: '2026-02-03T04:05:06.789Z', kind: 'render', project: 'demo', submitted_by: 'cli', state: 'succeeded', ms: 4321, counted: { captures: 0, dry_runs: 0, renders: 1 } },
+    ]);
     // The CLI passes its own options through, untouched (no trust, no guard: a person's render).
     expect(seen.calls[1].options).not.toHaveProperty('trust');
     expect(seen.calls[1].options).not.toHaveProperty('network');
@@ -204,7 +233,9 @@ describe('the in-process functions write one history line each; the pipeline non
     seen.editorLoads = 0;
     await expect(renderWork(bare)).rejects.toThrow('render: no renderer was handed to the engine');
     await expect(renderInProcess(bare as Parameters<typeof renderInProcess>[0])).rejects.toThrow('no renderer was handed');
-    await expect(exportWork({ workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'] } as unknown as Parameters<typeof exportWork>[0])).rejects.toThrow('export: no renderer was handed to the engine');
+    await expect(exportWork({ workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'] } as unknown as Parameters<typeof exportWork>[0])).rejects.toThrow(
+      'export: no renderer was handed to the engine',
+    );
     expect(seen.calls).toEqual([]);
     // Every work of render/work.ts, and whatever stands where the renderer should: nothing, or half of one.
     const half = { video: async () => undefined, stills: async () => [], previews: null };

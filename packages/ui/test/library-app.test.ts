@@ -63,7 +63,7 @@ function items(n: number, o: Partial<LibraryItem> = {}): LibraryItem[] {
 }
 
 describe('mirrors, filters, groups, words', () => {
-  it('the id and name patterns are core\'s; the kinds are core\'s, in its order', () => {
+  it("the id and name patterns are core's; the kinds are core's, in its order", () => {
     expect(COMPONENT_ID_RE.source).toBe(CORE_ID_RE.source);
     for (const re of [PROJECT_SLUG_RE, NEW_THEME_NAME_RE]) expect(PROJECT_SLUG.source).toBe(re.source);
     expect(ANY_THEME_NAME.source).toBe(ANY_THEME_NAME_RE.source);
@@ -81,7 +81,11 @@ describe('mirrors, filters, groups, words', () => {
     expect(filterItems(list, { kind: 'all', source: 'workspace', text: '' }).map((i) => i.component)).toEqual(['acme/cta', 'acme/odd']);
     expect(filterItems(list, { kind: 'all', source: 'all', text: 'ACCENT  big' }).map((i) => i.component)).toEqual(['acme/cta']);
     expect(filterItems(list, { kind: 'all', source: 'all', text: 'acme/' }).length).toBe(2);
-    expect(groupByKind(list).map((g) => [g.kind, g.items.length])).toEqual([['intro', 1], ['card', 2], ['gizmo', 1]]);
+    expect(groupByKind(list).map((g) => [g.kind, g.items.length])).toEqual([
+      ['intro', 1],
+      ['card', 2],
+      ['gizmo', 1],
+    ]);
     expect(groupByKind(filterItems(list, { kind: 'intro', source: 'all', text: '' }), 'intro').map((g) => [g.kind, g.items.length])).toEqual([['intro', 2]]);
     expect(kindCounts(list)).toEqual({ intro: 2, outro: 1, card: 2, gizmo: 1 });
   });
@@ -147,7 +151,7 @@ describe('mirrors, filters, groups, words', () => {
   });
 });
 
-describe('⚑ Create with Claude: a prompt of checked names and the person\'s cleaned words (no model call)', () => {
+describe("⚑ Create with Claude: a prompt of checked names and the person's cleaned words (no model call)", () => {
   it('the prompt names the skill, the kind, the id, the project and the theme; the scaffold command', () => {
     const r = createPrompt({ kind: 'intro', id: 'acme/intro-split', project: 'northfield-fixture', theme: 'editorial', description: 'Logo left, title right.', like: 'studio/intro-stack' })!;
     expect(r.prompt).toBe(
@@ -207,7 +211,11 @@ describe('Set as theme default', () => {
   const view = (card: Record<string, unknown>, editable: true | { why: string } = true) => ({ editable, components: { card: comp(card) } }) as never;
 
   it('one set_component with the `from` the view shows (id, none, not written), the old params dropped and named', () => {
-    expect(setDefaultPlan(view({}), 'card', 'acme/cta')).toEqual({ edit: { kind: 'set_component', component: 'card', from: 'studio/card-title', id: 'acme/cta', params: 'drop' }, replaces: 'studio/card-title', drops: [] });
+    expect(setDefaultPlan(view({}), 'card', 'acme/cta')).toEqual({
+      edit: { kind: 'set_component', component: 'card', from: 'studio/card-title', id: 'acme/cta', params: 'drop' },
+      replaces: 'studio/card-title',
+      drops: [],
+    });
     expect(setDefaultPlan(view({ written: 'absent', id: undefined }), 'card', 'acme/cta')).toMatchObject({ edit: { kind: 'set_component', component: 'card', id: 'acme/cta', params: 'drop' } });
     expect('from' in (setDefaultPlan(view({ written: 'absent', id: undefined }), 'card', 'acme/cta') as { edit: object }).edit).toBe(false);
     expect(setDefaultPlan(view({ written: 'none', id: undefined, resolved: null }), 'card', 'acme/cta')).toMatchObject({ edit: { from: null }, replaces: null });
@@ -216,7 +224,7 @@ describe('Set as theme default', () => {
     expect(setDefaultWords('mine', 'card', 'acme/cta', p as never)).toBe('Make acme/cta the card of mine (instead of studio/card-title). The params written for the old card (tone) are dropped.');
   });
 
-  it('already the default → nothing; a starter → copy first (with why); the theme\'s own file or another form → by hand', () => {
+  it("already the default → nothing; a starter → copy first (with why); the theme's own file or another form → by hand", () => {
     expect(setDefaultPlan(view({}), 'card', 'studio/card-title')).toEqual({ already: true });
     expect(setDefaultPlan(view({}, { why: 'a starter: copy it to edit' }), 'card', 'acme/cta')).toEqual({ copy: 'a starter: copy it to edit' });
     expect(setDefaultPlan(view({ written: 'file', id: undefined, resolved: { id: 'studio/media', params: {} } }), 'card', 'acme/cta')).toMatchObject({ why: expect.stringMatching(/own file/) });
@@ -431,7 +439,13 @@ describe('⚑ the image loader (B6, B9)', () => {
     const cw = { kind: 'poster' as const, component: 'studio/card-cta' };
     const lw = { kind: 'loop' as const, component: 'studio/card-cta', key: K(8, 'f') };
     const images = new LibraryImages(
-      async () => ({ images: [{ component: 'studio/card-cta', kind: 'poster', format: 'png', data: PNG }, { key: lw.key, component: 'studio/card-cta', kind: 'loop', format: 'gif', data: GIF }], missing: [] }),
+      async () => ({
+        images: [
+          { component: 'studio/card-cta', kind: 'poster', format: 'png', data: PNG },
+          { key: lw.key, component: 'studio/card-cta', kind: 'loop', format: 'gif', data: GIF },
+        ],
+        missing: [],
+      }),
       { timer: c.timer },
     );
     images.setVisible(cw, true);
@@ -450,7 +464,15 @@ describe('⚑ the image loader (B6, B9)', () => {
     const images = new LibraryImages(
       async () => {
         n++;
-        return n === 1 ? { images: [], missing: [{ key: w1.key, reason: 'too_large' }, { key: w2.key, reason: 'budget' }] } : { images: [], missing: [{ key: w2.key, reason: 'budget' }] };
+        return n === 1
+          ? {
+              images: [],
+              missing: [
+                { key: w1.key, reason: 'too_large' },
+                { key: w2.key, reason: 'budget' },
+              ],
+            }
+          : { images: [], missing: [{ key: w2.key, reason: 'budget' }] };
       },
       { timer: c.timer },
     );

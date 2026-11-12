@@ -110,7 +110,12 @@ describe('generated bundle sources', () => {
     withMissing.segments[0].component = { ...withMissing.segments[0].component, id: 'acme/nope', missing: true };
     expect(planComponentIds(withMissing)).not.toContain('acme/nope');
     const comps = await bundleComponentsFor(quote, registry);
-    expect(comps.filter((c) => c.scaffold).map((c) => c.kind).sort()).toEqual(['caption', 'card', 'interstitial', 'intro', 'layout', 'outro', 'overlay', 'transition']);
+    expect(
+      comps
+        .filter((c) => c.scaffold)
+        .map((c) => c.kind)
+        .sort(),
+    ).toEqual(['caption', 'card', 'interstitial', 'intro', 'layout', 'outro', 'overlay', 'transition']);
     expect(comps.find((c) => c.id === 'studio/layout-card')?.defaults).toEqual({ width: 1560, radius: 18, shadow: 'soft' });
     expect(comps.find((c) => c.id === 'scaffolds/transition')?.entry).toBe(join(scaffoldDir('transition'), 'index.tsx'));
   });
@@ -264,7 +269,13 @@ describe('composition frame helpers', () => {
     expect(brandmarkRect(plan, rect, 'top-right')).toEqual({ rect: { ...rect, y: 75 }, align: 'right' });
     expect(brandmarkRect(plan, rect, 'none')).toBeUndefined();
     expect(brandmarkRect(plan, undefined, 'bottom-right')).toBeUndefined();
-    const clip = { urls: [{ frame: 0, url: 'a' }, { frame: 10, url: 'b' }], srcFrames: [5, 6, 7] } as unknown as ClipSegment;
+    const clip = {
+      urls: [
+        { frame: 0, url: 'a' },
+        { frame: 10, url: 'b' },
+      ],
+      srcFrames: [5, 6, 7],
+    } as unknown as ClipSegment;
     expect([urlAt(clip, 0), urlAt(clip, 9), urlAt(clip, 10), urlAt(clip, 500)]).toEqual(['a', 'a', 'b', 'b']);
     expect([srcFrameAt(clip, -3), srcFrameAt(clip, 1), srcFrameAt(clip, 9)]).toEqual([5, 6, 7]);
   });
@@ -330,7 +341,12 @@ describe('render versions and records', () => {
   it('findRun: an id, a directory, or the latest capture of a scenario', async () => {
     const project = { slug: 'p', dir: join(tmp, 'runs-project') } as Parameters<typeof findRun>[0];
     const runs = join(project.dir, 'runs');
-    for (const [id, scenario, mode] of [['20260101-100000-quote', 'quote', 'capture'], ['20260101-110000-quote', 'quote', 'dry'], ['20260101-090000-catalogue', 'catalogue', 'capture'], ['20260101-120000-mobile-quote', 'mobile-quote', 'capture']] as const) {
+    for (const [id, scenario, mode] of [
+      ['20260101-100000-quote', 'quote', 'capture'],
+      ['20260101-110000-quote', 'quote', 'dry'],
+      ['20260101-090000-catalogue', 'catalogue', 'capture'],
+      ['20260101-120000-mobile-quote', 'mobile-quote', 'capture'],
+    ] as const) {
       await writeRun(runs, id, scenario, mode);
     }
     // A run of "mobile-quote" is not a run of "quote" (the scenario is the one its record names, L7.6a).
@@ -409,7 +425,7 @@ describe('render versions and records', () => {
 });
 
 describe('render environment', () => {
-  it('browser: $RETAKE_CHROMIUM_HEADLESS_SHELL, else Playwright\'s headless shell, else none', () => {
+  it("browser: $RETAKE_CHROMIUM_HEADLESS_SHELL, else Playwright's headless shell, else none", () => {
     const exe = process.execPath; // any existing file
     expect(renderBrowser({ [HEADLESS_SHELL_ENV]: exe })).toEqual({ path: exe, source: 'env' });
     const missing = renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' });
@@ -422,9 +438,23 @@ describe('render environment', () => {
   it('without a headless shell no render starts (Remotion never downloads its own): the message says how to install one', () => {
     const none = renderBrowser({}, null, () => null);
     expect(none).toMatchObject({ path: null, source: 'none' });
-    expect(() => assertRenderBrowser(none, policy, null)).toThrow(`no browser to render with: Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`);
-    expect(() => assertRenderBrowser(renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' }, null, () => null), policy, null)).toThrow(/points to a missing file .*playwright-core install chromium-headless-shell/);
-    expect(() => assertRenderBrowser(renderBrowser({}, null, () => process.execPath), policy, null)).not.toThrow();
+    expect(() => assertRenderBrowser(none, policy, null)).toThrow(
+      `no browser to render with: Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`,
+    );
+    expect(() =>
+      assertRenderBrowser(
+        renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' }, null, () => null),
+        policy,
+        null,
+      ),
+    ).toThrow(/points to a missing file .*playwright-core install chromium-headless-shell/);
+    expect(() =>
+      assertRenderBrowser(
+        renderBrowser({}, null, () => process.execPath),
+        policy,
+        null,
+      ),
+    ).not.toThrow();
   });
 
   it('under the agent policy (a job of the worker) a render browser inside the workspace is refused; the CLI renders with it', () => {

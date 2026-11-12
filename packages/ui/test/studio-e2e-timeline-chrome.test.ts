@@ -148,34 +148,42 @@ describe.skipIf(!gated)('the timeline in the installed Google Chrome (H.264)', (
     }
   }, 300_000);
 
-  it.skipIf(!REAL)('a real capture of the fixture product (RETAKE_TEST_REAL): loads, seeks settle, plays', async () => {
-    const [root, project, scenario] = (REAL ?? '').split(':');
-    const studio = await startStudioServer({ root, startWorker: false });
-    servers.push(studio);
-    const t0 = Date.now();
-    const v = await studio.engine.timeline.view({ project, scenario });
-    const viewMs = Date.now() - t0;
-    if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
-    const m = v.view.model;
-    const page = await openTimeline(studio, project, scenario);
-    const opened = Date.now();
-    expect(await page.getByTestId('cannot-play').count()).toBe(0);
-    await settled(page);
-    const firstMs = Date.now() - opened;
-    const step = Math.floor(m.frames / 9);
-    const times = await seekTimes(page, Array.from({ length: 8 }, (_x, i) => (i + 1) * step), m.fps);
-    const play = await playback(page, 3000, m.fps);
-    expect(play.errors).toBe('');
-    if (SHOTS) {
-      await mkdir(SHOTS, { recursive: true });
-      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-      for (let i = 0; i < 4; i++) await page.keyboard.press(']');
+  it.skipIf(!REAL)(
+    'a real capture of the fixture product (RETAKE_TEST_REAL): loads, seeks settle, plays',
+    async () => {
+      const [root, project, scenario] = (REAL ?? '').split(':');
+      const studio = await startStudioServer({ root, startWorker: false });
+      servers.push(studio);
+      const t0 = Date.now();
+      const v = await studio.engine.timeline.view({ project, scenario });
+      const viewMs = Date.now() - t0;
+      if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
+      const m = v.view.model;
+      const page = await openTimeline(studio, project, scenario);
+      const opened = Date.now();
+      expect(await page.getByTestId('cannot-play').count()).toBe(0);
       await settled(page);
-      await page.screenshot({ path: join(SHOTS, 'timeline-chrome-real.png') });
-    }
-    console.log(
-      `chrome real ${project}/${scenario} (${v.view.run_id}): ${m.frames} frames, ${m.segments.length} segments, ${v.view.capture.codec} keyframes every ${v.view.capture.keyframe_interval_s} s${v.view.capture.b_frames ? ', B-frames' : ''}; timeline view ${viewMs} ms; first frame settled ${firstMs} ms after the tracks; seek → settled median ${pct(times, 0.5)} ms, p95 ${pct(times, 0.95)} ms, max ${Math.max(...times)} ms; playback ${play.fps} output frames/s (plan ${m.fps})`,
-    );
-    await page.context().close();
-  }, 300_000);
+      const firstMs = Date.now() - opened;
+      const step = Math.floor(m.frames / 9);
+      const times = await seekTimes(
+        page,
+        Array.from({ length: 8 }, (_x, i) => (i + 1) * step),
+        m.fps,
+      );
+      const play = await playback(page, 3000, m.fps);
+      expect(play.errors).toBe('');
+      if (SHOTS) {
+        await mkdir(SHOTS, { recursive: true });
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+        for (let i = 0; i < 4; i++) await page.keyboard.press(']');
+        await settled(page);
+        await page.screenshot({ path: join(SHOTS, 'timeline-chrome-real.png') });
+      }
+      console.log(
+        `chrome real ${project}/${scenario} (${v.view.run_id}): ${m.frames} frames, ${m.segments.length} segments, ${v.view.capture.codec} keyframes every ${v.view.capture.keyframe_interval_s} s${v.view.capture.b_frames ? ', B-frames' : ''}; timeline view ${viewMs} ms; first frame settled ${firstMs} ms after the tracks; seek → settled median ${pct(times, 0.5)} ms, p95 ${pct(times, 0.95)} ms, max ${Math.max(...times)} ms; playback ${play.fps} output frames/s (plan ${m.fps})`,
+      );
+      await page.context().close();
+    },
+    300_000,
+  );
 });

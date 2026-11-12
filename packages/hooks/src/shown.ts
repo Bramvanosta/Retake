@@ -66,7 +66,15 @@ export function shownRollback(a: RollbackAction): ShownAction {
       return { kind: 'shell', run: a.run, ...(a.cwd !== undefined ? { cwd: a.cwd } : {}), ...(a.env ? { env: a.env } : {}), ...(a.timeout !== undefined ? { timeout: a.timeout } : {}) };
     case 'http': {
       const r = a.request;
-      return { kind: 'http', method: r.method ?? 'GET', url: r.url, ...(r.auth ? { auth: `persona ${r.auth.persona} (its saved session)` } : {}), ...(r.headers ? { headers: r.headers } : {}), ...(r.json !== undefined ? { json: r.json } : {}), ...(r.body !== undefined ? { body: r.body } : {}) };
+      return {
+        kind: 'http',
+        method: r.method ?? 'GET',
+        url: r.url,
+        ...(r.auth ? { auth: `persona ${r.auth.persona} (its saved session)` } : {}),
+        ...(r.headers ? { headers: r.headers } : {}),
+        ...(r.json !== undefined ? { json: r.json } : {}),
+        ...(r.body !== undefined ? { body: r.body } : {}),
+      };
     }
     case 'sql':
       return { kind: 'sql', db: a.db, ...(a.file !== undefined ? { file: a.file } : {}), query: a.query };

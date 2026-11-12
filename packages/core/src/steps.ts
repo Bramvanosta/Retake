@@ -1,15 +1,5 @@
 import { ACTION_NAMES, isCaptureScene, isCard, isInterstitial } from './types.js';
-import type {
-  ActionName,
-  NormalizedArgsMap,
-  NormalizedStep,
-  Scenario,
-  Scene,
-  Step,
-  StepCommon,
-  TargetObject,
-  TargetSpec,
-} from './types.js';
+import type { ActionName, NormalizedArgsMap, NormalizedStep, Scenario, Scene, Step, StepCommon, TargetObject, TargetSpec } from './types.js';
 import { isPoint, normalizeTarget } from './targets.js';
 import { createHash } from 'node:crypto';
 import { canonicalJson } from './canonical-json.js';
@@ -72,7 +62,7 @@ function targetOrObject(v: TargetSpec): TargetObject {
 function normalizeArgs(action: ActionName, v: unknown): NormalizedArgsMap[ActionName] {
   switch (action) {
     case 'open':
-      return typeof v === 'string' ? { url: v } : { ...(v as object) } as NormalizedArgsMap['open'];
+      return typeof v === 'string' ? { url: v } : ({ ...(v as object) } as NormalizedArgsMap['open']);
     case 'click':
     case 'double_click':
     case 'hover':
@@ -152,10 +142,7 @@ export function normalizeStep(step: Step, index: number): NormalizedStep {
   }
   const keys = stepActionKeys(step as Record<string, unknown>);
   if (keys.length === 0) {
-    throw new StepError(
-      `step ${index} has no action (expected one of: ${ACTION_NAMES.join(', ')}); keys: ${Object.keys(step).join(', ') || '(none)'}`,
-      index,
-    );
+    throw new StepError(`step ${index} has no action (expected one of: ${ACTION_NAMES.join(', ')}); keys: ${Object.keys(step).join(', ') || '(none)'}`, index);
   }
   if (keys.length > 1) {
     throw new StepError(`step ${index} has several actions (${keys.join(', ')}); split it into separate steps`, index);
@@ -210,8 +197,7 @@ export function listSteps(s: Scenario, opts: { includeSkipped?: boolean } = {}):
  */
 export function resolveStepRef(s: Scenario, ref: string): { sceneIndex: number; stepIndex: number } | null {
   const scenes = s.scenes;
-  const findScene = (id: string) =>
-    scenes.findIndex((e, i) => isCaptureScene(e) && sceneId(e, i) === id);
+  const findScene = (id: string) => scenes.findIndex((e, i) => isCaptureScene(e) && sceneId(e, i) === id);
 
   const dot = ref.indexOf('.');
   if (dot > 0) {
@@ -267,5 +253,11 @@ export function stepFingerprintOf(step: unknown): { fp: string; action: string }
   } catch {
     return undefined;
   }
-  return { fp: createHash('sha256').update(canonicalJson({ action: n.action, args: n.args })).digest('hex').slice(0, 12), action: n.action };
+  return {
+    fp: createHash('sha256')
+      .update(canonicalJson({ action: n.action, args: n.args }))
+      .digest('hex')
+      .slice(0, 12),
+    action: n.action,
+  };
 }

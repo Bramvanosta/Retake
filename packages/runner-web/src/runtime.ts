@@ -4,18 +4,7 @@ import { resolvePageUrl } from '@retake/core/base';
 import { LOADING_CUT_MIN_S } from '@retake/core/model';
 import { isDesktopViewport } from '@retake/core/language';
 import { displayPages } from '@retake/core/environment';
-import type {
-  BBox,
-  CaptureSettings,
-  CursorEffect,
-  LoadedProject,
-  NormalizedStep,
-  Pacing,
-  PointSpec,
-  ResolvedEnvironment,
-  RunMode,
-  TimelineEvent,
-} from '@retake/core/model';
+import type { BBox, CaptureSettings, CursorEffect, LoadedProject, NormalizedStep, Pacing, PointSpec, ResolvedEnvironment, RunMode, TimelineEvent } from '@retake/core/model';
 import type { ResolvedScenePage, ResolvedViewport } from '@retake/core/language';
 import type { TemplateContext } from '@retake/core/base';
 import type { BrowserSession, KitClient } from './session.js';
@@ -296,7 +285,10 @@ export class Runtime {
 
   /** The icon a page's cursor shows right now, as an effect of the capture that starts filming it. */
   private async currentIcon(page: Page, to: { cursorEffect(e: CursorEffect): void }): Promise<void> {
-    const st = await this.session.kit(page).cursorState().catch(() => null);
+    const st = await this.session
+      .kit(page)
+      .cursorState()
+      .catch(() => null);
     if (st?.kind) to.cursorEffect({ t: this.now(), type: 'icon', icon: st.kind });
   }
 
@@ -385,7 +377,10 @@ export class Runtime {
     }
     if (this.revealedAt.get(rec) === rec.holdsEnded) return;
     this.revealedAt.set(rec, rec.holdsEnded);
-    await this.session.kit(page).cursorReveal().catch(() => undefined);
+    await this.session
+      .kit(page)
+      .cursorReveal()
+      .catch(() => undefined);
   }
 
   /**
@@ -522,7 +517,10 @@ export class Runtime {
       await this.currentIcon(page, track.builder);
       // The page may already show a cursor (filmed by an earlier scene): this page's cursor takes over from there.
       if (!pane.pointer.known) {
-        const st = await this.session.kit(page).cursorState().catch(() => null);
+        const st = await this.session
+          .kit(page)
+          .cursorState()
+          .catch(() => null);
         if (st?.known) pane.pointer.adopt(st);
       }
     }
@@ -619,7 +617,10 @@ export class Runtime {
       const actual = this.session.realmName(page);
       if (actual !== undefined && actual !== planned) {
         // The static plan (core planPersonas) and the run walked the scenario differently: a bug worth a report.
-        this.log('warn', `page ${id} is filmed ${actual ? `as persona ${actual}` : 'without a persona'} but was planned ${planned ? `as ${planned}` : 'without one'} (the persona plan missed a page switch)`);
+        this.log(
+          'warn',
+          `page ${id} is filmed ${actual ? `as persona ${actual}` : 'without a persona'} but was planned ${planned ? `as ${planned}` : 'without one'} (the persona plan missed a page switch)`,
+        );
       }
     }
     this.guard?.check(id, page);
@@ -644,9 +645,7 @@ export class Runtime {
     this.track(id, p);
     const t = this.tracks.get(id);
     if (t && !isDesktopViewport(t.viewport, { width: this.capture.width, height: this.capture.height })) {
-      throw new StepError(
-        `page "${id}" has a ${t.viewport.width}×${t.viewport.height} viewport: a single-page scene films the capture size — film it in a multi-page scene (\`pages\`)`,
-      );
+      throw new StepError(`page "${id}" has a ${t.viewport.width}×${t.viewport.height} viewport: a single-page scene films the capture size — film it in a multi-page scene (\`pages\`)`);
     }
     const resumed = this.mainPaused;
     if (resumed) {
@@ -676,9 +675,7 @@ export class Runtime {
     if (/^[a-z][a-z0-9+.-]*:/i.test(pathOrUrl)) return pathOrUrl;
     const cur = id && this.session.has(id) ? this.session.pages.get(id)!.url() : '';
     if (cur && /^https?:/.test(cur)) return new URL(pathOrUrl, cur).toString();
-    throw new RunnerError(
-      `cannot resolve relative URL "${pathOrUrl}": page "${id ?? '(none)'}" is not an environment page (${Object.keys(this.env.pages).join(', ')}) and has no http(s) URL`,
-    );
+    throw new RunnerError(`cannot resolve relative URL "${pathOrUrl}": page "${id ?? '(none)'}" is not an environment page (${Object.keys(this.env.pages).join(', ')}) and has no http(s) URL`);
   }
 
   /**

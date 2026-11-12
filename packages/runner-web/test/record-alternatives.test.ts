@@ -53,7 +53,8 @@ async function record(drive: (page: Page, seen: RecordedEvent[]) => Promise<void
   const file = join(dir, `events-${randomBytes(4).toString('hex')}.jsonl`);
   const project = makeProject(dir, { console: fixture.urls.console, shop: fixture.urls.shop }, { width: 1280, height: 800 });
   const seen: RecordedEvent[] = [];
-  const r = await recordSession({ policy: PERSON_POLICY,
+  const r = await recordSession({
+    policy: PERSON_POLICY,
     project,
     env: resolveEnvironment(project, 'test'),
     url: `${fixture.urls.shop}/record-lab`,
@@ -125,7 +126,12 @@ describe('recordSession: alternative targets (L4.8)', () => {
     // Every event passes the schema (none dropped for its alternatives), and the file holds exactly them.
     expect(r.counts.dropped.invalid).toBe(0);
     for (const e of r.events) expect(RecordedEventSchema.safeParse(e).success).toBe(true);
-    expect(bytes.trim().split('\n').map((l) => JSON.parse(l) as RecordedEvent)).toEqual(r.events);
+    expect(
+      bytes
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as RecordedEvent),
+    ).toEqual(r.events);
 
     const withAlts = r.events.filter((e): e is WithEl => 'el' in e && (e.el?.alternatives?.length ?? 0) > 0);
     expect(withAlts.length).toBeGreaterThanOrEqual(4);
@@ -157,10 +163,13 @@ describe('recordSession: alternative targets (L4.8)', () => {
   }, 90_000);
 
   it('their budget spent (0 ms): none, said partial — the action itself is recorded as before', async () => {
-    const { r } = await record(async (page) => {
-      await page.getByLabel('Email').click();
-      await page.getByRole('button', { name: 'Forgery target' }).click();
-    }, { alternativesBudgetMs: 0 });
+    const { r } = await record(
+      async (page) => {
+        await page.getByLabel('Email').click();
+        await page.getByRole('button', { name: 'Forgery target' }).click();
+      },
+      { alternativesBudgetMs: 0 },
+    );
     const presses = r.events.filter((e): e is Pointer => e.kind === 'pointer');
     expect(presses).toHaveLength(2);
     for (const p of presses) {
@@ -176,7 +185,9 @@ describe('recordSession: alternative targets (L4.8)', () => {
     const a = pressMs(withAlts.r);
     const b = pressMs(without.r);
     expect(a.length).toBeGreaterThanOrEqual(5);
-    console.log(`record: a press on the lab, in-page ms — with alternatives p50 ${quantile(a, 0.5)} / p95 ${quantile(a, 0.95)} (n=${a.length}); without p50 ${quantile(b, 0.5)} / p95 ${quantile(b, 0.95)} (n=${b.length})`);
+    console.log(
+      `record: a press on the lab, in-page ms — with alternatives p50 ${quantile(a, 0.5)} / p95 ${quantile(a, 0.95)} (n=${a.length}); without p50 ${quantile(b, 0.5)} / p95 ${quantile(b, 0.95)} (n=${b.length})`,
+    );
     // Inside the 150 ms press budget: the alternatives' own budget is 10 ms — the bound that matters is what they add
     // (review B-N2), on the median press (n is small: the p95 is the slowest press).
     expect(quantile(a, 0.95)).toBeLessThan(150);

@@ -140,17 +140,38 @@ export function streamArgs(o: Omit<StreamEncoderOptions, 'horizon' | 'onThumb'> 
   const range = o.format === 'jpeg' ? ':in_range=full:in_color_matrix=bt601' : '';
   const main = `scale=${size}:flags=lanczos${range}:out_range=tv:out_color_matrix=bt709,format=yuv420p`;
   const codec =
-    o.encoder === 'videotoolbox'
-      ? ['-c:v', 'h264_videotoolbox', '-q:v', String(VIDEOTOOLBOX_QUALITY), '-profile:v', 'high']
-      : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(o.crf)];
+    o.encoder === 'videotoolbox' ? ['-c:v', 'h264_videotoolbox', '-q:v', String(VIDEOTOOLBOX_QUALITY), '-profile:v', 'high'] : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(o.crf)];
   const graph = o.thumbs ? `[0:v]split=2[m][s];[m]${main}[v];[s]scale=${THUMB_W}:${THUMB_H}:flags=area,format=gray[g]` : `[0:v]${main}[v]`;
   return [
-    '-y', '-hide_banner', '-loglevel', 'error',
-    '-f', 'image2pipe', '-c:v', o.format === 'png' ? 'png' : 'mjpeg', '-framerate', String(o.fps), '-i', 'pipe:0',
-    '-filter_complex', graph,
-    '-map', '[v]', ...codec,
-    '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
-    '-movflags', '+faststart', '-an', o.out,
+    '-y',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-f',
+    'image2pipe',
+    '-c:v',
+    o.format === 'png' ? 'png' : 'mjpeg',
+    '-framerate',
+    String(o.fps),
+    '-i',
+    'pipe:0',
+    '-filter_complex',
+    graph,
+    '-map',
+    '[v]',
+    ...codec,
+    '-color_range',
+    'tv',
+    '-colorspace',
+    'bt709',
+    '-color_primaries',
+    'bt709',
+    '-color_trc',
+    'bt709',
+    '-movflags',
+    '+faststart',
+    '-an',
+    o.out,
     ...(o.thumbs ? ['-map', '[g]', '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'] : []),
   ];
 }

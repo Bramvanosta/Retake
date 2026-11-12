@@ -13,7 +13,9 @@ import type { ProgramContext } from './context.js';
 export function registerUpkeepCommands({ program, action }: ProgramContext): void {
   program
     .command('prune')
-    .description("free disk space: list (and with --yes delete) failed captures, dry runs, older captures and renders nothing uses — the last good capture of each scenario, the captures renders and comments use and the last renders of each scenario stay")
+    .description(
+      'free disk space: list (and with --yes delete) failed captures, dry runs, older captures and renders nothing uses — the last good capture of each scenario, the captures renders and comments use and the last renders of each scenario stay',
+    )
     .argument('<project>', 'project slug or directory')
     .option('--keep-renders <n>', 'renders kept per scenario and variant (default 3), with their reviews')
     .option('--yes', 'delete (default: only list what would go and how much it frees)')

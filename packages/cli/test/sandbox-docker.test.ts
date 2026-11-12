@@ -115,7 +115,9 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
     await mkdir(join(dir, 'sandbox', 'docker'), { recursive: true });
     await writeFile(
       join(dir, 'project.yaml'),
-      ['name: Northfield Docker sandbox test', 'environments:', '  local: {console: "http://localhost:9", shop: "http://localhost:9"}', 'sandboxes:', `  ${ENV}: sandbox/docker/sandbox.yaml`, ''].join('\n'),
+      ['name: Northfield Docker sandbox test', 'environments:', '  local: {console: "http://localhost:9", shop: "http://localhost:9"}', 'sandboxes:', `  ${ENV}: sandbox/docker/sandbox.yaml`, ''].join(
+        '\n',
+      ),
     );
     // The committed files: free ports, the build context as an absolute path, a compose project name of the tests.
     const move = (text: string) => ['4511', '4512', '4513', '4514', '4525'].reduce((t, p, i) => t.replaceAll(p, String(ports[i])), text);
@@ -178,7 +180,15 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
       await new Promise((r) => setTimeout(r, 250));
       list = await mailbox.list();
     }
-    expect(list).toEqual([{ id: expect.any(String), from: { name: 'Northfield', address: 'hello@northfield.example' }, to: [{ name: 'Noa Brandt', address: 'noa@cafe-lumen.example' }], subject: 'Confirm your email to open your café account', date: expect.any(String) }]);
+    expect(list).toEqual([
+      {
+        id: expect.any(String),
+        from: { name: 'Northfield', address: 'hello@northfield.example' },
+        to: [{ name: 'Noa Brandt', address: 'noa@cafe-lumen.example' }],
+        subject: 'Confirm your email to open your café account',
+        date: expect.any(String),
+      },
+    ]);
     const mail = await mailbox.get(list[0].id);
     expect(mail.text).toContain(`Confirm my email: http://localhost:${shopPort}/signup/confirm?token=confirm-0001`);
     expect(mail.html).toContain('<img src="cid:northfield-logo"');

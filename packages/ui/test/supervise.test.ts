@@ -71,7 +71,15 @@ function out(ok = true) {
 }
 
 function sup(o: PipeOut, x: { board?: UnsavedBoard; worker?: boolean; gapMs?: number } = {}) {
-  return new Supervisor({ root: ws, queue: new FileJobQueue(ws), board: x.board ?? new UnsavedBoard(join(ws, 'projects')), out: o, pollMs: 60_000, gapMs: x.gapMs ?? 0, workerAlive: async () => x.worker ?? true });
+  return new Supervisor({
+    root: ws,
+    queue: new FileJobQueue(ws),
+    board: x.board ?? new UnsavedBoard(join(ws, 'projects')),
+    out: o,
+    pollMs: 60_000,
+    gapMs: x.gapMs ?? 0,
+    workerAlive: async () => x.worker ?? true,
+  });
 }
 
 const capture = { project: P, scenario: 'quote', mode: 'capture', scenario_sha256: '0'.repeat(64), run_id: '20261029-120000-quote' };
@@ -160,7 +168,13 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
       { type: 'job_end', kind: 'export', outcome: 'failed' },
       { type: 'job_end', kind: 'export', outcome: 'failed', project: P, scenario: 'quote' },
     ]);
-    expect(lines.at(-1)).toMatchObject({ type: 'pending', jobs: [{ kind: 'capture', state: 'running' }, { kind: 'render', state: 'running', project: P }] });
+    expect(lines.at(-1)).toMatchObject({
+      type: 'pending',
+      jobs: [
+        { kind: 'capture', state: 'running' },
+        { kind: 'render', state: 'running', project: P },
+      ],
+    });
     expect(JSON.stringify(lines)).not.toMatch(/expired|Reenter/);
     s.stop();
   });
@@ -179,7 +193,7 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
     s.stop();
   });
 
-  it('one read of each live job per poll: the watch\'s record is reused (review B L15)', async () => {
+  it("one read of each live job per poll: the watch's record is reused (review B L15)", async () => {
     const w = out();
     const s = sup(w.o);
     await s.nudge();
@@ -218,7 +232,16 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
   it(`at most ${JOB_END_PER_MIN} job_end lines a minute`, async () => {
     const w = out();
     const logs: string[] = [];
-    const s = new Supervisor({ root: ws, queue: new FileJobQueue(ws), board: new UnsavedBoard(join(ws, 'projects')), out: w.o, pollMs: 60_000, gapMs: 0, workerAlive: async () => true, log: (m) => logs.push(m) });
+    const s = new Supervisor({
+      root: ws,
+      queue: new FileJobQueue(ws),
+      board: new UnsavedBoard(join(ws, 'projects')),
+      out: w.o,
+      pollMs: 60_000,
+      gapMs: 0,
+      workerAlive: async () => true,
+      log: (m) => logs.push(m),
+    });
     await s.nudge();
     for (let i = 0; i < JOB_END_PER_MIN + 5; i++) await job({ kind: 'export', input: { project: P, render_id: 'quote-v1' }, state: 'failed' });
     await s.nudge();
@@ -338,7 +361,7 @@ describe('the tables', () => {
   });
 });
 
-describe('each watcher reads the engine\'s queue with a memory of its own', () => {
+describe("each watcher reads the engine's queue with a memory of its own", () => {
   /** The engine's queue as the Studio is handed it: what was read on it itself, and each withOwnMemory asked of it. */
   function engineQueue(): { queue: JobQueueView; reads: string[]; own: Array<string | undefined> } {
     const base = new FileJobQueue(ws, 'retake -C /ws');
@@ -354,7 +377,7 @@ describe('each watcher reads the engine\'s queue with a memory of its own', () =
     return { queue, reads, own };
   }
 
-  it('the supervisor\'s watch (Quit\'s pending jobs): one queue of its own, the default `retake` command, nothing read on the engine\'s', async () => {
+  it("the supervisor's watch (Quit's pending jobs): one queue of its own, the default `retake` command, nothing read on the engine's", async () => {
     await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v7' }, state: 'queued' });
     const e = engineQueue();
     const w = out();
@@ -366,7 +389,7 @@ describe('each watcher reads the engine\'s queue with a memory of its own', () =
     s.stop();
   });
 
-  it('the Studio\'s live events: the job watch and the index each one of their own, nothing read on the engine\'s', async () => {
+  it("the Studio's live events: the job watch and the index each one of their own, nothing read on the engine's", async () => {
     await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v8' }, state: 'queued' });
     const e = engineQueue();
     const logs: string[] = [];

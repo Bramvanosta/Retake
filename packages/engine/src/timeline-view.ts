@@ -263,7 +263,11 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
     if (typeof s?.codec_name === 'string' && /^[a-z0-9_]{1,20}$/.test(s.codec_name)) info.codec = s.codec_name;
     if (typeof s?.has_b_frames === 'number') info.b_frames = s.has_b_frames > 0;
     const times = (j.packets ?? []).map((p) => Number(p.pts_time)).filter((t) => Number.isFinite(t));
-    const keys = (j.packets ?? []).filter((p) => p.flags?.startsWith('K')).map((p) => Number(p.pts_time)).filter((t) => Number.isFinite(t)).sort((a, b) => a - b);
+    const keys = (j.packets ?? [])
+      .filter((p) => p.flags?.startsWith('K'))
+      .map((p) => Number(p.pts_time))
+      .filter((t) => Number.isFinite(t))
+      .sort((a, b) => a - b);
     if (keys.length >= 2) {
       let gap = 0;
       for (let i = 1; i < keys.length; i++) gap = Math.max(gap, keys[i] - keys[i - 1]);
@@ -456,7 +460,7 @@ async function buildView(
     ));
   } catch (e) {
     if (e instanceof EngineError && e.code === 'refused') {
-      const problems = Array.isArray((e.details as { problems?: unknown } | undefined)?.problems) ? ((e.details as { problems: string[] }).problems) : [e.message];
+      const problems = Array.isArray((e.details as { problems?: unknown } | undefined)?.problems) ? (e.details as { problems: string[] }).problems : [e.message];
       return { blocked: { problems, ...(e.fix ? { command: e.fix } : {}) }, ...(req.run_id ? { run_id: req.run_id } : {}) };
     }
     throw e;
@@ -477,7 +481,12 @@ async function buildView(
   // A thread made on a render of this very version (the same plan and theme files) is pinned at its own frame (review
   // B M5); any other only at the step, marker or segment it pointed at.
   const onTake = (threads?.threads ?? []).filter((t) => t.run_id === planned.run.id);
-  const matched = await versionMatches(project.dir, planSha, themeSha, onTake.map((t) => ({ id: t.render_id, created_at: t.render_created_at })));
+  const matched = await versionMatches(
+    project.dir,
+    planSha,
+    themeSha,
+    onTake.map((t) => ({ id: t.render_id, created_at: t.render_created_at })),
+  );
   const thisVersion = new Set(onTake.filter((_t, i) => matched[i]).map((t) => t.id));
   const pinThreads = (threads?.threads ?? []).map((t) => ({
     id: t.id,
@@ -540,7 +549,12 @@ async function buildView(
     },
   };
   // The file's text for undo, never a proposal's (critique B9 b: a proposed text is not a version the Studio restores).
-  return { view, plan, folders: { project: project.dir, run: planned.run.dir, theme: planned.template.dir }, ...(!proposal && editable === true && file.yaml !== undefined ? { text: file.yaml } : {}) };
+  return {
+    view,
+    plan,
+    folders: { project: project.dir, run: planned.run.dir, theme: planned.template.dir },
+    ...(!proposal && editable === true && file.yaml !== undefined ? { text: file.yaml } : {}),
+  };
 }
 
 /** What a planned view read beyond its memo key: the theme folder's files and every file the plan serves (signature). */

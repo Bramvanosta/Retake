@@ -163,7 +163,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
   it('the init scaffold: up seeds and takes a snapshot, reset restores it, --reseed retakes it, a take restores it, a seed change makes it stale, down --volumes leaves nothing', async () => {
     const name = `${PREFIX}scaffold-${rand()}`;
     const dir = await newProject('scaffold');
-    const res = await initSandbox(await loadProject(dir), { write: plainWrite,  basePort: await freeBase(3) });
+    const res = await initSandbox(await loadProject(dir), { write: plainWrite, basePort: await freeBase(3) });
     const manifest = (await readFile(res.manifest, 'utf8'))
       .replace('  files: [compose.yaml]', `  files: [compose.yaml]\n  project: ${name}`)
       .replace('  # restart: [app]', '  restart: [app]')
@@ -224,7 +224,10 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const r3 = await changed.reset({ log });
     expect(r3).toMatchObject({ restored: false, snapshot: { action: 'taken' } });
     expect(await count()).toBe(7);
-    const tpl = await query(url.replace(/\/app$/, '/postgres'), "SELECT shobj_description(oid, 'pg_database') AS c, datistemplate AS t, datallowconn AS a FROM pg_database WHERE datname = 'app__ds_snapshot'");
+    const tpl = await query(
+      url.replace(/\/app$/, '/postgres'),
+      "SELECT shobj_description(oid, 'pg_database') AS c, datistemplate AS t, datallowconn AS a FROM pg_database WHERE datname = 'app__ds_snapshot'",
+    );
     expect(tpl).toEqual([{ c: `retake snapshot ${r3.hash}`, t: true, a: false }]);
 
     const dbLogs = await changed.logs({ service: 'db', lines: 5 });
@@ -244,7 +247,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
   it('an interrupted restore — the database dropped, or its connections blocked — is repaired by up and by a take (K4)', async () => {
     const name = `${PREFIX}repair-${rand()}`;
     const dir = await newProject('repair');
-    const res = await initSandbox(await loadProject(dir), { write: plainWrite,  basePort: await freeBase(3) });
+    const res = await initSandbox(await loadProject(dir), { write: plainWrite, basePort: await freeBase(3) });
     await writeFile(res.manifest, (await readFile(res.manifest, 'utf8')).replace('  files: [compose.yaml]', `  files: [compose.yaml]\n  project: ${name}`));
     const sb = openSandbox(await loadProject(dir), undefined, policy);
     const url = `postgres://demo:pg-sandbox-${res.ports.db}@localhost:${res.ports.db}/app`;

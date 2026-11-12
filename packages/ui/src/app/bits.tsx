@@ -15,7 +15,18 @@ export function visibleControls(text: string): string {
 }
 
 /** A string from the server, isolated and with its direction controls made visible. */
-export function Txt({ text, className, title, ...rest }: { text: string; className?: string; 'aria-current'?: 'page'; /** L5.10a fixes: the full text in a tooltip (controls made visible too). */ title?: string }) {
+export function Txt({
+  text,
+  className,
+  title,
+  ...rest
+}: {
+  text: string;
+  className?: string;
+  'aria-current'?: 'page';
+  /** L5.10a fixes: the full text in a tooltip (controls made visible too). */
+  title?: string;
+}) {
   return (
     <bdi className={className} {...(title !== undefined ? { title: visibleControls(title) } : {})} {...rest}>
       {visibleControls(text)}
@@ -44,7 +55,15 @@ export function When({ iso }: { iso: string | undefined }) {
   if (!Number.isFinite(t)) return <Txt text={iso} />;
   const s = Math.round((Date.now() - t) / 1000);
   const text =
-    s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86_400 ? `${Math.floor(s / 3600)} h ago` : s < 172_800 ? 'yesterday' : new Date(t).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' });
+    s < 60
+      ? 'just now'
+      : s < 3600
+        ? `${Math.floor(s / 60)} min ago`
+        : s < 86_400
+          ? `${Math.floor(s / 3600)} h ago`
+          : s < 172_800
+            ? 'yesterday'
+            : new Date(t).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' });
   return (
     <time dateTime={new Date(t).toISOString()} title={new Date(t).toLocaleString('en')}>
       {text}

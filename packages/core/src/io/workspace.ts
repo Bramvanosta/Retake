@@ -66,9 +66,15 @@ export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig
     }
     text = '';
   }
-  const { value, issues } = checkYamlDocument(text, WorkspaceFileSchema, checkWorkspace, {}, {
-    formatVersion: { file: WORKSPACE_FILE, supported: FORMAT_VERSIONS.workspace },
-  });
+  const { value, issues } = checkYamlDocument(
+    text,
+    WorkspaceFileSchema,
+    checkWorkspace,
+    {},
+    {
+      formatVersion: { file: WORKSPACE_FILE, supported: FORMAT_VERSIONS.workspace },
+    },
+  );
   if (hasErrors(issues)) throw new ConfigError(issuesMessage('workspace config', issues, file), issues, file);
   const cfg = WorkspaceFileSchema.parse(value);
   const dir = (p: string | undefined, fallback: string) => resolve(absRoot, expandHome(p ?? fallback));
@@ -87,7 +93,12 @@ export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig
     out.ffmpeg = isRelativeToolPath(ff) ? resolve(absRoot, ff) : ff;
   }
   // Nothing writes inside the app bundle (bundle.ts): a workspace, or one of its folders, there is refused.
-  for (const [what, p] of [['the workspace', out.root], ['projects_dir', out.projectsDir], ['templates_dir', out.templatesDir], ['components_dir', out.componentsDir]] as const) {
+  for (const [what, p] of [
+    ['the workspace', out.root],
+    ['projects_dir', out.projectsDir],
+    ['templates_dir', out.templatesDir],
+    ['components_dir', out.componentsDir],
+  ] as const) {
     if (insideBundle(p)) throw new ConfigError(`${what} (${p}) lies inside the Retake app, which nothing may write to: use a folder of your own`, [], file);
   }
   return out;

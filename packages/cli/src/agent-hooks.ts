@@ -43,7 +43,12 @@ function header(scenario: string, f: AgentWrittenShellHooks): string {
   const n = whatRuns(f.hooks);
   if ('unknown' in f) return `Retake cannot tell who wrote the hooks of scenario ${name} (${showHiddenCharsLine(f.unknown)}): its ${n}`;
   const at = showHiddenCharsLine(f.at);
-  const who = f.by.client === 'ui' ? `through the Studio or by an agent (${at})` : f.by.client === 'mcp' ? `by an agent (through MCP, ${at})` : `by an agent (${showHiddenCharsLine(String(f.by.client))}, ${at})`;
+  const who =
+    f.by.client === 'ui'
+      ? `through the Studio or by an agent (${at})`
+      : f.by.client === 'mcp'
+        ? `by an agent (through MCP, ${at})`
+        : `by an agent (${showHiddenCharsLine(String(f.by.client))}, ${at})`;
   return `the hooks of scenario ${name} were last written ${who}: its ${n}`;
 }
 
@@ -65,7 +70,9 @@ export function agentHooksListing(scenario: string, f: AgentWrittenShellHooks): 
   const lines: string[] = [];
   for (const h of f.hooks) {
     if (h.kind === 'sql') {
-      lines.push(`  ${shellHookLabel(h)} (sql${h.file !== undefined ? `, file ${showHiddenCharsLine(h.file)}` : ''}, database ${h.db !== undefined ? showHiddenCharsLine(h.db) : "the environment's first"}):`);
+      lines.push(
+        `  ${shellHookLabel(h)} (sql${h.file !== undefined ? `, file ${showHiddenCharsLine(h.file)}` : ''}, database ${h.db !== undefined ? showHiddenCharsLine(h.db) : "the environment's first"}):`,
+      );
       lines.push(...textLines('      ', h.run, '      '));
       if (h.rollback) lines.push(...textLines(`      rollback${h.rollbackFile !== undefined ? ` (file ${showHiddenCharsLine(h.rollbackFile)})` : ''}: `, h.rollback, '        '));
       continue;

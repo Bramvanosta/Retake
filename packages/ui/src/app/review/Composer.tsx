@@ -30,7 +30,17 @@ const FIELDS: Array<[keyof RegionFields, string]> = [
   ['h', 'Height %'],
 ];
 
-export function Composer(p: { slug: string; name: string; shown: Shown; frame: number; region: Region | null; setRegion: (r: Region | null) => void; focusText?: boolean; onPosted: (id: string, warnings: string[]) => void; onReplaced: () => void }) {
+export function Composer(p: {
+  slug: string;
+  name: string;
+  shown: Shown;
+  frame: number;
+  region: Region | null;
+  setRegion: (r: Region | null) => void;
+  focusText?: boolean;
+  onPosted: (id: string, warnings: string[]) => void;
+  onReplaced: () => void;
+}) {
   const { slug, shown, frame, region, setRegion } = p;
   const [fields, setFields] = useState<RegionFields>(() => fieldsOf(region));
   // A drag (or Clear) sets the region: the fields follow — unless they already say it (the person is typing them).

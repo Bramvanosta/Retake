@@ -25,7 +25,23 @@ function notEditableTitle(v: Ready): string {
   return 'Switches are off for this file';
 }
 
-export function EditNotices({ v, slug, name, proposal, allowing, allowError, onAllow }: { v: Ready; slug: string; name: string; proposal: boolean; allowing: string | null; allowError: string | null; onAllow: (c: { id: string; hash: string }) => void }) {
+export function EditNotices({
+  v,
+  slug,
+  name,
+  proposal,
+  allowing,
+  allowError,
+  onAllow,
+}: {
+  v: Ready;
+  slug: string;
+  name: string;
+  proposal: boolean;
+  allowing: string | null;
+  allowError: string | null;
+  onAllow: (c: { id: string; hash: string }) => void;
+}) {
   const held = v.preview_held ?? [];
   return (
     <>
@@ -44,9 +60,15 @@ export function EditNotices({ v, slug, name, proposal, allowing, allowError, onA
         </Callout>
       )}
       {held.length > 0 && (
-        <Callout state="warn" role="note" title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`} testId="preview-held">
+        <Callout
+          state="warn"
+          role="note"
+          title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`}
+          testId="preview-held"
+        >
           <p className="ed-quiet">
-            Components of this workspace are code: the preview runs one only once you allow it, for this Studio session (until it stops, or the component changes). Its stand-in draws until then; a render uses it either way.
+            Components of this workspace are code: the preview runs one only once you allow it, for this Studio session (until it stops, or the component changes). Its stand-in draws until then; a
+            render uses it either way.
           </p>
           <ul className="ed-held">
             {held.map((c) => (
@@ -102,45 +124,44 @@ export function EditNotes({ v, slug, name, missing, notes }: { v: Ready; slug: s
         </section>
       )}
       {count > 0 && (
-      <Disclosure summary={`Warnings and notes (${count})`}>
-        {missing.length > 0 && (
-          <p data-testid="preview-missing">
-            {'Not in the preview (their stand-ins draw): '}
-            <Txt text={missing.join(', ')} />
-          </p>
-        )}
-        {notes.length > 0 && (
-          <section className="ed-note-group" aria-label="From the preview">
-            <p className="ed-quiet">From the preview — text a component may have written:</p>
-            <ul className="ed-note-list" data-testid="preview-notes">
-              {notes.map((n, i) => (
-                <li key={i}>
-                  <StatusMark state={n.type === 'error' ? 'fail' : 'warn'} word={n.type === 'error' ? 'Error' : 'Warning'} /> <Txt text={n.message} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-        {plan.length > 0 && (
-          <section className="ed-note-group" aria-label="The edit's warnings and notes">
-            <p className="ed-quiet">
-              <Txt text={`The edit's warnings and notes (${plural(plan.length, 'line')}):`} />
+        <Disclosure summary={`Warnings and notes (${count})`}>
+          {missing.length > 0 && (
+            <p data-testid="preview-missing">
+              {'Not in the preview (their stand-ins draw): '}
+              <Txt text={missing.join(', ')} />
             </p>
-            <ul className="ed-note-list" data-testid="plan-notes">
-              {plan.map((n, i) => (
-                <li key={i}>
-                  <Tag>
-                    <Txt text={n.type} />
-                  </Tag>{' '}
-                  <Txt text={n.message} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </Disclosure>
+          )}
+          {notes.length > 0 && (
+            <section className="ed-note-group" aria-label="From the preview">
+              <p className="ed-quiet">From the preview — text a component may have written:</p>
+              <ul className="ed-note-list" data-testid="preview-notes">
+                {notes.map((n, i) => (
+                  <li key={i}>
+                    <StatusMark state={n.type === 'error' ? 'fail' : 'warn'} word={n.type === 'error' ? 'Error' : 'Warning'} /> <Txt text={n.message} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {plan.length > 0 && (
+            <section className="ed-note-group" aria-label="The edit's warnings and notes">
+              <p className="ed-quiet">
+                <Txt text={`The edit's warnings and notes (${plural(plan.length, 'line')}):`} />
+              </p>
+              <ul className="ed-note-list" data-testid="plan-notes">
+                {plan.map((n, i) => (
+                  <li key={i}>
+                    <Tag>
+                      <Txt text={n.type} />
+                    </Tag>{' '}
+                    <Txt text={n.message} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </Disclosure>
       )}
     </div>
   );
 }
-

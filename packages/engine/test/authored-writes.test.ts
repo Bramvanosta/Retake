@@ -13,7 +13,20 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { initSandbox } from '@retake/sandbox';
-import { componentCreate, copyTheme, createEngine, createThemeFromBrand, fileWriter, openProjectBySlug, openWorkspace, personScope, ProjectStore, enginePorts, diskProjectStores, ManualClock } from '../src/index.js';
+import {
+  componentCreate,
+  copyTheme,
+  createEngine,
+  createThemeFromBrand,
+  fileWriter,
+  openProjectBySlug,
+  openWorkspace,
+  personScope,
+  ProjectStore,
+  enginePorts,
+  diskProjectStores,
+  ManualClock,
+} from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 const sha = (b: string | Buffer) => createHash('sha256').update(b).digest('hex');
@@ -26,7 +39,10 @@ async function tree(dir: string, norm: (rel: string, b: Buffer) => string | Buff
   const entries = (await readdir(dir, { withFileTypes: true, recursive: true })).filter((e) => e.isFile());
   for (const e of entries) {
     const abs = join(e.parentPath, e.name);
-    const rel = abs.slice(dir.length + 1).split('\\').join('/');
+    const rel = abs
+      .slice(dir.length + 1)
+      .split('\\')
+      .join('/');
     out[rel] = sha(norm(rel, await readFile(abs)));
   }
   return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
@@ -86,7 +102,7 @@ describe('the bytes of the authored writers', () => {
     expect((await stat(file)).mode & 0o777).toBe(0o640);
   });
 
-  it('a theme copied: the starter\'s files verbatim, its name spliced, the provenance file', async () => {
+  it("a theme copied: the starter's files verbatim, its name spliced, the provenance file", async () => {
     const ws = await openWorkspace({ root, agent: false });
     await copyTheme(ws, { from: 'default', name: 'mine' }, { scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) });
     expect(await tree(join(root, 'templates', 'mine'), noToolVersion)).toEqual({
@@ -104,7 +120,11 @@ describe('the bytes of the authored writers', () => {
 
   it('a theme made from brand inputs: template.yaml, the logo, LICENSES.md, the provenance file', async () => {
     const ws = await openWorkspace({ root, agent: false });
-    await createThemeFromBrand(ws, { name: 'acme', colors: { accent: '#0e7c66' }, logo: 'brand/logo.svg' }, { trust: 'author', cwd: root, scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) });
+    await createThemeFromBrand(
+      ws,
+      { name: 'acme', colors: { accent: '#0e7c66' }, logo: 'brand/logo.svg' },
+      { trust: 'author', cwd: root, scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) },
+    );
     expect(await tree(join(root, 'templates', 'acme'), noToolVersion)).toEqual({
       '.retake-theme.json': '050793c9021eb9a558611cb3c1187e32b9f22ece37a194bfb3064bd7168ee9b4',
       'LICENSES.md': '1364d5cf15028b623067fdf8ce19410352d273fc429b1de54707f005e3aef87d',

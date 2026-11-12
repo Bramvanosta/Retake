@@ -35,11 +35,12 @@ afterAll(async () => {
 });
 
 type Click = { role: string; desc: string; t_click: number; bbox?: { x: number; y: number; w: number; h: number } };
-const clicksOf = (e: TimelineEvent) => ((e.data as { clicks?: Click[] } | undefined)?.clicks ?? []);
+const clicksOf = (e: TimelineEvent) => (e.data as { clicks?: Click[] } | undefined)?.clicks ?? [];
 const roles = (e: TimelineEvent) => clicksOf(e).map((c) => c.role);
 
 async function run(id: string, scenes: Scene[], pacing: Partial<Pacing> = FAST) {
-  const rec = await runScenario({ policy: PERSON_POLICY,
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }, { width: 1000, height: 700 }),
     mode: 'dry',
     runId: id,
@@ -176,7 +177,7 @@ describe('typing rate and clear (R-CHO-14, R-CHO-15)', () => {
           {
             eval: {
               js:
-                "const t = (id) => document.getElementById(id).contentDocument.body.textContent.trim(); " +
+                'const t = (id) => document.getElementById(id).contentDocument.body.textContent.trim(); ' +
                 "const v = [t('rich'), t('design'), document.getElementById('cm-text').textContent]; " +
                 "if (v.join('|') !== 'Fresh rich text|Fresh design text|roast(new)') throw new Error(v.join('|'));",
             },
@@ -313,9 +314,7 @@ describe('date pickers (R-CHO-24)', () => {
   }, 60_000);
 
   it('fails with the shown days when a label never shows up', async () => {
-    const { rec, ev } = await run('nodate', [
-      { id: 'cal', open: '/calendar.html', steps: [{ date: { field: 'Delivery window', day: 'Someday 2030' }, optional: true }] },
-    ]);
+    const { rec, ev } = await run('nodate', [{ id: 'cal', open: '/calendar.html', steps: [{ date: { field: 'Delivery window', day: 'Someday 2030' }, optional: true }] }]);
     expect(rec.status).toBe('succeeded');
     expect(ev[0].status).toBe('failed');
     expect(ev[0].error).toMatch(/not found after 36 month clicks; shown: ".*2029" … ".*2029"/);
@@ -363,7 +362,11 @@ describe('parking (R-CHO-18, R-CHO-21)', () => {
   type Box = { x: number; y: number; w: number; h: number };
   const parkOf = (e: TimelineEvent) => (e.data as { park?: Park } | undefined)?.park;
   const PARK = { ...FAST, park_hold: 0.3, park_scroll_hold: 0.3 };
-  const boxes = { eval: { js: "return ['save', 'banner', 'toast', 'awards'].map((id) => { const el = document.getElementById(id); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })" } };
+  const boxes = {
+    eval: {
+      js: "return ['save', 'banner', 'toast', 'awards'].map((id) => { const el = document.getElementById(id); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })",
+    },
+  };
 
   it('parks next to a scroll target (clear of its text), away from what a click changed, and before a hold step', async () => {
     const { rec, ev } = await run(

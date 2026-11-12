@@ -31,7 +31,21 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import { ENGINE_HTTP_API, EngineError, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@retake/engine';
+import {
+  ENGINE_HTTP_API,
+  EngineError,
+  JobsWatch,
+  RUNS_INDEX_MAX,
+  WorkspaceIndex,
+  diffSources,
+  jobProject,
+  listRuns,
+  runChanges,
+  scanSources,
+  securityHeaders,
+  sourceKey,
+  workspaceChanges,
+} from '@retake/engine';
 import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
 import type { LoadedProject } from '@retake/core/model';
@@ -43,7 +57,9 @@ import { recordsChanges, recordsWatchScan } from './record-watch.js';
  * them raw, and a reader treating them as line ends would drop the event — a page's text may hold them).
  */
 export function sseText(event: string, data: unknown): string {
-  return `event: ${event}\ndata: ${JSON.stringify(data).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')}\n\n`;
+  return `event: ${event}\ndata: ${JSON.stringify(data)
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')}\n\n`;
 }
 
 /** Event streams served at once, at most (below a browser's 6 connections per host). */
@@ -156,10 +172,24 @@ export class Live {
     const w = workspaceChanges(keys);
     // L4.5 part E: the projects whose renders/ folder changed (a render written, a version reserved or released), or
     // their review/ (L5.10a fixes: a review run from a terminal).
-    const renders = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'renders' && k.project !== undefined).map((k) => k.project as string))].sort();
+    const renders = [
+      ...new Set(
+        keys
+          .map(sourceKey)
+          .filter((k) => k.kind === 'renders' && k.project !== undefined)
+          .map((k) => k.project as string),
+      ),
+    ].sort();
     // L5.10a fixes: the projects whose project.yaml, sandbox.yaml or scenario list changed — always sent (empty: none),
     // so a page tells "a file no list names" from "a runs folder that changed with no run told yet".
-    const files = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'project' && k.project !== undefined).map((k) => k.project as string))].sort();
+    const files = [
+      ...new Set(
+        keys
+          .map(sourceKey)
+          .filter((k) => k.kind === 'project' && k.project !== undefined)
+          .map((k) => k.project as string),
+      ),
+    ].sort();
     if (w.projects.length || Object.keys(lib).length || records.length) {
       this.send('workspace', {
         projects: w.projects,
@@ -178,7 +208,14 @@ export class Live {
     }
     if (changed.length) {
       // L5.10a fixes (review A-L7): the projects of the changed jobs, so an open project's board ignores another one's.
-      const projects = [...new Set(changed.map((id) => this.jobs.record(id)).map((j) => (j ? jobProject(j.input) : undefined)).filter((x): x is string => typeof x === 'string'))].sort();
+      const projects = [
+        ...new Set(
+          changed
+            .map((id) => this.jobs.record(id))
+            .map((j) => (j ? jobProject(j.input) : undefined))
+            .filter((x): x is string => typeof x === 'string'),
+        ),
+      ].sort();
       // L5.14: what a filming take holds of the workspace's jobs now (fixed words and a kind; null: nothing).
       this.send('jobs', { changed, projects, held: this.jobs.held() ?? null });
     }

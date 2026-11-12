@@ -55,7 +55,10 @@ beforeAll(async () => {
   for (let i = 0; i < 3; i++) {
     const id = `j_${ulid()}`;
     await mkdir(join(jobs, id), { recursive: true });
-    await writeFile(join(jobs, id, 'job.json'), JSON.stringify({ version: JOB_RECORD_VERSION, id, kind: 'render', input: { ...input, render_id: `quote-v${i + 2}` }, state: 'queued', created_at: at }));
+    await writeFile(
+      join(jobs, id, 'job.json'),
+      JSON.stringify({ version: JOB_RECORD_VERSION, id, kind: 'render', input: { ...input, render_id: `quote-v${i + 2}` }, state: 'queued', created_at: at }),
+    );
   }
 }, 120_000);
 
@@ -68,7 +71,7 @@ afterAll(async () => {
 });
 
 describe('the cost of a take beside a long history (review A H1, A M1, B L8)', () => {
-  it('a take\'s sampler reads no job folder: the worker\'s own hold, else its one held file', async () => {
+  it("a take's sampler reads no job folder: the worker's own hold, else its one held file", async () => {
     let asked = 0;
     const inWorker = new TakeBeside({ root, own: () => undefined, slowed: () => (asked++, true) });
     expect(await touched(() => inWorker.sample())).toEqual([]);

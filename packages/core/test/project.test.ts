@@ -42,9 +42,7 @@ describe('workspace', () => {
       ffmpeg: '/opt/ffmpeg',
     });
     await writeFiles(ws.dir, { 'retake.yaml': 'project_dir: x\n' });
-    await expect(loadWorkspaceConfig(ws.dir)).rejects.toThrow(
-      /retake\.yaml:1:1 error: unknown key "project_dir" \(did you mean "projects_dir"\?\)/,
-    );
+    await expect(loadWorkspaceConfig(ws.dir)).rejects.toThrow(/retake\.yaml:1:1 error: unknown key "project_dir" \(did you mean "projects_dir"\?\)/);
   });
 });
 
@@ -62,9 +60,7 @@ describe('projects', () => {
     for (const f of ['README.md', 'project.yaml', '.gitignore', 'scenarios', 'hooks', 'assets']) {
       expect(existsSync(join(dir, f)), f).toBe(true);
     }
-    expect((await readFile(join(dir, '.gitignore'), 'utf8')).split('\n')).toEqual(
-      expect.arrayContaining(['runs/', 'renders/', 'review/', 'exports/', '.retake/']),
-    );
+    expect((await readFile(join(dir, '.gitignore'), 'utf8')).split('\n')).toEqual(expect.arrayContaining(['runs/', 'renders/', 'review/', 'exports/', '.retake/']));
     const readme = await readFile(join(dir, 'README.md'), 'utf8');
     for (const h of ['# Northfield Wholesale', '## Product', '## Audience', '## Goals', '## Tone', '## Environments & links', '## Accounts (by reference — never passwords)', "## Do / Don't"]) {
       expect(readme).toContain(h);
@@ -95,21 +91,15 @@ describe('projects', () => {
   it('createProject refuses duplicates and invalid input; custom readme is kept', async () => {
     const p = await createProject(ws.dir, { name: 'Northfield', readme: '# Northfield\n\nCoffee wholesale.' });
     expect(p.readme).toBe('# Northfield\n\nCoffee wholesale.\n');
-    expect(p.issues?.map((i) => i.message)).toEqual([
-      'no environments yet: add environments.<env>.<page>: <url> before running scenarios',
-    ]);
+    expect(p.issues?.map((i) => i.message)).toEqual(['no environments yet: add environments.<env>.<page>: <url> before running scenarios']);
     await expect(createProject(ws.dir, { name: 'Northfield' })).rejects.toThrow(/project "northfield" already exists/);
     await expect(createProject(ws.dir, { name: 'X', slug: 'Bad Slug' })).rejects.toThrow(/invalid project slug "Bad Slug"/);
-    await expect(
-      createProject(ws.dir, { name: 'Y', environments: { staging: { console: 'not a url' } } }),
-    ).rejects.toThrow(/environments\.staging\.console: expected an absolute http\(s\) URL/);
+    await expect(createProject(ws.dir, { name: 'Y', environments: { staging: { console: 'not a url' } } })).rejects.toThrow(/environments\.staging\.console: expected an absolute http\(s\) URL/);
   });
 
   it('loadProject: helpful not-found error and defaults', async () => {
     await writeFiles(ws.dir, { 'projects/northfield/project.yaml': 'name: Northfield\n' });
-    await expect(loadProject('northfeld', ws.dir)).rejects.toThrow(
-      /project "northfeld" not found in .*projects \(did you mean "northfield"\?\) \(available: northfield\)/,
-    );
+    await expect(loadProject('northfeld', ws.dir)).rejects.toThrow(/project "northfeld" not found in .*projects \(did you mean "northfield"\?\) \(available: northfield\)/);
     const p = await loadProject('northfield', ws.dir);
     expect(p.config).toEqual({
       name: 'Northfield',
@@ -136,7 +126,9 @@ describe('projects', () => {
     const file = join(p.dir, 'scenarios', 'catalogue.yaml');
     await writeFiles(p.dir, SPEC_HOOK_FILES);
     const bad = SPEC_EXAMPLE.replace('click: {text: New import}', 'click: {txt: New import}');
-    expect(errors(parseScenario(bad, { files: fileFacts(PERSON_POLICY), file, project: p }).issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual(['scenes.0.steps.1.click: unknown key "txt" (did you mean "text"?)']);
+    expect(errors(parseScenario(bad, { files: fileFacts(PERSON_POLICY), file, project: p }).issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual([
+      'scenes.0.steps.1.click: unknown key "txt" (did you mean "text"?)',
+    ]);
     expect(existsSync(file)).toBe(false);
     expect(errors(parseScenario(SPEC_EXAMPLE.trimEnd(), { files: fileFacts(PERSON_POLICY), file, project: p }).issues)).toEqual([]);
     expect(existsSync(file)).toBe(false);
@@ -158,9 +150,7 @@ describe('projects', () => {
     await writeFiles(p.dir, { 'scenarios/broken.yaml': 'video: broken\nscenes:\n  - id: a\n    open: /\n    steps: [{wait: soon}]\n' });
     const err = await loadScenario(p, 'broken', { files: fileFacts(PERSON_POLICY) }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ScenarioError);
-    expect((err as ScenarioError).issues).toEqual([
-      { severity: 'error', path: ['scenes', 0, 'steps', 0, 'wait'], message: 'expected a number, got "soon"', line: 5, col: 20 },
-    ]);
+    expect((err as ScenarioError).issues).toEqual([{ severity: 'error', path: ['scenes', 0, 'steps', 0, 'wait'], message: 'expected a number, got "soon"', line: 5, col: 20 }]);
   });
 });
 
@@ -196,7 +186,7 @@ describe('parseProjectYaml semantic checks', () => {
     ]);
   });
 
-  it('reset shell hooks are checked against the project\'s own environments and allow_hosts (R-SEC-06)', () => {
+  it("reset shell hooks are checked against the project's own environments and allow_hosts (R-SEC-06)", () => {
     const text = [
       'name: Northfield',
       'environments:',

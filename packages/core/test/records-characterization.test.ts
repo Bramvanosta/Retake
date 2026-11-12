@@ -26,7 +26,17 @@ function strict(value: unknown): string {
 describe('the schema of what this version writes, over records of the past', () => {
   it('each past record: accepted, or refused at these paths', () => {
     const rows: Record<string, string> = {};
-    for (const f of ['run-0.1.0/run.json', 'run-phase1.json', 'run-queued.json', 'run-closed-from-queued.json', 'run-running.json', 'run-closed-from-running.json', 'run-closed-from-paused.json', 'run-dry.json']) rows[f] = strict(recordFixture(`past/${f}`));
+    for (const f of [
+      'run-0.1.0/run.json',
+      'run-phase1.json',
+      'run-queued.json',
+      'run-closed-from-queued.json',
+      'run-running.json',
+      'run-closed-from-running.json',
+      'run-closed-from-paused.json',
+      'run-dry.json',
+    ])
+      rows[f] = strict(recordFixture(`past/${f}`));
     expect(rows).toEqual({
       // D-8: the strict schema stays what this version writes; the reader of the lot reads this record (both blocks kept).
       'run-0.1.0/run.json': 'engine.retake: invalid_type; perf.cpu.retake: invalid_type',
@@ -115,7 +125,9 @@ describe('the folder a new run reserves', () => {
     const at = new Date(2026, 9, 17, 14, 22, 33);
     const name = 'a'.repeat(190);
     expect([newRunId(name, at).length, isRunId(newRunId(name, at))]).toEqual([206, false]);
-    await expect(reserveRunId(join(tmp, 'long'), name, at)).rejects.toThrow(`scenario "${'a'.repeat(40)}…": its name is too long for a run folder, which is named after it (a run id holds at most 200 characters: 184 for the scenario's name) — give the scenario file a shorter name`);
+    await expect(reserveRunId(join(tmp, 'long'), name, at)).rejects.toThrow(
+      `scenario "${'a'.repeat(40)}…": its name is too long for a run folder, which is named after it (a run id holds at most 200 characters: 184 for the scenario's name) — give the scenario file a shorter name`,
+    );
     expect(existsSync(join(tmp, 'long'))).toBe(false);
     // One character less than the limit's overflow: the last name that fits.
     expect((await reserveRunId(join(tmp, 'long'), 'a'.repeat(184), at)).id.length).toBe(200);

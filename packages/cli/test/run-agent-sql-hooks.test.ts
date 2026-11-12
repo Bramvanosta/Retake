@@ -102,7 +102,7 @@ beforeEach(() => {
   fakes.runs.length = 0;
 });
 
-describe("retake run: the sql hooks of a scenario an agent wrote", () => {
+describe('retake run: the sql hooks of a scenario an agent wrote', () => {
   it('without a terminal and without --yes: listed as they will run, then refused; nothing runs', async () => {
     const r = await retake(['run', 'demo', 'agent']);
     expect(r.code).toBe(EXIT.failure);

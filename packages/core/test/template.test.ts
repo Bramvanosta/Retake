@@ -85,8 +85,7 @@ describe('loadTemplate', () => {
     const err = await loadTemplate('broken', ws.dir, { files: fileFacts(PERSON_POLICY) }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
     expect((err as ConfigError).message).toBe(
-      `template "broken" (${join(ws.dir, 'templates/broken')}) is missing 5 asset files: ` +
-        'logo.svg, wordmark.svg, fonts/Body-Regular.ttf, fonts/Body-SemiBold.ttf, fonts/Body-Bold.ttf',
+      `template "broken" (${join(ws.dir, 'templates/broken')}) is missing 5 asset files: ` + 'logo.svg, wordmark.svg, fonts/Body-Regular.ttf, fonts/Body-SemiBold.ttf, fonts/Body-Bold.ttf',
     );
   });
 
@@ -140,15 +139,13 @@ describe('loadTemplate', () => {
   it('a workspace folder named like a starter shadows it, even without a template.yaml', async () => {
     await writeFiles(ws.dir, { 'templates/default/README.md': 'work in progress' });
     expect((await listTemplates(ws.dir)).map((t) => t.name)).toEqual(['editorial', 'motion']);
-    await expect(loadTemplate('default', ws.dir, { files: fileFacts(PERSON_POLICY) })).rejects.toThrow(/template "default": no template\.yaml in .*templates\/default \(a workspace folder of that name takes precedence/);
+    await expect(loadTemplate('default', ws.dir, { files: fileFacts(PERSON_POLICY) })).rejects.toThrow(
+      /template "default": no template\.yaml in .*templates\/default \(a workspace folder of that name takes precedence/,
+    );
   });
 
   it('the repository itself lists its templates once, as its own', async () => {
-    expect((await listTemplates(join(STARTER_TEMPLATES_DIR, '..'))).map((t) => `${t.name}:${t.source}`)).toEqual([
-      'default:workspace',
-      'editorial:workspace',
-      'motion:workspace',
-    ]);
+    expect((await listTemplates(join(STARTER_TEMPLATES_DIR, '..'))).map((t) => `${t.name}:${t.source}`)).toEqual(['default:workspace', 'editorial:workspace', 'motion:workspace']);
   });
 
   it('parseTemplateYaml validates without touching the disk', () => {

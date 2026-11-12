@@ -200,7 +200,10 @@ class BrowserDriver implements CaptureDriver {
     const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until, hooks: hooksMode === 'run', ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
     if (plan.issues.length) throw new RunnerError(plan.issues.map((i) => `${formatIssuePath(i.path)}: ${i.message}`).join('\n'));
     this.planned = plan;
-    const prepared = (this.prepared = await prepareSessions(personas.filter((p) => plan.used.includes(p.name)), { runId, log }));
+    const prepared = (this.prepared = await prepareSessions(
+      personas.filter((p) => plan.used.includes(p.name)),
+      { runId, log },
+    ));
     const realmOf = personaOf(plan, personas, env, () => this.rt);
     const writeGuard = this.writeGuard;
     const httpCredentials = this.httpCredentials;
@@ -267,7 +270,10 @@ class BrowserDriver implements CaptureDriver {
     const runClock = r.runClock;
     if (runClock) {
       await session.installClock(runClock);
-      log('info', `clock: the product's browser reads ${runClock.at}${runClock.timezone ? ` (${runClock.timezone})` : ''} at capture time 0${runClock.freeze ? ' and never moves (freeze)' : ', then runs'}`);
+      log(
+        'info',
+        `clock: the product's browser reads ${runClock.at}${runClock.timezone ? ` (${runClock.timezone})` : ''} at capture time 0${runClock.freeze ? ' and never moves (freeze)' : ', then runs'}`,
+      );
     }
     const guard = (this.guard = signInGuard(project, env, personas, plan, () => this.session, {
       command: this.commandOf,
@@ -316,8 +322,7 @@ class BrowserDriver implements CaptureDriver {
     const writes = writeGuard ? { policy: writeGuard.policy, ...(writeGuard.onWrite ? { onWrite: writeGuard.onWrite } : {}) } : undefined;
     return {
       // js hooks run in a guarded tab of their own, kept for the run (hook-page.ts), never in a capture tab.
-      evalInPage: (pageKey, code) =>
-        evalHookInPage(session, { project, env, log, ...(loginLanding ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code),
+      evalInPage: (pageKey, code) => evalHookInPage(session, { project, env, log, ...(loginLanding ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code),
       personaAuth: hookPersonaAuth(this.personas, env, session, this.commandOf, opts.hookTrust === 'mcp'),
     };
   }
@@ -392,7 +397,11 @@ class BrowserDriver implements CaptureDriver {
       if (firstPage) await recorder.start(rt.page);
       else await recorder.prepare();
       rt.recorder = recorder;
-      this.loadingWatch = new LoadingWatch(() => recorder.recordingPage ?? undefined, () => clock.now(), (p) => this.session?.idOf(p));
+      this.loadingWatch = new LoadingWatch(
+        () => recorder.recordingPage ?? undefined,
+        () => clock.now(),
+        (p) => this.session?.idOf(p),
+      );
       this.loadingWatch.start();
     }
     if (mode === 'capture') {
@@ -431,7 +440,10 @@ class BrowserDriver implements CaptureDriver {
               return out;
             },
             lastPress: () => {
-              const ts = [timeline.cursorEffects, ...timeline.tracks.map((t) => t.cursorEffects)].flat().filter((e) => e.type === 'press' || e.type === 'ripple').map((e) => e.t);
+              const ts = [timeline.cursorEffects, ...timeline.tracks.map((t) => t.cursorEffects)]
+                .flat()
+                .filter((e) => e.type === 'press' || e.type === 'ripple')
+                .map((e) => e.t);
               return ts.length ? Math.max(...ts) : null;
             },
             settleEffects: () => settleEffectChecks({ rt }),
@@ -546,7 +558,14 @@ class BrowserDriver implements CaptureDriver {
       // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
       const motion = opts.hideCursor
         ? null
-        : motionCapture(this.frames.map((f) => f.t), timeline.cursor, minFps, timeline.cursorEffects, timeline.pages.map((p) => p.t_start), timeline.loading);
+        : motionCapture(
+            this.frames.map((f) => f.t),
+            timeline.cursor,
+            minFps,
+            timeline.cursorEffects,
+            timeline.pages.map((p) => p.t_start),
+            timeline.loading,
+          );
       timeline.stalls = (motion?.stalls ?? []).map((x) => ({ t_start: x.t, t_end: x.t_end, during: x.during }));
       const cause = this.perfMachine ? choppyCause({ gpu: this.gpu, cpu: this.perfCpu, machine: this.perfMachine, seconds: endT, frameRateLimit: this.frameRateLimit }) : undefined;
       for (const message of motionWarnings(motion, minFps, '', cause)) {
@@ -558,7 +577,8 @@ class BrowserDriver implements CaptureDriver {
     // A landing seen while the run was ending (after a step failed, or a cancel): nothing of the capture is kept either.
     if (guard?.error) r.failure = guard.error;
     // A step failure on a persona's page: was it the session? One check, off camera, now that nothing is filmed (L1.6).
-    if (r.failure instanceof StepFailure && session && this.prepared.length) r.failure = await diagnoseSession(r.failure, session, rt, this.prepared, env.pages, secrets, this.commandOf, signal, this.expire);
+    if (r.failure instanceof StepFailure && session && this.prepared.length)
+      r.failure = await diagnoseSession(r.failure, session, rt, this.prepared, env.pages, secrets, this.commandOf, signal, this.expire);
   }
 
   async close(): Promise<void> {
@@ -623,7 +643,14 @@ class BrowserDriver implements CaptureDriver {
         const minFps = Math.min(capture.fps, 30) * 0.6;
         const motion = opts.hideCursor
           ? null
-          : motionCapture(list.map((f) => f.t), t.builder.cursor, minFps, t.builder.cursorEffects, t.builder.pages.map((p) => p.t_start), t.builder.loading);
+          : motionCapture(
+              list.map((f) => f.t),
+              t.builder.cursor,
+              minFps,
+              t.builder.cursorEffects,
+              t.builder.pages.map((p) => p.t_start),
+              t.builder.loading,
+            );
         const cause = this.perfMachine ? choppyCause({ gpu: this.gpu, cpu: this.perfCpu, machine: this.perfMachine, seconds: endT, frameRateLimit }) : undefined;
         for (const message of motionWarnings(motion, minFps, `page ${id}: `, cause)) {
           timeline.warn(message);
@@ -694,16 +721,29 @@ class BrowserDriver implements CaptureDriver {
         return page ? rt.tracks.get(page) : undefined;
       };
       record.screenshots = capture.keep_frames
-        ? await stepShots(timeline.events, screenshotsDir, { dir: framesDir, frames }, (ev) => {
-            const t = trackOf(ev);
-            const list = t ? trackFrames.get(t.builder.info.id) : undefined;
-            return t && list?.length ? { dir: join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, '')), frames: list } : null;
-          }, log)
-        : await videoStepShots(timeline.events, screenshotsDir, (ev) => {
-            const t = trackOf(ev);
-            const file = t ? join(dir, t.builder.info.file) : record.capture;
-            return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
-          }, capture.fps, ffmpegBin(opts.policy, opts.ffmpeg), log);
+        ? await stepShots(
+            timeline.events,
+            screenshotsDir,
+            { dir: framesDir, frames },
+            (ev) => {
+              const t = trackOf(ev);
+              const list = t ? trackFrames.get(t.builder.info.id) : undefined;
+              return t && list?.length ? { dir: join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, '')), frames: list } : null;
+            },
+            log,
+          )
+        : await videoStepShots(
+            timeline.events,
+            screenshotsDir,
+            (ev) => {
+              const t = trackOf(ev);
+              const file = t ? join(dir, t.builder.info.file) : record.capture;
+              return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
+            },
+            capture.fps,
+            ffmpegBin(opts.policy, opts.ffmpeg),
+            log,
+          );
     }
     // What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens.
     let transitions: RunPerf['transitions'];
@@ -725,9 +765,18 @@ class BrowserDriver implements CaptureDriver {
       timeline.busy = act.busy;
       log('debug', `transitions: ${act.transitions.map((x) => `${x.scene}.${x.step} ${x.ms} ms`).join(', ')}; waits: ${act.busy.map((b) => `${b.t_start}–${b.t_end} s`).join(', ') || 'none'}`);
       const slow = slowTransitions(act.transitions);
-      transitions = { measured: clicksOf(events).length, slow: slow.slice(0, 10).map((x) => ({ t: x.t, ms: x.ms, scene: x.scene, step: x.step, ...(x.target ? { target: secrets.redactText(x.target) } : {}) })) };
+      transitions = {
+        measured: clicksOf(events).length,
+        slow: slow.slice(0, 10).map((x) => ({ t: x.t, ms: x.ms, scene: x.scene, step: x.step, ...(x.target ? { target: secrets.redactText(x.target) } : {}) })),
+      };
       if (slow.length) {
-        log('info', `slow transitions (click → stable screen over 0.8 s): ${slow.slice(0, 4).map((x) => `${x.scene}.${x.step} ${(x.ms / 1000).toFixed(1)} s`).join(', ')}${slow.length > 4 ? ', …' : ''}`);
+        log(
+          'info',
+          `slow transitions (click → stable screen over 0.8 s): ${slow
+            .slice(0, 4)
+            .map((x) => `${x.scene}.${x.step} ${(x.ms / 1000).toFixed(1)} s`)
+            .join(', ')}${slow.length > 4 ? ', …' : ''}`,
+        );
       }
     }
     const perfMachine = this.perfMachine;

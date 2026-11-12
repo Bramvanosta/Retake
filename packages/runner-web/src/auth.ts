@@ -15,30 +15,10 @@ import { basename, join, resolve } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
 import { interpolateAt, resolvePageUrl } from '@retake/core/base';
 import { describeTarget, isAbsoluteUrl, normalizeStep, normalizeTarget, splitPageOpen } from '@retake/core/language';
-import {
-  PERSONA_CHECK_TIMEOUT_S,
-  environmentLoginPatterns,
-  loginCommand,
-  loginMatchers,
-  matchLoginUrl,
-  resolveCheckUrl,
-  urlOriginPath,
-} from '@retake/core/environment';
+import { PERSONA_CHECK_TIMEOUT_S, environmentLoginPatterns, loginCommand, loginMatchers, matchLoginUrl, resolveCheckUrl, urlOriginPath } from '@retake/core/environment';
 import { writeTextAtomic, nodeFileFacts } from '@retake/core/io';
 import type { TemplateContext } from '@retake/core/base';
-import type {
-  LoadedProject,
-  LoginStep,
-  NormalizedStep,
-  OpenArgs,
-  PressArgs,
-  RunSessionStatus,
-  Step,
-  TargetObject,
-  TargetSpec,
-  TypeArgs,
-  WaitForArgs,
-} from '@retake/core/model';
+import type { LoadedProject, LoginStep, NormalizedStep, OpenArgs, PressArgs, RunSessionStatus, Step, TargetObject, TargetSpec, TypeArgs, WaitForArgs } from '@retake/core/model';
 import type { LoginMatcher, ResolvedPersona } from '@retake/core/environment';
 import { LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import type { RunSecrets } from './secrets.js';
@@ -113,17 +93,7 @@ export async function profileLock(dir: string): Promise<ProfileLock> {
 }
 
 /** Entries of a profile a run copy leaves out, by exact name: caches (rebuilt) and crash reports. */
-const SKIP_NAMES = new Set([
-  'Crashpad',
-  'component_crx_cache',
-  'extensions_crx_cache',
-  'ShaderCache',
-  'GrShaderCache',
-  'GraphiteDawnCache',
-  'GPUCache',
-  'Cache',
-  'Code Cache',
-]);
+const SKIP_NAMES = new Set(['Crashpad', 'component_crx_cache', 'extensions_crx_cache', 'ShaderCache', 'GrShaderCache', 'GraphiteDawnCache', 'GPUCache', 'Cache', 'Code Cache']);
 /**
  * …and by name prefix: the lock of the running browser, metrics, and the saved passwords and autofill data — Playwright
  * runs Chromium with a mock keychain, so a password saved in the login window is kept in the clear there: never copied.
@@ -242,11 +212,7 @@ export async function ensurePrivateDir(dir: string): Promise<void> {
 }
 
 /** Write a snapshot: 0600 in a 0700 folder, stamped with this computer and the time. */
-export async function writeSnapshot(
-  file: string,
-  state: StorageStateFile,
-  meta: Pick<SnapshotMeta, 'project' | 'env' | 'persona' | 'how'>,
-): Promise<void> {
+export async function writeSnapshot(file: string, state: StorageStateFile, meta: Pick<SnapshotMeta, 'project' | 'env' | 'persona' | 'how'>): Promise<void> {
   await ensurePrivateDir(join(file, '..'));
   const out: SessionSnapshot = {
     cookies: state.cookies ?? [],
@@ -315,10 +281,7 @@ function personaLabel(p: Pick<ResolvedPersona, 'name' | 'env'>): string {
  * signed out). Stale copies of killed processes are swept first; on failure the copies made so far are removed.
  * `failure`: the first line of a failure when the sessions are not for a run (a check, the js hooks of the CLI).
  */
-export async function prepareSessions(
-  personas: readonly ResolvedPersona[],
-  opts: { runId: string; log: Log; failure?: string },
-): Promise<PreparedSession[]> {
+export async function prepareSessions(personas: readonly ResolvedPersona[], opts: { runId: string; log: Log; failure?: string }): Promise<PreparedSession[]> {
   const out: PreparedSession[] = [];
   const swept = await sweepStaleSessionCopies();
   if (swept.length) opts.log('debug', `removed ${swept.length} session cop${swept.length === 1 ? 'y' : 'ies'} a killed run left in ${tmpdir()}`);
@@ -602,7 +565,7 @@ async function runLoginStep(page: Page, kit: KitClient, step: NormalizedStep, pe
         const idle = await networkIdle(page, { timeoutMs: ms, ...(deps.signal ? { signal: deps.signal } : {}) });
         if (!idle.idle) throw new RunnerError(`the network did not become idle within ${(ms / 1000).toFixed(1)} s (${describePending(idle.pending)})`);
       }
-      const count = async (t: TargetSpec) => ((await kit.find(normalizeTarget(t)).catch(() => null))?.count ?? 0);
+      const count = async (t: TargetSpec) => (await kit.find(normalizeTarget(t)).catch(() => null))?.count ?? 0;
       for (;;) {
         const unmet: string[] = [];
         if (a.text !== undefined && !(await kit.hasText(a.text).catch(() => false))) unmet.push(`text ${JSON.stringify(a.text)} is not visible`);
@@ -727,9 +690,7 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
           : `    is the app running? Then sign in again if needed: ${command(p.persona)}`,
     );
   };
-  const checked = await Promise.all(
-    prepared.map(async (p) => ({ p, r: await checkPersona(await session.contextOf(p.persona.name), p.persona, deps) })),
-  );
+  const checked = await Promise.all(prepared.map(async (p) => ({ p, r: await checkPersona(await session.contextOf(p.persona.name), p.persona, deps) })));
   const toLogin: Array<{ p: PreparedSession; why: string; r: PersonaCheckResult }> = [];
   for (const { p, r } of checked) {
     const never = p.source === 'fresh';
@@ -818,11 +779,7 @@ export interface GuardTarget {
  * The sign-in patterns a page shown as `persona` is watched with (L1.6): the persona's own; a page without a persona
  * (null), the environment's (`auth.login_url`). Shared by a run's sign-in guard and a recording (L3.4).
  */
-export function signInMatchers(
-  project: Pick<LoadedProject, 'config'>,
-  env: { name: string; pages: Record<string, string> },
-  persona: Pick<ResolvedPersona, 'loginPatterns'> | null,
-): LoginMatcher[] {
+export function signInMatchers(project: Pick<LoadedProject, 'config'>, env: { name: string; pages: Record<string, string> }, persona: Pick<ResolvedPersona, 'loginPatterns'> | null): LoginMatcher[] {
   return loginMatchers(persona ? persona.loginPatterns : environmentLoginPatterns(project.config, env.name), env.pages);
 }
 

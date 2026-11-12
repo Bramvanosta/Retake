@@ -8,16 +8,7 @@
 import { resolve as resolvePath } from 'node:path';
 import { FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/model';
 import { normalizeComponentRef, resolveThemeComponents } from '@retake/core/theme';
-import type {
-  ComponentKind,
-  ComponentRef,
-  FrameSpec,
-  FrameStyle,
-  LoadedTemplate,
-  MultiPageFrame,
-  SceneTransition,
-  TransitionKind,
-} from '@retake/core/model';
+import type { ComponentKind, ComponentRef, FrameSpec, FrameStyle, LoadedTemplate, MultiPageFrame, SceneTransition, TransitionKind } from '@retake/core/model';
 import { fillSlots } from '@retake/components/geometry';
 import type { ComponentManifest, ComponentRegistry, MediaValue, ResolvedComponentRef, SlotContext } from '@retake/components/geometry';
 import type { ResolvedComponent } from './plan-types.js';

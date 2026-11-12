@@ -17,7 +17,18 @@ import type { LoadedProject, LoadedSandbox, SandboxResetStrategy } from '@retake
 import type { WorkPolicy } from '@retake/core/policy';
 import type { SandboxPaths } from '@retake/core/project';
 import type { LockRecord } from '@retake/core/io';
-import type { DownResult, InitSandboxOptions, InitSandboxResult, ProviderCapabilities, ResetResult, SandboxCallOptions, SandboxLogs, SandboxStatus, SandboxUpResult, Take } from '@retake/sandbox/types';
+import type {
+  DownResult,
+  InitSandboxOptions,
+  InitSandboxResult,
+  ProviderCapabilities,
+  ResetResult,
+  SandboxCallOptions,
+  SandboxLogs,
+  SandboxStatus,
+  SandboxUpResult,
+  Take,
+} from '@retake/sandbox/types';
 
 /** One sandbox of a project: the sandbox package's Sandbox, structurally. */
 export interface SandboxHandle {

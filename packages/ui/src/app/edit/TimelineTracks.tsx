@@ -76,7 +76,17 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
         {m.captions.map((c) => {
           const text = u.captions[c.i] ? `${u.captions[c.i].kicker ? `${u.captions[c.i].kicker} — ` : ''}${u.captions[c.i].text}` : '';
           return (
-            <TrackItem key={c.i} variant="caption" place={{ from: c.from, to: c.to }} frames={n} label={`Caption of scene ${c.scene}: ${text}, ${span(c.from, c.to)}`} title={text} testId="tl-caption" data={{ from: c.from }} onActivate={() => onSeek(c.from)}>
+            <TrackItem
+              key={c.i}
+              variant="caption"
+              place={{ from: c.from, to: c.to }}
+              frames={n}
+              label={`Caption of scene ${c.scene}: ${text}, ${span(c.from, c.to)}`}
+              title={text}
+              testId="tl-caption"
+              data={{ from: c.from }}
+              onActivate={() => onSeek(c.from)}
+            >
               <Txt text={text} />
             </TrackItem>
           );
@@ -107,7 +117,18 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
         {m.camera.map((z, i) => {
           const words = `Zoom ${SPEED(z.zoom)} on step ${z.step + 1} of ${z.scene}${z.requested_zoom !== undefined && z.requested_zoom !== z.zoom ? ` (asked ${SPEED(z.requested_zoom)})` : ''}${z.source === 'theme' ? ', the theme’s' : ''}, ${span(z.from, z.to)}`;
           return (
-            <TrackItem key={`${z.key}:${i}`} variant="camera" place={{ from: z.from, to: z.to }} frames={n} label={words} title={words} band={(z.in_to - z.from) / Math.max(1, z.to - z.from)} testId="tl-zoom" data={{ from: z.from }} onActivate={() => onSeek(z.from)}>
+            <TrackItem
+              key={`${z.key}:${i}`}
+              variant="camera"
+              place={{ from: z.from, to: z.to }}
+              frames={n}
+              label={words}
+              title={words}
+              band={(z.in_to - z.from) / Math.max(1, z.to - z.from)}
+              testId="tl-zoom"
+              data={{ from: z.from }}
+              onActivate={() => onSeek(z.from)}
+            >
               <Txt text={SPEED(z.zoom)} />
             </TrackItem>
           );
@@ -120,7 +141,18 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
             ? `The last frame of scene ${s.scene} held (under the transition), ${span(s.from, s.to)}`
             : `Speed ${SPEED(s.speed)}${s.to_speed !== s.speed ? ` to ${SPEED(s.to_speed)}` : ''} in scene ${s.scene}${s.protected ? ' (kept at its pace: a step that must read)' : ''}, ${span(s.from, s.to)}`;
           return (
-            <TrackItem key={`s${i}`} variant="speed" place={{ from: s.from, to: s.to }} frames={n} label={words} title={words} {...(held ? { states: ['held'] } : s.speed !== 1 || s.to_speed !== 1 ? { states: ['fast'] } : {})} testId="tl-speed" data={{ from: s.from }} onActivate={() => onSeek(s.from)}>
+            <TrackItem
+              key={`s${i}`}
+              variant="speed"
+              place={{ from: s.from, to: s.to }}
+              frames={n}
+              label={words}
+              title={words}
+              {...(held ? { states: ['held'] } : s.speed !== 1 || s.to_speed !== 1 ? { states: ['fast'] } : {})}
+              testId="tl-speed"
+              data={{ from: s.from }}
+              onActivate={() => onSeek(s.from)}
+            >
               <Txt text={held ? 'held' : `${SPEED(s.speed)}${s.to_speed !== s.speed ? `→${SPEED(s.to_speed)}` : ''}`} />
             </TrackItem>
           );
@@ -173,7 +205,11 @@ function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps
                     </span>
                   )}
                   {where && (
-                    <a href={hrefTo({ name: 'comments', slug: where.slug, scenario: where.scenario, thread: p.id })} data-testid="pin-open-thread" aria-label={`Open the thread of the comment at ${timecode(p.frame, fps)}`}>
+                    <a
+                      href={hrefTo({ name: 'comments', slug: where.slug, scenario: where.scenario, thread: p.id })}
+                      data-testid="pin-open-thread"
+                      aria-label={`Open the thread of the comment at ${timecode(p.frame, fps)}`}
+                    >
                       Open thread
                     </a>
                   )}

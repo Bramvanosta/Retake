@@ -17,9 +17,7 @@ describe('interpolate', () => {
   });
 
   it('pages, vars (prefixed and bare), hooks and run', () => {
-    expect(interpolate('{{console}}/api/products/{{vars.product}}', ctx)).toBe(
-      'https://console.staging.example.com/api/products/finca-lirandel-geisha',
-    );
+    expect(interpolate('{{console}}/api/products/{{vars.product}}', ctx)).toBe('https://console.staging.example.com/api/products/finca-lirandel-geisha');
     expect(interpolate('{{ product }}', ctx)).toBe('finca-lirandel-geisha');
     expect(interpolate('{{vars.nested.id}}', ctx)).toBe('42');
     expect(interpolate('{{hooks.quote.json.id}} {{run.id}}', ctx)).toBe('q-7 20261011-142233-catalogue');

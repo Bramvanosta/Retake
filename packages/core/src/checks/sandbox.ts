@@ -216,7 +216,10 @@ function checkEnvFile(c: Record<string, unknown>, composeFiles: readonly string[
     return;
   }
   if (envFileKeys(text).includes('COMPOSE_PROFILES')) {
-    ctx.error(at, `the env file ${typeof c.env_file === 'string' ? `"${c.env_file}"` : 'next to the compose file (.env)'} sets COMPOSE_PROFILES: docker compose would start other services than sandbox.yaml says — remove it (or give \`env_file\` another file)`);
+    ctx.error(
+      at,
+      `the env file ${typeof c.env_file === 'string' ? `"${c.env_file}"` : 'next to the compose file (.env)'} sets COMPOSE_PROFILES: docker compose would start other services than sandbox.yaml says — remove it (or give \`env_file\` another file)`,
+    );
   }
 }
 
@@ -411,9 +414,15 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
     const sp: IssuePath = ['services', name];
     if (!isObj(svc)) continue;
     if (composeNames && !composeNames.has(name)) {
-      ctx.error(['services'], `service "${name}" is not a service of the compose files${suggestion(name, [...composeNames])} (they declare: ${[...composeNames].join(', ') || 'none'})`, { path: sp, key: true });
+      ctx.error(['services'], `service "${name}" is not a service of the compose files${suggestion(name, [...composeNames])} (they declare: ${[...composeNames].join(', ') || 'none'})`, {
+        path: sp,
+        key: true,
+      });
     } else if (profiled.has(name)) {
-      ctx.error(['services'], `service "${name}" has \`profiles:\` in the compose files: a sandbox never starts it (Retake runs docker compose without COMPOSE_PROFILES) — remove its \`profiles\``, { path: sp, key: true });
+      ctx.error(['services'], `service "${name}" has \`profiles:\` in the compose files: a sandbox never starts it (Retake runs docker compose without COMPOSE_PROFILES) — remove its \`profiles\``, {
+        path: sp,
+        key: true,
+      });
     }
     if (compose) {
       for (const k of PROCESS_KEYS) {
@@ -519,7 +528,7 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
       project: { config: allowConfig as never },
       destructiveOk: true,
       noPersonaAuth:
-        'a seed runs while the data is being built: no persona is signed in yet — sign in with the product\'s own API and {{accounts.<persona>.username}} / {{accounts.<persona>.password}}, or move the request to a setup hook',
+        "a seed runs while the data is being built: no persona is signed in yet — sign in with the product's own API and {{accounts.<persona>.username}} / {{accounts.<persona>.password}}, or move the request to a setup hook",
     });
     // Its hook steps read the sandbox's own accounts and compose env file (`exec` steps are not hooks: they do not).
     const seedScope: TokenScope = { ...scope, hookRefs: { accounts: isObj(value.accounts) ? Object.keys(value.accounts) : [] } };
@@ -614,7 +623,10 @@ function checkHealth(svc: Record<string, unknown>, sp: IssuePath, compose: boole
   if (ways.length > 1) ctx.error(hp, `health checks one way: \`${ways.join('` or `')}\`, not both`);
   if (h.tcp !== undefined) {
     if (compose) {
-      ctx.error([...hp, 'tcp'], 'a TCP check of a port Docker publishes always succeeds (its proxy accepts the connection): give the compose service a healthcheck, or check an http path', { path: [...hp, 'tcp'], key: true });
+      ctx.error([...hp, 'tcp'], 'a TCP check of a port Docker publishes always succeeds (its proxy accepts the connection): give the compose service a healthcheck, or check an http path', {
+        path: [...hp, 'tcp'],
+        key: true,
+      });
     }
     for (const k of ['status', 'text'] as const) {
       if (h[k] !== undefined) ctx.error([...hp, k], `\`${k}\` is for an http health check, not \`tcp\``, { path: [...hp, k], key: true });
@@ -623,7 +635,8 @@ function checkHealth(svc: Record<string, unknown>, sp: IssuePath, compose: boole
   if (h.url !== undefined) checkLoopback(h.url, [...hp, 'url'], 'health url', ctx);
   if (ways.length === 0 || h.path !== undefined) {
     if (typeof h.path === 'string' && !h.path.startsWith('/')) ctx.error([...hp, 'path'], `"${h.path}" is not a path: write "/${h.path}"`);
-    else if (typeof h.path === 'string' && leavesOrigin(h.path)) ctx.error([...hp, 'path'], `"${h.path}" could leave the service's url ("//…" names another host, and a "\\" counts as "/"): write a path ("/health")`);
+    else if (typeof h.path === 'string' && leavesOrigin(h.path))
+      ctx.error([...hp, 'path'], `"${h.path}" could leave the service's url ("//…" names another host, and a "\\" counts as "/"): write a path ("/health")`);
     else if (svc.url === undefined) ctx.error(hp, `an http health check needs the service's \`url\` (or \`url\` here)`);
   }
 }
@@ -703,10 +716,7 @@ function checkSeedStep(step: unknown, p: IssuePath, s: SeedContext, ctx: CheckCo
 /** reset.strategy snapshot: a Postgres database of the sandbox's own compose project, never a system one. */
 function checkSnapshot(r: Record<string, unknown>, databases: Record<string, unknown>, provider: string | undefined, ctx: CheckContext): void {
   if (provider === 'process') {
-    ctx.error(
-      ['reset', 'strategy'],
-      'snapshot resets need provider docker-compose: the database must belong to the sandbox\'s own compose project (a process sandbox reseeds — strategy: reseed)',
-    );
+    ctx.error(['reset', 'strategy'], "snapshot resets need provider docker-compose: the database must belong to the sandbox's own compose project (a process sandbox reseeds — strategy: reseed)");
     return;
   }
   const keys = Object.keys(databases);
@@ -746,14 +756,7 @@ function checkSnapshot(r: Record<string, unknown>, databases: Record<string, unk
  * The accounts, as the personas of the sandbox's environment: checked like project.yaml `auth` (one block, the
  * sandbox's pages), plus their username / password and the {{account.*}} tokens of their login steps.
  */
-function checkAccounts(
-  value: Record<string, unknown>,
-  pageKeys: readonly string[],
-  pageUrls: Record<string, string>,
-  vars: ReadonlySet<string>,
-  env: string,
-  ctx: CheckContext,
-): void {
+function checkAccounts(value: Record<string, unknown>, pageKeys: readonly string[], pageUrls: Record<string, string>, vars: ReadonlySet<string>, env: string, ctx: CheckContext): void {
   if (value.accounts === undefined && value.login_url === undefined) return;
   // checkAuth reads the accounts as one global auth block: its paths (and the schema's) are mapped both ways.
   const structural: LocatedIssue[] = [];

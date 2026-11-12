@@ -23,7 +23,23 @@ export interface Brief {
   like?: string;
 }
 
-export function CreateSheet({ open, slug, theme, taken, brief, setBrief, onClose }: { open: boolean; slug: string; theme: string; taken: string[]; brief: Brief; setBrief: (b: Brief) => void; onClose: () => void }) {
+export function CreateSheet({
+  open,
+  slug,
+  theme,
+  taken,
+  brief,
+  setBrief,
+  onClose,
+}: {
+  open: boolean;
+  slug: string;
+  theme: string;
+  taken: string[];
+  brief: Brief;
+  setBrief: (b: Brief) => void;
+  onClose: () => void;
+}) {
   const [copied, setCopied] = useState<'no' | 'yes' | 'failed'>('no');
   const prompt = useRef<HTMLTextAreaElement>(null);
   const ids = useId();
@@ -63,7 +79,11 @@ export function CreateSheet({ open, slug, theme, taken, brief, setBrief, onClose
             <span id={`${ids}-kind`} className="lb-label">
               Kind
             </span>
-            <ChoiceChips labelledBy={`${ids}-kind`} chips={KIND_ORDER.map((k) => ({ key: k, label: kindHeading(k, 1), value: k, checked: brief.kind === k }))} onPick={(k) => setBrief({ ...brief, kind: k })} />
+            <ChoiceChips
+              labelledBy={`${ids}-kind`}
+              chips={KIND_ORDER.map((k) => ({ key: k, label: kindHeading(k, 1), value: k, checked: brief.kind === k }))}
+              onPick={(k) => setBrief({ ...brief, kind: k })}
+            />
           </div>
           <TextField
             label="Id (namespace/name)"
@@ -107,7 +127,9 @@ export function CreateSheet({ open, slug, theme, taken, brief, setBrief, onClose
         </>
       }
     >
-      <Txt text={`The Studio writes no code and calls no model: copy this prompt into Claude Code (with the ${APP_NAME} plugin). The new component appears in the Library when its folder is written.`} />
+      <Txt
+        text={`The Studio writes no code and calls no model: copy this prompt into Claude Code (with the ${APP_NAME} plugin). The new component appears in the Library when its folder is written.`}
+      />
     </Sheet>
   );
 }

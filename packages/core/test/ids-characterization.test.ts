@@ -109,7 +109,13 @@ describe('a run id: a folder name of runs/', () => {
     };
     const out: Record<string, string[]> = {};
     for (const [name, s] of Object.entries(sites)) out[name] = [a(200), a(201), '', '../x', `${a(201)}/`].map((v) => first(s, v));
-    const row = (message: string) => ['ok', 'too_big: Too big: expected string to have <=200 characters', `invalid_format: ${message}`, `invalid_format: ${message}`, 'too_big: Too big: expected string to have <=200 characters'];
+    const row = (message: string) => [
+      'ok',
+      'too_big: Too big: expected string to have <=200 characters',
+      `invalid_format: ${message}`,
+      `invalid_format: ${message}`,
+      'too_big: Too big: expected string to have <=200 characters',
+    ];
     expect(out).toEqual({
       'run job run_id': row('a run folder name, never a path'),
       'render job run_id': row('a run folder name, never a path'),
@@ -124,9 +130,7 @@ describe('a run id made for a scenario', () => {
   const at = new Date(2026, 9, 17, 14, 22, 33);
 
   it('is <yyyymmdd>-<hhmmss>-<the scenario name in lower case, other characters as dashes>, in local time', () => {
-    expect(
-      ['quote', 'My Scenario!', 'Mobile_Quote', '___', '\u00c9', '', '-a-', 'a--b'].map((s) => newRunId(s, at)),
-    ).toEqual([
+    expect(['quote', 'My Scenario!', 'Mobile_Quote', '___', '\u00c9', '', '-a-', 'a--b'].map((s) => newRunId(s, at))).toEqual([
       '20261017-142233-quote',
       '20261017-142233-my-scenario',
       '20261017-142233-mobile-quote',
@@ -272,7 +276,11 @@ describe('a render id: <scenario>-v<N>[-vertical|-square]', () => {
       'entry render_id': row('a render id'),
     });
     // A schema and the predicate give one answer, string by string.
-    for (const [name, site] of Object.entries(sites)) expect(RENDER_STRINGS.filter((v) => site.safeParse(v).success), name).toEqual(RENDER_STRINGS.filter((v) => isRenderId(v)));
+    for (const [name, site] of Object.entries(sites))
+      expect(
+        RENDER_STRINGS.filter((v) => site.safeParse(v).success),
+        name,
+      ).toEqual(RENDER_STRINGS.filter((v) => isRenderId(v)));
     expect(ReviewJobInputSchema.shape.previous.safeParse(false).success).toBe(true);
     expect(ReviewJobInputSchema.shape.previous.safeParse(`${a(198)}-v1`).success).toBe(false);
     expect(ReviewJobInputSchema.shape.previous.safeParse('quote-v2').success).toBe(true);
@@ -383,7 +391,10 @@ describe('the ULID ids: a prefix and 26 Crockford base32 characters', () => {
       ['', false],
     ];
     for (const [prefix, re] of KINDS) {
-      expect(bodies.map(([b]) => re.test(`${prefix}${b}`)), prefix).toEqual(bodies.map((b) => b[1]));
+      expect(
+        bodies.map(([b]) => re.test(`${prefix}${b}`)),
+        prefix,
+      ).toEqual(bodies.map((b) => b[1]));
       for (const [other] of KINDS) expect(re.test(`${other}${BODY}`), `${prefix} takes ${other}`).toBe(other === prefix);
       expect(re.test(BODY)).toBe(false);
       expect(re.test(` ${prefix}${BODY}`)).toBe(false);
@@ -430,7 +441,32 @@ describe('the ULID ids: a prefix and 26 Crockford base32 characters', () => {
 
 // ── Theme names ──────────────────────────────────────────────────────────────
 
-const THEME_STRINGS = ['editorial', 'my-theme', 'a', '0', a(60), a(61), a(64), a(65), a(100), a(101), 'My_Theme', 'x_', a(60, 'A'), a(100, 'A'), a(101, 'A'), 'a.b', '', '-x', '_x', 'my theme', 'x\n', 'a/b', '..', 't\u00e9'];
+const THEME_STRINGS = [
+  'editorial',
+  'my-theme',
+  'a',
+  '0',
+  a(60),
+  a(61),
+  a(64),
+  a(65),
+  a(100),
+  a(101),
+  'My_Theme',
+  'x_',
+  a(60, 'A'),
+  a(100, 'A'),
+  a(101, 'A'),
+  'a.b',
+  '',
+  '-x',
+  '_x',
+  'my theme',
+  'x\n',
+  'a/b',
+  '..',
+  't\u00e9',
+];
 const THEME_UPPER_FROM = THEME_STRINGS.indexOf('My_Theme');
 const THEME_REFUSED_FROM = THEME_STRINGS.indexOf('a.b');
 
@@ -463,7 +499,7 @@ describe('a theme name', () => {
     expect(fresh.map((v) => first(BrandInputSchema.shape.name, v))).toEqual(['ok', big(60), big(60), sentence, sentence, sentence]);
   });
 
-  it('a scenario\'s theme field takes a listed theme name of at most 100 characters', () => {
+  it("a scenario's theme field takes a listed theme name of at most 100 characters", () => {
     const problem = (to: unknown) => fieldValueProblem('template', to);
     const sentence = 'template takes a theme name (the themes list names them), never a path';
     expect([a(100), a(100, 'A'), 'My_Theme', a(101), 'a.b', '', '../x'].map(problem)).toEqual([null, null, null, sentence, sentence, sentence, sentence]);

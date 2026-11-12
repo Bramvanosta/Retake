@@ -48,35 +48,17 @@ async function said(id: string, ...flags: string[]): Promise<string[]> {
 
 const TABLE: Record<string, string[]> = {
   // P-1
-  A1: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
+  A1: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
   // P-1
-  A2: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
+  A2: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
   // U-1
-  A3: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last complete capture (a newer one was stopped by --until)',
-  ],
+  A3: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last complete capture (a newer one was stopped by --until)'],
   // P-1
-  B1: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW its folder is a link (left alone)',
-  ],
+  B1: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW its folder is a link (left alone)'],
   // P-1
-  B2: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW written by a newer Retake (left alone)',
-  ],
+  B2: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW written by a newer Retake (left alone)'],
   // P-1
-  B2f: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW written by a newer Retake (left alone)',
-  ],
+  B2f: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW written by a newer Retake (left alone)'],
   // C — L7.6b R-1: the renamed record is left alone and keeps its take; a line says each
   C1: [
     'nothing to prune in <p> (kept: 2 takes, 0 renders and 1 other file of renders/, 0 reviews)',
@@ -96,53 +78,32 @@ const TABLE: Record<string, string[]> = {
     'kept render quote-final.json its record says another id',
   ],
   // C
-  C4: [
-    'would delete render quote-v2 older render',
-    '1 item (<size>) can go; kept: 2 takes, 4 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
-  ctl: [
-    'would delete run OLD older capture nothing uses',
-    '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
+  C4: ['would delete render quote-v2 older render', '1 item (<size>) can go; kept: 2 takes, 4 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
+  ctl: ['would delete run OLD older capture nothing uses', '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
   // P-1
   two: [
     'would delete run OTHER-OLD older capture nothing uses',
     'kept run OLD the last capture that can be edited',
     '1 item (<size>) can go; kept: 3 takes, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
   ],
-  none: [
-    'would delete run OLD older capture nothing uses',
-    '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
+  none: ['would delete run OLD older capture nothing uses', '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
   // P-1
   three: [
     'would delete run OLDER older capture nothing uses',
     'kept run OLD the last capture that can be edited',
     '1 item (<size>) can go; kept: 2 takes, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
   ],
-  rendered: [
-    'nothing to prune in <p> (kept: 2 takes, 1 render, 0 reviews)',
-  ],
-  commented: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-  ],
+  rendered: ['nothing to prune in <p> (kept: 2 takes, 1 render, 0 reviews)'],
+  commented: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)'],
   unread: [
     'would delete run OTHER-OLD older capture nothing uses',
     '1 item (<size>) can go; kept: 3 takes, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
     '! some comment threads of <p> cannot be read (the comment list says which): every render and take of quote is kept',
   ],
-  stale: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-  ],
+  stale: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)'],
   // P-1
-  stale3: [
-    'nothing to prune in <p> (kept: 3 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
-  dry: [
-    'would delete run NEW dry run',
-    '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
+  stale3: ['nothing to prune in <p> (kept: 3 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
+  dry: ['would delete run NEW dry run', '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
   // P-1
   dry3: [
     'would delete run NEW dry run',
@@ -150,25 +111,13 @@ const TABLE: Record<string, string[]> = {
     '1 item (<size>) can go; kept: 2 takes, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
   ],
   // P-1
-  hand: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
+  hand: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
   // P-1
-  frames: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
+  frames: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
   // P-1
-  linkfilm: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
+  linkfilm: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
   // P-1
-  handmade: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
+  handmade: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
   // P-1, U-1
   until3: [
     'nothing to prune in <p> (kept: 3 takes, 0 renders, 0 reviews)',
@@ -181,69 +130,28 @@ const TABLE: Record<string, string[]> = {
     'kept run OLD the last complete capture (a newer one was stopped by --until)',
     '1 item (<size>) can go; kept: 2 takes, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
   ],
-  untils: [
-    'would delete run OLD older capture nothing uses',
-    '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
+  untils: ['would delete run OLD older capture nothing uses', '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
   // P-1
-  linkfail: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW its folder is a link (left alone)',
-  ],
+  linkfail: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW its folder is a link (left alone)'],
   // P-1
-  dangling: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW its folder is a link (left alone)',
-  ],
+  dangling: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW its folder is a link (left alone)'],
   // P-1
-  linkold: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD its folder is a link (left alone)',
-  ],
+  linkold: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD its folder is a link (left alone)'],
   // P-1
-  newerdry: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW written by a newer Retake (left alone)',
-  ],
-  norecord: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-  ],
-  nojson: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-  ],
-  odd: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-  ],
-  interrupted: [
-    'would delete run NEW interrupted take',
-    '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
-  barefail: [
-    'would delete run NEW failed take',
-    '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
+  newerdry: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW written by a newer Retake (left alone)'],
+  norecord: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)'],
+  nojson: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)'],
+  odd: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)'],
+  interrupted: ['would delete run NEW interrupted take', '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
+  barefail: ['would delete run NEW failed take', '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
   // P-1
-  bareok: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run OLD the last capture that can be edited',
-  ],
-  reclink: [
-    'would delete run NEW failed take',
-    '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them',
-  ],
-  other: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-  ],
+  bareok: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited'],
+  reclink: ['would delete run NEW failed take', '1 item (<size>) can go; kept: 1 take, 0 renders (the last 3 per scenario), 0 reviews — retake prune <p> --yes deletes them'],
+  other: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)'],
   // P-1 (a newer record behind a linked run.json)
-  newerlink: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW written by a newer Retake (left alone)',
-  ],
+  newerlink: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW written by a newer Retake (left alone)'],
   // P-1
-  newerlinkok: [
-    'nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)',
-    'kept run NEW written by a newer Retake (left alone)',
-  ],
+  newerlinkok: ['nothing to prune in <p> (kept: 2 takes, 0 renders, 0 reviews)', 'kept run NEW written by a newer Retake (left alone)'],
 };
 
 describe('retake prune, layout by layout', () => {
@@ -262,8 +170,16 @@ describe('retake prune: the takes kept beyond the list', () => {
     const json = JSON.parse(io.stdout()) as { items: Array<{ id: string }>; kept_takes?: unknown };
     expect([json.items.map((i) => i.id), json.kept_takes]).toEqual([[b.ids['OTHER-OLD']], [{ id: b.ids.OLD, why: 'editable', reason: 'the last capture that can be edited' }]]);
     built.set('d-two', b);
-    expect(await said('d-two', '--yes')).toEqual(['deleted run OTHER-OLD older capture nothing uses', 'kept run OLD the last capture that can be edited', '✓ 1 item (<size>) deleted; kept: 3 takes, 0 renders, 0 reviews']);
-    expect(Object.entries(b.ids).filter(([, name]) => existsSync(join(b.runs, name))).map(([l]) => l)).toEqual(['OLD', 'NEW', 'OTHER-NEW']);
+    expect(await said('d-two', '--yes')).toEqual([
+      'deleted run OTHER-OLD older capture nothing uses',
+      'kept run OLD the last capture that can be edited',
+      '✓ 1 item (<size>) deleted; kept: 3 takes, 0 renders, 0 reviews',
+    ]);
+    expect(
+      Object.entries(b.ids)
+        .filter(([, name]) => existsSync(join(b.runs, name)))
+        .map(([l]) => l),
+    ).toEqual(['OLD', 'NEW', 'OTHER-NEW']);
     // A second pass: nothing to prune, and the reason is still said.
     expect(await said('d-two')).toEqual(['nothing to prune in <p> (kept: 3 takes, 0 renders, 0 reviews)', 'kept run OLD the last capture that can be edited']);
   });
@@ -272,13 +188,19 @@ describe('retake prune: the takes kept beyond the list', () => {
     const b = built.get('dry3')!;
     const io = memoryIo();
     await main(['node', 'retake', '--root', root, '--no-color', 'prune', b.slug], io);
-    const lines = io.stderr().split('\n').filter((l) => l.includes(' run '));
+    const lines = io
+      .stderr()
+      .split('\n')
+      .filter((l) => l.includes(' run '));
     expect(lines.map((l) => l.replace(/ · \d+ kB$/, ''))).toEqual([`  would delete  run    ${b.ids.NEW}  dry run`, `  kept          run    ${b.ids.OLD}  the last capture that can be edited`]);
   });
 
   it('per reason the first five takes are named, newest first, and the rest counted: seven linked folders are six lines', async () => {
     const days = [3, 4, 5, 6, 7, 8, 9];
-    const b = buildLayout(root, 'many', { slug: 'd-many-cli', layout: { about: 'A1 under seven linked folders', runs: [['OLD', 1, 'good'], ['NEW', 2, 'g'], ...days.map((d): LayoutRun => [`L${d}`, d, 'k1'])] } });
+    const b = buildLayout(root, 'many', {
+      slug: 'd-many-cli',
+      layout: { about: 'A1 under seven linked folders', runs: [['OLD', 1, 'good'], ['NEW', 2, 'g'], ...days.map((d): LayoutRun => [`L${d}`, d, 'k1'])] },
+    });
     built.set('d-many', b);
     expect(await said('d-many')).toEqual([
       'nothing to prune in <p> (kept: 9 takes, 0 renders, 0 reviews)',
@@ -304,7 +226,10 @@ describe('retake prune: the takes kept beyond the list', () => {
     writeFileSync(join(b.dir, 'renders', 'a\x1b[31mred.json'), '[]');
     const io = memoryIo();
     await main(['node', 'retake', '--root', root, '--no-color', 'prune', b.slug], io);
-    const lines = io.stderr().split('\n').filter((l) => /^\s+kept\s+render /.test(l));
+    const lines = io
+      .stderr()
+      .split('\n')
+      .filter((l) => /^\s+kept\s+render /.test(l));
     expect(lines).toEqual([
       // Reason by reason, in the folder's order: the name with the escape character first, said printable (never sent
       // to the terminal as it is).

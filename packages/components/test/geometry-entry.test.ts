@@ -75,11 +75,47 @@ describe('@retake/components/geometry (the renderer-free entry)', () => {
   });
 
   it('its frame helpers are the kit’s own functions, and the package root keeps every name it had', () => {
-    for (const n of ['autoFit', 'AUTO_COVER_MIN_SHARE', 'insetPhoneEdge', 'captionBandBox', 'safeAreaRect', 'loupeLens', 'stepBadgeBox', 'shortcutPlateBox', 'shortcutPlateLayout', 'shortcutPlateMetrics', 'CAMERA_EASINGS', 'cubicBezier', 'CAPTION_BAND_PAD_X', 'captionMaxLines', 'fitText', 'estimateTextWidth']) {
+    for (const n of [
+      'autoFit',
+      'AUTO_COVER_MIN_SHARE',
+      'insetPhoneEdge',
+      'captionBandBox',
+      'safeAreaRect',
+      'loupeLens',
+      'stepBadgeBox',
+      'shortcutPlateBox',
+      'shortcutPlateLayout',
+      'shortcutPlateMetrics',
+      'CAMERA_EASINGS',
+      'cubicBezier',
+      'CAPTION_BAND_PAD_X',
+      'captionMaxLines',
+      'fitText',
+      'estimateTextWidth',
+    ]) {
       expect((geometry as Record<string, unknown>)[n], n).toBeDefined();
       expect((kit as Record<string, unknown>)[n], n).toBe((geometry as Record<string, unknown>)[n]);
     }
-    for (const n of ['GEOMETRY_KEYS', 'ANCHOR_KEYS', 'evalAnchor', 'evalLayoutGeometry', 'isMultiPaneGeometry', 'paramEnums', 'fillSlots', 'themeTokens', 'fontFileFace', 'parseCsv', 'ARTEFACT_SLOT_TYPES', 'CAMERA_EASINGS', 'cubicBezier', 'captionBandBox', 'CAPTION_BAND_PAD_X', 'captionMaxLines', 'fitText', 'estimateTextWidth']) {
+    for (const n of [
+      'GEOMETRY_KEYS',
+      'ANCHOR_KEYS',
+      'evalAnchor',
+      'evalLayoutGeometry',
+      'isMultiPaneGeometry',
+      'paramEnums',
+      'fillSlots',
+      'themeTokens',
+      'fontFileFace',
+      'parseCsv',
+      'ARTEFACT_SLOT_TYPES',
+      'CAMERA_EASINGS',
+      'cubicBezier',
+      'captionBandBox',
+      'CAPTION_BAND_PAD_X',
+      'captionMaxLines',
+      'fitText',
+      'estimateTextWidth',
+    ]) {
       expect((root as Record<string, unknown>)[n], n).toBe((geometry as Record<string, unknown>)[n]);
     }
     expect(root.COMPONENT_KINDS.length).toBeGreaterThan(5);

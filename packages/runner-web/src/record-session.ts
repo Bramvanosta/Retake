@@ -30,17 +30,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
-import {
-  compileWritePolicy,
-  describeWriteRequest,
-  graphqlOf,
-  graphqlReadsOnly,
-  guardsWrites,
-  isGuardedHost,
-  isWriteMethod,
-  resolveRunAccess,
-  urlOriginPath,
-} from '@retake/core/environment';
+import { compileWritePolicy, describeWriteRequest, graphqlOf, graphqlReadsOnly, guardsWrites, isGuardedHost, isWriteMethod, resolveRunAccess, urlOriginPath } from '@retake/core/environment';
 import { RecordedEventSchema, isPageOrigin, pageOrigins } from '@retake/core/run';
 import type { BrowserConfig, LoadedProject, ResolvedEnvironment } from '@retake/core/model';
 import type { LoginMatcher, ResolvedPersona, RunAccess } from '@retake/core/environment';
@@ -347,10 +337,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
       handleSIGTERM: false,
       ...(httpCredentials ? { httpCredentials: { ...httpCredentials } } : {}),
       ...launchOptions({
-        args: [
-          ...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'),
-          ...(size ? [`--window-size=${size.width},${size.height}`] : ['--start-maximized']),
-        ],
+        args: [...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), ...(size ? [`--window-size=${size.width},${size.height}`] : ['--start-maximized'])],
         browserArgs: b.args,
         policy: o.policy,
       }),
@@ -424,11 +411,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
   const label = (method: string, url: string) => maskPathSecrets(describeWriteRequest(method, url, env.pages));
   try {
     if (guardsWrites(policy)) {
-      await armWriteGuard(
-        context,
-        { policy, onWrite: (w) => keep({ kind: 'write', method: w.method.toUpperCase(), label: maskPathSecrets(w.label), outcome: w.outcome }, '') },
-        () => 'capture',
-      );
+      await armWriteGuard(context, { policy, onWrite: (w) => keep({ kind: 'write', method: w.method.toUpperCase(), label: maskPathSecrets(w.label), outcome: w.outcome }, '') }, () => 'capture');
     }
     if (!policy.readOnly) {
       context.on('request', (r) => {
@@ -656,7 +639,9 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     if (windowSize === null) await new Promise((r) => setTimeout(r, 100));
     const w = windowSize as { width: number; height: number } | null;
     if (w && w.width < capture.width) {
-      warnings.push(`the window shows ${w.width}×${w.height} CSS px, narrower than the capture (${capture.width}×${capture.height}): the check replay runs at the capture size and shows any difference`);
+      warnings.push(
+        `the window shows ${w.width}×${w.height} CSS px, narrower than the capture (${capture.width}×${capture.height}): the check replay runs at the capture size and shows any difference`,
+      );
     }
     if (o.drive) {
       void o.drive(page).catch((e: unknown) => {

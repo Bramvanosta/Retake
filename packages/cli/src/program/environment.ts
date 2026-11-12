@@ -15,7 +15,7 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .option('--env <name>', 'environment')
     .option('--yes', 'approve destructive hooks that lack "confirm: true", and run the shell and sql hooks of a scenario an agent wrote last without asking')
     .option('--allow-writes', 'let hooks write to a production environment (only where project.yaml sets access: read-write)')
-    .option('--dry', 'fill in the hooks\' {{…}} values and security-check them without executing them')
+    .option('--dry', "fill in the hooks' {{…}} values and security-check them without executing them")
     .action(action((u, g, p: string, s: string, o: HookCommandOptions) => hooksRunCommand(u, g, p, s, o)));
   hooks
     .command('rollback')
@@ -24,7 +24,10 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .argument('[id]', 'run id (folder under runs/) or hooks journal id (.retake/journals/<id>.json)')
     .option('--env <name>', 'environment')
     .option('--allow-writes', 'replay rollbacks of a production environment (only where project.yaml sets access: read-write)')
-    .option('--replay-unsigned', 'ask about each rollback Retake did not record in its journal with this home (shown in full, y/N; in a terminal only; never a sql or js one, one with secrets or on a sandbox)')
+    .option(
+      '--replay-unsigned',
+      'ask about each rollback Retake did not record in its journal with this home (shown in full, y/N; in a terminal only; never a sql or js one, one with secrets or on a sandbox)',
+    )
     .option('--dry', 'describe the rollbacks without executing them')
     .action(action((u, g, p: string, r: string | undefined, o: HookCommandOptions) => hooksRollbackCommand(u, g, p, r, o)));
   hooks
@@ -44,7 +47,10 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .option('--env <name>', 'environment')
     .option('--yes', 'approve destructive hooks that lack "confirm: true"')
     .option('--allow-writes', 'write to a production environment (only where project.yaml sets access: read-write)')
-    .option('--replay-unsigned', 'ask about each rollback Retake did not record in its journal with this home (shown in full, y/N; in a terminal only; never a sql or js one, one with secrets or on a sandbox)')
+    .option(
+      '--replay-unsigned',
+      'ask about each rollback Retake did not record in its journal with this home (shown in full, y/N; in a terminal only; never a sql or js one, one with secrets or on a sandbox)',
+    )
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
 

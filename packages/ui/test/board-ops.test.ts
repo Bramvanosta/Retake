@@ -50,7 +50,13 @@ beforeAll(async () => {
   for (let i = 0; i < 40; i++) await writeFile(join(big, 'scenarios', `q${String(i).padStart(2, '0')}.yaml`), quote.replace(/^video: quote$/m, `video: q${i}`));
   for (let i = 0; i < 30; i++) {
     const n = `q${String(i % 40).padStart(2, '0')}`;
-    await writeRun(big, { id: `20261019-10${String(i).padStart(2, '0')}00-${n}`, scenario: n, mode: 'dry', events: [{ scene: 'catalog', step: 0, action: 'open', t_start: 0, t_end: 0.5 }], scenes: [{ id: 'catalog' }] });
+    await writeRun(big, {
+      id: `20261019-10${String(i).padStart(2, '0')}00-${n}`,
+      scenario: n,
+      mode: 'dry',
+      events: [{ scene: 'catalog', step: 0, action: 'open', t_start: 0, t_end: 0.5 }],
+      scenes: [{ id: 'catalog' }],
+    });
   }
   studio = await startStudioServer({ root: ws, pollMs: 100 });
 }, 120_000);
@@ -116,13 +122,28 @@ describe('project_board: the op', () => {
     await mkdir(join(project(), 'renders'), { recursive: true });
     // The fixture's theme is editorial (project.yaml `template:`): a render with it (L5.10a fixes: the theme counts).
     // (L7.6b: a render is a complete record of its own file — it says its scenario and holds its plan.)
-    const render = { version: 1, id: 'blocks-v1', scenario: 'blocks', plan: {}, created_at: '2026-10-20T11:00:00.000Z', status: 'succeeded', run_id: A, template: 'editorial', variant: 'landscape', duration_s: 6.5, edit: { from: 'scenario', sha256: s.hash } };
+    const render = {
+      version: 1,
+      id: 'blocks-v1',
+      scenario: 'blocks',
+      plan: {},
+      created_at: '2026-10-20T11:00:00.000Z',
+      status: 'succeeded',
+      run_id: A,
+      template: 'editorial',
+      variant: 'landscape',
+      duration_s: 6.5,
+      edit: { from: 'scenario', sha256: s.hash },
+    };
     await writeFile(join(project(), 'renders', 'blocks-v1.json'), JSON.stringify(render));
     s = of((await board()).v, 'blocks');
     expect(productionState(s)).toEqual({ state: 'waiting', word: 'Rendered · review pending', group: null });
     expect(s.length).toEqual({ seconds: 6.5, from: 'render' });
     await mkdir(join(project(), 'review', 'blocks-v1'), { recursive: true });
-    await writeFile(join(project(), 'review', 'blocks-v1', 'report.json'), JSON.stringify({ version: 1, findings: [], counts: { error: 0, warning: 2, info: 0 }, review: { created_at: '2026-10-20T11:05:00.000Z' } }));
+    await writeFile(
+      join(project(), 'review', 'blocks-v1', 'report.json'),
+      JSON.stringify({ version: 1, findings: [], counts: { error: 0, warning: 2, info: 0 }, review: { created_at: '2026-10-20T11:05:00.000Z' } }),
+    );
     s = of((await board()).v, 'blocks');
     expect(productionState(s)).toEqual({ state: 'warn', word: 'Rendered · 2 warnings', group: null });
     // A newer capture: the render shows an earlier take.
@@ -131,7 +152,14 @@ describe('project_board: the op', () => {
     expect(s.capture?.id).toBe(B);
     expect(productionState(s)).toEqual({ state: 'warn', word: 'Render outdated', group: 'ready' });
     // A dry run that failed after it.
-    await writeRun(project(), { id: C, scenario: 'blocks', mode: 'dry', status: 'failed', error: { scene: 'one', step: 1, message: 'gone' }, events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }] });
+    await writeRun(project(), {
+      id: C,
+      scenario: 'blocks',
+      mode: 'dry',
+      status: 'failed',
+      error: { scene: 'one', step: 1, message: 'gone' },
+      events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }],
+    });
     s = of((await board()).v, 'blocks');
     expect(s.last_run).toMatchObject({ id: C, status: 'failed', partial: 'failed at step 2 of one' });
     expect(productionState(s)).toEqual({ state: 'fail', word: 'Failed at step 2 of one', group: 'failed' });
@@ -153,7 +181,9 @@ describe('project_board: cost (critique H1)', () => {
     expect(big2.v.scenarios.filter((s) => s.last_run?.mode === 'dry').length).toBe(30);
     const fx = await board();
     const fx2 = await board();
-    console.log(`project_board budget: 40 scenarios cold ${big1.ms.toFixed(0)} ms, warm ${big2.ms.toFixed(0)} / ${big3.ms.toFixed(0)} ms; fixture (16) warm ${fx.ms.toFixed(0)} / ${fx2.ms.toFixed(0)} ms`);
+    console.log(
+      `project_board budget: 40 scenarios cold ${big1.ms.toFixed(0)} ms, warm ${big2.ms.toFixed(0)} / ${big3.ms.toFixed(0)} ms; fixture (16) warm ${fx.ms.toFixed(0)} / ${fx2.ms.toFixed(0)} ms`,
+    );
     expect(big1.ms).toBeLessThan(6000);
     expect(Math.min(big2.ms, big3.ms)).toBeLessThan(600);
     expect(Math.min(fx.ms, fx2.ms)).toBeLessThan(600);
@@ -265,7 +295,18 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     for (let i = 0; i < 3000; i++) {
       const j = id(i);
       await mkdir(join(jobsDir, j), { recursive: true });
-      await writeFile(join(jobsDir, j, 'job.json'), JSON.stringify({ version: 1, id: j, kind: 'run', input: { kind: 'run', project: 'other', scenario: 'quote', run_id: `20261001-100000-q${i}` }, state: 'succeeded', created_at: '2026-10-01T10:00:00.000Z', finished_at: '2026-10-01T10:01:00.000Z' }));
+      await writeFile(
+        join(jobsDir, j, 'job.json'),
+        JSON.stringify({
+          version: 1,
+          id: j,
+          kind: 'run',
+          input: { kind: 'run', project: 'other', scenario: 'quote', run_id: `20261001-100000-q${i}` },
+          state: 'succeeded',
+          created_at: '2026-10-01T10:00:00.000Z',
+          finished_at: '2026-10-01T10:01:00.000Z',
+        }),
+      );
     }
     // A take started from a terminal, still running: no job anywhere.
     await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -295,7 +336,28 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     const write = async (id: string, scenario: string) => {
       await mkdir(join(dir, 'runs', id), { recursive: true });
       // A record as the runner writes it (a run.json that is no run record is not a run of the lists: L7.6a).
-      await writeFile(join(dir, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'many', scenario, mode: 'dry', status: 'failed', started_at: '2026-10-01T10:00:00.000Z', finished_at: '2026-10-01T10:01:00.000Z', dir: join(dir, 'runs', id), env: 'local', options: { hooks: 'skip', headed: false }, steps_total: 1, steps_done: 0, screenshots: [], hooks: { setup: 'skipped', teardown: 'skipped' }, warnings: [], error: { message: 'failed' } }));
+      await writeFile(
+        join(dir, 'runs', id, 'run.json'),
+        JSON.stringify({
+          version: 1,
+          id,
+          project: 'many',
+          scenario,
+          mode: 'dry',
+          status: 'failed',
+          started_at: '2026-10-01T10:00:00.000Z',
+          finished_at: '2026-10-01T10:01:00.000Z',
+          dir: join(dir, 'runs', id),
+          env: 'local',
+          options: { hooks: 'skip', headed: false },
+          steps_total: 1,
+          steps_done: 0,
+          screenshots: [],
+          hooks: { setup: 'skipped', teardown: 'skipped' },
+          warnings: [],
+          error: { message: 'failed' },
+        }),
+      );
     };
     // 400 runs of blocks (the window holds 300); the oldest is the only run of catalogue; reports has an old run and
     // one that is the last of the window (it sorts just before the 299 newest blocks runs).
@@ -324,7 +386,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     expect(of(after, 'catalogue').last_run).toBeUndefined();
   });
 
-  it('A-L3, B-L2, B-L5: report.json read once; the render of today\'s file wins over a newer override; today\'s theme counts; a failed take shows its error screenshot', async () => {
+  it("A-L3, B-L2, B-L5: report.json read once; the render of today's file wins over a newer override; today's theme counts; a failed take shows its error screenshot", async () => {
     const dir = await copy('renders');
     const A1 = '20261020-100000-blocks';
     await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -332,10 +394,30 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     fresh();
     const hash = of(await boards.board('renders'), 'blocks').hash;
     await mkdir(join(dir, 'renders'), { recursive: true });
-    const rec = (id: string, at: string, o: Record<string, unknown> = {}) => writeFile(join(dir, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'blocks', plan: {}, created_at: at, status: 'succeeded', run_id: A1, template: 'editorial', variant: 'landscape', duration_s: 6, edit: { from: 'scenario', sha256: hash }, ...o }));
+    const rec = (id: string, at: string, o: Record<string, unknown> = {}) =>
+      writeFile(
+        join(dir, 'renders', `${id}.json`),
+        JSON.stringify({
+          version: 1,
+          id,
+          scenario: 'blocks',
+          plan: {},
+          created_at: at,
+          status: 'succeeded',
+          run_id: A1,
+          template: 'editorial',
+          variant: 'landscape',
+          duration_s: 6,
+          edit: { from: 'scenario', sha256: hash },
+          ...o,
+        }),
+      );
     await rec('blocks-v1', '2026-10-20T11:00:00.000Z');
     await mkdir(join(dir, 'review', 'blocks-v1'), { recursive: true });
-    await writeFile(join(dir, 'review', 'blocks-v1', 'report.json'), JSON.stringify({ version: 1, findings: [], counts: { error: 0, warning: 0, info: 0 }, review: { created_at: '2026-10-20T11:05:00.000Z' } }));
+    await writeFile(
+      join(dir, 'review', 'blocks-v1', 'report.json'),
+      JSON.stringify({ version: 1, findings: [], counts: { error: 0, warning: 0, info: 0 }, review: { created_at: '2026-10-20T11:05:00.000Z' } }),
+    );
     // A newer render with an option (--no-intro): another video, not the version of today's file.
     await rec('blocks-v2', '2026-10-21T11:00:00.000Z', { overrides: { intro: false } });
     let s = of(await boards.board('renders'), 'blocks');
@@ -361,7 +443,15 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     expect(s.theme).toBe('default');
     expect(productionState(s)).toEqual({ state: 'warn', word: 'Render outdated', group: 'ready' });
     // A failed capture after it with its error screenshot: the poster is that screenshot (the word is the failure).
-    await writeRun(dir, { id: '20261022-100000-blocks', scenario: 'blocks', mode: 'capture', status: 'failed', error: { scene: 'two', step: 1, message: 'gone' }, screenshots: { 'error-two-1.png': [200, 40, 40] }, events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }] });
+    await writeRun(dir, {
+      id: '20261022-100000-blocks',
+      scenario: 'blocks',
+      mode: 'capture',
+      status: 'failed',
+      error: { scene: 'two', step: 1, message: 'gone' },
+      screenshots: { 'error-two-1.png': [200, 40, 40] },
+      events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }],
+    });
     s = of(await boards.board('renders'), 'blocks');
     expect(productionState(s).word).toBe('Failed at step 2 of two');
     expect(s.poster).toEqual({ run: '20261022-100000-blocks', key: 'two.1' });

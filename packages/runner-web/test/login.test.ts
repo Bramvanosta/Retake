@@ -81,7 +81,16 @@ describe('retake login (R-AUTH-06): signIn', () => {
   it('headed (driven): the master profile and the snapshot (the session cookie included) are saved, checked the way a run sees them', async () => {
     const { project, persona } = await setup();
     let opened = '';
-    const r = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'headed', drive: person('supplier', 'page'), headless: true, onOpen: (u) => (opened = u) });
+    const r = await signIn({
+      policy: PERSON_POLICY,
+      project,
+      env: env(),
+      persona: persona('supplier'),
+      mode: 'headed',
+      drive: person('supplier', 'page'),
+      headless: true,
+      onOpen: (u) => (opened = u),
+    });
     expect(opened).toBe(`${srv.url}/home`);
     expect(r.check).toMatchObject({ status: 'valid', detail: `app:/home shows "${ACCOUNTS.supplier.name}"` });
     const f = persona('supplier');
@@ -153,7 +162,8 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect(await readFile(persona('supplier').snapshot!, 'utf8')).toBe(saved);
     // The window shows the saved session (no form to fill)…
     let shown = '';
-    const look = await signIn({ policy: PERSON_POLICY,
+    const look = await signIn({
+      policy: PERSON_POLICY,
       project,
       env: env(),
       persona: persona('supplier'),
@@ -169,7 +179,8 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect(look.kept).toBeUndefined();
     // …and a window that ends signed out (its cookies cleared) never replaces a snapshot that still works.
     const before = await readFile(persona('supplier').snapshot!, 'utf8');
-    const out = await signIn({ policy: PERSON_POLICY,
+    const out = await signIn({
+      policy: PERSON_POLICY,
       project,
       env: env(),
       persona: persona('supplier'),
@@ -200,17 +211,9 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect(existsSync(f.snapshot!)).toBe(false);
     // Cancelled while the window is open: the window closes, nothing is written.
     const controller = new AbortController();
-    await expect(
-      signIn({ policy: PERSON_POLICY,
-        project,
-        env: env(),
-        persona: f,
-        mode: 'headed',
-        headless: true,
-        signal: controller.signal,
-        drive: async () => controller.abort(),
-      }),
-    ).rejects.toThrow(/cancelled|aborted/);
+    await expect(signIn({ policy: PERSON_POLICY, project, env: env(), persona: f, mode: 'headed', headless: true, signal: controller.signal, drive: async () => controller.abort() })).rejects.toThrow(
+      /cancelled|aborted/,
+    );
     expect(existsSync(f.snapshot!)).toBe(false);
     expect(existsSync(f.profileDir!)).toBe(false);
     expect(existsSync(join(f.profileDir!, 'SingletonLock'))).toBe(false);

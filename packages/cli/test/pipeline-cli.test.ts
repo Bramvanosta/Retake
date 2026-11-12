@@ -282,7 +282,24 @@ beforeAll(async () => {
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify({ version: 1, run_id: RUN_ID, project: 'demo', scenario: 'tour', mode: 'capture', capture: { file: 'capture.mp4' } }));
   await writeFile(
     join(runDir, 'run.json'),
-    JSON.stringify({ version: 1, id: RUN_ID, project: 'demo', scenario: 'tour', mode: 'capture', status: 'succeeded', started_at: '2026-01-01T12:00:00.000Z', dir: runDir, env: 'staging', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [], finished_at: '2026-01-01T12:00:04.000Z' }),
+    JSON.stringify({
+      version: 1,
+      id: RUN_ID,
+      project: 'demo',
+      scenario: 'tour',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      dir: runDir,
+      env: 'staging',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+      finished_at: '2026-01-01T12:00:04.000Z',
+    }),
   );
   await writeFile(join(runDir, 'capture.mp4'), 'never read');
   await mkdir(join(projectDir, 'renders'), { recursive: true });
@@ -477,7 +494,14 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', () =>
       fakes.calls.length = 0;
       const io = memoryIo();
       const code = await main(['node', 'retake', '--root', ws, '--no-color', ...args], io);
-      return { code, lines: io.stderr().split('\n').filter((l) => l.includes('is used') || l.includes('stops at')), out: io.stdout() };
+      return {
+        code,
+        lines: io
+          .stderr()
+          .split('\n')
+          .filter((l) => l.includes('is used') || l.includes('stops at')),
+        out: io.stdout(),
+      };
     };
     const newer = '20991231-235959-tour';
     const dir = join(projectDir, 'runs', newer);
@@ -503,12 +527,25 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', () =>
       // still: what the plan's run says (the editor's planRun is replaced here: its run carries what `latest` said).
       fakes.planRun = async (o) => ({
         ...((await keep(o)) as object),
-        run: { id: RUN_ID, dir: join(projectDir, 'runs', RUN_ID), latest: { take: { run: RUN_ID, scenario: 'tour', film: 'capture.mp4', finished_at: 'x', until: { scene: 'home', step: 0 } }, passed: [{ run: newer, why: 'cancelled' }], passed_more: 0, reasons: [{ why: 'cancelled', count: 1 }], without_record: 0 } },
+        run: {
+          id: RUN_ID,
+          dir: join(projectDir, 'runs', RUN_ID),
+          latest: {
+            take: { run: RUN_ID, scenario: 'tour', film: 'capture.mp4', finished_at: 'x', until: { scene: 'home', step: 0 } },
+            passed: [{ run: newer, why: 'cancelled' }],
+            passed_more: 0,
+            reasons: [{ why: 'cancelled', count: 1 }],
+            without_record: 0,
+          },
+        },
       });
       const still = await said('still', 'demo', 'tour', '--frame', '3', '--out', join(ws, 'said.png'));
       expect([still.code, still.lines]).toEqual([
         EXIT.ok,
-        [`! run ${RUN_ID} is used: 1 newer capture of "tour" passed over — ${newer} (cancelled) (name one with --run <id>)`, `! run ${RUN_ID} stops at step home.0 (\`--until\`): the capture holds the scenario up to there`],
+        [
+          `! run ${RUN_ID} is used: 1 newer capture of "tour" passed over — ${newer} (cancelled) (name one with --run <id>)`,
+          `! run ${RUN_ID} stops at step home.0 (\`--until\`): the capture holds the scenario up to there`,
+        ],
       ]);
       expect((await said('still', 'demo', 'tour', '--frame', '3', '--json', '--out', join(ws, 'said.png'))).lines).toEqual([]);
     } finally {

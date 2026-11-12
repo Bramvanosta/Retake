@@ -19,7 +19,10 @@ function stripSqlNoise(sql: string): string {
 
 /** First destructive keyword of a SQL text (DELETE, DROP, TRUNCATE, ALTER, UPDATE), or null. */
 export function sqlDestructiveKeyword(sql: string): string | null {
-  const words = stripSqlNoise(sql).toUpperCase().match(/[A-Z_][A-Z0-9_]*/g) ?? [];
+  const words =
+    stripSqlNoise(sql)
+      .toUpperCase()
+      .match(/[A-Z_][A-Z0-9_]*/g) ?? [];
   for (let i = 0; i < words.length; i++) {
     if (SQL_WRITE.has(words[i]) && !(i > 0 && CLAUSE_PREFIX.has(words[i - 1]))) return words[i];
   }
@@ -252,7 +255,10 @@ export function hookApprovalReason(hook: HookStep, phase: string, opts: Destruct
     return null;
   }
   try {
-    const own = hook.destructive === true ? 'declared destructive' : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && opts.agentWritten === true ? AGENT_SQL_REASON : null));
+    const own =
+      hook.destructive === true
+        ? 'declared destructive'
+        : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && opts.agentWritten === true ? AGENT_SQL_REASON : null));
     // Setup and step hooks (L5.8) journal their rollback, run later without asking again.
     const rollback = phase === 'setup' || phase === 'step' ? rollbackApprovalReason(hook, opts) : null;
     const reasons = [own, rollback].filter((r): r is string => r !== null);

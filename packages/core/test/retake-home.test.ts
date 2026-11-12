@@ -40,7 +40,7 @@ function testFiles(): string[] {
 }
 
 describe('the test environment (vitest.config.ts)', () => {
-  it('L5.14: every test file films its takes in a marker folder of its own (0700, under the run\'s scratch parent), which its children inherit', () => {
+  it("L5.14: every test file films its takes in a marker folder of its own (0700, under the run's scratch parent), which its children inherit", () => {
     const dir = process.env.RETAKE_CAPTURES_DIR?.trim();
     const parent = process.env.RETAKE_TEST_CAPTURES?.trim();
     expect(dir).toBeTruthy();
@@ -108,7 +108,7 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(starts.filter((s) => !/CFFIXED_USER_HOME: process\.env\.CFFIXED_USER_HOME|\.\.\.process\.env\b|^testChildEnv$/.test(s.env)).map((s) => `${s.at}: ${s.env}`)).toEqual([]);
   });
 
-  it('L5.14a fixes (review B M2): every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person\'s markers folder)', () => {
+  it("L5.14a fixes (review B M2): every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person's markers folder)", () => {
     // A process started with an explicit environment (spawn / spawnSync / execFile / an MCP transport): an `env` literal
     // that names RETAKE_HOME (a scratch home) without spreading process.env must name RETAKE_CAPTURES_DIR too — directly, or
     // through the object it spreads (a file's `env` / `runEnv` set once and spread per start).

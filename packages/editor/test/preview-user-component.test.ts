@@ -48,25 +48,29 @@ afterAll(async () => {
 });
 
 describe.skipIf(!canRender)('L7.2 a workspace component importing the renderer library directly', () => {
-  it('validates, bundles and renders; the frame it reads from `remotion` is the frame the kit gives (one library in the bundle)', async () => {
-    const created = await createComponent(root, { write: plainWrite, id: 'acme/two-frames', kind: 'card', description: 'Reads the frame twice.' });
-    await writeFile(created.entry, TWO_FRAMES);
-    const checked = await validateComponentDir(created.dir);
-    expect(checked.issues.filter((i) => i.severity === 'error')).toEqual([]);
-    const registry = await loadComponentRegistry({ root });
-    const template = await loadTemplate('editorial', root, { files: fileFacts(PERSON_POLICY) });
-    const outDir = join(root, 'out');
-    const [p] = await renderComponentPreviews({
-      workPolicy: PERSON_POLICY,
-      root,
-      registry,
-      template,
-      targets: [{ id: 'acme/two-frames', dir: created.dir, entry: created.entry, manifest: created.manifest }],
-      cacheDir: SHARED_CACHE,
-      outDir,
-    });
-    expect(p.file).toBe(join(outDir, 'acme', 'two-frames.png'));
-    const [r, g, b] = pixelAt(p.file, 0, 480, 270);
-    expect({ r: r < 40, g: g > 215, b: b < 40 }, `pixel ${r},${g},${b}`).toEqual({ r: true, g: true, b: true });
-  }, LONG);
+  it(
+    'validates, bundles and renders; the frame it reads from `remotion` is the frame the kit gives (one library in the bundle)',
+    async () => {
+      const created = await createComponent(root, { write: plainWrite, id: 'acme/two-frames', kind: 'card', description: 'Reads the frame twice.' });
+      await writeFile(created.entry, TWO_FRAMES);
+      const checked = await validateComponentDir(created.dir);
+      expect(checked.issues.filter((i) => i.severity === 'error')).toEqual([]);
+      const registry = await loadComponentRegistry({ root });
+      const template = await loadTemplate('editorial', root, { files: fileFacts(PERSON_POLICY) });
+      const outDir = join(root, 'out');
+      const [p] = await renderComponentPreviews({
+        workPolicy: PERSON_POLICY,
+        root,
+        registry,
+        template,
+        targets: [{ id: 'acme/two-frames', dir: created.dir, entry: created.entry, manifest: created.manifest }],
+        cacheDir: SHARED_CACHE,
+        outDir,
+      });
+      expect(p.file).toBe(join(outDir, 'acme', 'two-frames.png'));
+      const [r, g, b] = pixelAt(p.file, 0, 480, 270);
+      expect({ r: r < 40, g: g > 215, b: b < 40 }, `pixel ${r},${g},${b}`).toEqual({ r: true, g: true, b: true });
+    },
+    LONG,
+  );
 });

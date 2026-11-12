@@ -379,10 +379,14 @@ export const WIDGETS_PAGE = page(
 `,
 );
 
-export const SHOP_PAGE = page('Shop', `<main><h1>Buyer shop</h1><p id="who"></p><button id="quote">Request a quote</button></main>`, `
+export const SHOP_PAGE = page(
+  'Shop',
+  `<main><h1>Buyer shop</h1><p id="who"></p><button id="quote">Request a quote</button></main>`,
+  `
   document.getElementById('who').textContent = 'Welcome ' + (new URLSearchParams(location.search).get('buyer') || 'guest');
   document.getElementById('quote').addEventListener('click', () => (document.getElementById('who').textContent += ' — quote requested'));
-`);
+`,
+);
 
 /** Ripple contrast: a primary button of the same colour as the editorial template ripple (burgundy). */
 export const RIPPLE_PAGE = page(

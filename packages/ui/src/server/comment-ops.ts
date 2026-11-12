@@ -12,4 +12,17 @@ export { THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, proposalO
 export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from '@retake/engine/contract';
 
 /** The names of the comment ops (served by the Studio, never an MCP tool's name). */
-export const COMMENT_OPS = ['threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply'] as const;
+export const COMMENT_OPS = [
+  'threads_list',
+  'threads_counts',
+  'thread_get',
+  'thread_still',
+  'render_outline',
+  'render_frame',
+  'frame_anchor',
+  'thread_add',
+  'thread_reply',
+  'thread_resolve',
+  'thread_reopen',
+  'thread_apply',
+] as const;

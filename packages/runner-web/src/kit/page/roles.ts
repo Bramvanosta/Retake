@@ -7,8 +7,7 @@ import { deepClosest, deepQsa, hostParent, isA } from './trees.js';
 export const IMPLICIT: Record<string, string> = {
   button: 'button,input[type=button],input[type=submit],input[type=reset],input[type=image],summary',
   link: 'a[href],area[href]',
-  textbox:
-    'input:not([type]),input[type=text],input[type=email],input[type=tel],input[type=url],input[type=password],input[type=search],textarea,[contenteditable=""],[contenteditable=true]',
+  textbox: 'input:not([type]),input[type=text],input[type=email],input[type=tel],input[type=url],input[type=password],input[type=search],textarea,[contenteditable=""],[contenteditable=true]',
   searchbox: 'input[type=search]',
   combobox: 'select:not([multiple]):not([size]),input[list]',
   listbox: 'select[multiple],select[size],datalist',
@@ -75,7 +74,7 @@ export function byRole(root: Element, role: string): Element[] {
 /** The tree (document or shadow root) of a node: ids resolve there. */
 export function treeOf(n: Node): Document | ShadowRoot {
   const r = n.getRootNode();
-  return r.nodeType === 9 || r.nodeType === 11 ? (r as Document | ShadowRoot) : n.ownerDocument ?? document;
+  return r.nodeType === 9 || r.nodeType === 11 ? (r as Document | ShadowRoot) : (n.ownerDocument ?? document);
 }
 /** What a field holds (its value, its options, what was typed into it): never part of a name or a label. */
 export const FIELD_CONTENT =
@@ -124,7 +123,11 @@ function accessibleNameLive(el: Element): string {
   const al = el.getAttribute('aria-label');
   if (al && norm(al)) return norm(al);
   if (isA(el, 'input') || isA(el, 'select') || isA(el, 'textarea')) {
-    const labels = el.labels ? Array.from(el.labels).map((l) => norm(nameText(l, el))).filter(Boolean) : [];
+    const labels = el.labels
+      ? Array.from(el.labels)
+          .map((l) => norm(nameText(l, el)))
+          .filter(Boolean)
+      : [];
     if (labels.length) return labels.join(' ');
     if (isA(el, 'input') && el.matches(BUTTON_INPUT)) return norm(el.value);
     const t = el.getAttribute('title') ?? el.getAttribute('placeholder');

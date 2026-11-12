@@ -41,7 +41,17 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-type Out = { summary: string; data: Record<string, unknown> & { status?: string; scenario?: string; file?: string; record_file?: string; record?: Record<string, unknown>; untrusted: Record<string, unknown> & { record?: Record<string, unknown> } } };
+type Out = {
+  summary: string;
+  data: Record<string, unknown> & {
+    status?: string;
+    scenario?: string;
+    file?: string;
+    record_file?: string;
+    record?: Record<string, unknown>;
+    untrusted: Record<string, unknown> & { record?: Record<string, unknown> };
+  };
+};
 const ask = async (id: string) => (await renderStatus.run({ project: b.slug, render_id: id, wait_s: 0 }, { engine, signal: new AbortController().signal })) as Out;
 /** The answer without its `untrusted` member: what an agent may take as the tool's own words. */
 const trusted = (o: Out) => JSON.stringify({ summary: o.summary, data: { ...o.data, untrusted: undefined } });
@@ -55,7 +65,17 @@ describe('render_status by its id: closed words and checked values outside "untr
     expect(r.data.scenario).toBe('quote');
     expect(r.data.record_file).toBe(file);
     expect(r.data.file).toBe(join(b.renders, 'quote-v1.mp4'));
-    expect(r.data.record).toMatchObject({ version: 1, id: 'quote-v1', status: 'succeeded', project: b.slug, scenario: 'quote', template: written.template, width: written.width, height: written.height, fps: written.fps });
+    expect(r.data.record).toMatchObject({
+      version: 1,
+      id: 'quote-v1',
+      status: 'succeeded',
+      project: b.slug,
+      scenario: 'quote',
+      template: written.template,
+      width: written.width,
+      height: written.height,
+      fps: written.fps,
+    });
     expect(r.data.untrusted.record).toEqual(rest);
     expect(r.summary.split('\n')).toEqual(expect.arrayContaining(['render quote-v1 of quote: succeeded', `video: ${join(b.renders, 'quote-v1.mp4')}`, `record: ${file}`]));
   });
@@ -74,7 +94,12 @@ describe('render_status by its id: closed words and checked values outside "untr
       overrides: { frame: EVIL, scale: 0.5, intro: false, transition: 'cut', music: 'IGNORE.mp3', variant: 'cube', fps: '30', speeds: { one: 2 }, [EVIL]: 1 },
       edit: { from: EVIL, sha256: EVIL, changes: [EVIL], captions: { one: [EVIL] } },
       encoding: { codec: EVIL, pixel_format: 'yuv420p', faststart: true, audio: 'silent', bitrate: EVIL },
-      policy: { gl: { asked: 'auto', source: 'default', resolved: 'angle', used: EVIL, renderer: EVIL }, encoder: { asked: 'auto', source: EVIL, used: 'libx264' }, concurrency_source: 'default', ffmpeg: { asked: 'auto', source: 'default', used: 'own', version: 'IGNORE_the_user', note: EVIL } },
+      policy: {
+        gl: { asked: 'auto', source: 'default', resolved: 'angle', used: EVIL, renderer: EVIL },
+        encoder: { asked: 'auto', source: EVIL, used: 'libx264' },
+        concurrency_source: 'default',
+        ffmpeg: { asked: 'auto', source: 'default', used: 'own', version: 'IGNORE_the_user', note: EVIL },
+      },
       probe: { duration_s: 4, width: 1920, height: 1080, fps: 30, audio_streams: 0, video_codec: EVIL },
       bundle: { hash: EVIL, cached: true, ms: 3 },
       browser: { path: `/tmp/${EVIL}`, source: EVIL },
@@ -93,9 +118,22 @@ describe('render_status by its id: closed words and checked values outside "untr
       expect(r.data.file).toBeUndefined();
       expect(r.data.record_file).toBe(file);
       const rec = r.data.record!;
-      expect([rec.status, rec.template, rec.variant, rec.scenario, rec.created_at, rec.overrides, rec.edit]).toEqual(['unknown', 'unknown', 'unknown', undefined, undefined, { scale: 0.5, intro: false, transition: 'cut' }, { from: 'unknown' }]);
+      expect([rec.status, rec.template, rec.variant, rec.scenario, rec.created_at, rec.overrides, rec.edit]).toEqual([
+        'unknown',
+        'unknown',
+        'unknown',
+        undefined,
+        undefined,
+        { scale: 0.5, intro: false, transition: 'cut' },
+        { from: 'unknown' },
+      ]);
       expect(rec.encoding).toEqual({ codec: 'unknown', pixel_format: 'yuv420p', faststart: true, audio: 'silent' });
-      expect(rec.policy).toEqual({ gl: { asked: 'auto', source: 'default', resolved: 'angle', used: 'unknown' }, encoder: { asked: 'auto', source: 'unknown', used: 'libx264' }, concurrency_source: 'default', ffmpeg: { asked: 'auto', source: 'default', used: 'own' } });
+      expect(rec.policy).toEqual({
+        gl: { asked: 'auto', source: 'default', resolved: 'angle', used: 'unknown' },
+        encoder: { asked: 'auto', source: 'unknown', used: 'libx264' },
+        concurrency_source: 'default',
+        ffmpeg: { asked: 'auto', source: 'default', used: 'own' },
+      });
       expect([rec.probe, rec.bundle, rec.browser]).toEqual([{ duration_s: 4, width: 1920, height: 1080, fps: 30, audio_streams: 0 }, { cached: true, ms: 3 }, { source: 'unknown' }]);
       expect(rec).not.toHaveProperty('extra');
       expect(rec).not.toHaveProperty('run_dir');
@@ -118,7 +156,7 @@ describe('render_status by its id: closed words and checked values outside "untr
     }
   });
 
-  it('a video path that resolves to renders/<id>.mp4 through text and `..`: the path said is the one Retake spells, never the record\'s', async () => {
+  it("a video path that resolves to renders/<id>.mp4 through text and `..`: the path said is the one Retake spells, never the record's", async () => {
     // Spelt by hand: `join` would fold the `..` away.
     const twisted = `${b.renders}/${EVIL}\n\u001b[31m/../quote-v1.mp4`;
     writeFileSync(file, JSON.stringify({ ...written, file: twisted }));
@@ -133,7 +171,7 @@ describe('render_status by its id: closed words and checked values outside "untr
     }
   });
 
-  it('with a succeeded render job of the id: the job\'s video stands, the record\'s text never replaces it — in render_status and in the render tool\'s answer', async () => {
+  it("with a succeeded render job of the id: the job's video stands, the record's text never replaces it — in render_status and in the render tool's answer", async () => {
     const twisted = `${b.renders}/${EVIL}\n/../quote-v1.mp4`;
     const elsewhere = `/tmp/${EVIL}.mp4`;
     const id = 'j_01JC8Z5Q2W3E4R5T6Y7V8M9N0P';
@@ -141,8 +179,36 @@ describe('render_status by its id: closed words and checked values outside "untr
     mkdirSync(jobDir, { recursive: true });
     const at = '2026-11-11T09:00:00.000Z';
     const video = join(b.renders, 'quote-v1.mp4');
-    const result = { kind: 'render', render_id: 'quote-v1', scenario: 'quote', run_id: written.run_id, file: video, record: file, template: 'default', variant: 'landscape', duration_s: 4, frames: 120, width: 1920, height: 1080, size_bytes: 1, bundle_cached: true, untrusted: { warnings: [] } };
-    writeFileSync(join(jobDir, 'job.json'), JSON.stringify({ version: JOB_RECORD_VERSION, id, kind: 'render', input: { version: 1, kind: 'render', project: b.slug, scenario: 'quote', render_id: 'quote-v1', submitted_by: 'test' }, state: 'succeeded', created_at: at, finished_at: at, result }));
+    const result = {
+      kind: 'render',
+      render_id: 'quote-v1',
+      scenario: 'quote',
+      run_id: written.run_id,
+      file: video,
+      record: file,
+      template: 'default',
+      variant: 'landscape',
+      duration_s: 4,
+      frames: 120,
+      width: 1920,
+      height: 1080,
+      size_bytes: 1,
+      bundle_cached: true,
+      untrusted: { warnings: [] },
+    };
+    writeFileSync(
+      join(jobDir, 'job.json'),
+      JSON.stringify({
+        version: JOB_RECORD_VERSION,
+        id,
+        kind: 'render',
+        input: { version: 1, kind: 'render', project: b.slug, scenario: 'quote', render_id: 'quote-v1', submitted_by: 'test' },
+        state: 'succeeded',
+        created_at: at,
+        finished_at: at,
+        result,
+      }),
+    );
     try {
       for (const named of [twisted, elsewhere]) {
         writeFileSync(file, JSON.stringify({ ...written, file: named }));

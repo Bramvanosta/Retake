@@ -27,7 +27,18 @@ function StateMark({ state }: { state: RecordState }) {
 }
 
 /** The recording's header: its name, the state in a sentence, the time left. */
-function RecordingHead({ v, now, titleRef, stop }: { v: RecordViewAnswer; now: number; titleRef?: RefObject<HTMLHeadingElement | null>; /** The one Stop, here while the inspector is hidden (review B-L4). */ stop?: ReactNode }) {
+function RecordingHead({
+  v,
+  now,
+  titleRef,
+  stop,
+}: {
+  v: RecordViewAnswer;
+  now: number;
+  titleRef?: RefObject<HTMLHeadingElement | null>;
+  /** The one Stop, here while the inspector is hidden (review B-L4). */
+  stop?: ReactNode;
+}) {
   const left = v.state === 'recording' ? timeLeft(v.ends_at, now) : null;
   return (
     <header className="rc-head">
@@ -120,7 +131,23 @@ function NoteCallout({ note }: { note: NonNullable<RecordingUi['note']> }) {
 }
 
 /** One recording as the view tells it — the centre, and the inspector in its slot (a test renders it with any view). */
-export function RecordingBody({ slug, v, cursor, setCursor, ui, act, titleRef }: { slug: string; v: RecordViewAnswer; cursor: Cursor; setCursor: (c: Cursor) => void; ui: RecordingUi; act: RecordingActions; titleRef?: RefObject<HTMLHeadingElement | null> }) {
+export function RecordingBody({
+  slug,
+  v,
+  cursor,
+  setCursor,
+  ui,
+  act,
+  titleRef,
+}: {
+  slug: string;
+  v: RecordViewAnswer;
+  cursor: Cursor;
+  setCursor: (c: Cursor) => void;
+  ui: RecordingUi;
+  act: RecordingActions;
+  titleRef?: RefObject<HTMLHeadingElement | null>;
+}) {
   const u = v.untrusted;
   const live = LIVE_STATES.has(v.state);
   const readOnly = v.started_by !== 'ui' && v.started_by !== null && v.state !== 'missing';
@@ -191,7 +218,11 @@ export function RecordingBody({ slug, v, cursor, setCursor, ui, act, titleRef }:
           <h2 id="rec-draft-h" className="sc-h2">
             The draft
           </h2>
-          {u ? <DraftList v={v} cursor={cursor} setCursor={setCursor} act={act} busy={ui.busy} form={form} setForm={setForm} /> : <p className="sc-quiet">{shown(live ? 'The draft shows here once the window is open.' : 'No draft.')}</p>}
+          {u ? (
+            <DraftList v={v} cursor={cursor} setCursor={setCursor} act={act} busy={ui.busy} form={form} setForm={setForm} />
+          ) : (
+            <p className="sc-quiet">{shown(live ? 'The draft shows here once the window is open.' : 'No draft.')}</p>
+          )}
           {u && u.yaml_lines.length > 0 && (
             <Disclosure summary="The draft as YAML">
               <pre className="rc-yaml" data-testid="record-yaml">
@@ -224,7 +255,9 @@ export function RecordingBody({ slug, v, cursor, setCursor, ui, act, titleRef }:
           if (id === 'discard') act.discard();
         }}
       >
-        {shown(`${live ? 'The window closes (or the check stops) and the recording' : 'The recording'} is removed: its events, its draft, your picks and inserts. A scenario saved from it is never touched.`)}
+        {shown(
+          `${live ? 'The window closes (or the check stops) and the recording' : 'The recording'} is removed: its events, its draft, your picks and inserts. A scenario saved from it is never touched.`,
+        )}
       </Sheet>
     </>
   );

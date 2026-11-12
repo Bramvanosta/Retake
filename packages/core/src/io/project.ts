@@ -93,9 +93,7 @@ async function resolveProjectDir(dirOrSlug: string, root?: string): Promise<{ di
   const dir = join(ws.projectsDir, dirOrSlug);
   if (existsSync(join(dir, PROJECT_FILE))) return { dir, root: ws.root };
   const available = (await listProjects(ws.root)).map((p) => p.slug);
-  throw new ConfigError(
-    `project "${dirOrSlug}" not found in ${ws.projectsDir}${suggestion(dirOrSlug, available)} (available: ${available.join(', ') || 'none'})`,
-  );
+  throw new ConfigError(`project "${dirOrSlug}" not found in ${ws.projectsDir}${suggestion(dirOrSlug, available)} (available: ${available.join(', ') || 'none'})`);
 }
 
 /**

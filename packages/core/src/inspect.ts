@@ -45,10 +45,12 @@ export function inspectScenario(page: string, path = '/', opts: { persona?: stri
   if (!scenario || hasErrors(issues)) {
     // The scenario is built here, never shown: each error is told by the argument it comes from, without a position.
     const arg: Record<string, string> = { persona: 'persona', open: 'path', page: 'page' };
-    const errors = issues.filter((i) => i.severity === 'error').map((i) => {
-      const key = i.path[0] === 'scenes' ? i.path[2] : undefined;
-      return `${typeof key === 'string' && arg[key] ? `${arg[key]}: ` : ''}${i.message}`;
-    });
+    const errors = issues
+      .filter((i) => i.severity === 'error')
+      .map((i) => {
+        const key = i.path[0] === 'scenes' ? i.path[2] : undefined;
+        return `${typeof key === 'string' && arg[key] ? `${arg[key]}: ` : ''}${i.message}`;
+      });
     throw new Error(`cannot inspect page ${page}: ${errors.join('; ') || 'invalid'}`);
   }
   return { name: 'inspect', file: '<inspect>', text, scenario, issues };
@@ -77,7 +79,11 @@ export function isPageOrigin(url: string, pages: Record<string, string>): boolea
 export function sameTarget(a: TargetObject, b: TargetObject): boolean {
   const canon = (o: unknown): unknown =>
     o && typeof o === 'object' && !Array.isArray(o)
-      ? Object.fromEntries(Object.keys(o as object).sort().map((k) => [k, canon((o as Record<string, unknown>)[k])]))
+      ? Object.fromEntries(
+          Object.keys(o as object)
+            .sort()
+            .map((k) => [k, canon((o as Record<string, unknown>)[k])]),
+        )
       : Array.isArray(o)
         ? o.map(canon)
         : o;

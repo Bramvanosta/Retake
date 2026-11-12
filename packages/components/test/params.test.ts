@@ -10,7 +10,13 @@ const SCHEMA: JsonSchemaNode = {
     radius: { type: 'number', minimum: 0, default: 18 },
     shadow: { type: 'string', enum: ['none', 'soft', 'strong'], default: 'soft' },
     label: { type: 'string', maxLength: 12, pattern: '^[a-z ]+$' },
-    tone: { anyOf: [{ type: 'string', enum: ['dark', 'paper'] }, { type: 'number', minimum: 0, maximum: 1 }], default: 'dark' },
+    tone: {
+      anyOf: [
+        { type: 'string', enum: ['dark', 'paper'] },
+        { type: 'number', minimum: 0, maximum: 1 },
+      ],
+      default: 'dark',
+    },
     chrome: {
       type: 'object',
       properties: { show: { type: 'boolean', default: true }, height: { type: 'number', default: 44 } },
@@ -76,12 +82,8 @@ describe('params JSON Schema subset', () => {
     expect(formatIssues(checkParamsSchema({ type: 'object', properties: { a: 'number' } }))).toBe(
       'error params.properties.a: expected a schema mapping (e.g. {type: number, default: 1}), got "number"',
     );
-    expect(formatIssues(checkParamsSchema({ type: 'object', properties: { a: { type: ['string', 'string'] } } }))).toBe(
-      'error params.properties.a.type: type lists a type twice',
-    );
-    expect(formatIssues(checkParamsSchema({ type: 'object', properties: { a: { enum: [] } } }))).toBe(
-      'error params.properties.a.enum: enum must be a non-empty list of values',
-    );
+    expect(formatIssues(checkParamsSchema({ type: 'object', properties: { a: { type: ['string', 'string'] } } }))).toBe('error params.properties.a.type: type lists a type twice');
+    expect(formatIssues(checkParamsSchema({ type: 'object', properties: { a: { enum: [] } } }))).toBe('error params.properties.a.enum: enum must be a non-empty list of values');
     expect(formatIssues(checkParamsSchema({ type: 'object', properties: { a: { type: 'string', minLength: -1 } } }))).toBe(
       'error params.properties.a.minLength: minLength must be an integer ≥ 0, got -1',
     );

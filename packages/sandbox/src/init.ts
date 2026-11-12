@@ -138,7 +138,9 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
   const scaffold = await listFiles(SCAFFOLD_DIR);
   const present = scaffold.filter((rel) => existsSync(join(dir, rel))).map((rel) => posixPath(join(folder, rel)));
   if (present.length && !opts.force) {
-    throw new SandboxError(`${present.join(', ')} already exist${present.length === 1 ? 's' : ''}: --force writes the scaffold over ${present.length === 1 ? 'it' : 'them'}, or give the sandbox another name (--env)`);
+    throw new SandboxError(
+      `${present.join(', ')} already exist${present.length === 1 ? 's' : ''}: --force writes the scaffold over ${present.length === 1 ? 'it' : 'them'}, or give the sandbox another name (--env)`,
+    );
   }
 
   // The ports of the sandbox being rewritten (--force) are free to reuse.

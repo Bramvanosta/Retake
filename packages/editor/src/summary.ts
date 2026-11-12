@@ -94,9 +94,7 @@ export function summarizePlan(plan: EditPlan): string[] {
   const idW = Math.max(7, ...plan.segments.map((g) => g.id.length));
   lines.push(`  ${'from'.padStart(8)}  ${'length'.padStart(8)}  ${'segment'.padEnd(idW)}  ${'kind'.padEnd(12)}  ${'transition in'.padEnd(16)}  component`);
   for (const g of plan.segments) {
-    lines.push(
-      `  ${s(g.from, fps).padStart(8)}  ${s(g.durationInFrames, fps).padStart(8)}  ${g.id.padEnd(idW)}  ${g.kind.padEnd(12)}  ${transition(g, fps).padEnd(16)}  ${component(g.component)}`,
-    );
+    lines.push(`  ${s(g.from, fps).padStart(8)}  ${s(g.durationInFrames, fps).padStart(8)}  ${g.id.padEnd(idW)}  ${g.kind.padEnd(12)}  ${transition(g, fps).padEnd(16)}  ${component(g.component)}`);
     const pad = ' '.repeat(2 + 8 + 2 + 8 + 2);
     if (g.kind === 'clip') for (const l of clipLines(plan, g)) lines.push(`${pad}${l}`);
     else {

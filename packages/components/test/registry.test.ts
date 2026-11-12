@@ -138,9 +138,7 @@ describe('registry.resolve (R-REG-04)', () => {
 
   it('rejects a kind mismatch, unknown ids and invalid params with clear messages', async () => {
     const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin });
-    expect(() => reg.resolve('acme/title-card', 'intro')).toThrow(
-      'component "acme/title-card" is a card component, not an intro (intro components: acme/intro-split, studio/intro-stack)',
-    );
+    expect(() => reg.resolve('acme/title-card', 'intro')).toThrow('component "acme/title-card" is a card component, not an intro (intro components: acme/intro-split, studio/intro-stack)');
     expect(() => reg.resolve('acme/intro-splt', 'intro')).toThrow(/not found .*\(did you mean "acme\/intro-split"\?\); intro components: acme\/intro-split, studio\/intro-stack/);
     expect(() => reg.resolve({ id: 'acme/title-card', params: { size: 400, aling: 'left' } }, 'card')).toThrow(
       'invalid params for component "acme/title-card":\n  params.size: must be ≤ 120, got 400\n  params: unknown key "aling" (did you mean "align"?)',

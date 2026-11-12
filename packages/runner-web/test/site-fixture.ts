@@ -44,13 +44,17 @@ function noise(seed: number): () => number {
 /** Pages of hostile.test, by path. */
 const HOSTILE_PAGES: Record<string, string> = {
   // The renderer never comes back once the page is scrolled: every call into it hangs.
-  '/hang': '<!doctype html><html><head><title>busy</title></head><body style="height:5000px"><header><h1>Busy</h1></header><p>Some text.</p><script>addEventListener("scroll", () => { for (;;) {} });</script></body></html>',
+  '/hang':
+    '<!doctype html><html><head><title>busy</title></head><body style="height:5000px"><header><h1>Busy</h1></header><p>Some text.</p><script>addEventListener("scroll", () => { for (;;) {} });</script></body></html>',
   // 40 font faces whose family names are 1 MB each.
-  '/fonts': '<!doctype html><html><head><title>fonts</title></head><body><h1>Fonts</h1><p>Some text.</p><script>for (let i = 0; i < 40; i++) document.fonts.add(new FontFace("F" + i + "X".repeat(1000000), "local(Arial)", { weight: "400" }));</script></body></html>',
+  '/fonts':
+    '<!doctype html><html><head><title>fonts</title></head><body><h1>Fonts</h1><p>Some text.</p><script>for (let i = 0; i < 40; i++) document.fonts.add(new FontFace("F" + i + "X".repeat(1000000), "local(Arial)", { weight: "400" }));</script></body></html>',
   // Font family names with a right-to-left override and a C1 control (CSS escapes): printed by the CLI.
-  '/bidi': '<!doctype html><html><head><title>bidi</title><style>h1 { font-family: "Evil\\202E Display", serif } p { font-family: "Evil\\85 Text", serif }</style></head><body><h1>Bidi</h1><p>Some text.</p></body></html>',
+  '/bidi':
+    '<!doctype html><html><head><title>bidi</title><style>h1 { font-family: "Evil\\202E Display", serif } p { font-family: "Evil\\85 Text", serif }</style></head><body><h1>Bidi</h1><p>Some text.</p></body></html>',
   // Logos a create would refuse once drawn: too wide (under 64 px high at 2048 px wide) and too heavy (noise).
-  '/wide': '<!doctype html><html><head><title>wide</title></head><body><header><img src="/wide.png" alt="logo wide" width="2000" height="30"><img src="/noise.png" alt="brand noise" width="400" height="400"></header><h1>Wide</h1><p>Some text.</p></body></html>',
+  '/wide':
+    '<!doctype html><html><head><title>wide</title></head><body><header><img src="/wide.png" alt="logo wide" width="2000" height="30"><img src="/noise.png" alt="brand noise" width="400" height="400"></header><h1>Wide</h1><p>Some text.</p></body></html>',
 };
 
 /** Whether openssl is there (the tests skip without it). */
@@ -129,7 +133,23 @@ export async function startBrandSite(): Promise<BrandSite> {
   const names = ['brand.test', 'www.brand.test', 'cdn.test', 'esc.test', 'hostile.test', 'elsewhere.test'];
   execFileSync(
     'openssl',
-    ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'k.pem'), '-out', join(dir, 'c.pem'), '-days', '1', '-subj', '/CN=brand.test', '-addext', `subjectAltName=${names.map((n) => `DNS:${n}`).join(',')}`],
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-keyout',
+      join(dir, 'k.pem'),
+      '-out',
+      join(dir, 'c.pem'),
+      '-days',
+      '1',
+      '-subj',
+      '/CN=brand.test',
+      '-addext',
+      `subjectAltName=${names.map((n) => `DNS:${n}`).join(',')}`,
+    ],
     { stdio: 'ignore' },
   );
   const key = readFileSync(join(dir, 'k.pem'));

@@ -23,7 +23,10 @@ const SECRET = 'outside the project: never read through a link\n';
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }

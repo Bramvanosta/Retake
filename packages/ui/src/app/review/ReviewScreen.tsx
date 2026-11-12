@@ -45,7 +45,22 @@ import { useProjectView } from '../project-data.js';
 import { busyWhy, RenderJobs, RenderOutcome, RendersList, TONE_MARK, failedWords, useRenders } from './Renders.js';
 import type { RenderTarget, RendersState } from './Renders.js';
 import { findingFrame, hasReport, reviewBadge, versionNote, versionWords } from '../words/render-words.js';
-import { CHECK_FAMILIES, NOTHING_ELSE, agoWords, clockWords, countWords, exportReadsOn, familyOf, groupFindings, rawExportCommand, severityMark, sharedWhen, shortTime, stepKeyOf, whereWords } from './review-words.js';
+import {
+  CHECK_FAMILIES,
+  NOTHING_ELSE,
+  agoWords,
+  clockWords,
+  countWords,
+  exportReadsOn,
+  familyOf,
+  groupFindings,
+  rawExportCommand,
+  severityMark,
+  sharedWhen,
+  shortTime,
+  stepKeyOf,
+  whereWords,
+} from './review-words.js';
 import { hrefTo } from '../route.js';
 import { useRunLocation } from '../shoot/run-location.js';
 import { SessionEnded } from '../session.js';
@@ -55,7 +70,24 @@ import { BrowserCollapsed, ShellSlot } from '../shell/slots.js';
 import { useScenarioActions } from '../shoot/shoot-data.js';
 import { Jpeg } from '../Thumb.js';
 import { SHEET_DATA_MAX } from '../thumbs.js';
-import { Blocker, Button, Callout, ContactSheet, EmptyState, Facts, InspectorSection, LinkButton, Progress, RowCard, RowList, RowListItem, SegmentedLinks, Select, StatusMark, studioShell } from '../ui-kit/index.js';
+import {
+  Blocker,
+  Button,
+  Callout,
+  ContactSheet,
+  EmptyState,
+  Facts,
+  InspectorSection,
+  LinkButton,
+  Progress,
+  RowCard,
+  RowList,
+  RowListItem,
+  SegmentedLinks,
+  Select,
+  StatusMark,
+  studioShell,
+} from '../ui-kit/index.js';
 import type { ContactSheetItem } from '../ui-kit/index.js';
 
 /** This tab's render_frame session (its newest request of a render wins on the server). */
@@ -163,7 +195,15 @@ export function ReviewChrome({ slug, name, current, x, rr }: { slug: string; nam
         <span id="rv-render-why" className="k-sr">
           <Txt text={rr.off ? `Render: ${rr.off}` : `Render ${name} again: its latest capture with the file on disk, then a review`} />
         </span>
-        <Button size="sm" variant="primary" data-testid="render" disabled={rr.off !== null || rr.renders.sending} aria-describedby="rv-render-why" kbd={inApp ? ['⌘', 'B'] : undefined} onClick={rr.renderNow}>
+        <Button
+          size="sm"
+          variant="primary"
+          data-testid="render"
+          disabled={rr.off !== null || rr.renders.sending}
+          aria-describedby="rv-render-why"
+          kbd={inApp ? ['⌘', 'B'] : undefined}
+          onClick={rr.renderNow}
+        >
           {rr.renders.sending ? 'Starting the render…' : d && d.renders.length > 0 ? 'Render again' : 'Render'}
         </Button>
       </ShellSlot>
@@ -262,7 +302,23 @@ export function ReviewScreen({ slug, name, render }: { slug: string; name: strin
 }
 
 /** The report of one render: its head, sheets, checks (with the inspector), renders and export. */
-function Report({ slug, name, x, renders, r, shown, fileHash }: { slug: string; name: string; x: ScenarioRenderView; renders: ScenarioRenderView[]; r: ReturnType<typeof useRenders>; shown: { run?: string; hash?: string }; fileHash: string | undefined }) {
+function Report({
+  slug,
+  name,
+  x,
+  renders,
+  r,
+  shown,
+  fileHash,
+}: {
+  slug: string;
+  name: string;
+  x: ScenarioRenderView;
+  renders: ScenarioRenderView[];
+  r: ReturnType<typeof useRenders>;
+  shown: { run?: string; hash?: string };
+  fileHash: string | undefined;
+}) {
   const [loaded] = useRenderReview({ project: slug, render_id: x.render_id }, `${slug}\0${x.render_id}\0${x.review.state}`);
   const review = loaded.state === 'ready' ? loaded.data : null;
   const findings = review?.findings ?? [];
@@ -309,7 +365,10 @@ function Report({ slug, name, x, renders, r, shown, fileHash }: { slug: string; 
           label="Render"
           testId="review-render-picker"
           value={x.render_id}
-          options={renders.map((o) => ({ value: o.render_id, label: `${versionWords(o.render_id)} · ${agoWords(o.created_at)}${clash.has(o.render_id) ? ` ${clockWords(o.created_at)}` : ''}${o.status !== 'succeeded' ? ` · ${o.status}` : ''}` }))}
+          options={renders.map((o) => ({
+            value: o.render_id,
+            label: `${versionWords(o.render_id)} · ${agoWords(o.created_at)}${clash.has(o.render_id) ? ` ${clockWords(o.created_at)}` : ''}${o.status !== 'succeeded' ? ` · ${o.status}` : ''}`,
+          }))}
           onChange={(id) => {
             location.hash = hrefTo({ name: 'review', slug, scenario: name, render: id });
           }}
@@ -328,9 +387,7 @@ function Report({ slug, name, x, renders, r, shown, fileHash }: { slug: string; 
           </p>
         </Callout>
       )}
-      {review && !review.counts && (
-        <ReviewPending review={review} reviewing={job?.reviewing ? (job.fraction ?? undefined) : undefined} />
-      )}
+      {review && !review.counts && <ReviewPending review={review} reviewing={job?.reviewing ? (job.fraction ?? undefined) : undefined} />}
 
       {review && review.images.length > 0 && (
         <section className="rv-section" aria-labelledby={sheetsH}>
@@ -363,7 +420,14 @@ function Report({ slug, name, x, renders, r, shown, fileHash }: { slug: string; 
       )}
       {review?.counts && (
         <ShellSlot name="inspector" inline="Selected check">
-          <SelectedCheck slug={slug} name={name} x={x} finding={selected !== null ? (findings[selected] ?? null) : null} message={selected !== null ? review.untrusted.messages?.[selected] : undefined} fileHash={fileHash} />
+          <SelectedCheck
+            slug={slug}
+            name={name}
+            x={x}
+            finding={selected !== null ? (findings[selected] ?? null) : null}
+            message={selected !== null ? review.untrusted.messages?.[selected] : undefined}
+            fileHash={fileHash}
+          />
         </ShellSlot>
       )}
 
@@ -400,7 +464,12 @@ function ReviewPending({ review, reviewing }: { review: RenderReviewAnswer; revi
   }
   if (state === 'failed' || state === 'cancelled' || state === 'interrupted') {
     return (
-      <Callout state="fail" role="note" title={state === 'cancelled' ? 'The review was cancelled' : state === 'interrupted' ? 'The review was interrupted' : 'The review failed'} testId="review-failed">
+      <Callout
+        state="fail"
+        role="note"
+        title={state === 'cancelled' ? 'The review was cancelled' : state === 'interrupted' ? 'The review was interrupted' : 'The review failed'}
+        testId="review-failed"
+      >
         {review.untrusted.error && (
           <p className="rv-pre">
             <Txt text={review.untrusted.error} />
@@ -457,13 +526,36 @@ function Sheets({ slug, renderId, images, labelledBy }: { slug: string; renderId
 const optionId = (i: number) => `rv-finding-${i}`;
 
 /** The families that found something, one listbox (each family a group); the selection follows the arrows. */
-function Checks({ groups, messages, fps, labelledBy, selected, onSelect }: { groups: ReturnType<typeof groupFindings>; messages: string[]; fps: number; labelledBy: string; selected: number | null; onSelect: (i: number) => void }) {
+function Checks({
+  groups,
+  messages,
+  fps,
+  labelledBy,
+  selected,
+  onSelect,
+}: {
+  groups: ReturnType<typeof groupFindings>;
+  messages: string[];
+  fps: number;
+  labelledBy: string;
+  selected: number | null;
+  onSelect: (i: number) => void;
+}) {
   const order = groups.flatMap((g) => g.items.map((i) => i.index));
   const listRef = useRef<HTMLDivElement>(null);
   const onKeyDown = (e: KeyboardEvent<HTMLOListElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey || order.length === 0) return;
     const at = selected !== null ? order.indexOf(selected) : -1;
-    const to = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? Math.min(order.length - 1, at + 1) : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? Math.max(0, at - 1) : e.key === 'Home' ? 0 : e.key === 'End' ? order.length - 1 : null;
+    const to =
+      e.key === 'ArrowDown' || e.key === 'ArrowRight'
+        ? Math.min(order.length - 1, at + 1)
+        : e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+          ? Math.max(0, at - 1)
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? order.length - 1
+              : null;
     if (to === null) return;
     e.preventDefault();
     onSelect(order[to]);
@@ -535,7 +627,13 @@ function FindingFrame({ slug, x, frame }: { slug: string; x: ScenarioRenderView;
   return (
     <div className="rv-frame" data-testid="review-frame" data-frame={image?.frame ?? ''} data-state={error ? 'error' : image && image.frame === frame ? 'ok' : 'waiting'}>
       {image ? (
-        <Jpeg base64={image.base64} max={SHEET_DATA_MAX} width={image.width} height={image.height} alt={`Frame ${image.frame.toLocaleString('en')} of ${versionWords(x.render_id)}, at ${image.timecode}`} />
+        <Jpeg
+          base64={image.base64}
+          max={SHEET_DATA_MAX}
+          width={image.width}
+          height={image.height}
+          alt={`Frame ${image.frame.toLocaleString('en')} of ${versionWords(x.render_id)}, at ${image.timecode}`}
+        />
       ) : (
         <p className="rv-quiet">{error ? <Txt text={error} /> : 'Loading the frame…'}</p>
       )}
@@ -544,7 +642,21 @@ function FindingFrame({ slug, x, frame }: { slug: string; x: ScenarioRenderView;
 }
 
 /** The inspector: the selected finding — its frame, severity, message, where / at / check / code, Show in Edit. */
-function SelectedCheck({ slug, name, x, finding, message, fileHash }: { slug: string; name: string; x: ScenarioRenderView; finding: ReviewFindingView | null; message: string | undefined; fileHash: string | undefined }) {
+function SelectedCheck({
+  slug,
+  name,
+  x,
+  finding,
+  message,
+  fileHash,
+}: {
+  slug: string;
+  name: string;
+  x: ScenarioRenderView;
+  finding: ReviewFindingView | null;
+  message: string | undefined;
+  fileHash: string | undefined;
+}) {
   if (!finding) {
     return (
       <InspectorSection title="Selected check">
@@ -612,7 +724,9 @@ function useExport(slug: string, renderId: string): [ExportState, () => void] {
   const read = useCallback(() => {
     activityList({ project: slug, limit: 50 }).then(
       (d) => {
-        const it = d.items.find((i) => i.kind === 'export' && i.render?.id === renderId && i.job !== undefined && (mine.current === null || i.job === mine.current)) ?? d.items.find((i) => i.kind === 'export' && i.render?.id === renderId && i.job !== undefined);
+        const it =
+          d.items.find((i) => i.kind === 'export' && i.render?.id === renderId && i.job !== undefined && (mine.current === null || i.job === mine.current)) ??
+          d.items.find((i) => i.kind === 'export' && i.render?.id === renderId && i.job !== undefined);
         if (it?.job) setSt({ s: 'job', job: it.job, state: it.state, ...(it.progress?.fraction !== undefined ? { fraction: it.progress.fraction } : {}), at: it.at });
       },
       () => undefined,
@@ -655,7 +769,9 @@ function ExportPart({ slug, x }: { slug: string; x: ScenarioRenderView }) {
       </p>
       <p className="rv-quiet" role="status" data-testid="review-export-state">
         {st.s === 'job' && st.state === 'queued' && <Txt text={`Export of ${versionWords(x.render_id)} queued (job ${st.job}): MP4 1080p, into the project's exports folder.`} />}
-        {st.s === 'job' && st.state === 'running' && <Txt text={`Exporting ${versionWords(x.render_id)}${st.fraction !== undefined ? ` · ${Math.round(st.fraction * 100)} %` : ''} (job ${st.job}).`} />}
+        {st.s === 'job' && st.state === 'running' && (
+          <Txt text={`Exporting ${versionWords(x.render_id)}${st.fraction !== undefined ? ` · ${Math.round(st.fraction * 100)} %` : ''} (job ${st.job}).`} />
+        )}
         {st.s === 'job' && st.state === 'succeeded' && (
           <>
             <Txt text={`Exported ${versionWords(x.render_id)} as MP4 `} />
@@ -663,7 +779,9 @@ function ExportPart({ slug, x }: { slug: string; x: ScenarioRenderView }) {
             <Txt text={`: in the project's exports folder, under ${x.render_id}.`} />
           </>
         )}
-        {st.s === 'job' && (st.state === 'failed' || st.state === 'cancelled' || st.state === 'interrupted') && <Txt text={`The export ${st.state === 'failed' ? failedWords('failed') : failedWords(st.state as 'cancelled' | 'interrupted')} (job ${st.job}): the Activity has its message.`} />}
+        {st.s === 'job' && (st.state === 'failed' || st.state === 'cancelled' || st.state === 'interrupted') && (
+          <Txt text={`The export ${st.state === 'failed' ? failedWords('failed') : failedWords(st.state as 'cancelled' | 'interrupted')} (job ${st.job}): the Activity has its message.`} />
+        )}
       </p>
       {st.s === 'refused' && (
         <Callout state="fail" role="alert" title="The export was not queued">

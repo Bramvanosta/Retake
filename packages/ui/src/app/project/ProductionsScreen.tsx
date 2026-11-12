@@ -182,7 +182,12 @@ function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView;
         <StatusMark state={st.state} word={st.word} />
         {running && (
           <>
-            <Progress label={running.mode === 'dry' ? 'Rehearsal' : 'Capture'} value={running.steps_done} max={Math.max(1, running.steps_total)} valueText={`${running.steps_done} of ${running.steps_total} steps`} />
+            <Progress
+              label={running.mode === 'dry' ? 'Rehearsal' : 'Capture'}
+              value={running.steps_done}
+              max={Math.max(1, running.steps_total)}
+              valueText={`${running.steps_done} of ${running.steps_total} steps`}
+            />
             <div>
               <LinkButton to={{ name: 'run', slug: p.slug, scenario: s.name, run: running.id }} size="sm">
                 Watch live
@@ -194,10 +199,51 @@ function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView;
           rows={[
             { key: 'length', label: 'Length', value: s.length ? <span className="k-mono">{shown(lengthWords(s.length.seconds))}</span> : 'not shot yet' },
             { key: 'content', label: 'Content', value: contentWords(s.content) },
-            ...(s.file.errors + s.file.warnings > 0 || !s.file.parsed ? [{ key: 'file', label: 'File', value: s.file.parsed ? `${plural(s.file.errors, 'error')}, ${plural(s.file.warnings, 'warning')}` : 'not valid YAML' }] : []),
-            { key: 'take', label: 'Last take', value: last && s.last_run ? <span><StatusMark state={last.state} word={last.words} />{' · '}<When iso={s.last_run.finished_at ?? s.last_run.started_at} /></span> : 'none yet' },
-            { key: 'capture', label: 'Capture', value: s.capture ? <span>{shown(s.capture.current === true ? 'current' : s.capture.current === false ? 'the file changed since' : 'cannot tell')}{' · '}<When iso={s.capture.finished_at} /></span> : 'none yet' },
-            { key: 'render', label: 'Render', value: s.render ? <span><When iso={s.render.created_at} />{' · '}<Txt text={s.render.theme} /></span> : s.render_failed ? 'the last one failed' : 'none yet' },
+            ...(s.file.errors + s.file.warnings > 0 || !s.file.parsed
+              ? [{ key: 'file', label: 'File', value: s.file.parsed ? `${plural(s.file.errors, 'error')}, ${plural(s.file.warnings, 'warning')}` : 'not valid YAML' }]
+              : []),
+            {
+              key: 'take',
+              label: 'Last take',
+              value:
+                last && s.last_run ? (
+                  <span>
+                    <StatusMark state={last.state} word={last.words} />
+                    {' · '}
+                    <When iso={s.last_run.finished_at ?? s.last_run.started_at} />
+                  </span>
+                ) : (
+                  'none yet'
+                ),
+            },
+            {
+              key: 'capture',
+              label: 'Capture',
+              value: s.capture ? (
+                <span>
+                  {shown(s.capture.current === true ? 'current' : s.capture.current === false ? 'the file changed since' : 'cannot tell')}
+                  {' · '}
+                  <When iso={s.capture.finished_at} />
+                </span>
+              ) : (
+                'none yet'
+              ),
+            },
+            {
+              key: 'render',
+              label: 'Render',
+              value: s.render ? (
+                <span>
+                  <When iso={s.render.created_at} />
+                  {' · '}
+                  <Txt text={s.render.theme} />
+                </span>
+              ) : s.render_failed ? (
+                'the last one failed'
+              ) : (
+                'none yet'
+              ),
+            },
             { key: 'review', label: 'Review', value: review ? <StatusMark state={review.state} word={review.words} /> : 'none yet' },
             {
               key: 'location',
@@ -331,7 +377,14 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
     location.hash = hrefTo(productionRoute(slug, name));
   };
 
-  if (view.state === 'loading') return <div className="sc-screen"><p className="sc-quiet" role="status">Loading the project…</p></div>;
+  if (view.state === 'loading')
+    return (
+      <div className="sc-screen">
+        <p className="sc-quiet" role="status">
+          Loading the project…
+        </p>
+      </div>
+    );
   if (view.state === 'error') {
     return (
       <div className="sc-screen">
@@ -357,7 +410,19 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
           </span>
           <div className="pr-tools">
             <Toolbar label="Productions">
-              <TextField label="Search productions" type="search" value={query} onChange={setQuery} unsaved={null} placeholder="Search" layout="inline" labelHidden maxLength={200} autoComplete="off" spellCheck={false} />
+              <TextField
+                label="Search productions"
+                type="search"
+                value={query}
+                onChange={setQuery}
+                unsaved={null}
+                placeholder="Search"
+                layout="inline"
+                labelHidden
+                maxLength={200}
+                autoComplete="off"
+                spellCheck={false}
+              />
               <Select label="Sort" value={sort} options={SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }))} onChange={(v) => setSort(v as BoardSort)} layout="inline" />
               <LinkButton to={{ name: 'record', slug }} variant="primary" icon="plus" testId="record-link">
                 New scenario
@@ -380,7 +445,11 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
           </div>
         )}
         {board?.truncated && <p className="sc-quiet">{shown(`The first ${board.truncated.shown} of ${board.truncated.total} scenarios are shown.`)}</p>}
-        {boardState.state === 'loading' && <p className="sc-quiet" role="status">Loading the productions…</p>}
+        {boardState.state === 'loading' && (
+          <p className="sc-quiet" role="status">
+            Loading the productions…
+          </p>
+        )}
         {boardState.state === 'error' && (
           <p role="alert">
             {'The productions could not be read: '}
@@ -388,11 +457,22 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
           </p>
         )}
         {board && all.length === 0 && (
-          <EmptyState title="No scenario yet" actions={<LinkButton to={{ name: 'record', slug }} variant="primary">Record a scenario</LinkButton>}>
+          <EmptyState
+            title="No scenario yet"
+            actions={
+              <LinkButton to={{ name: 'record', slug }} variant="primary">
+                Record a scenario
+              </LinkButton>
+            }
+          >
             Record one in the browser, or ask Claude to write it.
           </EmptyState>
         )}
-        {board && all.length > 0 && shownList.length === 0 && <p className="sc-quiet" data-testid="productions-empty">{query ? 'No production matches the search.' : 'No production in this group.'}</p>}
+        {board && all.length > 0 && shownList.length === 0 && (
+          <p className="sc-quiet" data-testid="productions-empty">
+            {query ? 'No production matches the search.' : 'No production in this group.'}
+          </p>
+        )}
         {shownList.length > 0 && (
           <PosterGrid
             label={title}

@@ -178,13 +178,7 @@ export function proposalSummary(p: CommentProposal, state: ProposalState, action
   return { state, actionable, delta: p.delta, added: st.added, removed: st.removed, hunks: p.hunks.length, base_sha256: p.base_sha256, result_sha256: p.result_sha256 };
 }
 
-export async function threadView(
-  projectDir: string,
-  thread: CommentThread,
-  hash: string,
-  renders: readonly StoredRenderRecord[],
-  texts: TextCache = new Map(),
-): Promise<CommentView> {
+export async function threadView(projectDir: string, thread: CommentThread, hash: string, renders: readonly StoredRenderRecord[], texts: TextCache = new Map()): Promise<CommentView> {
   const { status, resolution } = deriveStatus(thread.entries);
   const { anchor, untrusted: badAnchor } = trustedAnchor(thread.anchor);
   let stepNow: string | null | undefined;
@@ -507,9 +501,7 @@ export class CommentIndex {
         const r = await readThread(projectDir, { scenario, id, ref: commentRef(scenario, id), path });
         got = {
           sig,
-          summary: r.ok
-            ? { id, scenario, render_id: r.thread.render.id, render_created_at: r.thread.render.created_at, frame: r.thread.frame, status: deriveStatus(r.thread.entries).status }
-            : null,
+          summary: r.ok ? { id, scenario, render_id: r.thread.render.id, render_created_at: r.thread.render.created_at, frame: r.thread.frame, status: deriveStatus(r.thread.entries).status } : null,
         };
       }
       next.set(name, got);
@@ -529,7 +521,10 @@ export class CommentIndex {
     else {
       const root = join(project.dir, COMMENTS_DIR);
       if ((await realDir(root)) !== 'ok') return out;
-      folders = (await readdir(root)).filter((n) => SLUG_RE.test(n)).sort().slice(0, COMMENT_COUNT_MAX_FOLDERS);
+      folders = (await readdir(root))
+        .filter((n) => SLUG_RE.test(n))
+        .sort()
+        .slice(0, COMMENT_COUNT_MAX_FOLDERS);
     }
     for (const scenario of folders) {
       const { threads, problems } = await this.ofScenario(project.dir, scenario);

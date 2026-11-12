@@ -69,7 +69,8 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   const prepared = await prepareInspect(ws, project, source, opts.env);
   const runsDir = opts.out !== undefined ? resolve(opts.out) : inspectRoot(project);
   const id = newInspectId();
-  if (!opts.json) ui.setStatus(`inspecting ${source.kind === 'page' ? `page ${source.page} ${source.path}` : `scenario ${source.scenario}${source.until ? ` until ${source.until}` : ''}`} on ${prepared.env}…`);
+  if (!opts.json)
+    ui.setStatus(`inspecting ${source.kind === 'page' ? `page ${source.page} ${source.path}` : `scenario ${source.scenario}${source.until ? ` until ${source.until}` : ''}`} on ${prepared.env}…`);
   let run;
   try {
     // The inspection, the older ones of the project pruned (not with --out), then its line of the workspace's history.
@@ -95,7 +96,15 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   }
   const r = run.report;
   if (opts.json) {
-    ui.result(JSON.stringify(r ? { ...r, marked: run.marked } : { reported: false, run_status: run.record.status, dir: run.record.dir, ...(run.signIn ? { sign_in: run.signIn } : {}), error: run.record.error?.message ?? null }, null, 1));
+    ui.result(
+      JSON.stringify(
+        r
+          ? { ...r, marked: run.marked }
+          : { reported: false, run_status: run.record.status, dir: run.record.dir, ...(run.signIn ? { sign_in: run.signIn } : {}), error: run.record.error?.message ?? null },
+        null,
+        1,
+      ),
+    );
     return r?.status === 'ok' ? EXIT.ok : EXIT.failure;
   }
   if (!r) {
@@ -116,7 +125,16 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   for (const p of r.popups) ui.line(`${c.yellow('▣')} ${p.kind} open${p.untrusted.name ? `: ${p.untrusted.name}` : ''}`);
   for (const e of r.elements) {
     const t = e.untrusted.target_yaml ?? c.dim('(no verified target)');
-    const flags = [e.in !== 'page' ? `in ${e.in}` : '', e.in_view ? '' : 'below the fold', e.fragile.length ? `fragile: ${e.fragile.join(',')}` : '', e.matches > 1 ? `${e.matches} matches` : '', e.state.disabled ? 'disabled' : '', e.state.covered ? 'covered (not marked)' : ''].filter(Boolean).join(' · ');
+    const flags = [
+      e.in !== 'page' ? `in ${e.in}` : '',
+      e.in_view ? '' : 'below the fold',
+      e.fragile.length ? `fragile: ${e.fragile.join(',')}` : '',
+      e.matches > 1 ? `${e.matches} matches` : '',
+      e.state.disabled ? 'disabled' : '',
+      e.state.covered ? 'covered (not marked)' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
     ui.line(`${String(e.mark).padStart(3)}  ${e.action.padEnd(9)} ${t}${flags ? `  ${c.dim(flags)}` : ''}`);
   }
   for (const t of r.targets_checked) ui.line(`${c.dim(`target ${t.index + 1}:`)} ${t.count === 1 ? c.green('1 match') : c.red(`${t.count} matches`)} ${c.dim(t.untrusted.desc)}`);
@@ -128,4 +146,3 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   );
   return EXIT.ok;
 }
-

@@ -185,7 +185,8 @@ export class LocalStorage implements Storage {
       throw e;
     }
     const fix = { fix: `replace it with a regular file inside ${this.root}` };
-    if (!pathInside(real, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${path} leads out of ${this.folder} (a symbolic link): not read`, { ...fix, details: { reason: 'link_out' } });
+    if (!pathInside(real, realRoot, { dotDotPrefix: true }))
+      throw new EngineError('refused', `${path} leads out of ${this.folder} (a symbolic link): not read`, { ...fix, details: { reason: 'link_out' } });
     const r = readPlainFile(real, max);
     if (r.ok) return r.bytes;
     switch (r.reason) {
@@ -252,7 +253,9 @@ export class LocalStorage implements Storage {
    */
   private async lockWrite(ref: string, target: string): Promise<TakeLock> {
     const [realRoot, realDir, realFile] = await Promise.all([realpath(this.root), realpath(dirname(target)), realpath(target).catch(() => null)]);
-    const key = relative(realRoot, realFile ?? join(realDir, basename(target))).split(sep).join('/');
+    const key = relative(realRoot, realFile ?? join(realDir, basename(target)))
+      .split(sep)
+      .join('/');
     return takeProjectLock(this.root, `write-${sha256Hex(key).slice(0, 24)}.lock`, {
       command: `write ${key}`.slice(0, 200),
       what: ref,
@@ -315,4 +318,3 @@ export class LocalStorage implements Storage {
     }
   }
 }
-

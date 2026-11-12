@@ -110,37 +110,42 @@ function load(e: Entry): void {
   e.inflight = true;
   e.lastAt = Date.now();
   actionReads.count++;
-  scenarioActions({ project: e.slug, name: e.name, ...(e.env ? { env: e.env } : {}) }).then(
-    (data) => {
-      e.backoff = 0;
-      settlePending(e.slug, e.name, data);
-      setState(e, { state: 'ready', data });
-    },
-    (err: unknown) => {
-      if (err instanceof SessionEnded) return;
-      e.backoff = e.backoff === 0 ? ERROR_RETRY_MS : Math.min(e.backoff * 2, ERROR_RETRY_MAX_MS);
-      setState(e, { state: 'error', error: errorText(err), ...(err instanceof CallError ? { code: err.error.code } : {}) });
-    },
-  ).finally(() => {
-    e.inflight = false;
-    if (e.again) {
-      e.again = false;
-      load(e);
-    } else if (e.state.state === 'error' && e.users > 0 && e.retry === null) {
-      e.retry = window.setTimeout(() => {
-        e.retry = null;
-        if (e.users > 0) load(e);
-      }, e.backoff);
-    }
-  });
+  scenarioActions({ project: e.slug, name: e.name, ...(e.env ? { env: e.env } : {}) })
+    .then(
+      (data) => {
+        e.backoff = 0;
+        settlePending(e.slug, e.name, data);
+        setState(e, { state: 'ready', data });
+      },
+      (err: unknown) => {
+        if (err instanceof SessionEnded) return;
+        e.backoff = e.backoff === 0 ? ERROR_RETRY_MS : Math.min(e.backoff * 2, ERROR_RETRY_MAX_MS);
+        setState(e, { state: 'error', error: errorText(err), ...(err instanceof CallError ? { code: err.error.code } : {}) });
+      },
+    )
+    .finally(() => {
+      e.inflight = false;
+      if (e.again) {
+        e.again = false;
+        load(e);
+      } else if (e.state.state === 'error' && e.users > 0 && e.retry === null) {
+        e.retry = window.setTimeout(() => {
+          e.retry = null;
+          if (e.users > 0) load(e);
+        }, e.backoff);
+      }
+    });
 }
 
 function throttled(e: Entry, ms: number): void {
   if (e.timer !== null) return;
-  e.timer = window.setTimeout(() => {
-    e.timer = null;
-    if (e.users > 0) load(e);
-  }, Math.max(0, e.lastAt + ms - Date.now()));
+  e.timer = window.setTimeout(
+    () => {
+      e.timer = null;
+      if (e.users > 0) load(e);
+    },
+    Math.max(0, e.lastAt + ms - Date.now()),
+  );
 }
 
 const LOADING: Loaded<never> = { state: 'loading' };
@@ -462,15 +467,17 @@ export function startRender(o: { slug: string; name: string; run: string; hash: 
 
 /** Stop a run of a job (its teardown and rollbacks still run). */
 export function stopRun(o: { slug: string; name: string; run: string; mode: string; say: (s: string) => void; onDone?: () => void }): void {
-  runCancel({ project: o.slug, run_id: o.run }).then(
-    () => {
-      o.say(`Stopping the ${modeWord(o.mode, true)} of ${o.name}: its teardown and rollbacks still run`);
-      o.onDone?.();
-    },
-    (e: unknown) => {
-      if (!(e instanceof SessionEnded)) o.say(`Not stopped: ${errorText(e).split('\n')[0].slice(0, 200)}`);
-    },
-  ).finally(() => reloadActions(o.slug, o.name));
+  runCancel({ project: o.slug, run_id: o.run })
+    .then(
+      () => {
+        o.say(`Stopping the ${modeWord(o.mode, true)} of ${o.name}: its teardown and rollbacks still run`);
+        o.onDone?.();
+      },
+      (e: unknown) => {
+        if (!(e instanceof SessionEnded)) o.say(`Not stopped: ${errorText(e).split('\n')[0].slice(0, 200)}`);
+      },
+    )
+    .finally(() => reloadActions(o.slug, o.name));
 }
 
 /** Pause (before the next step) or resume a run of a job. */

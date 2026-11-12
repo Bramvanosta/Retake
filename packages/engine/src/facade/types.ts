@@ -40,7 +40,19 @@ import type { TemplateDetail, TemplateListView } from '../templates.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import type { PlanPreviewView, RenderStatusView, ScenarioRendersView } from '../renders.js';
 import type { SandboxSubmitRequest } from '../jobs/sandbox-job.js';
-import type { CommentAddRequest, CommentAdded, CommentAnchorRequest, CommentAnchorView, CommentApplied, CommentCountsView, CommentListRequest, CommentListView, CommentProposalView, CommentView, CommentWritten } from '../comments.js';
+import type {
+  CommentAddRequest,
+  CommentAdded,
+  CommentAnchorRequest,
+  CommentAnchorView,
+  CommentApplied,
+  CommentCountsView,
+  CommentListRequest,
+  CommentListView,
+  CommentProposalView,
+  CommentView,
+  CommentWritten,
+} from '../comments.js';
 import type { ProposalInput } from '../comment-proposals.js';
 import type { RenderFrameRequest, RenderFrameView, RenderOutlineRequest, RenderOutlineView } from '../render-frames.js';
 import type { Entitlements } from '../entitlements.js';
@@ -282,7 +294,15 @@ export interface Engine {
      * human (trust `mcp`: destructive ones whatever `confirm` says, every shell hook) are asked through `approver`;
      * without one, or when not approved, the submit is refused with the `retake` command a human runs.
      */
-    submit(req: RunSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; run_id: string; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } } }>;
+    submit(
+      req: RunSubmitRequest,
+      o?: { approver?: Approver },
+    ): Promise<{
+      job: JobRecord;
+      run_id: string;
+      warnings: string[];
+      worker?: { pid?: number; spawned: boolean /** L5.16c: the live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
+    }>;
     /** Cancel the job of a run (teardown and rollbacks still run). A run started from the CLI is refused. */
     cancel(project: string, runId: string): Promise<JobRecord>;
     /**
@@ -343,9 +363,19 @@ export interface Engine {
      * once with the reserved render id; `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as plan_preview's;
      * `passed_over`, `until` and `untrusted.passed_over` when the run was picked as the latest capture (as plan_preview's).
      */
-    submit(
-      req: RenderRequest,
-    ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } }; untrusted?: { passed_over: PassedOverRuns } } & RenderEditSource & LatestRunNotice>;
+    submit(req: RenderRequest): Promise<
+      {
+        job: JobRecord;
+        render_id: string;
+        run_id: string;
+        variant: string;
+        duration_s: number;
+        warnings: string[];
+        worker?: { pid?: number; spawned: boolean /** L5.16c: the live worker runs another copy of Retake (the lock's text). */; other?: { version: string; engine?: string } };
+        untrusted?: { passed_over: PassedOverRuns };
+      } & RenderEditSource &
+        LatestRunNotice
+    >;
     /** A render's status: its newest job first, then renders/<id>.json. `latest` (of `scenario`) names the newest. */
     status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
     /**
@@ -375,7 +405,9 @@ export interface Engine {
      * Queue a review of a render (its video and run must lie in the project; `latest` is resolved now — the answer then
      * says how many newer files of renders/ it passed over, their names under `untrusted`).
      */
-    submit(req: ReviewRequest): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean }; untrusted?: { renders_passed_over: PassedOverRenders } } & LatestRenderNotice>;
+    submit(
+      req: ReviewRequest,
+    ): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean }; untrusted?: { renders_passed_over: PassedOverRenders } } & LatestRenderNotice>;
     /** A render's review: its newest job, then review/<id>/report.json (paths rebuilt from the folder, messages untrusted). */
     get(project: string, renderId: string, o?: { scenario?: string; images?: ReviewImagesMode }): Promise<ReviewView>;
     /**
@@ -389,7 +421,16 @@ export interface Engine {
      * Queue an export of a render to delivery formats (exports/<id>/; re-rendered formats are planned and checked first).
      * With `latest`: the answer says how many newer files of renders/ it passed over, their names under `untrusted`.
      */
-    submit(req: ExportRequest): Promise<{ job: JobRecord; render_id: string; formats: string[]; rerendered: string[]; worker?: { pid?: number; spawned: boolean }; untrusted?: { renders_passed_over: PassedOverRenders } } & LatestRenderNotice>;
+    submit(req: ExportRequest): Promise<
+      {
+        job: JobRecord;
+        render_id: string;
+        formats: string[];
+        rerendered: string[];
+        worker?: { pid?: number; spawned: boolean };
+        untrusted?: { renders_passed_over: PassedOverRenders };
+      } & LatestRenderNotice
+    >;
   };
   templates: {
     /** Workspace and starter themes with their component per kind (with `project`: which one is its own). */

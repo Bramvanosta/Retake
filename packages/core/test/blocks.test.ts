@@ -11,7 +11,21 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ACTION_NAMES, CHIP_KINDS, STEP_CATEGORIES, actionCategory, hookSummary, listSteps, parseScenario, parseYaml, plainTarget, scenarioBlocks, stepChips, stripUrlUserinfo, PERSON_POLICY } from '@retake/core';
+import {
+  ACTION_NAMES,
+  CHIP_KINDS,
+  STEP_CATEGORIES,
+  actionCategory,
+  hookSummary,
+  listSteps,
+  parseScenario,
+  parseYaml,
+  plainTarget,
+  scenarioBlocks,
+  stepChips,
+  stripUrlUserinfo,
+  PERSON_POLICY,
+} from '@retake/core';
 import { loadProject, loadProjectTemplate, fileFacts } from '@retake/core/io';
 import type { EntryBlock, HookBlock, ScenarioBlocks, SceneBlock, StepBlock } from '@retake/core';
 
@@ -53,7 +67,9 @@ function entryLines(e: EntryBlock): string[] {
       const s = e as SceneBlock;
       const facts = [
         s.page !== undefined ? `page ${s.page}${s.page_inherited ? ' (inherited)' : ''}` : undefined,
-        s.pages ? `pages ${s.pages.map((p) => [p.id, p.page && `page ${p.page}`, p.open && `open ${p.open}`, p.viewport, p.label && `“${p.label}”`, p.persona && `as ${p.persona}`].filter(Boolean).join(' ')).join(' | ')}` : undefined,
+        s.pages
+          ? `pages ${s.pages.map((p) => [p.id, p.page && `page ${p.page}`, p.open && `open ${p.open}`, p.viewport, p.label && `“${p.label}”`, p.persona && `as ${p.persona}`].filter(Boolean).join(' ')).join(' | ')}`
+          : undefined,
         s.open !== undefined ? `open ${s.open}` : undefined,
         s.continues ? 'continues' : undefined,
         s.persona ? `persona ${s.persona}` : undefined,
@@ -76,7 +92,10 @@ function entryLines(e: EntryBlock): string[] {
           `card ${e.id} ${rangeText(e.range)} · ${[
             e.component,
             e.file && `${e.file.kind} ${e.file.path}`,
-            e.slots && `slots ${Object.entries(e.slots).map(([k, v]) => `${k}=“${v}”`).join(', ')}`,
+            e.slots &&
+              `slots ${Object.entries(e.slots)
+                .map(([k, v]) => `${k}=“${v}”`)
+                .join(', ')}`,
             e.params !== undefined && `params ${JSON.stringify(e.params)}`,
             e.duration !== undefined && `${e.duration} s`,
             e.transition && `transition ${e.transition}`,
@@ -88,7 +107,9 @@ function entryLines(e: EntryBlock): string[] {
       ];
     case 'interstitial':
       return [
-        ...head(`interstitial ${e.id} ${rangeText(e.range)} · ${[e.kicker && `“${e.kicker}”`, e.text && `“${e.text}”`, e.component, e.file && `${e.file.kind} ${e.file.path}`, e.duration !== undefined && `${e.duration} s`].filter(Boolean).join(' · ')}`),
+        ...head(
+          `interstitial ${e.id} ${rangeText(e.range)} · ${[e.kicker && `“${e.kicker}”`, e.text && `“${e.text}”`, e.component, e.file && `${e.file.kind} ${e.file.path}`, e.duration !== undefined && `${e.duration} s`].filter(Boolean).join(' · ')}`,
+        ),
         ...issuesText(e.issues, '  '),
       ];
     case 'unknown':
@@ -390,7 +411,11 @@ scenes:
       summary: 'DELETE FROM quotes … (database main)',
       rollback: 'hooks/undo.sql',
     });
-    expect(hookSummary({ shell: { run: './scripts/seed.sh --fast\necho done', rollback: './scripts/unseed.sh' } })).toEqual({ kind: 'shell', summary: './scripts/seed.sh --fast …', rollback: './scripts/unseed.sh' });
+    expect(hookSummary({ shell: { run: './scripts/seed.sh --fast\necho done', rollback: './scripts/unseed.sh' } })).toEqual({
+      kind: 'shell',
+      summary: './scripts/seed.sh --fast …',
+      rollback: './scripts/unseed.sh',
+    });
     expect(hookSummary({ js: { file: 'hooks/prime.js', page: 'console' } })).toEqual({ kind: 'js', summary: 'hooks/prime.js (on page console)' });
     expect(hookSummary({ name: 'x' })).toEqual({ summary: 'unknown hook' });
     expect(hookSummary(7)).toEqual({ summary: 'not a hook' });
@@ -455,14 +480,22 @@ scenes:
     expect(b.issues[0].line).toBeGreaterThan(1);
   });
 
-  it.each(['', 'null', '[]', '42', '"text"', 'scenes: 3', 'scenes: [null, [], {card: 3}, {interstitial: null}]', 'video: x\nscenes:\n  - id: a\n    steps: [{click: null}, {drag: null}, {download: 3}, {cursor: 5}, {scroll: {to: null}}, {pick: {field: 1, option: {}}}]', 'setup: 3\nteardown: [null, {http: 3}, {sql: {}}, {shell: {}}, {js: 4}]', '{video: [1], title: 3, intro: [], outro: {url: 3}, music: 2, clock: {}, capture: 1, vars: []}'])(
-    'never throws: %j',
-    (text) => {
-      const b = blocksOf(text);
-      expect(b).toHaveProperty('entries');
-      expect(Array.isArray(b.issues)).toBe(true);
-    },
-  );
+  it.each([
+    '',
+    'null',
+    '[]',
+    '42',
+    '"text"',
+    'scenes: 3',
+    'scenes: [null, [], {card: 3}, {interstitial: null}]',
+    'video: x\nscenes:\n  - id: a\n    steps: [{click: null}, {drag: null}, {download: 3}, {cursor: 5}, {scroll: {to: null}}, {pick: {field: 1, option: {}}}]',
+    'setup: 3\nteardown: [null, {http: 3}, {sql: {}}, {shell: {}}, {js: 4}]',
+    '{video: [1], title: 3, intro: [], outro: {url: 3}, music: 2, clock: {}, capture: 1, vars: []}',
+  ])('never throws: %j', (text) => {
+    const b = blocksOf(text);
+    expect(b).toHaveProperty('entries');
+    expect(Array.isArray(b.issues)).toBe(true);
+  });
 });
 
 describe('hostile text and URLs', () => {
@@ -524,7 +557,9 @@ scenes:
   });
 
   it('a password holding an @ is left out whole; comments lose their user:password@ too (review A #5)', () => {
-    expect(stripUrlUserinfo('https://u:p@ss@h.example/x and https://u:pa/ss@h.example/ and https://h.example/a@b')).toBe('https://h.example/x and https://u:pa/ss@h.example/ and https://h.example/a@b');
+    expect(stripUrlUserinfo('https://u:p@ss@h.example/x and https://u:pa/ss@h.example/ and https://h.example/a@b')).toBe(
+      'https://h.example/x and https://u:pa/ss@h.example/ and https://h.example/a@b',
+    );
     const text = `# yaml-language-server: $schema=https://admin:hunter2@schemas.example.test/s.json
 # -*- mode: yaml -*-
 
@@ -586,7 +621,12 @@ scenes:
 
   it('a billion-laughs document is refused fast (maxAliasCount)', () => {
     const lol = ['a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]'];
-    for (let i = 1; i < 9; i++) lol.push(`${String.fromCharCode(97 + i)}: &${String.fromCharCode(97 + i)} [${Array(9).fill(`*${String.fromCharCode(96 + i)}`).join(',')}]`);
+    for (let i = 1; i < 9; i++)
+      lol.push(
+        `${String.fromCharCode(97 + i)}: &${String.fromCharCode(97 + i)} [${Array(9)
+          .fill(`*${String.fromCharCode(96 + i)}`)
+          .join(',')}]`,
+      );
     const text = `${lol.join('\n')}\nvideo: x\nscenes: *i\n`;
     const t0 = performance.now();
     const b = blocksOf(text);

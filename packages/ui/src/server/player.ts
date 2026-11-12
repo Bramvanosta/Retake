@@ -237,8 +237,14 @@ function realOrUndefined(p: string): string | undefined {
 
 /** The file's name as served: its base name in URL-safe characters (the content type comes from its extension). */
 export function servedName(file: string): string {
-  const ext = extname(file).toLowerCase().replace(/[^a-z0-9.]/g, '').slice(0, 10);
-  const stem = basename(file, extname(file)).replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 60) || 'file';
+  const ext = extname(file)
+    .toLowerCase()
+    .replace(/[^a-z0-9.]/g, '')
+    .slice(0, 10);
+  const stem =
+    basename(file, extname(file))
+      .replace(/[^A-Za-z0-9_-]+/g, '_')
+      .slice(0, 60) || 'file';
   return `${stem}${ext}`;
 }
 
@@ -308,10 +314,13 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     if (!sc) return undefined;
     const real = realOrUndefined(file);
     if (!real) return undefined;
-    if (!within.some((d) => {
-      const r = realOrUndefined(d);
-      return r !== undefined && pathInside(real, r, { self: false, dotDotPrefix: true });
-    })) return undefined;
+    if (
+      !within.some((d) => {
+        const r = realOrUndefined(d);
+        return r !== undefined && pathInside(real, r, { self: false, dotDotPrefix: true });
+      })
+    )
+      return undefined;
     try {
       // The path given is no link (its folders may be: the real path is what is read, then never through a link).
       if (lstatSync(file).isSymbolicLink()) return undefined;
@@ -389,20 +398,26 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     const path = g.path;
     let m = FRAME_PATH.exec(path);
     if (m) {
-      if (!scopeOfCap(m[1])) return (notFound(res), 'frame');
+      if (!scopeOfCap(m[1])) return notFound(res), 'frame';
       const b = await o.bundle();
       const sc = scopeOfCap(m[1]);
-      if (!sc) return (notFound(res), 'frame');
+      if (!sc) return notFound(res), 'frame';
       const html = Buffer.from(frameHtml(sc.cap, b.hash, o.studioPort), 'utf8');
-      res.writeHead(200, { ...COMMON_HEADERS, 'Content-Security-Policy': frameCsp(origin, sc.cap, o.studioPort), 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': String(html.length) });
+      res.writeHead(200, {
+        ...COMMON_HEADERS,
+        'Content-Security-Policy': frameCsp(origin, sc.cap, o.studioPort),
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Content-Length': String(html.length),
+      });
       res.end(req.method === 'HEAD' ? undefined : html);
       return 'frame';
     }
     m = SCRIPT_PATH.exec(path);
     if (m) {
-      if (!scopeOfCap(m[1])) return (notFound(res), 'script');
+      if (!scopeOfCap(m[1])) return notFound(res), 'script';
       const b = await o.bundle();
-      if (b.hash !== m[3] || !scopeOfCap(m[1])) return (notFound(res), 'script');
+      if (b.hash !== m[3] || !scopeOfCap(m[1])) return notFound(res), 'script';
       const body = m[2] === 'b' ? b.js : b.boot;
       res.writeHead(200, { ...COMMON_HEADERS, 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'private, max-age=86400, immutable', 'Content-Length': String(body.length) });
       res.end(req.method === 'HEAD' ? undefined : body);
@@ -411,7 +426,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     m = PLAN_PATH.exec(path);
     if (m) {
       const body = scopeOfCap(m[1])?.plans.get(m[2]);
-      if (!body) return (notFound(res), 'plan');
+      if (!body) return notFound(res), 'plan';
       res.writeHead(200, { ...COMMON_HEADERS, ...MEDIA_HEADERS, 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(body.length) });
       res.end(req.method === 'HEAD' ? undefined : body);
       return 'plan';
@@ -419,7 +434,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     m = FILE_PATH.exec(path);
     if (m) {
       const rec = scopeOfCap(m[1])?.files.get(m[2]);
-      if (!rec || rec.name !== m[3]) return (notFound(res), 'media');
+      if (!rec || rec.name !== m[3]) return notFound(res), 'media';
       await serveFile(req, res, rec, m[2]);
       return 'media';
     }

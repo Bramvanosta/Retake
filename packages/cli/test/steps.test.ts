@@ -11,7 +11,11 @@ function display(interactive: boolean) {
   const err: string[] = [];
   let t = Date.UTC(2026, 0, 1, 10, 0, 0);
   const ui = new Ui({ out: () => undefined, err: (s) => err.push(s), interactive, canPrompt: false, color: false });
-  const steps = new StepDisplay(ui, () => t, () => 60);
+  const steps = new StepDisplay(
+    ui,
+    () => t,
+    () => 60,
+  );
   return { err, steps, wait: (ms: number) => (t += ms) };
 }
 
@@ -31,7 +35,10 @@ describe('StepDisplay', () => {
     expect(lines[3]).toMatch(/start done \(41\.0 s\)$/);
     expect(err.join('')).not.toContain('pnpm install');
     expect(steps.summary()).toBe('build 3 m 02 s · start 41.0 s');
-    expect(steps.times()).toEqual([{ name: 'build', ms: 182_000 }, { name: 'start', ms: 41_000 }]);
+    expect(steps.times()).toEqual([
+      { name: 'build', ms: 182_000 },
+      { name: 'start', ms: 41_000 },
+    ]);
   });
 
   it('a terminal: one live line (the step, its time, the last note, cut to the width), replaced by a ✓ line; a failed step gets ✗', () => {
@@ -53,7 +60,13 @@ describe('StepDisplay', () => {
 
 describe('docker compose up --build: where the build ends', () => {
   it('a network, volume or container line starts the start step; image and BuildKit lines do not', () => {
-    for (const l of [' Container shop-sandbox-api-1 Creating ', ' Network shop-sandbox_default Created', ' Container shop-sandbox-db-1 Healthy ', ' ✔ Container shop-api-1  Started', ' Volume shop_pgdata Creating']) {
+    for (const l of [
+      ' Container shop-sandbox-api-1 Creating ',
+      ' Network shop-sandbox_default Created',
+      ' Container shop-sandbox-db-1 Healthy ',
+      ' ✔ Container shop-api-1  Started',
+      ' Volume shop_pgdata Creating',
+    ]) {
       expect(STARTING_LINE.test(l), l).toBe(true);
     }
     for (const l of [' Image shop-sandbox-api:1 Building ', '#12 [api 5/9] RUN pnpm install', ' Image shop-sandbox-api:1 Built ', '#3 [api internal] load build definition from Dockerfile', '']) {

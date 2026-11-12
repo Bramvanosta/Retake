@@ -290,7 +290,17 @@ function foldEvent(s: RunLiveState, source: string, seq: number, ev: Record<stri
     case 'outline': {
       if (!Array.isArray(ev.steps)) return s;
       const steps = ev.steps.map(obj).filter((o) => str(o.scene) && int(o.step) && str(o.action));
-      return { ...s, outline: steps.map((o) => ({ scene: o.scene as string, step: o.step as number, action: o.action as string, desc: str(o.desc) ? o.desc : '', ...(o.offscreen === true ? { offscreen: true as const } : {}) })), outlineTruncated: ev.truncated === true };
+      return {
+        ...s,
+        outline: steps.map((o) => ({
+          scene: o.scene as string,
+          step: o.step as number,
+          action: o.action as string,
+          desc: str(o.desc) ? o.desc : '',
+          ...(o.offscreen === true ? { offscreen: true as const } : {}),
+        })),
+        outlineTruncated: ev.truncated === true,
+      };
     }
     case 'session': {
       if (!str(ev.persona) || !str(ev.status)) return s;

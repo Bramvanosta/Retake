@@ -39,9 +39,13 @@ export function recordApi(ctx: EngineContext): Engine['record'] {
       const once = async () => {
         const busy = (await queue.list({ kinds: ['record'], states: ['queued', 'running'], limit: 1 }))[0];
         if (busy && busy.input.kind === 'record') {
-          throw new EngineError('conflict', `a recording is already ${busy.state === 'queued' ? 'waiting' : 'open'} in this workspace (project ${busy.input.project}): stop it first — one window at a time`, {
-            details: { job: busy.id, project: busy.input.project, rec_id: busy.input.rec_id },
-          });
+          throw new EngineError(
+            'conflict',
+            `a recording is already ${busy.state === 'queued' ? 'waiting' : 'open'} in this workspace (project ${busy.input.project}): stop it first — one window at a time`,
+            {
+              details: { job: busy.id, project: busy.input.project, rec_id: busy.input.rec_id },
+            },
+          );
         }
         return submitRecordJob(submitCtx, req);
       };

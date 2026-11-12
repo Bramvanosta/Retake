@@ -167,7 +167,7 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
     expect(t.consoleErrors).toEqual([]);
   }, 240_000);
 
-  it('the library and its Create with Claude dialog (focus in, Escape, focus back); a component\'s detail', async () => {
+  it("the library and its Create with Claude dialog (focus in, Escape, focus back); a component's detail", async () => {
     const { page } = t;
     // L5.12c: a card selected — its inspector (facts, Play in the theme, Set as default…, About) beside the grid.
     let r = await station(
@@ -239,12 +239,15 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
     for (const width of [1280, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await settle(page);
-      const m = await page.evaluate(() => ({ sw: document.scrollingElement!.scrollWidth, cw: document.documentElement.clientWidth, legend: Math.max(...[...document.querySelectorAll('legend.sr-only')].map((l) => l.getBoundingClientRect().width)) }));
+      const m = await page.evaluate(() => ({
+        sw: document.scrollingElement!.scrollWidth,
+        cw: document.documentElement.clientWidth,
+        legend: Math.max(...[...document.querySelectorAll('legend.sr-only')].map((l) => l.getBoundingClientRect().width)),
+      }));
       expect(m.sw, `@${width}`).toBeLessThanOrEqual(m.cw);
       expect(m.legend, `@${width}: a hidden legend stays 1 px wide`).toBeLessThanOrEqual(1);
     }
   }, 180_000);
-
 });
 
 describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
@@ -294,7 +297,10 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await page.getByTestId('inspector').waitFor(POLL);
     // Alt+ArrowDown moves it below the next step: the two steps swap in the file, nothing else changes.
     await page.keyboard.press('Alt+ArrowDown');
-    const moved = BITS_TEXT.replace('      - hold: 1\n        mark: first\n      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n', '      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n      - hold: 1\n        mark: first\n');
+    const moved = BITS_TEXT.replace(
+      '      - hold: 1\n        mark: first\n      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n',
+      '      - hold: 0.9\n        camera: {zoom: 1.4, target: cursor, until: step_end}\n      - hold: 1\n        mark: first\n',
+    );
     expect(moved).not.toBe(BITS_TEXT);
     await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(moved);
     // ⌘Z once the move has landed in the view (the file is written before the answer: until the view reloads, an edit
@@ -320,7 +326,9 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     for (let i = 0; i < 6 && (await page.evaluate(() => document.activeElement?.getAttribute('data-value'))) !== 'browser'; i++) await page.keyboard.press('ArrowRight');
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-value'))).toBe('browser');
     await page.keyboard.press(' ');
-    await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(BITS_TEXT.replace('    caption: Every frame carries its number.\n', '    caption: Every frame carries its number.\n    frame: browser\n'));
+    await expect
+      .poll(() => readFile(file, 'utf8'), POLL)
+      .toBe(BITS_TEXT.replace('    caption: Every frame carries its number.\n', '    caption: Every frame carries its number.\n    frame: browser\n'));
     await expect.poll(() => page.getByTestId('timeline').getAttribute('data-hash'), POLL).not.toBe(hash0);
     await expect.poll(() => page.getByTestId('preview').getAttribute('data-loading'), POLL).toBe('no');
     await expect.poll(() => page.getByTestId('tl-undo').isEnabled(), POLL).toBe(true);

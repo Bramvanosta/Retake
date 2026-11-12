@@ -34,14 +34,25 @@ describe('the Renders line', () => {
 
   it('software by choice or by platform: OK, the setting and its source said', () => {
     const chosen = rendersCheck({ policy: mac({ env: { RETAKE_RENDER_GL: 'software' }, workspace: { concurrency: 4 } }), gl: 'software', encoder: 'libx264', concurrency: 4 });
-    expect(chosen).toEqual({ status: 'ok', name: 'Renders', detail: 'software · libx264 CRF 16 · 4 frames at a time · set: gl software ($RETAKE_RENDER_GL), concurrency 4 (retake.yaml render.concurrency)' });
+    expect(chosen).toEqual({
+      status: 'ok',
+      name: 'Renders',
+      detail: 'software · libx264 CRF 16 · 4 frames at a time · set: gl software ($RETAKE_RENDER_GL), concurrency 4 (retake.yaml render.concurrency)',
+    });
     const linux = rendersCheck({ policy: resolveRenderPolicy({ platform: 'linux', cpus: 4 }), gl: 'software', encoder: 'libx264', concurrency: 3 });
     expect(linux).toMatchObject({ status: 'ok', detail: 'software (no GPU path on linux) · libx264 CRF 16 · 3 frames at a time' });
   });
 
   it('a setting that cannot work: FAIL (every render would fail); gpu forced without a GPU: WARN', () => {
     expect(rendersCheck({ error: '$RETAKE_RENDER_GL is "swangle": use auto, gpu, software' })).toMatchObject({ status: 'fail', detail: '$RETAKE_RENDER_GL is "swangle": use auto, gpu, software' });
-    const vt = rendersCheck({ policy: mac({ workspace: { encoder: 'videotoolbox' } }), gl: 'angle', gpu: metal, videotoolbox: { ok: false, error: 'x' }, error: 'VideoToolbox does not encode here (x)', concurrency: 3 });
+    const vt = rendersCheck({
+      policy: mac({ workspace: { encoder: 'videotoolbox' } }),
+      gl: 'angle',
+      gpu: metal,
+      videotoolbox: { ok: false, error: 'x' },
+      error: 'VideoToolbox does not encode here (x)',
+      concurrency: 3,
+    });
     expect(vt.status).toBe('fail');
     const forced = rendersCheck({ policy: mac({ workspace: { gl: 'gpu' } }), gl: 'angle', gpu: { accelerated: false, renderer: 'SwiftShader' }, encoder: 'libx264', concurrency: 3 });
     expect(forced.status).toBe('warn');
@@ -51,26 +62,63 @@ describe('the Renders line', () => {
   it("L7.3 the ffmpeg that encodes the frames: ours named with its version; the library's with the reason when ours was wanted — a WARN only when own was asked by name; nothing more on a line where the library's is the choice", () => {
     const base = { gpu: metal, gl: 'angle' as const, videotoolbox: { ok: true }, encoder: 'h264_videotoolbox' as const, concurrency: 3 };
     const own = rendersCheck({ ...base, policy: mac({ workspace: { ffmpeg: 'own' } }), ffmpeg: { used: 'own', version: '7.1.1' } });
-    expect(own).toEqual({ status: 'ok', name: 'Renders', detail: `GPU (${metal.renderer}) · VideoToolbox H.264 (this machine's ffmpeg 7.1.1) · 3 frames at a time · set: ffmpeg own (retake.yaml render.ffmpeg)` });
-    const software = rendersCheck({ policy: mac({ env: { RETAKE_RENDER_GL: 'software', RETAKE_RENDER_FFMPEG: 'own' } }), gl: 'software', encoder: 'libx264', concurrency: 7, ffmpeg: { used: 'own', version: '7.1.1' } });
-    expect(software).toEqual({ status: 'ok', name: 'Renders', detail: "software · libx264 CRF 16 (this machine's ffmpeg 7.1.1) · 7 frames at a time · set: gl software ($RETAKE_RENDER_GL), ffmpeg own ($RETAKE_RENDER_FFMPEG)" });
+    expect(own).toEqual({
+      status: 'ok',
+      name: 'Renders',
+      detail: `GPU (${metal.renderer}) · VideoToolbox H.264 (this machine's ffmpeg 7.1.1) · 3 frames at a time · set: ffmpeg own (retake.yaml render.ffmpeg)`,
+    });
+    const software = rendersCheck({
+      policy: mac({ env: { RETAKE_RENDER_GL: 'software', RETAKE_RENDER_FFMPEG: 'own' } }),
+      gl: 'software',
+      encoder: 'libx264',
+      concurrency: 7,
+      ffmpeg: { used: 'own', version: '7.1.1' },
+    });
+    expect(software).toEqual({
+      status: 'ok',
+      name: 'Renders',
+      detail: "software · libx264 CRF 16 (this machine's ffmpeg 7.1.1) · 7 frames at a time · set: gl software ($RETAKE_RENDER_GL), ffmpeg own ($RETAKE_RENDER_FFMPEG)",
+    });
     // Asked by name and not usable: renders work (the library's), the line warns and says why.
-    const refused = rendersCheck({ ...base, policy: mac({ workspace: { ffmpeg: 'own' } }), ffmpeg: { used: 'library', version: '4.4.2', note: "this machine's ffmpeg cannot encode renders: it is ffmpeg 4.4.2 (needs 5.1+)" } });
+    const refused = rendersCheck({
+      ...base,
+      policy: mac({ workspace: { ffmpeg: 'own' } }),
+      ffmpeg: { used: 'library', version: '4.4.2', note: "this machine's ffmpeg cannot encode renders: it is ffmpeg 4.4.2 (needs 5.1+)" },
+    });
     expect(refused.status).toBe('warn');
-    expect(refused.detail).toBe(`GPU (${metal.renderer}) · VideoToolbox H.264 (the rendering library's ffmpeg: this machine's ffmpeg cannot encode renders: it is ffmpeg 4.4.2 (needs 5.1+)) · 3 frames at a time · set: ffmpeg own (retake.yaml render.ffmpeg)`);
+    expect(refused.detail).toBe(
+      `GPU (${metal.renderer}) · VideoToolbox H.264 (the rendering library's ffmpeg: this machine's ffmpeg cannot encode renders: it is ffmpeg 4.4.2 (needs 5.1+)) · 3 frames at a time · set: ffmpeg own (retake.yaml render.ffmpeg)`,
+    );
     expect(refused.hint).toMatch(/render ffmpeg: own is set .* they use the rendering library's/);
     // The same under auto: said, no warning (a machine without a usable ffmpeg of its own is ordinary).
     const auto = rendersCheck({ ...base, policy: mac(), ffmpeg: { used: 'library', note: 'no ffmpeg found on this machine' } });
-    expect(auto).toEqual({ status: 'ok', name: 'Renders', detail: `GPU (${metal.renderer}) · VideoToolbox H.264 (the rendering library's ffmpeg: no ffmpeg found on this machine) · 3 frames at a time` });
+    expect(auto).toEqual({
+      status: 'ok',
+      name: 'Renders',
+      detail: `GPU (${metal.renderer}) · VideoToolbox H.264 (the rendering library's ffmpeg: no ffmpeg found on this machine) · 3 frames at a time`,
+    });
     // The library's by choice, or a probe of before L7.3: the line of before.
     const library = rendersCheck({ ...base, policy: mac({ workspace: { ffmpeg: 'library' } }), ffmpeg: { used: 'library' } });
     expect(library).toEqual({ status: 'ok', name: 'Renders', detail: `GPU (${metal.renderer}) · VideoToolbox H.264 · 3 frames at a time · set: ffmpeg library (retake.yaml render.ffmpeg)` });
     expect(rendersCheck({ ...base, policy: mac(), ffmpeg: { used: 'library' } }).detail).toBe(`GPU (${metal.renderer}) · VideoToolbox H.264 · 3 frames at a time`);
     // auto where its rule keeps the library's (the software path, the desktop app): the line of before, no reason to give.
-    const byRule = rendersCheck({ policy: mac({ env: { RETAKE_RENDER_GL: 'software' } }), gl: 'software', encoder: 'libx264', concurrency: 7, ffmpeg: { used: 'library', note: "auto: the rendering library's ffmpeg on the software path", byRule: true } });
+    const byRule = rendersCheck({
+      policy: mac({ env: { RETAKE_RENDER_GL: 'software' } }),
+      gl: 'software',
+      encoder: 'libx264',
+      concurrency: 7,
+      ffmpeg: { used: 'library', note: "auto: the rendering library's ffmpeg on the software path", byRule: true },
+    });
     expect(byRule).toEqual({ status: 'ok', name: 'Renders', detail: 'software · libx264 CRF 16 · 7 frames at a time · set: gl software ($RETAKE_RENDER_GL)' });
     // A warning of the line itself keeps its own hint.
-    const noGpu = rendersCheck({ policy: mac({ workspace: { ffmpeg: 'own' } }), gpu: { accelerated: false, renderer: 'SwiftShader' }, gl: 'software', encoder: 'libx264', concurrency: 7, ffmpeg: { used: 'library', note: 'no ffmpeg found on this machine' } });
+    const noGpu = rendersCheck({
+      policy: mac({ workspace: { ffmpeg: 'own' } }),
+      gpu: { accelerated: false, renderer: 'SwiftShader' },
+      gl: 'software',
+      encoder: 'libx264',
+      concurrency: 7,
+      ffmpeg: { used: 'library', note: 'no ffmpeg found on this machine' },
+    });
     expect(noGpu).toMatchObject({ status: 'warn', hint: expect.stringMatching(/2\.5× the CPU/) });
     expect(noGpu.detail).toMatch(/libx264 CRF 16 \(the rendering library's ffmpeg: no ffmpeg found on this machine\)/);
   });
@@ -91,9 +139,16 @@ describe.skipIf(process.platform !== 'darwin')('the real probe on this Mac', () 
       expect(none.ffmpeg).toEqual({ used: 'library', note: 'no ffmpeg found on this machine' });
       expect(rendersCheck(none)).toMatchObject({ status: 'warn', detail: expect.stringMatching(/\(the rendering library's ffmpeg: no ffmpeg found on this machine\)/) });
       // It does not run the frame encode: said, with the warning of a setting that asked for it by name.
-      const cannot = await probeRenderPath({ workPolicy: PERSON_POLICY, ownEncodes: async () => ({ ok: false, error: 'Unrecognized option' }), own: async () => ({ ok: true, path: '/opt/tools/ffmpeg', facts }) });
+      const cannot = await probeRenderPath({
+        workPolicy: PERSON_POLICY,
+        ownEncodes: async () => ({ ok: false, error: 'Unrecognized option' }),
+        own: async () => ({ ok: true, path: '/opt/tools/ffmpeg', facts }),
+      });
       expect(cannot.ffmpeg).toMatchObject({ used: 'library', note: "this machine's ffmpeg (7.1.1) does not run the frame encode" });
-      expect(rendersCheck(cannot)).toMatchObject({ status: 'warn', detail: expect.stringMatching(/\(the rendering library's ffmpeg: this machine's ffmpeg \(7\.1\.1\) does not run the frame encode\)/) });
+      expect(rendersCheck(cannot)).toMatchObject({
+        status: 'warn',
+        detail: expect.stringMatching(/\(the rendering library's ffmpeg: this machine's ffmpeg \(7\.1\.1\) does not run the frame encode\)/),
+      });
       process.env.RETAKE_RENDER_FFMPEG = 'library';
       const library = await probeRenderPath({ workPolicy: PERSON_POLICY, own: async () => expect.unreachable('ours is not looked at') });
       expect(library.ffmpeg).toEqual({ used: 'library' });
@@ -117,7 +172,9 @@ describe.skipIf(process.platform !== 'darwin')('the real probe on this Mac', () 
       expect(r).toMatchObject({ gl: 'angle', encoder: 'h264_videotoolbox', concurrency: 3, videotoolbox: { ok: true }, gpu: { accelerated: true } });
       const c = rendersCheck(r);
       expect(c.status).toBe('ok');
-      expect(c.detail).toMatch(/^GPU \(.*Metal.*\) · VideoToolbox H\.264 · 3 frames at a time · set: gl auto \(\$RETAKE_RENDER_GL\), encoder auto \(\$RETAKE_RENDER_ENCODER\)(?:, ffmpeg library \(\$RETAKE_RENDER_FFMPEG\))?$/);
+      expect(c.detail).toMatch(
+        /^GPU \(.*Metal.*\) · VideoToolbox H\.264 · 3 frames at a time · set: gl auto \(\$RETAKE_RENDER_GL\), encoder auto \(\$RETAKE_RENDER_ENCODER\)(?:, ffmpeg library \(\$RETAKE_RENDER_FFMPEG\))?$/,
+      );
     } finally {
       process.env.RETAKE_RENDER_GL = saved.gl;
       process.env.RETAKE_RENDER_ENCODER = saved.enc;

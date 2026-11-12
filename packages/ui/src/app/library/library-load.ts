@@ -383,10 +383,13 @@ export class RenderPump {
     // A pending debounce keeps its time unless something changed on screen or was asked just now.
     if (this.cancel && !restart && !now) return;
     this.cancel?.();
-    this.cancel = this.timer(() => {
-      this.cancel = null;
-      this.fire();
-    }, now ? RENDER_URGENT_MS : this.debounceMs);
+    this.cancel = this.timer(
+      () => {
+        this.cancel = null;
+        this.fire();
+      },
+      now ? RENDER_URGENT_MS : this.debounceMs,
+    );
   }
 
   /** The debounce ran out (plan cancels it whenever the pump may not send: hidden, busy, sending, refused). */

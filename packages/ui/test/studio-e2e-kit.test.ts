@@ -87,22 +87,33 @@ const gallery = async (p = page) => {
   await p.getByTestId('gallery').waitFor(POLL);
   expect(await p.locator('dialog[open]').count()).toBe(0);
 };
-const focused = (p = page) => p.evaluate(() => {
-  const a = document.activeElement as HTMLElement | null;
-  return a ? `${a.tagName.toLowerCase()}:${a.getAttribute('role') ?? ''}:${(a.textContent ?? '').trim().slice(0, 40) || (a as HTMLInputElement).value || ''}` : 'none';
-});
+const focused = (p = page) =>
+  p.evaluate(() => {
+    const a = document.activeElement as HTMLElement | null;
+    return a ? `${a.tagName.toLowerCase()}:${a.getAttribute('role') ?? ''}:${(a.textContent ?? '').trim().slice(0, 40) || (a as HTMLInputElement).value || ''}` : 'none';
+  });
 /** How far the mode switch's middle is from the window's (px). */
-const centreOffset = (p: Page) => p.evaluate(() => {
-  const r = document.querySelector('.sh-titlebar-centre')!.getBoundingClientRect();
-  return Math.abs(r.left + r.width / 2 - document.documentElement.clientWidth / 2);
-});
-const look = (p: Page, sel: string, prop: string) => p.locator(sel).first().evaluate((el, pr) => getComputedStyle(el).getPropertyValue(pr).trim(), prop);
+const centreOffset = (p: Page) =>
+  p.evaluate(() => {
+    const r = document.querySelector('.sh-titlebar-centre')!.getBoundingClientRect();
+    return Math.abs(r.left + r.width / 2 - document.documentElement.clientWidth / 2);
+  });
+const look = (p: Page, sel: string, prop: string) =>
+  p
+    .locator(sel)
+    .first()
+    .evaluate((el, pr) => getComputedStyle(el).getPropertyValue(pr).trim(), prop);
 
 describe('⚑ appearance (L5.9 part E)', () => {
-  it('dark with no preference or dark, light when the system asks — live, no reload; a scope keeps its own; the kit\'s ring is --ui-ring', async () => {
+  it("dark with no preference or dark, light when the system asks — live, no reload; a scope keeps its own; the kit's ring is --ui-ring", async () => {
     await gallery();
     const nav = await page.evaluate(() => performance.getEntriesByType('navigation').length);
-    for (const [scheme, asked] of [['no-preference', 'dark'], ['dark', 'dark'], ['light', 'light'], ['dark', 'dark']] as const) {
+    for (const [scheme, asked] of [
+      ['no-preference', 'dark'],
+      ['dark', 'dark'],
+      ['light', 'light'],
+      ['dark', 'dark'],
+    ] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       // Chromium cannot say "no preference": it reports the host's appearance instead (a light machine matches light).
       const hostLight = scheme === 'no-preference' && (await page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches));
@@ -117,7 +128,16 @@ describe('⚑ appearance (L5.9 part E)', () => {
     }
     expect(await page.evaluate(() => performance.getEntriesByType('navigation').length)).toBe(nav);
     // The bundled fonts are the ones in use.
-    expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family.replace(/["']/g, '')).sort()))).toEqual(expect.arrayContaining(['Geist']));
+    expect(
+      await page.evaluate(() =>
+        document.fonts.ready.then(() =>
+          [...document.fonts]
+            .filter((f) => f.status === 'loaded')
+            .map((f) => f.family.replace(/["']/g, ''))
+            .sort(),
+        ),
+      ),
+    ).toEqual(expect.arrayContaining(['Geist']));
     // A kit button's focus ring: --ui-ring, 2 px, the control's radius — in a light scope inside a dark page too.
     await page.emulateMedia({ colorScheme: 'dark' });
     const btn = page.getByTestId('scope-light').getByRole('button', { name: 'Rehearse' }).first();
@@ -131,7 +151,7 @@ describe('⚑ appearance (L5.9 part E)', () => {
 });
 
 describe('⚑ L5.12d: reduced motion', () => {
-  it('the gallery under prefers-reduced-motion: reduce — the busy spinner and the indeterminate progress stand still (animation-name none), the switch\'s knob jumps (transition 0s); without it they move', async () => {
+  it("the gallery under prefers-reduced-motion: reduce — the busy spinner and the indeterminate progress stand still (animation-name none), the switch's knob jumps (transition 0s); without it they move", async () => {
     await gallery();
     const motion = () =>
       page.evaluate(() => {
@@ -164,7 +184,7 @@ describe('⚑ L5.12d: reduced motion', () => {
   });
 });
 
-describe('the kit\'s keys (L5.9 part E)', () => {
+describe("the kit's keys (L5.9 part E)", () => {
   it('segmented: arrows move the choice and skip a disabled segment; switch: Space; toolbar: one stop, arrows / Home / End', async () => {
     await gallery();
     const col = page.getByTestId('scope-dark');
@@ -200,7 +220,7 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     expect(await bar.evaluate((el) => el.contains(document.activeElement))).toBe(false);
   });
 
-  it('⚑ a toolbar holding a menu, a segmented control and a URL field: the arrows skip the closed menu\'s items, stay in the open menu, move the radios\' choice and the field\'s caret (review A-M2)', async () => {
+  it("⚑ a toolbar holding a menu, a segmented control and a URL field: the arrows skip the closed menu's items, stay in the open menu, move the radios' choice and the field's caret (review A-M2)", async () => {
     await gallery();
     const col = page.getByTestId('scope-dark');
     const bar = col.getByRole('toolbar', { name: 'Take tools (Dark)' });
@@ -392,24 +412,32 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     const col = page.getByTestId('scope-dark');
     // A dialog's close event is a task of its own that a loaded machine delivers late: hold it back, then let it land.
     type Held = Window & { __hold?: AbortController; __held?: Promise<EventTarget> };
-    const hold = (selector: string) => page.evaluate((sel) => {
-      const w = window as Held;
-      const ac = new AbortController();
-      w.__hold = ac;
-      w.__held = new Promise((resolve) => window.addEventListener('close', (e) => {
-        if (!(e.target as Element).matches(sel)) return;
-        e.stopImmediatePropagation();
-        ac.abort();
-        resolve(e.target!);
-      }, { capture: true, signal: ac.signal }));
-    }, selector);
-    const land = () => page.evaluate(async () => {
-      const w = window as Held;
-      const target = await Promise.race([w.__held!, new Promise<null>((r) => setTimeout(() => r(null), 5000))]);
-      w.__hold!.abort();
-      target?.dispatchEvent(new Event('close'));
-      return target ? (target as HTMLElement).getAttribute('aria-label') ?? (target as HTMLElement).textContent!.slice(0, 17) : 'no close event';
-    });
+    const hold = (selector: string) =>
+      page.evaluate((sel) => {
+        const w = window as Held;
+        const ac = new AbortController();
+        w.__hold = ac;
+        w.__held = new Promise((resolve) =>
+          window.addEventListener(
+            'close',
+            (e) => {
+              if (!(e.target as Element).matches(sel)) return;
+              e.stopImmediatePropagation();
+              ac.abort();
+              resolve(e.target!);
+            },
+            { capture: true, signal: ac.signal },
+          ),
+        );
+      }, selector);
+    const land = () =>
+      page.evaluate(async () => {
+        const w = window as Held;
+        const target = await Promise.race([w.__held!, new Promise<null>((r) => setTimeout(() => r(null), 5000))]);
+        w.__hold!.abort();
+        target?.dispatchEvent(new Event('close'));
+        return target ? ((target as HTMLElement).getAttribute('aria-label') ?? (target as HTMLElement).textContent!.slice(0, 17)) : 'no close event';
+      });
     const discard = col.getByRole('button', { name: 'Discard the take…' });
     const render = col.getByRole('button', { name: 'Render the take…' });
     await hold('dialog[role=alertdialog]');
@@ -625,7 +653,7 @@ describe('the shell (L5.9 part E)', () => {
     expect(page.url()).toMatch(/#\/ui$/);
   });
 
-  it('⚑ L5.12b: the palette (R4-Palette) — its groups in order, an icon per row, the legend; no entry writes (L5.12b fixes, review B-M2: EVERY row run on the Scenario screen — but the Scenario menu\'s Rehearse, Capture, Render and Stop, which act by design — the ops counted); a scene picked on the YAML view goes to its lines (B-L3)', async () => {
+  it("⚑ L5.12b: the palette (R4-Palette) — its groups in order, an icon per row, the legend; no entry writes (L5.12b fixes, review B-M2: EVERY row run on the Scenario screen — but the Scenario menu's Rehearse, Capture, Render and Stop, which act by design — the ops counted); a scene picked on the YAML view goes to its lines (B-L3)", async () => {
     // A tab of its own (the earlier tests' pages hold sheets, palettes and sessions of theirs).
     const page = await open(context);
     const home = `#/p/${P}/s/quote`;
@@ -646,7 +674,7 @@ describe('the shell (L5.9 part E)', () => {
         return real(input, init);
       };
     });
-    const sent = () => page.evaluate(() => [...((window as unknown as { __ops: string[] }).__ops)]);
+    const sent = () => page.evaluate(() => [...(window as unknown as { __ops: string[] }).__ops]);
     const dialog = page.locator('dialog.k-palette[open]');
     const openPalette = async () => {
       await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
@@ -668,7 +696,11 @@ describe('the shell (L5.9 part E)', () => {
       expect(themes.map((t) => t.split('\n')[0])).toEqual(['editorial', 'All themes']);
       expect((await rows('Scenes').allInnerTexts()).length, 'scenes').toBeGreaterThan(0);
       // Every row, by its place in the list (labels repeat across groups): the Scenario menu's four commands act by design.
-      const all = await dialog.getByRole('option').evaluateAll((els) => els.map((el) => ({ group: el.closest('[role="group"]')!.querySelector('.k-palette-heading')!.textContent ?? '', label: el.querySelector('.k-palette-label')!.textContent ?? '' })));
+      const all = await dialog
+        .getByRole('option')
+        .evaluateAll((els) =>
+          els.map((el) => ({ group: el.closest('[role="group"]')!.querySelector('.k-palette-heading')!.textContent ?? '', label: el.querySelector('.k-palette-label')!.textContent ?? '' })),
+        );
       const ACTS = new Set(['Rehearse', 'Capture', 'Render', 'Stop']);
       const run = all.map((r, i) => ({ ...r, i })).filter((r) => !(r.group === 'Commands' && ACTS.has(r.label)));
       expect(all.filter((r) => r.group === 'Commands' && ACTS.has(r.label)).map((r) => r.label)).toEqual(['Rehearse', 'Capture', 'Render', 'Stop']);
@@ -695,9 +727,13 @@ describe('the shell (L5.9 part E)', () => {
       }
       await page.waitForTimeout(300);
       // The theme editor's own preview lease (theme_preview, timeline_leave) is that screen's, not the palette's.
-      const WRITES = /^(?:scenario_(?:edit|save|run|render)|theme_(?:edit|copy|create)|thread_(?:add|reply|resolve|reopen|apply)|project_update_readme|render_cancel|run_cancel|run_pause|preview_allow|review_export|auth_login|record_(?:start|stop|discard|save|insert|pick|annotate))$/;
+      const WRITES =
+        /^(?:scenario_(?:edit|save|run|render)|theme_(?:edit|copy|create)|thread_(?:add|reply|resolve|reopen|apply)|project_update_readme|render_cancel|run_cancel|run_pause|preview_allow|review_export|auth_login|record_(?:start|stop|discard|save|insert|pick|annotate))$/;
       const ops = (await sent()).slice(before);
-      expect(ops.filter((op) => WRITES.test(op)), visited.join('\n')).toEqual([]);
+      expect(
+        ops.filter((op) => WRITES.test(op)),
+        visited.join('\n'),
+      ).toEqual([]);
       expect(ops).toEqual(expect.arrayContaining(['theme_list', 'scenario_blocks']));
       expect(visited.some((v) => v.startsWith('Projects: '))).toBe(true);
 
@@ -765,7 +801,15 @@ describe('the shell (L5.9 part E)', () => {
     await page.locator('main h1').waitFor(POLL);
     const box = await page.evaluate(() => {
       const r = (s: string) => document.querySelector(s)!.getBoundingClientRect();
-      return { start: r('.sh-titlebar-start').right, centre: r('.sh-titlebar-centre').left, centreR: r('.sh-titlebar-centre').right, end: r('.sh-titlebar-end').left, bar: r('.sh-titlebar').height, status: r('.sh-statusbar-wrap').bottom, sw: document.scrollingElement!.scrollWidth };
+      return {
+        start: r('.sh-titlebar-start').right,
+        centre: r('.sh-titlebar-centre').left,
+        centreR: r('.sh-titlebar-centre').right,
+        end: r('.sh-titlebar-end').left,
+        bar: r('.sh-titlebar').height,
+        status: r('.sh-statusbar-wrap').bottom,
+        sw: document.scrollingElement!.scrollWidth,
+      };
     });
     expect(box.start).toBeLessThanOrEqual(box.centre);
     expect(box.centreR).toBeLessThanOrEqual(box.end);
@@ -825,12 +869,13 @@ describe('L5.10a: the productions listbox and the project shell', () => {
     expect((await selected())[0]).toMatch(/^Manage the catalogue/);
   });
 
-  it('the open project: its tree in the browser (Productions and its groups, Library, Locations, Cast, Project); the title bar\'s project menu goes to another project or Welcome', async () => {
+  it("the open project: its tree in the browser (Productions and its groups, Library, Locations, Cast, Project); the title bar's project menu goes to another project or Welcome", async () => {
     await page.goto(`${studio.url}#/p/${P}`);
     await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
     const nav = page.getByRole('navigation', { name: 'Studio' });
     await expect.poll(() => nav.getByRole('link', { name: /^Needs a shoot/ }).count(), POLL).toBe(1);
-    for (const name of [/^Productions/, /^Ready to render/, /^Failed/, /^Components/, /^Themes/, /^local/, /^Sessions/, /^README/, /^Record a scenario/]) expect(await nav.getByRole('link', { name }).count(), String(name)).toBe(1);
+    for (const name of [/^Productions/, /^Ready to render/, /^Failed/, /^Components/, /^Themes/, /^local/, /^Sessions/, /^README/, /^Record a scenario/])
+      expect(await nav.getByRole('link', { name }).count(), String(name)).toBe(1);
     expect(await nav.getByRole('heading').allInnerTexts()).toEqual(['Library', 'Locations', 'Cast', 'Project']);
     // A location's flags in words; a persona's session as a shape and a word.
     expect(await nav.getByRole('link', { name: /^production/ }).innerText()).toMatch(/production$/);
@@ -850,7 +895,7 @@ describe('L5.10a: the productions listbox and the project shell', () => {
 });
 
 describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
-  it('under the desktop app\'s overlay bar: 80 px for the window buttons, no ⌘K of its own, commands from the menu; without it, inset 0', async () => {
+  it("under the desktop app's overlay bar: 80 px for the window buttons, no ⌘K of its own, commands from the menu; without it, inset 0", async () => {
     const app = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await app.addInitScript(() => {
       (window as unknown as { __studioShell: unknown }).__studioShell = Object.freeze({ titleBar: 'overlay' });
@@ -858,7 +903,11 @@ describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
     const p = await open(app);
     try {
       expect(await p.evaluate(() => document.documentElement.dataset.titlebar)).toBe('overlay');
-      const geo = await p.evaluate(() => ({ mark: document.querySelector('.sh-titlebar .k-appmark')!.getBoundingClientRect().left, bar: document.querySelector('.sh-titlebar')!.getBoundingClientRect().height, select: getComputedStyle(document.querySelector('.sh-titlebar')!).userSelect }));
+      const geo = await p.evaluate(() => ({
+        mark: document.querySelector('.sh-titlebar .k-appmark')!.getBoundingClientRect().left,
+        bar: document.querySelector('.sh-titlebar')!.getBoundingClientRect().height,
+        select: getComputedStyle(document.querySelector('.sh-titlebar')!).userSelect,
+      }));
       expect(geo.mark).toBeGreaterThanOrEqual(80);
       expect(geo.bar).toBe(48);
       // The mode switch stays centred on the window, inset or not (review B-L1: it sat 42 px right).
@@ -883,18 +932,28 @@ describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
       expect(await p.locator('dialog.k-palette[open] .k-palette-legend-note').innerText()).toBe('Commands with a key are also in the menu bar');
       const menu = await readFile(join(REPO, 'apps', 'desktop', 'src', 'menu.rs'), 'utf8');
       const CAP: Record<string, string> = { CmdOrCtrl: '⌘', Shift: '⇧', Alt: '⌥' };
-      const accelerators = new Set([...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) => m[1].split('+').map((k) => CAP[k] ?? k).join(' ')));
-      const keyed = await p.locator('dialog.k-palette[open] [role="option"]').evaluateAll((els) => els.flatMap((el) => {
-        const caps = [...el.querySelectorAll('.k-kbd')].map((k) => k.textContent ?? '');
-        return caps.length ? [{ label: el.querySelector('.k-palette-label')!.textContent ?? '', keys: caps.join(' ') }] : [];
-      }));
+      const accelerators = new Set(
+        [...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) =>
+          m[1]
+            .split('+')
+            .map((k) => CAP[k] ?? k)
+            .join(' '),
+        ),
+      );
+      const keyed = await p.locator('dialog.k-palette[open] [role="option"]').evaluateAll((els) =>
+        els.flatMap((el) => {
+          const caps = [...el.querySelectorAll('.k-kbd')].map((k) => k.textContent ?? '');
+          return caps.length ? [{ label: el.querySelector('.k-palette-label')!.textContent ?? '', keys: caps.join(' ') }] : [];
+        }),
+      );
       expect(keyed.map((k) => k.label)).toEqual(expect.arrayContaining(['Rehearse', 'Capture', 'Render', 'Stop', 'Script', 'Edit']));
       for (const k of keyed) expect(accelerators.has(k.keys), `${k.label}: ${k.keys} is no menu bar key`).toBe(true);
       // The palette's own rows without a menu item ("Comment at this frame", "Discard…", the pages) show no key.
       expect(keyed.some((k) => /Review report|Open |All themes|UI gallery/.test(k.label))).toBe(false);
       await p.keyboard.press('Escape');
       await p.locator('dialog[open]').waitFor({ state: 'detached' });
-      for (const detail of [{ id: 'reload' }, { id: 'eval' }, null, 'palette', { id: ['palette'] }]) await p.evaluate((d) => window.dispatchEvent(new CustomEvent('studio:command', { detail: d })), detail);
+      for (const detail of [{ id: 'reload' }, { id: 'eval' }, null, 'palette', { id: ['palette'] }])
+        await p.evaluate((d) => window.dispatchEvent(new CustomEvent('studio:command', { detail: d })), detail);
       await p.waitForTimeout(200);
       expect(await p.locator('dialog[open]').count()).toBe(0);
     } finally {

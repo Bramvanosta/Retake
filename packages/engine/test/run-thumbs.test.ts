@@ -20,7 +20,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REPO, fixtureWorkspace } from './helpers.js';
-import { EngineError, RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunFolder, RunThumbs, SCREENSHOT_MAX, THUMB_BASE64_MAX, createEngine, frameAt, gridFrame, parseFrameIndex, seekTime, packageReviewer } from '../src/index.js';
+import {
+  EngineError,
+  RUN_THUMBS_MAX_KEYS,
+  RUN_THUMBS_RESPONSE_MAX,
+  RunFolder,
+  RunThumbs,
+  SCREENSHOT_MAX,
+  THUMB_BASE64_MAX,
+  createEngine,
+  frameAt,
+  gridFrame,
+  parseFrameIndex,
+  seekTime,
+  packageReviewer,
+} from '../src/index.js';
 import type { Engine, RunThumbsView } from '../src/index.js';
 import { BLOCKS_YAML, BLUE, CYAN, GREEN, MAGENTA, ORANGE, RED, YELLOW, capture, centre, colourName, near, noisePng, png, pngBits, writeRun } from './synthetic-runs.js';
 import type { Rgb, SynthRun } from './synthetic-runs.js';
@@ -197,7 +211,17 @@ describe('dry runs, failed steps, multi-page tracks', () => {
       id: '20261020-130000-multi',
       scenario: 'multi',
       mode: 'capture',
-      scenes: [{ id: 'both', t_start: 0, t_end: 3, pages: [{ id: 'desk', track: 'desk' }, { id: 'phone', track: 'phone' }] }],
+      scenes: [
+        {
+          id: 'both',
+          t_start: 0,
+          t_end: 3,
+          pages: [
+            { id: 'desk', track: 'desk' },
+            { id: 'phone', track: 'phone' },
+          ],
+        },
+      ],
       events: [
         { scene: 'both', step: 0, action: 'click', t_start: 0.2, t_end: 1.2, page: 'phone' },
         { scene: 'both', step: 1, action: 'click', t_start: 1.2, t_end: 2.2, page: 'desk' },
@@ -207,7 +231,13 @@ describe('dry runs, failed steps, multi-page tracks', () => {
       duration: 3,
       tracks: [
         { id: 'desk', frames: [[0, ORANGE]] },
-        { id: 'phone', frames: [[0, CYAN], [2.5, MAGENTA]] },
+        {
+          id: 'phone',
+          frames: [
+            [0, CYAN],
+            [2.5, MAGENTA],
+          ],
+        },
       ],
       video: true,
     };
@@ -228,7 +258,17 @@ describe('dry runs, failed steps, multi-page tracks', () => {
       id: '20261020-130100-multi',
       scenario: 'multi',
       mode: 'capture',
-      scenes: [{ id: 'both', t_start: 0, t_end: 3, pages: [{ id: 'desk', track: 'desk' }, { id: 'phone', track: 'phone' }] }],
+      scenes: [
+        {
+          id: 'both',
+          t_start: 0,
+          t_end: 3,
+          pages: [
+            { id: 'desk', track: 'desk' },
+            { id: 'phone', track: 'phone' },
+          ],
+        },
+      ],
       events: [{ scene: 'both', step: 0, action: 'click', t_start: 0.2, t_end: 1.2, page: 'phone' }],
       duration: 3,
       tracks: [
@@ -283,7 +323,14 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, run.id, ['one.0']);
     expect(v.thumbs).toEqual([]);
     // A dry screenshot that is a link.
-    const dry = await writeRun(projectDir, { id: '20261020-170000-blocks', scenario: 'blocks', mode: 'dry', snapshot: BLOCKS_YAML, scenes: [{ id: 'one' }], events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }] });
+    const dry = await writeRun(projectDir, {
+      id: '20261020-170000-blocks',
+      scenario: 'blocks',
+      mode: 'dry',
+      snapshot: BLOCKS_YAML,
+      scenes: [{ id: 'one' }],
+      events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }],
+    });
     await writeFile(join(outside(), 'secret.png'), png(8, 8, ORANGE));
     await symlink(join(outside(), 'secret.png'), join(dry, 'screenshots', 'one-00-click.png'));
     v = await new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES }).thumbs(projectDir, P, '20261020-170000-blocks', ['one.0']);
@@ -397,7 +444,12 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     await writeFile(big, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(size - 8)]));
     for (let i = 0; i < RUN_THUMBS_MAX_KEYS; i++) await link(big, join(dir, 'screenshots', `one-${String(i).padStart(2, '0')}-click.png`));
     const svc = new RunThumbs({ policy: PERSON_POLICY, frames: FRAMES });
-    const v = await svc.thumbs(projectDir, P, '20261020-240100-big', events.map((e) => `one.${e.step}`));
+    const v = await svc.thumbs(
+      projectDir,
+      P,
+      '20261020-240100-big',
+      events.map((e) => `one.${e.step}`),
+    );
     expect(v.missing.map((m) => m.reason)).toEqual(events.map(() => 'unreadable'));
     expect(svc.stats.sourceBytesPeak).toBeGreaterThanOrEqual(size);
     expect(svc.stats.sourceBytesPeak).toBeLessThanOrEqual(2 * size);
@@ -444,7 +496,14 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
   });
 
   it('a decompression bomb (a valid PNG of 108 million pixels) is refused before it is decoded', async () => {
-    const dry = await writeRun(projectDir, { id: '20261020-210000-blocks', scenario: 'blocks', mode: 'dry', snapshot: BLOCKS_YAML, scenes: [{ id: 'one' }], events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }] });
+    const dry = await writeRun(projectDir, {
+      id: '20261020-210000-blocks',
+      scenario: 'blocks',
+      mode: 'dry',
+      snapshot: BLOCKS_YAML,
+      scenes: [{ id: 'one' }],
+      events: [{ scene: 'one', step: 0, action: 'click', t_start: 0, t_end: 1 }],
+    });
     await writeFile(join(dry, 'screenshots', 'one-00-click.png'), pngBits(12_000, 9_000));
     const t0 = Date.now();
     const v = await engine.runs.thumbs(P, '20261020-210000-blocks', ['one.0']);

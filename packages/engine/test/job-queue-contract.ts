@@ -47,7 +47,13 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
   describe(`the job queue contract (${adapter})`, () => {
     it('enqueue validates the input contract (never a path, an unknown key or another version) and queues it once', async () => {
       const { queue: q } = await make('contract');
-      for (const bad of [{ ...RUN_INPUT, project: '../x' }, { ...RUN_INPUT, run_id: '../../x' }, { ...RUN_INPUT, version: 2 }, { ...RUN_INPUT, kind: 'record' }, { ...RUN_INPUT, secret: 'x' }]) {
+      for (const bad of [
+        { ...RUN_INPUT, project: '../x' },
+        { ...RUN_INPUT, run_id: '../../x' },
+        { ...RUN_INPUT, version: 2 },
+        { ...RUN_INPUT, kind: 'record' },
+        { ...RUN_INPUT, secret: 'x' },
+      ]) {
         await expect(q.enqueue(bad as RunJobInput), JSON.stringify(bad)).rejects.toThrow(EngineError);
       }
       expect(await q.ids()).toEqual([]);
@@ -59,7 +65,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect(JSON.parse(JSON.stringify(await q.get(rec.id)))).toEqual(rec);
     });
 
-    it('enqueue refuses a job file named like a path, a hidden file or one of the job folder\'s own', async () => {
+    it("enqueue refuses a job file named like a path, a hidden file or one of the job folder's own", async () => {
       const { queue: q } = await make('files');
       for (const name of ['../x.yaml', '.hidden.yaml', 'job.json', 'claim', 'events.jsonl', 'yield.json', 'live.json', 'browser.json', 'a/b.yaml', 'Edit.yaml']) {
         await expect(q.enqueue(RUN_INPUT, { files: { [name]: 'x' } }), name).rejects.toMatchObject({ code: 'invalid' });
@@ -69,7 +75,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect((await q.get(ok.id))?.state).toBe('queued');
     });
 
-    it('jobFile reads a submit\'s file back as stored: missing when there is none, too large past its cap; never a name of the job\'s own', async () => {
+    it("jobFile reads a submit's file back as stored: missing when there is none, too large past its cap; never a name of the job's own", async () => {
       const { queue: q } = await make('job-file');
       const job = await q.enqueue(RUN_INPUT, { files: { 'edit.yaml': 'caption: é\n' } });
       expect(await q.jobFile(job.id, 'edit.yaml', 100)).toEqual({ ok: true, text: 'caption: é\n' });
@@ -108,7 +114,17 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       const a = await q.enqueue(RUN_INPUT);
       const b = await q.enqueue({ ...RUN_INPUT, run_id: '20261017-130001-quote' });
       const other = await q.enqueue({ ...RUN_INPUT, project: 'other-project', run_id: '20261017-130002-quote' });
-      const r1 = await q.enqueue({ version: 1, kind: 'render', project: 'northfield-fixture', scenario: 'quote', run_id: '20261017-130000-quote', timeline_sha256: 'c'.repeat(64), render_id: 'quote-v1', overrides: {}, submitted_by: 'test' } as never);
+      const r1 = await q.enqueue({
+        version: 1,
+        kind: 'render',
+        project: 'northfield-fixture',
+        scenario: 'quote',
+        run_id: '20261017-130000-quote',
+        timeline_sha256: 'c'.repeat(64),
+        render_id: 'quote-v1',
+        overrides: {},
+        submitted_by: 'test',
+      } as never);
       const rv = await review(q, 1);
       expect((await q.list()).map((j) => j.id)).toEqual([rv.id, r1.id, other.id, b.id, a.id]);
       expect((await q.list({ limit: 2 })).map((j) => j.id)).toEqual([rv.id, r1.id]);
@@ -240,7 +256,10 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       const { queue: q } = await make('events');
       const job = await q.enqueue(RUN_INPUT);
       expect(await q.append(job.id, 0, [])).toBe(0);
-      let seq = await q.append(job.id, 0, [{ type: 'state', state: 'running' }, { type: 'log', level: 'info', message: 'one' }]);
+      let seq = await q.append(job.id, 0, [
+        { type: 'state', state: 'running' },
+        { type: 'log', level: 'info', message: 'one' },
+      ]);
       seq = await q.append(job.id, seq, [{ type: 'log', level: 'warn', message: 'two' }]);
       expect(seq).toBe(3);
       expect(await q.lastSeq(job.id)).toBe(3);
@@ -334,7 +353,17 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
     it('approvals are signed at enqueue for that job and that workspace (the worker honours no other)', async () => {
       const { queue: q, root } = await make('approvals');
       const approval = { fingerprint: 'b'.repeat(64), by: 'test' as const, at: '2026-11-09T10:00:00.000Z' };
-      const input = { version: 1, kind: 'hooks', project: 'northfield-fixture', env: 'local', source: 'reset', dry: false, journal_id: '20261017-150000-hooks-reset', submitted_by: 'test', approvals: [approval] };
+      const input = {
+        version: 1,
+        kind: 'hooks',
+        project: 'northfield-fixture',
+        env: 'local',
+        source: 'reset',
+        dry: false,
+        journal_id: '20261017-150000-hooks-reset',
+        submitted_by: 'test',
+        approvals: [approval],
+      };
       const rec = await q.enqueue(input as never);
       const signed = (rec.input as { approvals?: Array<{ sig?: string }> }).approvals!;
       expect(signed[0]!.sig).toMatch(/^[0-9a-f]{64}$/);
@@ -345,7 +374,7 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect('approvals' in (await q.enqueue(RUN_INPUT)).input).toBe(false);
     });
 
-    it('stamps its records, markers, claims and events with the clock it is handed (the composition root\'s)', async () => {
+    it("stamps its records, markers, claims and events with the clock it is handed (the composition root's)", async () => {
       const clock = new ManualClock('2026-03-04T05:06:07.008Z');
       const { queue: q } = await make('clock', undefined, clock);
       const a = await q.enqueue(RUN_INPUT);

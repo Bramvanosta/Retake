@@ -65,7 +65,7 @@ describe('persona mail addresses (R-FLD-15)', () => {
     expect(errs(bad.issues)).toEqual(['auth.signed-in.personas.supplier.email: email is a mail address (name@example.com)']);
   });
 
-  it('`persona:<name>` names a persona of the scenario\'s environment that has an email', () => {
+  it("`persona:<name>` names a persona of the scenario's environment that has an email", () => {
     expect(mailPersona('persona:buyer')).toBe('buyer');
     expect(mailPersona('persona: buyer ')).toBe('buyer');
     expect(mailPersona('buyer@cafe.example')).toBeNull();
@@ -73,14 +73,10 @@ describe('persona mail addresses (R-FLD-15)', () => {
     const p = project();
     const ok = parseScenario(scenario(['wait_for_email: {to: "persona:supplier", subject: Pro forma, as: copy}']), { files: NO_DISK, project: p });
     expect(errs(ok.issues)).toEqual([]);
-    const bad = parseScenario(
-      scenario([
-        'wait_for_email: {to: "persona:buyer", as: a}',
-        'wait_for_email: {to: "persona:suplier", as: b}',
-        'wait_for_email: {to: "persona:", as: c}',
-      ]),
-      { files: NO_DISK, project: p },
-    );
+    const bad = parseScenario(scenario(['wait_for_email: {to: "persona:buyer", as: a}', 'wait_for_email: {to: "persona:suplier", as: b}', 'wait_for_email: {to: "persona:", as: c}']), {
+      files: NO_DISK,
+      project: p,
+    });
     expect(errs(bad.issues)).toEqual([
       'scenes.0.steps.0.wait_for_email.to: persona "buyer" has no `email` on environment signed-in: add email: <address> to auth.personas.buyer in project.yaml (or to its sandbox account)',
       'scenes.0.steps.1.wait_for_email.to: unknown persona "suplier" (did you mean "supplier"?) (personas of signed-in: supplier, buyer)',
@@ -109,7 +105,8 @@ describe('persona mail addresses (R-FLD-15)', () => {
 describe('retry_click and capture.step_shots (R-FLD-12, R-FLD-16)', () => {
   it('retry_click belongs on a click; elsewhere it is ignored with a warning', () => {
     const r = parseScenario(scenario(['{click: Preview, retry_click: true}', '{double_click: Report, retry_click: true}', '{type: {into: {label: Notes}, text: x}, retry_click: true}']), {
-      files: NO_DISK, project: project(),
+      files: NO_DISK,
+      project: project(),
     });
     expect(errs(r.issues)).toEqual([]);
     expect(warns(r.issues)).toEqual(['scenes.0.steps.2.retry_click: `retry_click` applies to click and double_click steps: ignored on a type step']);

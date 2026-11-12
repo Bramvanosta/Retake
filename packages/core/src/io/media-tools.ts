@@ -15,7 +15,13 @@ export function mediaTools(policy: WorkPolicy): MediaTools {
 }
 
 /** How a refusal names where a tool came from (ffprobe beside retake.yaml's ffmpeg: that setting). */
-const SOURCE_NAMES: Record<MediaToolSource, string> = { 'retake.yaml': '`ffmpeg:` of retake.yaml', RETAKE_FFMPEG: '$RETAKE_FFMPEG', RETAKE_FFPROBE: '$RETAKE_FFPROBE', bundled: 'ffmpeg', PATH: 'ffmpeg' };
+const SOURCE_NAMES: Record<MediaToolSource, string> = {
+  'retake.yaml': '`ffmpeg:` of retake.yaml',
+  RETAKE_FFMPEG: '$RETAKE_FFMPEG',
+  RETAKE_FFPROBE: '$RETAKE_FFPROBE',
+  bundled: 'ffmpeg',
+  PATH: 'ffmpeg',
+};
 
 /**
  * The ffmpeg or ffprobe to run: `explicit` (an option naming one), else the work's — under its agent policy (core

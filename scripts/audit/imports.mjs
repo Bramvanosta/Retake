@@ -67,7 +67,14 @@ result.fileCycles = fileCycles(fileImports);
 
 // layering: topological level of each package
 const level = {};
-function lv(p, seen = new Set()) { if (p in level) return level[p]; if (seen.has(p)) return 0; seen.add(p); const ds = pg[p] ?? []; level[p] = ds.length ? 1 + Math.max(...ds.map((d) => lv(d, seen))) : 0; return level[p]; }
+function lv(p, seen = new Set()) {
+  if (p in level) return level[p];
+  if (seen.has(p)) return 0;
+  seen.add(p);
+  const ds = pg[p] ?? [];
+  level[p] = ds.length ? 1 + Math.max(...ds.map((d) => lv(d, seen))) : 0;
+  return level[p];
+}
 pkgs.forEach((p) => lv(p));
 result.levels = level;
 
@@ -78,7 +85,12 @@ if (jsonIdx > 0) fs.writeFileSync(process.argv[jsonIdx + 1], JSON.stringify({ ..
 console.log('# Package graph (actual imports; count = import statements)');
 for (const d of pkgs.sort((a, b) => level[a] - level[b])) {
   const r = result.packages[d];
-  console.log(`L${level[d]} ${d.padEnd(11)} files=${r.files} lines=${r.lines} -> ${Object.entries(r.actual).filter(([p]) => p !== d).map(([p, n]) => `${p}(${n})`).join(' ')}`);
+  console.log(
+    `L${level[d]} ${d.padEnd(11)} files=${r.files} lines=${r.lines} -> ${Object.entries(r.actual)
+      .filter(([p]) => p !== d)
+      .map(([p, n]) => `${p}(${n})`)
+      .join(' ')}`,
+  );
   if (r.undeclared.length) console.log(`   UNDECLARED: ${r.undeclared}`);
   if (r.unused.length) console.log(`   declared but unused: ${r.unused}`);
   console.log(`   node built-ins: total=${r.builtinImportsTotal} ${JSON.stringify(r.builtins)}`);

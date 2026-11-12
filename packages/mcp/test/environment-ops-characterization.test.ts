@@ -180,9 +180,15 @@ async function workspace(ports: { env: number; sandbox: number }): Promise<{ ws:
     ].join('\n'),
   );
   // A scenario file is agent-writable: its shell hook must be plain words (no redirection).
-  await writeFile(join(dir, 'scenarios', 'redirect.yaml'), 'version: 1\nvideo: redirect\ntitle: {text: Redirect}\nsetup:\n  - name: loud\n    shell: "echo loud >> loud-marker.txt"\nscenes:\n  - id: one\n    page: app\n    open: /\n    steps:\n      - hold: 1\n');
+  await writeFile(
+    join(dir, 'scenarios', 'redirect.yaml'),
+    'version: 1\nvideo: redirect\ntitle: {text: Redirect}\nsetup:\n  - name: loud\n    shell: "echo loud >> loud-marker.txt"\nscenes:\n  - id: one\n    page: app\n    open: /\n    steps:\n      - hold: 1\n',
+  );
   // A scenario that does not load: a destructive hook without "confirm: true".
-  await writeFile(join(dir, 'scenarios', 'broken.yaml'), 'version: 1\nvideo: broken\ntitle: {text: Broken}\nsetup:\n  - name: drop\n    shell: "echo drop"\n    destructive: true\nscenes:\n  - id: one\n    page: app\n    open: /\n    steps:\n      - hold: 1\n');
+  await writeFile(
+    join(dir, 'scenarios', 'broken.yaml'),
+    'version: 1\nvideo: broken\ntitle: {text: Broken}\nsetup:\n  - name: drop\n    shell: "echo drop"\n    destructive: true\nscenes:\n  - id: one\n    page: app\n    open: /\n    steps:\n      - hold: 1\n',
+  );
   await writeFile(join(dir, 'hooks', 'post.yaml'), '- name: post\n  shell: {run: "echo post >> post-marker.txt"}\n  writes: false\n');
   await writeFile(join(dir, 'sandbox', 'service.mjs'), SERVICE);
   await writeFile(
@@ -313,7 +319,11 @@ async function record(): Promise<Answers> {
     if (!clients.has(c.client)) clients.set(c.client, await connect(c.client));
     const { client, asked } = clients.get(c.client)!;
     const before = asked.length;
-    const r = (await client.callTool({ name: c.op, arguments: c.args }, undefined, { timeout: 120_000 })) as { content: Array<{ type: string; text?: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
+    const r = (await client.callTool({ name: c.op, arguments: c.args }, undefined, { timeout: 120_000 })) as {
+      content: Array<{ type: string; text?: string }>;
+      structuredContent?: Record<string, unknown>;
+      isError?: boolean;
+    };
     out.push({
       client: c.client,
       op: c.op,

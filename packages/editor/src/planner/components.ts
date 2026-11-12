@@ -18,8 +18,7 @@ export function planComponents(c: PlanContext & PlanSources & SlotMedia): PlanCo
   const { registry, template, warnings, mediaOf, ov, video, tokens, t } = c;
   const resolver = new ComponentResolver(registry, template, warnings, mediaOf);
   const overrideRefs = ov.components ?? {};
-  const kindOverride = (kind: ComponentKind): Candidate[] =>
-    overrideRefs[kind] !== undefined ? [{ ref: overrideRefs[kind], source: 'override', label: `overrides.components.${kind}` }] : [];
+  const kindOverride = (kind: ComponentKind): Candidate[] => (overrideRefs[kind] !== undefined ? [{ ref: overrideRefs[kind], source: 'override', label: `overrides.components.${kind}` }] : []);
   const segmentOverride = (id: string, kind: ComponentKind): Candidate[] =>
     id !== kind && overrideRefs[id] !== undefined ? [{ ref: overrideRefs[id], source: 'override', label: `overrides.components["${id}"]` }] : [];
   const themeAndBuiltin = (kind: ComponentKind): Candidate[] => [resolver.themeCandidate(kind), resolver.builtinCandidate(kind)];

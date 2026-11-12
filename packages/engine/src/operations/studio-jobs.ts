@@ -102,7 +102,15 @@ export const scenarioRun = defineOperation({
       ...(a.mode === 'capture' && a.sessions_ack ? { sessions_ack: a.sessions_ack } : {}),
     });
     const { other, ...worker } = sub.worker ?? { spawned: false };
-    const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker } : {}), ...(other ? { untrusted: { other_copy: other } } : {}) };
+    const data: ScenarioRunAnswer = {
+      run_id: sub.run_id,
+      job: sub.job.id,
+      state: sub.job.state,
+      mode: a.mode,
+      warnings: sub.warnings,
+      ...(sub.worker ? { worker } : {}),
+      ...(other ? { untrusted: { other_copy: other } } : {}),
+    };
     return { summary: `${a.mode === 'dry' ? 'rehearsal' : 'capture'} ${sub.run_id} queued (job ${sub.job.id})`, data: data };
   },
 });
@@ -132,7 +140,10 @@ export const signInCancel = defineOperation({
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   async run(a, { engine }) {
     const rec = await engine.auth.cancelSignIn(a.job);
-    return { summary: `sign-in ${rec.id}: ${rec.state}${rec.cancel_requested_at && rec.state === 'running' ? ' (stopping)' : ''}`, data: { id: rec.id, kind: rec.kind, state: rec.state, ...(rec.cancel_requested_at ? { cancel_requested_at: rec.cancel_requested_at } : {}) } };
+    return {
+      summary: `sign-in ${rec.id}: ${rec.state}${rec.cancel_requested_at && rec.state === 'running' ? ' (stopping)' : ''}`,
+      data: { id: rec.id, kind: rec.kind, state: rec.state, ...(rec.cancel_requested_at ? { cancel_requested_at: rec.cancel_requested_at } : {}) },
+    };
   },
 });
 
@@ -177,7 +188,8 @@ export interface ScenarioRenderAnswer extends RenderEditSource {
 export const scenarioRender = defineOperation({
   name: 'scenario_render',
   title: 'Render a scenario from the Studio',
-  description: "Queue a render of the capture shown, with the theme and options of the files, reviewed after it; refused (409) when the file changed since it was shown or a render of the scenario is already queued or running.",
+  description:
+    'Queue a render of the capture shown, with the theme and options of the files, reviewed after it; refused (409) when the file changed since it was shown or a render of the scenario is already queued or running.',
   input: RenderInput,
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   // In the chain an edit and an apply of the scenario share; one render of a scenario at a time is the engine's rule.

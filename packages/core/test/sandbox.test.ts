@@ -8,7 +8,27 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ConfigError, SandboxConfigError, allowedHosts, applyProjectDefaults, databasesFor, formatIssues, isHostAllowed, isLoopbackHost, mailboxFor, parseProjectYaml, parseSandboxYaml, parseScenario, resolveEnvironment, resolvePersonas, sandboxNames, sandboxOf, unmaskedPasswordReason, weakPasswordReason, PERSON_POLICY } from '@retake/core';
+import {
+  ConfigError,
+  SandboxConfigError,
+  allowedHosts,
+  applyProjectDefaults,
+  databasesFor,
+  formatIssues,
+  isHostAllowed,
+  isLoopbackHost,
+  mailboxFor,
+  parseProjectYaml,
+  parseSandboxYaml,
+  parseScenario,
+  resolveEnvironment,
+  resolvePersonas,
+  sandboxNames,
+  sandboxOf,
+  unmaskedPasswordReason,
+  weakPasswordReason,
+  PERSON_POLICY,
+} from '@retake/core';
 import { loadProject, seedFileRefs, seedHash, fileFacts, nodeFileFacts } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { errors, lineOf, tempDir, warnings, writeFiles } from './helpers.js';
@@ -136,12 +156,14 @@ describe('sandbox.yaml: schema and checks (R-SBX-01)', () => {
     }
     expect(['localhost', 'LOCALHOST.', 'a.b.localhost', '127.0.0.1', '127.255.0.9', '::1', '[::1]'].every(isLoopbackHost)).toBe(true);
     expect(['10.0.0.1', '128.0.0.1', '127.0.0.256', 'devbox', 'localhost.example.com', '::2', '0.0.0.0'].some(isLoopbackHost)).toBe(false);
-    const templatedHost = parseSandboxYaml('version: 1\nprovider: process\nservices:\n  app: {command: x, pages: {app: "http://localhost:1"}}\ndatabases:\n  main: {url: "postgres://u:p@{{env:DB_HOST}}/app"}\n');
+    const templatedHost = parseSandboxYaml(
+      'version: 1\nprovider: process\nservices:\n  app: {command: x, pages: {app: "http://localhost:1"}}\ndatabases:\n  main: {url: "postgres://u:p@{{env:DB_HOST}}/app"}\n',
+    );
     expect(msgs(templatedHost.issues)[0]).toContain('databases.main.url: database main: write its host as it is (localhost)');
   });
 
   it('positioned errors: provider keys, paths, pages, health, seed steps, reset, accounts', async () => {
-    const dir = await sandboxDir({ 'compose.yaml': COMPOSE_YAML, 'dump.sql': "COPY public.t (id) FROM stdin;\n1\n\\.\n" });
+    const dir = await sandboxDir({ 'compose.yaml': COMPOSE_YAML, 'dump.sql': 'COPY public.t (id) FROM stdin;\n1\n\\.\n' });
     const text = `version: 1
 provider: docker-compose
 compose: {files: [compose.yaml]}
@@ -245,7 +267,11 @@ reset: {strategy: snapshot}
     const db = (url: string) => `version: 1\nprovider: process\nservices:\n  app: {command: x, pages: {app: http://localhost:4600}}\ndatabases:\n  main: {url: "${url}"}\n`;
     for (const q of ['host=prod-db.example.com', 'host=/tmp', 'port=5432', 'Port=5432', 'hostaddr=10.0.0.5', 'service=prod', 'dbname=other', 'sslmode=disable&host=%2Ftmp']) {
       const issues = msgs(parseSandboxYaml(db(`postgres://demo:sandbox-db-4632@localhost:4632/app?${q}`)).issues);
-      expect(issues, q).toEqual([expect.stringMatching(/^error 6:15 databases\.main\.url: database main: the query parameter "(host|port|hostaddr|service|dbname)" would connect elsewhere than the host and port the URL names \(another server, a unix socket\)/)]);
+      expect(issues, q).toEqual([
+        expect.stringMatching(
+          /^error 6:15 databases\.main\.url: database main: the query parameter "(host|port|hostaddr|service|dbname)" would connect elsewhere than the host and port the URL names \(another server, a unix socket\)/,
+        ),
+      ]);
     }
     expect(msgs(parseSandboxYaml(db('postgres://demo:sandbox-db-4632@localhost:4632/app?{{env:Q}}=1')).issues)).toEqual([
       'error 6:15 databases.main.url: database main: its query string is templated — only the password may be a {{env:VAR}} / {{keychain:…}} reference',
@@ -256,7 +282,8 @@ reset: {strategy: snapshot}
   });
 
   it('a health path stays on the service\'s url: "//host" and backslashes are refused (P8)', () => {
-    const svc = (health: string) => `version: 1\nprovider: process\nservices:\n  app:\n    command: x\n    url: http://localhost:4600\n    health: ${health}\n    pages: {app: http://localhost:4600}\n`;
+    const svc = (health: string) =>
+      `version: 1\nprovider: process\nservices:\n  app:\n    command: x\n    url: http://localhost:4600\n    health: ${health}\n    pages: {app: http://localhost:4600}\n`;
     expect(msgs(parseSandboxYaml(svc('"//evil.example/up"')).issues)).toEqual([
       'error 7:13 services.app.health: "//evil.example/up" could leave the service\'s url ("//…" names another host, and a "\\" counts as "/"): write a path ("/health") or an absolute local URL',
     ]);
@@ -280,7 +307,7 @@ accounts:
     expect(msgs(parseSandboxYaml(text).issues).map((m) => m.split(': a plain')[0])).toEqual(['error 6:15 databases.main.url', 'error 8:87 accounts.admin.password']);
   });
 
-  it('a shell seed step gets the env of the process services: a variable two of them set differently is the step\'s to set (I3)', () => {
+  it("a shell seed step gets the env of the process services: a variable two of them set differently is the step's to set (I3)", () => {
     const text = (stepEnv: string) => `version: 1
 provider: process
 services:
@@ -330,10 +357,16 @@ seed:
       `error ${lineOf(text, 'service: tools')}:21 seed.0.exec.service: service "tools" has \`profiles:\` in the compose files: a sandbox never starts it, so an exec step cannot run in it — remove its \`profiles\``,
     ]);
     // Not named by sandbox.yaml: a profiled service is simply not started.
-    expect(errors(parseSandboxYaml('version: 1\nprovider: docker-compose\nservices:\n  app: {url: http://localhost:4600, pages: {app: http://localhost:4600}}\n', join(dir, 'sandbox.yaml'), { files: nodeFileFacts }).issues)).toEqual([]);
+    expect(
+      errors(
+        parseSandboxYaml('version: 1\nprovider: docker-compose\nservices:\n  app: {url: http://localhost:4600, pages: {app: http://localhost:4600}}\n', join(dir, 'sandbox.yaml'), {
+          files: nodeFileFacts,
+        }).issues,
+      ),
+    ).toEqual([]);
   });
 
-  it('the loopback hosts of a sandbox\'s mailbox and databases are allowed hosts at run time (db.localhost, 127.0.0.2: I7)', async () => {
+  it("the loopback hosts of a sandbox's mailbox and databases are allowed hosts at run time (db.localhost, 127.0.0.2: I7)", async () => {
     const text = `version: 1
 provider: process
 services:
@@ -566,7 +599,10 @@ sandboxes:
     for (const host of ['127.0.0.1', '[::1]', 'app.localhost']) {
       const other = PROJECT.replace('pages: {console: https://console.example.com, shop: https://shop.example.com}', `pages: {console: "http://${host}:4503"}`);
       const e4 = (await loadProject(await workspace(other, SANDBOX_FILES)).catch((x: unknown) => x)) as SandboxConfigError;
-      expect(e4.issues?.map((i) => i.message), host).toEqual([
+      expect(
+        e4.issues?.map((i) => i.message),
+        host,
+      ).toEqual([
         `page console (localhost:4503) is also a page of environment production (${host}:4503: the same server), which is production: a sandbox is reset — its data dropped — before every take; give it a port of its own`,
       ]);
     }

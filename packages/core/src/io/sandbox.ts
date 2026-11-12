@@ -59,7 +59,7 @@ export async function accountsComposeEnv(dir: string, manifest: SandboxManifest,
   }
   const out: Record<string, string> = {};
   for (const n of names) {
-    if (!Object.hasOwn(values, n) || values[n] === "") throw fail(`{{compose_env:${n}}}: ${n} is not set (or empty) in the compose env file (${envFile})`);
+    if (!Object.hasOwn(values, n) || values[n] === '') throw fail(`{{compose_env:${n}}}: ${n} is not set (or empty) in the compose env file (${envFile})`);
     out[n] = values[n];
   }
   return out;

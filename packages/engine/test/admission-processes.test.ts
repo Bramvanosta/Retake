@@ -79,7 +79,10 @@ async function expectOneQueued(answers: Answer[], before: string[], what: string
   const lost = answers.filter((a): a is Extract<Answer, { ok: false }> => !a.ok);
   expect(won, `${what}: ${JSON.stringify(answers)}`).toHaveLength(1);
   expect(lost[0], what).toMatchObject({ code: 'conflict', details: { job: won[0]!.job } });
-  expect((await open()).filter((id) => !before.includes(id)), what).toEqual([won[0]!.job]);
+  expect(
+    (await open()).filter((id) => !before.includes(id)),
+    what,
+  ).toEqual([won[0]!.job]);
   return won[0]!.job;
 }
 
@@ -94,15 +97,41 @@ beforeAll(async () => {
     const dir = join(ws, 'projects', D);
     await mkdir(join(dir, 'scenarios'), { recursive: true });
     await writeFile(join(dir, 'project.yaml'), 'version: 1\nname: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-    const t = synthTimeline({ duration: 3, entries: [{ id: 'a', t_start: 0.5, t_end: 2.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] }], video: { intro: false, outro: false, template: 'editorial' } });
+    const t = synthTimeline({
+      duration: 3,
+      entries: [{ id: 'a', t_start: 0.5, t_end: 2.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] }],
+      video: { intro: false, outro: false, template: 'editorial' },
+    });
     await writeTake(dir, 'tl', { run: TAKE, text: TEXT, timeline: t, codec: 'h264-x264', seconds: 3 });
     await mkdir(join(dir, 'renders'), { recursive: true });
     await writeFile(join(dir, 'renders', 'tl-v7.mp4'), 'video');
     await writeFile(
       join(dir, 'renders', 'tl-v7.json'),
       JSON.stringify({
-        version: 1, id: 'tl-v7', project: D, scenario: 'tl', run_id: TAKE, run_dir: join(dir, 'runs', TAKE), template: 'editorial', overrides: {}, edit: { from: 'scenario', sha256: sha(TEXT) }, variant: 'landscape', status: 'succeeded',
-        file: join(dir, 'renders', 'tl-v7.mp4'), record: join(dir, 'renders', 'tl-v7.json'), render_version: 7, created_at: '2026-01-02T10:00:00.000Z', finished_at: '2026-01-02T10:00:00.000Z', duration_s: 3, frames: 90, fps: 30, width: 1920, height: 1080, size_bytes: 1234, plan: {}, warnings: [],
+        version: 1,
+        id: 'tl-v7',
+        project: D,
+        scenario: 'tl',
+        run_id: TAKE,
+        run_dir: join(dir, 'runs', TAKE),
+        template: 'editorial',
+        overrides: {},
+        edit: { from: 'scenario', sha256: sha(TEXT) },
+        variant: 'landscape',
+        status: 'succeeded',
+        file: join(dir, 'renders', 'tl-v7.mp4'),
+        record: join(dir, 'renders', 'tl-v7.json'),
+        render_version: 7,
+        created_at: '2026-01-02T10:00:00.000Z',
+        finished_at: '2026-01-02T10:00:00.000Z',
+        duration_s: 3,
+        frames: 90,
+        fps: 30,
+        width: 1920,
+        height: 1080,
+        size_bytes: 1234,
+        plan: {},
+        warnings: [],
       }),
     );
   }
@@ -138,21 +167,29 @@ describe('the admission rules hold across processes: two processes submitting at
     }
   }, 120_000);
 
-  it.skipIf(!canRender)('one_render_per_scenario: two processes render one scenario at the same moment — one render queued, the other refused naming it', async () => {
-    for (let i = 0; i < 2; i++) {
-      const before = await open();
-      const [a, b] = i % 2 ? [ui, mcp] : [mcp, ui];
-      await expectOneQueued(await race('render', { project: D, scenario: 'tl', run_id: TAKE }, a, b), before, `round ${i}`);
-      await cancelAll();
-    }
-  }, 120_000);
+  it.skipIf(!canRender)(
+    'one_render_per_scenario: two processes render one scenario at the same moment — one render queued, the other refused naming it',
+    async () => {
+      for (let i = 0; i < 2; i++) {
+        const before = await open();
+        const [a, b] = i % 2 ? [ui, mcp] : [mcp, ui];
+        await expectOneQueued(await race('render', { project: D, scenario: 'tl', run_id: TAKE }, a, b), before, `round ${i}`);
+        await cancelAll();
+      }
+    },
+    120_000,
+  );
 
-  it.skipIf(!canRender)('export_cap: two processes export one render at the same moment — one export queued, the other refused naming it', async () => {
-    for (let i = 0; i < 2; i++) {
-      const before = await open();
-      const [a, b] = i % 2 ? [ui, mcp] : [mcp, ui];
-      await expectOneQueued(await race('export', { project: D, render_id: 'tl-v7', formats: ['mp4_1080p'] }, a, b), before, `round ${i}`);
-      await cancelAll();
-    }
-  }, 120_000);
+  it.skipIf(!canRender)(
+    'export_cap: two processes export one render at the same moment — one export queued, the other refused naming it',
+    async () => {
+      for (let i = 0; i < 2; i++) {
+        const before = await open();
+        const [a, b] = i % 2 ? [ui, mcp] : [mcp, ui];
+        await expectOneQueued(await race('export', { project: D, render_id: 'tl-v7', formats: ['mp4_1080p'] }, a, b), before, `round ${i}`);
+        await cancelAll();
+      }
+    },
+    120_000,
+  );
 });

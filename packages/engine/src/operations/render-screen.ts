@@ -63,7 +63,17 @@ export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
     render_id: v.render_id,
     status: v.status,
     finished: v.finished,
-    ...(v.job ? { job: { id: v.job.id, state: v.job.state, ...(v.job.progress ? { progress: { ...(v.job.progress.phase ? { phase: v.job.progress.phase } : {}), ...(v.job.progress.fraction !== undefined ? { fraction: v.job.progress.fraction } : {}) } } : {}) } } : {}),
+    ...(v.job
+      ? {
+          job: {
+            id: v.job.id,
+            state: v.job.state,
+            ...(v.job.progress
+              ? { progress: { ...(v.job.progress.phase ? { phase: v.job.progress.phase } : {}), ...(v.job.progress.fraction !== undefined ? { fraction: v.job.progress.fraction } : {}) } }
+              : {}),
+          },
+        }
+      : {}),
     ...(v.created_at ? { created_at: v.created_at } : {}),
     ...(v.fps ? { fps: v.fps } : {}),
     ...(v.clean !== undefined ? { clean: v.clean } : {}),

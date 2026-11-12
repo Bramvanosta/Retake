@@ -10,7 +10,25 @@ export type { ResetResult, SandboxCallOptions, SandboxLogs, SandboxStatus, Sandb
 export { SandboxError } from './errors.js';
 export type { SandboxErrorCode } from './errors.js';
 export { COMPOSE_CAPABILITIES, PROCESS_CAPABILITIES } from './provider.js';
-export type { DownOptions, DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, SandboxLog, SandboxLogLevel, SandboxProgress, SeedRecorder, SeedRunResult, SeedTrust, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
+export type {
+  DownOptions,
+  DownResult,
+  OwnerUse,
+  Provider,
+  ProviderCapabilities,
+  ProviderContext,
+  ProviderLogs,
+  SandboxLog,
+  SandboxLogLevel,
+  SandboxProgress,
+  SeedRecorder,
+  SeedRunResult,
+  SeedTrust,
+  ServiceLogFile,
+  ServiceStatus,
+  UpOptions,
+  UpResult,
+} from './provider.js';
 export {
   COMPOSE_HEALTH_TIMEOUT_S,
   ComposeProvider,
@@ -61,7 +79,22 @@ export { busyPorts, describeListeners, listeners, parseLsof, portLabel, probePor
 export type { Listener, SandboxPort } from './ports.js';
 export { HEALTH_INTERVAL_MS, PROCESS_HEALTH_TIMEOUT_S, checkOnce, healthNow, pinHealth, pinnedAddress, pinnedRequest, serviceHealth, targetLabel, waitHealthy } from './health.js';
 export type { HealthTarget, ServiceHealth } from './health.js';
-export { bootTime, groupMembers, groupTree, identify, killGroupSync, parseBootTime, parseLstart, parseProcessTable, processStart, processStartSync, processTable, processTableSync, signalState, stopGroup } from './proc.js';
+export {
+  bootTime,
+  groupMembers,
+  groupTree,
+  identify,
+  killGroupSync,
+  parseBootTime,
+  parseLstart,
+  parseProcessTable,
+  processStart,
+  processStartSync,
+  processTable,
+  processTableSync,
+  signalState,
+  stopGroup,
+} from './proc.js';
 export type { Known, Member, ProcInfo } from './proc.js';
 export { checkExecHosts, checkMailbox, checkSeedDatabases, clearMailbox, masker, runSeed, sandboxSecrets } from './seed.js';
 export { DEFAULT_SANDBOX_ENV, INIT_BASE_PORT, SCAFFOLD_DIR, initSandbox, schemaRef } from './init.js';

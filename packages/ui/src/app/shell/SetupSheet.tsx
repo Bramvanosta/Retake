@@ -273,7 +273,19 @@ export function SetupSheet({ route }: { route: Route }) {
             actions={
               <>
                 {cli.state !== 'ours' && cli.state !== 'foreign' && !installedElsewhere(cli) && (
-                  <Button variant="primary" disabled={!placed || !!busy} busy={isBusy('cli:setup_cli_install')} data-testid="setup-cli-install" onClick={() => act('cli:setup_cli_install', () => setupCliInstall({ folder: cli.chosen ? 'chosen' : 'default', replace: cli.state === 'other_app' }), (r) => ({ step: 'cli', state: 'ok', text: `Installed: ${String(r.path)}` }))}>
+                  <Button
+                    variant="primary"
+                    disabled={!placed || !!busy}
+                    busy={isBusy('cli:setup_cli_install')}
+                    data-testid="setup-cli-install"
+                    onClick={() =>
+                      act(
+                        'cli:setup_cli_install',
+                        () => setupCliInstall({ folder: cli.chosen ? 'chosen' : 'default', replace: cli.state === 'other_app' }),
+                        (r) => ({ step: 'cli', state: 'ok', text: `Installed: ${String(r.path)}` }),
+                      )
+                    }
+                  >
                     {cli.state === 'other_app' ? 'Replace' : 'Install retake'}
                   </Button>
                 )}
@@ -303,7 +315,19 @@ export function SetupSheet({ route }: { route: Route }) {
                 <p>
                   <Txt text={cli.installed ? `Remove ${cli.installed}? Only this app's link is removed: nothing else is touched.` : 'The command is not installed by this app.'} />
                 </p>
-                <Button variant="destructive" disabled={!cli.installed || !!busy} busy={isBusy('cli:setup_cli_remove')} data-testid="setup-cli-remove-confirm" onClick={() => act('cli:setup_cli_remove', () => setupCliRemove({}), (r) => ({ step: 'cli', state: 'ok', text: `Removed: ${String(r.path)}` }))}>
+                <Button
+                  variant="destructive"
+                  disabled={!cli.installed || !!busy}
+                  busy={isBusy('cli:setup_cli_remove')}
+                  data-testid="setup-cli-remove-confirm"
+                  onClick={() =>
+                    act(
+                      'cli:setup_cli_remove',
+                      () => setupCliRemove({}),
+                      (r) => ({ step: 'cli', state: 'ok', text: `Removed: ${String(r.path)}` }),
+                    )
+                  }
+                >
                   Uninstall
                 </Button>
                 <Button data-testid="setup-cli-remove-keep" onClick={() => confirmTo(null, 'setup-cli', ['setup-cli-remove'])}>
@@ -319,17 +343,39 @@ export function SetupSheet({ route }: { route: Route }) {
             title="Claude Code"
             testId="setup-claude-code"
             actions={
-              <Button variant="primary" disabled={!placed || !cc.claude || !cc.plugin || !!busy} busy={isBusy('claude-code:setup_claude_code_run')} data-testid="setup-claude-code-run" onClick={() =>
-                act('claude-code:setup_claude_code_run', () => setupClaudeCodeRun({}), (r) => {
-                  const steps = ((r.untrusted as { steps?: Said['output'] } | undefined)?.steps ?? []).slice(0, 4);
-                  return { step: 'claude-code', state: r.ok ? 'ok' : r.timed_out ? 'attention' : 'fail', text: r.ok ? 'Registered with Claude Code' : r.timed_out ? 'Claude Code did not finish within 60 s (it may be asking a question): run the lines in Terminal' : 'Claude Code refused: its output is below', output: steps };
-                })
-              }>
+              <Button
+                variant="primary"
+                disabled={!placed || !cc.claude || !cc.plugin || !!busy}
+                busy={isBusy('claude-code:setup_claude_code_run')}
+                data-testid="setup-claude-code-run"
+                onClick={() =>
+                  act(
+                    'claude-code:setup_claude_code_run',
+                    () => setupClaudeCodeRun({}),
+                    (r) => {
+                      const steps = ((r.untrusted as { steps?: Said['output'] } | undefined)?.steps ?? []).slice(0, 4);
+                      return {
+                        step: 'claude-code',
+                        state: r.ok ? 'ok' : r.timed_out ? 'attention' : 'fail',
+                        text: r.ok
+                          ? 'Registered with Claude Code'
+                          : r.timed_out
+                            ? 'Claude Code did not finish within 60 s (it may be asking a question): run the lines in Terminal'
+                            : 'Claude Code refused: its output is below',
+                        output: steps,
+                      };
+                    },
+                  )
+                }
+              >
                 Run
               </Button>
             }
           >
-            <p>The {APP_NAME} plugin, with this app&apos;s Node.js and engine and this workspace. Run uses {cc.claude ? <Txt className="k-mono" text={cc.claude} /> : 'claude from ~/.local/bin, /opt/homebrew/bin, /usr/local/bin or ~/.claude/local'}; or copy the lines into Terminal.</p>
+            <p>
+              The {APP_NAME} plugin, with this app&apos;s Node.js and engine and this workspace. Run uses{' '}
+              {cc.claude ? <Txt className="k-mono" text={cc.claude} /> : 'claude from ~/.local/bin, /opt/homebrew/bin, /usr/local/bin or ~/.claude/local'}; or copy the lines into Terminal.
+            </p>
             <p>
               Claude Code&apos;s settings: <Txt className="k-mono" text={cc.config_dir} />
             </p>
@@ -343,7 +389,11 @@ export function SetupSheet({ route }: { route: Route }) {
             testId="setup-claude-desktop"
             actions={
               d.state !== 'ok' && cd.state !== 'unreadable' && confirm !== 'desktop' && confirm !== 'desktop-replace' ? (
-                <Button disabled={!placed || !cd.folder || !!busy} data-testid="setup-claude-desktop-add" onClick={() => confirmTo(cd.state === 'replace' ? 'desktop-replace' : 'desktop', 'setup-claude-desktop', ['setup-claude-desktop-confirm', 'setup-claude-desktop-cancel'])}>
+                <Button
+                  disabled={!placed || !cd.folder || !!busy}
+                  data-testid="setup-claude-desktop-add"
+                  onClick={() => confirmTo(cd.state === 'replace' ? 'desktop-replace' : 'desktop', 'setup-claude-desktop', ['setup-claude-desktop-confirm', 'setup-claude-desktop-cancel'])}
+                >
                   {cd.state === 'replace' ? 'Replace…' : 'Add to Claude Desktop…'}
                 </Button>
               ) : undefined
@@ -351,7 +401,14 @@ export function SetupSheet({ route }: { route: Route }) {
           >
             <p>
               Adds this entry to <Txt className="k-mono" text={cd.file} />
-              {cd.folder ? <> (a backup of the file goes to <Txt className="k-mono" text={cd.backups} /> first):</> : ' — the folder is missing: open Claude Desktop once first.'}
+              {cd.folder ? (
+                <>
+                  {' '}
+                  (a backup of the file goes to <Txt className="k-mono" text={cd.backups} /> first):
+                </>
+              ) : (
+                ' — the folder is missing: open Claude Desktop once first.'
+              )}
             </p>
             <Txt className="sh-setup-pre k-mono" text={cd.entry} />
             <Blocker fix={{ copy: cd.entry, label: 'Copy entry' }} testId="setup-claude-desktop-copy" />
@@ -366,9 +423,31 @@ export function SetupSheet({ route }: { route: Route }) {
             {(confirm === 'desktop' || confirm === 'desktop-replace') && (
               <div className="sh-setup-confirm" role="group" aria-label="Add to Claude Desktop">
                 <p>
-                  <Txt text={confirm === 'desktop-replace' ? `Replace the retake entry in ${cd.file}? A backup is made first.` : `Write this entry into ${cd.file}? A backup is made first; every other setting stays.`} />
+                  <Txt
+                    text={
+                      confirm === 'desktop-replace'
+                        ? `Replace the retake entry in ${cd.file}? A backup is made first.`
+                        : `Write this entry into ${cd.file}? A backup is made first; every other setting stays.`
+                    }
+                  />
                 </p>
-                <Button variant="primary" disabled={!placed || (cd.running !== false && cd.running !== undefined) || !!busy} busy={isBusy('desktop:setup_claude_desktop_add')} data-testid="setup-claude-desktop-confirm" onClick={() => act('desktop:setup_claude_desktop_add', () => setupClaudeDesktopAdd({ replace: confirm === 'desktop-replace' }), (r) => ({ step: 'desktop', state: 'ok', text: r.kind === 'same' ? 'Claude Desktop already has this entry' : `Added: open Claude Desktop again to use it.${r.backup ? ` The file as it was: ${String(r.backup)}` : ''}` }))}>
+                <Button
+                  variant="primary"
+                  disabled={!placed || (cd.running !== false && cd.running !== undefined) || !!busy}
+                  busy={isBusy('desktop:setup_claude_desktop_add')}
+                  data-testid="setup-claude-desktop-confirm"
+                  onClick={() =>
+                    act(
+                      'desktop:setup_claude_desktop_add',
+                      () => setupClaudeDesktopAdd({ replace: confirm === 'desktop-replace' }),
+                      (r) => ({
+                        step: 'desktop',
+                        state: 'ok',
+                        text: r.kind === 'same' ? 'Claude Desktop already has this entry' : `Added: open Claude Desktop again to use it.${r.backup ? ` The file as it was: ${String(r.backup)}` : ''}`,
+                      }),
+                    )
+                  }
+                >
                   {confirm === 'desktop-replace' ? 'Replace' : 'Add'}
                 </Button>
                 <Button data-testid="setup-claude-desktop-cancel" onClick={() => confirmTo(null, 'setup-claude-desktop', ['setup-claude-desktop-add'])}>
@@ -385,7 +464,18 @@ export function SetupSheet({ route }: { route: Route }) {
             testId="setup-notifications"
             actions={
               st.notifications !== 'on' ? (
-                <Button disabled={!!busy} busy={isBusy('notifications:setup_notifications')} data-testid="setup-notifications-allow" onClick={() => act('notifications:setup_notifications', () => setupNotifications({}), () => ({ step: 'notifications', state: 'attention', text: `macOS asks you now (or System Settings › Notifications › ${APP_NAME}, if you said no before)` }))}>
+                <Button
+                  disabled={!!busy}
+                  busy={isBusy('notifications:setup_notifications')}
+                  data-testid="setup-notifications-allow"
+                  onClick={() =>
+                    act(
+                      'notifications:setup_notifications',
+                      () => setupNotifications({}),
+                      () => ({ step: 'notifications', state: 'attention', text: `macOS asks you now (or System Settings › Notifications › ${APP_NAME}, if you said no before)` }),
+                    )
+                  }
+                >
                   Allow…
                 </Button>
               ) : undefined
@@ -406,7 +496,16 @@ export function SetupSheet({ route }: { route: Route }) {
   };
 
   return (
-    <Sheet open={open} title={`Set up ${APP_NAME}`} testId="setup-sheet" focusTitle escapeAction="escape" actions={[{ id: 'done', label: 'Done', variant: 'primary', isDefault: true, testId: 'setup-done' }]} onAction={close} content={body()}>
+    <Sheet
+      open={open}
+      title={`Set up ${APP_NAME}`}
+      testId="setup-sheet"
+      focusTitle
+      escapeAction="escape"
+      actions={[{ id: 'done', label: 'Done', variant: 'primary', isDefault: true, testId: 'setup-done' }]}
+      onAction={close}
+      content={body()}
+    >
       {`Each step is optional and happens only when you click it. Help › Set Up ${APP_NAME}… brings this back.`}
     </Sheet>
   );

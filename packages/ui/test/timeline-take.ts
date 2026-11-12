@@ -37,7 +37,10 @@ export function hasEncoder(name: string): boolean {
 export function bitsVideo(file: string, seconds: number, codec: TakeCodec, size = '640x360'): void {
   const boxes = [
     `drawbox=x=iw*${(X0 + REF * STEP).toFixed(3)}:y=ih*${REF_Y0}:w=iw*${W}:h=ih*${(REF_Y1 - REF_Y0).toFixed(2)}:color=white:t=fill`,
-    ...Array.from({ length: BITS }, (_x, k) => `drawbox=x=iw*${(X0 + k * STEP).toFixed(3)}:y=ih*${Y0}:w=iw*${W}:h=ih*${(Y1 - Y0).toFixed(2)}:color=white:t=fill:enable='eq(mod(floor(n/${2 ** k})\\,2)\\,1)'`),
+    ...Array.from(
+      { length: BITS },
+      (_x, k) => `drawbox=x=iw*${(X0 + k * STEP).toFixed(3)}:y=ih*${Y0}:w=iw*${W}:h=ih*${(Y1 - Y0).toFixed(2)}:color=white:t=fill:enable='eq(mod(floor(n/${2 ** k})\\,2)\\,1)'`,
+    ),
   ].join(',');
   const enc =
     codec === 'vp9'
@@ -45,7 +48,25 @@ export function bitsVideo(file: string, seconds: number, codec: TakeCodec, size 
       : codec === 'h264-videotoolbox'
         ? ['-c:v', 'h264_videotoolbox', '-q:v', '65', '-profile:v', 'high']
         : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18'];
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=0x202020:s=${size}:r=30`, '-t', String(seconds), '-vf', boxes, ...enc, '-pix_fmt', 'yuv420p', '-movflags', '+faststart', file]);
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=0x202020:s=${size}:r=30`,
+    '-t',
+    String(seconds),
+    '-vf',
+    boxes,
+    ...enc,
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
+    file,
+  ]);
 }
 
 /** The source frame index a PNG screenshot of the preview shows (the blocks' centres, thresholded), or -1 (unreadable). */
@@ -57,10 +78,11 @@ export function readBits(png: Buffer): number {
     const x = Math.floor(w * fx);
     const y = Math.floor(h * fy);
     let sum = 0;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-      const i = ((y + dy) * w + (x + dx)) * 3;
-      sum += (rgb[i] + rgb[i + 1] + rgb[i + 2]) / 3;
-    }
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const i = ((y + dy) * w + (x + dx)) * 3;
+        sum += (rgb[i] + rgb[i + 1] + rgb[i + 2]) / 3;
+      }
     return sum / 25;
   };
   if (level(X0 + REF * STEP + W / 2, (REF_Y0 + REF_Y1) / 2) < 150) return -1;
@@ -100,7 +122,24 @@ export async function writeTake(projectDir: string, name: string, o: { run: stri
   await writeFile(join(runDir, 'scenario.yaml'), o.text);
   await writeFile(
     join(runDir, 'run.json'),
-    JSON.stringify({ version: 1, id: o.run, project, scenario: name, mode: 'capture', status: 'succeeded', started_at: '2026-01-01T12:00:00.000Z', finished_at: '2026-01-01T12:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 3, steps_done: 3, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id: o.run,
+      project,
+      scenario: name,
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-01-01T12:00:00.000Z',
+      finished_at: '2026-01-01T12:01:00.000Z',
+      dir: runDir,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 3,
+      steps_done: 3,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+    }),
   );
   bitsVideo(join(runDir, 'capture.mp4'), o.seconds, o.codec);
   await writeFile(join(projectDir, 'scenarios', `${name}.yaml`), o.text);
@@ -108,7 +147,10 @@ export async function writeTake(projectDir: string, name: string, o: { run: stri
 }
 
 /** A comment thread file on a render of the take (core CommentThreadSchema), anchored at a step. */
-export async function writeThread(projectDir: string, o: { id: string; scenario: string; run: string; frames: number; text: string; anchor: { segment: string; kind: 'clip' | 'card'; scene?: string; step?: number } }): Promise<void> {
+export async function writeThread(
+  projectDir: string,
+  o: { id: string; scenario: string; run: string; frames: number; text: string; anchor: { segment: string; kind: 'clip' | 'card'; scene?: string; step?: number } },
+): Promise<void> {
   const dir = join(projectDir, 'comments', o.scenario);
   await mkdir(dir, { recursive: true });
   await writeFile(

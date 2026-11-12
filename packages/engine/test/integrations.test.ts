@@ -40,7 +40,7 @@ const input = { root: '/ws/demo', bin: '/repo/packages/cli/dist/bin.js', node: '
 describe('the MCP registration (the config snippet)', () => {
   // clientPath adds this machine's system folders that exist after the given ones.
   const PATH = mcpConfigJson(input).mcpServers.retake!.env.PATH!;
-  it('the mcpServers block: node, the entry point, --root, mcp; PATH with absolute entries only after node\'s folder; RETAKE_HOME absolute', () => {
+  it("the mcpServers block: node, the entry point, --root, mcp; PATH with absolute entries only after node's folder; RETAKE_HOME absolute", () => {
     expect(PATH.startsWith('/n/22/bin:/opt/homebrew/bin:/usr/bin')).toBe(true);
     expect(PATH.split(':').every((e) => e.startsWith('/'))).toBe(true);
     expect(JSON.stringify(mcpConfigJson(input))).toBe(
@@ -53,19 +53,43 @@ describe('the MCP registration (the config snippet)', () => {
     expect(claudeCodeCommand(input)).toBe(`claude mcp add retake --scope user -e PATH=${PATH} -e 'RETAKE_HOME=/h/retake home' -- /n/22/bin/node /repo/packages/cli/dist/bin.js --root /ws/demo mcp`);
     expect(pluginInstallSteps({ ...input, repo: '/repo' })).toEqual([
       { argv: ['plugin', 'marketplace', 'add', '/repo'] },
-      { argv: ['plugin', 'install', 'retake@retake', '--scope', 'local', '--config', 'node=/n/22/bin/node', '--config', 'cli=/repo/packages/cli/dist/bin.js', '--config', 'workspace=/ws/demo', '--config', 'home=/h/retake home'], cwd: '/ws/demo' },
+      {
+        argv: [
+          'plugin',
+          'install',
+          'retake@retake',
+          '--scope',
+          'local',
+          '--config',
+          'node=/n/22/bin/node',
+          '--config',
+          'cli=/repo/packages/cli/dist/bin.js',
+          '--config',
+          'workspace=/ws/demo',
+          '--config',
+          'home=/h/retake home',
+        ],
+        cwd: '/ws/demo',
+      },
     ]);
     expect(pluginInstallCommands({ ...input, repo: '/repo' })).toEqual([
       'claude plugin marketplace add /repo',
       "cd /ws/demo && claude plugin install retake@retake --scope local --config node=/n/22/bin/node --config cli=/repo/packages/cli/dist/bin.js --config workspace=/ws/demo --config 'home=/h/retake home'",
     ]);
-    expect(JSON.stringify(mcpHttpConfigJson({ url: 'http://127.0.0.1:47820/mcp' }))).toBe('{"mcpServers":{"retake":{"type":"http","url":"http://127.0.0.1:47820/mcp","headers":{"Authorization":"Bearer ${RETAKE_MCP_TOKEN}"}}}}');
-    expect(claudeCodeHttpCommand({ url: 'http://127.0.0.1:47820/mcp', tokenFile: '/h/mcp token' })).toBe(`claude mcp add --transport http retake http://127.0.0.1:47820/mcp --scope user --header "Authorization: Bearer $(cat '/h/mcp token')"`);
+    expect(JSON.stringify(mcpHttpConfigJson({ url: 'http://127.0.0.1:47820/mcp' }))).toBe(
+      '{"mcpServers":{"retake":{"type":"http","url":"http://127.0.0.1:47820/mcp","headers":{"Authorization":"Bearer ${RETAKE_MCP_TOKEN}"}}}}',
+    );
+    expect(claudeCodeHttpCommand({ url: 'http://127.0.0.1:47820/mcp', tokenFile: '/h/mcp token' })).toBe(
+      `claude mcp add --transport http retake http://127.0.0.1:47820/mcp --scope user --header "Authorization: Bearer $(cat '/h/mcp token')"`,
+    );
     expect(mcpHttpTokenExport('/h/mcp-token')).toBe('export RETAKE_MCP_TOKEN="$(cat /h/mcp-token)"');
   });
 
-  it('a stable Node.js path: the major\'s alias (mise, nvm, Homebrew) when it exists, else the path as given', () => {
-    const has = (...p: string[]) => (x: string) => p.includes(x);
+  it("a stable Node.js path: the major's alias (mise, nvm, Homebrew) when it exists, else the path as given", () => {
+    const has =
+      (...p: string[]) =>
+      (x: string) =>
+        p.includes(x);
     expect(stableNodePath('/m/installs/node/22.16.0/bin/node', has('/m/installs/node/22/bin/node'))).toBe('/m/installs/node/22/bin/node');
     expect(stableNodePath('/v/node/v22.16.0/bin/node', has('/v/node/22/bin/node'))).toBe('/v/node/22/bin/node');
     expect(stableNodePath('/b/Cellar/node@22/22.16.0/bin/node', has('/b/opt/node@22/bin/node'))).toBe('/b/opt/node@22/bin/node');
@@ -106,7 +130,7 @@ describe('Claude Desktop: the merged config as bytes', () => {
   });
 });
 
-describe('the command\'s link', () => {
+describe("the command's link", () => {
   it('a link to the launcher as given (absolute, not resolved), replaced atomically for another copy of the app', () => {
     const apps = scratch('apps');
     const launcherOf = (name: string) => {
@@ -133,7 +157,7 @@ describe('the command\'s link', () => {
 });
 
 describe('one import path', () => {
-  it('the registrations and the set-up come from @retake/engine/integrations only — not core, not the engine\'s main entry, not the MCP package', async () => {
+  it("the registrations and the set-up come from @retake/engine/integrations only — not core, not the engine's main entry, not the MCP package", async () => {
     const names = ['mcpConfigJson', 'mcpServerEntry', 'stableNodePath', 'pluginInstallSteps', 'SERVER_NAME', 'writeDesktopEntry', 'installCliLink', 'SetupError', 'readAppSettings', 'UPDATES_FILE'];
     const integrations: Record<string, unknown> = await import('@retake/engine/integrations');
     for (const n of names) expect(integrations[n], n).toBeDefined();

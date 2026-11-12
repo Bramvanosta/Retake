@@ -84,13 +84,7 @@ export function cannotPlayWords(codec: string | undefined): string {
   return `This browser cannot play the take's ${codecWords(codec)} video: open the Studio in Chrome, Safari or Firefox. The tracks still work.`;
 }
 
-export type KeyAction =
-  | { kind: 'toggle' }
-  | { kind: 'step'; frames: number }
-  | { kind: 'seconds'; seconds: number }
-  | { kind: 'home' }
-  | { kind: 'end' }
-  | { kind: 'segment'; dir: -1 | 1 };
+export type KeyAction = { kind: 'toggle' } | { kind: 'step'; frames: number } | { kind: 'seconds'; seconds: number } | { kind: 'home' } | { kind: 'end' } | { kind: 'segment'; dir: -1 | 1 };
 
 /** Where a key was pressed: what the screen needs to know to leave a control its own keys. */
 export interface KeyTarget {

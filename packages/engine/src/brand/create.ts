@@ -227,7 +227,10 @@ export async function checkNewName(templatesDir: string, name: NewThemeName, rep
   if (taken !== name) throw new EngineError('refused', `"${taken}" exists with another case than "${name}": it is not replaced`);
   const why = await replaceProblem(join(templatesDir, taken), trust);
   if (why) {
-    throw new EngineError('refused', `theme ${name} is not replaced: ${why} — a human's theme is never overwritten. Choose another name (e.g. ${name}-2), or edit ${join(templatesDir, taken)} by hand`);
+    throw new EngineError(
+      'refused',
+      `theme ${name} is not replaced: ${why} — a human's theme is never overwritten. Choose another name (e.g. ${name}-2), or edit ${join(templatesDir, taken)} by hand`,
+    );
   }
   return { existing: true };
 }
@@ -265,13 +268,15 @@ function licencesMarkdown(o: {
     `- \`${o.logo.file}\` — copied from \`${mdCode(o.logo.source)}\`.`,
     ...(o.wordmark ? [`- \`${o.wordmark.file}\` — copied from \`${mdCode(o.wordmark.source)}\`.`] : []),
     '',
-    'The logo and wordmark are the brand\'s own artwork, supplied by the user of this workspace.',
+    "The logo and wordmark are the brand's own artwork, supplied by the user of this workspace.",
     '',
     '## Fonts',
     '',
     '| File | Supplied as | Face | Notes |',
     '| --- | --- | --- | --- |',
-    ...o.fonts.map((f) => `| \`${f.file}\` | \`${mdCode(f.source)}\` | ${f.role}, ${f.weight}${f.italic ? ' italic' : ''} (${f.format}) | ${f.licence_notes.length ? mdText(f.licence_notes.join('; ')) : '—'} |`),
+    ...o.fonts.map(
+      (f) => `| \`${f.file}\` | \`${mdCode(f.source)}\` | ${f.role}, ${f.weight}${f.italic ? ' italic' : ''} (${f.format}) | ${f.licence_notes.length ? mdText(f.licence_notes.join('; ')) : '—'} |`,
+    ),
     '',
   ];
   const own = o.fonts.filter((f) => f.weight_from !== 'base');
@@ -300,7 +305,7 @@ function licencesMarkdown(o: {
       `## Fonts of the base theme \`${o.base}\``,
       '',
       `Some font files come from the \`${o.base}\` theme; its LICENSES.md follows as it is (its notes on artwork do not`,
-      'apply to this theme\'s logo and wordmark).',
+      "apply to this theme's logo and wordmark).",
       '',
       ...o.baseLicences
         .trimEnd()
@@ -364,8 +369,14 @@ function fontFace(info: FontInfo, ref: BrandFontRef): { weight: number; italic: 
   if (info.weight !== undefined && info.weight >= 1 && info.weight <= 1000) return { weight: standardWeight(info.weight), italic, from: 'font' };
   // WOFF / WOFF2 (their OS/2 table is compressed): the style token of the file name, else regular — said either way.
   const file = fontRefFile(ref);
-  if (!fromName) return { weight: 400, italic, from: 'file name', warning: `${file}: no weight in the file (${info.format.toUpperCase()}) nor in its name: 400 assumed — give {file, weight} to set it` };
-  return { weight: standardWeight(fromName.weight), italic, from: 'file name', warning: `${file}: weight ${standardWeight(fromName.weight)}${italic ? ' italic' : ''} read from the file name (${info.format.toUpperCase()} files keep it compressed) — give {file, weight} if it is wrong` };
+  if (!fromName)
+    return { weight: 400, italic, from: 'file name', warning: `${file}: no weight in the file (${info.format.toUpperCase()}) nor in its name: 400 assumed — give {file, weight} to set it` };
+  return {
+    weight: standardWeight(fromName.weight),
+    italic,
+    from: 'file name',
+    warning: `${file}: weight ${standardWeight(fromName.weight)}${italic ? ' italic' : ''} read from the file name (${info.format.toUpperCase()} files keep it compressed) — give {file, weight} if it is wrong`,
+  };
 }
 
 /** Create a theme from brand inputs (see the module comment). Throws EngineError: invalid, refused, conflict, not_found. */
@@ -429,14 +440,27 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
     if (face.warning) warnings.push(`${role} font ${face.warning}`);
     const file = fontCopyName(role, face.weight, face.italic, f.ext);
     for (const note of info.licence_notes) warnings.push(`${role} font ${fontRefFile(ref)}: ${note} — check its licence before using it in videos`);
-    return { view: { file, role, source: fontRefFile(ref), format: info.format, weight: face.weight, italic: face.italic, weight_from: face.from, licence_notes: info.licence_notes }, bytes: f.bytes, names: info.names };
+    return {
+      view: { file, role, source: fontRefFile(ref), format: info.format, weight: face.weight, italic: face.italic, weight_from: face.from, licence_notes: info.licence_notes },
+      bytes: f.bytes,
+      names: info.names,
+    };
   };
   const baseFont = async (abs: string, role: 'display' | 'body'): Promise<FontPlan> => {
     const bytes = await readOwnThemeFile(abs, baseName);
     const info = sniffFont({ ref: `base:${baseName}/${relative(base.dir, abs).split(sep).join('/')}`, ext: extname(abs).toLowerCase(), bytes }, `${role} font of ${baseName}`);
     const face = lib.fontFileFace(abs);
     return {
-      view: { file: `fonts/${basename(abs)}`, role, source: `base:${baseName}/${relative(base.dir, abs).split(sep).join('/')}`, format: info.format, weight: face.weight, italic: face.style === 'italic', weight_from: 'base', licence_notes: info.licence_notes },
+      view: {
+        file: `fonts/${basename(abs)}`,
+        role,
+        source: `base:${baseName}/${relative(base.dir, abs).split(sep).join('/')}`,
+        format: info.format,
+        weight: face.weight,
+        italic: face.style === 'italic',
+        weight_from: 'base',
+        licence_notes: info.licence_notes,
+      },
       bytes,
     };
   };
@@ -450,17 +474,24 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   for (const b of body) {
     const prior = seen.get(b.view.file);
     if (prior && !(prior.view.weight_from === 'base' && b.view.weight_from === 'base' && prior.bytes.equals(b.bytes))) {
-      throw new EngineError('invalid', `two body fonts have the same weight and style (${b.view.weight}${b.view.italic ? ' italic' : ''}): ${prior.view.source} and ${b.view.source} — give each weight once`);
+      throw new EngineError(
+        'invalid',
+        `two body fonts have the same weight and style (${b.view.weight}${b.view.italic ? ' italic' : ''}): ${prior.view.source} and ${b.view.source} — give each weight once`,
+      );
     }
     seen.set(b.view.file, b);
     fonts.push(b);
   }
   if (given.body !== undefined) {
     const caps = base.template.captions;
-    for (const [k, s] of [['kicker', caps.kicker], ['line', caps.line]] as const) {
+    for (const [k, s] of [
+      ['kicker', caps.kicker],
+      ['line', caps.line],
+    ] as const) {
       if (s.font !== 'body') continue;
       const w = s.weight ?? 400;
-      if (!body.some((b) => b.view.weight === w && !b.view.italic)) warnings.push(`captions.${k} of ${baseName} uses the body font at weight ${w}, which no body file has: the browser synthesises it (give a body file of weight ${w})`);
+      if (!body.some((b) => b.view.weight === w && !b.view.italic))
+        warnings.push(`captions.${k} of ${baseName} uses the body font at weight ${w}, which no body file has: the browser synthesises it (give a body file of weight ${w})`);
     }
   }
 
@@ -502,7 +533,16 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   const names = new Map(uniqueFonts.filter((f) => f.names).map((f) => [f.view.file, f.names!]));
   const logo = { file: logoName, source: input.logo, ...logoInfo };
   const wordmark = wordmarkFile && wordmarkName ? { file: wordmarkName, source: input.wordmark!, ...wordmarkInfo! } : undefined;
-  const licences = licencesMarkdown({ name, base: baseName, date, logo, ...(wordmark ? { wordmark } : {}), fonts: uniqueFonts.map((f) => f.view), names, ...(baseLicences !== undefined ? { baseLicences } : {}) });
+  const licences = licencesMarkdown({
+    name,
+    base: baseName,
+    date,
+    logo,
+    ...(wordmark ? { wordmark } : {}),
+    fonts: uniqueFonts.map((f) => f.view),
+    names,
+    ...(baseLicences !== undefined ? { baseLicences } : {}),
+  });
 
   const written = new Map<string, Buffer>([
     [TEMPLATE_FILE, Buffer.from(generated.yaml)],

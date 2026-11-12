@@ -63,7 +63,10 @@ function cdpBody(r: { postData?: string; postDataEntries?: Array<{ bytes?: strin
 
 /** A Playwright evaluation error, first line, without its "page.evaluate:" prefix. */
 function cleanError(e: unknown): string {
-  return errorMessage(e).replace(/^page\.evaluate: /, '').replace(/^Error: /, '').split('\n')[0];
+  return errorMessage(e)
+    .replace(/^page\.evaluate: /, '')
+    .replace(/^Error: /, '')
+    .split('\n')[0];
 }
 
 class HookTab {
@@ -172,10 +175,7 @@ class HookTab {
       } catch {
         /* fail closed */
       }
-      const done =
-        host || write
-          ? cdp.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' })
-          : cdp.send('Fetch.continueRequest', { requestId: ev.requestId });
+      const done = host || write ? cdp.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' }) : cdp.send('Fetch.continueRequest', { requestId: ev.requestId });
       done.catch(() => undefined);
     });
     // Network must be enabled for the service-worker bypass to apply.

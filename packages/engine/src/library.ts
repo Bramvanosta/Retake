@@ -215,7 +215,8 @@ export async function ensureLibraryCacheDir(ws: Pick<OpenedWorkspace, 'root'>): 
     const st = await lstat(parent);
     if (!st.isDirectory()) throw new EngineError('refused', `${parent} is not a folder (a link or a file): library previews are written only into plain folders of the workspace — remove it`);
   }
-  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts)) throw new EngineError('refused', `${parent} leaves the workspace: library previews stay in it`);
+  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts))
+    throw new EngineError('refused', `${parent} leaves the workspace: library previews stay in it`);
   return parent;
 }
 
@@ -262,11 +263,7 @@ export interface LibraryFailure {
   bundle?: string;
 }
 
-export type LibraryEntry =
-  | { state: 'missing' }
-  | { state: 'cached'; meta: LibraryEntryMeta }
-  | { state: 'too_large'; meta: LibraryEntryMeta }
-  | { state: 'failed'; failure: LibraryFailure };
+export type LibraryEntry = { state: 'missing' } | { state: 'cached'; meta: LibraryEntryMeta } | { state: 'too_large'; meta: LibraryEntryMeta } | { state: 'failed'; failure: LibraryFailure };
 
 function jsonOf(bytes: Buffer): unknown {
   try {
@@ -415,7 +412,10 @@ export function libraryReason(reason: string): string {
 }
 
 /** Sweep abandoned temporary folders and prune over the caps (see the module comment). Returns what it removed. */
-export async function pruneLibraryCache(cacheDir: string, o: { theme?: { name: string; hash: string }; now?: number; maxEntries?: number; maxBytes?: number } = {}): Promise<{ swept: number; pruned: number }> {
+export async function pruneLibraryCache(
+  cacheDir: string,
+  o: { theme?: { name: string; hash: string }; now?: number; maxEntries?: number; maxBytes?: number } = {},
+): Promise<{ swept: number; pruned: number }> {
   const now = o.now ?? Date.now();
   const maxEntries = o.maxEntries ?? LIBRARY_CACHE_MAX_ENTRIES;
   const maxBytes = o.maxBytes ?? LIBRARY_CACHE_MAX_BYTES;

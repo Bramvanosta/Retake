@@ -25,7 +25,11 @@ function match(run: string, now: string): Record<string, RunStepMatch> {
 }
 
 const RUN = yaml([
-  ['request', 'page: shop\n    open: /products', ['{click: Request a quote}', '{click: {aria: Increase, in: dialog}}', '{click: {aria: Increase, in: dialog}}', '{select: {field: Bag size, option: 5 kg}}', '{hold: 1.2}']],
+  [
+    'request',
+    'page: shop\n    open: /products',
+    ['{click: Request a quote}', '{click: {aria: Increase, in: dialog}}', '{click: {aria: Increase, in: dialog}}', '{select: {field: Bag size, option: 5 kg}}', '{hold: 1.2}'],
+  ],
   ['send', '', ['{click: Send}', '{wait_for: Sent}']],
 ]);
 
@@ -72,7 +76,10 @@ describe('matchRunSteps', () => {
   });
 
   it('only modifiers changed (caption, hold, speed, camera, mark, overlay, id): the picture is kept', () => {
-    const now = RUN.replace('{select: {field: Bag size, option: 5 kg}}', '{select: {field: Bag size, option: 5 kg}, caption: Pick a size, hold: 2, speed: 1.5, camera: {zoom: 1.3}, mark: size, id: size, overlay: {component: studio/overlay-callout}}');
+    const now = RUN.replace(
+      '{select: {field: Bag size, option: 5 kg}}',
+      '{select: {field: Bag size, option: 5 kg}, caption: Pick a size, hold: 2, speed: 1.5, camera: {zoom: 1.3}, mark: size, id: size, overlay: {component: studio/overlay-callout}}',
+    );
     expect(match(RUN, now)['request.3']).toEqual({ run_index: 3 });
   });
 
@@ -98,7 +105,7 @@ describe('matchRunSteps', () => {
   });
 
   it('a scene the run did not have, and a step with no single action', () => {
-    const now = RUN.replace("  - id: send\n", '  - id: extra\n    steps:\n      - {hold: 1}\n  - id: send\n').replace('{wait_for: Sent}', '{wait_for: Sent, click: X}');
+    const now = RUN.replace('  - id: send\n', '  - id: extra\n    steps:\n      - {hold: 1}\n  - id: send\n').replace('{wait_for: Sent}', '{wait_for: Sent, click: X}');
     const m = match(RUN, now);
     expect(m['extra.0']).toEqual({ missing: 'scene_not_in_run' });
     expect(m['send.1']).toEqual({ missing: 'unreadable' });

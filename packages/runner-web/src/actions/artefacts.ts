@@ -176,7 +176,9 @@ async function fetchDocument(ctx: StepContext, url: string, timeoutMs: number, a
       why = `HTTP ${res.status()}`;
     } catch (e) {
       if (e instanceof StepError || isCancelled(e)) throw e;
-      why = errorMessage(e).split('\n')[0].replace(/^apiRequestContext\.\w+:\s*/, '');
+      why = errorMessage(e)
+        .split('\n')[0]
+        .replace(/^apiRequestContext\.\w+:\s*/, '');
       if (!isTransientNetworkError(why)) throw new StepError(`download: the document at ${url} could not be fetched with the session (${why})`);
     }
     if (attempt >= DOWNLOAD_ATTEMPTS) {
@@ -351,11 +353,7 @@ export async function captureText(ctx: StepContext, args: NormalizedArgsMap['cap
     value = text ? captureValue(text, args.pattern) : null;
     if (value !== null && value !== '') break;
     if (wallNow() >= deadline) {
-      throw new StepError(
-        args.pattern
-          ? `capture_text: the text of ${r.desc} does not match ${args.pattern} (text: ${JSON.stringify(text.slice(0, 160))})`
-          : `capture_text: ${r.desc} has no text`,
-      );
+      throw new StepError(args.pattern ? `capture_text: the text of ${r.desc} does not match ${args.pattern} (text: ${JSON.stringify(text.slice(0, 160))})` : `capture_text: ${r.desc} has no text`);
     }
     await rt.sleep(150);
   }

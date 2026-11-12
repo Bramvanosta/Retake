@@ -42,7 +42,10 @@ export const jobList = defineOperation({
 });
 
 /** A job id argument (job_status's and job_cancel's). */
-export const jobId = z.string().regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)').describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, template_from_site, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
+export const jobId = z
+  .string()
+  .regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)')
+  .describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, template_from_site, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
 
 /** Where a queued job stands, in words (L5.14: a heavy job a take holds waits for it whatever its place). */
 function queueWords(position: { ahead: number; running?: string; held_by?: 'take' }): string {
@@ -100,7 +103,13 @@ export const jobStatus = defineOperation({
         ...(job.input.kind === 'render' ? [`render_status {project: "${job.input.project}", render_id: "${job.input.render_id}"} has the render's details`] : []),
         ...(job.input.kind === 'review' ? [`review_get {project: "${job.input.project}", render_id: "${job.input.render_id}"} reads the review (with its contact sheet)`] : []),
         ...(job.result?.kind === 'preview' ? [`preview images in ${job.result.dir} (shown below)`] : []),
-        ...(job.result?.kind === 'export' ? [...job.result.outputs.map((o) => `${o.format} (${o.method}): ${o.file}`), `manifest: ${job.result.manifest}`, ...(job.result.failed.length ? [`failed: ${job.result.failed.join(', ')} (messages in result.untrusted.failures)`] : [])] : []),
+        ...(job.result?.kind === 'export'
+          ? [
+              ...job.result.outputs.map((o) => `${o.format} (${o.method}): ${o.file}`),
+              `manifest: ${job.result.manifest}`,
+              ...(job.result.failed.length ? [`failed: ${job.result.failed.join(', ')} (messages in result.untrusted.failures)`] : []),
+            ]
+          : []),
       ].join('\n'),
       // A finished preview: its folder and stills where template_preview / component_preview put them (a client reads
       // `stills` whichever tool answered).
@@ -114,7 +123,8 @@ export const jobStatus = defineOperation({
 export const jobCancel = defineOperation({
   name: 'job_cancel',
   title: 'Cancel a job',
-  description: 'Cancel a job: a queued one never starts; a running run stops at its next step, then its teardown and pending rollbacks still run; a recording whose window is open is discarded (after it, only its check replay stops). Finished jobs are left as they are.',
+  description:
+    'Cancel a job: a queued one never starts; a running run stops at its next step, then its teardown and pending rollbacks still run; a recording whose window is open is discarded (after it, only its check replay stops). Finished jobs are left as they are.',
   input: z.strictObject({ job_id: jobId }),
   annotations: JOB_CANCEL,
   async run({ job_id }, { engine }) {

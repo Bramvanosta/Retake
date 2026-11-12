@@ -160,7 +160,9 @@ export async function findNamedRender(
     if (!latest.pick) {
       const n = latest.passed.length + latest.passed_more;
       const why = latest.reasons.map((r) => `${renderNotWords(r.why)} (${r.count})`).join(', ');
-      return fail(`no render${o.scenario ? ` of scenario "${o.scenario}"` : ''} in ${dir}: render one with \`retake render ${o.slug} ${o.scenario ?? '<scenario>'}\`${n ? ` — ${n} file${n === 1 ? '' : 's'} of renders/ passed over: ${why}` : ''}`);
+      return fail(
+        `no render${o.scenario ? ` of scenario "${o.scenario}"` : ''} in ${dir}: render one with \`retake render ${o.slug} ${o.scenario ?? '<scenario>'}\`${n ? ` — ${n} file${n === 1 ? '' : 's'} of renders/ passed over: ${why}` : ''}`,
+      );
     }
     const file = join(dir, `${latest.pick.entry.name}.json`);
     const found = await judge(fs, dir, latest.pick.entry, file, file, o.verb, true);
@@ -235,7 +237,10 @@ async function judge(fs: RecordFs, dir: string, entry: RenderEntry, file: string
   // Its folder of exports/ or review/ is never one another file of renders/ owns (core renderOutputName).
   const output = renderOutputName(entry, record.id, await namesTaken(fs, dir, file, [record.id, entry.name]));
   if (output === null) {
-    return { ok: false, message: `${printableText(shown)} ${saysWords(record.id)}, and no folder of ${verb === 'export' ? 'exports' : 'review'}/ can take its name: another file of renders/ has it, or it is no folder name — nothing to ${verb}` };
+    return {
+      ok: false,
+      message: `${printableText(shown)} ${saysWords(record.id)}, and no folder of ${verb === 'export' ? 'exports' : 'review'}/ can take its name: another file of renders/ has it, or it is no folder name — nothing to ${verb}`,
+    };
   }
   if (renamed && renamedOk && record.file !== '') {
     // Decision iv: the video it names is now the video of ANOTHER render (the record beside that video).
@@ -244,7 +249,10 @@ async function judge(fs: RecordFs, dir: string, entry: RenderEntry, file: string
       const other = await readNamedRender(beside, { fs });
       const problem = other.read.ok || other.read.problem !== 'missing' ? renamedProblem(entry, other) : null;
       if (problem) {
-        return { ok: false, message: `${printableText(refOf(dir, file))} ${saysWords(record.id)}, and ${printableText(refOf(dir, record.file))} is now the video of another render: nothing to ${verb} — correct "file" in the record, or render again with --out` };
+        return {
+          ok: false,
+          message: `${printableText(refOf(dir, file))} ${saysWords(record.id)}, and ${printableText(refOf(dir, record.file))} is now the video of another render: nothing to ${verb} — correct "file" in the record, or render again with --out`,
+        };
       }
     }
   }

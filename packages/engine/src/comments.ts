@@ -23,7 +23,18 @@
  * its time grows with the frame's position, a failure is a warning); `CommentIndex` counts and places threads from the
  * thread files alone (no render records, no views), memoised per file signature.
  */
-export { COMMENT_FILE_MAX_BYTES, COMMENT_LIST_MAX_FILES, COMMENT_LOCK_WAIT_MS, COMMENT_STILL_MAX_BYTES, MCP_AUTHOR_NAME, checkCommentId, commentLockFile, commentRef, commentStillFile, defaultAuthorName } from './comments/store.js';
+export {
+  COMMENT_FILE_MAX_BYTES,
+  COMMENT_LIST_MAX_FILES,
+  COMMENT_LOCK_WAIT_MS,
+  COMMENT_STILL_MAX_BYTES,
+  MCP_AUTHOR_NAME,
+  checkCommentId,
+  commentLockFile,
+  commentRef,
+  commentStillFile,
+  defaultAuthorName,
+} from './comments/store.js';
 export { COMMENT_COUNT_MAX_FOLDERS, CommentIndex, getComment, listComments, recordShapeOk, timecodeOf } from './comments/views.js';
 export type { CommentCountsView, CommentEntryView, CommentListRequest, CommentListView, CommentProposalSummary, CommentSummary, CommentView } from './comments/views.js';
 export { addComment, anchorAt, prepareComment, reopenComment, replyComment, resolveComment } from './comments/threads.js';

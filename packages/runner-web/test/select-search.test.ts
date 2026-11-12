@@ -56,7 +56,13 @@ afterAll(async () => {
 
 async function run(runId: string, open: string, steps: Step[], timeout = 4) {
   const project = makeProject(dir, { app: server.url });
-  const rec = await runScenario({ policy: PERSON_POLICY, project, mode: 'dry', runId, scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout_s: timeout }, scenes: [{ id: 'form', open, steps }] }) });
+  const rec = await runScenario({
+    policy: PERSON_POLICY,
+    project,
+    mode: 'dry',
+    runId,
+    scenario: makeScenario(runId, { pacing: FAST, defaults: { timeout_s: timeout }, scenes: [{ id: 'form', open, steps }] }),
+  });
   const events = (await readTimeline(join(rec.dir, 'timeline.json'))).events.filter((e: TimelineEvent) => e.step >= 0);
   return { rec, events };
 }
@@ -86,7 +92,9 @@ describe('select and pick on a list with a search field (hotfix v0.2.2)', () => 
 
   it('an option no search finds, and a list without a search field: the error says which', async () => {
     const none = await run('auto-search-none', '/list.html', [{ select: { field: 'Country', option: 'Atlantis' } }], 3);
-    expect(none.rec.error?.message).toMatch(/select: "Atlantis" not found in the open popover after \d+\.\d s — typed in the list's search field, no option matched: give `search:` with the text that finds it/);
+    expect(none.rec.error?.message).toMatch(
+      /select: "Atlantis" not found in the open popover after \d+\.\d s — typed in the list's search field, no option matched: give `search:` with the text that finds it/,
+    );
     const plain = await run('no-search-field', '/list.html?search=0', [{ select: { field: 'Country', option: 'Japan' } }], 3);
     expect(plain.rec.error?.message).toMatch(/select: "Japan" not found in the open popover after \d+\.\d s; /);
     expect(plain.rec.error?.message).not.toContain('search');

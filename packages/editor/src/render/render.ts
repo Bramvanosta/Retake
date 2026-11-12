@@ -312,8 +312,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
   if (extname(out).toLowerCase() !== '.mp4') throw new RenderError(`render output must be an .mp4 file: ${out}`);
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
   const asked = renderPolicy(opts.workPolicy, opts.settings);
-  const policy: RenderPolicy =
-    opts.concurrency !== undefined ? { ...asked, concurrency: Math.max(1, Math.round(opts.concurrency)), concurrencySource: 'option' } : asked;
+  const policy: RenderPolicy = opts.concurrency !== undefined ? { ...asked, concurrency: Math.max(1, Math.round(opts.concurrency)), concurrencySource: 'option' } : asked;
   const range = opts.frameRange;
   if (range && !(range[0] >= 0 && range[1] >= range[0] && range[1] < opts.plan.durationInFrames)) {
     throw new RenderError(`frame range ${range[0]}–${range[1]} is outside the video (0–${opts.plan.durationInFrames - 1})`);
@@ -358,7 +357,16 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
     concurrency_source: policy.concurrencySource,
     ...(fallback ? { fallback } : {}),
     ...(ff
-      ? { ffmpeg: { asked: policy.ffmpeg.asked, source: policy.ffmpeg.source, used: ff.used, ...((ff.version ?? (ownFailed ? ownVersion : undefined)) ? { version: ff.version ?? ownVersion } : {}), ...(ff.note ? { note: ff.note } : {}), ...(ownFailed ? { failed: ownFailed } : {}) } }
+      ? {
+          ffmpeg: {
+            asked: policy.ffmpeg.asked,
+            source: policy.ffmpeg.source,
+            used: ff.used,
+            ...((ff.version ?? (ownFailed ? ownVersion : undefined)) ? { version: ff.version ?? ownVersion } : {}),
+            ...(ff.note ? { note: ff.note } : {}),
+            ...(ownFailed ? { failed: ownFailed } : {}),
+          },
+        }
       : {}),
   });
   const attempt = async (asked: RenderPolicy, n: 1 | 2): Promise<RenderPlanResult> => {
@@ -528,9 +536,10 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
       const gpu = n === 1 ? gpuPathFailureOf(e, { gl: session.gl, encoder }) : null;
       // The hardware encoder's signs (its lines, its pipe closing) are also how the ffmpeg that runs it fails: when
       // ours was encoding, the record says both, and the retry takes the library's.
-      if (gpu) throw new GpuPathFailed(gpu.reason, { gpu: true, own: gpu.sign === 'encoder' && ff?.used === 'own' ? ff.path ?? '' : undefined });
+      if (gpu) throw new GpuPathFailed(gpu.reason, { gpu: true, own: gpu.sign === 'encoder' && ff?.used === 'own' ? (ff.path ?? '') : undefined });
       // Our ffmpeg failed at the encode: the one retry, with the library's (in software, the path that must work).
-      const ownReason = n === 1 && ff?.used === 'own' ? ownEncodeFailure(e, { ...(ff.version ? { version: ff.version } : {}), ...(ff.binariesDirectory ? { folder: ff.binariesDirectory } : {}) }) : null;
+      const ownReason =
+        n === 1 && ff?.used === 'own' ? ownEncodeFailure(e, { ...(ff.version ? { version: ff.version } : {}), ...(ff.binariesDirectory ? { folder: ff.binariesDirectory } : {}) }) : null;
       if (ownReason) throw new GpuPathFailed(ownReason, { gpu: false, own: ff?.path ?? '' });
       if (e instanceof RenderError) throw e;
       throw new RenderError(`render failed: ${(e as Error).message}`);
@@ -561,7 +570,9 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
     }
     if (e.gpu) {
       fallback = { reason: e.reason };
-      warnings.push(`the render failed on the GPU path (${e.reason})${e.own !== undefined ? " while this machine's ffmpeg was encoding" : ''} and was rendered again in software${e.own !== undefined ? " with the rendering library's" : ''}`);
+      warnings.push(
+        `the render failed on the GPU path (${e.reason})${e.own !== undefined ? " while this machine's ffmpeg was encoding" : ''} and was rendered again in software${e.own !== undefined ? " with the rendering library's" : ''}`,
+      );
     } else warnings.push(`the encode failed with this machine's ffmpeg (${e.reason}) and the video was rendered again in software with the rendering library's`);
     retrying = true;
     emit({ stage: 'retrying', progress: 0, overall: high, totalFrames: total, renderedFrames: highFrames });
@@ -569,7 +580,8 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
       return await attempt(softwarePolicy(first ?? policy), 2);
     } catch (e2) {
       // The software attempt failed too: said with the GPU path's reason (the error is the software attempt's).
-      if (e2 instanceof RenderError && !(e2 instanceof RenderCancelledError)) e2.message = `render failed in software, after ${e.gpu ? 'the GPU path failed' : "this machine's ffmpeg failed at the encode"} (${e.reason}): ${e2.message.replace(/^render failed: /, '')}`;
+      if (e2 instanceof RenderError && !(e2 instanceof RenderCancelledError))
+        e2.message = `render failed in software, after ${e.gpu ? 'the GPU path failed' : "this machine's ffmpeg failed at the encode"} (${e.reason}): ${e2.message.replace(/^render failed: /, '')}`;
       return failed(e2);
     }
   }
@@ -610,7 +622,11 @@ async function ensureAudioTrack(file: string, work: WorkPolicy): Promise<void> {
   const p = await probeMedia(file, work);
   if (!p || p.audio_streams > 0) return;
   const tmp = `${file}.audio-${randomBytes(3).toString('hex')}.mp4`;
-  const r = await runMediaTool(ffmpegBin(work), ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp], { maxBuffer: 16 * 1024 * 1024 });
+  const r = await runMediaTool(
+    ffmpegBin(work),
+    ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp],
+    { maxBuffer: 16 * 1024 * 1024 },
+  );
   if (r.code !== 0) {
     await rm(tmp, { force: true });
     throw new RenderError(`the render has no audio track and ffmpeg could not add a silent one: ${r.stderr.split('\n')[0]}`);
@@ -851,7 +867,12 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     template_sha256: templateSha256,
     template_folder: templateFolderId(template.dir, project.root),
     overrides,
-    edit: { from: edit.from, ...(edit.sha256 ? { sha256: edit.sha256 } : {}), ...(edit.changes?.length ? { changes: edit.changes } : {}), ...(edit.from === 'scenario' ? { captions: sceneCaptions(timeline) } : {}) },
+    edit: {
+      from: edit.from,
+      ...(edit.sha256 ? { sha256: edit.sha256 } : {}),
+      ...(edit.changes?.length ? { changes: edit.changes } : {}),
+      ...(edit.from === 'scenario' ? { captions: sceneCaptions(timeline) } : {}),
+    },
     variant: plan.variant,
     file,
     record: recordFile,

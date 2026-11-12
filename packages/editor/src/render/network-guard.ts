@@ -153,7 +153,8 @@ export async function armNetworkGuard(browser: RenderBrowserHandle, allow: Netwo
     },
     warnings: () =>
       [...blocked].map(
-        ([origin, n]) => `the render blocked ${n === 1 ? 'a request' : `${n} requests`} to ${origin}: a render through MCP loads only the files of its plan (put remote files in the project's assets/)`,
+        ([origin, n]) =>
+          `the render blocked ${n === 1 ? 'a request' : `${n} requests`} to ${origin}: a render through MCP loads only the files of its plan (put remote files in the project's assets/)`,
       ),
     dispose: async () => {
       conn.off('Fetch.requestPaused', onPaused);

@@ -72,7 +72,13 @@ const FRAME_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAASCAIAAAC1qksFAAABtklEQVR42q3TVW4cURSE4bMcx05MM2YaZmZmZmaP2U7MJK839dRq9b2PdwOfSr9UtLKp+bWlXVPp/+wYN/bMWwdW1ZF958S5d+be13gOdb5jQ+DUFNJYIjpbzOBImFwpsztt9Wbt/rwzWHSHy95o1R+vB5PNUKoVyXRiuV6iMEiVRpnKJFebEfTVbd1vtWF917S5b9k+tKmPHbunLugHWu+R3n9iDJ6Zw1prVG+PG51J6BZPxubLOQIFV6jkiVR8sVog0YAeTrej2W48308Wh+nyOFud5utzwnauju1cHdu5OrazerF5TijD1VGGq6MMV0cZVi+3Lwi6Ir1URpFeKqNIL5WRpy80FqXWstK5JGzn6tjO1bGdq2M7q9d614QyXB1luDrKcHWUYfXG4JagK9JLZRTppTKK9FIZefpq96rev2kO7wjbuTq2c3Vs5+rYzurt8QOJOhTKsHp3+o9EHQq6PH1rdN+Z/O3NHknUobCd1QeLZxJ1KJRh9dHylUQdCro8fX/+NDx/GV+8kahDYTurT68+SNShUIbV5zdfJOpQ0OXpJ5fvs+vPxe03iToUtrP68v7nP8P2dLcYjGN9AAAAAElFTkSuQmCC';
 
 /** The app mark's variants at the sizes they are seen at (L5.13b), each named in a visible caption (the marks are aria-hidden). */
-const APP_MARKS: Array<[MarkVariant, number]> = [['full', 128], ['full', 64], ['small', 32], ['tiny', 18], ['tiny', 16]];
+const APP_MARKS: Array<[MarkVariant, number]> = [
+  ['full', 128],
+  ['full', 64],
+  ['small', 32],
+  ['tiny', 18],
+  ['tiny', 16],
+];
 const WORDS: Record<MarkState, string> = { ok: 'Ready', running: 'Running', waiting: 'Waiting', idle: 'Idle', warn: 'Warning', attention: 'Blocked', fail: 'Failed', recording: 'Recording' };
 const VARIANTS: Array<[ButtonVariant, string]> = [
   ['primary', 'Render'],
@@ -251,8 +257,25 @@ function Column({ appearance }: { appearance: Appearance }) {
         </Toolbar>
         <Toolbar label={`Take tools (${name})`}>
           <IconButton icon="plus" label="Add a take" />
-          <Menu label={`More take tools (${name})`} icon="more" items={[{ id: 'first', label: 'Make it the first' }, { id: 'last', label: 'Make it the last' }]} onSelect={(id) => setAnswer(id)} />
-          <Segmented label={`Fit (${name})`} size="sm" value={fit} onChange={setFit} options={[{ value: 'fit', label: 'Fit' }, { value: 'fill', label: 'Fill' }]} />
+          <Menu
+            label={`More take tools (${name})`}
+            icon="more"
+            items={[
+              { id: 'first', label: 'Make it the first' },
+              { id: 'last', label: 'Make it the last' },
+            ]}
+            onSelect={(id) => setAnswer(id)}
+          />
+          <Segmented
+            label={`Fit (${name})`}
+            size="sm"
+            value={fit}
+            onChange={setFit}
+            options={[
+              { value: 'fit', label: 'Fit' },
+              { value: 'fill', label: 'Fill' },
+            ]}
+          />
           <TextField label="Link" type="url" value={link} onChange={setLink} unsaved={null} layout="row" />
           <IconButton icon="close" label="Remove the take" />
         </Toolbar>
@@ -417,7 +440,17 @@ function Column({ appearance }: { appearance: Appearance }) {
           />
         </div>
         <div className="gl-pane gl-tracks">
-          <Scrubber time="0:04" max={99} value={at} valueText={`frame ${at}`} onChange={setAt} marks={[{ at: 0, label: '0:00' }, { at: 0.5, label: '0:05' }]} />
+          <Scrubber
+            time="0:04"
+            max={99}
+            value={at}
+            valueText={`frame ${at}`}
+            onChange={setAt}
+            marks={[
+              { at: 0, label: '0:00' },
+              { at: 0.5, label: '0:05' },
+            ]}
+          />
           <Track name="Segments" testId={`gl-track-${appearance}`} count={2}>
             <TrackItem variant="segment" place={{ from: 0, to: 45 }} frames={100} label="Scene request, 0:00 to 0:04" pressed={seg2 === 'a'} band={0.1} testId="gl-seg" onActivate={() => setSeg2('a')}>
               request
@@ -427,7 +460,16 @@ function Column({ appearance }: { appearance: Appearance }) {
             </TrackItem>
           </Track>
           <Track name="Markers" testId={`gl-markers-${appearance}`} count={1}>
-            <TrackItem variant="pin" place={{ at: 60 }} frames={100} label="Comment, open, at 0:06" states={['open']} testId="gl-pin" onActivate={() => setAt(60)} tip="open · 0:06 · the zoom starts too early">
+            <TrackItem
+              variant="pin"
+              place={{ at: 60 }}
+              frames={100}
+              label="Comment, open, at 0:06"
+              states={['open']}
+              testId="gl-pin"
+              onActivate={() => setAt(60)}
+              tip="open · 0:06 · the zoom starts too early"
+            >
               ●
             </TrackItem>
           </Track>
@@ -507,9 +549,43 @@ function Column({ appearance }: { appearance: Appearance }) {
           title="scenarios/quote.yaml · line 104"
           rows={[
             { kind: 'gap', sign: '…', word: '3 unchanged lines not shown', base: null, line: null, pieces: [], rtl: false },
-            { kind: 'context', sign: '', word: 'unchanged', base: 103, line: 103, pieces: [{ kind: 'space', count: 4 }, { kind: 'text', text: 'component: studio/overlay-callout' }], rtl: false },
-            { kind: 'del', sign: '−', word: 'removed', base: 104, line: null, pieces: [{ kind: 'space', count: 4 }, { kind: 'text', text: 'duration: 2.5' }], rtl: false },
-            { kind: 'add', sign: '+', word: 'added', base: null, line: 104, pieces: [{ kind: 'space', count: 4 }, { kind: 'text', text: 'duration: 3.5' }, { kind: 'char', code: 'U+200B' }], rtl: false },
+            {
+              kind: 'context',
+              sign: '',
+              word: 'unchanged',
+              base: 103,
+              line: 103,
+              pieces: [
+                { kind: 'space', count: 4 },
+                { kind: 'text', text: 'component: studio/overlay-callout' },
+              ],
+              rtl: false,
+            },
+            {
+              kind: 'del',
+              sign: '−',
+              word: 'removed',
+              base: 104,
+              line: null,
+              pieces: [
+                { kind: 'space', count: 4 },
+                { kind: 'text', text: 'duration: 2.5' },
+              ],
+              rtl: false,
+            },
+            {
+              kind: 'add',
+              sign: '+',
+              word: 'added',
+              base: null,
+              line: 104,
+              pieces: [
+                { kind: 'space', count: 4 },
+                { kind: 'text', text: 'duration: 3.5' },
+                { kind: 'char', code: 'U+200B' },
+              ],
+              rtl: false,
+            },
             { kind: 'add', sign: '+', word: 'added', base: null, line: 105, pieces: [{ kind: 'text', text: '# עברית: a note' }], rtl: true },
           ]}
         />
@@ -556,7 +632,13 @@ function Column({ appearance }: { appearance: Appearance }) {
         <Menu
           label={`Take actions (${name})`}
           text="Take"
-          items={[{ id: 'dup', label: 'Duplicate', kbd: ['⌘', 'D'] }, { id: 'rename', label: 'Rename…' }, { id: 'export', label: 'Export', disabled: true }, 'separator', { id: 'delete', label: 'Delete take', danger: true }]}
+          items={[
+            { id: 'dup', label: 'Duplicate', kbd: ['⌘', 'D'] },
+            { id: 'rename', label: 'Rename…' },
+            { id: 'export', label: 'Export', disabled: true },
+            'separator',
+            { id: 'delete', label: 'Delete take', danger: true },
+          ]}
           onSelect={(id) => setAnswer(id)}
         />
         <Button onClick={() => setSheet(true)}>Discard the take…</Button>

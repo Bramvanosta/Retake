@@ -58,7 +58,10 @@ async function recoverOrphans(w: Worker): Promise<void> {
     if (!(await isAlive(stored.worker))) continue; // dead too: persisted as interrupted by the first scan
     if (!(await provenJobProcess(id, w.root, stored.worker))) {
       w.log(`job ${id}: the process its record names (pid ${String(stored.worker.pid).slice(0, 12)}) is not provably its job process: left alone, the job ends interrupted`);
-      await closeJob(w, { ...interrupted(stored, w.cli, 'its jobs worker stopped while the job ran, and the process its record names could not be confirmed as its job process (left alone)'), finished_at: stampOf(w.clock) });
+      await closeJob(w, {
+        ...interrupted(stored, w.cli, 'its jobs worker stopped while the job ran, and the process its record names could not be confirmed as its job process (left alone)'),
+        finished_at: stampOf(w.clock),
+      });
       continue;
     }
     const pid = stored.worker.pid;

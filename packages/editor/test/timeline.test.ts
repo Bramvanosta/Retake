@@ -28,7 +28,7 @@ beforeAll(async () => {
 });
 
 describe('timelineOf on real fixture plans', () => {
-  it('quote: segments, steps, speeds and captions at the plan\'s absolute frames', async () => {
+  it("quote: segments, steps, speeds and captions at the plan's absolute frames", async () => {
     const t = load('quote');
     const p = await plan(t);
     const m = timelineOf(p, { timeline: t, labels: { 'request.0': 'click Request a quote' } });
@@ -63,7 +63,11 @@ describe('timelineOf on real fixture plans', () => {
     const p = await plan(load('live-quote'));
     const m = timelineOf(p);
     const joined = m.segments.filter((s) => s.joined).map((s) => s.id);
-    expect(joined).toEqual(clips(p).filter((c, i) => i > 0 && !c.transition).map((c) => c.id));
+    expect(joined).toEqual(
+      clips(p)
+        .filter((c, i) => i > 0 && !c.transition)
+        .map((c) => c.id),
+    );
     expect(joined.length).toBeGreaterThan(0);
     for (const s of m.segments.filter((x) => x.joined)) expect(s.transition).toBeUndefined();
     const multi = clips(p).filter((c) => c.panes?.length);
@@ -82,7 +86,9 @@ describe('timelineOf on real fixture plans', () => {
     expect(zooms.length).toBeGreaterThan(0);
     for (const { c, z } of zooms) {
       const end = c.from + c.durationInFrames;
-      expect(m.camera).toContainEqual(expect.objectContaining({ from: c.from + z.from, in_to: Math.min(end, c.from + z.from + z.in_frames), out_from: Math.min(end, c.from + z.out_at), zoom: z.zoom, key: `${z.scene}.${z.step}` }));
+      expect(m.camera).toContainEqual(
+        expect.objectContaining({ from: c.from + z.from, in_to: Math.min(end, c.from + z.from + z.in_frames), out_from: Math.min(end, c.from + z.out_at), zoom: z.zoom, key: `${z.scene}.${z.step}` }),
+      );
     }
   });
 });
@@ -111,7 +117,12 @@ describe('cuts and their reasons (a synthetic take)', () => {
         },
       ],
       idle: [[7.2, 11.9]],
-      cursor: [[0, 100, 100], [14, 100, 100], [15, 900, 600], [26, 900, 600]],
+      cursor: [
+        [0, 100, 100],
+        [14, 100, 100],
+        [15, 900, 600],
+        [26, 900, 600],
+      ],
     });
     t.stalls = [{ t_start: 14, t_end: 15, during: 'move' }];
     t.busy = [{ t_start: 16.3, t_end: 19.5, click: 16.2 }];
@@ -144,7 +155,7 @@ describe('cuts and their reasons (a synthetic take)', () => {
 });
 
 describe('comment pins (read-only, plan D8)', () => {
-  it('on the shown take: the anchored step, else its marker, else its segment; on today\'s edit: today\'s step; else beside the track', async () => {
+  it("on the shown take: the anchored step, else its marker, else its segment; on today's edit: today's step; else beside the track", async () => {
     const p = await plan(load('quote'));
     const m = timelineOf(p);
     const run = 'r1';
@@ -176,14 +187,16 @@ describe('comment pins (read-only, plan D8)', () => {
     expect(placePins(m, [{ id: 'd', status: 'open', run_id: 'other', anchor: { segment: 'request' }, step_now: 'request.2' }], { run_id: run, edit: 'run' })).toEqual({ placed: [], elsewhere: ['d'] });
   });
 
-  it('review B M5: a thread whose render shows this version is pinned at its own frame, not its step\'s first frame', async () => {
+  it("review B M5: a thread whose render shows this version is pinned at its own frame, not its step's first frame", async () => {
     const p = await plan(load('quote'));
     const m = timelineOf(p);
     const step = m.steps.find((s) => s.scene === 'request' && s.step === 2)!;
     const inside = step.from + Math.max(1, Math.floor((step.to - step.from) / 2));
     const anchor = { segment: 'request', scene: 'request', step: 2 };
     // The caller gives `frame` only for a render of this version: at that frame.
-    expect(placePins(m, [{ id: 'a', status: 'open', run_id: 'r1', anchor, frame: inside }], { run_id: 'r1', edit: 'scenario' }).placed).toEqual([{ id: 'a', status: 'open', frame: inside, by: 'frame' }]);
+    expect(placePins(m, [{ id: 'a', status: 'open', run_id: 'r1', anchor, frame: inside }], { run_id: 'r1', edit: 'scenario' }).placed).toEqual([
+      { id: 'a', status: 'open', frame: inside, by: 'frame' },
+    ]);
     // Without it (another version of the edit): the step's first frame, as before.
     const first = Math.min(...m.steps.filter((s) => s.key === step.key).map((s) => s.from));
     expect(placePins(m, [{ id: 'a', status: 'open', run_id: 'r1', anchor }], { run_id: 'r1', edit: 'scenario' }).placed).toEqual([{ id: 'a', status: 'open', frame: first, by: 'step' }]);
@@ -194,7 +207,7 @@ describe('comment pins (read-only, plan D8)', () => {
 });
 
 describe('caption_component in the planner (L4.5)', () => {
-  it('the scenario\'s caption component wins over the theme, a render override over it; an unknown one falls back with a warning', async () => {
+  it("the scenario's caption component wins over the theme, a render override over it; an unknown one falls back with a warning", async () => {
     const t = load('quote');
     const themeId = clips(await plan(t))[0].caption!.id;
     expect(themeId).not.toBe('studio/caption-overlay');

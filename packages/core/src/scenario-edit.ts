@@ -141,7 +141,10 @@ export function newHiddenCharProblem(text: string, base: string): string | null 
   };
   const baseLines = new Set(base.split('\n'));
   const lines = text.split('\n');
-  const lineNos = linesOf(text, found.map((f) => f.at));
+  const lineNos = linesOf(
+    text,
+    found.map((f) => f.at),
+  );
   const moved = found.findIndex((_, i) => !baseLines.has(lines[lineNos[i] - 1] ?? ''));
   if (moved !== -1) return say(found[moved]);
   const have = new Map<string, number>();

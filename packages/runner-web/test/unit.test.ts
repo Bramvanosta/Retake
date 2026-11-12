@@ -103,7 +103,14 @@ async function glide(opts: { from: { x: number; y: number }; to: { x: number; y:
   let tick = 0;
   const moves: Array<{ t: number; x: number; y: number }> = [];
   const host = {
-    page: () => ({ mouse: { move: async (x: number, y: number) => { now += opts.cdpMs ?? 1; moves.push({ t: now, x, y }); } } }),
+    page: () => ({
+      mouse: {
+        move: async (x: number, y: number) => {
+          now += opts.cdpMs ?? 1;
+          moves.push({ t: now, x, y });
+        },
+      },
+    }),
     kit: () => ({ cursorSet: async () => undefined }),
     timeline: { sampleCursor: () => undefined },
     pacing: DEFAULT_PACING,
@@ -193,19 +200,53 @@ describe('timeline helpers', () => {
       10,
     );
     expect(schedule).toEqual([
-      '000001.jpg', '000001.jpg', '000001.jpg', '000001.jpg', '000001.jpg', // 0.0–0.4 (before the first frame too)
-      '000002.jpg', '000002.jpg', '000002.jpg', '000002.jpg', '000002.jpg', '000002.jpg', // 0.5–1.0
-      '000003.jpg', '000003.jpg', '000003.jpg', '000003.jpg', '000003.jpg', '000003.jpg', '000003.jpg', '000003.jpg', '000003.jpg', // 1.1–1.9
+      '000001.jpg',
+      '000001.jpg',
+      '000001.jpg',
+      '000001.jpg',
+      '000001.jpg', // 0.0–0.4 (before the first frame too)
+      '000002.jpg',
+      '000002.jpg',
+      '000002.jpg',
+      '000002.jpg',
+      '000002.jpg',
+      '000002.jpg', // 0.5–1.0
+      '000003.jpg',
+      '000003.jpg',
+      '000003.jpg',
+      '000003.jpg',
+      '000003.jpg',
+      '000003.jpg',
+      '000003.jpg',
+      '000003.jpg',
+      '000003.jpg', // 1.1–1.9
     ]);
     // Millisecond timestamps are honoured exactly (no 1/25 s quantisation): a frame stamped 1 ms after a tick waits.
-    expect(cfrSchedule([{ file: 'a', t: 0 }, { file: 'b', t: 0.034 }], 0.1, 30)).toEqual(['a', 'a', 'b']);
-    expect(cfrSchedule([{ file: 'a', t: 0 }, { file: 'b', t: 0.0333 }], 0.1, 30)).toEqual(['a', 'b', 'b']);
+    expect(
+      cfrSchedule(
+        [
+          { file: 'a', t: 0 },
+          { file: 'b', t: 0.034 },
+        ],
+        0.1,
+        30,
+      ),
+    ).toEqual(['a', 'a', 'b']);
+    expect(
+      cfrSchedule(
+        [
+          { file: 'a', t: 0 },
+          { file: 'b', t: 0.0333 },
+        ],
+        0.1,
+        30,
+      ),
+    ).toEqual(['a', 'b', 'b']);
     expect(() => cfrSchedule([{ file: 'a', t: 3 }], 2, 30)).toThrow(/no frames/);
   });
 
   it('measures the frame rate captured during cursor moves', () => {
-    const move = (t0: number, secs: number) =>
-      Array.from({ length: Math.round(secs * 60) + 1 }, (_, i) => ({ t: t0 + i / 60, x: i, y: 0, visible: true }));
+    const move = (t0: number, secs: number) => Array.from({ length: Math.round(secs * 60) + 1 }, (_, i) => ({ t: t0 + i / 60, x: i, y: 0, visible: true }));
     const cursor = [...move(1, 0.5), ...move(3, 0.5), ...move(5, 0.1)];
     const frames = [
       ...Array.from({ length: 30 }, (_, i) => 1 + i / 60), // 60 fps during the first move
@@ -227,10 +268,19 @@ describe('timeline helpers', () => {
     // A 0.6 s move sampled at 60 Hz, then a rest, then a press / release at the same point and its ripple at 3.0 s.
     const move = Array.from({ length: 37 }, (_, i) => ({ t: 1 + i / 60, x: 100 + i * 10, y: 100, visible: true }));
     // A click right after the move (same group: < 0.25 s apart), then a second click at 3.0 s.
-    const click1 = [{ t: 1.75, x: 460, y: 100, visible: true, down: true }, { t: 1.84, x: 460, y: 100, visible: true }];
-    const press = [{ t: 3, x: 460, y: 100, visible: true, down: true }, { t: 3.09, x: 460, y: 100, visible: true }];
+    const click1 = [
+      { t: 1.75, x: 460, y: 100, visible: true, down: true },
+      { t: 1.84, x: 460, y: 100, visible: true },
+    ];
+    const press = [
+      { t: 3, x: 460, y: 100, visible: true, down: true },
+      { t: 3.09, x: 460, y: 100, visible: true },
+    ];
     const cursor = [...move, ...click1, ...press];
-    const effects = [{ t: 3, type: 'press' as const }, { t: 3, type: 'ripple' as const }];
+    const effects = [
+      { t: 3, type: 'press' as const },
+      { t: 3, type: 'ripple' as const },
+    ];
     // Frames every 1/60 s during the move except a 265 ms hole at 1.2 s; none while resting (1.6–3.0 s: nothing
     // changes); every 1/60 s during the ripple except a 260 ms hole at 3.2 s.
     const frames = [
@@ -269,12 +319,7 @@ describe('timeline helpers', () => {
   it('a 1 px nudge of the resting cursor is no motion (it waits for a fresh frame after a scroll)', () => {
     // At rest at 100 since 0.5 s; nudged at 2.0 s (probing the capture), back at 2.06 s; the glide starts at 2.4 s.
     const glide = Array.from({ length: 31 }, (_, i) => ({ t: 2.4 + i / 60, x: 100 + i * 10, y: 100, visible: true }));
-    const cursor = [
-      { t: 0.5, x: 100, y: 100, visible: true },
-      { t: 2.0, x: 101, y: 100, visible: true },
-      { t: 2.06, x: 100, y: 100, visible: true },
-      ...glide.slice(1),
-    ];
+    const cursor = [{ t: 0.5, x: 100, y: 100, visible: true }, { t: 2.0, x: 101, y: 100, visible: true }, { t: 2.06, x: 100, y: 100, visible: true }, ...glide.slice(1)];
     // No frame from 2.0 to 2.4 s (the stall the cursor waited out), then 60 fps.
     const frames = [2.0, ...Array.from({ length: 31 }, (_, i) => 2.4 + i / 60)];
     const m = motionCapture(frames, cursor, 18);
@@ -282,12 +327,7 @@ describe('timeline helpers', () => {
     expect(m.moves).toBe(1);
     expect(m.worst!.t).toBeCloseTo(2.4 + 1 / 60, 3); // the move starts with the glide, not with the nudges
     // The probing can end on a nudge that goes straight home (< 30 ms later), the glide starting a while after.
-    const quickBack = [
-      { t: 0.5, x: 100, y: 100, visible: true },
-      { t: 2.0, x: 101, y: 100, visible: true },
-      { t: 2.014, x: 100, y: 100, visible: true },
-      ...glide.slice(1),
-    ];
+    const quickBack = [{ t: 0.5, x: 100, y: 100, visible: true }, { t: 2.0, x: 101, y: 100, visible: true }, { t: 2.014, x: 100, y: 100, visible: true }, ...glide.slice(1)];
     expect(motionCapture(frames, quickBack, 18).stalls).toEqual([]);
   });
 
@@ -309,7 +349,7 @@ describe('timeline helpers', () => {
     expect(TimelineSchema.safeParse(tl).success).toBe(true);
   });
 
-  it('keeps Chromium\'s frame rate limiter unless the project turns it off (L1.3)', () => {
+  it("keeps Chromium's frame rate limiter unless the project turns it off (L1.3)", () => {
     expect(frameRateArgs()).toEqual([]);
     expect(frameRateArgs({ frame_rate_limit: true })).toEqual([]);
     expect(frameRateArgs({ frame_rate_limit: false })).toEqual(['--disable-frame-rate-limit']);

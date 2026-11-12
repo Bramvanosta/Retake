@@ -231,7 +231,10 @@ function isContextDestroyed(e: unknown): boolean {
 
 function cleanEvalError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
-  return m.replace(/^page\.evaluate: /, '').replace(/^Error: /, '').split('\n    at ')[0];
+  return m
+    .replace(/^page\.evaluate: /, '')
+    .replace(/^Error: /, '')
+    .split('\n    at ')[0];
 }
 
 /** The page replaced its document during a kit call that must not be retried (`KitClient.callOnce`). */
@@ -546,7 +549,12 @@ export class BrowserSession {
       throw failed.reason;
     }
     for (const r of launched) if (r.status === 'fulfilled') session.adopt(r.value);
-    for (const realm of session.realms) for (const p of realm.context.pages()) await session.kit(p).install().catch(() => undefined);
+    for (const realm of session.realms)
+      for (const p of realm.context.pages())
+        await session
+          .kit(p)
+          .install()
+          .catch(() => undefined);
     return session;
   }
 
@@ -726,9 +734,7 @@ export class BrowserSession {
     const script = productClockScript(c);
     await context.addInitScript({ content: script });
     const pages = context.pages().filter((p) => !isRealTimePage(p));
-    await Promise.all(
-      pages.flatMap((p) => [...p.frames().map((f) => f.evaluate(script).catch(() => undefined)), ...p.workers().map((w) => w.evaluate(script).catch(() => undefined))]),
-    );
+    await Promise.all(pages.flatMap((p) => [...p.frames().map((f) => f.evaluate(script).catch(() => undefined)), ...p.workers().map((w) => w.evaluate(script).catch(() => undefined))]));
   }
 
   /** The page being recorded and acted on. */
@@ -953,9 +959,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
   } catch (e) {
     if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
     const m = e instanceof Error ? e.message : String(e);
-    const hint = /ProcessSingleton|profile.*in use|SingletonLock/i.test(m)
-      ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)`
-      : '';
+    const hint = /ProcessSingleton|profile.*in use|SingletonLock/i.test(m) ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)` : '';
     throw new RunnerError(`could not launch Chromium${spec.name ? ` (persona ${spec.name})` : ''}${hint}: ${m.split('\n')[0]}`, { cause: e });
   }
   try {

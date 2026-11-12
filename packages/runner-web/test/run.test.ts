@@ -41,7 +41,8 @@ afterAll(async () => {
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({ policy: PERSON_POLICY,
+  return runScenario({
+    policy: PERSON_POLICY,
     project,
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
@@ -132,7 +133,10 @@ describe('new_tab', () => {
     const ids = tl.pages.map((p) => p.id);
     expect(ids).toEqual(expect.arrayContaining(['app', 'tab2', 'pdf']));
     // Frames keep coming after the last switch (the new page is being recorded).
-    const lines = (await readFile(join(rec.dir, 'frames.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as { t: number });
+    const lines = (await readFile(join(rec.dir, 'frames.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { t: number });
     const afterSwitch = lines.filter((f) => f.t > ev[4].t_end).length;
     expect(afterSwitch).toBeGreaterThan(3);
     expect(existsSync(rec.capture!)).toBe(true);
@@ -149,7 +153,8 @@ describe('device scale 2 (4K-class captures, L2.8)', () => {
 
   it('captures real 2× frames: the screencast frames and capture.mp4 are width·2 × height·2', async () => {
     const project = makeProject(dir, { app: server.url }, { width: 640, height: 360 });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('scale2', { pacing: FAST, capture: { scale: 2 }, scenes: [{ id: 'doc', open: '/doc.html', steps: [{ hold: 0.6 }] }] }),
       mode: 'capture',
@@ -218,7 +223,11 @@ describe('drop_file', () => {
       expect(inStep.some((c) => c.x <= 4 || c.x >= 796)).toBe(true); // it did reach the edge
     }
     // R-ISS-05: the drop is recorded like a click (role trigger) and described by the top-level fields.
-    for (const [i, strategy] of [[0, 'drop'], [2, 'input'], [4, 'input']] as const) {
+    for (const [i, strategy] of [
+      [0, 'drop'],
+      [2, 'input'],
+      [4, 'input'],
+    ] as const) {
       const e = ev[i];
       const clicks = (e.data as { clicks: Array<Record<string, unknown>> }).clicks;
       expect(clicks).toHaveLength(1);
@@ -437,7 +446,10 @@ describe('dry-run, --until, failures, cancellation', () => {
     expect(stepEvents(tl.events).map((e) => e.status)).toEqual(['ok', 'failed']);
     expect(tl.scenes.map((s) => s.status)).toEqual(['failed']);
     expect(process.listenerCount('SIGINT')).toBe(sigint);
-    const log = (await readFile(join(rec.dir, 'log.jsonl'), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as { type: string });
+    const log = (await readFile(join(rec.dir, 'log.jsonl'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { type: string });
     expect(log[0].type).toBe('run_start');
     expect(log[log.length - 1].type).toBe('run_end');
   });
@@ -482,7 +494,10 @@ describe('dry-run, --until, failures, cancellation', () => {
     const from = server.hits.length;
     // This copy's own sleep (pid + random): another copy of the suite running at the same time has its own.
     const command = `sleep 29.${process.pid}${Math.floor(Math.random() * 1e6)}`;
-    const sleeping = () => execFileSync('ps', ['-axo', 'command='], { encoding: 'utf8' }).split('\n').some((l) => l.trim() === command);
+    const sleeping = () =>
+      execFileSync('ps', ['-axo', 'command='], { encoding: 'utf8' })
+        .split('\n')
+        .some((l) => l.trim() === command);
     const t0 = Date.now();
     const done = run(
       'cancel-setup',
@@ -517,7 +532,11 @@ describe('dry-run, --until, failures, cancellation', () => {
   it('a cancel during an http setup hook (it ends first) also rolls the setup back before the teardown (R-RUN-08)', async () => {
     const ac = new AbortController();
     const from = server.hits.length;
-    const hooks = () => server.hits.slice(from).filter((h) => ['/arm', '/slow-arm', '/never', '/reset'].includes(h.path)).map((h) => `${h.method} ${h.path}`);
+    const hooks = () =>
+      server.hits
+        .slice(from)
+        .filter((h) => ['/arm', '/slow-arm', '/never', '/reset'].includes(h.path))
+        .map((h) => `${h.method} ${h.path}`);
     const t0 = Date.now();
     const done = run(
       'cancel-http',

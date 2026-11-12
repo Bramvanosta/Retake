@@ -66,7 +66,9 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
       });
   };
   const open = refusal?.kind === 'open' ? refusal : o.open ? { project: o.open.project, rec_id: o.open.rec_id } : null;
-  const startWhy = blocked ? (signInFirst ?? (open ? 'One window at a time: a recording is already open.' : !o.display ? 'No window can open on this machine.' : 'This location cannot be recorded.')) : (pathProblem ?? problem);
+  const startWhy = blocked
+    ? (signInFirst ?? (open ? 'One window at a time: a recording is already open.' : !o.display ? 'No window can open on this machine.' : 'This location cannot be recorded.'))
+    : (pathProblem ?? problem);
   return (
     <form className="rc-start" onSubmit={start} aria-labelledby="rec-start-h" data-testid="record-start-form">
       <h2 id="rec-start-h" className="sc-h2">
@@ -108,8 +110,25 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
           options={o.environments.map((e) => ({ value: e.name, label: `${e.name}${e.production ? ' (production)' : e.access === 'read-only' ? ' (read-only)' : ''}` }))}
         />
         <Select label="Page" testId="record-page" value={page} onChange={setPage} options={(env?.pages ?? []).map((k) => ({ value: k, label: k }))} />
-        <TextField label="Path" testId="record-path" value={path} onChange={setPath} unsaved={null} mono maxLength={2048} spellCheck={false} autoComplete="off" {...(pathProblem ? { error: pathProblem } : {})} />
-        <Select label="Persona" testId="record-persona" value={persona} onChange={setPersona} options={[{ value: 'none', label: 'Signed out' }, ...(env?.personas ?? []).map((x) => ({ value: x.name, label: x.name }))]} />
+        <TextField
+          label="Path"
+          testId="record-path"
+          value={path}
+          onChange={setPath}
+          unsaved={null}
+          mono
+          maxLength={2048}
+          spellCheck={false}
+          autoComplete="off"
+          {...(pathProblem ? { error: pathProblem } : {})}
+        />
+        <Select
+          label="Persona"
+          testId="record-persona"
+          value={persona}
+          onChange={setPersona}
+          options={[{ value: 'none', label: 'Signed out' }, ...(env?.personas ?? []).map((x) => ({ value: x.name, label: x.name }))]}
+        />
         <TextField
           label="Name"
           testId="record-name"

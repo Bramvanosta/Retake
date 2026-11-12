@@ -32,9 +32,24 @@ const FIELDS = {
   warnings: [],
 };
 const ORDER = ['version', 'id', 'project', 'scenario', 'mode', 'status', 'started_at', 'dir', 'env', 'options', 'steps_total', 'steps_done', 'screenshots', 'hooks', 'warnings'];
-const running = (): RunningRun => ({ ...startedRun({ ...FIELDS, environment: { access: 'read-write' } }), steps_done: 2, current: { scene: 'one', step: 2, action: 'click' }, paused: { scene: 'one', step: 2, since: '2026-10-20T07:00:05.000Z' }, capture: '/w/c.mp4' });
+const running = (): RunningRun => ({
+  ...startedRun({ ...FIELDS, environment: { access: 'read-write' } }),
+  steps_done: 2,
+  current: { scene: 'one', step: 2, action: 'click' },
+  paused: { scene: 'one', step: 2, since: '2026-10-20T07:00:05.000Z' },
+  capture: '/w/c.mp4',
+});
 /** What the reader answered, in a few words. */
-const said = (r: RunRead): string => (r.ok ? ['ok', ...r.notes].join(' ') : r.problem === 'invalid' ? `invalid at ${r.detail}` : r.problem === 'unknown-status' ? `unknown-status ${r.record.status}` : r.problem === 'newer-format' ? `newer-format of ${r.scenario ?? '?'}` : r.problem);
+const said = (r: RunRead): string =>
+  r.ok
+    ? ['ok', ...r.notes].join(' ')
+    : r.problem === 'invalid'
+      ? `invalid at ${r.detail}`
+      : r.problem === 'unknown-status'
+        ? `unknown-status ${r.record.status}`
+        : r.problem === 'newer-format'
+          ? `newer-format of ${r.scenario ?? '?'}`
+          : r.problem;
 
 describe('the transitions', () => {
   it('a reserved run and a run that starts: a state the schema of written records accepts, its status after its mode', () => {
@@ -78,9 +93,17 @@ describe('the transitions', () => {
     expect(close('past/run-queued.json', 'failed', '2026-10-20T07:00:02.000Z', 'the worker stopped before the run started')).toBe(text(recordFixture('past/run-closed-from-queued.json')));
     expect(close('past/run-running.json', 'failed', '2026-10-21T07:00:09.000Z', "the run's process ended without finishing it")).toBe(text(recordFixture('past/run-closed-from-running.json')));
     const { finished_at: _f, error: _e, ...paused } = recordFixture('past/run-closed-from-paused.json') as Record<string, unknown>;
-    expect(text(closeReservedRun({ ...paused, status: 'running' }, { status: 'cancelled', at: '2026-10-22T07:00:09.000Z', message: 'cancelled' }))).toBe(text(recordFixture('past/run-closed-from-paused.json')));
+    expect(text(closeReservedRun({ ...paused, status: 'running' }, { status: 'cancelled', at: '2026-10-22T07:00:09.000Z', message: 'cancelled' }))).toBe(
+      text(recordFixture('past/run-closed-from-paused.json')),
+    );
     // It keeps what it finds: the step the run was at, an error's other members, a member it does not know.
-    expect(closeReservedRun({ status: 'running', current: { scene: 'a' }, error: { message: 'old', scene: 'one' }, extra: 1 }, { status: 'cancelled', at: 't', message: 'new' })).toEqual({ status: 'cancelled', current: { scene: 'a' }, error: { message: 'new', scene: 'one' }, extra: 1, finished_at: 't' });
+    expect(closeReservedRun({ status: 'running', current: { scene: 'a' }, error: { message: 'old', scene: 'one' }, extra: 1 }, { status: 'cancelled', at: 't', message: 'new' })).toEqual({
+      status: 'cancelled',
+      current: { scene: 'a' },
+      error: { message: 'new', scene: 'one' },
+      extra: 1,
+      finished_at: 't',
+    });
   });
 
   it('a run closed from outside is a state of the written record, with the step it was at and its pause', () => {
@@ -115,7 +138,16 @@ describe('the schema of written records: one state per status', () => {
 describe('parseRunRecord', () => {
   it('every record older builds wrote reads, whole', () => {
     const rows: Record<string, string> = {};
-    for (const f of ['run-0.1.0/run.json', 'run-phase1.json', 'run-queued.json', 'run-closed-from-queued.json', 'run-running.json', 'run-closed-from-running.json', 'run-closed-from-paused.json', 'run-dry.json']) {
+    for (const f of [
+      'run-0.1.0/run.json',
+      'run-phase1.json',
+      'run-queued.json',
+      'run-closed-from-queued.json',
+      'run-running.json',
+      'run-closed-from-running.json',
+      'run-closed-from-paused.json',
+      'run-dry.json',
+    ]) {
       const value = recordFixture(`past/${f}`);
       const r = parseRunRecord(value);
       rows[f] = said(r);
@@ -133,7 +165,12 @@ describe('parseRunRecord', () => {
       const r = parseRunRecord(value);
       expect(said(r), key).toBe('ok');
       if (!r.ok) continue;
-      expect([(r.value.engine as Record<string, unknown>)[key], (r.value.perf?.cpu as Record<string, unknown>)[key], r.value.engine?.retake, r.value.perf?.cpu?.retake], key).toEqual(['0.1.0', 1.5, undefined, undefined]);
+      expect([(r.value.engine as Record<string, unknown>)[key], (r.value.perf?.cpu as Record<string, unknown>)[key], r.value.engine?.retake, r.value.perf?.cpu?.retake], key).toEqual([
+        '0.1.0',
+        1.5,
+        undefined,
+        undefined,
+      ]);
     }
   });
 
@@ -337,7 +374,11 @@ describe('parseTimelineHead', () => {
   const head = { version: 1, run_id: 'r', project: 'p', scenario: 'quote', mode: 'capture', capture: { file: 'capture.mp4' }, events: [], markers: [], scenes: [] };
   const said = (v: unknown) => {
     const r = parseTimelineHead(v);
-    return r.ok ? `${r.value.mode} ${r.value.scenario} ${r.value.run_id} ${r.value.film}${r.value.lacks ? ` (lacks ${r.value.lacks})` : ''}` : r.problem === 'invalid' ? `invalid at ${r.detail}` : r.problem;
+    return r.ok
+      ? `${r.value.mode} ${r.value.scenario} ${r.value.run_id} ${r.value.film}${r.value.lacks ? ` (lacks ${r.value.lacks})` : ''}`
+      : r.problem === 'invalid'
+        ? `invalid at ${r.detail}`
+        : r.problem;
   };
 
   it('the mode, the scenario, the run and the film; `capture.mp4` when the timeline names no film', () => {
@@ -366,7 +407,7 @@ describe('parseTimelineHead', () => {
     for (const [value, want] of rows) expect(said(value), JSON.stringify(value)).toBe(want);
   });
 
-  it('a head made by hand reads and says what a complete one has and it lacks: its run id, its film\'s name (the film is then capture.mp4); its lists are the whole timeline\'s to judge', () => {
+  it("a head made by hand reads and says what a complete one has and it lacks: its run id, its film's name (the film is then capture.mp4); its lists are the whole timeline's to judge", () => {
     const { run_id: _r, ...noRun } = head;
     const { events: _e, ...noEvents } = head;
     const rows: Array<[unknown, string]> = [

@@ -131,25 +131,43 @@ beforeAll(async () => {
   // An older dry run: one screenshot per step, other colours.
   const ev = (scene: string, step: number, action: string, extra: Partial<NonNullable<SynthRun['events']>[number]> = {}) => ({ scene, step, action, t_start: 0, t_end: 0.5, ...extra });
   await writeRun(dir, {
-    id: DRY, scenario: 'blocks', mode: 'dry', snapshot: BLOCKS_YAML,
+    id: DRY,
+    scenario: 'blocks',
+    mode: 'dry',
+    snapshot: BLOCKS_YAML,
     scenes: [{ id: 'one' }, { id: 'two' }],
     events: [ev('one', 0, 'click'), ev('one', 1, 'click'), ev('one', 2, 'hold'), ev('two', 0, 'click'), ev('two', 1, 'click')],
     screenshots: { 'one-00-click.png': ORANGE, 'one-01-click.png': BLUE, 'one-02-hold.png': CYAN, 'two-00-click.png': GREY, 'two-01-click.png': RED },
   });
   // An older dry run that failed at two.0: its error screenshot, two.1 not reached, page text with markup.
   await writeRun(dir, {
-    id: FAILED, scenario: 'blocks', mode: 'dry', status: 'failed', snapshot: BLOCKS_YAML,
+    id: FAILED,
+    scenario: 'blocks',
+    mode: 'dry',
+    status: 'failed',
+    snapshot: BLOCKS_YAML,
     scenes: [{ id: 'one' }, { id: 'two', status: 'failed' }],
-    events: [ev('one', 0, 'click'), ev('one', 1, 'click'), ev('one', 2, 'hold'), ev('two', 0, 'click', { status: 'failed', error: 'no element "<img src=x onerror=window.__pwned=9>" ‮txt.exe', target: '<svg/onload=window.__pwned=10>' })],
+    events: [
+      ev('one', 0, 'click'),
+      ev('one', 1, 'click'),
+      ev('one', 2, 'hold'),
+      ev('two', 0, 'click', { status: 'failed', error: 'no element "<img src=x onerror=window.__pwned=9>" ‮txt.exe', target: '<svg/onload=window.__pwned=10>' }),
+    ],
     screenshots: { 'one-00-click.png': BLUE, 'one-01-click.png': BLUE, 'one-02-hold.png': BLUE, 'error-two-0.png': YELLOW },
     error: { scene: 'two', step: 0, message: 'boom <script>window.__pwned=11</script>' },
     steps_total: 5,
   });
   await writeFile(join(dir, 'scenarios', 'hostile.yaml'), HOSTILE_YAML);
   await writeRun(dir, {
-    id: '20261020-110000-hostile', scenario: 'hostile', mode: 'dry', snapshot: HOSTILE_YAML,
+    id: '20261020-110000-hostile',
+    scenario: 'hostile',
+    mode: 'dry',
+    snapshot: HOSTILE_YAML,
     scenes: [{ id: 'evil' }],
-    events: [ev('evil', 0, 'click', { target: 'link "<img src=x onerror=window.__pwned=12>" ‮gnp.exe', url: 'http://user:secret@localhost:4402/<script>' }), ev('evil', 1, 'type', { error: '<iframe srcdoc="<script>parent.__pwned=13</script>">' })],
+    events: [
+      ev('evil', 0, 'click', { target: 'link "<img src=x onerror=window.__pwned=12>" ‮gnp.exe', url: 'http://user:secret@localhost:4402/<script>' }),
+      ev('evil', 1, 'type', { error: '<iframe srcdoc="<script>parent.__pwned=13</script>">' }),
+    ],
     screenshots: { 'evil-00-click.png': GREEN, 'evil-01-type.png': BLUE },
   });
   await writeFile(join(dir, 'scenarios', 'long.yaml'), longYaml());
@@ -161,7 +179,15 @@ beforeAll(async () => {
       shots[`s${s}-${pad2(i)}-click.png`] = PALETTE[(s * LONG_PER + i) % PALETTE.length];
     }
   }
-  await writeRun(dir, { id: '20261020-120000-long', scenario: 'long', mode: 'dry', snapshot: longYaml(), scenes: Array.from({ length: LONG_SCENES }, (_x, s) => ({ id: `s${s}` })), events: longEvents, screenshots: shots });
+  await writeRun(dir, {
+    id: '20261020-120000-long',
+    scenario: 'long',
+    mode: 'dry',
+    snapshot: longYaml(),
+    scenes: Array.from({ length: LONG_SCENES }, (_x, s) => ({ id: `s${s}` })),
+    events: longEvents,
+    screenshots: shots,
+  });
   // No worker: a dry run started from the screen stays queued until Cancel (the real worker is test:slow's).
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
   const executablePath = process.env.RETAKE_CHROMIUM;
@@ -253,7 +279,7 @@ describe('the scenario screen in Chromium', () => {
     await shot('10-scenario-quote');
   });
 
-  it('off camera (L5.8): a hook step\'s badge and words, the named hooks in the strip by name, an offscreen scene said so', async () => {
+  it("off camera (L5.8): a hook step's badge and words, the named hooks in the strip by name, an offscreen scene said so", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/off-camera`);
     await page.getByRole('heading', { level: 1, name: 'off-camera' }).waitFor();
     const hook = row('requests.2');
@@ -306,7 +332,12 @@ describe('the scenario screen in Chromium', () => {
 
   it('keyboard: one tab stop, Up / Down across scenes, Home / End; the inspector follows; Show in YAML outlines the lines', async () => {
     await row('one.0').click();
-    const active = () => page.evaluate(() => ({ role: document.activeElement?.getAttribute('role'), label: document.activeElement?.getAttribute('aria-label'), desc: document.activeElement?.getAttribute('aria-activedescendant') }));
+    const active = () =>
+      page.evaluate(() => ({
+        role: document.activeElement?.getAttribute('role'),
+        label: document.activeElement?.getAttribute('aria-label'),
+        desc: document.activeElement?.getAttribute('aria-activedescendant'),
+      }));
     const selected = () => page.locator('[role="option"][aria-selected="true"]').getAttribute('data-key');
     expect(await active()).toMatchObject({ role: 'listbox', label: 'Steps of scene one' });
     expect(await selected()).toBe('one.0');
@@ -368,7 +399,10 @@ describe('the scenario screen in Chromium', () => {
     const t1 = Date.now();
     for (let k = 1; k <= 4; k++) {
       await sleep(400);
-      await writeFile(join(project(), 'runs', RUNNING, 'run.json'), JSON.stringify({ ...JSON.parse(await readFile(join(project(), 'runs', RUNNING, 'run.json'), 'utf8')), steps_done: k, current: { scene: 'one', step: k - 1, action: 'click' } }));
+      await writeFile(
+        join(project(), 'runs', RUNNING, 'run.json'),
+        JSON.stringify({ ...JSON.parse(await readFile(join(project(), 'runs', RUNNING, 'run.json'), 'utf8')), steps_done: k, current: { scene: 'one', step: k - 1, action: 'click' } }),
+      );
     }
     await sleep(600);
     expect(ops('scenario_blocks', t1), 'progress never re-reads the view').toHaveLength(0);
@@ -385,7 +419,15 @@ describe('the scenario screen in Chromium', () => {
     await shot('15-scenario-running');
     // The run finishes: one re-read, no banner.
     const t2 = Date.now();
-    await writeFile(join(project(), 'runs', RUNNING, 'run.json'), JSON.stringify({ ...JSON.parse(await readFile(join(project(), 'runs', RUNNING, 'run.json'), 'utf8')), status: 'cancelled', finished_at: new Date().toISOString(), error: { message: 'cancelled' } }));
+    await writeFile(
+      join(project(), 'runs', RUNNING, 'run.json'),
+      JSON.stringify({
+        ...JSON.parse(await readFile(join(project(), 'runs', RUNNING, 'run.json'), 'utf8')),
+        status: 'cancelled',
+        finished_at: new Date().toISOString(),
+        error: { message: 'cancelled' },
+      }),
+    );
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
     await sleep(800);
     expect(ops('scenario_blocks', t2)).toHaveLength(1);
@@ -544,8 +586,13 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toBe(`retake -C ${ws} run ${P} quote`);
     await page.keyboard.press('Escape');
     await page.goto(`${studio.url}#/p/${P}/s/quote/run`);
-    await page.getByTestId('preflight-blockers').getByTestId('blocker-fix-node').waitFor({ state: 'attached', ...POLL });
-    expect(await page.getByTestId('preflight-blockers').getByTestId('blocker-fix-node').textContent()).toMatch(new RegExp(`/packages/cli/dist/bin\\.js -C ${ws.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} run ${P} quote$`));
+    await page
+      .getByTestId('preflight-blockers')
+      .getByTestId('blocker-fix-node')
+      .waitFor({ state: 'attached', ...POLL });
+    expect(await page.getByTestId('preflight-blockers').getByTestId('blocker-fix-node').textContent()).toMatch(
+      new RegExp(`/packages/cli/dist/bin\\.js -C ${ws.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} run ${P} quote$`),
+    );
     await page.goto(`${studio.url}#/p/${P}/s/quote`);
     await page.getByRole('heading', { level: 1, name: 'quote' }).waitFor();
     expect(await page.getByTestId('blockers-capture').innerText()).not.toMatch(/MCP/);
@@ -564,7 +611,9 @@ describe('the scenario screen in Chromium', () => {
     await page.getByTestId('run-dry').click();
     await expect.poll(() => ops('scenario_run', t0).length, POLL).toBe(1);
     // Pinned arguments, and the file as the screen showed it (review A #6).
-    const shown = createHash('sha256').update(await readFile(join(project(), 'scenarios', 'blocks.yaml'))).digest('hex');
+    const shown = createHash('sha256')
+      .update(await readFile(join(project(), 'scenarios', 'blocks.yaml')))
+      .digest('hex');
     expect(ops('scenario_run', t0)[0].body).toEqual({ project: P, name: 'blocks', mode: 'dry', hash: shown });
     const submitted = page.getByTestId('run-submitted');
     await submitted.waitFor();
@@ -619,7 +668,7 @@ describe('the scenario screen in Chromium', () => {
     return runId!;
   }
 
-  it('⚑ the Location (critique M1): its options carry their flags; a choice reads the view and runs there (`env` sent), the file\'s own sends none; a reload goes back to the file\'s', async () => {
+  it("⚑ the Location (critique M1): its options carry their flags; a choice reads the view and runs there (`env` sent), the file's own sends none; a reload goes back to the file's", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/blocks`);
     await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
     const select = page.getByTestId('location-select');
@@ -675,7 +724,15 @@ describe('the scenario screen in Chromium', () => {
     // What the worker writes when the page cannot be reached: failed, no timeline, no picture.
     const file = join(project(), 'runs', runId, 'run.json');
     const rec = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
-    await writeFile(file, JSON.stringify({ ...rec, status: 'failed', finished_at: new Date().toISOString(), error: { scene: 'one', step: 0, action: 'click', message: 'scene one, step 0 (click “First”): page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:4401/\nCall log: …' } }));
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...rec,
+        status: 'failed',
+        finished_at: new Date().toISOString(),
+        error: { scene: 'one', step: 0, action: 'click', message: 'scene one, step 0 (click “First”): page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:4401/\nCall log: …' },
+      }),
+    );
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
     await expect.poll(() => page.getByTestId('run-outcome-error').count(), POLL).toBe(1);
     const notice = await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText();
@@ -706,7 +763,16 @@ describe('the scenario screen in Chromium', () => {
       const file = join(project(), 'runs', runId, 'run.json');
       const rec = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
       await writeFile(file, JSON.stringify({ ...rec, status: 'running', steps_done: 1, current: { scene: 'one', step: 1, action: 'click' } }));
-      await expect.poll(() => page.locator('.k-callout', { has: page.getByTestId('running') }).innerText().catch(() => ''), POLL).toContain('is running');
+      await expect
+        .poll(
+          () =>
+            page
+              .locator('.k-callout', { has: page.getByTestId('running') })
+              .innerText()
+              .catch(() => ''),
+          POLL,
+        )
+        .toContain('is running');
       const t0 = Date.now();
       worker.kill('SIGKILL');
       await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
@@ -837,7 +903,7 @@ describe('the scenario screen in Chromium', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  it('L5.10b fixes A-M2: entering the frames by keyboard with a scene, a card, the hooks or the video selected lands on the first step of the tab stop\'s list (an active option); the next → goes to step 2; a mouse-down sets the active option', async () => {
+  it("L5.10b fixes A-M2: entering the frames by keyboard with a scene, a card, the hooks or the video selected lands on the first step of the tab stop's list (an active option); the next → goes to step 2; a mouse-down sets the active option", async () => {
     await page.goto(`${studio.url}#/p/${P}/s/blocks`);
     await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
     const selected = () => page.locator('[role="option"][aria-selected="true"]').getAttribute('data-key');
@@ -936,7 +1002,7 @@ describe('the scenario screen in Chromium', () => {
     }
   });
 
-  it('L5.10b fixes A-L4, B-L6, B-L8: the columns of the frames follow the board\'s width (three, two at 1100, one in a 900 window with the inspector); a skipped scene\'s height uses them; the title bar keeps the scenario\'s name; the step count is on the board', async () => {
+  it("L5.10b fixes A-L4, B-L6, B-L8: the columns of the frames follow the board's width (three, two at 1100, one in a 900 window with the inspector); a skipped scene's height uses them; the title bar keeps the scenario's name; the step count is on the board", async () => {
     const intrinsic = () =>
       page.evaluate(() => {
         const list = document.querySelector<HTMLElement>('.k-frames')!;
@@ -955,10 +1021,12 @@ describe('the scenario screen in Chromium', () => {
       const seen: number[] = [];
       for (const width of [1440, 1100, 900]) {
         await page.setViewportSize({ width, height: 860 });
-        await expect.poll(async () => {
-          const m = await intrinsic();
-          return m.style === expected(m);
-        }, POLL).toBe(true);
+        await expect
+          .poll(async () => {
+            const m = await intrinsic();
+            return m.style === expected(m);
+          }, POLL)
+          .toBe(true);
         seen.push((await intrinsic()).cols);
       }
       expect(seen).toEqual([3, 2, 1]);

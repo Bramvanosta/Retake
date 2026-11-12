@@ -37,7 +37,11 @@ describe('playwrightBrowser: the browser registry of playwright-core, read once'
     expect(playwrightBrowser(fakeRequire({}).require, 'chrome')).toBeNull();
     expect(playwrightBrowser(fakeRequire({ chromium: '' }).require, 'chromium')).toBeNull();
     expect(playwrightBrowser(fakeRequire({ chromium: undefined }).require, 'chromium')).toBeNull();
-    expect(playwrightBrowser(() => { throw new Error('Cannot find module'); }, 'chromium')).toBeNull();
+    expect(
+      playwrightBrowser(() => {
+        throw new Error('Cannot find module');
+      }, 'chromium'),
+    ).toBeNull();
   });
 
   it('with installed: the path only when the file is there', async () => {

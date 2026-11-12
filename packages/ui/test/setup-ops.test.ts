@@ -40,9 +40,22 @@ function fakeApp(dir: string): BundleInfo {
   const sealed = join(dir, 'Retake.app');
   const root = join(sealed, 'Contents', 'Resources');
   for (const d of ['bin', 'node/bin', 'engine/dist', 'plugin/.claude-plugin', 'plugin/skills/.claude-plugin']) mkdirSync(join(root, d), { recursive: true });
-  for (const [f, text] of [['bin/retake', '#!/bin/sh\n'], ['node/bin/node', '#!/bin/sh\n'], ['node/guard.cjs', ''], ['engine/dist/bin.js', ''], ['plugin/.claude-plugin/marketplace.json', '{}'], ['plugin/skills/.claude-plugin/plugin.json', '{}']] as const) writeFileSync(join(root, f), text);
+  for (const [f, text] of [
+    ['bin/retake', '#!/bin/sh\n'],
+    ['node/bin/node', '#!/bin/sh\n'],
+    ['node/guard.cjs', ''],
+    ['engine/dist/bin.js', ''],
+    ['plugin/.claude-plugin/marketplace.json', '{}'],
+    ['plugin/skills/.claude-plugin/plugin.json', '{}'],
+  ] as const)
+    writeFileSync(join(root, f), text);
   chmodSync(join(root, 'bin/retake'), 0o755);
-  return { root, sealed, manifest: {} as BundleInfo['manifest'], paths: { node: join(root, 'node/bin/node'), engine: join(root, 'engine'), browsers: join(root, 'browsers'), ffmpeg: null, templates: join(root, 'engine/templates'), plugin: join(root, 'plugin') } };
+  return {
+    root,
+    sealed,
+    manifest: {} as BundleInfo['manifest'],
+    paths: { node: join(root, 'node/bin/node'), engine: join(root, 'engine'), browsers: join(root, 'browsers'), ffmpeg: null, templates: join(root, 'engine/templates'), plugin: join(root, 'plugin') },
+  };
 }
 
 const home = join(base, 'home');
@@ -99,7 +112,7 @@ describe('who may call them', () => {
     expect(SETUP_OPS).toEqual(['setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done']);
   });
 
-  it('not the desktop app\'s server (not supervised): status says so, every other op is refused', async () => {
+  it("not the desktop app's server (not supervised): status says so, every other op is refused", async () => {
     expect((await call('setup_status')).body.data).toEqual({ available: false, reason: 'not_supervised' });
     for (const op of SETUP_OPS.slice(1)) {
       const r = await call(op);
@@ -123,7 +136,10 @@ describe('who may call them', () => {
   it('critique H1: from a translocated copy, its disk image or /Volumes, the command and Claude are refused; notifications and Done are not', async () => {
     freshWindow();
     const trans = fakeApp(join(base, 'AppTranslocation', '0A1B', 'd'));
-    for (const [bundle, ro, loc] of [[trans, false, 'translocated'], [app, true, 'read_only']] as const) {
+    for (const [bundle, ro, loc] of [
+      [trans, false, 'translocated'],
+      [app, true, 'read_only'],
+    ] as const) {
       ctx = machine({ bundle, readOnly: () => ro });
       const s = (await call('setup_status')).body.data;
       expect(s).toMatchObject({ available: true, location: loc });
@@ -145,8 +161,26 @@ describe('the retake command', () => {
   it('status, install into ~/.local/bin (recorded in app.json), a second install kept, uninstall; a foreign file refused', async () => {
     freshWindow();
     const s = (await call('setup_status')).body.data;
-    expect(s).toMatchObject({ available: true, version: RETAKE_VERSION, seen: false, location: 'ok', workspace: realpathSync(ws), home: join(base, 'retake-home'), home_from_env: true, app: app.sealed });
-    expect(s.cli).toMatchObject({ dir: join(home, '.local', 'bin'), state: 'absent', installed: null, on_path: false, first: null, path_line: 'export PATH="$HOME/.local/bin:$PATH"', profile: '~/.zprofile', launcher: join(app.root, 'bin', 'retake') });
+    expect(s).toMatchObject({
+      available: true,
+      version: RETAKE_VERSION,
+      seen: false,
+      location: 'ok',
+      workspace: realpathSync(ws),
+      home: join(base, 'retake-home'),
+      home_from_env: true,
+      app: app.sealed,
+    });
+    expect(s.cli).toMatchObject({
+      dir: join(home, '.local', 'bin'),
+      state: 'absent',
+      installed: null,
+      on_path: false,
+      first: null,
+      path_line: 'export PATH="$HOME/.local/bin:$PATH"',
+      profile: '~/.zprofile',
+      launcher: join(app.root, 'bin', 'retake'),
+    });
     const r = await call('setup_cli_install', { folder: 'default' });
     expect(r.body.data).toMatchObject({ ok: true, result: 'created', path: join(home, '.local', 'bin', 'retake') });
     expect(readlinkSync(join(home, '.local', 'bin', 'retake'))).toBe(join(app.root, 'bin', 'retake'));
@@ -169,7 +203,7 @@ describe('the retake command', () => {
     rmSync(join(home, '.local', 'bin', 'retake'));
   });
 
-  it('another folder: the shell\'s panel (a pipe line), its answer on stdin checked, then installed there; a bad one said', async () => {
+  it("another folder: the shell's panel (a pipe line), its answer on stdin checked, then installed there; a bad one said", async () => {
     freshWindow();
     expect((await call('setup_cli_choose')).status).toBe(200);
     expect(lines.at(-1)).toBe('{"type":"setup","action":"cli_folder"}');
@@ -275,7 +309,7 @@ describe('the command after a restart (review c B-M1) and the other fixes', () =
     expect(psCalls).toBe(before + 3);
   });
 
-  it('Claude Code at the op: the small environment (nothing of the server\'s), one run at a time (409 busy)', async () => {
+  it("Claude Code at the op: the small environment (nothing of the server's), one run at a time (409 busy)", async () => {
     freshWindow();
     const bin = join(home, '.local', 'bin');
     mkdirSync(bin, { recursive: true });
@@ -302,12 +336,19 @@ describe('the command after a restart (review c B-M1) and the other fixes', () =
 });
 
 describe('Claude Code', () => {
-  it('Run: the plugin route\'s two lines as argv with the claude of the fixed list; its output under untrusted; none found → copy only', async () => {
+  it("Run: the plugin route's two lines as argv with the claude of the fixed list; its output under untrusted; none found → copy only", async () => {
     freshWindow();
     expect(reason(await call('setup_claude_code_run'))).toBe('no_claude');
     const s = (await call('setup_status')).body.data.claude_code;
     expect(s).toMatchObject({ claude: null, config_dir: join(base, 'claude-cfg'), plugin: true });
-    expect(s.lines).toEqual([`claude plugin marketplace add ${app.paths.plugin}`, expect.stringMatching(new RegExp(`^cd ${realpathSync(ws)} && claude plugin install retake@retake --scope local --config node=${app.paths.node} --config cli=${join(app.root, 'engine', 'dist', 'bin.js')} --config workspace=`))]);
+    expect(s.lines).toEqual([
+      `claude plugin marketplace add ${app.paths.plugin}`,
+      expect.stringMatching(
+        new RegExp(
+          `^cd ${realpathSync(ws)} && claude plugin install retake@retake --scope local --config node=${app.paths.node} --config cli=${join(app.root, 'engine', 'dist', 'bin.js')} --config workspace=`,
+        ),
+      ),
+    ]);
     const bin = join(home, '.local', 'bin');
     mkdirSync(bin, { recursive: true });
     const log = join(base, 'claude.log');
@@ -396,7 +437,7 @@ describe('the rest', () => {
     expect((await call('setup_status')).body.data.seen).toBe(true);
   });
 
-  it('the shell\'s stdin lines are strict, and the CLI reads them with the same cap', async () => {
+  it("the shell's stdin lines are strict, and the CLI reads them with the same cap", async () => {
     expect(parseShellLine('{"type":"cli_folder","path":"/Users/me/bin"}')).toEqual({ type: 'cli_folder', path: '/Users/me/bin' });
     expect(parseShellLine('{"type":"cli_folder_cancelled"}')).toEqual({ type: 'cli_folder_cancelled' });
     expect(parseShellLine('{"type":"notifications","state":"off"}')).toEqual({ type: 'notifications', state: 'off' });

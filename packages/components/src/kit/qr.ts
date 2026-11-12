@@ -234,14 +234,30 @@ class Matrix {
         if (this.isFunction[y][x]) continue;
         let invert: boolean;
         switch (mask) {
-          case 0: invert = (x + y) % 2 === 0; break;
-          case 1: invert = y % 2 === 0; break;
-          case 2: invert = x % 3 === 0; break;
-          case 3: invert = (x + y) % 3 === 0; break;
-          case 4: invert = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; break;
-          case 5: invert = ((x * y) % 2) + ((x * y) % 3) === 0; break;
-          case 6: invert = (((x * y) % 2) + ((x * y) % 3)) % 2 === 0; break;
-          default: invert = (((x + y) % 2) + ((x * y) % 3)) % 2 === 0; break;
+          case 0:
+            invert = (x + y) % 2 === 0;
+            break;
+          case 1:
+            invert = y % 2 === 0;
+            break;
+          case 2:
+            invert = x % 3 === 0;
+            break;
+          case 3:
+            invert = (x + y) % 3 === 0;
+            break;
+          case 4:
+            invert = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+            break;
+          case 5:
+            invert = ((x * y) % 2) + ((x * y) % 3) === 0;
+            break;
+          case 6:
+            invert = (((x * y) % 2) + ((x * y) % 3)) % 2 === 0;
+            break;
+          default:
+            invert = (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
+            break;
         }
         if (invert) this.modules[y][x] = !this.modules[y][x];
       }

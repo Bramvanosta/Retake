@@ -146,7 +146,17 @@ describe('/v1/events', () => {
       const q = new FileJobQueue(ws);
       const id = newJobId(Date.now());
       await mkdir(join(q.files.dir, id), { recursive: true });
-      await writeFile(join(q.files.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state: 'queued', created_at: new Date().toISOString() }));
+      await writeFile(
+        join(q.files.dir, id, 'job.json'),
+        JSON.stringify({
+          version: 1,
+          id,
+          kind: 'run',
+          input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' },
+          state: 'queued',
+          created_at: new Date().toISOString(),
+        }),
+      );
       // L5.10a fixes (review A-L7): the event names the changed jobs' projects. L5.14b: and what a take holds (nothing).
       expect(await jobs).toEqual({ changed: [id], projects: [P], held: null });
       expect(studio.calls).toBe(calls);
@@ -281,7 +291,9 @@ describe('the index ops', () => {
     expect(s.status).toBe(200);
     expect(s.json<{ data: { hits: Array<{ kind: string; ref: string }> } }>().data.hits).toEqual([expect.objectContaining({ kind: 'project', ref: P })]);
     const q = await call(studio, 'search', { q: 'quo', project: P });
-    expect(q.json<{ data: { hits: Array<{ kind: string; ref: string }> } }>().data.hits.map((h) => `${h.kind}:${h.ref}`)).toEqual(expect.arrayContaining(['scenario:quote', 'run:20261017-120000-quote']));
+    expect(q.json<{ data: { hits: Array<{ kind: string; ref: string }> } }>().data.hits.map((h) => `${h.kind}:${h.ref}`)).toEqual(
+      expect.arrayContaining(['scenario:quote', 'run:20261017-120000-quote']),
+    );
     expect((await call(studio, 'search', { q: '' })).json<{ data: { hits: unknown[] } }>().data.hits).toEqual([]);
     expect((await call(studio, 'search', { q: 'x'.repeat(201) })).status).toBe(400);
     expect((await call(studio, 'search', { q: 'a', project: '../x' })).status).toBe(400);

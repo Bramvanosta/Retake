@@ -69,7 +69,10 @@ describe('engines.kit (the guard-rail "engines / kit-API version")', () => {
     for (const bad of ['">=1"', '"1.2"', '"0"', '"x"', '1']) {
       const r = parseManifest(cardManifest('acme/a', `engines: {kit: ${bad}}`));
       expect(r.manifest, bad).toBeUndefined();
-      expect(r.issues.some((i) => i.path.join('.') === 'engines.kit'), bad).toBe(true);
+      expect(
+        r.issues.some((i) => i.path.join('.') === 'engines.kit'),
+        bad,
+      ).toBe(true);
     }
   });
 

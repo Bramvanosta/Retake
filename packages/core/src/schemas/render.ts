@@ -81,7 +81,14 @@ function renderRecordSchemas(object: ObjectOf, lax: boolean) {
       encoder: object({ asked: word(['auto', 'videotoolbox', 'libx264']), source: word(SOURCES), used: word(['libx264', 'h264_videotoolbox']) }),
       concurrency_source: word(SOURCES),
       fallback: object({ reason: z.string() }).optional(),
-      ffmpeg: object({ asked: word(['auto', 'own', 'library']), source: word(SOURCES), used: word(['own', 'library']), version: z.string().optional(), note: z.string().optional(), failed: z.string().optional() }).optional(),
+      ffmpeg: object({
+        asked: word(['auto', 'own', 'library']),
+        source: word(SOURCES),
+        used: word(['own', 'library']),
+        version: z.string().optional(),
+        note: z.string().optional(),
+        failed: z.string().optional(),
+      }).optional(),
     }).optional(),
     probe: object({
       duration_s: z.number(),

@@ -161,9 +161,13 @@ export function admission(d: AdmissionDeps): Admission {
     if (busy && busy.input.kind === 'run') {
       // The Studio's words are its own (its Rehearse button); MCP's are the glossary's, with the tools that follow or stop it.
       const what = busy.input.mode === 'dry' ? (mcp ? 'dry run' : 'rehearsal') : 'capture';
-      throw new EngineError('conflict', `a ${what} of ${scenario} is ${busy.state} (${busy.input.run_id}): ${mcp ? 'wait for it to end (run_status), or stop it (run_cancel)' : 'wait for it to end, or stop it'}`, {
-        details: { run_id: busy.input.run_id, job: busy.id },
-      });
+      throw new EngineError(
+        'conflict',
+        `a ${what} of ${scenario} is ${busy.state} (${busy.input.run_id}): ${mcp ? 'wait for it to end (run_status), or stop it (run_cancel)' : 'wait for it to end, or stop it'}`,
+        {
+          details: { run_id: busy.input.run_id, job: busy.id },
+        },
+      );
     }
   };
   const sessionsAck = async (take: PreparedTake, ack: readonly string[]) => {
@@ -184,9 +188,13 @@ export function admission(d: AdmissionDeps): Admission {
     const open = await d.queue.list({ project, kinds: ['render'], states: ['queued', 'running'] });
     const busy = open.find((j) => j.input.kind === 'render' && j.input.scenario === scenario);
     if (busy && busy.input.kind === 'render') {
-      throw new EngineError('conflict', `render ${busy.input.render_id} of ${scenario} is ${busy.state}: ${mcp ? 'wait for it to end (render_status), or cancel it (job_cancel)' : 'wait for it to end, or cancel it'}`, {
-        details: { render_id: busy.input.render_id, job: busy.id },
-      });
+      throw new EngineError(
+        'conflict',
+        `render ${busy.input.render_id} of ${scenario} is ${busy.state}: ${mcp ? 'wait for it to end (render_status), or cancel it (job_cancel)' : 'wait for it to end, or cancel it'}`,
+        {
+          details: { render_id: busy.input.render_id, job: busy.id },
+        },
+      );
     }
   };
   const exportOfRender = async (project: string, renderId: string) => {

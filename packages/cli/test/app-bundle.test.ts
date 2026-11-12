@@ -86,7 +86,10 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
 describe('the bundle setup runs first in both entry points (M2: before anything loads playwright-core)', () => {
   it('bin.ts loads bundle-env.js before main.js; worker-main.ts imports it first', () => {
     const bin = readFileSync(join(REPO, 'packages', 'cli', 'src', 'bin.ts'), 'utf8');
-    const code = bin.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    const code = bin
+      .split('\n')
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join('\n');
     expect(code.indexOf("'bundle-env.js'")).toBeGreaterThan(0);
     expect(code.indexOf("'bundle-env.js'")).toBeLessThan(code.indexOf("'main.js'"));
     const worker = readFileSync(join(REPO, 'packages', 'engine', 'src', 'worker-main.ts'), 'utf8');
@@ -124,7 +127,13 @@ describe('the render browser is checked before the asset server starts (review B
     process.env[HEADLESS_SHELL_ENV] = shell;
     servers.started = 0;
     try {
-      const plan = planEdit({ timeline: realTimeline('quote'), template: await template('editorial'), project: await fixtureProject(), registry: await loadComponentRegistry({ root: ws }), captureFile: '/captures/capture.mp4' });
+      const plan = planEdit({
+        timeline: realTimeline('quote'),
+        template: await template('editorial'),
+        project: await fixtureProject(),
+        registry: await loadComponentRegistry({ root: ws }),
+        captureFile: '/captures/capture.mp4',
+      });
       const still = (workPolicy: WorkPolicy) => renderStills({ workPolicy, plan, frames: [{ frame: 0, out: join(ws, 'f.png') }], root: ws, cacheDir: join(ws, 'cache') });
       await expect(still(workPolicyFrom([ws]))).rejects.toThrow(/lies inside the workspace/);
       expect(servers.started).toBe(0);
@@ -187,13 +196,28 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
     file('engine/dist/bin.js', '#!/usr/bin/env node\n');
     file('engine/package.json', JSON.stringify({ name: '@retake/cli', version: '0.2.0', dependencies: { '@retake/core': '0.2.0' } }));
     file('engine/node_modules/playwright-core/package.json', '{"name":"playwright-core"}');
-    for (const [rel, want] of Object.entries(marks)) file(`engine/node_modules/@remotion/renderer/${rel}`, Object.entries(want).map(([m, k]) => `// ${m}\n`.repeat(k)).join(''));
+    for (const [rel, want] of Object.entries(marks))
+      file(
+        `engine/node_modules/@remotion/renderer/${rel}`,
+        Object.entries(want)
+          .map(([m, k]) => `// ${m}\n`.repeat(k))
+          .join(''),
+      );
     file('engine/node_modules/@remotion/compositor-darwin-arm64/libavutil.dylib', THIN);
     file('engine/templates/default/template.yaml', 'name: default\n');
     file('plugin/.claude-plugin/marketplace.json', '{}');
     for (const rev of ['chromium-1194', 'chromium_headless_shell-1194']) for (const m of ['INSTALLATION_COMPLETE', 'DEPENDENCIES_VALIDATED']) file(`browsers/${rev}/${m}`);
     symlinkSync('Versions/Current/Resources', join(root, 'browsers', 'chromium-1194', 'Resources'));
-    file('bundle.json', JSON.stringify({ v: 1, app: '0.2.0', playwright: { core: '1.56.1', chromium: '1194', headless_shell: '1194' }, ffmpeg: null, paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' } }));
+    file(
+      'bundle.json',
+      JSON.stringify({
+        v: 1,
+        app: '0.2.0',
+        playwright: { core: '1.56.1', chromium: '1194', headless_shell: '1194' },
+        ffmpeg: null,
+        paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' },
+      }),
+    );
     return root;
   }
   const machinePaths = ['/Users/someone/projects/retake'];
@@ -203,7 +227,12 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
     marks = RENDERER_PATCH_MARKS;
     const r = checkStage(fakeStage(), { machinePaths });
     expect(r.problems).toEqual([]);
-    expect(r.machO).toEqual(expect.arrayContaining([{ path: 'node/bin/node', kind: 'fat' }, { path: 'engine/node_modules/@remotion/compositor-darwin-arm64/libavutil.dylib', kind: 'thin' }]));
+    expect(r.machO).toEqual(
+      expect.arrayContaining([
+        { path: 'node/bin/node', kind: 'fat' },
+        { path: 'engine/node_modules/@remotion/compositor-darwin-arm64/libavutil.dylib', kind: 'thin' },
+      ]),
+    );
     expect(readBundleManifest(fakeStage()).paths.ffmpeg).toBeNull();
   });
 
@@ -213,24 +242,52 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
     const cases: Array<[string, (root: string) => void, RegExp]> = [
       ['absolute link', (r) => symlinkSync('/usr/lib', join(r, 'engine', 'abs')), /engine\/abs: link to an absolute path/],
       ['link out', (r) => symlinkSync('../../..', join(r, 'engine', 'up')), /engine\/up: link leaves the stage/],
-      ['machine path', (r) => writeFileSync(join(r, 'engine', 'package.json'), JSON.stringify({ dependencies: { x: `file://${machinePaths[0]}/packages/core` } })), /engine\/package\.json names a path of the build machine/],
+      [
+        'machine path',
+        (r) => writeFileSync(join(r, 'engine', 'package.json'), JSON.stringify({ dependencies: { x: `file://${machinePaths[0]}/packages/core` } })),
+        /engine\/package\.json names a path of the build machine/,
+      ],
       ['marker', (r) => writeFileSync(join(r, 'browsers', 'chromium-1194', 'DEPENDENCIES_VALIDATED'), 'x'), /DEPENDENCIES_VALIDATED is not empty/],
-      ['two playwright-cores', (r) => {
-        mkdirSync(join(r, 'engine', 'node_modules', '@retake', 'ui', 'node_modules', 'playwright-core'), { recursive: true });
-      }, /2 copies of playwright-core/],
-      ['path out', (r) => {
-        const m = JSON.parse(readFileSync(join(r, 'bundle.json'), 'utf8'));
-        m.paths.plugin = '../plugin';
-        writeFileSync(join(r, 'bundle.json'), JSON.stringify(m));
-      }, /paths\.plugin \(\.\.\/plugin\) leaves the stage/],
+      [
+        'two playwright-cores',
+        (r) => {
+          mkdirSync(join(r, 'engine', 'node_modules', '@retake', 'ui', 'node_modules', 'playwright-core'), { recursive: true });
+        },
+        /2 copies of playwright-core/,
+      ],
+      [
+        'path out',
+        (r) => {
+          const m = JSON.parse(readFileSync(join(r, 'bundle.json'), 'utf8'));
+          m.paths.plugin = '../plugin';
+          writeFileSync(join(r, 'bundle.json'), JSON.stringify(m));
+        },
+        /paths\.plugin \(\.\.\/plugin\) leaves the stage/,
+      ],
       ['hard link', (r) => linkSync(join(r, 'engine', 'package.json'), join(tmp, `outside-${n}.json`)), /engine\/package\.json: 2 hard links/],
-      ['machine path in a script', (r) => writeFileSync(join(r, 'engine', 'dist', 'bin.js'), `import x from '${machinePaths[0]}/packages/core/dist/index.js';\n`), /engine\/dist\/bin\.js names a path of the build machine/],
-      ['machine path in a skill', (r) => {
-        mkdirSync(join(r, 'plugin', 'skills', 'x'), { recursive: true });
-        writeFileSync(join(r, 'plugin', 'skills', 'x', 'SKILL.md'), `see ${machinePaths[0]}/docs\n`);
-      }, /plugin\/skills\/x\/SKILL\.md names a path of the build machine/],
-      ['renderer unpatched', (r) => writeFileSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'esm', 'index.mjs'), '// as published\n'), /@remotion\/renderer\/dist\/esm\/index\.mjs carries "retake-patch: render-sandbox" 0 times, not 1: the engine lacks/],
-      ['renderer half patched', (r) => writeFileSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'esm', 'index.mjs'), '// retake-patch: render-sandbox\n// retake-patch: loopback-server\n'), /dist\/esm\/index\.mjs carries "retake-patch: loopback-server" 1 times, not 2/],
+      [
+        'machine path in a script',
+        (r) => writeFileSync(join(r, 'engine', 'dist', 'bin.js'), `import x from '${machinePaths[0]}/packages/core/dist/index.js';\n`),
+        /engine\/dist\/bin\.js names a path of the build machine/,
+      ],
+      [
+        'machine path in a skill',
+        (r) => {
+          mkdirSync(join(r, 'plugin', 'skills', 'x'), { recursive: true });
+          writeFileSync(join(r, 'plugin', 'skills', 'x', 'SKILL.md'), `see ${machinePaths[0]}/docs\n`);
+        },
+        /plugin\/skills\/x\/SKILL\.md names a path of the build machine/,
+      ],
+      [
+        'renderer unpatched',
+        (r) => writeFileSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'esm', 'index.mjs'), '// as published\n'),
+        /@remotion\/renderer\/dist\/esm\/index\.mjs carries "retake-patch: render-sandbox" 0 times, not 1: the engine lacks/,
+      ],
+      [
+        'renderer half patched',
+        (r) => writeFileSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'esm', 'index.mjs'), '// retake-patch: render-sandbox\n// retake-patch: loopback-server\n'),
+        /dist\/esm\/index\.mjs carries "retake-patch: loopback-server" 1 times, not 2/,
+      ],
       ['renderer file gone', (r) => rmSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'serve-static.js')), /@remotion\/renderer\/dist\/serve-static\.js is missing/],
     ];
     for (const [what, spoil, problem] of cases) {
@@ -241,7 +298,9 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
   });
 
   it("the compositor's licence notice names the Remotion compositor the engine deploys (the stage refuses a stale one)", () => {
-    const pkg = JSON.parse(readFileSync(join(realpathSync(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer')), '..', 'compositor-darwin-arm64', 'package.json'), 'utf8')) as { version: string };
+    const pkg = JSON.parse(readFileSync(join(realpathSync(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer')), '..', 'compositor-darwin-arm64', 'package.json'), 'utf8')) as {
+      version: string;
+    };
     const notice = readFileSync(join(REPO, 'apps', 'desktop', 'licenses', 'remotion-compositor', 'README.md'), 'utf8');
     expect(notice).toContain(`@remotion/compositor-darwin-arm64 ${pkg.version}`);
     expect(notice).toMatch(/GNU General Public\s+License, version 2 or later/);
@@ -250,7 +309,8 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
 
   it('install names: the bare ones (what @loader_path replaces) are found', async () => {
     const { bareInstallNames } = await stageModule();
-    const otool = 'remotion:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n\tlibavcodec.dylib (compatibility version 61.0.0)\n\t@loader_path/libavutil.dylib (compatibility version 59.0.0)\n';
+    const otool =
+      'remotion:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n\tlibavcodec.dylib (compatibility version 61.0.0)\n\t@loader_path/libavutil.dylib (compatibility version 59.0.0)\n';
     expect(bareInstallNames(otool)).toEqual(['libavcodec.dylib']);
   });
 });
@@ -285,7 +345,8 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
     file('packages/b/dist/index.js', 'export const b = 2;\n');
     file('packages/c/package.json', '{ "name": "@m/c", "version": "1.0.0" }\n');
     file('.gitignore', 'node_modules/\n');
-    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: repo, stdio: 'pipe' });
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: repo, stdio: 'pipe' });
     git('init', '-q');
     git('add', '-A');
     git('commit', '-qm', 'mini');
@@ -319,38 +380,51 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
   });
 
   /** The store this checkout was installed from (pnpm records it in node_modules/.modules.yaml). */
-  const storeDir = /^storeDir: (.+)$/m.exec((() => {
-    try {
-      return readFileSync(join(REPO, 'node_modules', '.modules.yaml'), 'utf8');
-    } catch {
-      return '';
-    }
-  })())?.[1];
+  const storeDir = /^storeDir: (.+)$/m.exec(
+    (() => {
+      try {
+        return readFileSync(join(REPO, 'node_modules', '.modules.yaml'), 'utf8');
+      } catch {
+        return '';
+      }
+    })(),
+  )?.[1];
 
-  it.runIf(hasPnpm && !!storeDir)("the engine's pnpm deploy carries the @remotion/renderer patch (offline, from the checkout's store); the installed copy has it too", async () => {
-    const { rendererPatchProblems, buildEnv, scrubDeployedEngine } = await stageModule();
-    const pkg = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { pnpm: { patchedDependencies: Record<string, string> } };
-    const editor = JSON.parse(readFileSync(join(REPO, 'packages', 'editor', 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
-    // A Remotion upgrade without the patch ported to it fails here (and pnpm refuses an unused patch).
-    expect(Object.keys(pkg.pnpm.patchedDependencies)).toEqual([`@remotion/renderer@${editor.dependencies['@remotion/renderer']}`]);
-    expect(rendererPatchProblems(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer'))).toEqual([]);
-    const engine = join(tmp, `engine-${Date.now()}`);
-    const workspaceManifests = readdirSync(join(REPO, 'packages')).map((p) => join(REPO, 'packages', p, 'package.json')).filter((f) => existsSync(f)).map((f) => [f, readFileSync(f, 'utf8')] as const);
-    const r = spawnSync('pnpm', ['--config.inject-workspace-packages=true', '--config.node-linker=hoisted', `--config.store-dir=${storeDir}`, '--filter', '@retake/cli', '--prod', '--offline', 'deploy', engine], { cwd: REPO, encoding: 'utf8', env: buildEnv({ ...process.env, ...PNPM_ENV }) });
-    try {
-      expect(r.status, r.stderr || r.stdout).toBe(0);
-      expect(rendererPatchProblems(join(engine, 'node_modules', '@remotion', 'renderer'))).toEqual([]);
-      // The deployed manifest names no file of the build machine once scrubbed (the patches are applied already).
-      scrubDeployedEngine(engine);
-      const manifest = readFileSync(join(engine, 'package.json'), 'utf8');
-      expect(JSON.parse(manifest).pnpm).toBeUndefined();
-      expect(manifest).not.toContain(REPO);
-      // The deploy's injected workspace packages are hard links to the checkout's files: the scrub never writes through them.
-      for (const [file, text] of workspaceManifests) expect(readFileSync(file, 'utf8'), file).toBe(text);
-    } finally {
-      rmSync(engine, { recursive: true, force: true });
-    }
-  }, 120_000);
+  it.runIf(hasPnpm && !!storeDir)(
+    "the engine's pnpm deploy carries the @remotion/renderer patch (offline, from the checkout's store); the installed copy has it too",
+    async () => {
+      const { rendererPatchProblems, buildEnv, scrubDeployedEngine } = await stageModule();
+      const pkg = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { pnpm: { patchedDependencies: Record<string, string> } };
+      const editor = JSON.parse(readFileSync(join(REPO, 'packages', 'editor', 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
+      // A Remotion upgrade without the patch ported to it fails here (and pnpm refuses an unused patch).
+      expect(Object.keys(pkg.pnpm.patchedDependencies)).toEqual([`@remotion/renderer@${editor.dependencies['@remotion/renderer']}`]);
+      expect(rendererPatchProblems(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer'))).toEqual([]);
+      const engine = join(tmp, `engine-${Date.now()}`);
+      const workspaceManifests = readdirSync(join(REPO, 'packages'))
+        .map((p) => join(REPO, 'packages', p, 'package.json'))
+        .filter((f) => existsSync(f))
+        .map((f) => [f, readFileSync(f, 'utf8')] as const);
+      const r = spawnSync(
+        'pnpm',
+        ['--config.inject-workspace-packages=true', '--config.node-linker=hoisted', `--config.store-dir=${storeDir}`, '--filter', '@retake/cli', '--prod', '--offline', 'deploy', engine],
+        { cwd: REPO, encoding: 'utf8', env: buildEnv({ ...process.env, ...PNPM_ENV }) },
+      );
+      try {
+        expect(r.status, r.stderr || r.stdout).toBe(0);
+        expect(rendererPatchProblems(join(engine, 'node_modules', '@remotion', 'renderer'))).toEqual([]);
+        // The deployed manifest names no file of the build machine once scrubbed (the patches are applied already).
+        scrubDeployedEngine(engine);
+        const manifest = readFileSync(join(engine, 'package.json'), 'utf8');
+        expect(JSON.parse(manifest).pnpm).toBeUndefined();
+        expect(manifest).not.toContain(REPO);
+        // The deploy's injected workspace packages are hard links to the checkout's files: the scrub never writes through them.
+        for (const [file, text] of workspaceManifests) expect(readFileSync(file, 'utf8'), file).toBe(text);
+      } finally {
+        rmSync(engine, { recursive: true, force: true });
+      }
+    },
+    120_000,
+  );
 
   it('repoSnapshot tells a modified file written again (same status line, other bytes) and an untracked one', async () => {
     const { repoSnapshot } = await stageModule();
@@ -364,7 +438,7 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
     expect(repoSnapshot(repo)).toMatch(/^\?\? packages\/a\/notes\.txt /m);
   });
 
-  it("a build output whose source is gone is found, and the stage refuses it before it deploys anything", async () => {
+  it('a build output whose source is gone is found, and the stage refuses it before it deploys anything', async () => {
     const { staleBuildOutputs } = await stageModule();
     const repo = join(tmp, `stale-${Date.now()}`);
     const put = (rel: string) => {
@@ -372,7 +446,19 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
       writeFileSync(join(repo, rel), '');
     };
     for (const f of ['a/src/index.ts', 'a/src/sub/view.tsx', 'a/src/kit.mts', 'a/src/plain.js']) put(`packages/${f}`);
-    for (const f of ['a/dist/index.js', 'a/dist/index.d.ts', 'a/dist/index.js.map', 'a/dist/sub/view.js', 'a/dist/kit.mjs', 'a/dist/plain.js', 'a/dist/moved.js', 'a/dist/moved.d.ts', 'a/dist/old/gone.cjs', 'b/dist/x.js']) put(`packages/${f}`);
+    for (const f of [
+      'a/dist/index.js',
+      'a/dist/index.d.ts',
+      'a/dist/index.js.map',
+      'a/dist/sub/view.js',
+      'a/dist/kit.mjs',
+      'a/dist/plain.js',
+      'a/dist/moved.js',
+      'a/dist/moved.d.ts',
+      'a/dist/old/gone.cjs',
+      'b/dist/x.js',
+    ])
+      put(`packages/${f}`);
     put('packages/c/src/only.ts');
     expect(staleBuildOutputs(repo)).toEqual(['packages/a/dist/moved.js', 'packages/a/dist/old/gone.cjs', 'packages/b/dist/x.js']);
     rmSync(join(repo, 'packages', 'a', 'dist', 'moved.js'));
@@ -411,7 +497,11 @@ describe('retake init (a workspace folder of your own)', () => {
     expect(await initWorkspace(dir)).toEqual({ root: dir, created: true });
     expect(readFileSync(join(dir, 'retake.yaml'), 'utf8')).toMatch(/^version: 1$/m);
     // The bytes written, pinned (the workspace's files go through the project store since).
-    expect(createHash('sha256').update(readFileSync(join(dir, 'retake.yaml'))).digest('hex')).toBe('00a93f8141ad48a6a45b9b2fafbaa659b998525e5c92506dccfc765e0263f0e1');
+    expect(
+      createHash('sha256')
+        .update(readFileSync(join(dir, 'retake.yaml')))
+        .digest('hex'),
+    ).toBe('00a93f8141ad48a6a45b9b2fafbaa659b998525e5c92506dccfc765e0263f0e1');
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('.retake/\n');
     expect(readdirSync(join(dir, 'projects'))).toEqual([]);
     writeFileSync(join(dir, 'retake.yaml'), 'version: 1\nprojects_dir: mine\n');
@@ -434,8 +524,12 @@ describe('retake init (a workspace folder of your own)', () => {
 /** A fake app bundle (Retake.app/Contents/Resources) with its plugin folder. */
 function appBundle(): BundleInfo {
   const root = join(mkdtempSync(join(tmp, 'app-')), 'Retake.app', 'Contents', 'Resources');
-  for (const d of ['node/bin', 'engine/node_modules/@retake/components/library/studio/card', 'browsers', 'engine/templates', 'plugin/.claude-plugin', 'plugin/skills/.claude-plugin']) mkdirSync(join(root, d), { recursive: true });
-  writeFileSync(join(root, 'bundle.json'), JSON.stringify({ v: 1, app: '0.2.0', ffmpeg: null, paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' } }));
+  for (const d of ['node/bin', 'engine/node_modules/@retake/components/library/studio/card', 'browsers', 'engine/templates', 'plugin/.claude-plugin', 'plugin/skills/.claude-plugin'])
+    mkdirSync(join(root, d), { recursive: true });
+  writeFileSync(
+    join(root, 'bundle.json'),
+    JSON.stringify({ v: 1, app: '0.2.0', ffmpeg: null, paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' } }),
+  );
   return readBundleManifest(root);
 }
 
@@ -466,7 +560,13 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     expect(missing).toMatchObject({ path: null, source: 'none', note: expect.stringMatching(/reinstall Retake/) });
     expect(() => assertRenderBrowser(missing, PERSON_POLICY, app)).toThrow(/headless shell is missing/);
     // Outside an app too: Remotion never downloads a browser of its own.
-    expect(() => assertRenderBrowser(renderBrowser({}, null, () => null), PERSON_POLICY, null)).toThrow(/playwright-core install chromium-headless-shell/);
+    expect(() =>
+      assertRenderBrowser(
+        renderBrowser({}, null, () => null),
+        PERSON_POLICY,
+        null,
+      ),
+    ).toThrow(/playwright-core install chromium-headless-shell/);
   });
 
   it("every command's --out inside the app is refused before the command starts (review A L4)", async () => {
@@ -491,7 +591,7 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
   });
 });
 
-describe('every Node.js started on the bundle\'s code loads its module lookup guard first (review A H1)', () => {
+describe("every Node.js started on the bundle's code loads its module lookup guard first (review A H1)", () => {
   it('bundleNodeArgs: --require <Resources>/node/guard.cjs from a bundle, nothing from a checkout; a bundle without it is damaged', () => {
     expect(BUNDLE_GUARD).toBe('node/guard.cjs');
     expect(bundleNodeArgs(null)).toEqual([]);
@@ -534,7 +634,7 @@ console.log(JSON.stringify([a, workerCommand('/w').args]));`;
 });
 
 describe('the render bundle takes no module from above the app (review A H1, the render half)', () => {
-  it('renderBundleRestriction: webpack\'s resolver (the same enhanced-resolve) finds a planted package above the roots without it, never with it; inside the roots, resolution is unchanged', async () => {
+  it("renderBundleRestriction: webpack's resolver (the same enhanced-resolve) finds a planted package above the roots without it, never with it; inside the roots, resolution is unchanged", async () => {
     const base = mkdtempSync(join(tmp, 'restrict-'));
     const res = join(base, 'Retake.app', 'Contents', 'Resources');
     const ws = join(base, 'ws');
@@ -555,7 +655,7 @@ describe('the render bundle takes no module from above the app (review A H1, the
     const fs = new CachedInputFileSystem(createRequire(import.meta.url)('node:fs'), 0);
     const resolver = (restrictions?: RegExp[]) => {
       const r = ResolverFactory.createResolver({ fileSystem: fs, extensions: ['.js'], modules: ['node_modules', join(res, 'engine', 'node_modules')], ...(restrictions ? { restrictions } : {}) });
-      return (from: string, request: string) => new Promise<string | false>((ok) => r.resolve({}, from, request, {}, (err: Error | null, p?: string) => ok(err ? false : p ?? false)));
+      return (from: string, request: string) => new Promise<string | false>((ok) => r.resolve({}, from, request, {}, (err: Error | null, p?: string) => ok(err ? false : (p ?? false))));
     };
     const studio = join(res, 'engine', 'node_modules', '@remotion', 'studio', 'dist');
     const open = resolver();

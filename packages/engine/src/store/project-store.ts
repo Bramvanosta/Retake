@@ -160,7 +160,14 @@ class DiskProjectStore implements ProjectStore {
     }
     if (old) await rm(old, { recursive: true, force: true });
     const files = (o.files ? o.files(result) : written).slice();
-    await this.journal({ op: 'folder', what: o.what, path, files: files.slice(0, JOURNAL_FILES_MAX), ...(files.length > JOURNAL_FILES_MAX ? { files_more: files.length - JOURNAL_FILES_MAX } : {}), outcome: 'ok' });
+    await this.journal({
+      op: 'folder',
+      what: o.what,
+      path,
+      files: files.slice(0, JOURNAL_FILES_MAX),
+      ...(files.length > JOURNAL_FILES_MAX ? { files_more: files.length - JOURNAL_FILES_MAX } : {}),
+      outcome: 'ok',
+    });
     return { result, dir: final, replaced: old !== undefined };
   }
 

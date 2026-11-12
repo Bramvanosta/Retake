@@ -42,7 +42,11 @@ export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void>; on
     ui.clearStatus();
     ui.warn(opts.message ?? 'interrupted: closing the browser…');
     controller.abort();
-    if (opts.exit) void opts.exit().catch(() => undefined).finally(quit);
+    if (opts.exit)
+      void opts
+        .exit()
+        .catch(() => undefined)
+        .finally(quit);
   };
   process.on('SIGINT', handler);
   process.on('SIGTERM', handler);

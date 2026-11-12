@@ -78,7 +78,8 @@ async function latest(b: BuiltState): Promise<[string, string]> {
 /** NEW named by its folder: at a terminal, then under trust `mcp`. */
 async function named(b: BuiltState): Promise<[string, string]> {
   const p = await project(b);
-  const plan = (trust: 'author' | 'mcp') => answer(b, async () => `plans ${who(b, (await planRun({ workPolicy: PERSON_POLICY, project: p, run: b.new, scenario: STATES.scenario, root, registry, trust })).run.id)}`);
+  const plan = (trust: 'author' | 'mcp') =>
+    answer(b, async () => `plans ${who(b, (await planRun({ workPolicy: PERSON_POLICY, project: p, run: b.new, scenario: STATES.scenario, root, registry, trust })).run.id)}`);
   return [await plan('author'), await plan('mcp')];
 }
 
@@ -210,7 +211,8 @@ describe('the editor, state by state: the run `latest` names and a run named by 
     expect(await latest(state('a', { old: 'no-film' }))).toEqual([nothing, nothing]);
     // The named run: OLD named, with and without its film.
     const b = state('a', { old: 'no-film' });
-    const named = async (x: BuiltState) => answer(x, async () => `plans ${who(x, (await planRun({ workPolicy: PERSON_POLICY, project: await project(x), run: x.old, scenario: STATES.scenario, root, registry })).run.id)}`);
+    const named = async (x: BuiltState) =>
+      answer(x, async () => `plans ${who(x, (await planRun({ workPolicy: PERSON_POLICY, project: await project(x), run: x.old, scenario: STATES.scenario, root, registry })).run.id)}`);
     expect(await named(state('a'))).toBe('plans OLD');
     expect(await named(b)).toBe('RenderError: run OLD has no capture video (<root>/projects/s-a-no-film/runs/OLD/capture.mp4)');
   });
@@ -262,7 +264,20 @@ describe('the render records as the editor answers them, state by state', () => 
   }, 60_000);
 
   /** What a person types to name the state's file (default: quote-v2). */
-  const NAME: Record<string, string> = { ctl: 'quote-v1', 'renamed-newest': 'quote-final', 'renamed-fixed': 'quote-final', 'renamed-old': 'quote-final', 'renamed-reused': 'quote-final', copy: 'quote-v1 copy', 'copy-backup': 'quote-v1-backup', 'out-name': 'quote-final', 'empty-id': 'x', 'keep-json': 'keep', 'keep-json-without': 'quote-v1', 'final-files': 'quote-v1.final' };
+  const NAME: Record<string, string> = {
+    ctl: 'quote-v1',
+    'renamed-newest': 'quote-final',
+    'renamed-fixed': 'quote-final',
+    'renamed-old': 'quote-final',
+    'renamed-reused': 'quote-final',
+    copy: 'quote-v1 copy',
+    'copy-backup': 'quote-v1-backup',
+    'out-name': 'quote-final',
+    'empty-id': 'x',
+    'keep-json': 'keep',
+    'keep-json-without': 'quote-v1',
+    'final-files': 'quote-v1.final',
+  };
   const name = (id: string) => NAME[id] ?? 'quote-v2';
   const rwords = (b: BuiltRenders, e: unknown): string => `${(e as Error).name}: ${(e as Error).message.replaceAll(root, '<root>').replaceAll(b.new, 'NEW').replaceAll(b.old, 'OLD')}`;
   const ranswer = async (b: BuiltRenders, fn: () => Promise<string>): Promise<string> => fn().catch((e: unknown) => rwords(b, e));
@@ -343,8 +358,10 @@ describe('the render records as the editor answers them, state by state', () => 
     'renamed-reused': {
       list: 'quote-v1 quote-v2 quote-v3 quote-v4',
       latest: 'quote-v4',
-      named: 'ExportError: renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to export — correct "file" in the record, or render again with --out',
-      export: 'ExportError: renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to export — correct "file" in the record, or render again with --out',
+      named:
+        'ExportError: renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to export — correct "file" in the record, or render again with --out',
+      export:
+        'ExportError: renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to export — correct "file" in the record, or render again with --out',
       exportMcp: 'ExportError: render "quote-final": through MCP a render is named by its id',
     },
     // N1 — a copy beside its original exports (did not move; at a terminal row 8 adds one line). moved: row 6 — the list names quote-v1 once (before: twice)
@@ -553,10 +570,9 @@ describe('the render records as the editor answers them, state by state', () => 
       export: 'export quote-v1.final → exports/quote-v1.final (copy, the film)',
       exportMcp: 'ExportError: render "quote-v1.final": through MCP a render is named by its id',
     },
-
   };
 
-  it('every state of the table: the listing, a terminal\'s `latest`, a render named, its export at a terminal and under trust mcp', async () => {
+  it("every state of the table: the listing, a terminal's `latest`, a render named, its export at a terminal and under trust mcp", async () => {
     const got: Record<string, RRow> = {};
     for (const id of renderStateIds()) {
       const b = rstate(id);

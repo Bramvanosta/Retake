@@ -63,7 +63,14 @@ beforeAll(async () => {
   await runFolder(DRY, { timeline: (t) => ({ ...t, mode: 'dry' }) });
   await runFolder(BARE);
   await runFolder(FILMLESS, { timeline: (t) => t, film: false });
-  await runFolder(CARDED, { timeline: (t) => ({ ...t, scenes: (t.scenes as Array<Record<string, unknown>>).map((sc, i) => (i === 0 ? { ...sc, card: { component: 'studio/card-figure', slots: { image: 'assets/figure.png', title: 'A figure' } } } : sc)) }) });
+  await runFolder(CARDED, {
+    timeline: (t) => ({
+      ...t,
+      scenes: (t.scenes as Array<Record<string, unknown>>).map((sc, i) =>
+        i === 0 ? { ...sc, card: { component: 'studio/card-figure', slots: { image: 'assets/figure.png', title: 'A figure' } } } : sc,
+      ),
+    }),
+  });
   await writeFile(join(dir, 'assets', 'figure.png'), 'not read');
   await runFolder(DRY_OTHER_THEME, { timeline: (t) => ({ ...t, mode: 'dry', video: { ...((t.video as object | undefined) ?? {}), template: 'no-such-theme' } }) });
   await runFolder(OTHER_THEME, { timeline: (t) => ({ ...t, video: { ...((t.video as object | undefined) ?? {}), template: 'no-such-theme' } }) });
@@ -85,12 +92,12 @@ async function refusal(work: Promise<unknown>): Promise<EngineError> {
 
 /** The gate's contract, one adapter's `raw` made new for each case. */
 function gateContract(raw: () => CaptureRaw): void {
-  it('gives the timeline of a run that reads, also of one without its film (the film is not the gate\'s)', async () => {
+  it("gives the timeline of a run that reads, also of one without its film (the film is not the gate's)", async () => {
     expect((await raw().timeline(runDir(RUN))).run_id).toBe(RUN);
     expect((await raw().timeline(runDir(FILMLESS))).run_id).toBe(FILMLESS);
   });
 
-  it('refuses a dry run and a folder without a timeline in the export\'s words, as EngineErrors', async () => {
+  it("refuses a dry run and a folder without a timeline in the export's words, as EngineErrors", async () => {
     const dry = await refusal(raw().timeline(runDir(DRY)));
     expect([dry.code, dry.message]).toEqual(['invalid', `run ${DRY} is a dry run: it has no capture to export`]);
     const bare = await refusal(raw().timeline(runDir(BARE)));
@@ -98,17 +105,26 @@ function gateContract(raw: () => CaptureRaw): void {
   });
 }
 
-describe('the capture port\'s raw export gate (runner package)', () => gateContract(() => runnerWebCapture().raw));
-describe('the capture port\'s raw export gate (memory)', () => gateContract(() => new MemoryCaptureRunner().raw));
+describe("the capture port's raw export gate (runner package)", () => gateContract(() => runnerWebCapture().raw));
+describe("the capture port's raw export gate (memory)", () => gateContract(() => new MemoryCaptureRunner().raw));
 
 describe('rawExportWork (in memory)', () => {
-  it('hands the port the run\'s theme, the settings, the edit\'s files, the ffmpeg, the signal and the progress', async () => {
+  it("hands the port the run's theme, the settings, the edit's files, the ffmpeg, the signal and the progress", async () => {
     const capture = new MemoryCaptureRunner();
     const progress: string[] = [];
     const notes: string[] = [];
     const ac = new AbortController();
     const out = join(root, 'exports-a');
-    const r = await rawExportWork({ capture, ws: { policy: ws.policy, ffmpeg: '/opt/ffmpeg' }, project, runDir: runDir(RUN), settings: { format: 'prores', fps: 60, cuts: false, out }, signal: ac.signal, onNote: (n) => notes.push(n), onProgress: (p) => progress.push(p.stage) });
+    const r = await rawExportWork({
+      capture,
+      ws: { policy: ws.policy, ffmpeg: '/opt/ffmpeg' },
+      project,
+      runDir: runDir(RUN),
+      settings: { format: 'prores', fps: 60, cuts: false, out },
+      signal: ac.signal,
+      onNote: (n) => notes.push(n),
+      onProgress: (p) => progress.push(p.stage),
+    });
     expect(r.dir).toBe(out);
     expect(r.manifest.settings).toMatchObject({ format: 'prores', fps: 60, cuts: false });
     expect(notes).toEqual([]);
@@ -127,7 +143,7 @@ describe('rawExportWork (in memory)', () => {
     expect(r.manifest.edit_files.every((f) => f.startsWith('/'))).toBe(true);
   });
 
-  it('says a note when the run\'s theme does not load, and exports with the default look (no template handed)', async () => {
+  it("says a note when the run's theme does not load, and exports with the default look (no template handed)", async () => {
     const capture = new MemoryCaptureRunner();
     const notes: string[] = [];
     const r = await rawExportWork({ capture, ws, project, runDir: runDir(OTHER_THEME), settings: { out: join(root, 'exports-b') }, onNote: (n) => notes.push(n) });
@@ -149,7 +165,7 @@ describe('rawExportWork (in memory)', () => {
 });
 
 describe('planOfRun', () => {
-  it('tells the run it found before reading it, and plans it as `retake plan` does (the summary\'s lines too)', async () => {
+  it("tells the run it found before reading it, and plans it as `retake plan` does (the summary's lines too)", async () => {
     const order: string[] = [];
     const p = await planOfRun(ws, project, RUN, { scenario: 'signup', overrides: { frame: 'raw' }, trust: 'author', onRun: (run: RunRef) => order.push(`found ${run.id}`) });
     expect(order).toEqual([`found ${RUN}`]);
@@ -165,10 +181,12 @@ describe('planOfRun', () => {
     await expect(planOfRun(ws, project, BARE, { trust: 'author' })).rejects.toThrow(`run ${BARE} has no timeline.json (${runDir(BARE)})`);
     const p = await planOfRun(ws, project, FILMLESS, { trust: 'author' });
     expect(p.plan.meta.run_id).toBe(FILMLESS);
-    await expect(planWork({ workPolicy: ws.policy, project, run: FILMLESS, root: ws.root, measureMusic: false })).rejects.toThrow(`run ${FILMLESS} has no capture video (${runDir(FILMLESS)}/capture.mp4)`);
+    await expect(planWork({ workPolicy: ws.policy, project, run: FILMLESS, root: ws.root, measureMusic: false })).rejects.toThrow(
+      `run ${FILMLESS} has no capture video (${runDir(FILMLESS)}/capture.mp4)`,
+    );
   });
 
-  it('takes a theme by name in place of the run\'s, named in the overrides', async () => {
+  it("takes a theme by name in place of the run's, named in the overrides", async () => {
     const p = await planOfRun(ws, project, RUN, { theme: 'motion', trust: 'author' });
     expect([p.template.name, p.overrides.theme, p.plan.meta.theme]).toEqual(['motion', 'motion', 'motion']);
   });

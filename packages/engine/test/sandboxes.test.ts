@@ -134,7 +134,14 @@ afterAll(async () => {
 });
 
 /** A subject whose workspace is made in beforeAll; afterAll stops what the real adapter left running. */
-function subjectOf(name: string, kind: SandboxSubject['kind'], make: () => Promise<{ project: LoadedProject; bare: LoadedProject }>, sandboxes: () => Sandboxes, services: string[], seedSteps: number): () => SandboxSubject {
+function subjectOf(
+  name: string,
+  kind: SandboxSubject['kind'],
+  make: () => Promise<{ project: LoadedProject; bare: LoadedProject }>,
+  sandboxes: () => Sandboxes,
+  services: string[],
+  seedSteps: number,
+): () => SandboxSubject {
   let s: SandboxSubject | undefined;
   beforeAll(async () => {
     const { project, bare } = await make();
@@ -148,15 +155,42 @@ function subjectOf(name: string, kind: SandboxSubject['kind'], make: () => Promi
 }
 
 describe('in-memory sandboxes, a process manifest', () => {
-  sandboxContract(subjectOf('memory process', 'process', async () => processWorkspace(await scratch('mp')), () => new MemorySandboxes(), ['app', 'api'], 2));
+  sandboxContract(
+    subjectOf(
+      'memory process',
+      'process',
+      async () => processWorkspace(await scratch('mp')),
+      () => new MemorySandboxes(),
+      ['app', 'api'],
+      2,
+    ),
+  );
 });
 
 describe('in-memory sandboxes, a docker-compose manifest', () => {
-  sandboxContract(subjectOf('memory compose', 'docker-compose', async () => composeWorkspace(await scratch('mc'), `${PREFIX}memory`), () => new MemorySandboxes(), ['web'], 1));
+  sandboxContract(
+    subjectOf(
+      'memory compose',
+      'docker-compose',
+      async () => composeWorkspace(await scratch('mc'), `${PREFIX}memory`),
+      () => new MemorySandboxes(),
+      ['web'],
+      1,
+    ),
+  );
 });
 
 describe.skipIf(!posix)('the sandbox package, a process sandbox', () => {
-  sandboxContract(subjectOf('package process', 'process', async () => processWorkspace(await scratch('pp')), () => packageSandboxes(), ['app', 'api'], 2));
+  sandboxContract(
+    subjectOf(
+      'package process',
+      'process',
+      async () => processWorkspace(await scratch('pp')),
+      () => packageSandboxes(),
+      ['app', 'api'],
+      2,
+    ),
+  );
 });
 
 describe.skipIf(!DOCKER)('the sandbox package, a docker-compose sandbox (RETAKE_TEST_DOCKER=1)', () => {
@@ -169,7 +203,17 @@ describe.skipIf(!DOCKER)('the sandbox package, a docker-compose sandbox (RETAKE_
       /* no docker left to ask */
     }
   }, 120_000);
-  sandboxContract(subjectOf('package compose', 'docker-compose', async () => composeWorkspace(await scratch('pc'), `${PREFIX}package`), () => packageSandboxes(), ['web'], 1), 240_000);
+  sandboxContract(
+    subjectOf(
+      'package compose',
+      'docker-compose',
+      async () => composeWorkspace(await scratch('pc'), `${PREFIX}package`),
+      () => packageSandboxes(),
+      ['web'],
+      1,
+    ),
+    240_000,
+  );
 });
 
 describe('what each adapter says beyond the contract', () => {
@@ -212,7 +256,9 @@ describe('what each adapter says beyond the contract', () => {
     const { bare } = await processWorkspace(await scratch('class'));
     const sb = await import('@retake/sandbox');
     expect(sb.SandboxError).toBe(SandboxError);
-    const err = await packageSandboxes().open(bare, undefined, PERSON_POLICY).catch((e: unknown) => e);
+    const err = await packageSandboxes()
+      .open(bare, undefined, PERSON_POLICY)
+      .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(sb.SandboxError);
   });
 });
@@ -222,11 +268,21 @@ describe('the engine reads sandboxes through the port it is handed', () => {
     const { project } = await processWorkspace(await scratch('status'));
     const mem = new MemorySandboxes();
     const folder = { refOf: (p: string) => relative(project.dir, p) } as unknown as ProjectFolder;
-    expect(await sandboxStatus(project, undefined, PERSON_POLICY, folder, mem)).toMatchObject({ project: 's', env: 'sandbox', provider: 'process', state: 'down', logs: '.retake/sandbox/sandbox/logs', file: 'sandbox/sandbox.yaml' });
+    expect(await sandboxStatus(project, undefined, PERSON_POLICY, folder, mem)).toMatchObject({
+      project: 's',
+      env: 'sandbox',
+      provider: 'process',
+      state: 'down',
+      logs: '.retake/sandbox/sandbox/logs',
+      file: 'sandbox/sandbox.yaml',
+    });
     await (await mem.open(project, undefined, PERSON_POLICY)).up();
     const st = await sandboxStatus(project, 'sandbox', PERSON_POLICY, folder, mem);
     expect(st.state).toBe('up');
-    expect(st.services).toEqual([{ name: 'app', state: 'running', healthy: true }, { name: 'api', state: 'running', healthy: true }]);
+    expect(st.services).toEqual([
+      { name: 'app', state: 'running', healthy: true },
+      { name: 'api', state: 'running', healthy: true },
+    ]);
     expect(st.seed).toMatchObject({ current: true });
     expect(mem.calls.filter((c) => c.op === 'status')).toHaveLength(2);
   });

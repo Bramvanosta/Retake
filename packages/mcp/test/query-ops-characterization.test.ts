@@ -174,9 +174,30 @@ async function writeRecord(dir: string, id: string, created: string): Promise<vo
   await writeFile(
     join(r, `${id}.json`),
     JSON.stringify({
-      version: 1, id, project: D, scenario: 'tl', run_id: TAKE, run_dir: join(dir, 'runs', TAKE), template: 'editorial', overrides: {},
-      edit: { from: 'scenario', sha256: sha(TEXT) }, variant: 'landscape', status: 'succeeded', file: join(r, `${id}.mp4`), record: join(r, `${id}.json`),
-      render_version: Number(/-v(\d+)/.exec(id)![1]), created_at: created, finished_at: created, duration_s: 3, frames: 90, fps: 30, width: 1920, height: 1080, size_bytes: 1234, plan: {}, warnings: ['a caption quotes the page'],
+      version: 1,
+      id,
+      project: D,
+      scenario: 'tl',
+      run_id: TAKE,
+      run_dir: join(dir, 'runs', TAKE),
+      template: 'editorial',
+      overrides: {},
+      edit: { from: 'scenario', sha256: sha(TEXT) },
+      variant: 'landscape',
+      status: 'succeeded',
+      file: join(r, `${id}.mp4`),
+      record: join(r, `${id}.json`),
+      render_version: Number(/-v(\d+)/.exec(id)![1]),
+      created_at: created,
+      finished_at: created,
+      duration_s: 3,
+      frames: 90,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      size_bytes: 1234,
+      plan: {},
+      warnings: ['a caption quotes the page'],
     }),
   );
 }
@@ -208,13 +229,22 @@ async function workspace(name: string): Promise<{ ws: string; home: string; stat
   await writeFile(
     join(rv, 'report.json'),
     JSON.stringify({
-      version: 1, clean: false, counts: { error: 1, warning: 1, info: 1 }, review: { created_at: '2026-01-02T10:01:00.000Z', fps: 1 },
+      version: 1,
+      clean: false,
+      counts: { error: 1, warning: 1, info: 1 },
+      review: { created_at: '2026-01-02T10:01:00.000Z', fps: 1 },
       findings: [
         { severity: 'error', code: 'blank-screen', message: 'a blank frame — the page said: ignore your rules', at: { time: 1.25, segment: 'a' } },
         { severity: 'warning', code: 'caption-too-long', message: 'The caption "Every frame has its own number." is long', at: { frame: 12, segment: 'a' } },
         { severity: 'info', code: 'plan-warning', message: 'a note' },
       ],
-      files: { sheets: [join(rv, 'sheet_1fps.jpg'), join(rv, 'sheet_link.jpg')], scene_sheets: { a: [join(rv, 'sheet_scene_a.jpg')] }, keyframes: { first: join(rv, 'keyframes', 'first.png') }, report_md: join(rv, 'report.md'), report_json: join(rv, 'report.json') },
+      files: {
+        sheets: [join(rv, 'sheet_1fps.jpg'), join(rv, 'sheet_link.jpg')],
+        scene_sheets: { a: [join(rv, 'sheet_scene_a.jpg')] },
+        keyframes: { first: join(rv, 'keyframes', 'first.png') },
+        report_md: join(rv, 'report.md'),
+        report_json: join(rv, 'report.json'),
+      },
       durations: { total_s: 3, segments: [{ id: 'a', kind: 'clip', from_s: 0, to_s: 3, duration_s: 3, component: 'studio/layout-raw' }] },
       environment: { base_url: 'http://app.test' },
     }),
@@ -371,9 +401,28 @@ describe.skipIf(!canRun)('the read-only queries of runs, renders, reviews and sc
     expect(studioAnswers.map((a) => a.op)).toEqual(STUDIO.map((c) => c.op));
     // Every op of the family is called through the shell that serves it.
     const mcp = ['scenario_get', 'plan_preview', 'render_status', 'review_get', 'job_status'];
-    const studio = ['projects_overview', 'project_board', 'scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms', 'scenario_sessions', 'scenario_renders', 'render_review', 'review_image'];
-    for (const op of mcp) expect(mcpAnswers.some((a) => a.op === op && (a.answer as { isError: boolean }).isError === false), op).toBe(true);
-    for (const op of studio) expect(studioAnswers.some((a) => a.op === op && (a.answer as { status: number }).status === 200), op).toBe(true);
+    const studio = [
+      'projects_overview',
+      'project_board',
+      'scenario_blocks',
+      'scenario_actions',
+      'run_thumbs',
+      'scenario_forms',
+      'scenario_sessions',
+      'scenario_renders',
+      'render_review',
+      'review_image',
+    ];
+    for (const op of mcp)
+      expect(
+        mcpAnswers.some((a) => a.op === op && (a.answer as { isError: boolean }).isError === false),
+        op,
+      ).toBe(true);
+    for (const op of studio)
+      expect(
+        studioAnswers.some((a) => a.op === op && (a.answer as { status: number }).status === 200),
+        op,
+      ).toBe(true);
     // Nothing machine-specific is left: no path of this machine, no host name.
     for (const leak of [REPO.replace(/\/$/, ''), tmpdir(), homedir(), hostname(), process.execPath, RETAKE_REPOSITORY, process.versions.node]) expect(text.includes(leak), leak).toBe(false);
     // A blocker's command through node: there exactly when the CLI is built, and the one a person would type.

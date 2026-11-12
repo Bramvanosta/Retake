@@ -5,10 +5,14 @@ import type { ProgramContext } from './context.js';
 
 /** Frame comments on renders: comment. */
 export function registerCommentCommands({ program, action }: ProgramContext): void {
-  const comment = program.command('comment').description('frame comments on renders: a comment on one frame (optionally a region), replies, resolution with the render that answers it (comments/<scenario>/<id>.json; Claude reads and answers them through MCP)');
+  const comment = program
+    .command('comment')
+    .description(
+      'frame comments on renders: a comment on one frame (optionally a region), replies, resolution with the render that answers it (comments/<scenario>/<id>.json; Claude reads and answers them through MCP)',
+    );
   comment
     .command('add')
-    .description('comment on one frame of a render: the anchor (segment, scene, step, component) is computed from the render\'s plan and the still kept in .retake/comments/')
+    .description("comment on one frame of a render: the anchor (segment, scene, step, component) is computed from the render's plan and the still kept in .retake/comments/")
     .argument('<project>', 'project slug or directory')
     .argument('<render>', 'render id (e.g. quote-v3), or "latest"')
     .argument('<text>', 'the comment (at most 2000 characters)')

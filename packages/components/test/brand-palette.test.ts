@@ -14,14 +14,46 @@ import { PALETTE_THRESHOLDS, derivePalette, generateThemeFile } from '../src/ind
 import { backgroundSample, contrastRatio } from '../src/kit/style.js';
 
 const GOLDENS: Array<[string, 'light' | 'dark', Record<string, unknown>]> = [
-  ['#0e7c66', 'light', { accent: '#0e7c66', text: '#0b181a', muted: '#5f696a', paper: '#f5faf9', dark: '#0c2121', background: { type: 'radial', from: '#f9fcfb', to: '#e9f4f2' }, ripple: 'rgba(14, 124, 102, 0.45)' }],
-  ['#ffd400', 'light', { accent: '#ffd400', text: '#232110', muted: '#727062', paper: '#fffdf5', dark: '#37310f', background: { type: 'radial', from: '#fffef9', to: '#fffbe9' }, ripple: 'rgba(255, 212, 0, 0.45)' }],
-  ['#8a2332', 'light', { accent: '#8a2332', text: '#180f15', muted: '#696266', paper: '#faf6f7', dark: '#221118', background: { type: 'radial', from: '#fcfafa', to: '#f4ebed' }, ripple: 'rgba(138, 35, 50, 0.45)' }],
-  ['#3352b8', 'light', { accent: '#3352b8', text: '#0f1423', muted: '#636671', paper: '#f7f8fc', dark: '#121930', background: { type: 'radial', from: '#fafbfd', to: '#edf0f9' }, ripple: 'rgba(51, 82, 184, 0.45)' }],
-  ['#0e7c66', 'dark', { accent: '#0e7c66', text: '#e9f1f2', muted: '#959fa0', paper: '#0b181a', dark: '#071011', background: { type: 'linear', from: '#070e10', to: '#1e2f2f' }, ripple: 'rgba(14, 124, 102, 0.45)' }],
-  ['#ffd400', 'dark', { accent: '#ffd400', text: '#f7f6ec', muted: '#a6a598', paper: '#232110', dark: '#17150a', background: { type: 'linear', from: '#15140a', to: '#413d21' }, ripple: 'rgba(255, 212, 0, 0.45)' }],
-  ['#8a2332', 'dark', { accent: '#8a2332', text: '#f0ebef', muted: '#9e979c', paper: '#180f15', dark: '#100a0e', background: { type: 'linear', from: '#0e090d', to: '#302229' }, ripple: 'rgba(138, 35, 50, 0.45)' }],
-  ['#3352b8', 'dark', { accent: '#3352b8', text: '#ebeef7', muted: '#979ba6', paper: '#0f1423', dark: '#0a0d17', background: { type: 'linear', from: '#090c15', to: '#232a3d' }, ripple: 'rgba(51, 82, 184, 0.45)' }],
+  [
+    '#0e7c66',
+    'light',
+    { accent: '#0e7c66', text: '#0b181a', muted: '#5f696a', paper: '#f5faf9', dark: '#0c2121', background: { type: 'radial', from: '#f9fcfb', to: '#e9f4f2' }, ripple: 'rgba(14, 124, 102, 0.45)' },
+  ],
+  [
+    '#ffd400',
+    'light',
+    { accent: '#ffd400', text: '#232110', muted: '#727062', paper: '#fffdf5', dark: '#37310f', background: { type: 'radial', from: '#fffef9', to: '#fffbe9' }, ripple: 'rgba(255, 212, 0, 0.45)' },
+  ],
+  [
+    '#8a2332',
+    'light',
+    { accent: '#8a2332', text: '#180f15', muted: '#696266', paper: '#faf6f7', dark: '#221118', background: { type: 'radial', from: '#fcfafa', to: '#f4ebed' }, ripple: 'rgba(138, 35, 50, 0.45)' },
+  ],
+  [
+    '#3352b8',
+    'light',
+    { accent: '#3352b8', text: '#0f1423', muted: '#636671', paper: '#f7f8fc', dark: '#121930', background: { type: 'radial', from: '#fafbfd', to: '#edf0f9' }, ripple: 'rgba(51, 82, 184, 0.45)' },
+  ],
+  [
+    '#0e7c66',
+    'dark',
+    { accent: '#0e7c66', text: '#e9f1f2', muted: '#959fa0', paper: '#0b181a', dark: '#071011', background: { type: 'linear', from: '#070e10', to: '#1e2f2f' }, ripple: 'rgba(14, 124, 102, 0.45)' },
+  ],
+  [
+    '#ffd400',
+    'dark',
+    { accent: '#ffd400', text: '#f7f6ec', muted: '#a6a598', paper: '#232110', dark: '#17150a', background: { type: 'linear', from: '#15140a', to: '#413d21' }, ripple: 'rgba(255, 212, 0, 0.45)' },
+  ],
+  [
+    '#8a2332',
+    'dark',
+    { accent: '#8a2332', text: '#f0ebef', muted: '#9e979c', paper: '#180f15', dark: '#100a0e', background: { type: 'linear', from: '#0e090d', to: '#302229' }, ripple: 'rgba(138, 35, 50, 0.45)' },
+  ],
+  [
+    '#3352b8',
+    'dark',
+    { accent: '#3352b8', text: '#ebeef7', muted: '#979ba6', paper: '#0f1423', dark: '#0a0d17', background: { type: 'linear', from: '#090c15', to: '#232a3d' }, ripple: 'rgba(51, 82, 184, 0.45)' },
+  ],
 ];
 
 const ratio = (a: string, b: string) => contrastRatio(a, b)!;
@@ -83,7 +115,9 @@ describe('derivePalette', () => {
 });
 
 describe('generateThemeFile', () => {
-  const starters = readdirSync(STARTER_TEMPLATES_DIR, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name);
+  const starters = readdirSync(STARTER_TEMPLATES_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+    .map((e) => e.name);
 
   it('has the three starters to test against', () => {
     expect(starters.sort()).toEqual(['default', 'editorial', 'motion']);
@@ -122,9 +156,18 @@ describe('generateThemeFile', () => {
     expect(g.yaml).not.toMatch(/Atelier|example\.com|Retake"? *#/);
   });
 
-  it('no brand url: the base\'s placeholder outro url is dropped, never kept', () => {
+  it("no brand url: the base's placeholder outro url is dropped, never kept", () => {
     const base = parseYaml(readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8')).value as TemplateFile;
-    const g = generateThemeFile({ base, baseName: 'editorial', name: 'acme', palette: derivePalette({ accent: '#0e7c66' }), logo: 'logo.svg', wordmark: 'wordmark.svg', fonts: { display: 'a.ttf', body: ['b.ttf'] }, date: '2026-10-19' });
+    const g = generateThemeFile({
+      base,
+      baseName: 'editorial',
+      name: 'acme',
+      palette: derivePalette({ accent: '#0e7c66' }),
+      logo: 'logo.svg',
+      wordmark: 'wordmark.svg',
+      fonts: { display: 'a.ttf', body: ['b.ttf'] },
+      date: '2026-10-19',
+    });
     const t = parseTemplateYaml(g.yaml).template!;
     expect(t.outro.url).toBeUndefined();
     expect(t.brand).toBeUndefined();

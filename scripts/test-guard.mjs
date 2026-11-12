@@ -21,9 +21,7 @@ export function parseTests(text) {
   marks.forEach((m, i) => {
     const body = text.slice(m.at, i + 1 < marks.length ? marks[i + 1].at : text.length);
     const expects = (body.match(/\bexpect(?:\s*\.poll)?\(/g) ?? []).length;
-    const ids = new Set(
-      [...body.matchAll(/getByTestId\(\s*['"`]([^'"`]+)['"`]/g), ...body.matchAll(/data-testid="([^"]+)"/g)].map((x) => x[1]),
-    );
+    const ids = new Set([...body.matchAll(/getByTestId\(\s*['"`]([^'"`]+)['"`]/g), ...body.matchAll(/data-testid="([^"]+)"/g)].map((x) => x[1]));
     out.set(m.title, { expects, ids });
   });
   return out;

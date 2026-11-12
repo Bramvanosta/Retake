@@ -474,7 +474,13 @@ export function newThemeProblem(f: NewThemeForm, taken: Iterable<string>): strin
   if (!okNewThemeName(f.name)) return NEW_THEME_TOO_LONG;
   if (new Set(taken).has(f.name)) return 'A theme of that name exists.';
   if (!okTheme(f.base)) return 'Pick a base theme.';
-  for (const [k, v] of [['accent', f.accent], ['text', f.text], ['paper', f.paper], ['muted', f.muted]] as const) if (v !== '' && !okHex(v)) return `The ${k} colour is a hex value: #rgb or #rrggbb.`;
+  for (const [k, v] of [
+    ['accent', f.accent],
+    ['text', f.text],
+    ['paper', f.paper],
+    ['muted', f.muted],
+  ] as const)
+    if (v !== '' && !okHex(v)) return `The ${k} colour is a hex value: #rgb or #rrggbb.`;
   if (!f.accent) return 'Give the accent colour.';
   if (!f.logo) return 'Pick a logo file (an image of the workspace, or a site candidate).';
   if (f.brandName.length > 80 || f.brandUrl.length > 120) return 'The brand name takes at most 80 characters, its URL 120.';

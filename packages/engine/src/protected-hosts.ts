@@ -201,7 +201,10 @@ export async function checkWorkspaceProtection(ws: OpenedWorkspace, project: Loa
   if (isProtected(env) || env.sandbox !== undefined) return;
   const hosts = await workspaceProtectedHosts(ws, project.slug);
   if (!hosts.length) return;
-  const found = await firstProtectedPage(Object.entries(env.pages).map(([page, url]) => ({ page, url })), hosts);
+  const found = await firstProtectedPage(
+    Object.entries(env.pages).map(([page, url]) => ({ page, url })),
+    hosts,
+  );
   if (found) {
     throw new EngineError(
       'refused',

@@ -207,14 +207,18 @@ describe('hosts of another, read-only environment: refused in any run (R-ENV-04)
   });
 
   it('--allow-writes where production allows writes: the host is not protected (crossEnvironmentHosts), the hook runs', async () => {
-    const res = await runHooks([{ http: { method: 'POST', url: '{{console}}/api/replies', json: { text: 'x' } } }], context({ env: 'local', mode: 'read-write', protected: [], writable: ['localhost'] }).ctx, {
-      phase: 'teardown',
-      journal: await journalAt(),
-    });
+    const res = await runHooks(
+      [{ http: { method: 'POST', url: '{{console}}/api/replies', json: { text: 'x' } } }],
+      context({ env: 'local', mode: 'read-write', protected: [], writable: ['localhost'] }).ctx,
+      {
+        phase: 'teardown',
+        journal: await journalAt(),
+      },
+    );
     expect(res.results[0].status).toBe('ok');
   });
 
-  it('js: a write its tab stopped on another environment\'s host names that environment', async () => {
+  it("js: a write its tab stopped on another environment's host names that environment", async () => {
     const { ctx } = context(CROSS, {
       evalInPage: async () => {
         throw new WriteRefusedError(['POST 127.0.0.1/api/replies'], 'local', { protectedBy: 'production', detail: 'the hook threw: TypeError: Failed to fetch' });

@@ -86,7 +86,9 @@ const noop = () => undefined;
 
 describe('the kit renders native, named elements (L5.9 part B)', () => {
   it('buttons: a typed <button> (never a submit unless asked, never a destructive submit), a link built by hrefTo, an icon button named by its label, key caps', () => {
-    expect(html(createElement(Button, { variant: 'primary', onClick: noop, children: 'Save' }))).toMatch(/^<button type="button" class="k-btn k-btn-primary k-btn-md"><span class="k-btn-label">Save<\/span><\/button>$/);
+    expect(html(createElement(Button, { variant: 'primary', onClick: noop, children: 'Save' }))).toMatch(
+      /^<button type="button" class="k-btn k-btn-primary k-btn-md"><span class="k-btn-label">Save<\/span><\/button>$/,
+    );
     expect(html(createElement(Button, { variant: 'secondary', submit: true, children: 'Go' }))).toContain('type="submit"');
     expect(html(createElement(Button, { variant: 'destructive', submit: true, children: 'Delete' }))).toContain('type="button"');
     const off = html(createElement(Button, { disabled: true, why: 'Open a scenario first', children: 'Render' }));
@@ -98,32 +100,66 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(rec).toContain('k-record-mark');
     expect(rec).toContain('aria-hidden="true"');
     expect(html(createElement(Button, { variant: 'record', recording: true, children: 'Stop recording' }))).toContain('is-recording');
-    expect(html(createElement(LinkButton, { to: { name: 'projects' }, children: 'Projects' }))).toBe('<a href="#/" class="k-btn k-btn-secondary k-btn-md"><span class="k-btn-label">Projects</span></a>');
-    expect(html(createElement(IconButton, { icon: 'inspector', label: 'Inspector', pressed: true, onClick: noop }))).toMatch(/^<button type="button" class="k-iconbtn k-iconbtn-md is-pressed" aria-label="Inspector" aria-pressed="true"><svg[^>]*aria-hidden="true"/);
+    expect(html(createElement(LinkButton, { to: { name: 'projects' }, children: 'Projects' }))).toBe(
+      '<a href="#/" class="k-btn k-btn-secondary k-btn-md"><span class="k-btn-label">Projects</span></a>',
+    );
+    expect(html(createElement(IconButton, { icon: 'inspector', label: 'Inspector', pressed: true, onClick: noop }))).toMatch(
+      /^<button type="button" class="k-iconbtn k-iconbtn-md is-pressed" aria-label="Inspector" aria-pressed="true"><svg[^>]*aria-hidden="true"/,
+    );
     expect(html(createElement(IconButton, { icon: 'more', label: 'More', onClick: noop }))).not.toContain('aria-pressed');
     expect(html(createElement(Kbd, { keys: ['⌘', 'K'] }))).toBe('<span class="k-kbd-group"><kbd class="k-kbd">⌘</kbd><kbd class="k-kbd">K</kbd></span>');
     for (const name of ICON_NAMES) expect(html(createElement(Icon, { name })), name).toMatch(/^<svg class="k-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">/);
   });
 
   it('segmented: a fieldset of native radios with a legend (one group, the arrows native); links in a nav with aria-current, a missing place a disabled button', () => {
-    const seg = html(createElement(Segmented<'a' | 'b'>, { label: 'View', value: 'b', options: [{ value: 'a', label: 'Blocks' }, { value: 'b', label: 'YAML' }], onChange: noop }));
+    const seg = html(
+      createElement(Segmented<'a' | 'b'>, {
+        label: 'View',
+        value: 'b',
+        options: [
+          { value: 'a', label: 'Blocks' },
+          { value: 'b', label: 'YAML' },
+        ],
+        onChange: noop,
+      }),
+    );
     expect(seg).toMatch(/^<fieldset class="k-seg k-seg-md"><legend class="k-sr">View<\/legend>/);
     expect(seg.match(/<input type="radio"/g)).toHaveLength(2);
     expect(new Set([...seg.matchAll(/name="([^"]+)"/g)].map((m) => m[1])).size).toBe(1);
     expect(seg).toMatch(/<label class="k-seg-item is-current"><input type="radio" class="k-seg-input" name="[^"]+" checked="" value="b"\/>/);
-    const links = html(createElement(SegmentedLinks, { label: 'Mode', items: [{ key: 's', label: 'Script', to: { name: 'scenario', slug: 'p', scenario: 'q', tab: 'blocks' }, current: true }, { key: 'e', label: 'Edit', to: { name: 'timeline', slug: 'p', scenario: 'q' }, current: false }] }));
+    const links = html(
+      createElement(SegmentedLinks, {
+        label: 'Mode',
+        items: [
+          { key: 's', label: 'Script', to: { name: 'scenario', slug: 'p', scenario: 'q', tab: 'blocks' }, current: true },
+          { key: 'e', label: 'Edit', to: { name: 'timeline', slug: 'p', scenario: 'q' }, current: false },
+        ],
+      }),
+    );
     expect(links).toMatch(/^<nav class="k-seg k-seg-md k-seg-links" aria-label="Mode"><a href="#\/p\/p\/s\/q" class="k-seg-item is-current" aria-current="page">/);
     const none = html(createElement(SegmentedLinks, { label: 'Mode', hint: 'Open a scenario', items: [{ key: 's', label: 'Script', to: null, current: false }] }));
     expect(none).toMatch(/<button type="button" class="k-seg-item" disabled="" aria-describedby="([^"]+)">.*<span id="\1" class="k-sr">Open a scenario<\/span>/);
     // Review A-L4: with only some segments off, the reason is there too — every aria-describedby id resolves.
-    const some = html(createElement(SegmentedLinks, { label: 'Mode', hint: 'Open a scenario', items: [{ key: 's', label: 'Script', to: null, current: false }, { key: 'e', label: 'Edit', to: { name: 'projects' }, current: false }] }));
+    const some = html(
+      createElement(SegmentedLinks, {
+        label: 'Mode',
+        hint: 'Open a scenario',
+        items: [
+          { key: 's', label: 'Script', to: null, current: false },
+          { key: 'e', label: 'Edit', to: { name: 'projects' }, current: false },
+        ],
+      }),
+    );
     const ids = [...some.matchAll(/aria-describedby="([^"]+)"/g)].map((m) => m[1]);
     expect(ids).toHaveLength(1);
     for (const x of ids) expect(some, x).toContain(`id="${x}"`);
   });
 
   it('L5.11b: a radio group — a fieldset of native radios named by its legend (one name), the checked one native, a value that matches none leaves all unchecked; a compact row card is a pressed button with its word on the right', () => {
-    const opts = [{ value: '0', label: 'Text', aside: 'Suggested', testId: 'alt' }, { value: '1', label: 'Role', detail: 'a CSS selector', disabled: true }];
+    const opts = [
+      { value: '0', label: 'Text', aside: 'Suggested', testId: 'alt' },
+      { value: '1', label: 'Role', detail: 'a CSS selector', disabled: true },
+    ];
     const rg = html(createElement(RadioGroup, { legend: 'Ways to find step 3', value: '0', options: opts, onChange: noop }));
     expect(rg).toMatch(/^<fieldset class="k-radios"><legend class="k-radios-legend">Ways to find step 3<\/legend>/);
     expect(rg.match(/<input type="radio"/g)).toHaveLength(2);
@@ -135,13 +171,21 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     const none = html(createElement(RadioGroup, { legend: 'Wait until', legendHidden: true, value: '-1', options: opts, onChange: noop, disabled: true }));
     expect(none).toMatch(/^<fieldset class="k-radios" disabled=""><legend class="k-sr">Wait until<\/legend>/);
     expect(none).not.toContain('checked=""');
-    const row = html(createElement(RowCard, { compact: true, tile: '3', title: 'Click “Selowa Ridge”', meta: 'Suggested: text', aside: '2 alternatives', selected: true, onSelect: noop, testId: 'r' }));
+    const row = html(
+      createElement(RowCard, { compact: true, tile: '3', title: 'Click “Selowa Ridge”', meta: 'Suggested: text', aside: '2 alternatives', selected: true, onSelect: noop, testId: 'r' }),
+    );
     expect(row).toMatch(/^<button type="button" class="k-rowcard is-selected is-compact" aria-pressed="true" data-testid="r">/);
     expect(row).toContain('<span class="k-rowcard-aside">2 alternatives</span>');
     expect(html(createElement(RowCard, { tile: 'Card', title: 'A card', selected: false, onSelect: noop }))).not.toContain('k-rowcard-aside');
     // L5.11b fixes (review A-M2): a RowList listbox — the list the tab stop (its active option by id), its items role="none"
     // around RowCard options (never a tab stop), the caller's group between them owned by no option; plain, a list.
-    const option = (id: string, selected: boolean, active: boolean) => createElement(RowListItem, { key: id, testId: 'step', data: { row: id, role: 'action' }, children: createElement(RowCard, { compact: true, option: { id, active }, tile: '1', title: 'Click', selected, onSelect: noop, testId: 'opt' }) });
+    const option = (id: string, selected: boolean, active: boolean) =>
+      createElement(RowListItem, {
+        key: id,
+        testId: 'step',
+        data: { row: id, role: 'action' },
+        children: createElement(RowCard, { compact: true, option: { id, active }, tile: '1', title: 'Click', selected, onSelect: noop, testId: 'opt' }),
+      });
     const list = html(
       createElement(RowList, {
         labelledBy: 'scene-1',
@@ -152,7 +196,9 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
       }),
     );
     expect(list).toMatch(/^<ol class="k-rowlist rc-rows" role="listbox" aria-labelledby="scene-1" aria-activedescendant="o1" tabindex="0" data-testid="rows">/);
-    expect(list).toContain('<li role="none" data-testid="step" data-row="o1" data-role="action"><div id="o1" role="option" aria-selected="false" class="k-rowcard is-compact is-active" data-testid="opt">');
+    expect(list).toContain(
+      '<li role="none" data-testid="step" data-row="o1" data-role="action"><div id="o1" role="option" aria-selected="false" class="k-rowcard is-compact is-active" data-testid="opt">',
+    );
     expect(list).toContain('<li role="none"><div role="group" aria-label="Inserts">x</div></li>');
     expect(list).toContain('<div id="o2" role="option" aria-selected="true" class="k-rowcard is-selected is-compact"');
     expect(list.match(/role="option"/g)).toHaveLength(2);
@@ -167,20 +213,34 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
   it('switch: a native checkbox with role="switch" inside its label; fields: a visible label bound to a native input / textarea / select, an error in words', () => {
     const sw = html(createElement(Switch, { label: 'Captions', checked: true, onChange: noop, hint: 'Burned into the video' }));
     // Review A-L3: named by the label alone (aria-labelledby), the hint its description.
-    expect(sw).toMatch(/^<label class="k-switch-row"><span class="k-switch-text"><span id="([^"]+)" class="k-switch-label">Captions<\/span><span id="([^"]+)" class="k-hint">Burned into the video<\/span><\/span>.*<input type="checkbox" role="switch" class="k-switch-input" aria-labelledby="\1" aria-describedby="\2" checked=""\/>/);
+    expect(sw).toMatch(
+      /^<label class="k-switch-row"><span class="k-switch-text"><span id="([^"]+)" class="k-switch-label">Captions<\/span><span id="([^"]+)" class="k-hint">Burned into the video<\/span><\/span>.*<input type="checkbox" role="switch" class="k-switch-input" aria-labelledby="\1" aria-describedby="\2" checked=""\/>/,
+    );
     const tf = html(createElement(TextField, { label: 'Name', value: 'x', onChange: noop, unsaved: null, error: 'A name is required' }));
     const id = /<label class="k-field-label" for="([^"]+)">Name<\/label>/.exec(tf)?.[1];
     expect(id).toBeTruthy();
     expect(tf).toContain(`<input id="${id}" type="text" class="k-input" aria-invalid="true" aria-describedby="${id}-error" value="x"/>`);
     expect(tf).toContain(`<span id="${id}-error" class="k-error"><span class="k-error-word">Error:</span> A name is required</span>`);
     expect(html(createElement(TextArea, { label: 'Notes', value: '', onChange: noop, unsaved: null, mono: true }))).toMatch(/<textarea id="[^"]+" rows="4" class="k-input k-textarea k-mono">/);
-    const sel = html(createElement(Select, { label: 'Take', value: 'b', options: [{ value: 'a', label: 'Take 1' }, { value: 'b', label: 'Take 2' }], onChange: noop }));
+    const sel = html(
+      createElement(Select, {
+        label: 'Take',
+        value: 'b',
+        options: [
+          { value: 'a', label: 'Take 1' },
+          { value: 'b', label: 'Take 2' },
+        ],
+        onChange: noop,
+      }),
+    );
     expect(sel).toMatch(/<label class="k-field-label" for="([^"]+)">Take<\/label>.*<select id="\1" class="k-select-input">/);
     expect(sel).toContain('<option value="b" selected="">Take 2</option>');
-    expect(html(createElement(FieldRow, { label: 'Size', children: 'x' }))).toMatch(/^<div class="k-field k-field-row" role="group" aria-labelledby="([^"]+)"><span id="\1" class="k-field-label">Size<\/span>/);
+    expect(html(createElement(FieldRow, { label: 'Size', children: 'x' }))).toMatch(
+      /^<div class="k-field k-field-row" role="group" aria-labelledby="([^"]+)"><span id="\1" class="k-field-label">Size<\/span>/,
+    );
   });
 
-  it('status marks: a hidden shape and a visible word for each state; the timecode\'s spoken form in hidden text; progress with its values', () => {
+  it("status marks: a hidden shape and a visible word for each state; the timecode's spoken form in hidden text; progress with its values", () => {
     for (const state of MARK_STATES) {
       const m = html(createElement(StatusMark, { state, word: 'Ready' }));
       expect(m, state).toMatch(new RegExp(`^<span class="k-mark" data-state="${state}"><(?:span|svg) class="k-mark-[a-z-]+[^"]*"[^>]*aria-hidden="true"`));
@@ -203,14 +263,37 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
   it('panes: a labelled toolbar, a status region, a source list of headed groups with aria-current, sections, an empty state, a one-line blocker with its action', () => {
     expect(html(createElement(Toolbar, { label: 'Steps', children: createElement(Button, { children: 'Add' }) }))).toMatch(/^<div role="toolbar" aria-label="Steps" class="k-toolbar">/);
     expect(html(createElement(StatusBar, { state: 'Connected', actions: 'x' }))).toMatch(/^<div class="k-statusbar" role="region" aria-label="Status">/);
-    const src = html(createElement(SourceList, { label: 'Studio', groups: [{ key: 'g', heading: 'Projects', items: [{ key: 'a', to: { name: 'projects' }, label: 'All', current: true, count: 3 }, { key: 'b', to: { name: 'project', slug: 'b' }, label: 'B', current: false, flag: 'unsaved', children: [{ key: 'c', to: { name: 'readme', slug: 'b' }, label: 'README', current: false }] }] }] }));
+    const src = html(
+      createElement(SourceList, {
+        label: 'Studio',
+        groups: [
+          {
+            key: 'g',
+            heading: 'Projects',
+            items: [
+              { key: 'a', to: { name: 'projects' }, label: 'All', current: true, count: 3 },
+              {
+                key: 'b',
+                to: { name: 'project', slug: 'b' },
+                label: 'B',
+                current: false,
+                flag: 'unsaved',
+                children: [{ key: 'c', to: { name: 'readme', slug: 'b' }, label: 'README', current: false }],
+              },
+            ],
+          },
+        ],
+      }),
+    );
     expect(src).toMatch(/^<nav class="k-source" aria-label="Studio"><div class="k-source-group"><h2 class="k-source-heading">Projects<\/h2>/);
     expect(src).toContain('<a href="#/" class="k-source-item is-current" aria-current="page">');
     expect(src).toContain('<span class="k-source-flag">unsaved</span>');
     expect(src).toContain('k-source-depth-1');
     expect(html(createElement(InspectorSection, { title: 'Step', children: 'x' }))).toMatch(/^<section class="k-section" aria-labelledby="([^"]+)"><h3 id="\1" class="k-section-title">Step<\/h3>/);
     expect(html(createElement(InspectorSection, { title: 'More', collapsible: true, children: 'x' }))).toMatch(/^<details class="k-section" open=""><summary class="k-section-title">More<\/summary>/);
-    expect(html(createElement(EmptyState, { title: 'No scenario yet', children: 'Write one.' }))).toMatch(/^<section class="k-empty" aria-labelledby="([^"]+)"><h2 id="\1" class="k-empty-title">No scenario yet<\/h2>/);
+    expect(html(createElement(EmptyState, { title: 'No scenario yet', children: 'Write one.' }))).toMatch(
+      /^<section class="k-empty" aria-labelledby="([^"]+)"><h2 id="\1" class="k-empty-title">No scenario yet<\/h2>/,
+    );
     const b = html(createElement(Blocker, { word: 'Blocked', children: 'The setup hook needs Postgres', fix: { copy: 'brew services start postgresql' } }));
     expect(b).toContain('<span class="k-mark-word">Blocked</span>');
     expect(b).toContain('<bdi class="k-blocker-code k-mono">brew services start postgresql</bdi>');
@@ -223,7 +306,9 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(c).toMatch(/^<span class="k-blocker is-compact" data-testid="sb">/);
     expect(c).toContain('1 hook to approve');
     // The trigger opens a popover (a dialog in the top layer) that shows the command as text, with its Copy.
-    expect(c).toMatch(/<button type="button" class="k-btn k-btn-ghost k-btn-sm k-blocker-command" aria-haspopup="dialog" aria-expanded="false" aria-controls="([^"]+)" popover[tT]arget="\1" data-testid="sb-action">.*Command….*<div id="\1" popover="auto" role="dialog" aria-label="The command to run in a terminal" class="k-popover" data-testid="sb-popover">/);
+    expect(c).toMatch(
+      /<button type="button" class="k-btn k-btn-ghost k-btn-sm k-blocker-command" aria-haspopup="dialog" aria-expanded="false" aria-controls="([^"]+)" popover[tT]arget="\1" data-testid="sb-action">.*Command….*<div id="\1" popover="auto" role="dialog" aria-label="The command to run in a terminal" class="k-popover" data-testid="sb-popover">/,
+    );
     expect(c).toContain('<bdi class="k-blocker-code k-mono">retake run p quote</bdi>');
     expect(c).toMatch(/data-testid="sb-copy"[^>]*>.*Copy command/);
     expect(c).not.toContain('k-sr');
@@ -232,7 +317,18 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(html(createElement(Blocker, { word: 'Blocked', children: 'x', fix: { copy: 'y' } }))).toContain('<span class="k-copied" role="status"></span>');
     const l = html(createElement(Blocker, { compact: true, word: 'the file has errors', fix: { label: 'Open the YAML', to: { name: 'scenario', slug: 'p', scenario: 'quote', tab: 'yaml' } } }));
     expect(l).toContain('<a href="#/p/p/s/quote/yaml" class="k-btn k-btn-ghost k-btn-sm">');
-    const list = html(createElement(Checklist, { label: 'Checks', children: createElement(ChecklistItem, { state: 'attention', word: 'Needs you', title: 'Sessions', actions: createElement(Button, { size: 'sm', children: 'Sign in…' }), children: 'buyer — expired' }) }));
+    const list = html(
+      createElement(Checklist, {
+        label: 'Checks',
+        children: createElement(ChecklistItem, {
+          state: 'attention',
+          word: 'Needs you',
+          title: 'Sessions',
+          actions: createElement(Button, { size: 'sm', children: 'Sign in…' }),
+          children: 'buyer — expired',
+        }),
+      }),
+    );
     expect(list).toMatch(/^<ol class="k-checklist" aria-label="Checks"><li class="k-check" data-state="attention" aria-labelledby="([^"]+)">/);
     expect(list).toMatch(/<h3 id="([^"]+)" class="k-check-title">Sessions<\/h3><span class="k-check-word">Needs you<\/span>/);
     expect(list).toContain('<div class="k-check-body">buyer — expired</div>');
@@ -244,7 +340,9 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(sel).toMatch(/^<button type="button" class="k-card k-card-frame is-selected" aria-pressed="true">/);
     expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', to: { name: 'project', slug: 'q' } }))).toMatch(/^<a href="#\/p\/q" class="k-card k-card-poster">/);
     // L5.12c fixes: a roving grid's stop, named by its title and described by its meta (review A-L7).
-    expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', selected: false, onSelect: noop, tabIndex: -1, labelledBy: 'n1', describedBy: 'm1' }))).toMatch(/^<button type="button" class="k-card k-card-poster" aria-pressed="false" tabindex="-1" aria-labelledby="n1" aria-describedby="m1">/);
+    expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', selected: false, onSelect: noop, tabIndex: -1, labelledBy: 'n1', describedBy: 'm1' }))).toMatch(
+      /^<button type="button" class="k-card k-card-poster" aria-pressed="false" tabindex="-1" aria-labelledby="n1" aria-describedby="m1">/,
+    );
   });
 
   it('L5.10a: the productions listbox — one tab stop, options with aria-selected, the active one named by aria-activedescendant; none selected: no aria-activedescendant at all (review A-L6)', () => {
@@ -267,7 +365,9 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
   });
 
   it('L5.10a: facts (a dl of rows), a disclosure (a native details, closed), source rows with an icon, a lead, a value, a quiet tone and a test id', () => {
-    expect(html(createElement(Facts, { rows: [{ key: 'l', label: 'Length', value: '1:00.0' }] }))).toBe('<dl class="k-facts"><div class="k-facts-row"><dt class="k-facts-label">Length</dt><dd class="k-facts-value">1:00.0</dd></div></dl>');
+    expect(html(createElement(Facts, { rows: [{ key: 'l', label: 'Length', value: '1:00.0' }] }))).toBe(
+      '<dl class="k-facts"><div class="k-facts-row"><dt class="k-facts-label">Length</dt><dd class="k-facts-value">1:00.0</dd></div></dl>',
+    );
     // A named list: the name on a group around it (review A-L6: a dl takes no name), never on the dl.
     const named = html(createElement(Facts, { label: 'Page console', rows: [{ key: 'u', label: 'URL', value: 'x' }] }));
     expect(named).toMatch(/^<div role="group" aria-label="Page console" class="k-facts-group"><dl class="k-facts">/);
@@ -275,32 +375,54 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     const d = html(createElement(Disclosure, { summary: 'Show', children: 'x' }));
     expect(d).toMatch(/^<details class="k-disclosure"><summary class="k-disclosure-summary"><svg[^>]*aria-hidden="true"/);
     expect(d).toContain('Show</summary><div class="k-disclosure-body">x</div></details>');
-    const row = html(createElement(SourceList, { label: 'Studio', groups: [{ key: 'g', items: [{ key: 'a', to: { name: 'cast', slug: 'n' }, label: 'Sessions', icon: 'person', lead: '1', value: '0:09.4', quiet: true, testId: 'cast-link', current: false }] }] }));
+    const row = html(
+      createElement(SourceList, {
+        label: 'Studio',
+        groups: [{ key: 'g', items: [{ key: 'a', to: { name: 'cast', slug: 'n' }, label: 'Sessions', icon: 'person', lead: '1', value: '0:09.4', quiet: true, testId: 'cast-link', current: false }] }],
+      }),
+    );
     expect(row).toContain('<a href="#/p/n/cast" class="k-source-item is-quiet" data-testid="cast-link"><svg class="k-icon k-source-icon"');
     expect(row).toContain('<span class="k-source-lead k-mono">1</span><span class="k-source-label">Sessions</span><span class="k-source-count k-mono">0:09.4</span>');
     for (const name of ['film', 'components', 'location', 'person'] as const) expect(ICON_NAMES).toContain(name);
   });
 
   it('L5.10a fixes: a source row with a second line that wraps (review B-L1); a search keeps maxLength, no autocomplete, no spell check, its label visually hidden with an icon (B-L4, B-L6)', () => {
-    const row = html(createElement(SourceList, { label: 'Studio', groups: [{ key: 'g', items: [{ key: 'a', to: { name: 'cast', slug: 'n' }, label: 'supplier', detail: 'signed-in', current: false }] }] }));
+    const row = html(
+      createElement(SourceList, { label: 'Studio', groups: [{ key: 'g', items: [{ key: 'a', to: { name: 'cast', slug: 'n' }, label: 'supplier', detail: 'signed-in', current: false }] }] }),
+    );
     expect(row).toContain('<span class="k-source-text"><span class="k-source-label">supplier</span><span class="k-source-detail">signed-in</span></span>');
-    const f = html(createElement(TextField, { label: 'Search productions', type: 'search', value: '', onChange: noop, unsaved: null, labelHidden: true, maxLength: 200, autoComplete: 'off', spellCheck: false }));
+    const f = html(
+      createElement(TextField, { label: 'Search productions', type: 'search', value: '', onChange: noop, unsaved: null, labelHidden: true, maxLength: 200, autoComplete: 'off', spellCheck: false }),
+    );
     expect(f).toMatch(/<label class="k-field-label k-sr" for="[^"]+">Search productions<\/label>/);
     expect(f).toMatch(/<svg class="k-icon k-input-icon"[^>]*aria-hidden="true"/);
     expect(f).toMatch(/<input [^>]*type="search"[^>]*maxLength="200"[^>]*autoComplete="off"[^>]*spellCheck="false"/);
   });
 });
 
-describe('L5.12c: the Library\'s and the theme editor\'s kit pieces', () => {
+describe("L5.12c: the Library's and the theme editor's kit pieces", () => {
   it('a data table: its caption (hidden, still its name), column headers th scope=col, each row headed by its first cell (th scope=row), an empty cell a dash', () => {
-    const t = html(createElement(DataTable, { caption: 'Slots', captionHidden: true, testId: 'slots', columns: [{ key: 'a', label: 'Slot' }, { key: 'b', label: 'Max', numeric: true }], rows: [{ key: 'r', cells: ['title', null] }] }));
+    const t = html(
+      createElement(DataTable, {
+        caption: 'Slots',
+        captionHidden: true,
+        testId: 'slots',
+        columns: [
+          { key: 'a', label: 'Slot' },
+          { key: 'b', label: 'Max', numeric: true },
+        ],
+        rows: [{ key: 'r', cells: ['title', null] }],
+      }),
+    );
     expect(t).toContain('<table class="k-table" data-testid="slots"><caption class="k-sr">Slots</caption>');
     expect(t).toContain('<th scope="col">Slot</th><th scope="col" class="k-table-num">Max</th>');
     expect(t).toContain('<tbody><tr><th scope="row">title</th><td class="k-table-num"><span class="k-table-none">—</span></td></tr>');
   });
 
   it('a colour field: the native colour input named by its label, the hex field named by the label and the word "hex" (no copy of the label in an attribute), the draft in words; the swatch is data, the kit holds no colour', async () => {
-    const c = html(createElement(ColorField, { label: 'Accent', hint: 'kicker', value: '#225588', picker: '#225588', swatch: '#225588', draft: '#00c000', onDraft: noop, onCommit: noop, testId: 'color-accent' }));
+    const c = html(
+      createElement(ColorField, { label: 'Accent', hint: 'kicker', value: '#225588', picker: '#225588', swatch: '#225588', draft: '#00c000', onDraft: noop, onCommit: noop, testId: 'color-accent' }),
+    );
     const id = /<input type="color" id="([^"]+)"/.exec(c)![1];
     expect(c).toContain(`<label class="k-field-label" for="${id}" id="${id}-label">Accent</label>`);
     expect(c).toContain(`<input type="color" id="${id}" class="k-color-well" aria-describedby="${id}-hint" data-testid="color-accent-picker" value="#225588"/>`);
@@ -319,7 +441,8 @@ describe('L5.12c: the Library\'s and the theme editor\'s kit pieces', () => {
     // While dragged: the written colour's dot (a hex: it reaches the style).
     expect(html(createElement(ColorField, { ...base, swatch: '#225588', draft: '#00c000' }))).toContain('<span class="k-color-swatch" style="background:#225588" aria-hidden="true"></span>');
     // Not a hex: nothing drawn, whatever the caller passes.
-    for (const swatch of ['red', 'url(x)', '#2255', '#225588; background-image: url(x)', '']) expect(html(createElement(ColorField, { ...base, swatch, draft: '#00c000' })), swatch).not.toContain('k-color-swatch');
+    for (const swatch of ['red', 'url(x)', '#2255', '#225588; background-image: url(x)', ''])
+      expect(html(createElement(ColorField, { ...base, swatch, draft: '#00c000' })), swatch).not.toContain('k-color-swatch');
     // Nothing dragged: the well is the only swatch.
     expect(html(createElement(ColorField, { ...base, swatch: '#225588' }))).not.toContain('k-color-swatch');
     // Unset: the words in hidden text, the picker and the hex field described by them (a field that is not removable too).
@@ -334,7 +457,19 @@ describe('L5.12c: the Library\'s and the theme editor\'s kit pieces', () => {
   });
 
   it('a sheet with fields: the fields under the text and outside its description; an action that is off is disabled', () => {
-    const s = html(createElement(Sheet, { open: false, title: 'Copy editorial first?', actions: [{ id: 'copy', label: 'Copy and set', variant: 'primary', isDefault: true, disabled: true }, { id: 'c', label: 'Cancel', isCancel: true }], onAction: noop, content: createElement('span', null, 'FIELDS'), children: 'Why.' }));
+    const s = html(
+      createElement(Sheet, {
+        open: false,
+        title: 'Copy editorial first?',
+        actions: [
+          { id: 'copy', label: 'Copy and set', variant: 'primary', isDefault: true, disabled: true },
+          { id: 'c', label: 'Cancel', isCancel: true },
+        ],
+        onAction: noop,
+        content: createElement('span', null, 'FIELDS'),
+        children: 'Why.',
+      }),
+    );
     const described = /aria-describedby="([^"]+)"/.exec(s)![1];
     expect(s).toContain(`<div id="${described}" class="k-sheet-text">Why.</div><div class="k-sheet-content"><span>FIELDS</span></div>`);
     expect(s).toContain('<button data-default="yes" type="button" class="k-btn k-btn-primary k-btn-md" disabled="">');
@@ -344,15 +479,65 @@ describe('L5.12c: the Library\'s and the theme editor\'s kit pieces', () => {
 describe('the overlays (L5.9 part C)', () => {
   it('L5.10b: a scene\'s frames — one listbox (tab stop, horizontal, aria-activedescendant only when given), options with aria-selected and a name; the empty drop zone; a row card is a pressed button; a callout says its state in words; a source row that acts is a button with aria-current="true"; a switch row', () => {
     const go = () => undefined;
-    const grid = renderToStaticMarkup(createElement(FrameGrid, { label: 'Steps of scene one', tabbable: true, activeId: 'o1', children: [createElement(FrameOption, { key: 'a', id: 'o1', dataKey: 'one.0', testId: 'step', label: 'Step 1: click First. done', selected: true, picture: 'pic', number: '1', title: 'Click', draggable: true, drop: 'after', dragging: false, onPick: go })] }));
+    const grid = renderToStaticMarkup(
+      createElement(FrameGrid, {
+        label: 'Steps of scene one',
+        tabbable: true,
+        activeId: 'o1',
+        children: [
+          createElement(FrameOption, {
+            key: 'a',
+            id: 'o1',
+            dataKey: 'one.0',
+            testId: 'step',
+            label: 'Step 1: click First. done',
+            selected: true,
+            picture: 'pic',
+            number: '1',
+            title: 'Click',
+            draggable: true,
+            drop: 'after',
+            dragging: false,
+            onPick: go,
+          }),
+        ],
+      }),
+    );
     expect(grid).toMatch(/<ul role="listbox" aria-label="Steps of scene one" aria-orientation="horizontal" aria-activedescendant="o1" tabindex="0" class="k-frames">/);
-    expect(grid).toMatch(/<li id="o1" role="option" aria-selected="true" aria-label="Step 1: click First. done" class="k-frame is-selected is-draggable is-drop-after" data-key="one.0" data-testid="step" draggable="true">/);
-    const off = renderToStaticMarkup(createElement(FrameGrid, { label: 'Steps', tabbable: false, children: [createElement(FrameOption, { key: 'a', id: 'o2', dataKey: 'a', label: 'x', selected: false, picture: 'p', number: '1', title: 't', draggable: false, drop: null, dragging: true, onPick: go })] }));
+    expect(grid).toMatch(
+      /<li id="o1" role="option" aria-selected="true" aria-label="Step 1: click First. done" class="k-frame is-selected is-draggable is-drop-after" data-key="one.0" data-testid="step" draggable="true">/,
+    );
+    const off = renderToStaticMarkup(
+      createElement(FrameGrid, {
+        label: 'Steps',
+        tabbable: false,
+        children: [
+          createElement(FrameOption, {
+            key: 'a',
+            id: 'o2',
+            dataKey: 'a',
+            label: 'x',
+            selected: false,
+            picture: 'p',
+            number: '1',
+            title: 't',
+            draggable: false,
+            drop: null,
+            dragging: true,
+            onPick: go,
+          }),
+        ],
+      }),
+    );
     expect(off).not.toContain('aria-activedescendant');
     expect(off).toContain('tabindex="-1"');
     expect(off).toContain('class="k-frame is-dragging"');
-    expect(renderToStaticMarkup(createElement(FrameGrid, { label: 'Steps', tabbable: false, empty: 'No steps.', emptyTarget: true, children: [] }))).toMatch(/^<p class="k-frames-empty is-target" data-testid="drop-empty"><bdi>No steps\.<\/bdi><\/p>$/);
-    expect(renderToStaticMarkup(createElement(RowCard, { tile: 'Card', title: 'Step two', meta: 'Card · 2.5 s', selected: true, onSelect: go, testId: 'card' }))).toMatch(/^<button type="button" class="k-rowcard is-selected" aria-pressed="true" data-testid="card">/);
+    expect(renderToStaticMarkup(createElement(FrameGrid, { label: 'Steps', tabbable: false, empty: 'No steps.', emptyTarget: true, children: [] }))).toMatch(
+      /^<p class="k-frames-empty is-target" data-testid="drop-empty"><bdi>No steps\.<\/bdi><\/p>$/,
+    );
+    expect(renderToStaticMarkup(createElement(RowCard, { tile: 'Card', title: 'Step two', meta: 'Card · 2.5 s', selected: true, onSelect: go, testId: 'card' }))).toMatch(
+      /^<button type="button" class="k-rowcard is-selected" aria-pressed="true" data-testid="card">/,
+    );
     const callout = renderToStaticMarkup(createElement(Callout, { state: 'fail', role: 'alert', title: 'Not saved', children: 'x' }));
     expect(callout).toMatch(/^<div class="k-callout" data-state="fail" role="alert">/);
     expect(callout).toContain('<span class="k-mark-word"><bdi>Not saved</bdi></span>');
@@ -368,13 +553,15 @@ describe('the overlays (L5.9 part C)', () => {
     expect(renderToStaticMarkup(createElement(TerminalCommands, {}))).toBe('');
   });
 
-  it('⚑ L5.12a fixes: a contact sheet\'s toggle keeps one name (A-L4); a row that opens a screen is a link (A-L5); ticks keep 24 px apart where the lane has room (A-L3)', () => {
+  it("⚑ L5.12a fixes: a contact sheet's toggle keeps one name (A-L4); a row that opens a screen is a link (A-L5); ticks keep 24 px apart where the lane has room (A-L3)", () => {
     const go = () => undefined;
     const sheet = renderToStaticMarkup(createElement(ContactSheet, { items: [{ key: 'a', name: 'contact sheet (1 fps)', label: 'contact sheet (1 fps)', picture: createElement('i'), state: 'ok' }] }));
     expect(sheet).toContain('aria-pressed="false" aria-label="contact sheet (1 fps), larger"');
     expect(sheet).not.toMatch(/smaller|: larger/);
     // A link row: an <a> to the address, aria-current on the row shown — never aria-pressed.
-    const link = renderToStaticMarkup(createElement(RowCard, { compact: true, tile: 'v2', title: 'Jan 1', selected: true, to: { name: 'review', slug: 'demo', scenario: 'bits', render: 'bits-v2' }, testId: 'r' }));
+    const link = renderToStaticMarkup(
+      createElement(RowCard, { compact: true, tile: 'v2', title: 'Jan 1', selected: true, to: { name: 'review', slug: 'demo', scenario: 'bits', render: 'bits-v2' }, testId: 'r' }),
+    );
     expect(link).toMatch(/^<a href="#\/p\/demo\/s\/bits\/review\/bits-v2" class="k-rowcard is-selected is-compact" aria-current="page" data-testid="r">/);
     expect(link).not.toContain('aria-pressed');
     expect(renderToStaticMarkup(createElement(RowCard, { tile: 'v1', title: 'x', selected: false, to: { name: 'projects' }, onSelect: go }))).not.toContain('aria-current');
@@ -386,7 +573,7 @@ describe('the overlays (L5.9 part C)', () => {
     expect(spaceTicks([50], 300)).toEqual([50]);
   });
 
-  it('⚑ L5.12b: a diff table — every row, a sign and its word (hidden), the code cell left to right in byte order, the marks; a region over a frame hidden from assistive technology; a tick that is a link; a segmented option\'s test id; the palette\'s icons and legend', () => {
+  it("⚑ L5.12b: a diff table — every row, a sign and its word (hidden), the code cell left to right in byte order, the marks; a region over a frame hidden from assistive technology; a tick that is a link; a segmented option's test id; the palette's icons and legend", () => {
     const go = () => undefined;
     const diff = renderToStaticMarkup(
       createElement(DiffTable, {
@@ -397,7 +584,15 @@ describe('the overlays (L5.9 part C)', () => {
         rows: [
           { kind: 'gap', sign: '…', word: '3 unchanged lines not shown', base: null, line: null, pieces: [], rtl: false },
           { kind: 'del', sign: '−', word: 'removed', base: 2, line: null, pieces: [{ kind: 'text', text: 'a: 1' }], rtl: false },
-          { kind: 'add', sign: '+', word: 'added', base: null, line: 2, pieces: [{ kind: 'space', count: 2 }, { kind: 'tab' }, { kind: 'text', text: 'עברית' }, { kind: 'char', code: 'U+200B' }], rtl: true },
+          {
+            kind: 'add',
+            sign: '+',
+            word: 'added',
+            base: null,
+            line: 2,
+            pieces: [{ kind: 'space', count: 2 }, { kind: 'tab' }, { kind: 'text', text: 'עברית' }, { kind: 'char', code: 'U+200B' }],
+            rtl: true,
+          },
         ],
       }),
     );
@@ -408,8 +603,29 @@ describe('the overlays (L5.9 part C)', () => {
     expect(diff).toContain('<code dir="ltr" data-testid="diff-line">');
     expect(diff).toContain('<span aria-hidden="true"><bdi>+</bdi></span><span class="k-sr"><bdi>added</bdi></span>');
     // The marks stay visual; edge spaces and tabs are read as words, never "middle dot" × n.
-    expect(diff).toContain('<span><span class="k-diff-mark" aria-hidden="true" title="2 spaces">··</span><span class="k-sr">2 leading spaces, </span></span><span><span class="k-diff-mark" aria-hidden="true" title="a tab">→</span><span class="k-sr"> a tab </span></span><span>עברית</span><span class="k-diff-mark k-diff-char" title="a character you cannot see">[U+200B]</span>');
-    const edges = renderToStaticMarkup(createElement(DiffTable, { label: 'x', rows: [{ kind: 'add', sign: '+', word: 'added', base: null, line: 1, pieces: [{ kind: 'text', text: 'a:' }, { kind: 'space', count: 1 }], rtl: false }, { kind: 'add', sign: '+', word: 'added', base: null, line: 2, pieces: [{ kind: 'space', count: 4 }], rtl: false }] }));
+    expect(diff).toContain(
+      '<span><span class="k-diff-mark" aria-hidden="true" title="2 spaces">··</span><span class="k-sr">2 leading spaces, </span></span><span><span class="k-diff-mark" aria-hidden="true" title="a tab">→</span><span class="k-sr"> a tab </span></span><span>עברית</span><span class="k-diff-mark k-diff-char" title="a character you cannot see">[U+200B]</span>',
+    );
+    const edges = renderToStaticMarkup(
+      createElement(DiffTable, {
+        label: 'x',
+        rows: [
+          {
+            kind: 'add',
+            sign: '+',
+            word: 'added',
+            base: null,
+            line: 1,
+            pieces: [
+              { kind: 'text', text: 'a:' },
+              { kind: 'space', count: 1 },
+            ],
+            rtl: false,
+          },
+          { kind: 'add', sign: '+', word: 'added', base: null, line: 2, pieces: [{ kind: 'space', count: 4 }], rtl: false },
+        ],
+      }),
+    );
     expect(edges).toContain('<span class="k-sr">, 1 trailing space</span>');
     expect(edges).toContain('<span class="k-sr">4 spaces</span>');
     expect(edges.match(/<span class="k-diff-mark"(?! aria-hidden="true")/g)).toBeNull();
@@ -417,12 +633,30 @@ describe('the overlays (L5.9 part C)', () => {
     expect(diff).not.toMatch(/<bdi>עברית|overflow|Show all/);
     const region = renderToStaticMarkup(createElement(RegionOverlay, { region: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 }, label: 'Region', draft: true, testId: 'r' }));
     expect(region).toMatch(/^<span class="k-region is-draft" data-testid="r" aria-hidden="true" style="left:10%;top:20%;width:30%;height:40%">/);
-    const pin = renderToStaticMarkup(createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Comment, open', testId: 'p', data: { id: 'c1' }, to: { name: 'comments', slug: 'demo', scenario: 'bits', thread: 'c1' }, children: '●' }));
+    const pin = renderToStaticMarkup(
+      createElement(TrackItem, {
+        variant: 'pin',
+        place: { at: 3 },
+        frames: 10,
+        label: 'Comment, open',
+        testId: 'p',
+        data: { id: 'c1' },
+        to: { name: 'comments', slug: 'demo', scenario: 'bits', thread: 'c1' },
+        children: '●',
+      }),
+    );
     expect(pin).toContain('<a href="#/p/demo/s/bits/comments/c1" class="k-trackitem-button" data-testid="p" data-id="c1" aria-label="Comment, open">');
     expect(pin).not.toContain('<button');
     const seg = renderToStaticMarkup(createElement(Segmented, { label: 'Show', value: 'open', options: [{ value: 'open', label: 'Open', testId: 'filter-open' }], onChange: go }));
     expect(seg).toContain('data-testid="filter-open"');
-    const pal = renderToStaticMarkup(createElement(CommandPalette, { open: true, onClose: go, footnote: 'Commands with a key are also in the menu bar', commands: [{ id: 't', label: 'editorial', icon: 'theme', group: 'Themes', run: go }] }));
+    const pal = renderToStaticMarkup(
+      createElement(CommandPalette, {
+        open: true,
+        onClose: go,
+        footnote: 'Commands with a key are also in the menu bar',
+        commands: [{ id: 't', label: 'editorial', icon: 'theme', group: 'Themes', run: go }],
+      }),
+    );
     expect(pal).toContain('placeholder="Search commands, scenes and themes"');
     expect(pal).toMatch(/<span class="k-palette-icon" aria-hidden="true"><svg class="k-icon"/);
     // L5.12b fixes (review A-L8): the legend is read (its footnote is information); expanded only while it lists options.
@@ -456,7 +690,9 @@ describe('the overlays (L5.9 part C)', () => {
   it('menu: a trigger with aria-haspopup / aria-expanded / aria-controls / popovertarget, a popover menu of menuitem buttons with one tab stop', () => {
     const m = html(createElement(Menu, { label: 'More', icon: 'more', items: [{ id: 'a', label: 'Duplicate' }, 'separator', { id: 'b', label: 'Delete', danger: true }], onSelect: noop }));
     const id = /aria-controls="([^"]+)"/.exec(m)?.[1];
-    expect(m).toMatch(new RegExp(`<button type="button" class="k-iconbtn k-iconbtn-md" aria-label="More" aria-haspopup="menu" aria-expanded="false" aria-controls="${id}" popovertarget="${id}">`, 'i'));
+    expect(m).toMatch(
+      new RegExp(`<button type="button" class="k-iconbtn k-iconbtn-md" aria-label="More" aria-haspopup="menu" aria-expanded="false" aria-controls="${id}" popovertarget="${id}">`, 'i'),
+    );
     expect(m).toContain(`<div id="${id}" popover="auto" role="menu" aria-label="More" class="k-menu">`);
     expect(m.match(/role="menuitem"/g)).toHaveLength(2);
     expect(m.match(/tabindex="0"/g)).toHaveLength(1);
@@ -475,9 +711,26 @@ describe('the overlays (L5.9 part C)', () => {
     expect(s).toMatch(/<button data-default="yes" type="button" class="k-btn k-btn-secondary k-btn-md"><span class="k-btn-label">Cancel/);
     expect(s.match(/data-default="yes"/g)).toHaveLength(1);
     // A safe default stays the default ("Capture anyway" loses nothing).
-    expect(defaultAction([{ id: 'c', label: 'Cancel', isCancel: true }, { id: 'go', label: 'Capture anyway', variant: 'primary', isDefault: true }])?.id).toBe('go');
+    expect(
+      defaultAction([
+        { id: 'c', label: 'Cancel', isCancel: true },
+        { id: 'go', label: 'Capture anyway', variant: 'primary', isDefault: true },
+      ])?.id,
+    ).toBe('go');
     // L5.11a (critique L4): an alert sheet that is not destructive; test ids on the dialog and its actions.
-    const a = html(createElement(Sheet, { open: false, alert: true, testId: 'confirm', title: 'Capture with an expired session?', actions: [{ id: 'c', label: 'Cancel', isCancel: true, testId: 'confirm-cancel' }, { id: 's', label: 'Sign in first…', variant: 'primary', isDefault: true, testId: 'confirm-sign-in' }], onAction: noop }));
+    const a = html(
+      createElement(Sheet, {
+        open: false,
+        alert: true,
+        testId: 'confirm',
+        title: 'Capture with an expired session?',
+        actions: [
+          { id: 'c', label: 'Cancel', isCancel: true, testId: 'confirm-cancel' },
+          { id: 's', label: 'Sign in first…', variant: 'primary', isDefault: true, testId: 'confirm-sign-in' },
+        ],
+        onAction: noop,
+      }),
+    );
     expect(a).toMatch(/^<dialog class="k-sheet" role="alertdialog" data-testid="confirm"/);
     expect(a).toContain('data-default="yes" data-testid="confirm-sign-in"');
     expect(a).toContain('data-testid="confirm-cancel"');
@@ -512,7 +765,7 @@ describe('the overlays (L5.9 part C)', () => {
   });
 });
 
-describe('⚑ the kit\'s text inputs carry the unsaved mark (L5.2b useUnsavedMark, L5.9)', () => {
+describe("⚑ the kit's text inputs carry the unsaved mark (L5.2b useUnsavedMark, L5.9)", () => {
   it('unsavedFor: the item only while the value differs from its baseline and an item is given', () => {
     const item = { kind: 'step_form', project: 'p', scenario: 's' } as const;
     expect(unsavedFor('a', 'a', item)).toBeNull();
@@ -525,7 +778,9 @@ describe('⚑ the kit\'s text inputs carry the unsaved mark (L5.2b useUnsavedMar
     const text = await readFile(join(KIT, 'fields.tsx'), 'utf8');
     expect(markedInputs(text)).toEqual(['TextArea', 'TextField']);
     // The planted twin: the call gone (or reading another value) → not marked.
-    expect(markedInputs(text.replace('export function TextArea', 'export function TextAreaX').replace(/(export function TextAreaX[\s\S]*?)useUnsavedMark\(unsavedFor\(value, baseline, unsaved\)\);/, '$1'))).toEqual(['TextField']);
+    expect(
+      markedInputs(text.replace('export function TextArea', 'export function TextAreaX').replace(/(export function TextAreaX[\s\S]*?)useUnsavedMark\(unsavedFor\(value, baseline, unsaved\)\);/, '$1')),
+    ).toEqual(['TextField']);
     expect(markedInputs(text.replace(/useUnsavedMark\(unsavedFor\(value, baseline, unsaved\)\);/g, 'useUnsavedMark(null);'))).toEqual([]);
     // `unsaved` is declared required in the props both share.
     const src = ts.createSourceFile('fields.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -559,7 +814,7 @@ function markedInputs(text: string): string[] {
   return out.sort();
 }
 
-describe('the shell\'s scenario in context (L5.9, review B-L8)', () => {
+describe("the shell's scenario in context (L5.9, review B-L8)", () => {
   it('a project page offers the scenario opened last in it — forgotten once the project no longer lists it', () => {
     const memory = new Map<string, string>();
     expect(scenarioInContext({ name: 'scenario', slug: 'p', scenario: 'quote', tab: 'blocks' }, memory, ['quote', 'tour'])).toEqual({ slug: 'p', scenario: 'quote' });

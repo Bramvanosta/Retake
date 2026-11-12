@@ -19,7 +19,9 @@ export async function reserveRunId(runsDir: string, scenario: string, date: Date
   const first = parseRunId(newRunId(scenario, date));
   if (first === null) {
     const room = RUN_ID_MAX - newRunId('', date).length + 'run'.length;
-    throw new Error(`scenario "${scenario.slice(0, 40)}…": its name is too long for a run folder, which is named after it (a run id holds at most ${RUN_ID_MAX} characters: ${room} for the scenario's name) — give the scenario file a shorter name`);
+    throw new Error(
+      `scenario "${scenario.slice(0, 40)}…": its name is too long for a run folder, which is named after it (a run id holds at most ${RUN_ID_MAX} characters: ${room} for the scenario's name) — give the scenario file a shorter name`,
+    );
   }
   await mkdir(runsDir, { recursive: true });
   for (let k = 0; ; k++) {

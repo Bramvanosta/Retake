@@ -58,9 +58,7 @@ const LEGACY_FIELDS: Partial<Record<ComponentKind, { section: string; keys: stri
 /** JSON with object keys in locale order (`localeCompare`): a choice's params as a theme description shows and compares them. */
 function localeSortedJson(v: unknown): string {
   return JSON.stringify(v, (_k, x: unknown) =>
-    x && typeof x === 'object' && !Array.isArray(x)
-      ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
-      : x,
+    x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) : x,
   );
 }
 
@@ -139,9 +137,15 @@ function checkTemplateMedia(value: unknown, structural: readonly LocatedIssue[],
  * `files`, and its VideoProber for a video file).
  */
 export function parseTemplateYaml(text: string, opts: { dir?: string } & FilesWith<'dir', CheckFiles> = {}): { template?: Template; issues: ValidationIssue[] } {
-  const { value, issues } = checkYamlDocument(text, TemplateFileSchema, (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir, opts.files)], {}, {
-    formatVersion: { file: TEMPLATE_FILE, supported: FORMAT_VERSIONS.template },
-  });
+  const { value, issues } = checkYamlDocument(
+    text,
+    TemplateFileSchema,
+    (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir, opts.files)],
+    {},
+    {
+      formatVersion: { file: TEMPLATE_FILE, supported: FORMAT_VERSIONS.template },
+    },
+  );
   if (hasErrors(issues)) return { issues };
   // `version` is the file's format, not part of the template merged over the defaults.
   const { version: _version, ...file } = value as TemplateFile;

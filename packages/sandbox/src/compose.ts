@@ -144,7 +144,10 @@ export function composeRecord(state: { provider_state?: Record<string, unknown> 
 }
 
 /** The compose project a sandbox runs as. */
-export function composeProject(project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> }, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
+export function composeProject(
+  project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> },
+  sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>,
+): ComposeProjectRef {
   const sandboxDir = realDir(sandbox.dir);
   const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(sandboxDir, f));
   const dir = realDir(dirname(files[0]));
@@ -299,7 +302,11 @@ export function parsePs(text: string): PsEntry[] {
   if (!t) return [];
   let rows: Array<Record<string, unknown>>;
   if (t.startsWith('[')) rows = JSON.parse(t) as Array<Record<string, unknown>>;
-  else rows = t.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as Record<string, unknown>);
+  else
+    rows = t
+      .split('\n')
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
   const out: PsEntry[] = [];
   for (const r of rows) {
     const labels = parseLabels(r.Labels);
@@ -440,7 +447,9 @@ export class ComposeProvider implements Provider {
       opts.exec ??
       ((args, o) => {
         const bin = this.program();
-        return bin ? runDocker(bin.program, args, { ...o, policy: this.policy, ...(bin.argv0 ? { argv0: bin.argv0 } : {}) }) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
+        return bin
+          ? runDocker(bin.program, args, { ...o, policy: this.policy, ...(bin.argv0 ? { argv0: bin.argv0 } : {}) })
+          : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
       });
     this.listen = opts.listeners ?? listeners;
   }
@@ -470,7 +479,9 @@ export class ComposeProvider implements Provider {
   /** Docker found, Compose recent enough, the daemon running (checked once per instance). */
   async docker(ctx: ProviderContext): Promise<DockerInfo> {
     if (!this.bin) {
-      throw new SandboxError(`${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)`);
+      throw new SandboxError(
+        `${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)`,
+      );
     }
     try {
       this.ready ??= dockerReady(this.run, this.program()?.program ?? this.bin, ctx.signal);
@@ -809,7 +820,10 @@ export class ComposeProvider implements Provider {
       const volumes = res.code === 0 ? await this.volumesOf(ctx, old.name) : ['?'];
       if (volumes.length) {
         left.push({ project: old.name, dir: old.dir });
-        ctx.log('warn', `${this.where(ctx)}: compose project ${old.name} (the name an earlier up of this sandbox used) still has ${res.code === 0 ? `its volumes (${volumes.join(', ')})` : `resources (docker compose down failed: ${firstErrorLine(res)})`}: ${this.downCommand(ctx)} --volumes removes them`);
+        ctx.log(
+          'warn',
+          `${this.where(ctx)}: compose project ${old.name} (the name an earlier up of this sandbox used) still has ${res.code === 0 ? `its volumes (${volumes.join(', ')})` : `resources (docker compose down failed: ${firstErrorLine(res)})`}: ${this.downCommand(ctx)} --volumes removes them`,
+        );
       }
     }
     const ps = { ...(ctx.state.provider_state ?? {}) };
@@ -871,10 +885,16 @@ export class ComposeProvider implements Provider {
       const ps = await this.ps(ctx, old);
       const volumes = await this.volumesOf(ctx, old.name);
       if (!ps.length && !volumes.length) continue;
-      const what = [ps.length ? `${ps.length} container${ps.length === 1 ? '' : 's'}${ps.some((e) => e.state === 'running') ? ' (running)' : ''}` : '', volumes.length ? `its volumes (${volumes.join(', ')})` : '']
+      const what = [
+        ps.length ? `${ps.length} container${ps.length === 1 ? '' : 's'}${ps.some((e) => e.state === 'running') ? ' (running)' : ''}` : '',
+        volumes.length ? `its volumes (${volumes.join(', ')})` : '',
+      ]
         .filter(Boolean)
         .join(' and ');
-      ctx.log('warn', `compose project ${old.name} — the name an earlier up of this sandbox used (compose.project changed since) — still has ${what}: ${this.downCommand(ctx)}${volumes.length ? ' --volumes' : ''} removes them`);
+      ctx.log(
+        'warn',
+        `compose project ${old.name} — the name an earlier up of this sandbox used (compose.project changed since) — still has ${what}: ${this.downCommand(ctx)}${volumes.length ? ' --volumes' : ''} removes them`,
+      );
     }
   }
 
@@ -1024,7 +1044,12 @@ export class ComposeProvider implements Provider {
     const bin = this.bin ? startedProgram(this.policy, this.bin, this.binWhat) : null;
     const argv0 = bin?.argv0 ? { argv0: bin.argv0 } : {};
     if (exec && bin && !bin.problem) {
-      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { ...argv0, env: dockerEnv(this.policy, process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
+      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], {
+        ...argv0,
+        env: dockerEnv(this.policy, process.env, exec.ref.envKeys, exec.ref.pass),
+        timeout: 10_000,
+        stdio: 'ignore',
+      });
     }
     const names = this.started;
     this.started = [];
@@ -1084,7 +1109,10 @@ export class ComposeProvider implements Provider {
     }
     const wd = e.labels['com.docker.compose.project.working_dir'];
     if (!this.ownContainer(ref, ref.name, wd)) {
-      throw new SandboxError(`${this.where(ctx)}: port ${port} (${use.what}) is published by container ${e.name}, which was not made from this sandbox's folder (${wd || 'no folder label'}) — ${use.why}`, 'port');
+      throw new SandboxError(
+        `${this.where(ctx)}: port ${port} (${use.what}) is published by container ${e.name}, which was not made from this sandbox's folder (${wd || 'no folder label'}) — ${use.why}`,
+        'port',
+      );
     }
     const ls = await this.listen([port]);
     const foreign = ls ? foreignListeners([port], ls) : [];

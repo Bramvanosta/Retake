@@ -81,15 +81,16 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     home = join(ws, '.home');
     await fixtureWorkspace(ws);
     const project = join(ws, 'projects', 'northfield-fixture');
-    const yaml = (await readFile(join(project, 'project.yaml'), 'utf8'))
-      .replaceAll('http://localhost:4401', fixture.urls.console)
-      .replaceAll('http://localhost:4402', fixture.urls.shop);
+    const yaml = (await readFile(join(project, 'project.yaml'), 'utf8')).replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop);
     await writeFile(join(project, 'project.yaml'), yaml);
     await mkdir(join(project, 'hooks'), { recursive: true });
     await writeFile(join(project, 'hooks', 'post.yaml'), `- name: post\n  shell: {run: "curl -s -X POST ${fixture.urls.console}/api/reset"}\n  writes: false\n`);
     // L7.15: a dry run whose setup hook runs a shell command (run_dry hooks: "run" needs a human for it), twice.
     for (const n of ['say-accept', 'say-decline']) {
-      await writeFile(join(project, 'scenarios', `${n}.yaml`), `setup:\n  - name: say\n    shell: {run: "echo hello"}\nvideo: ${n}\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`);
+      await writeFile(
+        join(project, 'scenarios', `${n}.yaml`),
+        `setup:\n  - name: say\n    shell: {run: "echo hello"}\nvideo: ${n}\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`,
+      );
     }
   });
 
@@ -113,7 +114,9 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
     expect(asked).toEqual([]);
     expect(r.structuredContent).toMatchObject({ state: 'succeeded', input: { kind: 'hooks', dry: true }, result: { kind: 'hooks', dry: true, ok: true } });
-    expect(r.content[0].text).toContain('2. free-registry-ref (free-registry-ref: http DELETE {{console}}/api/products/finca-quenaro/refs): checked, not executed — needs a human approval to run: HTTP DELETE');
+    expect(r.content[0].text).toContain(
+      '2. free-registry-ref (free-registry-ref: http DELETE {{console}}/api/products/finca-quenaro/refs): checked, not executed — needs a human approval to run: HTTP DELETE',
+    );
     expect(r.content[0].text).toContain('A real run (dry: false) asks the user to approve the hooks marked above.');
   });
 
@@ -130,7 +133,11 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(msg).toContain('"confirm: true" in a file written through MCP does not count');
     expect(msg).toContain(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     expect(asked[0].requestedSchema).toMatchObject({ type: 'object', properties: { approve: { type: 'boolean' } }, required: ['approve'] });
-    const job = r.structuredContent as { state: string; input: { approvals: Array<{ by: string }> }; result: { ok: boolean; results: Array<{ name: string; status: string }>; journal: { pending: number } } };
+    const job = r.structuredContent as {
+      state: string;
+      input: { approvals: Array<{ by: string }> };
+      result: { ok: boolean; results: Array<{ name: string; status: string }>; journal: { pending: number } };
+    };
     expect(job.state).toBe('succeeded');
     expect(job.input.approvals).toEqual([expect.objectContaining({ by: 'human-elicitation' })]);
     expect(job.result.results.map((x) => [x.name, x.status])).toEqual([
@@ -178,7 +185,7 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     const r = await call(client, 'env_reset', { project: 'northfield-fixture', dry: false, wait_s: 25 });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
     expect(asked).toEqual([]);
-    const res = (r.structuredContent as { state: string; result: { ok: boolean; rollbacks: Array<{ results: Array<{ status: string }> }>; reset: Array<{ name: string; status: string }> } });
+    const res = r.structuredContent as { state: string; result: { ok: boolean; rollbacks: Array<{ results: Array<{ status: string }> }>; reset: Array<{ name: string; status: string }> } };
     expect(res.state).toBe('succeeded');
     expect(res.result.ok).toBe(true);
     expect(res.result.rollbacks.flatMap((j) => j.results.map((x) => x.status))).toEqual(['ok']);
@@ -191,7 +198,26 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     const runs = join(ws, 'projects', 'northfield-fixture', 'runs');
     const take = join(runs, '20261018-080000-quote');
     await mkdir(take, { recursive: true });
-    await writeFile(join(take, 'run.json'), JSON.stringify({ version: 1, id: '20261018-080000-quote', project: 'northfield-fixture', scenario: 'quote', mode: 'capture', status: 'failed', started_at: '2026-10-18T08:00:00.000Z', dir: take, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 0, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+    await writeFile(
+      join(take, 'run.json'),
+      JSON.stringify({
+        version: 1,
+        id: '20261018-080000-quote',
+        project: 'northfield-fixture',
+        scenario: 'quote',
+        mode: 'capture',
+        status: 'failed',
+        started_at: '2026-10-18T08:00:00.000Z',
+        dir: take,
+        env: 'local',
+        options: { hooks: 'run', headed: false },
+        steps_total: 1,
+        steps_done: 0,
+        screenshots: [],
+        hooks: { setup: 'none', teardown: 'none' },
+        warnings: [],
+      }),
+    );
     const left = async () => (await readdir(runs)).filter((n) => n.startsWith('2026')).sort();
     const before = await left();
     expect(before).toContain('20261018-080000-quote');

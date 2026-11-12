@@ -44,7 +44,12 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
   const kinds = kindsOf(item).filter(isKind);
   const [kind, setKind] = useState<string>(kinds[0] ?? item.kind);
   const [st, setSt] = useState<SetState>({ s: 'idle' });
-  const [copyAs, setCopyAs] = useState(() => copyName(view.theme.name, view.themes.map((t) => t.name)));
+  const [copyAs, setCopyAs] = useState(() =>
+    copyName(
+      view.theme.name,
+      view.themes.map((t) => t.name),
+    ),
+  );
   const theme = view.theme.name;
   const taken = view.themes.map((t) => t.name);
   const fail = (e: unknown) => {
@@ -113,7 +118,9 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
           </>
         )}
       </p>
-      {kinds.length > 1 && <Select label="As the theme's" layout="row" value={kind} onChange={setKind} testId="lib-set-kind" options={kinds.map((k) => ({ value: k, label: kindHeading(k, 1).toLowerCase() }))} />}
+      {kinds.length > 1 && (
+        <Select label="As the theme's" layout="row" value={kind} onChange={setKind} testId="lib-set-kind" options={kinds.map((k) => ({ value: k, label: kindHeading(k, 1).toLowerCase() }))} />
+      )}
       {(st.s === 'idle' || st.s === 'undone' || st.s === 'error' || (st.s === 'plan' && !('edit' in st.plan) && !('copy' in st.plan))) && (
         <div className="lb-actions">
           <Button size="sm" onClick={() => void start()} data-testid="lib-set-start">
@@ -214,7 +221,21 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
           if (id === 'copy') void copyThenWrite();
           else setSt({ s: 'idle' });
         }}
-        content={<TextField label="Name of the copy" value={copyAs} onChange={(v) => setCopyAs(v.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="lib-set-copy-name" error={copyProblem ?? undefined} />}
+        content={
+          <TextField
+            label="Name of the copy"
+            value={copyAs}
+            onChange={(v) => setCopyAs(v.trim())}
+            unsaved={null}
+            mono
+            maxLength={NEW_THEME_NAME_MAX}
+            hint={NEW_THEME_NAME_HINT}
+            autoComplete="off"
+            spellCheck={false}
+            testId="lib-set-copy-name"
+            error={copyProblem ?? undefined}
+          />
+        }
       >
         {copying ? (
           <>
@@ -230,14 +251,35 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
 }
 
 /** The selected card's (or the open component's) inspector. */
-export function ComponentInspector({ item, view, d, playing, onCreate, detail }: { item: LibraryItem; view: LibraryViewAnswer; d: Loaded<LibraryComponentAnswer>; playing: boolean; onCreate: (kind: string, like: string) => void; detail: boolean }) {
+export function ComponentInspector({
+  item,
+  view,
+  d,
+  playing,
+  onCreate,
+  detail,
+}: {
+  item: LibraryItem;
+  view: LibraryViewAnswer;
+  d: Loaded<LibraryComponentAnswer>;
+  playing: boolean;
+  onCreate: (kind: string, like: string) => void;
+  detail: boolean;
+}) {
   const lib = useLibrary();
   const nameId = useId();
   const data = d.state === 'ready' ? d.data : null;
   const length = data?.duration ? `${data.duration.default} s` : null;
   return (
     <div className="lb-insp" tabIndex={-1} data-lib-focus="" role="group" aria-labelledby={nameId}>
-      <InspectorSection title={<span id={nameId}><Txt text={item.untrusted.name} /></span>} testId="lib-inspector">
+      <InspectorSection
+        title={
+          <span id={nameId}>
+            <Txt text={item.untrusted.name} />
+          </span>
+        }
+        testId="lib-inspector"
+      >
         {!detail && (
           <div className="lb-insp-picture">
             <PictureBox item={item} playing={playing} />
@@ -256,20 +298,42 @@ export function ComponentInspector({ item, view, d, playing, onCreate, detail }:
             {
               key: 'kit',
               label: 'Kit',
-              value: data ? <StatusMark state={data.kit.compatible ? 'ok' : 'fail'} word={data.kit.compatible ? `Ready · kit API ${data.kit.needs}` : `Broken: needs kit API ${data.kit.needs}, ${APP_NAME} provides ${data.kit.provided}`} /> : d.state === 'error' ? 'cannot be read' : 'reading…',
+              value: data ? (
+                <StatusMark
+                  state={data.kit.compatible ? 'ok' : 'fail'}
+                  word={data.kit.compatible ? `Ready · kit API ${data.kit.needs}` : `Broken: needs kit API ${data.kit.needs}, ${APP_NAME} provides ${data.kit.provided}`}
+                />
+              ) : d.state === 'error' ? (
+                'cannot be read'
+              ) : (
+                'reading…'
+              ),
             },
             { key: 'used', label: 'Picked by', value: item.picked_by.length ? <Txt text={item.picked_by.join(', ')} /> : 'no theme of this project' },
           ]}
         />
         <div className="lb-actions">
-          <Button size="sm" icon={playing ? 'pause' : 'play'} aria-pressed={playing} disabled={!canPlay(item.loop) && !playing} data-testid="lib-inspector-play" onClick={() => {
-            lib.setPlaying(item.component, !playing);
-            if (!playing) lib.pump.wantLoops([item.component]);
-          }}>
+          <Button
+            size="sm"
+            icon={playing ? 'pause' : 'play'}
+            aria-pressed={playing}
+            disabled={!canPlay(item.loop) && !playing}
+            data-testid="lib-inspector-play"
+            onClick={() => {
+              lib.setPlaying(item.component, !playing);
+              if (!playing) lib.pump.wantLoops([item.component]);
+            }}
+          >
             Play in the theme
           </Button>
           {!detail && (
-            <LinkButton size="sm" variant="ghost" to={{ name: 'library', slug: lib.slug, theme: view.theme.name, component: item.component }} testId="lib-open" label={`Open the details of ${item.component}`}>
+            <LinkButton
+              size="sm"
+              variant="ghost"
+              to={{ name: 'library', slug: lib.slug, theme: view.theme.name, component: item.component }}
+              testId="lib-open"
+              label={`Open the details of ${item.component}`}
+            >
               Open the details
             </LinkButton>
           )}
@@ -299,11 +363,19 @@ export function LibraryInspector({ view, shown }: { view: LibraryViewAnswer; sho
         rows={[
           { key: 'theme', label: 'Theme', value: <Txt text={`${view.theme.name}${view.theme.project_default ? " — the project's" : ''}`} /> },
           { key: 'n', label: 'Components', value: <Txt text={`${plural(view.items.length, 'component')}${shown !== view.items.length ? `, ${shown} shown` : ''}`} /> },
-          { key: 'queued', label: 'Previews', value: view.queued > 0 ? <StatusMark state="running" word={`${plural(view.queued, 'preview')} queued`} /> : <StatusMark state="idle" word="None queued" /> },
+          {
+            key: 'queued',
+            label: 'Previews',
+            value: view.queued > 0 ? <StatusMark state="running" word={`${plural(view.queued, 'preview')} queued`} /> : <StatusMark state="idle" word="None queued" />,
+          },
         ]}
       />
       <p className="lb-quiet">Select a card: its facts and actions show here. Posters render while their cards are on screen; Play shows a component moving.</p>
-      {view.notices.some((n) => n.severity === 'error') && <Callout state="warn" title="Some components do not load" role="note">The registry notices under the filters say why.</Callout>}
+      {view.notices.some((n) => n.severity === 'error') && (
+        <Callout state="warn" title="Some components do not load" role="note">
+          The registry notices under the filters say why.
+        </Callout>
+      )}
     </InspectorSection>
   );
 }

@@ -98,17 +98,15 @@ export const BrandColorsSchema = z.strictObject({
 });
 export type BrandColors = z.output<typeof BrandColorsSchema>;
 
-export const BrandBackgroundSchema = z.union([
-  hexColorSchema,
-  z.strictObject({ type: z.enum(['radial', 'linear']), from: hexColorSchema, to: hexColorSchema }),
-]);
+export const BrandBackgroundSchema = z.union([hexColorSchema, z.strictObject({ type: z.enum(['radial', 'linear']), from: hexColorSchema, to: hexColorSchema })]);
 export type BrandBackground = z.output<typeof BrandBackgroundSchema>;
 
 function brandInputSchema(ref: z.ZodType<string, string>) {
   const fontRef = fontRefOf(ref);
   return z.strictObject({
-    name: zNewThemeName('a new theme name: lower-case letters, digits and "-" (e.g. acme), never a path')
-      .describe('Name of the new theme (its folder in templates/): lower-case, not a starter\'s or an existing folder\'s.'),
+    name: zNewThemeName('a new theme name: lower-case letters, digits and "-" (e.g. acme), never a path').describe(
+      "Name of the new theme (its folder in templates/): lower-case, not a starter's or an existing folder's.",
+    ),
     base: zThemeName('a theme name').optional().describe('Theme whose components, frame, captions, motion and durations are kept (default editorial).'),
     colors: BrandColorsSchema,
     background: BrandBackgroundSchema.optional().describe('A hex (solid) or {type: radial | linear, from, to} (default derived from the paper).'),
@@ -117,8 +115,8 @@ function brandInputSchema(ref: z.ZodType<string, string>) {
     wordmark: ref.optional().describe('Wordmark image of the outro (default none: the brand name is drawn as text).'),
     fonts: z
       .strictObject({
-        display: fontRef.optional().describe('Display font (titles): .ttf, .otf, .woff or .woff2 (default the base theme\'s).'),
-        body: z.array(fontRef).min(1).max(BRAND_BODY_FONTS_MAX).optional().describe('Body font files, one per weight / style (default the base theme\'s).'),
+        display: fontRef.optional().describe("Display font (titles): .ttf, .otf, .woff or .woff2 (default the base theme's)."),
+        body: z.array(fontRef).min(1).max(BRAND_BODY_FONTS_MAX).optional().describe("Body font files, one per weight / style (default the base theme's)."),
       })
       .optional(),
     brand: z

@@ -60,7 +60,10 @@ const view = async (r: Promise<TimelineViewResult>) => {
 };
 
 async function failure(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -72,10 +75,17 @@ async function thread(scenario = SCENARIO, entries: unknown[] = []): Promise<str
   await writeFile(
     join(dir, 'comments', scenario, `${id}.json`),
     JSON.stringify({
-      version: 1, id, scenario,
+      version: 1,
+      id,
+      scenario,
       render: { id: `${scenario}-v1`, created_at: '2026-10-27T10:01:00.000Z', run_id: RUN, variant: 'landscape', fps: 30, frames: 120, width: 1920, height: 1080 },
-      frame: 20, time_s: 0.667, text: 'Shorter caption, please.', author: { via: 'studio', name: 'Reviewer' }, created_at: '2026-10-27T10:05:00.000Z',
-      anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0, area: 'caption' }, entries,
+      frame: 20,
+      time_s: 0.667,
+      text: 'Shorter caption, please.',
+      author: { via: 'studio', name: 'Reviewer' },
+      created_at: '2026-10-27T10:05:00.000Z',
+      anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 0, area: 'caption' },
+      entries,
     }),
   );
   return id;
@@ -111,9 +121,44 @@ beforeAll(async () => {
   await writeFile(join(runDir, 'scenario.yaml'), TEXT);
   await writeFile(
     join(runDir, 'run.json'),
-    JSON.stringify({ version: 1, id: RUN, project: 'demo', scenario: SCENARIO, mode: 'capture', status: 'succeeded', started_at: '2026-10-27T10:00:00.000Z', finished_at: '2026-10-27T10:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 2, steps_done: 2, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }),
+    JSON.stringify({
+      version: 1,
+      id: RUN,
+      project: 'demo',
+      scenario: SCENARIO,
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-10-27T10:00:00.000Z',
+      finished_at: '2026-10-27T10:01:00.000Z',
+      dir: runDir,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 2,
+      steps_done: 2,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+    }),
   );
-  if (canEncode) execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=30', '-t', '4', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', join(runDir, 'capture.mp4')]);
+  if (canEncode)
+    execFileSync('ffmpeg', [
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=320x180:rate=30',
+      '-t',
+      '4',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-pix_fmt',
+      'yuv420p',
+      join(runDir, 'capture.mp4'),
+    ]);
   else await writeFile(join(runDir, 'capture.mp4'), 'no ffmpeg here');
   await writeFile(scenarioFile(), TEXT);
   // A workspace component (agent-writable code: the Studio's preview holds it until the person allows it).
@@ -164,14 +209,21 @@ describe('the timeline previews a proposal (T8, critique B9)', () => {
     expect(again.memo).toBe(true);
     expect(again.view.untrusted.captions.map((c) => c.text)).toEqual(['Each frame shows its colour.']);
     // Another run than the commented one: refused.
-    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, run_id: '20200101-000000-tl', proposal: { comment_id: id, entry_id: p.entry } }))).toMatchObject({ code: 'invalid', details: { argument: 'run_id' } });
+    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, run_id: '20200101-000000-tl', proposal: { comment_id: id, entry_id: p.entry } }))).toMatchObject({
+      code: 'invalid',
+      details: { argument: 'run_id' },
+    });
   }, 120_000);
 
-  it('⚑ the Studio\'s full write checks run on every preview: a planted proposal changing setup: is refused, nothing planned', async () => {
+  it("⚑ the Studio's full write checks run on every preview: a planted proposal changing setup: is refused, nothing planned", async () => {
     await writeFile(scenarioFile('hooked'), HOOKED);
     const result = HOOKED.replace('/reset', '/wipe');
     const planted = {
-      id: 'r_01JQ2000000000000000000PR1', kind: 'reply', author: { via: 'mcp', name: 'agent' }, text: 'Proposed.', created_at: '2026-10-27T10:06:00.000Z',
+      id: 'r_01JQ2000000000000000000PR1',
+      kind: 'reply',
+      author: { via: 'mcp', name: 'agent' },
+      text: 'Proposed.',
+      created_at: '2026-10-27T10:06:00.000Z',
       proposal: { base_sha256: sha(HOOKED), result_sha256: sha(result), eol: 'lf', delta: 'edit', hunks: diffLines(textLines(HOOKED), textLines(result)) },
     };
     const id = await thread('hooked', [planted]);
@@ -186,21 +238,36 @@ describe('the timeline previews a proposal (T8, critique B9)', () => {
     const id = await thread();
     const first = await propose(id, PROPOSED);
     const second = await propose(id, TEXT.replace('Every frame has its own colour.', 'Colour in every frame.'));
-    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: first.entry } }))).toMatchObject({ code: 'conflict', details: { state: 'superseded' } });
+    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: first.entry } }))).toMatchObject({
+      code: 'conflict',
+      details: { state: 'superseded' },
+    });
     await view(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: second.entry } }));
     const applied = await ui.comments.apply('demo', id, { entry_id: second.entry, if_match: second.hash });
-    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: second.entry } }))).toMatchObject({ code: 'conflict', details: { state: 'applied' } });
+    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: second.entry } }))).toMatchObject({
+      code: 'conflict',
+      details: { state: 'applied' },
+    });
     // Undone, then the file moves on: stale.
     await ui.scenarios.edit('demo', SCENARIO, { hash: applied.scenario.hash, edit: { kind: 'restore', text: applied.scenario.previous.text, text_hash: applied.scenario.previous.hash } });
     await view(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: second.entry } }));
     await writeFile(scenarioFile(), TEXT.replace('title: {text: Timeline}', 'title: {text: Timeline two}'));
-    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: second.entry } }))).toMatchObject({ code: 'conflict', details: { state: 'stale' } });
+    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: id, entry_id: second.entry } }))).toMatchObject({
+      code: 'conflict',
+      details: { state: 'stale' },
+    });
     await writeFile(scenarioFile(), TEXT);
-    expect(await failure(ui.timeline.view({ project: 'demo', scenario: 'hooked', proposal: { comment_id: id, entry_id: second.entry } }))).toMatchObject({ code: 'invalid', details: { argument: 'proposal' } });
-    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: '../x', entry_id: second.entry } }))).toMatchObject({ code: 'invalid', details: { argument: 'proposal' } });
+    expect(await failure(ui.timeline.view({ project: 'demo', scenario: 'hooked', proposal: { comment_id: id, entry_id: second.entry } }))).toMatchObject({
+      code: 'invalid',
+      details: { argument: 'proposal' },
+    });
+    expect(await failure(ui.timeline.view({ project: 'demo', scenario: SCENARIO, proposal: { comment_id: '../x', entry_id: second.entry } }))).toMatchObject({
+      code: 'invalid',
+      details: { argument: 'proposal' },
+    });
   }, 120_000);
 
-  it('the plan carries the workspace components the proposal uses: what the Studio\'s preview hold reads (part C)', async () => {
+  it("the plan carries the workspace components the proposal uses: what the Studio's preview hold reads (part C)", async () => {
     clearTimelineViewMemo();
     await writeFile(scenarioFile(), TEXT);
     const id = await thread();

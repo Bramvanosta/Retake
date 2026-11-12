@@ -230,7 +230,12 @@ describe('evalHookInPage: the guarded js hook tab', () => {
   it('a cross-site frame of the page (out of process) is guarded too', async () => {
     expect(await evalHookInPage(session, opts(), 'framed', 'return document.querySelector("iframe").src')).toMatch(/^http:\/\/localhost:\d+\/inner\.html$/);
     await settle();
-    expect(session.hookPages.get('framed')!.frames().map((f) => new URL(f.url()).hostname)).toEqual(['127.0.0.1', 'localhost']);
+    expect(
+      session.hookPages
+        .get('framed')!
+        .frames()
+        .map((f) => new URL(f.url()).hostname),
+    ).toEqual(['127.0.0.1', 'localhost']);
     expect(hits).toEqual([]);
   });
 
@@ -248,12 +253,7 @@ describe('evalHookInPage: the guarded js hook tab', () => {
     await capture.evaluate(() => navigator.serviceWorker.register('/sw.js').then(() => navigator.serviceWorker.ready));
     await capture.reload();
     expect(await capture.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-    const r = await evalHookInPage(
-      session,
-      opts(),
-      'sw',
-      `return [!!navigator.serviceWorker.controller, await fetch('${E}/via-sw', { mode: 'no-cors' }).then(() => 'reached', () => 'blocked')]`,
-    );
+    const r = await evalHookInPage(session, opts(), 'sw', `return [!!navigator.serviceWorker.controller, await fetch('${E}/via-sw', { mode: 'no-cors' }).then(() => 'reached', () => 'blocked')]`);
     expect(r).toEqual([false, 'blocked']);
     await settle();
     expect(hits).toEqual([]);
@@ -267,7 +267,12 @@ describe('evalHookInPage: the guarded js hook tab', () => {
     };
     await session.context.route('**/*', handler);
     try {
-      const r = await evalHookInPage(session, opts(), 'routed', `return [await fetch('/x').then((x) => x.status), await fetch('${E}/routed', { mode: 'no-cors' }).then(() => 'reached', () => 'blocked')]`);
+      const r = await evalHookInPage(
+        session,
+        opts(),
+        'routed',
+        `return [await fetch('/x').then((x) => x.status), await fetch('${E}/routed', { mode: 'no-cors' }).then(() => 'reached', () => 'blocked')]`,
+      );
       expect(r).toEqual([200, 'blocked']);
       expect(routed).toBeGreaterThan(0);
     } finally {
@@ -291,17 +296,15 @@ describe('evalHookInPage: the guarded js hook tab', () => {
 });
 
 describe('js setup hooks in a run', () => {
-  it('prepare the capture tab\'s storage, and a hook tab left open keeps working: its notification is captured', async () => {
+  it("prepare the capture tab's storage, and a hook tab left open keeps working: its notification is captured", async () => {
     pinged = false;
     const project = makeProject(dir, { app: A, notifier: `${A}/notifier.html` });
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('hook-tab', {
         pacing: FAST,
-        setup: [
-          { js: { code: "localStorage.setItem('tour-done', '1')", page: 'app' } },
-          { name: 'open-notifier', js: { code: 'return document.title', page: 'notifier' } },
-        ],
+        setup: [{ js: { code: "localStorage.setItem('tour-done', '1')", page: 'app' } }, { name: 'open-notifier', js: { code: 'return document.title', page: 'notifier' } }],
         scenes: [
           {
             id: 'main',

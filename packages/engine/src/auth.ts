@@ -160,7 +160,14 @@ export async function scenarioPersonaStates(
     const persona = personas.find((p) => p.name === name);
     if (!persona) continue;
     const refs = [...collectSecretRefs(persona.login ?? [])];
-    const missing = [...new Set(refs.filter((r) => r.startsWith('env:')).map((r) => r.slice(4)).filter((v) => workerEnv[v] === undefined))].sort();
+    const missing = [
+      ...new Set(
+        refs
+          .filter((r) => r.startsWith('env:'))
+          .map((r) => r.slice(4))
+          .filter((v) => workerEnv[v] === undefined),
+      ),
+    ].sort();
     const keychain = refs.filter((r) => r.startsWith('keychain:')).length;
     const hasLogin = (persona.login?.length ?? 0) > 0;
     if (hasLogin && missing.length) {

@@ -18,18 +18,7 @@ import type { BrowserConfig, LoadedProject } from '@retake/core/model';
 import type { ResolvedPersona } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import { retakeHome, writeTextAtomic } from '@retake/core/io';
-import {
-  autoLogin,
-  checkPersona,
-  ensurePrivateDir,
-  isProfileDir,
-  prepareSessions,
-  profileLock,
-  readSnapshot,
-  registerSessionCopy,
-  writeSnapshot,
-  writeStatus,
-} from './auth.js';
+import { autoLogin, checkPersona, ensurePrivateDir, isProfileDir, prepareSessions, profileLock, readSnapshot, registerSessionCopy, writeSnapshot, writeStatus } from './auth.js';
 import type { PersonaCheckResult, SessionSnapshot, SnapshotMeta } from './auth.js';
 import { projectBrowser } from './config.js';
 import { RunnerError, errorMessage, isCancelled } from './errors.js';
@@ -321,13 +310,7 @@ async function readState(context: BrowserContext, p: Pick<ResolvedPersona, 'sess
  * auto: on the master itself plus the saved session (`applied`, as a run applies it) — checked first (nothing to do
  * when still valid: `stillValid`), else the login steps.
  */
-async function autoSession(
-  o: SignInOptions,
-  userDataDir: string,
-  url: string,
-  log: Log,
-  applied: StorageStateFile | undefined,
-): Promise<{ state: StorageStateFile; stillValid?: PersonaCheckResult }> {
+async function autoSession(o: SignInOptions, userDataDir: string, url: string, log: Log, applied: StorageStateFile | undefined): Promise<{ state: StorageStateFile; stillValid?: PersonaCheckResult }> {
   const p = o.persona;
   const secrets = new RunSecrets(o.resolveSecret);
   const session = await BrowserSession.open({
@@ -521,11 +504,18 @@ export async function openLoginBrowser(opts: LoginOptions): Promise<{ profileDir
   const env = resolveEnvironment(opts.project, opts.env);
   const persona = resolvePersonas(opts.project, env.name, { home: retakeHome() }).find((x) => x.legacy && x.name === LEGACY_PERSONA);
   if (!persona?.profileDir) {
-    throw new RunnerError(
-      `project "${opts.project.slug}" has no auth.profile${env.name ? ` for environment "${env.name}"` : ''}: add one to project.yaml to keep a signed-in browser profile`,
-    );
+    throw new RunnerError(`project "${opts.project.slug}" has no auth.profile${env.name ? ` for environment "${env.name}"` : ''}: add one to project.yaml to keep a signed-in browser profile`);
   }
   const key = opts.page ?? Object.keys(env.pages)[0];
-  const r = await signIn({ project: opts.project, policy: opts.policy, env, persona, mode: 'headed', ...(key !== undefined ? { page: key } : {}), ...(opts.url ? { url: opts.url } : {}), browser: opts.browser });
+  const r = await signIn({
+    project: opts.project,
+    policy: opts.policy,
+    env,
+    persona,
+    mode: 'headed',
+    ...(key !== undefined ? { page: key } : {}),
+    ...(opts.url ? { url: opts.url } : {}),
+    browser: opts.browser,
+  });
   return { profileDir: persona.profileDir, url: r.url };
 }

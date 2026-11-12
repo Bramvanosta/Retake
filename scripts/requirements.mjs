@@ -146,7 +146,10 @@ if (lotArg > 0) {
   process.exit(0);
 }
 
-const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+const esc = (s) =>
+  String(s ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, ' ');
 const phases = [...new Set(items.map((i) => i.phase))].sort((a, b) => (a === 'V2') - (b === 'V2') || a.localeCompare(b));
 const count = (xs, st) => xs.filter((i) => i.status === st).length;
 
@@ -159,9 +162,7 @@ md += `| **all** | ${items.length} | ${count(items, 'done')} | ${count(items, 'p
 
 const never = untested(items);
 md += `\n## Never exercised\n\nItems whose gap says no test exercises them, whatever their status (\`node scripts/requirements.mjs --untested [phase]\` lists them and exits 1 while there is one).\n\n`;
-md += never.length
-  ? `| ID | Phase | Lot | Status | Gap |\n|---|---|---|---|---|\n${never.map((i) => `| ${i.id} | ${i.phase} | ${i.lot} | ${i.status} | ${esc(i.gap)} |`).join('\n')}\n`
-  : 'None.\n';
+md += never.length ? `| ID | Phase | Lot | Status | Gap |\n|---|---|---|---|---|\n${never.map((i) => `| ${i.id} | ${i.phase} | ${i.lot} | ${i.status} | ${esc(i.gap)} |`).join('\n')}\n` : 'None.\n';
 
 for (const p of phases) {
   md += `\n## Phase ${p}\n\n| ID | Requirement | Status | Lot | Evidence / gap |\n|---|---|---|---|---|\n`;
@@ -174,7 +175,9 @@ writeFileSync(`${root}docs/REQUIREMENTS.md`, md);
 
 const byLot = {};
 for (const i of items) (byLot[i.lot] ??= []).push(i);
-console.log(`${items.length} requirements · done ${count(items, 'done')} · partial ${count(items, 'partial')} · todo ${count(items, 'todo')} · n/a-here ${count(items, 'n/a-here')} · never exercised ${never.length}`);
+console.log(
+  `${items.length} requirements · done ${count(items, 'done')} · partial ${count(items, 'partial')} · todo ${count(items, 'todo')} · n/a-here ${count(items, 'n/a-here')} · never exercised ${never.length}`,
+);
 for (const [lot, xs] of Object.entries(byLot).sort()) {
   if (lot === 'P1') continue;
   console.log(`  ${lot.padEnd(5)} ${String(xs.length).padStart(3)} open: ${xs.filter((i) => i.status !== 'done').length}`);

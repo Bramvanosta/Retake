@@ -53,7 +53,11 @@ beforeAll(async () => {
   const real = join(ws, 'projects', 'real', 'runs', REAL_RUN);
   await mkdir(real, { recursive: true });
   await writeFile(join(ws, 'projects', 'real', 'project.yaml'), 'name: Real\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  const t = synthTimeline({ duration: 4, entries: [{ id: 'a', t_start: 0.5, t_end: 4, caption: { text: 'A scene.' } }], video: { title: { text: 'Synthetic' }, intro: false, outro: false, frame: 'card', template: 'editorial' } });
+  const t = synthTimeline({
+    duration: 4,
+    entries: [{ id: 'a', t_start: 0.5, t_end: 4, caption: { text: 'A scene.' } }],
+    video: { title: { text: 'Synthetic' }, intro: false, outro: false, frame: 'card', template: 'editorial' },
+  });
   t.run_id = REAL_RUN;
   t.project = 'real';
   t.scenario = 'held';
@@ -174,7 +178,8 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     const { dir } = capturesDir();
     const name = `k_${ulid()}.json`;
     const file = join(dir!, name);
-    const write = () => writeFileSync(file, JSON.stringify({ v: 1, pid: sib.pid, started_at: new Date(start!).toISOString(), ws: workspaceCaptureId(join(ws, 'other')), source: 'cli' }), { mode: 0o600 });
+    const write = () =>
+      writeFileSync(file, JSON.stringify({ v: 1, pid: sib.pid, started_at: new Date(start!).toISOString(), ws: workspaceCaptureId(join(ws, 'other')), source: 'cli' }), { mode: 0o600 });
     write();
     const beat = setInterval(write, 1000); // its heartbeat, from this process
     return {
@@ -220,37 +225,59 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     expect(c.err()).toContain('waiting for a take to finish (elsewhere on this Mac)');
   }
 
-  it.skipIf(!canEncode)('review B L6: Ctrl-C while waiting writes nothing; --no-wait starts at once and writes the package (exit 0)', async () => {
-    const take = await siblingTake();
-    const exports = join(ws, 'projects', 'real', 'exports');
-    try {
-      const c = cli('export-capture', 'real', REAL_RUN);
-      await waiting(c);
-      c.child.kill('SIGINT');
-      expect(await c.exited).toBe(130);
-      expect(existsSync(exports)).toBe(false);
-      const t0 = Date.now();
-      const now = cli('export-capture', 'real', REAL_RUN, '--no-wait');
-      expect(await now.exited, now.err()).toBe(0);
-      expect(now.err()).not.toContain('waiting for a take');
-      expect(Date.now() - t0).toBeLessThan(60_000);
-      expect(readdirSync(exports).length).toBe(1);
-    } finally {
-      take.stop();
-    }
-  }, 120_000);
+  it.skipIf(!canEncode)(
+    'review B L6: Ctrl-C while waiting writes nothing; --no-wait starts at once and writes the package (exit 0)',
+    async () => {
+      const take = await siblingTake();
+      const exports = join(ws, 'projects', 'real', 'exports');
+      try {
+        const c = cli('export-capture', 'real', REAL_RUN);
+        await waiting(c);
+        c.child.kill('SIGINT');
+        expect(await c.exited).toBe(130);
+        expect(existsSync(exports)).toBe(false);
+        const t0 = Date.now();
+        const now = cli('export-capture', 'real', REAL_RUN, '--no-wait');
+        expect(await now.exited, now.err()).toBe(0);
+        expect(now.err()).not.toContain('waiting for a take');
+        expect(Date.now() - t0).toBeLessThan(60_000);
+        expect(readdirSync(exports).length).toBe(1);
+      } finally {
+        take.stop();
+      }
+    },
+    120_000,
+  );
 
   it('review B H2: render, export and review wait too, and run on the "latest" named before the wait (critique M10)', async () => {
     const latest = join(ws, 'projects', 'latest');
     for (const [args, line, newer] of [
-      [['render', 'latest', 'held'], 'rendering run 20260101-120000-held', () => {
-        wholeCapture(join(latest, 'runs', '20260202-120000-held'), '20260202-120000-held');
-      }],
-      [['export', 'latest', 'latest', '--scenario', 'held'], 'exporting render held-v1', () =>
-        writeFileSync(join(latest, 'renders', 'held-v2.json'), JSON.stringify({ version: 1, id: 'held-v2', status: 'succeeded', scenario: 'held', created_at: '2026-02-02T12:00:00.000Z', plan: {} }))],
+      [
+        ['render', 'latest', 'held'],
+        'rendering run 20260101-120000-held',
+        () => {
+          wholeCapture(join(latest, 'runs', '20260202-120000-held'), '20260202-120000-held');
+        },
+      ],
+      [
+        ['export', 'latest', 'latest', '--scenario', 'held'],
+        'exporting render held-v1',
+        () =>
+          writeFileSync(
+            join(latest, 'renders', 'held-v2.json'),
+            JSON.stringify({ version: 1, id: 'held-v2', status: 'succeeded', scenario: 'held', created_at: '2026-02-02T12:00:00.000Z', plan: {} }),
+          ),
+      ],
       // held-v2 is the latest once the export's case has run.
-      [['review', 'latest', 'latest', '--scenario', 'held'], 'reviewing render held-v2', () =>
-        writeFileSync(join(latest, 'renders', 'held-v3.json'), JSON.stringify({ version: 1, id: 'held-v3', status: 'succeeded', scenario: 'held', created_at: '2026-03-03T12:00:00.000Z', plan: {} }))],
+      [
+        ['review', 'latest', 'latest', '--scenario', 'held'],
+        'reviewing render held-v2',
+        () =>
+          writeFileSync(
+            join(latest, 'renders', 'held-v3.json'),
+            JSON.stringify({ version: 1, id: 'held-v3', status: 'succeeded', scenario: 'held', created_at: '2026-03-03T12:00:00.000Z', plan: {} }),
+          ),
+      ],
     ] as const) {
       const take = await siblingTake();
       try {
@@ -280,7 +307,7 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     }
   }, 120_000);
 
-  it('a take\'s own hook: a marker of the CLI\'s parent does not hold it (no wait)', async () => {
+  it("a take's own hook: a marker of the CLI's parent does not hold it (no wait)", async () => {
     // The parent owns a marker (as a `retake run` whose setup hook runs a heavy command), then runs the CLI and reports.
     const mod = join(REPO, 'packages/engine/src/jobs/captures.ts');
     const proc = join(REPO, 'packages/engine/src/jobs/proc.ts');

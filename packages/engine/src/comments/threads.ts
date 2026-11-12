@@ -35,7 +35,20 @@ import type { RenderForWork } from '../renders.js';
 import { storeOf } from '../store/store.js';
 import type { StoreScope } from '../store/store.js';
 import { stampOf } from '../clock.js';
-import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread } from './store.js';
+import {
+  RUN_FILE_MAX_BYTES,
+  appendedThread,
+  argError,
+  caseVariantFolder,
+  checkIfMatch,
+  cleanText,
+  commentRef,
+  commentStillFile,
+  locateThread,
+  lockThread,
+  readPlainFile,
+  readThread,
+} from './store.js';
 import { frameAnchor } from '@retake/review/checks';
 import type { FrameTools } from '../review/reviewer.js';
 import type { ThreadFile } from './store.js';
@@ -135,7 +148,16 @@ export async function runInputs(projectDir: string, record: RenderForWork, warni
  * Make the still of a new thread with the reviewer's frames (temp + rename in a real folder of the project); null and a
  * warning when it fails.
  */
-export async function writeStill(projectDir: string, id: string, video: string, frame: number, region: CommentRegion | undefined, warnings: string[], policy: WorkPolicy, frames: Pick<FrameTools, 'still'>): Promise<string | null> {
+export async function writeStill(
+  projectDir: string,
+  id: string,
+  video: string,
+  frame: number,
+  region: CommentRegion | undefined,
+  warnings: string[],
+  policy: WorkPolicy,
+  frames: Pick<FrameTools, 'still'>,
+): Promise<string | null> {
   const final = commentStillFile(projectDir, id);
   const tmp = join(dirname(final), `${id}.${randomBytes(4).toString('hex')}.tmp.jpg`);
   try {
@@ -260,7 +282,14 @@ export async function anchorAt(project: LoadedProject, req: CommentAnchorRequest
  * over an existing file), then its still (critique B12: the thread exists whatever the still costs; a still that fails
  * is a warning; it is made by `frames`, the caller's reviewer's).
  */
-export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope: StoreScope, policy: WorkPolicy, frames: Pick<FrameTools, 'still'>): Promise<CommentAdded> {
+export async function addComment(
+  project: LoadedProject,
+  req: CommentAddRequest,
+  author: CommentAuthor,
+  scope: StoreScope,
+  policy: WorkPolicy,
+  frames: Pick<FrameTools, 'still'>,
+): Promise<CommentAdded> {
   const text = cleanText(req.text, 'the comment', 'text');
   const { record, frame, anchor, warnings } = await prepareComment(project, req);
   const clash = await caseVariantFolder(project.dir, record.scenario);
@@ -374,11 +403,17 @@ export async function replyComment(
   // The target is the thread's own scenario (its folder, checked against the file by readThread): never an argument.
   const f = await locateThread(project.dir, id);
   const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, ...(o.registry ? { registry: o.registry } : {}) });
-  const w = await appendEntry(project, id, 'reply', (thread) => {
-    const { status } = deriveStatus(thread.entries);
-    if (status !== 'open') throw new EngineError('conflict', `not proposed: comment ${id} is resolved — a proposal answers an open thread (a person reopens it)`, { details: { status } });
-    return { id: newCommentEntryId(), kind: 'reply', author, text, created_at: stampOf(o.scope.clock), proposal: built.proposal };
-  }, write);
+  const w = await appendEntry(
+    project,
+    id,
+    'reply',
+    (thread) => {
+      const { status } = deriveStatus(thread.entries);
+      if (status !== 'open') throw new EngineError('conflict', `not proposed: comment ${id} is resolved — a proposal answers an open thread (a person reopens it)`, { details: { status } });
+      return { id: newCommentEntryId(), kind: 'reply', author, text, created_at: stampOf(o.scope.clock), proposal: built.proposal };
+    },
+    write,
+  );
   return { ...w, proposal_warnings: built.warnings };
 }
 
@@ -420,17 +455,28 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
     (thread) => {
       const { status, resolution } = deriveStatus(thread.entries);
       if (status === 'resolved') {
-        throw new EngineError('conflict', `comment ${id} is already resolved (entry ${resolution?.entry}${resolution?.render_id ? `, render ${resolution.render_id}` : ''}): it is reopened by a person (retake comment reopen)`, {
-          details: { status, ...(resolution ? { entry: resolution.entry } : {}) },
-        });
+        throw new EngineError(
+          'conflict',
+          `comment ${id} is already resolved (entry ${resolution?.entry}${resolution?.render_id ? `, render ${resolution.render_id}` : ''}): it is reopened by a person (retake comment reopen)`,
+          {
+            details: { status, ...(resolution ? { entry: resolution.entry } : {}) },
+          },
+        );
       }
       if (answer) {
-        if (answer.scenario !== thread.scenario) throw new EngineError('refused', `render ${answer.id} is a render of ${answer.scenario}: a comment on ${thread.scenario} is resolved by a render of ${thread.scenario}`);
+        if (answer.scenario !== thread.scenario)
+          throw new EngineError('refused', `render ${answer.id} is a render of ${answer.scenario}: a comment on ${thread.scenario} is resolved by a render of ${thread.scenario}`);
         if (answer.variant !== thread.render.variant) {
-          throw new EngineError('refused', `render ${answer.id} is a ${answer.variant} render: a comment on the ${thread.render.variant} render ${thread.render.id} is resolved by a ${thread.render.variant} render of ${thread.scenario}`);
+          throw new EngineError(
+            'refused',
+            `render ${answer.id} is a ${answer.variant} render: a comment on the ${thread.render.variant} render ${thread.render.id} is resolved by a ${thread.render.variant} render of ${thread.scenario}`,
+          );
         }
         if (!(answer.created_at > thread.render.created_at)) {
-          throw new EngineError('refused', `render ${answer.id} (${answer.created_at}) is not later than the commented render ${thread.render.id} (${thread.render.created_at}): resolve with the render made after the change`);
+          throw new EngineError(
+            'refused',
+            `render ${answer.id} (${answer.created_at}) is not later than the commented render ${thread.render.id} (${thread.render.created_at}): resolve with the render made after the change`,
+          );
         }
       }
       return {

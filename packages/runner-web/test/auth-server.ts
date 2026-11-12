@@ -37,8 +37,7 @@ export interface AuthServer {
   close(): Promise<void>;
 }
 
-const page = (title: string, body: string) =>
-  `<!doctype html><html><head><title>${title}</title><style>body{font:16px sans-serif;margin:40px}</style></head><body>${body}</body></html>`;
+const page = (title: string, body: string) => `<!doctype html><html><head><title>${title}</title><style>body{font:16px sans-serif;margin:40px}</style></head><body>${body}</body></html>`;
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
@@ -124,16 +123,16 @@ export async function startAuthServer(): Promise<AuthServer> {
       const ms = Number(url.searchParams.get('ms') ?? 800);
       return html(
         200,
-        page('Later', `<h1>Signed in as ${account.name}</h1><script>setTimeout(() => { history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'; }, ${ms});</script>`),
+        page(
+          'Later',
+          `<h1>Signed in as ${account.name}</h1><script>setTimeout(() => { history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'; }, ${ms});</script>`,
+        ),
       );
     }
     if (path === '/spa') {
       return html(
         200,
-        page(
-          'App',
-          `<h1>Signed in as ${account.name}</h1><button onclick="history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'">Leave</button>`,
-        ),
+        page('App', `<h1>Signed in as ${account.name}</h1><button onclick="history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'">Leave</button>`),
       );
     }
     return html(

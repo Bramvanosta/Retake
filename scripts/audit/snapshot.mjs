@@ -11,14 +11,23 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const opt = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };
+const opt = (n) => {
+  const i = process.argv.indexOf(n);
+  return i > 0 ? process.argv[i + 1] : undefined;
+};
 const root = path.resolve(opt('--root') ?? '.');
 const out = path.resolve(opt('--out') ?? fs.mkdtempSync(path.join(os.tmpdir(), 'retake-audit-')));
 fs.mkdirSync(out, { recursive: true });
 
 const node = (script, args) => execFileSync(process.execPath, [path.join(here, script), root, ...args], { encoding: 'utf8', maxBuffer: 64 << 20 });
 const save = (name, text) => fs.writeFileSync(path.join(out, name), text);
-const git = (...args) => { try { return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim(); } catch { return null; } };
+const git = (...args) => {
+  try {
+    return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
+  } catch {
+    return null;
+  }
+};
 const read = (f) => (fs.existsSync(path.join(root, f)) ? fs.readFileSync(path.join(root, f), 'utf8') : '');
 
 save('imports.out', node('imports.mjs', ['--json', path.join(out, 'imports.json')]));
@@ -44,10 +53,21 @@ const uses = workflows.flatMap((w) => read(`.github/workflows/${w}`).match(/^\s*
 const summary = {
   commit: git('rev-parse', 'HEAD'),
   date: new Date().toISOString().slice(0, 10),
-  packages: Object.fromEntries(Object.entries(imports.packages).map(([p, r]) => [p, {
-    files: r.files, lines: r.lines, ioFiles: r.ioFiles, pureFiles: r.pureFiles, builtinImports: r.builtinImportsTotal,
-    retakeDeps: Object.keys(r.actual).filter((d) => d !== p).sort(),
-  }])),
+  packages: Object.fromEntries(
+    Object.entries(imports.packages).map(([p, r]) => [
+      p,
+      {
+        files: r.files,
+        lines: r.lines,
+        ioFiles: r.ioFiles,
+        pureFiles: r.pureFiles,
+        builtinImports: r.builtinImportsTotal,
+        retakeDeps: Object.keys(r.actual)
+          .filter((d) => d !== p)
+          .sort(),
+      },
+    ]),
+  ),
   packageCycles: imports.packageCycles.length,
   fileCycles: imports.fileCycles.length,
   rules: Object.fromEntries(rules.map((r) => [r.rule.split(' ')[0], r.violations])),

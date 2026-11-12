@@ -106,7 +106,14 @@ export function UpdateControl() {
   const actions: SheetAction[] = installable
     ? [
         { id: 'later', label: 'Later', isCancel: true, testId: 'update-later', ...(sent.busy ? { disabled: true } : {}) },
-        { id: 'install', label: 'Install and Restart', variant: 'primary', isDefault: true, testId: 'update-install', ...(sent.busy === 'install' ? { busy: true } : sent.busy ? { disabled: true } : {}) },
+        {
+          id: 'install',
+          label: 'Install and Restart',
+          variant: 'primary',
+          isDefault: true,
+          testId: 'update-install',
+          ...(sent.busy === 'install' ? { busy: true } : sent.busy ? { disabled: true } : {}),
+        },
       ]
     : st.state && BUSY.has(st.state) && st.state !== 'installing'
       ? [
@@ -138,8 +145,8 @@ export function UpdateControl() {
                 <Txt text={notes} />
               </div>
             )}
-            {progress && (
-              progress.state === 'fail' ? (
+            {progress &&
+              (progress.state === 'fail' ? (
                 <Callout state="fail" role="alert" title={progress.title} testId="update-progress">
                   {progress.text}
                 </Callout>
@@ -147,8 +154,7 @@ export function UpdateControl() {
                 <Callout state={progress.state} role="status" title={progress.title} testId="update-progress">
                   {progress.text}
                 </Callout>
-              )
-            )}
+              ))}
             {figure && <Progress label="Download" value={figure.percent} valueText={figure.text} testId="update-download" />}
             {steps && (
               <ol className="sh-update-steps" aria-label="Install and Restart, step by step" data-testid="update-steps">
@@ -171,7 +177,14 @@ export function UpdateControl() {
           </>
         }
       >
-        <Txt className="sh-update-text" text={st.state === 'updated' ? `${checkedWords(st.checked)}` : `You have v${st.current ?? '?'}. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts ${APP_NAME}. Workspaces, projects and sign-ins are kept. ${checkedWords(st.checked)}`} />
+        <Txt
+          className="sh-update-text"
+          text={
+            st.state === 'updated'
+              ? `${checkedWords(st.checked)}`
+              : `You have v${st.current ?? '?'}. Install and Restart downloads the update and checks its signature, waits for this workspace's jobs to end, asks about unsaved text, then restarts ${APP_NAME}. Workspaces, projects and sign-ins are kept. ${checkedWords(st.checked)}`
+          }
+        />
       </Sheet>
     </>
   );

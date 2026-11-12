@@ -31,7 +31,10 @@ describe('selectHooks: a hooks file of the project only', () => {
 
   it('a file of the project, or a link to one, passes the check', async () => {
     for (const spec of ['hooks/in.yaml', 'hooks/alias.yaml']) {
-      const e = await selectHooks(project, spec, undefined, { files: fileFacts(PERSON_POLICY), projectFilesOnly: true }).then(() => null, (x: unknown) => x);
+      const e = await selectHooks(project, spec, undefined, { files: fileFacts(PERSON_POLICY), projectFilesOnly: true }).then(
+        () => null,
+        (x: unknown) => x,
+      );
       expect(e instanceof HooksSourceError ? e.message : null, spec).toBeNull();
     }
   });

@@ -54,9 +54,7 @@ function statementWrite(words: readonly string[]): string | null {
   if (first === 'SET' || first === 'RESET') {
     // The transaction's read-only mode and the role are not for a hook to change on a read-only run.
     if (first === 'RESET' && words[1] === 'ALL') return 'SQL RESET ALL';
-    const touches = words.some(
-      (w) => ['TRANSACTION', 'CHARACTERISTICS', 'ROLE', 'AUTHORIZATION'].includes(w) || /READ_ONLY|^DEFAULT_TRANSACTION|^TRANSACTION_/.test(w),
-    );
+    const touches = words.some((w) => ['TRANSACTION', 'CHARACTERISTICS', 'ROLE', 'AUTHORIZATION'].includes(w) || /READ_ONLY|^DEFAULT_TRANSACTION|^TRANSACTION_/.test(w));
     return touches ? `SQL ${first} of the transaction mode or role` : null;
   }
   for (let i = 1; i < words.length; i++) {

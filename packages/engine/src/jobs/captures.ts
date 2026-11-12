@@ -302,7 +302,6 @@ interface Owner {
   capped: boolean;
 }
 
-
 /** The cap in minutes: RETAKE_CAPTURE_HOLD_MAX_MIN (1 min … 24 h), else HOLD_MAX_MIN. */
 export function capMinutes(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.RETAKE_CAPTURE_HOLD_MAX_MIN?.trim();
@@ -420,7 +419,15 @@ export class FilmingWatch {
     this.forget(present, now);
     for (const l of live) {
       const o = this.owners.get(l.key)!;
-      const take: LiveTake = { name: l.name, pid: l.rec.pid, here: typeof l.rec.ws === 'string' && this.here(l.rec.ws), paused: l.paused, held_ms: o.heldMs, capped: o.capped, source: l.rec.source === 'job' || l.rec.source === 'cli' ? l.rec.source : 'other' };
+      const take: LiveTake = {
+        name: l.name,
+        pid: l.rec.pid,
+        here: typeof l.rec.ws === 'string' && this.here(l.rec.ws),
+        paused: l.paused,
+        held_ms: o.heldMs,
+        capped: o.capped,
+        source: l.rec.source === 'job' || l.rec.source === 'cli' ? l.rec.source : 'other',
+      };
       out.takes.push(take);
       if (!l.paused && !o.capped && !l.ignored) {
         out.holding = true;

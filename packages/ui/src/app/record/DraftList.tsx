@@ -27,7 +27,13 @@ function InsertChip({ i, can, onRemove, where }: { i: RecordInsert; can: boolean
         )}
       </span>
       {can && (
-        <Button size="sm" variant="ghost" aria-label={visibleControls(`Remove the ${INSERT_KIND_WORDS[i.kind].toLowerCase()} ${where}`)} data-testid="record-insert-remove" onClick={() => onRemove(i.id)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={visibleControls(`Remove the ${INSERT_KIND_WORDS[i.kind].toLowerCase()} ${where}`)}
+          data-testid="record-insert-remove"
+          onClick={() => onRemove(i.id)}
+        >
           Remove
         </Button>
       )}
@@ -124,7 +130,11 @@ function Row({ r, n, here, option, onPress }: { r: DraftRow; n: number; here: bo
     parts.meta
   );
   return (
-    <RowListItem className={['rc-row', role === 'insert' ? 'is-insert' : '', role === 'helper' ? 'is-helper' : ''].filter(Boolean).join(' ')} testId="record-step" data={{ key: r.key, row: r.id, role: role ?? '', helper: r.source?.helper ?? '' }}>
+    <RowListItem
+      className={['rc-row', role === 'insert' ? 'is-insert' : '', role === 'helper' ? 'is-helper' : ''].filter(Boolean).join(' ')}
+      testId="record-step"
+      data={{ key: r.key, row: r.id, role: role ?? '', helper: r.source?.helper ?? '' }}
+    >
       {option ? (
         <RowCard compact option={option} tile={String(n)} title={parts.title} meta={meta} aside={parts.aside} selected={here} onSelect={onPress} testId="record-insert-after" />
       ) : (
@@ -146,7 +156,13 @@ function RowRemoves({ r, where, onRemove }: { r: DraftRow; where: string; onRemo
   return (
     <p className="rc-chips rc-removes" data-testid="record-removes">
       {r.insert && (
-        <Button size="sm" variant="ghost" aria-label={visibleControls(`Remove the ${INSERT_KIND_WORDS[r.insert.kind].toLowerCase()} at ${where}`)} data-testid="record-insert-remove" onClick={() => onRemove(r.insert!.id)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={visibleControls(`Remove the ${INSERT_KIND_WORDS[r.insert.kind].toLowerCase()} at ${where}`)}
+          data-testid="record-insert-remove"
+          onClick={() => onRemove(r.insert!.id)}
+        >
           {shown(`Remove the ${INSERT_KIND_WORDS[r.insert.kind].toLowerCase()}`)}
         </Button>
       )}
@@ -315,9 +331,11 @@ export function DraftList({
         <div className="rc-pending" data-testid="record-pending">
           <p>Applies to your next action:</p>
           <p className="rc-chips">
-            {u.pending.flatMap((id) => (inserts.has(id) ? [inserts.get(id)!] : [])).map((ins) => (
-              <InsertChip key={ins.id} i={ins} can={can} onRemove={remove} where="waiting for your next action" />
-            ))}
+            {u.pending
+              .flatMap((id) => (inserts.has(id) ? [inserts.get(id)!] : []))
+              .map((ins) => (
+                <InsertChip key={ins.id} i={ins} can={can} onRemove={remove} where="waiting for your next action" />
+              ))}
           </p>
         </div>
       )}

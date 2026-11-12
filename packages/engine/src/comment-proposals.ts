@@ -130,7 +130,10 @@ function restage(e: unknown, stage: Stage): unknown {
 function fileEol(today: ScenarioText, stage: Stage): '\n' | '\r\n' {
   const lb = lineBreaks(today.yaml);
   if (lb.crlf > 0 && lb.lf > 0) {
-    throw new EngineError('refused', `not ${stage}: ${today.file} mixes LF and CR LF line breaks — a proposal is shown and applied line by line, so the file's line breaks must be one kind: fix them in your editor`);
+    throw new EngineError(
+      'refused',
+      `not ${stage}: ${today.file} mixes LF and CR LF line breaks — a proposal is shown and applied line by line, so the file's line breaks must be one kind: fix them in your editor`,
+    );
   }
   return textEol(today.yaml);
 }
@@ -155,7 +158,12 @@ export async function checkProposedText(
 ): Promise<ValidationIssue[]> {
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
-    prepared = await prepareScenarioEdit(project, scenario, { hash: today.hash, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}) });
+    prepared = await prepareScenarioEdit(
+      project,
+      scenario,
+      { hash: today.hash, edit: { kind: 'replace_text', text } },
+      { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}) },
+    );
   } catch (e) {
     throw restage(e, stage);
   }
@@ -192,7 +200,8 @@ export async function buildProposal(project: LoadedProject, scenario: string, in
   if (!input || typeof input !== 'object') throw invalid('a proposal is {scenario_yaml, scenario_hash}', 'proposal');
   const raw = input.scenario_yaml;
   if (typeof raw !== 'string' || raw.trim() === '') throw invalid('proposal.scenario_yaml is the whole new text of the scenario file', 'proposal.scenario_yaml');
-  if (raw.length > SCENARIO_EDIT_MAX_CHARS) throw invalid(`proposal.scenario_yaml holds ${raw.length.toLocaleString('en')} characters: at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, 'proposal.scenario_yaml');
+  if (raw.length > SCENARIO_EDIT_MAX_CHARS)
+    throw invalid(`proposal.scenario_yaml holds ${raw.length.toLocaleString('en')} characters: at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, 'proposal.scenario_yaml');
   if (typeof input.scenario_hash !== 'string' || !/^[0-9a-f]{64}$/.test(input.scenario_hash)) {
     throw invalid('proposal.scenario_hash is the hash scenario_get returned for the file (64 hex characters)', 'proposal.scenario_hash');
   }
@@ -212,7 +221,7 @@ export async function buildProposal(project: LoadedProject, scenario: string, in
   const eol = fileEol(today, 'proposed');
   const lb = lineBreaks(raw);
   if (lb.cr > 0) throw invalid('not proposed: the text holds a carriage return without a line feed (an editor shows a line break there, YAML reads none)', 'proposal.scenario_yaml');
-  if (lb.crlf > 0 && lb.lf > 0) throw invalid('not proposed: the text mixes LF and CR LF line breaks — use one kind (the file\'s own)', 'proposal.scenario_yaml');
+  if (lb.crlf > 0 && lb.lf > 0) throw invalid("not proposed: the text mixes LF and CR LF line breaks — use one kind (the file's own)", 'proposal.scenario_yaml');
   const baseLines = textLines(today.yaml);
   const lines = textLines(raw);
   const text = joinLines(lines, eol);
@@ -230,9 +239,13 @@ export async function buildProposal(project: LoadedProject, scenario: string, in
     for (const [j, l] of h.del.entries()) {
       const p = proposalLineProblem(l);
       if (p) {
-        throw new EngineError('refused', `not proposed: line ${h.at + j} of ${today.file} ${p.startsWith('it holds ') ? p.slice('it '.length) : `is ${p}`} — a proposal never removes or changes such a line: the person changes it in their editor`, {
-          details: { line: h.at + j },
-        });
+        throw new EngineError(
+          'refused',
+          `not proposed: line ${h.at + j} of ${today.file} ${p.startsWith('it holds ') ? p.slice('it '.length) : `is ${p}`} — a proposal never removes or changes such a line: the person changes it in their editor`,
+          {
+            details: { line: h.at + j },
+          },
+        );
       }
     }
   }

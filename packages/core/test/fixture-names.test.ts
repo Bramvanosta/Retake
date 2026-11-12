@@ -16,10 +16,35 @@ const SELF = fileURLToPath(import.meta.url);
  * the names themselves do not appear in the repository; matched case-insensitively on word boundaries.
  */
 const FORMER_NAMES = [
-  'osíaraP lE acniF', 'osiaraP lE', 'aznarepsE aL', 'itireB olaH', 'arabamaiK', 'atsiV aoB', 'anugaL aL', 'ebmoB',
-  'aícuL atnaS', 'aicuL atnaS', 'ekehsamayN', 'asoR atnaS', 'agayniriK', 'slliH aznayaK', 'oyaG hecA', 'rodariM lE',
-  'sebuN saL', 'agarU ijuG', 'agarU', 'ordisI naS', 'amanaP fo tseB', 'nedrågdniL', 'nogroM', 'uviK ekaL',
-  'setnoP sêrT', 'ognarA', 'aniloM', 'soniceR', 'raliugA',
+  'osíaraP lE acniF',
+  'osiaraP lE',
+  'aznarepsE aL',
+  'itireB olaH',
+  'arabamaiK',
+  'atsiV aoB',
+  'anugaL aL',
+  'ebmoB',
+  'aícuL atnaS',
+  'aicuL atnaS',
+  'ekehsamayN',
+  'asoR atnaS',
+  'agayniriK',
+  'slliH aznayaK',
+  'oyaG hecA',
+  'rodariM lE',
+  'sebuN saL',
+  'agarU ijuG',
+  'agarU',
+  'ordisI naS',
+  'amanaP fo tseB',
+  'nedrågdniL',
+  'nogroM',
+  'uviK ekaL',
+  'setnoP sêrT',
+  'ognarA',
+  'aniloM',
+  'soniceR',
+  'raliugA',
 ].map((r) => [...r].reverse().join(''));
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -84,7 +109,20 @@ async function scenario(name: string): Promise<Record<string, unknown> & { scene
 
 describe('fixture names are invented (R-ISS-10, R-PRIN-01)', () => {
   it('no former real farm, station, producer, café or competition name in the fixture, its project, the tests or the docs', async () => {
-    const roots = ['fixtures/wholesale', 'projects/northfield-fixture', 'packages', 'apps', 'templates', 'skills', '.claude-plugin', 'README.md', 'docs/guide', 'docs/SPEC.md', 'docs/DESIGN.md', 'docs/DESIGN-phase2.md'];
+    const roots = [
+      'fixtures/wholesale',
+      'projects/northfield-fixture',
+      'packages',
+      'apps',
+      'templates',
+      'skills',
+      '.claude-plugin',
+      'README.md',
+      'docs/guide',
+      'docs/SPEC.md',
+      'docs/DESIGN.md',
+      'docs/DESIGN-phase2.md',
+    ];
     const files: string[] = [];
     for (const r of roots) {
       const abs = join(ROOT, r);
@@ -159,7 +197,10 @@ describe('the fixture scenarios still find what they rely on', () => {
     const discover = sc.scenes.find((x) => x.id === 'discover')!.steps as Array<Record<string, unknown>>;
     const hovered = (discover.find((st) => st.hover)!.hover as { text: string }).text;
     const opened = discover.find((st) => st.click)!.click as string;
-    expect(products.find((p) => p.name === hovered), hovered).toBeDefined();
+    expect(
+      products.find((p) => p.name === hovered),
+      hovered,
+    ).toBeDefined();
     const product = products.find((p) => p.name === opened)!;
     expect(product, opened).toBeDefined();
     expect(product.shelves).toContain('arrivals'); // shown under "Fresh arrivals"

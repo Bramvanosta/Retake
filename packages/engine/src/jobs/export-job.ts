@@ -94,7 +94,18 @@ export async function submitExportJob(
     // A re-render plans the master's run with its theme (its folder, as the project can name it: exportThemeRef) and
     // overrides: through the same gates as a render job.
     try {
-      await planWork({ workPolicy: ctx.ws.policy, project, run: record.run_dir, scenario: record.scenario, template: await ed.exportThemeRef(project, record, { trust: ENGINE_TRUST }), overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
+      await planWork({
+        workPolicy: ctx.ws.policy,
+        project,
+        run: record.run_dir,
+        scenario: record.scenario,
+        template: await ed.exportThemeRef(project, record, { trust: ENGINE_TRUST }),
+        overrides: record.overrides,
+        root: ctx.ws.root,
+        trust: ENGINE_TRUST,
+        measureMusic: false,
+        ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }),
+      });
     } catch (e) {
       if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
       throw toEngineError(e);
@@ -106,7 +117,9 @@ export async function submitExportJob(
     project: project.slug,
     render_id: record.id,
     formats,
-    ...(gif && (gif.start_s !== undefined || gif.duration_s !== undefined) ? { gif: { ...(gif.start_s !== undefined ? { start_s: gif.start_s } : {}), ...(gif.duration_s !== undefined ? { duration_s: gif.duration_s } : {}) } } : {}),
+    ...(gif && (gif.start_s !== undefined || gif.duration_s !== undefined)
+      ? { gif: { ...(gif.start_s !== undefined ? { start_s: gif.start_s } : {}), ...(gif.duration_s !== undefined ? { duration_s: gif.duration_s } : {}) } }
+      : {}),
     submitted_by: ctx.client,
   };
   return { job: await ctx.queue.enqueue(input), render_id: record.id, formats, rerendered, ...latestRenderMembers(latest) };

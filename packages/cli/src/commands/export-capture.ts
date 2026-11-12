@@ -105,17 +105,24 @@ export async function rawExportOfRun(
 export function printRawExport(ui: Ui, r: RawExportResult, ms: number): void {
   const c = ui.c;
   const m = r.manifest;
+  ui.line(`raw export of ${c.bold(m.run.id)} → ${ui.path(r.dir)} ${c.dim(formatMs(ms))}`);
   ui.line(
-    `raw export of ${c.bold(m.run.id)} → ${ui.path(r.dir)} ${c.dim(formatMs(ms))}`,
+    c.dim(
+      `  ${m.settings.codec} · ${m.settings.fps} fps · cursor ${m.cursor.mode}${m.settings.layer ? ` (${m.settings.layer_codec})` : ''} · sequence ${m.sequence.duration_s.toFixed(2)} s (${m.sequence.frames} frames)`,
+    ),
   );
-  ui.line(c.dim(`  ${m.settings.codec} · ${m.settings.fps} fps · cursor ${m.cursor.mode}${m.settings.layer ? ` (${m.settings.layer_codec})` : ''} · sequence ${m.sequence.duration_s.toFixed(2)} s (${m.sequence.frames} frames)`));
   for (const k of m.clips) {
     const cuts = k.cuts.length ? c.dim(` · cut ${k.cuts.map((x) => `${x.seconds.toFixed(1)} s ${x.reason}`).join(', ')}`) : '';
-    ui.ok(`${k.file.padEnd(34)} ${k.width}×${k.height} ${k.frames} frames ${k.duration_s.toFixed(2)} s @ ${k.seq_start_tc} ${formatBytes(k.size_bytes)}${k.primary ? '' : c.dim(' (other page)')}${cuts}`);
+    ui.ok(
+      `${k.file.padEnd(34)} ${k.width}×${k.height} ${k.frames} frames ${k.duration_s.toFixed(2)} s @ ${k.seq_start_tc} ${formatBytes(k.size_bytes)}${k.primary ? '' : c.dim(' (other page)')}${cuts}`,
+    );
     if (k.layer) ui.line(c.dim(`    ${k.layer.file} ${k.layer.codec} ${k.layer.pix_fmt} ${formatBytes(k.layer.size_bytes)}`));
   }
   if (m.selects) ui.ok(`${m.selects.file.padEnd(34)} ${m.selects.frames} frames ${m.selects.duration_s.toFixed(2)} s ${formatBytes(m.selects.size_bytes)}`);
-  const counts = Object.entries(m.markers.count).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`).join(', ');
+  const counts = Object.entries(m.markers.count)
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `${v} ${k}`)
+    .join(', ');
   ui.line(`  markers ${c.dim(counts)}: ${m.markers.fcpxml}, ${m.markers.edl}, ${m.markers.otio}, ${m.markers.csv}`);
   ui.line(`  cursor  ${m.cursor.data.json}, ${m.cursor.data.csv}, ${m.cursor.data.clicks_csv}${m.cursor.icons === 'approximated' ? c.dim(' (icons approximated: run before L2.13)') : ''}`);
   for (const w of m.warnings) ui.warn(`  ${w}`);

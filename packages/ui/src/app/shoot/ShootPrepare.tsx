@@ -210,12 +210,26 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
   const blockedNow = dry.length + cap.length > 0;
   const refusedFixNode = last && 'error' in last && last.fix ? [...dry, ...cap].find((b) => b.fix === last.fix)?.fix_node : undefined;
   const sessionsState: { state: 'ok' | 'attention' | 'idle'; word: string } =
-    sessions.state !== 'ready' ? { state: 'idle', word: 'Pending' } : sessions.data.personas.length === 0 ? { state: 'ok', word: 'Ready: none needed' } : toConfirm.length > 0 || sessions.data.issues.length > 0 ? { state: 'attention', word: 'Pending: a capture asks first' } : { state: 'ok', word: 'Ready' };
+    sessions.state !== 'ready'
+      ? { state: 'idle', word: 'Pending' }
+      : sessions.data.personas.length === 0
+        ? { state: 'ok', word: 'Ready: none needed' }
+        : toConfirm.length > 0 || sessions.data.issues.length > 0
+          ? { state: 'attention', word: 'Pending: a capture asks first' }
+          : { state: 'ok', word: 'Ready' };
   const runLive = live && running && live.id === running.id && !live.finished ? live : null;
   const paused = Boolean(runLive?.paused || runLive?.pausing);
   const terminal = running !== null && running.job === null;
   const TERMINAL_WHY = 'Started in a terminal: press Ctrl-C there to stop it.';
-  const runWord = running ? (paused ? SHOOT_STATES.paused.word(running.mode) : runLive?.stopping ? SHOOT_STATES.stopping.word(running.mode) : running.status === 'queued' ? SHOOT_STATES.queued.word(running.mode) : SHOOT_STATES.running.word(running.mode)) : '';
+  const runWord = running
+    ? paused
+      ? SHOOT_STATES.paused.word(running.mode)
+      : runLive?.stopping
+        ? SHOOT_STATES.stopping.word(running.mode)
+        : running.status === 'queued'
+          ? SHOOT_STATES.queued.word(running.mode)
+          : SHOOT_STATES.running.word(running.mode)
+    : '';
 
   return (
     <div className="sc-screen sp-screen">
@@ -254,14 +268,33 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
         </span>
         {running && (
           <>
-            <Button size="sm" data-testid={paused ? 'run-resume' : 'run-pause'} disabled={terminal || running.status !== 'running'} aria-describedby="prep-why-run" onClick={() => pauseRun({ slug, name, run: running.id, paused: !paused, say, onDone: () => progress([running.id]) })}>
+            <Button
+              size="sm"
+              data-testid={paused ? 'run-resume' : 'run-pause'}
+              disabled={terminal || running.status !== 'running'}
+              aria-describedby="prep-why-run"
+              onClick={() => pauseRun({ slug, name, run: running.id, paused: !paused, say, onDone: () => progress([running.id]) })}
+            >
               {paused ? 'Resume' : 'Pause'}
             </Button>
-            <Button size="sm" icon="stop" data-testid="run-stop" disabled={terminal || Boolean(runLive?.stopping)} aria-describedby="prep-why-run" onClick={() => stopRun({ slug, name, run: running.id, mode: running.mode, say })}>
+            <Button
+              size="sm"
+              icon="stop"
+              data-testid="run-stop"
+              disabled={terminal || Boolean(runLive?.stopping)}
+              aria-describedby="prep-why-run"
+              onClick={() => stopRun({ slug, name, run: running.id, mode: running.mode, say })}
+            >
               Stop
             </Button>
             <span id="prep-why-run" className="k-sr">
-              {shown(terminal ? TERMINAL_WHY : running.status === 'queued' ? 'Pause waits until it runs; Stop stops it now.' : 'Pause waits for the current step to finish; Stop stops now and still runs the teardown and rollbacks.')}
+              {shown(
+                terminal
+                  ? TERMINAL_WHY
+                  : running.status === 'queued'
+                    ? 'Pause waits until it runs; Stop stops it now.'
+                    : 'Pause waits for the current step to finish; Stop stops now and still runs the teardown and rollbacks.',
+              )}
             </span>
           </>
         )}
@@ -293,7 +326,13 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
         </Callout>
       )}
       <Checklist label={`Before a take of ${name}`}>
-        <ChecklistItem state={env ? (env.production || env.access === 'read-only' ? 'warn' : 'ok') : project.state === 'error' ? 'fail' : 'idle'} word={env ? (env.access === 'read-only' ? 'Ready · read-only' : env.production ? 'Ready · production' : 'Ready') : project.state === 'error' ? 'Cannot be read' : 'Pending'} title="Location" testId="preflight-location" level={2}>
+        <ChecklistItem
+          state={env ? (env.production || env.access === 'read-only' ? 'warn' : 'ok') : project.state === 'error' ? 'fail' : 'idle'}
+          word={env ? (env.access === 'read-only' ? 'Ready · read-only' : env.production ? 'Ready · production' : 'Ready') : project.state === 'error' ? 'Cannot be read' : 'Pending'}
+          title="Location"
+          testId="preflight-location"
+          level={2}
+        >
           {env ? (
             <>
               <p>
@@ -359,7 +398,13 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
             </>
           )}
         </ChecklistItem>
-        <ChecklistItem state={!data ? (failed ? 'fail' : 'idle') : cap.length > 0 ? 'attention' : dry.length > 0 ? 'attention' : 'ok'} word={!data ? (failed ? 'Cannot be read' : 'Pending') : blockedNow ? 'Blocked: needs the terminal' : 'Ready: nothing'} title="What would stop a run" testId="preflight-blockers" level={2}>
+        <ChecklistItem
+          state={!data ? (failed ? 'fail' : 'idle') : cap.length > 0 ? 'attention' : dry.length > 0 ? 'attention' : 'ok'}
+          word={!data ? (failed ? 'Cannot be read' : 'Pending') : blockedNow ? 'Blocked: needs the terminal' : 'Ready: nothing'}
+          title="What would stop a run"
+          testId="preflight-blockers"
+          level={2}
+        >
           {data && !blockedNow && <p>Nothing: no hook to approve, nothing refused.</p>}
           {data && dry.length > 0 && (
             <>
@@ -376,7 +421,13 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
           )}
         </ChecklistItem>
         <ChecklistItem state={picture ? 'ok' : 'idle'} word={picture ? 'On · ready' : 'Off'} title="Live picture during a capture" level={2}>
-          <Switch label="Show the live picture from the capture's start" hint="Off by default: drawing it costs Chromium CPU during the take (about 15 % more)." checked={picture} onChange={setPicture} testId="prep-picture" />
+          <Switch
+            label="Show the live picture from the capture's start"
+            hint="Off by default: drawing it costs Chromium CPU during the take (about 15 % more)."
+            checked={picture}
+            onChange={setPicture}
+            testId="prep-picture"
+          />
         </ChecklistItem>
       </Checklist>
 

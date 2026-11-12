@@ -161,7 +161,8 @@ describe('a run with a mailbox, downloads and notifications', () => {
     await writeFile(join(dir, 'assets', 'terms.pdf'), pdf);
     const project = makeProject(dir, { app: server.url });
     project.config.mailbox = { provider: 'mailpit', url: `${server.url}/mailpit`, poll_ms: 150 };
-    const rec = await runScenario({ policy: PERSON_POLICY,
+    const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario: makeScenario('artefacts', {
         pacing: FAST,

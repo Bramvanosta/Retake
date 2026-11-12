@@ -351,10 +351,7 @@ function mockOf(spec: WriteMockSpec, from: WriteMock['from']): WriteMock {
  * also guards `access.protected` (the hosts of the project's other read-only environments); a read-write run guards
  * only those. Throws on a malformed pattern (validation refuses them first).
  */
-export function compileWritePolicy(
-  env: ResolvedEnvironment,
-  opts: { scenarioMocks?: readonly WriteMockSpec[]; access?: Pick<RunAccess, 'mode' | 'protected' | 'writable'> } = {},
-): WritePolicy {
+export function compileWritePolicy(env: ResolvedEnvironment, opts: { scenarioMocks?: readonly WriteMockSpec[]; access?: Pick<RunAccess, 'mode' | 'protected' | 'writable'> } = {}): WritePolicy {
   const readOnly = (opts.access?.mode ?? 'read-only') === 'read-only';
   const hosts: string[] = [];
   const add = (h: string) => {

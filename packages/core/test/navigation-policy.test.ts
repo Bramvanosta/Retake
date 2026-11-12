@@ -5,7 +5,19 @@
  */
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentTrustProblems, agentTrustProblemsAt, canonicalAddress, canonicalIp, canonicalOrigin, isPageOrigin, navigationProblem, pageOrigins, parseScenario, parseYaml, scenarioNavigationRefs } from '@retake/core';
+import {
+  agentTrustProblems,
+  agentTrustProblemsAt,
+  canonicalAddress,
+  canonicalIp,
+  canonicalOrigin,
+  isPageOrigin,
+  navigationProblem,
+  pageOrigins,
+  parseScenario,
+  parseYaml,
+  scenarioNavigationRefs,
+} from '@retake/core';
 import { loadProject, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
 import { memoryFileFacts } from '@retake/core';
@@ -212,9 +224,10 @@ describe('validation: every scenario', () => {
   it('a `<page>:` prefix that names no page is refused even when it would open nothing a browser reads (`admin_consol:/x`)', async () => {
     const f = FIELDS[1];
     for (const u of ['"shop_x:/quotes"', '"_shop:/quotes"']) {
-      expect(errorsAt(f.yaml(u), await project(), f.path).map((e) => e.message), u).toEqual([
-        expect.stringMatching(/: "_?shop_?x?:" is not a page of environment "local".*\(available: console, shop\) — write `<page>:\/path` with a page of the environment/),
-      ]);
+      expect(
+        errorsAt(f.yaml(u), await project(), f.path).map((e) => e.message),
+        u,
+      ).toEqual([expect.stringMatching(/: "_?shop_?x?:" is not a page of environment "local".*\(available: console, shop\) — write `<page>:\/path` with a page of the environment/)]);
     }
   });
 
@@ -240,7 +253,11 @@ describe('agent trust: the environment origins', () => {
       const p = await project();
       for (const url of ['http://localhost:4403/x', 'https://elsewhere.example.test/']) {
         const s = sc(f.yaml(JSON.stringify(url)));
-        expect(agentTrustProblems(p, s, { files: nodeFileFacts, env }), url).toEqual([expect.stringMatching(new RegExp(`^${f.path.map((k) => (typeof k === 'number' ? `\\[${k}\\]` : `\\.?${k}`)).join('')}: .* is on .*add its origin as a page of environment local in project\\.yaml`))]);
+        expect(agentTrustProblems(p, s, { files: nodeFileFacts, env }), url).toEqual([
+          expect.stringMatching(
+            new RegExp(`^${f.path.map((k) => (typeof k === 'number' ? `\\[${k}\\]` : `\\.?${k}`)).join('')}: .* is on .*add its origin as a page of environment local in project\\.yaml`),
+          ),
+        ]);
         expect(agentTrustProblems(p, s, { files: nodeFileFacts }), url).toEqual([]);
       }
       for (const url of ['http://localhost:4402/x', 'http://LOCALHOST:4401/', '/x', 'about:blank', '{{vars.u}}']) {

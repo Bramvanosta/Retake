@@ -5,7 +5,21 @@ import { perfSummary } from '@retake/core/run';
 import { readTimeline } from '@retake/core/io';
 import type { Timeline } from '@retake/core/model';
 import type { RunProgress, RunRecord } from '@retake/core/run';
-import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, agentWrittenShellHooks, callerOf, listingContext, reserveListedRun, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
+import {
+  FilmingMarker,
+  RunOptionError,
+  SandboxTakeError,
+  TakeBeside,
+  agentWrittenShellHooks,
+  callerOf,
+  listingContext,
+  reserveListedRun,
+  checkAllowWrites,
+  prepareRun,
+  runInProcess,
+  selfIdentity,
+  writesSummary,
+} from '@retake/engine';
 import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
 import { askAgentHooks } from '../agent-hooks.js';
 import { heavyGate } from '../heavy-gate.js';
@@ -56,13 +70,7 @@ function rawFlagsWithoutRaw(o: RunCommandOptions): string[] {
 }
 
 /** `retake run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
-export async function runCommand(
-  ui: Ui,
-  global: GlobalOptions,
-  projectArg: string,
-  scenarioArg: string,
-  opts: RunCommandOptions,
-): Promise<ExitCode> {
+export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions): Promise<ExitCode> {
   const json = opts.json === true;
   const emitJson = (e: RunProgress) => ui.result(JSON.stringify(e));
   const stray = rawFlagsWithoutRaw(opts);
@@ -145,7 +153,11 @@ export async function runCommand(
   const onFilming = (state: FilmingEvent): FilmingReport | undefined => {
     if (state === 'start' && !marker) {
       marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner });
-      beside = new TakeBeside({ root: ws.root, own: () => marker?.name, onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`) });
+      beside = new TakeBeside({
+        root: ws.root,
+        own: () => marker?.name,
+        onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`),
+      });
       beside.start();
     } else if (state === 'pause' || state === 'resume') marker?.setPaused(state === 'pause');
     else if (state === 'stop') {

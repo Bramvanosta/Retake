@@ -205,7 +205,12 @@ export interface SaveResult {
  * null (or absent) for a new file, which must not exist when written. An existing scenarios/<name>.yml is refused
  * (a new .yaml would shadow it).
  */
-export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: WorkFileFacts }): Promise<SaveResult> {
+export async function saveScenarioText(
+  project: LoadedProject,
+  name: string,
+  yaml: string,
+  opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: WorkFileFacts },
+): Promise<SaveResult> {
   checkScenarioName(name);
   const ref = scenarioRef(name);
   if (existsSync(scenarioFile(project.dir, name, '.yml'))) {
@@ -224,7 +229,13 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
     );
     if (linked) throw new EngineError('refused', `${ref} is a symbolic link to a file outside scenarios/: an agent writes scenarios only inside scenarios/ — edit it in your editor`);
   }
-  const { scenario, issues: parsed } = parseScenario(yaml, { files: opts.files, file: path, project, template: await templateOf(project, opts.files), ...(opts.agent ? { confined: confinementOf(opts.via ?? 'mcp') } : {}) });
+  const { scenario, issues: parsed } = parseScenario(yaml, {
+    files: opts.files,
+    file: path,
+    project,
+    template: await templateOf(project, opts.files),
+    ...(opts.agent ? { confined: confinementOf(opts.via ?? 'mcp') } : {}),
+  });
   const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via)] : parsed;
   if (hasErrors(issues)) throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, path)}`, issues, path);
   const current = await store.readText(ref);
@@ -302,7 +313,10 @@ export function scenarioEditBlocker(
     return { why: `${file.file} is not UTF-8 text: saving it here would replace the bytes that cannot be read with U+FFFD — edit it in your editor`, problems: [] };
   }
   if (file.yaml.length > SCENARIO_EDIT_MAX_CHARS) {
-    return { why: `${file.file} holds ${file.yaml.length.toLocaleString('en')} characters: the Studio edits scenarios of at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')} — edit it in your editor`, problems: [] };
+    return {
+      why: `${file.file} holds ${file.yaml.length.toLocaleString('en')} characters: the Studio edits scenarios of at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')} — edit it in your editor`,
+      problems: [],
+    };
   }
   const cr = /\r(?!\n)/.exec(file.yaml);
   if (cr) {
@@ -316,7 +330,10 @@ export function scenarioEditBlocker(
   }
   if (!o.agent) return null;
   if (file.linked_to !== undefined) {
-    return { why: `${file.file} is a symbolic link to ${file.linked_to}, outside scenarios/: the Studio writes scenarios only inside scenarios/ — edit it in your editor; the Studio shows it read-only.`, problems: [] };
+    return {
+      why: `${file.file} is a symbolic link to ${file.linked_to}, outside scenarios/: the Studio writes scenarios only inside scenarios/ — edit it in your editor; the Studio shows it read-only.`,
+      problems: [],
+    };
   }
   if (!scenario) return null;
   const problems = agentTrustProblemsAt(project, scenario, file.yaml, { via: confinementOf(o.via), files: nodeFileFacts });
@@ -487,7 +504,9 @@ export async function prepareScenarioEdit(
       throw new EngineError('invalid', `unknown edit kind "${String((edit as { kind?: unknown }).kind).slice(0, 40)}"`);
   }
   if (text.length > SCENARIO_EDIT_MAX_CHARS) {
-    throw new EngineError('invalid', `the scenario would hold ${text.length.toLocaleString('en')} characters: the Studio writes at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, { fix: 'shorten it, or edit it in your editor' });
+    throw new EngineError('invalid', `the scenario would hold ${text.length.toLocaleString('en')} characters: the Studio writes at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, {
+      fix: 'shorten it, or edit it in your editor',
+    });
   }
   // A restored version was on disk once (knownScenarioVersion): its hidden characters are the person's own.
   const hidden = edit.kind === 'restore' ? null : newHiddenCharProblem(text, base.yaml);

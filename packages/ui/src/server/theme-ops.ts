@@ -70,7 +70,8 @@ export function themeOps(o: ThemeOpsOptions = {}) {
   const preview = defineTool({
     name: 'theme_preview',
     title: "A theme's live preview",
-    description: "The theme editor's live preview of the theme's intro, its layout with its caption (clip), its outro or one component in the theme — with colours being changed applied in memory — as the preview frame's capability URLs.",
+    description:
+      "The theme editor's live preview of the theme's intro, its layout with its caption (clip), its outro or one component in the theme — with colours being changed applied in memory — as the preview frame's capability URLs.",
     input: PreviewInput,
     annotations: READ,
     async run(a, { engine }) {
@@ -86,7 +87,11 @@ export function themeOps(o: ThemeOpsOptions = {}) {
 }
 
 /** The workspace components among `ids` that the person has not allowed in the preview (empty without an allow-list). */
-async function heldOf(registry: Parameters<typeof import('../player/bundle-player.js')['workspaceComponents']>[0], ids: readonly string[], allow: PreviewAllowList | undefined): Promise<NonNullable<PreviewHeld['preview_held']>> {
+async function heldOf(
+  registry: Parameters<typeof import('../player/bundle-player.js')['workspaceComponents']>[0],
+  ids: readonly string[],
+  allow: PreviewAllowList | undefined,
+): Promise<NonNullable<PreviewHeld['preview_held']>> {
   if (!allow) return [];
   const used = new Set(ids);
   const { workspaceComponents } = await import('../player/bundle-player.js');

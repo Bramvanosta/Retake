@@ -73,12 +73,7 @@ describe('the board (L5.2b)', () => {
       { kind: 'comment', project: 'no-such-project', scenario: 'quote' },
       { kind: 'step_form', project: P, scenario: 'no-such-scenario' },
     ]);
-    expect(b.items()).toEqual([
-      { kind: 'comment' },
-      { kind: 'readme', project: P },
-      { kind: 'step_form', project: P },
-      { kind: 'yaml_draft', project: P, scenario: 'quote' },
-    ]);
+    expect(b.items()).toEqual([{ kind: 'comment' }, { kind: 'readme', project: P }, { kind: 'step_form', project: P }, { kind: 'yaml_draft', project: P, scenario: 'quote' }]);
   });
 
   it('reports of one tab apply in call order: a report still checking its names when the empty one (pagehide) comes never re-adds the tab (A M1 / B M3)', async () => {
@@ -90,7 +85,10 @@ describe('the board (L5.2b)', () => {
     expect(b.tabCount).toBe(0);
     expect(b.items()).toEqual([]);
     // Two states in flight: the newer one wins even when the older one finishes last.
-    const older = b.report(tab(2), false, [{ kind: 'readme', project: P }, { kind: 'yaml_draft', project: P, scenario: 'quote' }]);
+    const older = b.report(tab(2), false, [
+      { kind: 'readme', project: P },
+      { kind: 'yaml_draft', project: P, scenario: 'quote' },
+    ]);
     const newer = b.report(tab(2), false, [{ kind: 'comment' }]);
     await Promise.all([older, newer]);
     expect(b.items()).toEqual([{ kind: 'comment' }]);
@@ -111,12 +109,7 @@ describe('the board (L5.2b)', () => {
       { kind: 'step_form', project: 'Not A Slug', scenario: 'quote' },
       { kind: 'yaml_draft', project: P, scenario: 'quote' },
     ]);
-    expect(b.items()).toEqual([
-      { kind: 'comment', project: P },
-      { kind: 'readme' },
-      { kind: 'step_form' },
-      { kind: 'yaml_draft', project: P, scenario: 'quote' },
-    ]);
+    expect(b.items()).toEqual([{ kind: 'comment', project: P }, { kind: 'readme' }, { kind: 'step_form' }, { kind: 'yaml_draft', project: P, scenario: 'quote' }]);
   });
 
   it(`a new tab beyond ${UNSAVED_TABS_MAX} is refused; the tabs already there keep reporting (critique L3)`, async () => {
@@ -152,7 +145,14 @@ describe('the op unsaved_report through the Studio server', () => {
     }
     expect((await call({ tab: tab(1), hidden: false, items: [] }, 'x'.repeat(43))).status).toBe(401);
     expect(studio.unsaved.items()).toEqual([]);
-    const ok = await call({ tab: tab(1), hidden: false, items: [{ kind: 'readme', project: P }, { kind: 'comment', project: '../outside', scenario: 'quote' }] });
+    const ok = await call({
+      tab: tab(1),
+      hidden: false,
+      items: [
+        { kind: 'readme', project: P },
+        { kind: 'comment', project: '../outside', scenario: 'quote' },
+      ],
+    });
     expect(ok.status).toBe(200);
     expect(studio.unsaved.items()).toEqual([{ kind: 'comment' }, { kind: 'readme', project: P }]);
     expect((await call({ tab: tab(1), hidden: true, items: [] })).status).toBe(200);

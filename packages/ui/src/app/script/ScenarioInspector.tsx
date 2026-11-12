@@ -104,7 +104,19 @@ export function altOf(step: StepBlock, scene: string, run: string, mode: string)
 }
 
 /** A step's picture from the source run, or why there is none — in words, in the same box. */
-export function StepPicture({ binding, source, step, scene, size }: { binding: StepBinding | undefined; source: { run: string; mode: string } | null; step: StepBlock; scene: string; size: 'frame' | 'inspector' }) {
+export function StepPicture({
+  binding,
+  source,
+  step,
+  scene,
+  size,
+}: {
+  binding: StepBinding | undefined;
+  source: { run: string; mode: string } | null;
+  step: StepBlock;
+  scene: string;
+  size: 'frame' | 'inspector';
+}) {
   if (!source) return <NoThumb size={size}>No run with pictures yet</NoThumb>;
   if (!binding) return <NoThumb size={size}>Not in this run</NoThumb>;
   if ('missing' in binding) return <NoThumb size={size}>{shown(missingWords(binding))}</NoThumb>;
@@ -113,8 +125,29 @@ export function StepPicture({ binding, source, step, scene, size }: { binding: S
   return <Thumb run={source.run} runKey={binding.run_key} size={size} alt={visibleControls(altOf(step, scene, source.run, source.mode))} />;
 }
 
-
-function StepInspector({ v, slug, name, scene, step, sceneNo, ed, forms, moves, onShowYaml }: { v: View; slug: string; name: string; scene: SceneBlock; step: StepBlock; sceneNo: number | undefined; ed: StepEditor; forms: StepForms | null; moves: StepMoves; onShowYaml: (r: Range) => void }) {
+function StepInspector({
+  v,
+  slug,
+  name,
+  scene,
+  step,
+  sceneNo,
+  ed,
+  forms,
+  moves,
+  onShowYaml,
+}: {
+  v: View;
+  slug: string;
+  name: string;
+  scene: SceneBlock;
+  step: StepBlock;
+  sceneNo: number | undefined;
+  ed: StepEditor;
+  forms: StepForms | null;
+  moves: StepMoves;
+  onShowYaml: (r: Range) => void;
+}) {
   const b = v.steps[step.key];
   const bound = b && !('missing' in b) ? b : undefined;
   const page = v.untrusted.steps[step.key];
@@ -218,9 +251,7 @@ function StepInspector({ v, slug, name, scene, step, sceneNo, ed, forms, moves, 
       </InspectorSection>
       <InspectorSection title="As written" collapsible defaultOpen={!form}>
         <Args args={step.args} />
-        {step.chips.length > 0 && (
-          <Facts label="Modifiers" rows={step.chips.map((c, i) => ({ key: String(i), label: shown(c.kind), value: <Txt text={c.label} /> }))} />
-        )}
+        {step.chips.length > 0 && <Facts label="Modifiers" rows={step.chips.map((c, i) => ({ key: String(i), label: shown(c.kind), value: <Txt text={c.label} /> }))} />}
         {step.comment && (
           <p className="sb-pre sc-quiet">
             <Txt text={step.comment} />
@@ -248,8 +279,15 @@ function PagesFact({ e, f }: { e: SceneBlock; f: View['scenes'][string] }) {
       {(e.pages ?? []).map((p) => {
         const pf = facts.get(p.id);
         const page = pf?.page ?? p.page;
-        const where = pf?.continues_from !== undefined ? `continues from ${pf.continues_from}` : pf?.url !== undefined ? `${pf.url}${pf.display !== undefined ? ` shown as ${pf.display}` : ''}` : (p.open ?? '—');
-        const parts = [p.id + (p.label !== undefined ? ` (${p.label})` : ''), ...(page !== undefined ? [`page ${page}`] : []), where, ...(p.viewport !== undefined ? [p.viewport] : []), ...(p.persona !== undefined ? [`persona ${p.persona}`] : [])];
+        const where =
+          pf?.continues_from !== undefined ? `continues from ${pf.continues_from}` : pf?.url !== undefined ? `${pf.url}${pf.display !== undefined ? ` shown as ${pf.display}` : ''}` : (p.open ?? '—');
+        const parts = [
+          p.id + (p.label !== undefined ? ` (${p.label})` : ''),
+          ...(page !== undefined ? [`page ${page}`] : []),
+          where,
+          ...(p.viewport !== undefined ? [p.viewport] : []),
+          ...(p.persona !== undefined ? [`persona ${p.persona}`] : []),
+        ];
         return (
           <li key={p.id}>
             <Txt text={parts.join(' · ')} />
@@ -273,8 +311,7 @@ export function SceneFlags({ e }: { e: SceneBlock }) {
 
 function SceneInspector({ v, e, sceneNo, onShowYaml }: { v: View; e: SceneBlock; sceneNo: number | undefined; onShowYaml: (r: Range) => void }) {
   const f = v.scenes[e.id] ?? {};
-  const url =
-    f.continues_from !== undefined ? `continues from ${f.continues_from}` : f.url !== undefined ? `${f.url}${f.display !== undefined ? ` shown as ${f.display}` : ''}` : (e.open ?? '—');
+  const url = f.continues_from !== undefined ? `continues from ${f.continues_from}` : f.url !== undefined ? `${f.url}${f.display !== undefined ? ` shown as ${f.display}` : ''}` : (e.open ?? '—');
   const rows: Array<{ key: string; label: ReactNode; value: ReactNode }> = e.pages
     ? [{ key: 'pages', label: 'Pages', value: <PagesFact e={e} f={f} /> }]
     : [
@@ -436,7 +473,11 @@ function HooksInspector({ v, phase }: { v: View; phase: 'before' | 'after' }) {
 function endCard(c: VideoBlock['intro']): string {
   if (c.mode === 'theme') return "the theme's";
   if (c.mode === 'off') return 'none';
-  return [c.component, c.file ? `${c.file.kind} ${c.file.path}` : undefined, c.duration !== undefined ? `${c.duration} s` : undefined, c.tagline ? `“${c.tagline}”` : undefined, c.url].filter(Boolean).join(' · ') || 'custom';
+  return (
+    [c.component, c.file ? `${c.file.kind} ${c.file.path}` : undefined, c.duration !== undefined ? `${c.duration} s` : undefined, c.tagline ? `“${c.tagline}”` : undefined, c.url]
+      .filter(Boolean)
+      .join(' · ') || 'custom'
+  );
 }
 
 /** The Video inspector's location (review A L6): the file's own, and the tab's choice for Dry run and Capture when it differs. */
@@ -461,7 +502,24 @@ function VideoInspector({ v, comments, location }: { v: View; comments: ReactNod
     ...(b.tutorial !== undefined ? [{ key: 'tutorial', label: 'Tutorial', value: <Txt text={b.tutorial} /> }] : []),
     ...(b.clock !== undefined ? [{ key: 'clock', label: 'Clock', value: <Txt text={b.clock} /> }] : []),
     ...(b.capture
-      ? [{ key: 'capture', label: 'Capture', value: <Txt text={[b.capture.width && b.capture.height ? `${b.capture.width} × ${b.capture.height}` : undefined, b.capture.fps ? `${b.capture.fps} fps` : undefined, b.capture.scale ? `scale ${b.capture.scale}` : undefined, b.capture.keep_frames === true ? 'frames kept' : undefined].filter(Boolean).join(' · ')} /> }]
+      ? [
+          {
+            key: 'capture',
+            label: 'Capture',
+            value: (
+              <Txt
+                text={[
+                  b.capture.width && b.capture.height ? `${b.capture.width} × ${b.capture.height}` : undefined,
+                  b.capture.fps ? `${b.capture.fps} fps` : undefined,
+                  b.capture.scale ? `scale ${b.capture.scale}` : undefined,
+                  b.capture.keep_frames === true ? 'frames kept' : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              />
+            ),
+          },
+        ]
       : []),
     ...(b.pacing ? [{ key: 'pacing', label: 'Pacing', value: <Txt text={b.pacing.join(', ')} /> }] : []),
     ...(b.vars ? [{ key: 'vars', label: 'Variables', value: <Txt text={b.vars.join(', ')} /> }] : []),

@@ -110,9 +110,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     // The committed manifest, on free ports, without the bundle check (built above once: parallel forks would race).
     let manifest = await readFile(join(FIXTURE_PROJECT, 'sandbox', 'sandbox.yaml'), 'utf8');
     ['4501', '4502', '4503', '4504'].forEach((p, i) => (manifest = manifest.replaceAll(p, String(ports[i]))));
-    manifest = manifest
-      .replace('command: [node, server.mjs,', `command: [node, ${JSON.stringify(join(REPO, 'fixtures/wholesale/server.mjs'))}, --no-build,`)
-      .replace(/\n\s+cwd: [^\n]+/, '');
+    manifest = manifest.replace('command: [node, server.mjs,', `command: [node, ${JSON.stringify(join(REPO, 'fixtures/wholesale/server.mjs'))}, --no-build,`).replace(/\n\s+cwd: [^\n]+/, '');
     expect(manifest).toContain(`--no-build, --console-port, "${ports[0]}"`);
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest);
     // The committed scenario, quicker.
@@ -176,9 +174,21 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     expect(take1.err).toMatch(/sandbox {3}sandbox \(process\) · reset \(reseed\) \d+ ms before the take · seed [0-9a-f]{12}/);
     const one = await lastRun('sandbox-quote');
     expect(one.record.status).toBe('succeeded');
-    expect(one.record.environment?.sandbox).toEqual({ name: 'sandbox', provider: 'process', strategy: 'reseed', restored: false, reset_ms: expect.any(Number), seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/), at: expect.any(String) });
+    expect(one.record.environment?.sandbox).toEqual({
+      name: 'sandbox',
+      provider: 'process',
+      strategy: 'reseed',
+      restored: false,
+      reset_ms: expect.any(Number),
+      seed_hash: expect.stringMatching(/^[0-9a-f]{12}$/),
+      at: expect.any(String),
+    });
     const timeline = JSON.parse(await readFile(join(one.dir, 'timeline.json'), 'utf8'));
-    expect(timeline.environment).toMatchObject({ name: 'sandbox', sandbox: { name: 'sandbox', strategy: 'reseed' }, display: [{ page: 'console' }, { page: 'shop', display: 'https://shop.northfield.example' }] });
+    expect(timeline.environment).toMatchObject({
+      name: 'sandbox',
+      sandbox: { name: 'sandbox', strategy: 'reseed' },
+      display: [{ page: 'console' }, { page: 'shop', display: 'https://shop.northfield.example' }],
+    });
     expect(one.texts['new-quote'].value).toMatch(/^Q-\d+ · requested Today, 10:24$/);
     // The buyer signed in off camera by the sandbox account; its plain password (only typed, off camera) is in none of
     // the run's files. That it is masked wherever it would appear: runner-web auth.test.ts 'a sandbox account (L1.8)…'.
@@ -344,7 +354,10 @@ describe('retake sandbox init and the docker-compose flags (L1.8 part C, no Dock
     const dir = join(iws, 'projects', 'proc');
     await mkdir(join(dir, 'sandbox'), { recursive: true });
     await writeFile(join(dir, 'project.yaml'), 'name: Proc\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {sandbox: sandbox/sandbox.yaml}\n');
-    await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), 'version: 1\nprovider: process\nservices:\n  app: {command: [node, -e, "0"], url: "http://localhost:9", pages: {app: "http://localhost:9"}}\n');
+    await writeFile(
+      join(dir, 'sandbox', 'sandbox.yaml'),
+      'version: 1\nprovider: process\nservices:\n  app: {command: [node, -e, "0"], url: "http://localhost:9", pages: {app: "http://localhost:9"}}\n',
+    );
     const build = await cli(['sandbox', 'up', 'proc', '--build']);
     expect(build.code).toBe(EXIT.usage);
     expect(build.err).toMatch(/--build is for docker-compose sandboxes: sandbox sandbox is provider process/);

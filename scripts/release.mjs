@@ -43,7 +43,15 @@ export const releaseFiles = (version) => ({ dmg: dmgName(version), archive: UPDA
 export const CONFIG_SETS = {
   apple: {
     what: 'A Developer ID build, notarised',
-    names: { APPLE_CERTIFICATE: 'secret', APPLE_CERTIFICATE_PASSWORD: 'secret', APPLE_SIGNING_IDENTITY: 'secret', APPLE_TEAM_ID: 'secret', APPLE_API_KEY: 'secret', APPLE_API_ISSUER: 'secret', APPLE_API_KEY_P8: 'secret' },
+    names: {
+      APPLE_CERTIFICATE: 'secret',
+      APPLE_CERTIFICATE_PASSWORD: 'secret',
+      APPLE_SIGNING_IDENTITY: 'secret',
+      APPLE_TEAM_ID: 'secret',
+      APPLE_API_KEY: 'secret',
+      APPLE_API_ISSUER: 'secret',
+      APPLE_API_KEY_P8: 'secret',
+    },
     off: 'No Apple signing set: an ad hoc build, not notarised (Gatekeeper asks for Open Anyway) — docs/RELEASING.md',
   },
   updater: {
@@ -90,7 +98,9 @@ export function preflight(version, env = process.env) {
     const repo = { private: env.REPO_PRIVATE === 'false' ? false : env.REPO_PRIVATE === 'true' ? true : undefined, visibility: env.REPO_VISIBILITY?.trim() || undefined };
     if (!isPublic(repo)) {
       const seen = env.REPO_PRIVATE?.trim() ? `private: ${env.REPO_PRIVATE.trim()}, visibility: ${env.REPO_VISIBILITY?.trim() || '?'}` : 'its visibility unknown';
-      errors.push(`The update feed: the repository is not public (${seen}) — an installed app downloads its updates with no credentials: make the repository public, or remove the updater set (an app without updates)`);
+      errors.push(
+        `The update feed: the repository is not public (${seen}) — an installed app downloads its updates with no credentials: make the repository public, or remove the updater set (an app without updates)`,
+      );
     }
     const pub = env.RETAKE_UPDATE_PUBKEY.trim();
     try {
@@ -116,7 +126,10 @@ export function tagVersion(tag, versions = readVersions(REPO)) {
   const version = t.slice(1);
   const want = versions[0]?.version;
   const off = versions.filter((f) => f.version !== want);
-  if (off.length) throw new ReleaseError(`the repository's version files disagree (${off.map((f) => `${f.path}: ${f.version}`).join(', ')}; package.json: ${want}): node scripts/set-version.mjs <version>, commit, tag that commit`);
+  if (off.length)
+    throw new ReleaseError(
+      `the repository's version files disagree (${off.map((f) => `${f.path}: ${f.version}`).join(', ')}; package.json: ${want}): node scripts/set-version.mjs <version>, commit, tag that commit`,
+    );
   if (want !== version) throw new ReleaseError(`the tag ${t} is not the repository's version (${want}): node scripts/set-version.mjs ${version}, commit on main, then tag that commit`);
   return { version, prerelease: version.includes('-') };
 }
@@ -135,8 +148,9 @@ export function releaseNotes(version, { signed, updates, changelog = join(REPO, 
   lines.push('2. The `retake` command: Help › Set Up Retake… › Command line › Install (it links `~/.local/bin/retake` to the app).');
   lines.push('');
   if (signed === true) lines.push('Signed with a Developer ID and notarised by Apple: it opens without a warning.', '');
-  else if (signed === false) lines.push('**Not notarised**: this build is signed ad hoc. macOS refuses its first open — try to open it once, then System Settings › Privacy & Security › **Open Anyway**.', '');
-  else lines.push('_The macOS build is attached when the release workflow\'s `attach` job ends._', '');
+  else if (signed === false)
+    lines.push('**Not notarised**: this build is signed ad hoc. macOS refuses its first open — try to open it once, then System Settings › Privacy & Security › **Open Anyway**.', '');
+  else lines.push("_The macOS build is attached when the release workflow's `attach` job ends._", '');
   if (updates === 'on') lines.push('It updates itself: a check at launch, Help › Check for Updates… any time.', '');
   else if (updates === 'off') lines.push('Updates are off in this build: install the next version from its release.', '');
   lines.push(`Each file's SHA-256 is in \`SHA256SUMS-macos.txt\`. What changed: ${changes}.`);
@@ -184,16 +198,25 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       for (const w of warnings) process.stdout.write(`::warning::${w}\n`);
       for (const e of errors) process.stdout.write(`::error::${e}\n`);
       if (errors.length) process.exit(1);
-      appendFileSync(rest[1], Object.entries(outputs).map(([k, v]) => `${k}=${v}\n`).join(''));
+      appendFileSync(
+        rest[1],
+        Object.entries(outputs)
+          .map(([k, v]) => `${k}=${v}\n`)
+          .join(''),
+      );
       process.stdout.write(`signed=${outputs.signed} updates=${outputs.updates}\n`);
     } else if (command === 'files') {
       if (!VERSION_RE.test(String(arg ?? ''))) throw new ReleaseError(`"${arg}" is not a version (no leading v)`);
-      process.stdout.write(Object.entries(releaseFiles(arg)).map(([k, v]) => `${k}=${v}\n`).join(''));
+      process.stdout.write(
+        Object.entries(releaseFiles(arg))
+          .map(([k, v]) => `${k}=${v}\n`)
+          .join(''),
+      );
     } else {
       throw new ReleaseError('usage: release.mjs tag <tag> | notes <version> [--signed true|false] [--updates on|off] | feed <version> | preflight <version> --output <file> | files <version>');
     }
   } catch (e) {
-    process.stderr.write(`release: ${e instanceof ReleaseError || e instanceof PublishError ? e.message : e?.stack ?? e}\n`);
+    process.stderr.write(`release: ${e instanceof ReleaseError || e instanceof PublishError ? e.message : (e?.stack ?? e)}\n`);
     process.exit(1);
   }
 }

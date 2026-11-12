@@ -7,7 +7,21 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MEDIA_COMPONENTS, isTemplateMediaRef, mediaFileOf, mediaSegmentUse, overlayUseOf, parseScenario, parseTemplateYaml, readLottieMeta, resolveThemeComponents, videoProbeFromJson, workPolicyFrom, DEFAULT_TEMPLATE, PERSON_POLICY } from '@retake/core';
+import {
+  MEDIA_COMPONENTS,
+  isTemplateMediaRef,
+  mediaFileOf,
+  mediaSegmentUse,
+  overlayUseOf,
+  parseScenario,
+  parseTemplateYaml,
+  readLottieMeta,
+  resolveThemeComponents,
+  videoProbeFromJson,
+  workPolicyFrom,
+  DEFAULT_TEMPLATE,
+  PERSON_POLICY,
+} from '@retake/core';
 import { probeVideoFile, fileFacts } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { colOf, fakeProject, lineOf, tempDir } from './helpers.js';
@@ -24,7 +38,18 @@ const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const ffmpeg = (args: string[]) => execFileSync('ffmpeg', ['-v', 'error', '-y', ...args]);
 
 /** A minimal valid bodymovin animation (one shape layer, 30 fps, 45 frames, 200 × 100). */
-export const LOTTIE = JSON.stringify({ v: '5.7.4', fr: 30, ip: 0, op: 45, w: 200, h: 100, nm: 'dot', ddd: 0, assets: [], layers: [{ ddd: 0, ind: 1, ty: 4, nm: 'dot', sr: 1, ks: {}, ao: 0, shapes: [], ip: 0, op: 45, st: 0, bm: 0 }] });
+export const LOTTIE = JSON.stringify({
+  v: '5.7.4',
+  fr: 30,
+  ip: 0,
+  op: 45,
+  w: 200,
+  h: 100,
+  nm: 'dot',
+  ddd: 0,
+  assets: [],
+  layers: [{ ddd: 0, ind: 1, ty: 4, nm: 'dot', sr: 1, ks: {}, ao: 0, shapes: [], ip: 0, op: 45, st: 0, bm: 0 }],
+});
 
 const fmt = (issues: ValidationIssue[]) => issues.map((i) => `${i.severity} ${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);
 
@@ -76,9 +101,17 @@ describe('probing', () => {
     const fmtJson = (streams: object[], duration = '2.0') => ({ streams, format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2', duration } });
     const prores = videoProbeFromJson(fmtJson([{ codec_type: 'video', codec_name: 'prores', profile: '4444', pix_fmt: 'yuva444p12le', width: 320, height: 240, avg_frame_rate: '30/1' }]));
     expect(prores).toMatchObject({ codec: 'prores', alpha: true, audio: false, width: 320, height: 240, fps: 30, duration_s: 2 });
-    const vp9 = videoProbeFromJson({ streams: [{ codec_type: 'video', codec_name: 'vp9', pix_fmt: 'yuv420p', width: 480, height: 480, r_frame_rate: '30/1', tags: { ALPHA_MODE: '1' } }], format: { format_name: 'matroska,webm', duration: '1.2' } });
+    const vp9 = videoProbeFromJson({
+      streams: [{ codec_type: 'video', codec_name: 'vp9', pix_fmt: 'yuv420p', width: 480, height: 480, r_frame_rate: '30/1', tags: { ALPHA_MODE: '1' } }],
+      format: { format_name: 'matroska,webm', duration: '1.2' },
+    });
     expect(vp9).toMatchObject({ codec: 'vp9', alpha: true, container: 'matroska,webm' });
-    const h264 = videoProbeFromJson(fmtJson([{ codec_type: 'video', codec_name: 'h264', pix_fmt: 'yuv420p', width: 1920, height: 1080, avg_frame_rate: '30000/1001' }, { codec_type: 'audio', codec_name: 'aac' }]));
+    const h264 = videoProbeFromJson(
+      fmtJson([
+        { codec_type: 'video', codec_name: 'h264', pix_fmt: 'yuv420p', width: 1920, height: 1080, avg_frame_rate: '30000/1001' },
+        { codec_type: 'audio', codec_name: 'aac' },
+      ]),
+    );
     expect(h264).toMatchObject({ alpha: false, audio: true, fps: 29.97 });
     expect(() => videoProbeFromJson({ streams: [{ codec_type: 'audio' }] })).toThrow(/no video stream/);
   });
@@ -88,7 +121,13 @@ describe('probing', () => {
     expect(() => readLottieMeta('{nope')).toThrow(/not a JSON file/);
     expect(() => readLottieMeta('{"a": 1}')).toThrow(/not a Lottie \(bodymovin\) animation: fr, ip, op, w, h, layers missing/);
     expect(() => readLottieMeta(JSON.stringify({ ...JSON.parse(LOTTIE), op: 0 }))).toThrow(/no frames/);
-    const external = { ...JSON.parse(LOTTIE), assets: [{ id: 'i', p: 'img_0.png', u: 'images/', e: 0 }, { id: 'j', p: 'data:image/png;base64,AA', e: 1 }] };
+    const external = {
+      ...JSON.parse(LOTTIE),
+      assets: [
+        { id: 'i', p: 'img_0.png', u: 'images/', e: 0 },
+        { id: 'j', p: 'data:image/png;base64,AA', e: 1 },
+      ],
+    };
     expect(readLottieMeta(JSON.stringify(external)).external_images).toBe(1);
   });
 });
@@ -102,7 +141,19 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
     const a = (f: string) => join(dir, 'assets', f);
     // 2 s H.264 with a tone; 1 s VP9 with alpha; 1 s H.264 without alpha; an MPEG-4 Part 2 video; a PNG; a Lottie.
     ffmpeg(['-f', 'lavfi', '-i', 'color=c=0x204060:s=160x90:d=2:r=30', '-f', 'lavfi', '-i', 'sine=f=440:d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', a('intro.mp4')]);
-    ffmpeg(['-f', 'lavfi', '-i', 'color=c=red@0.0:s=64x64:d=1:r=30,format=rgba,geq=r=255:g=0:b=0:a=if(lt(X\\,32)\\,255\\,0)', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0', a('burst.webm')]);
+    ffmpeg([
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=red@0.0:s=64x64:d=1:r=30,format=rgba,geq=r=255:g=0:b=0:a=if(lt(X\\,32)\\,255\\,0)',
+      '-c:v',
+      'libvpx-vp9',
+      '-pix_fmt',
+      'yuva420p',
+      '-auto-alt-ref',
+      '0',
+      a('burst.webm'),
+    ]);
     ffmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:d=1:r=30', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', a('opaque.mp4')]);
     ffmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:d=1:r=30', '-c:v', 'mpeg4', a('old.mp4')]);
     ffmpeg(['-f', 'lavfi', '-i', 'color=c=white:s=64x48', '-frames:v', '1', a('end.png')]);
@@ -230,7 +281,10 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
     const saved = process.env.RETAKE_FFPROBE;
     process.env.RETAKE_FFPROBE = inside;
     try {
-      const issues = parseScenario('video: own\nintro: {video: assets/intro.mp4}\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hover: {text: Save}\n', { files: fileFacts(workPolicyFrom([dir])), project: fakeProject(dir) }).issues;
+      const issues = parseScenario('video: own\nintro: {video: assets/intro.mp4}\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hover: {text: Save}\n', {
+        files: fileFacts(workPolicyFrom([dir])),
+        project: fakeProject(dir),
+      }).issues;
       expect(issues.filter((i) => i.severity === 'error').map((i) => i.message)).toEqual([
         expect.stringMatching(/^"assets\/intro\.mp4" is not a video the renderer can read: \$RETAKE_FFPROBE \(.*\/bin\/ffprobe\) lies inside the workspace /),
       ]);

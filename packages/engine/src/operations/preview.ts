@@ -18,9 +18,11 @@ export function previewSummary(job: JobRecord): string {
     if (r.skipped?.length) lines.push(`the ${r.theme} theme shows no ${r.skipped.join(', ')} (none picked)`);
     if (r.untrusted.warnings.length) lines.push(`the network guard blocked requests of a component: "untrusted.warnings" names the origins`);
   }
-  if (job.state === 'failed' && job.error) lines.push(`failed: ${job.error.code} — the message is in "untrusted.error" (it can quote a component's error)${job.error.fix ? `; a human runs: ${job.error.fix}` : ''}`);
+  if (job.state === 'failed' && job.error)
+    lines.push(`failed: ${job.error.code} — the message is in "untrusted.error" (it can quote a component's error)${job.error.fix ? `; a human runs: ${job.error.fix}` : ''}`);
   if (job.state === 'interrupted' && job.error) lines.push(job.error.message);
-  if (job.state === 'queued' || job.state === 'running') lines.push(`follow it: job_status {job_id: "${job.id}", wait_s: ${WAIT_MAX_S}} (it returns the images); stop it: job_cancel {job_id: "${job.id}"}`);
+  if (job.state === 'queued' || job.state === 'running')
+    lines.push(`follow it: job_status {job_id: "${job.id}", wait_s: ${WAIT_MAX_S}} (it returns the images); stop it: job_cancel {job_id: "${job.id}"}`);
   return lines.join('\n');
 }
 
@@ -38,7 +40,12 @@ export async function previewOutput(engine: Engine, sub: PreviewSubmitted, waitS
       theme: sub.theme,
       targets: sub.targets,
       ...(sub.skipped.length ? { skipped: sub.skipped } : {}),
-      job: { id: job.id, state: job.state, ...(job.progress ? { progress: job.progress } : {}), ...(job.error ? { error: { code: job.error.code, ...(job.error.fix ? { fix: job.error.fix } : {}) } } : {}) },
+      job: {
+        id: job.id,
+        state: job.state,
+        ...(job.progress ? { progress: job.progress } : {}),
+        ...(job.error ? { error: { code: job.error.code, ...(job.error.fix ? { fix: job.error.fix } : {}) } } : {}),
+      },
       ...(r ? { dir: r.dir, stills: r.images } : {}),
       ...(Object.keys(untrusted).length ? { untrusted } : {}),
     },

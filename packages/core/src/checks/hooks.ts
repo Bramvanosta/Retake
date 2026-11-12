@@ -88,10 +88,7 @@ function checkHook(raw: unknown, p: IssuePath, ctx: CheckContext, opts: HookChec
         if (!spec.code === !spec.file) ctx.error(kp, 'js needs exactly one of `code` or `file`');
         if (spec.file) ctx.file(spec.file, [...kp, 'file'], 'JS file', 'error');
         if (spec.page && opts.pages && !opts.pages.includes(spec.page)) {
-          ctx.error(
-            [...kp, 'page'],
-            `unknown page "${spec.page}"${suggestion(spec.page, opts.pages)} (available: ${opts.pages.join(', ') || 'none'})`,
-          );
+          ctx.error([...kp, 'page'], `unknown page "${spec.page}"${suggestion(spec.page, opts.pages)} (available: ${opts.pages.join(', ') || 'none'})`);
         }
       }
       break;
@@ -103,7 +100,10 @@ function checkHook(raw: unknown, p: IssuePath, ctx: CheckContext, opts: HookChec
         if (opts.saved.has(name)) ctx.error([...kp, 'save_as'], `save_as "${name}" is already used by another hook`);
         opts.saved.add(name);
       }
-      for (const [req, rp] of [[http, kp], [http.rollback, [...kp, 'rollback']]] as Array<[HttpHookSpec['rollback'], IssuePath]>) {
+      for (const [req, rp] of [
+        [http, kp],
+        [http.rollback, [...kp, 'rollback']],
+      ] as Array<[HttpHookSpec['rollback'], IssuePath]>) {
         if (!isObj(req) || req.auth === undefined) continue;
         if (opts.noPersonaAuth) ctx.error([...rp, 'auth'], opts.noPersonaAuth, { path: [...rp, 'auth'], key: true });
         const header = Object.keys(req.headers ?? {}).find((h) => ['authorization', 'cookie'].includes(h.toLowerCase()));

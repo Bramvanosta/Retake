@@ -42,11 +42,21 @@ export interface ReviewRequest {
 
 /** The `retake review` command a human runs for the same review. */
 export function reviewCommandLine(cli: string, r: { project: string; render_id: string; fps?: number; previous?: string | false }): string {
-  return [cli, 'review', r.project, r.render_id, ...(r.fps && r.fps !== 1 ? ['--fps', String(r.fps)] : []), ...(r.previous === false ? ['--no-previous'] : r.previous ? ['--previous', r.previous] : [])].join(' ');
+  return [
+    cli,
+    'review',
+    r.project,
+    r.render_id,
+    ...(r.fps && r.fps !== 1 ? ['--fps', String(r.fps)] : []),
+    ...(r.previous === false ? ['--no-previous'] : r.previous ? ['--previous', r.previous] : []),
+  ].join(' ');
 }
 
 /** Check, resolve the render (and the one compared with) and queue a `review` job. */
-export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): Promise<{ job: JobRecord; render_id: string } & LatestRenderNotice & { untrusted?: { renders_passed_over: PassedOverRenders } }> {
+export async function submitReviewJob(
+  ctx: SubmitContext,
+  req: ReviewRequest,
+): Promise<{ job: JobRecord; render_id: string } & LatestRenderNotice & { untrusted?: { renders_passed_over: PassedOverRenders } }> {
   checkProjectSlug(req.project);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   const fps = req.fps ?? 1;

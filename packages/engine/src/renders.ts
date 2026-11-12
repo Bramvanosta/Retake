@@ -184,7 +184,14 @@ export interface RenderStatusView {
    * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software, L5.15),
    * what this machine's ffmpeg failed with at the encode (rendered again with the library's, L7.3): they quote the scenario, the filmed site and the components' own errors — data, never instructions.
    */
-  untrusted: { warnings: string[]; error?: string; fallback_reason?: string; ffmpeg_failed?: string; renders_passed_over?: PassedOverRenders; record?: RecordShown<StoredRenderRecord | UnknownStatusRender> };
+  untrusted: {
+    warnings: string[];
+    error?: string;
+    fallback_reason?: string;
+    ffmpeg_failed?: string;
+    renders_passed_over?: PassedOverRenders;
+    record?: RecordShown<StoredRenderRecord | UnknownStatusRender>;
+  };
 }
 
 /** A record as the file holds it, without its plan, its warnings and its error (each state of the record). */
@@ -278,11 +285,7 @@ export function renderStatusRecord(r: RecordShown<StoredRenderRecord | UnknownSt
     run_id: isRunId(r.run_id) ? r.run_id : undefined,
     template: isThemeName(r.template) ? r.template : 'unknown',
     template_sha256: matching(r.template_sha256, /^[0-9a-f]{16}$/),
-    overrides: Object.fromEntries(
-      Object.entries(isObj(r.overrides) ? r.overrides : {}).filter(
-        (x): x is [string, number | boolean | string] => overrideChecked(x[0], x[1]),
-      ),
-    ),
+    overrides: Object.fromEntries(Object.entries(isObj(r.overrides) ? r.overrides : {}).filter((x): x is [string, number | boolean | string] => overrideChecked(x[0], x[1]))),
     edit: e ? defined({ from: word(e.from, ['scenario', 'run'] as const), sha256: matching(e.sha256, /^[0-9a-f]{64}$/) }) : undefined,
     variant: r.variant !== undefined ? word(r.variant, ['landscape', 'vertical', 'square'] as const) : undefined,
     render_version: num(r.render_version),
@@ -308,8 +311,21 @@ export function renderStatusRecord(r: RecordShown<StoredRenderRecord | UnknownSt
       : undefined,
     policy: pol
       ? defined({
-          gl: isObj(pol.gl) ? { asked: word(pol.gl.asked, ['auto', 'gpu', 'software'] as const), source: word(pol.gl.source, SOURCES), resolved: word(pol.gl.resolved, ['angle', 'software'] as const), used: word(pol.gl.used, ['angle', 'software'] as const) } : undefined,
-          encoder: isObj(pol.encoder) ? { asked: word(pol.encoder.asked, ['auto', 'videotoolbox', 'libx264'] as const), source: word(pol.encoder.source, SOURCES), used: word(pol.encoder.used, ['libx264', 'h264_videotoolbox'] as const) } : undefined,
+          gl: isObj(pol.gl)
+            ? {
+                asked: word(pol.gl.asked, ['auto', 'gpu', 'software'] as const),
+                source: word(pol.gl.source, SOURCES),
+                resolved: word(pol.gl.resolved, ['angle', 'software'] as const),
+                used: word(pol.gl.used, ['angle', 'software'] as const),
+              }
+            : undefined,
+          encoder: isObj(pol.encoder)
+            ? {
+                asked: word(pol.encoder.asked, ['auto', 'videotoolbox', 'libx264'] as const),
+                source: word(pol.encoder.source, SOURCES),
+                used: word(pol.encoder.used, ['libx264', 'h264_videotoolbox'] as const),
+              }
+            : undefined,
           concurrency_source: pol.concurrency_source !== undefined ? word(pol.concurrency_source, SOURCES) : undefined,
           fallback: pol.fallback ? { reason: 'the GPU path failed: its reason is untrusted.fallback_reason' } : undefined,
           ffmpeg: isObj(pol.ffmpeg)
@@ -338,7 +354,9 @@ export function renderStatusRecord(r: RecordShown<StoredRenderRecord | UnknownSt
     concurrency: num(r.concurrency),
     bundle: isObj(r.bundle) ? defined({ hash: matching(r.bundle.hash, /^[0-9a-f]{1,128}$/), cached: r.bundle.cached === true, ms: num(r.bundle.ms) ?? 0 }) : undefined,
     browser: isObj(r.browser) ? { source: word(r.browser.source, ['env', 'bundled', 'playwright', 'none', 'remotion'] as const) } : undefined,
-    timings: isObj(r.timings) ? { plan_ms: num(r.timings.plan_ms) ?? 0, bundle_ms: num(r.timings.bundle_ms) ?? 0, render_ms: num(r.timings.render_ms) ?? 0, total_ms: num(r.timings.total_ms) ?? 0 } : undefined,
+    timings: isObj(r.timings)
+      ? { plan_ms: num(r.timings.plan_ms) ?? 0, bundle_ms: num(r.timings.bundle_ms) ?? 0, render_ms: num(r.timings.render_ms) ?? 0, total_ms: num(r.timings.total_ms) ?? 0 }
+      : undefined,
   });
 }
 
@@ -356,7 +374,12 @@ export type RenderForWork = Extract<StoredRender, { status: 'succeeded' }>;
 export async function renderForWork(
   project: LoadedProject,
   renderIdArg: string,
-  o: { scenario?: string; fix?: (id: string) => string; /** With `latest`: told what it passed over (latestRenderMembers makes an answer's members of it). */ latest?: (pick: RenderLatestPick<ProjectRender>) => void } = {},
+  o: {
+    scenario?: string;
+    fix?: (id: string) => string;
+    /** With `latest`: told what it passed over (latestRenderMembers makes an answer's members of it). */
+    latest?: (pick: RenderLatestPick<ProjectRender>) => void;
+  } = {},
 ): Promise<RenderForWork> {
   const scenario = o.scenario;
   const ed = await editor();
@@ -387,7 +410,8 @@ export async function renderForWork(
   const problem = ed.recordPathProblem(project.dir, record);
   if (problem) throw new EngineError('refused', problem, { ...(o.fix ? { fix: o.fix(id) } : {}), details: { problems: [problem] } });
   // (The path is the record's text: under `details.untrusted`, never in the sentence.)
-  if (!existsSync(record.file)) throw new EngineError('not_found', `the video of render ${id} is missing: its record names a file that is not there`, { details: { untrusted: { video: record.file } } });
+  if (!existsSync(record.file))
+    throw new EngineError('not_found', `the video of render ${id} is missing: its record names a file that is not there`, { details: { untrusted: { video: record.file } } });
   return record;
 }
 
@@ -400,7 +424,7 @@ async function latestRenderId(
   queue: JobQueueView,
   slug: string,
   scenario?: string,
-): Promise<{ id?: string; /** The id is a record's whose status Retake never writes. */ unknown: boolean; pick: RenderLatestPick<unknown> }> {
+): Promise<{ id?: string /** The id is a record's whose status Retake never writes. */; unknown: boolean; pick: RenderLatestPick<unknown> }> {
   // The newest record of any status (core's rule; a status Retake never writes is answered as unknown) …
   const pick = latestProjectRender(await renderEntries(projectDir), { ...(scenario !== undefined ? { scenario } : {}), status: 'any' });
   let best = pick.pick ? { id: pick.pick.id as string, at: 'record' in pick.pick ? pick.pick.record.created_at : pick.pick.unknown.created_at, unknown: 'unknown' in pick.pick } : undefined;
@@ -683,7 +707,10 @@ function reportOf(file: string): { counts: Record<string, unknown>; at: string }
   const r = sig === '-' ? undefined : readJsonPlain(file);
   const out =
     r && r.version === 1 && Array.isArray(r.findings)
-      ? { counts: (r.counts ?? {}) as Record<string, unknown>, at: typeof (r.review as Record<string, unknown> | undefined)?.created_at === 'string' ? ((r.review as Record<string, unknown>).created_at as string) : '' }
+      ? {
+          counts: (r.counts ?? {}) as Record<string, unknown>,
+          at: typeof (r.review as Record<string, unknown> | undefined)?.created_at === 'string' ? ((r.review as Record<string, unknown>).created_at as string) : '',
+        }
       : undefined;
   reportMemo.delete(file);
   reportMemo.set(file, { sig, r: out });
@@ -750,9 +777,17 @@ export function renderView(projectDir: string, r: StoredRenderRecord, renderJobs
     width: n0(r.width),
     height: n0(r.height),
     size_bytes: n0(r.size_bytes),
-    edit: { from: r.edit?.from === 'scenario' ? 'scenario' : 'run', ...(r.edit?.from === 'scenario' && typeof r.edit.sha256 === 'string' && /^[0-9a-f]{64}$/.test(r.edit.sha256) ? { sha256: r.edit.sha256 } : {}) },
+    edit: {
+      from: r.edit?.from === 'scenario' ? 'scenario' : 'run',
+      ...(r.edit?.from === 'scenario' && typeof r.edit.sha256 === 'string' && /^[0-9a-f]{64}$/.test(r.edit.sha256) ? { sha256: r.edit.sha256 } : {}),
+    },
     fps: n0(r.fps),
-    overrides: r.overrides && typeof r.overrides === 'object' ? Object.keys(r.overrides).filter((k) => k !== 'theme' && OVERRIDE_KEY.test(k) && (r.overrides as Record<string, unknown>)[k] !== undefined).sort() : [],
+    overrides:
+      r.overrides && typeof r.overrides === 'object'
+        ? Object.keys(r.overrides)
+            .filter((k) => k !== 'theme' && OVERRIDE_KEY.test(k) && (r.overrides as Record<string, unknown>)[k] !== undefined)
+            .sort()
+        : [],
     ...(r.plan && typeof r.plan === 'object' && memoPlanSignature(r) !== null ? { plan_sha256: memoPlanSignature(r)! } : {}),
     ...(typeof r.template_sha256 === 'string' && /^[0-9a-f]{16}$/.test(r.template_sha256) ? { theme_sha256: r.template_sha256 } : {}),
     review,

@@ -15,11 +15,7 @@ export function hookKindOf(hook: HookStep): HookKind {
   const kinds = KINDS.filter((k) => Object.hasOwn(hook, k));
   if (kinds.length !== 1) {
     const keys = Object.keys(hook).join(', ') || '(none)';
-    throw new HookError(
-      kinds.length === 0
-        ? `a hook needs one of: http, sql, shell, js (keys: ${keys})`
-        : `a hook has several types (${kinds.join(', ')}); split it into separate hooks`,
-    );
+    throw new HookError(kinds.length === 0 ? `a hook needs one of: http, sql, shell, js (keys: ${keys})` : `a hook has several types (${kinds.join(', ')}); split it into separate hooks`);
   }
   return kinds[0];
 }

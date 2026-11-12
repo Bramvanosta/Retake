@@ -133,7 +133,15 @@ export class MemoryHookJournal implements HookJournal {
     const results: HookResult[] = [];
     for (const entry of entries) {
       const action = entry.rollback!;
-      const base = { index: entry.seq, ...(entry.name !== undefined ? { name: entry.name } : {}), kind: action.kind, phase: 'rollback' as const, description: action.description, journal_seq: entry.seq, ms: 0 };
+      const base = {
+        index: entry.seq,
+        ...(entry.name !== undefined ? { name: entry.name } : {}),
+        kind: action.kind,
+        phase: 'rollback' as const,
+        description: action.description,
+        journal_seq: entry.seq,
+        ms: 0,
+      };
       if (ctx.dryRun) {
         results.push({ ...base, ok: true, status: 'dry', message: 'not executed (dry run)' });
         continue;
@@ -209,12 +217,14 @@ export class MemoryHookRunner implements HookRunner {
       else if (v && typeof v === 'object') Object.values(v).forEach(walk);
     };
     walk(hook);
-    return strings.flatMap((t) => listTemplateTokens(t)).some((expr) => {
-      const path = expr.split('.').map((x) => x.trim());
-      if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
-      if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
-      return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
-    });
+    return strings
+      .flatMap((t) => listTemplateTokens(t))
+      .some((expr) => {
+        const path = expr.split('.').map((x) => x.trim());
+        if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
+        if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
+        return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
+      });
   }
 
   #reason(hook: HookStep, kind: HookKind, place: MemoryHookPlace, ctx: HookContext, written: boolean): string | null {
@@ -313,7 +323,15 @@ export class MemoryHookRunner implements HookRunner {
     return this.#journaled(journal, hook, kind, place, ctx, out.status === 'ok' ? 'ok' : 'failed', result);
   }
 
-  #journaled(journal: MemoryHookJournal, hook: HookStep, kind: HookKind, place: MemoryHookPlace, ctx: HookContext, status: 'ok' | 'failed', result: HookResult): { result: HookResult; entry: JournalEntry } {
+  #journaled(
+    journal: MemoryHookJournal,
+    hook: HookStep,
+    kind: HookKind,
+    place: MemoryHookPlace,
+    ctx: HookContext,
+    status: 'ok' | 'failed',
+    result: HookResult,
+  ): { result: HookResult; entry: JournalEntry } {
     const at = new Date(0).toISOString();
     const rollback = status === 'ok' && journalsRollback(place.phase) ? rollbackOf(hook, kind) : undefined;
     const entry = journal.add({

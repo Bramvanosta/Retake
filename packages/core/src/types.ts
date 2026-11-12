@@ -95,16 +95,7 @@ export type ComponentKind =
   /** Transition between two segments. */
   | 'transition';
 
-export const COMPONENT_KINDS: readonly ComponentKind[] = [
-  'intro',
-  'outro',
-  'card',
-  'interstitial',
-  'caption',
-  'layout',
-  'overlay',
-  'transition',
-] as const;
+export const COMPONENT_KINDS: readonly ComponentKind[] = ['intro', 'outro', 'card', 'interstitial', 'caption', 'layout', 'overlay', 'transition'] as const;
 
 /**
  * A component id: "namespace/name", lower-case letters, digits and "-" on each side (e.g. "studio/intro-stack").
@@ -543,20 +534,7 @@ export interface MediaFileFields {
 }
 
 /** Where a box-filling overlay (a user video, image or Lottie) goes over the capture. */
-export const OVERLAY_ANCHORS = [
-  'target',
-  'cursor',
-  'screen',
-  'center',
-  'top-left',
-  'top',
-  'top-right',
-  'left',
-  'right',
-  'bottom-left',
-  'bottom',
-  'bottom-right',
-] as const;
+export const OVERLAY_ANCHORS = ['target', 'cursor', 'screen', 'center', 'top-left', 'top', 'top-right', 'left', 'right', 'bottom-left', 'bottom', 'bottom-right'] as const;
 export type OverlayAnchor = (typeof OVERLAY_ANCHORS)[number];
 
 /**
@@ -999,13 +977,7 @@ export interface HookCommon {
 }
 
 /** `sql: "hooks/x.sql"` (path when it ends with .sql, inline query otherwise); `shell: "cmd"`; `js: "code"`. */
-export type HookStep = HookCommon &
-  (
-    | { http: HttpHookSpec }
-    | { sql: string | SqlHookSpec }
-    | { shell: string | ShellHookSpec }
-    | { js: string | JsHookSpec }
-  );
+export type HookStep = HookCommon & ({ http: HttpHookSpec } | { sql: string | SqlHookSpec } | { shell: string | ShellHookSpec } | { js: string | JsHookSpec });
 
 export type HookKind = 'http' | 'sql' | 'shell' | 'js';
 
@@ -1417,13 +1389,7 @@ export interface ExecStepSpec {
 }
 
 /** One step of a sandbox seed: an http, sql or shell hook (no js: there is no browser), or `exec`. */
-export type SeedStep = HookCommon &
-  (
-    | { http: HttpHookSpec }
-    | { sql: string | SqlHookSpec }
-    | { shell: string | ShellHookSpec }
-    | { exec: ExecStepSpec }
-  );
+export type SeedStep = HookCommon & ({ http: HttpHookSpec } | { sql: string | SqlHookSpec } | { shell: string | ShellHookSpec } | { exec: ExecStepSpec });
 
 /** A demo account the seed creates, bound to the persona of the same name on the sandbox's environment. */
 export interface SandboxAccount extends PersonaConfig {

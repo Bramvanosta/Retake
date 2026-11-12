@@ -171,7 +171,10 @@ function Editor({
       const cur = draftRef.current;
       const text = fileText(cur.text, cur.base.eol);
       if (text.length > YAML_MAX) {
-        setError({ message: `A scenario saved from the Studio holds at most ${YAML_MAX.toLocaleString('en')} characters, its final line break included: this text makes ${text.length.toLocaleString('en')}. Shorten it.`, issues: [] });
+        setError({
+          message: `A scenario saved from the Studio holds at most ${YAML_MAX.toLocaleString('en')} characters, its final line break included: this text makes ${text.length.toLocaleString('en')}. Shorten it.`,
+          issues: [],
+        });
         return;
       }
       const base = over ?? cur.base;
@@ -306,7 +309,9 @@ function Editor({
       {hidden.length > 0 && (
         <Callout state="warn" role="note" title="Warning: hidden characters">
           <p data-testid="yaml-hidden">
-            {shown(`${hidden.join(', ')} hold a direction control or an invisible character: they can make a line read differently from what it does. The Studio saves only those the file already had.`)}
+            {shown(
+              `${hidden.join(', ')} hold a direction control or an invisible character: they can make a line read differently from what it does. The Studio saves only those the file already had.`,
+            )}
           </p>
         </Callout>
       )}
@@ -345,7 +350,13 @@ function Editor({
         </div>
         {shownIssues !== null && (
           <div className="yv-live" aria-live="polite" data-testid="yaml-live">
-            {liveIssues === null ? <p className="sc-quiet">Checking…</p> : liveIssues.length === 0 ? <p className="sc-quiet">No issue in this text.</p> : <IssueLines issues={liveIssues} testId="yaml-live-issues" />}
+            {liveIssues === null ? (
+              <p className="sc-quiet">Checking…</p>
+            ) : liveIssues.length === 0 ? (
+              <p className="sc-quiet">No issue in this text.</p>
+            ) : (
+              <IssueLines issues={liveIssues} testId="yaml-live-issues" />
+            )}
           </div>
         )}
       </div>
@@ -413,7 +424,9 @@ export function FileInspector({ v, slug, name, issues }: { v: View; slug: string
         {dirty && <StatusMark state="waiting" word="Unsaved changes in the editor" />}
         <p className="sc-quiet">Saved with the same checks as Claude's edits: the schema, hooks left unchanged, no hidden characters it did not already have.</p>
         {hidden.length > 0 && <StatusMark state="attention" word={`Hidden characters: ${hidden.join(', ')}`} />}
-        <p className="sc-quiet">{shown(`${plural(v.text.split('\n').length, 'line')} · ${v.text.length.toLocaleString('en')} of ${YAML_MAX.toLocaleString('en')} characters · ${plural(v.blocks.step_count, 'step')}`)}</p>
+        <p className="sc-quiet">
+          {shown(`${plural(v.text.split('\n').length, 'line')} · ${v.text.length.toLocaleString('en')} of ${YAML_MAX.toLocaleString('en')} characters · ${plural(v.blocks.step_count, 'step')}`)}
+        </p>
         {!v.edit.yaml.ok && <StatusMark state="warn" word="Read-only here" />}
       </InspectorSection>
     </div>

@@ -70,7 +70,8 @@ export function siteRoot(ws: OpenedWorkspace): string {
 
 /** <workspace>/.retake/site/<id> (the id checked: never a path). */
 export function siteDir(ws: OpenedWorkspace, id: string): string {
-  if (typeof id !== 'string' || !SITE_ID_RE.test(id)) throw new EngineError('invalid', `invalid site extraction id "${String(id)}": s_ followed by 26 characters (template_from_site returns it), never a path`);
+  if (typeof id !== 'string' || !SITE_ID_RE.test(id))
+    throw new EngineError('invalid', `invalid site extraction id "${String(id)}": s_ followed by 26 characters (template_from_site returns it), never a path`);
   return join(siteRoot(ws), id);
 }
 
@@ -94,7 +95,8 @@ export async function makeSiteDir(ws: OpenedWorkspace, id: string): Promise<stri
     const st = await lstat(parent);
     if (!st.isDirectory()) throw new EngineError('refused', `${parent} is not a folder (a link or a file): site extractions are written only into plain folders of the workspace — remove it`);
   }
-  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts)) throw new EngineError('refused', `${parent} leaves the workspace: site extractions stay in it`);
+  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts))
+    throw new EngineError('refused', `${parent} leaves the workspace: site extractions stay in it`);
   try {
     await mkdir(dir);
   } catch (e) {
@@ -227,7 +229,11 @@ export async function pruneSites(ws: OpenedWorkspace, queue: JobQueueView, keep 
   } catch {
     return [];
   }
-  const old = names.sort().reverse().slice(keep).filter((n) => !spared.has(n));
+  const old = names
+    .sort()
+    .reverse()
+    .slice(keep)
+    .filter((n) => !spared.has(n));
   for (const n of old) await rm(join(siteRoot(ws), n), { recursive: true, force: true }).catch(() => undefined);
   return old;
 }
@@ -251,9 +257,13 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   const fix = siteCommandLine(ctx.cli, first.href);
   const conflicts = await siteHostConflicts(ctx.ws, first.host);
   if (conflicts.length) {
-    throw new EngineError('refused', `url: ${first.host} is ${conflicts.join('; ')}: an environment of a project is filmed through runs and page_inspect (with its access rules), never extracted as a site`, {
-      fix: 'page_inspect {project, url} reads an environment page',
-    });
+    throw new EngineError(
+      'refused',
+      `url: ${first.host} is ${conflicts.join('; ')}: an environment of a project is filmed through runs and page_inspect (with its access rules), never extracted as a site`,
+      {
+        fix: 'page_inspect {project, url} reads an environment page',
+      },
+    );
   }
   const approvals: JobApproval[] = await takeSiteApproval(
     { what: 'site extraction', href: first.href, host: first.host, unicode_host: first.unicode_host, fingerprint: siteApprovalFingerprint(first.href), fix },
@@ -267,7 +277,7 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   await pruneSites(ctx.ws, ctx.queue, SITE_KEEP, [id]);
   const input: SiteJobInput = { version: JOB_INPUT_VERSION, kind: 'site', site_id: id, url: first.href, submitted_by: ctx.client, approvals };
   const job = await ctx.queue.enqueue(input);
-  const warnings = unsafeTestResolve().map.size ? ['the unsafe test resolver (RETAKE_UNSAFE_TEST_RESOLVE) is set in this server\'s environment'] : [];
+  const warnings = unsafeTestResolve().map.size ? ["the unsafe test resolver (RETAKE_UNSAFE_TEST_RESOLVE) is set in this server's environment"] : [];
   return { job, site_id: id, url: first.href, host: first.host, unicode_host: first.unicode_host, dir, warnings };
 }
 
@@ -329,7 +339,11 @@ const ratio = (v: unknown): number => (typeof v === 'number' && Number.isFinite(
 const contrastOf = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(1, Math.min(21, Math.round(v * 100) / 100)) : 1);
 const hexOr = <T>(v: unknown, d: T): string | T => (typeof v === 'string' && HEX.test(v) ? v : d);
 const counts = (v: unknown): Record<string, number> =>
-  Object.fromEntries(Object.entries(v && typeof v === 'object' ? (v as Record<string, unknown>) : {}).filter(([k]) => /^[a-z_]{1,20}$/.test(k)).map(([k, n]) => [k, int(n)]));
+  Object.fromEntries(
+    Object.entries(v && typeof v === 'object' ? (v as Record<string, unknown>) : {})
+      .filter(([k]) => /^[a-z_]{1,20}$/.test(k))
+      .map(([k, n]) => [k, int(n)]),
+  );
 
 /**
  * An extraction as a result shows it, from its report (in memory, or site.json read back): hex colours, numbers,
@@ -350,7 +364,13 @@ export function siteView(ws: OpenedWorkspace, siteId: string, url: SiteUrl, raw:
           swatches: (Array.isArray(pal?.swatches) ? pal.swatches : [])
             .slice(0, 8)
             .filter((s) => s && typeof s === 'object' && typeof (s as { hex?: unknown }).hex === 'string' && HEX.test(s.hex))
-            .map((s) => ({ hex: s.hex, background: ratio(s.background), text: ratio(s.text), interactive: ratio(s.interactive), contrast: { paper: contrastOf(s.contrast?.paper), text: contrastOf(s.contrast?.text) } })),
+            .map((s) => ({
+              hex: s.hex,
+              background: ratio(s.background),
+              text: ratio(s.text),
+              interactive: ratio(s.interactive),
+              contrast: { paper: contrastOf(s.contrast?.paper), text: contrastOf(s.contrast?.text) },
+            })),
         }
       : null;
   const candidates: SiteCandidateResult[] = [];
@@ -392,9 +412,13 @@ export function siteView(ws: OpenedWorkspace, siteId: string, url: SiteUrl, raw:
 export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult> {
   const { input } = ctx;
   if (!(await siteApproved(input, ctx.jobId, ctx.ws.root))) {
-    throw new EngineError('refused', `refused without running: a site job runs only with a human's approval of its exact URL, signed when it was submitted — this one has none (a job file not written by a submit, or edited since)`, {
-      fix: siteCommandLine(ctx.cli, input.url),
-    });
+    throw new EngineError(
+      'refused',
+      `refused without running: a site job runs only with a human's approval of its exact URL, signed when it was submitted — this one has none (a job file not written by a submit, or edited since)`,
+      {
+        fix: siteCommandLine(ctx.cli, input.url),
+      },
+    );
   }
   const url = checkSiteUrl(input.url, siteCommandLine(ctx.cli, input.url));
   const conflicts = await siteHostConflicts(ctx.ws, url.host);
@@ -430,7 +454,11 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
  * `retake theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
  * (the human typed the URL). The same network rules; an environment page or a protected host is a warning here.
  */
-export async function extractSiteForAuthor(ws: OpenedWorkspace, rawUrl: string, o: { queue: JobQueueView; clock: Clock; capture: CaptureRunner; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
+export async function extractSiteForAuthor(
+  ws: OpenedWorkspace,
+  rawUrl: string,
+  o: { queue: JobQueueView; clock: Clock; capture: CaptureRunner; signal?: AbortSignal; onPhase?: (phase: string) => void },
+): Promise<SiteJobResult> {
   const url = checkSiteUrl(rawUrl);
   const conflicts = await siteHostConflicts(ws, url.host);
   const id = newSiteId();
@@ -439,7 +467,15 @@ export async function extractSiteForAuthor(ws: OpenedWorkspace, rawUrl: string, 
   await o.capture.load();
   let report: SiteReport;
   try {
-    report = await o.capture.site.extract({ policy: ws.policy, url: url.href, host: url.host, outDir: dir, testResolve: test.map, ...(o.signal ? { signal: o.signal } : {}), ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
+    report = await o.capture.site.extract({
+      policy: ws.policy,
+      url: url.href,
+      host: url.host,
+      outDir: dir,
+      testResolve: test.map,
+      ...(o.signal ? { signal: o.signal } : {}),
+      ...(o.onPhase ? { onPhase: o.onPhase } : {}),
+    });
   } catch (e) {
     throw toEngineError(e);
   }

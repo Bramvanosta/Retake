@@ -76,7 +76,9 @@ const NATIVES = `({
 
 /** Each native the kit may patch: still native, or replaced. */
 async function natives(page: Page): Promise<Record<string, string>> {
-  return page.evaluate(`(() => { const n = ${NATIVES}; const out = {}; for (const k of Object.keys(n)) out[k] = n[k] === null ? 'absent' : /\\{\\s*\\[native code\\]\\s*\\}\\s*$/.test(Function.prototype.toString.call(n[k])) ? 'native' : 'patched'; return out; })()`);
+  return page.evaluate(
+    `(() => { const n = ${NATIVES}; const out = {}; for (const k of Object.keys(n)) out[k] = n[k] === null ? 'absent' : /\\{\\s*\\[native code\\]\\s*\\}\\s*$/.test(Function.prototype.toString.call(n[k])) ? 'native' : 'patched'; return out; })()`,
+  );
 }
 
 /** The window's own property names (sorted). */
@@ -118,7 +120,9 @@ async function listeners(page: Page, frame: 'main' | 'child' = 'main'): Promise<
     const out: Record<string, string[]> = {};
     for (const name of ['window', 'document']) {
       const { result } = (await cdp.send('Runtime.evaluate', { expression: name, contextId })) as { result: { objectId?: string } };
-      const { listeners: list } = (await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId! })) as { listeners: Array<{ type: string; useCapture: boolean; passive: boolean; once: boolean }> };
+      const { listeners: list } = (await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId! })) as {
+        listeners: Array<{ type: string; useCapture: boolean; passive: boolean; once: boolean }>;
+      };
       out[name] = list.map((l) => `${l.type}${l.useCapture ? ' capture' : ''}${l.passive ? ' passive' : ''}${l.once ? ' once' : ''}`).sort();
     }
     return out;
@@ -266,7 +270,13 @@ async function more(page: Page): Promise<unknown> {
     };
     // A native date input with a range.
     const when = k.find({ label: 'When' }) as { ref: string };
-    out.date = { out_of_range: k.setNativeValue(when.ref, '2027-01-01'), bad: k.setNativeValue(when.ref, 'soon'), ok: k.setNativeValue(when.ref, '2026-05-05'), value: k.fieldValue(when.ref), state: k.fieldState(when.ref) };
+    out.date = {
+      out_of_range: k.setNativeValue(when.ref, '2027-01-01'),
+      bad: k.setNativeValue(when.ref, 'soon'),
+      ok: k.setNativeValue(when.ref, '2026-05-05'),
+      value: k.fieldValue(when.ref),
+      state: k.fieldState(when.ref),
+    };
     // A modal dialog opened with showModal(): the popups, its confirm button, the overlay kept in the top layer.
     const dlg = document.getElementById('dlg') as HTMLDialogElement;
     dlg.showModal();
@@ -311,7 +321,13 @@ async function more(page: Page): Promise<unknown> {
 async function framePointer(page: Page): Promise<unknown> {
   const frame = page.mainFrame().childFrames()[0];
   const out: unknown[] = [];
-  for (const m of [{ hello: 1 }, { __retakePtr: 1, type: 'move', x: 5, y: 6 }, { __retakePtr: 1, type: 'down', x: 7, y: 8 }, { __retakePtr: 1, type: 'up', x: 7, y: 8 }, { __retakePtr: 1, type: 'move', x: 'a', y: 1 }]) {
+  for (const m of [
+    { hello: 1 },
+    { __retakePtr: 1, type: 'move', x: 5, y: 6 },
+    { __retakePtr: 1, type: 'down', x: 7, y: 8 },
+    { __retakePtr: 1, type: 'up', x: 7, y: 8 },
+    { __retakePtr: 1, type: 'move', x: 'a', y: 1 },
+  ]) {
     // The kit's listener was added when it installed: it runs before this one.
     const got = page.evaluate(
       () =>
@@ -365,7 +381,9 @@ async function snapshotOf(): Promise<Record<string, unknown>> {
   // Evaluated again in the same document: the healthy kit of the same version stays (same object).
   out.reinstall_same = await page.evaluate(`(() => { const a = window.__retake; ${kitSource(config)}; return { same: window.__retake === a, healthy: a.healthy() }; })()`);
   // Disposed, then evaluated again: a new kit carries the cursor over.
-  out.after_dispose = await page.evaluate(`(() => { const a = window.__retake; a.dispose(); const healthy = a.healthy(); ${kitSource(config)}; const b = window.__retake; return { healthy, replaced: b !== a, cursor: b.cursor.state(), hosts: document.querySelectorAll('retake-cursor').length }; })()`);
+  out.after_dispose = await page.evaluate(
+    `(() => { const a = window.__retake; a.dispose(); const healthy = a.healthy(); ${kitSource(config)}; const b = window.__retake; return { healthy, replaced: b !== a, cursor: b.cursor.state(), hosts: document.querySelectorAll('retake-cursor').length }; })()`,
+  );
   out.after_dispose_listeners = await listeners(page);
   await page.close();
 

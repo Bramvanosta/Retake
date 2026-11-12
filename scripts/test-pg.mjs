@@ -87,13 +87,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 try {
   const run = docker(
-    'run', '-d', '--rm',
-    '--name', name,
-    '--label', LABEL,
-    '-e', `POSTGRES_USER=${USER}`,
-    '-e', `POSTGRES_PASSWORD=${password}`,
-    '-e', `POSTGRES_DB=${DATABASE}`,
-    '-p', '127.0.0.1::5432',
+    'run',
+    '-d',
+    '--rm',
+    '--name',
+    name,
+    '--label',
+    LABEL,
+    '-e',
+    `POSTGRES_USER=${USER}`,
+    '-e',
+    `POSTGRES_PASSWORD=${password}`,
+    '-e',
+    `POSTGRES_DB=${DATABASE}`,
+    '-p',
+    '127.0.0.1::5432',
     IMAGE,
   );
   if (run.status !== 0) fail(`docker run failed: ${run.stderr}`, 1);

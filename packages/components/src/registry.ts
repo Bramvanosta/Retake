@@ -224,9 +224,7 @@ class Registry implements ComponentRegistry {
     const m = info.manifest;
     if (!usableAs(m, kind)) {
       const same = this.list(kind).map((i) => i.manifest.id);
-      throw new ComponentError(
-        `component "${id}" is ${article(m.kind)} ${m.kind} component, not ${article(kind)} ${kind} (${kind} components: ${same.join(', ') || 'none'})`,
-      );
+      throw new ComponentError(`component "${id}" is ${article(m.kind)} ${m.kind} component, not ${article(kind)} ${kind} (${kind} components: ${same.join(', ') || 'none'})`);
     }
     const schema = (m.params as JsonSchemaNode | undefined) ?? EMPTY_PARAMS;
     const merged = applyParamDefaults(schema, params);

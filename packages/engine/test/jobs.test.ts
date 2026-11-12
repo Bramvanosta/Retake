@@ -196,7 +196,10 @@ describe('FileJobQueue', () => {
   it('events: appended with increasing seq, read after a seq', async () => {
     const q = new FileJobQueue(join(ws, 'q-events'));
     const job = await q.enqueue(INPUT);
-    let seq = await q.append(job.id, 0, [{ type: 'state', state: 'running' }, { type: 'log', level: 'info', message: 'one' }]);
+    let seq = await q.append(job.id, 0, [
+      { type: 'state', state: 'running' },
+      { type: 'log', level: 'info', message: 'one' },
+    ]);
     seq = await q.append(job.id, seq, [{ type: 'log', level: 'warn', message: 'two' }]);
     expect(seq).toBe(3);
     const all = await q.events(job.id);
@@ -231,7 +234,10 @@ describe('the worker lock', () => {
     expect(readWorkerLock(root)?.started_by).toBeUndefined();
     expect(await readFile(join(root, '.retake', 'workers', 'worker.lock'), 'utf8')).not.toContain('started_by');
     odd!.release();
-    await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid: process.pid, host: 'h', version: '0', build: 'b', since: '2026-01-01T00:00:00.000Z', started_by: '<img src=x>' }));
+    await writeFile(
+      join(root, '.retake', 'workers', 'worker.lock'),
+      JSON.stringify({ pid: process.pid, host: 'h', version: '0', build: 'b', since: '2026-01-01T00:00:00.000Z', started_by: '<img src=x>' }),
+    );
     const read = readWorkerLock(root);
     expect(read?.pid).toBe(process.pid);
     expect(read?.started_by).toBeUndefined();
@@ -340,7 +346,7 @@ describe('engine.runs.submit (no worker started)', () => {
       expect(e, JSON.stringify(req)).toBeInstanceOf(EngineError);
       expect((e as EngineError).code, JSON.stringify(req)).toBe('invalid');
     }
-    expect((await engine.runs.submit({ project: 'northfield-fixture', scenario: 'nope', mode: 'dry' }).catch((x: unknown) => x as EngineError) as EngineError).code).toBe('not_found');
+    expect(((await engine.runs.submit({ project: 'northfield-fixture', scenario: 'nope', mode: 'dry' }).catch((x: unknown) => x as EngineError)) as EngineError).code).toBe('not_found');
   });
 
   it('maps the run executor errors: options → invalid, a take interrupted → cancelled, busy → busy', () => {
@@ -366,7 +372,8 @@ describe('a job runs the scenario bytes it was submitted with', () => {
     await writeFile(file(), `${text}\n# changed\n`);
     try {
       const events: unknown[] = [];
-      const e = await executeRunJob({ ...enginePorts(),
+      const e = await executeRunJob({
+        ...enginePorts(),
         ws: await openWorkspace({ root: ws, agent: false }),
         cli: 'retake',
         input: sub.job.input as RunJobInput,

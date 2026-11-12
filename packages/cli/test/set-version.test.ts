@@ -44,7 +44,10 @@ describe('set-version.mjs', () => {
       // Nothing else changed: putting the old number back gives the original text.
       const text = readFileSync(join(base, path), 'utf8');
       const re = files.find((f) => f.path === path) as unknown as { re: RegExp };
-      expect(text.replace(re.re, (_: string, a: string, _v: string, b: string) => `${a}${before}${b}`), path).toBe(readFileSync(join(REPO, path), 'utf8'));
+      expect(
+        text.replace(re.re, (_: string, a: string, _v: string, b: string) => `${a}${before}${b}`),
+        path,
+      ).toBe(readFileSync(join(REPO, path), 'utf8'));
     }
     // The same version again changes nothing.
     expect(sv.setVersion('0.3.0-rc.1', base)).toEqual([]);

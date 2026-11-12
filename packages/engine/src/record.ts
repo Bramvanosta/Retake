@@ -342,7 +342,11 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
   await ports.capture.load();
   const { sessions } = ports.capture;
   const log = ports.log ?? (() => undefined);
-  const command = (ports.loginCommand ?? ((p) => `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({ project: project.slug, env: env.name, persona: persona.name });
+  const command = (ports.loginCommand ?? ((p) => `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({
+    project: project.slug,
+    env: env.name,
+    persona: persona.name,
+  });
   let status: string;
   let detail = '';
   try {
@@ -522,7 +526,12 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   else if (scenarioTaken(project, name)) notSaved = 'name_taken';
   else {
     try {
-      const r = await saveScenarioText(project, name, draft.yaml, { files: fileFacts(ws.policy), ifMatch: null, agent: req.agent === true, scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli'), clock: ports.clock, stores: ports.stores } });
+      const r = await saveScenarioText(project, name, draft.yaml, {
+        files: fileFacts(ws.policy),
+        ifMatch: null,
+        agent: req.agent === true,
+        scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli'), clock: ports.clock, stores: ports.stores },
+      });
       saved = { file: r.file, path: r.path, hash: r.hash };
     } catch (e) {
       const err = toEngineError(e);
@@ -548,17 +557,32 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   return { ...base, dir, draft: draftFile, saved, ...(notSaved ? { not_saved: notSaved } : {}), check };
 }
 
-async function history(ws: OpenedWorkspace, clock: Clock, project: LoadedProject, req: RecordRequest, state: string, started: number, id: string, steps: number, saved: boolean, on = true): Promise<void> {
+async function history(
+  ws: OpenedWorkspace,
+  clock: Clock,
+  project: LoadedProject,
+  req: RecordRequest,
+  state: string,
+  started: number,
+  id: string,
+  steps: number,
+  saved: boolean,
+  on = true,
+): Promise<void> {
   if (!on) return;
-  await appendHistory(ws.root, {
-    kind: 'record',
-    project: project.slug,
-    submitted_by: req.submittedBy ?? 'cli',
-    state,
-    ms: Date.now() - started,
-    record: { id, steps, saved },
-    counted: { captures: 0, dry_runs: 0, renders: 0 },
-  }, clock).catch(() => undefined);
+  await appendHistory(
+    ws.root,
+    {
+      kind: 'record',
+      project: project.slug,
+      submitted_by: req.submittedBy ?? 'cli',
+      state,
+      ms: Date.now() - started,
+      record: { id, steps, saved },
+      counted: { captures: 0, dry_runs: 0, renders: 0 },
+    },
+    clock,
+  ).catch(() => undefined);
 }
 
 /** The dry replay of a fresh draft (see the module comment). Never throws: a failure is the check's result. */

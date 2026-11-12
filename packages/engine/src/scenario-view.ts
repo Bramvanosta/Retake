@@ -27,16 +27,7 @@ import { SLUG_RE } from '@retake/core/model';
 import { isRunId } from '@retake/core/ids';
 import { environmentAccess, resolveEnvironment } from '@retake/core/environment';
 import { projectPath } from '@retake/core/project';
-import {
-  filmedChanges,
-  parseScenario,
-  matchRunSteps,
-  movedSteps,
-  sceneStepFingerprints,
-  scenarioBlocks,
-  scenarioTextChanged,
-  stripUrlUserinfo,
-} from '@retake/core/scenario';
+import { filmedChanges, parseScenario, matchRunSteps, movedSteps, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core/scenario';
 import { orderRuns, parseRunRecord } from '@retake/core/run';
 import { loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core/model';
@@ -555,11 +546,25 @@ export class ScenarioViews {
         else if (previous) facts.continues_from = previous;
         scenes[s.id] = facts;
       }
-      if (!identity.has(s.id)) identity.set(s.id, { context: s.context, steps: s.steps.map((st) => ({ ...(st.fingerprint ? { fp: st.fingerprint } : {}), ...(st.fingerprint && st.action ? { action: st.action } : {}), ...(st.picture ? { picture: st.picture } : {}), n: st.occurrence })) });
+      if (!identity.has(s.id))
+        identity.set(s.id, {
+          context: s.context,
+          steps: s.steps.map((st) => ({
+            ...(st.fingerprint ? { fp: st.fingerprint } : {}),
+            ...(st.fingerprint && st.action ? { action: st.action } : {}),
+            ...(st.picture ? { picture: st.picture } : {}),
+            n: st.occurrence,
+          })),
+        });
       previous = s.id;
     }
     const shown = trimBlocks(blocks, VIEW_STEPS_MAX);
-    const edit = await editAbility(p, file, { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio', files: fileFacts(this.ctx.ws.policy) }, { parsed: blocks.parsed, ok, truncated: shown.keys !== null });
+    const edit = await editAbility(
+      p,
+      file,
+      { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio', files: fileFacts(this.ctx.ws.policy) },
+      { parsed: blocks.parsed, ok, truncated: shown.keys !== null },
+    );
     return remember(this.texts, key, { at: Date.now(), blocks, shown, ok, issues, run_blockers, environment, scenes, identity, edit });
   }
 
@@ -764,7 +769,12 @@ function studioBlockers(b: { dry: RunBlocker[]; capture: RunBlocker[] }, blocks:
   const errors = issues.filter((i) => i.severity === 'error').length;
   const one = (x: RunBlocker): RunBlocker => {
     if (!ok && x.code === 'invalid') {
-      return { code: 'invalid', kind: 'invalid', message: `the file has ${errors} error${errors === 1 ? '' : 's'} (listed with the blocks): fix the file first — a run from the terminal refuses it too`, fix_file: true };
+      return {
+        code: 'invalid',
+        kind: 'invalid',
+        message: `the file has ${errors} error${errors === 1 ? '' : 's'} (listed with the blocks): fix the file first — a run from the terminal refuses it too`,
+        fix_file: true,
+      };
     }
     const fixNode = x.fix ? nodeCommand(x.fix) : undefined;
     return { ...x, message: humanPaths(x.message, blocks), ...(fixNode ? { fix_node: fixNode } : {}) };

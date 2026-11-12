@@ -160,7 +160,11 @@ function clipTutorialOverlays(s: PlanScope, c: ClipPass): void {
   if (!tutorialOn) return;
   // A multi-page clip plans each page's overlays on its own page (its events, its size) — in that page's pane.
   const groups = seg.panes
-    ? seg.panes.map((p, i) => ({ pane: i, events: entry.events.filter((ev) => ev.step < 0 || ev.page === p.page), css: { w: paneSource(planShape, p).cssWidth, h: paneSource(planShape, p).cssHeight } }))
+    ? seg.panes.map((p, i) => ({
+        pane: i,
+        events: entry.events.filter((ev) => ev.step < 0 || ev.page === p.page),
+        css: { w: paneSource(planShape, p).cssWidth, h: paneSource(planShape, p).cssHeight },
+      }))
     : [{ pane: -1, events: entry.events, css: { w: cssW, h: cssH } }];
   // Badges are numbered once over the whole clip, in time order (steps may go back and forth between pages).
   const badgeNumbers = planBadgeNumbers(entry.events, (ev) => stateOf(entry.scene, ev), videoBadges);
@@ -338,9 +342,7 @@ function clipTiming(s: PlanScope, c: ClipPass, out: ClipDetails): void {
     timemap.push({ out_from: F + n, out_to: F + n + seg.heldFrames, src_from_s: lastSrc, src_to_s: lastSrc, scene: entry.scene.id });
   }
   seg.speeds = speeds;
-  seg.trims = run.cuts
-    .filter((x) => x.clip === d.clip.index)
-    .map((x): TrimSpan => ({ at: x.at - k0, src_from_s: round(x.a / srcFps), src_to_s: round(x.b / srcFps), reason: x.reason }));
+  seg.trims = run.cuts.filter((x) => x.clip === d.clip.index).map((x): TrimSpan => ({ at: x.at - k0, src_from_s: round(x.a / srcFps), src_to_s: round(x.b / srcFps), reason: x.reason }));
   seg.zooms = d.clip.moves.map((m): ZoomSpan => {
     const [vx, vy] = clampView(m.zoom, m.focus.x, m.focus.y, cssW, cssH);
     const z: ZoomSpan = {

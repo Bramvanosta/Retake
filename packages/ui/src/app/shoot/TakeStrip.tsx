@@ -144,7 +144,8 @@ function Pictures({ v, pick, onPick }: { v: View; pick: string | undefined; onPi
         <Callout state="warn" role="note" title="What the browser does changed since this run" testId="notice-changed">
           {s.filmed_changes && s.filmed_changes.length > 0 && <Txt text={`Changed: ${s.filmed_changes.join('; ')}.`} />}
           <p data-testid="changed-since">
-            A render of this run shows the take as it was captured: capture again to film the change. The pictures show the run as it was: steps changed or added since have no picture, and a moved step shows its old place.
+            A render of this run shows the take as it was captured: capture again to film the change. The pictures show the run as it was: steps changed or added since have no picture, and a moved
+            step shows its old place.
           </p>
         </Callout>
       )}
@@ -184,7 +185,21 @@ function Pictures({ v, pick, onPick }: { v: View; pick: string | undefined; onPi
   );
 }
 
-export function TakeStrip({ v, slug, name, pick, onPick, location }: { v: View; slug: string; name: string; pick: string | undefined; onPick: (run: string | undefined) => void; location: RunLocation | null }) {
+export function TakeStrip({
+  v,
+  slug,
+  name,
+  pick,
+  onPick,
+  location,
+}: {
+  v: View;
+  slug: string;
+  name: string;
+  pick: string | undefined;
+  onPick: (run: string | undefined) => void;
+  location: RunLocation | null;
+}) {
   const last = useLastStart(slug, name);
   const submitted = last && 'run_id' in last ? v.runs.find((r) => r.id === last.run_id) : undefined;
   const ended = submitted && FINISHED_RUN.has(submitted.status) && v.running?.id !== submitted.id ? submitted : undefined;
@@ -203,8 +218,7 @@ export function TakeStrip({ v, slug, name, pick, onPick, location }: { v: View; 
         />
         {s && (
           <p className="sb-source" data-testid="source-line">
-            <StatusMark state={RUN_MARK[s.status] ?? 'idle'} word={`${modeWord(s.mode)} ${s.run} · ${RUN_STATUS_WORDS[s.status] ?? 'unknown'}`} />{' '}
-            <When iso={s.finished_at} />
+            <StatusMark state={RUN_MARK[s.status] ?? 'idle'} word={`${modeWord(s.mode)} ${s.run} · ${RUN_STATUS_WORDS[s.status] ?? 'unknown'}`} /> <When iso={s.finished_at} />
             {s.hooks && <span className="sc-quiet">{shown(` · hooks: setup ${s.hooks.setup}, teardown ${s.hooks.teardown}`)}</span>}
           </p>
         )}

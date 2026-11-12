@@ -69,11 +69,14 @@ describe('quoted test titles in docs/requirements.json', () => {
     await writeFile(json, JSON.stringify({ items }));
     const r = check(json);
     const past = ' (possibly reads past the quote; reword the prose after it)';
-    expect(r.stdout.trim().split('\n')).toEqual([`R-BAD-01 (evidence): ${file} has no test titled '${wrongTail}'${past}`, `R-BAD-02 (evidence): ${file} has no test titled '${wrongAfterQuote}'${past}`]);
+    expect(r.stdout.trim().split('\n')).toEqual([
+      `R-BAD-01 (evidence): ${file} has no test titled '${wrongTail}'${past}`,
+      `R-BAD-02 (evidence): ${file} has no test titled '${wrongAfterQuote}'${past}`,
+    ]);
     expect(r.status).toBe(1);
   });
 
-  it("an ambiguous end is said so: a possessive in the prose after a good cite; a wrong tail past a quoted word is checked up to it (limits)", async () => {
+  it('an ambiguous end is said so: a possessive in the prose after a good cite; a wrong tail past a quoted word is checked up to it (limits)', async () => {
     const file = 'packages/core/test/requirements-cites.test.ts';
     const d = 'quoted test titles in docs/requirements.json';
     const good = 'every quoted title names a test of its file';

@@ -199,10 +199,18 @@ export function checkWords(c: RecordCheckView): { title: string; tone: 'info' | 
   switch (c.status) {
     case 'passed':
       return c.scope === 'until_write'
-        ? { title: 'Check passed up to the first write', tone: 'info', detail: `${steps} replayed on a fresh page, without your picks and inserts; it stopped before the step that writes, so nothing was written twice.` }
+        ? {
+            title: 'Check passed up to the first write',
+            tone: 'info',
+            detail: `${steps} replayed on a fresh page, without your picks and inserts; it stopped before the step that writes, so nothing was written twice.`,
+          }
         : { title: 'Check passed', tone: 'info', detail: `${steps} replayed on a fresh page, without your picks and inserts.` };
     case 'failed':
-      return { title: 'Check failed', tone: 'warning', detail: `${steps} replayed (without your picks and inserts) before one failed: look at that step’s target — another one you pick is replayed by a rehearsal after Save.` };
+      return {
+        title: 'Check failed',
+        tone: 'warning',
+        detail: `${steps} replayed (without your picks and inserts) before one failed: look at that step’s target — another one you pick is replayed by a rehearsal after Save.`,
+      };
     case 'skipped':
       return { title: 'Check skipped', tone: 'warning', detail: `Not replayed: ${CHECK_SKIPPED[c.reason ?? ''] ?? 'it could not run'}.` };
     case 'cancelled':
@@ -219,7 +227,9 @@ export const CHECK_SCOPE_NOTE =
  * events), else the step of the recorded draft — `recorded`: it is not a row on screen ("recorded step N"). Null
  * without a failure.
  */
-export function checkFailedAt(c: { failed_at?: { scene: string; step: number }; failed_row?: { scene: string; step: number } | null } | undefined): { scene: string; step: number; recorded: boolean } | null {
+export function checkFailedAt(
+  c: { failed_at?: { scene: string; step: number }; failed_row?: { scene: string; step: number } | null } | undefined,
+): { scene: string; step: number; recorded: boolean } | null {
   if (!c?.failed_at) return null;
   if (c.failed_row) return { scene: c.failed_row.scene, step: c.failed_row.step, recorded: false };
   return { scene: c.failed_at.scene, step: c.failed_at.step, recorded: true };
@@ -282,7 +292,8 @@ export function writesWords(w: { total: number; by_steps: number; ambient: numbe
  */
 export function saveWhyWords(v: { state: RecordState; can: { save: boolean }; draft_sha256: string | null }, name: string, problem: string | null): string | null {
   if (!v.can.save) {
-    if (v.state === 'queued' || v.state === 'preflight' || v.state === 'recording') return `Saving opens after Stop. It writes a new file, scenarios/${problem === null && name ? name : '<name>'}.yaml.`;
+    if (v.state === 'queued' || v.state === 'preflight' || v.state === 'recording')
+      return `Saving opens after Stop. It writes a new file, scenarios/${problem === null && name ? name : '<name>'}.yaml.`;
     if (v.state === 'draft' || v.state === 'check') return 'Saving opens once the check is over.';
     return 'This recording cannot be saved.';
   }

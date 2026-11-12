@@ -43,7 +43,9 @@ function q(s: string): string {
 
 /** The `retake sandbox up | reset` command a human runs for the same work. */
 export function sandboxCommandLine(cli: string, kind: SandboxJobKind, r: SandboxSubmitRequest): string {
-  return [cli, 'sandbox', kind === 'sandbox_up' ? 'up' : 'reset', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(kind === 'sandbox_reset' && r.reseed ? ['--reseed'] : [])].join(' ');
+  return [cli, 'sandbox', kind === 'sandbox_up' ? 'up' : 'reset', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(kind === 'sandbox_reset' && r.reseed ? ['--reseed'] : [])].join(
+    ' ',
+  );
 }
 
 async function openProjectSandbox(sandboxes: Sandboxes, project: LoadedProject, env: string | undefined, policy: WorkPolicy): Promise<SandboxHandle> {
@@ -55,12 +57,7 @@ async function openProjectSandbox(sandboxes: Sandboxes, project: LoadedProject, 
 }
 
 /** Check, take the approvals of the seed's shell steps, and queue a `sandbox_up` or `sandbox_reset` job. */
-export async function submitSandboxJob(
-  ctx: SubmitContext,
-  kind: SandboxJobKind,
-  req: SandboxSubmitRequest,
-  approver?: Approver,
-): Promise<{ job: JobRecord; env: string }> {
+export async function submitSandboxJob(ctx: SubmitContext, kind: SandboxJobKind, req: SandboxSubmitRequest, approver?: Approver): Promise<{ job: JobRecord; env: string }> {
   checkProjectSlug(req.project);
   checkEnvName(req.env);
   const project = await openProjectBySlug(ctx.ws, req.project);

@@ -165,7 +165,15 @@ export class RunData {
       if (!TRACK_FRAMES_RE.test(track.frames_file) || !TRACK_VIDEO_RE.test(track.file)) return undefined;
       const fps = Number(track.fps);
       if (!(fps > 0)) return undefined;
-      return { track: track.id, framesFile: track.frames_file, framesFolder: track.frames_file.replace(/\.jsonl$/, ''), video: track.file, fps, count: Math.max(1, Math.round(duration * fps)), end: duration };
+      return {
+        track: track.id,
+        framesFile: track.frames_file,
+        framesFolder: track.frames_file.replace(/\.jsonl$/, ''),
+        video: track.file,
+        fps,
+        count: Math.max(1, Math.round(duration * fps)),
+        end: duration,
+      };
     }
     const fps = Number(tl.capture.fps);
     if (!(fps > 0)) return undefined;

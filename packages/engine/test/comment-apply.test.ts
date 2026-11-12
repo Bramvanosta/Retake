@@ -55,7 +55,10 @@ const threadPath = (scenario: string, id: string) => join(dir, 'comments', scena
 const readThread = async (scenario: string, id: string) => JSON.parse(await readFile(threadPath(scenario, id), 'utf8')) as CommentThread;
 
 async function failure(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -131,7 +134,12 @@ describe('Apply (T5)', () => {
     const p = await proposed('quote', id, SHORTER);
     const a = await ui.comments.apply('w', id, { entry_id: p.entry, if_match: p.hash });
     expect(await readFile(scenarioFile('quote'), 'utf8')).toBe(SHORTER);
-    expect(a).toMatchObject({ scenario: { name: 'quote', file: 'scenarios/quote.yaml', hash: sha(SHORTER), previous: { text: TEXT, hash: sha(TEXT) } }, label: `Applied the proposal of comment ${id}`, change: 'edit', problems: [] });
+    expect(a).toMatchObject({
+      scenario: { name: 'quote', file: 'scenarios/quote.yaml', hash: sha(SHORTER), previous: { text: TEXT, hash: sha(TEXT) } },
+      label: `Applied the proposal of comment ${id}`,
+      change: 'edit',
+      problems: [],
+    });
     expect(a.hash).toBe(sha(await readFile(threadPath('quote', id))));
     const t = await readThread('quote', id);
     expect(t.entries.at(-1)).toMatchObject({ id: a.entry, kind: 'apply', author: { via: 'studio' }, text: '', applies: p.entry, scenario_sha256: sha(SHORTER) });

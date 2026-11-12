@@ -277,7 +277,10 @@ describe('kit frame helpers (L2.7)', () => {
     expect(addressParts('http://localhost:4402/')).toEqual({ secure: false, host: 'localhost:4402', path: '' });
     expect(addressParts(undefined)).toBeUndefined();
     const area = { x: 873, y: 485, w: 700, h: 110 };
-    expect(captionBandBox({ rects: { screen: { x: 368, y: 163, w: 389, h: 807 } }, area, width: 1920, height: 1080, unit: 1, position: 'over', maxWidth: 1400 })).toEqual({ box: { ...area }, over: false });
+    expect(captionBandBox({ rects: { screen: { x: 368, y: 163, w: 389, h: 807 } }, area, width: 1920, height: 1080, unit: 1, position: 'over', maxWidth: 1400 })).toEqual({
+      box: { ...area },
+      over: false,
+    });
     expect(captionBandBox({ width: 1920, height: 1080, unit: 1, position: 'over', maxWidth: 1400 }).box).toEqual({ x: 260, y: 866, w: 1400, h: 150 });
   });
 });

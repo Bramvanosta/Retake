@@ -100,7 +100,12 @@ describe('the site CONNECT proxy', () => {
   });
 
   it('a name with one non-public address among public ones is refused', async () => {
-    const { p, port } = await proxy({ resolve: async () => [{ address: '127.0.0.1', family: 4 }, { address: '169.254.169.254', family: 4 }] });
+    const { p, port } = await proxy({
+      resolve: async () => [
+        { address: '127.0.0.1', family: 4 },
+        { address: '169.254.169.254', family: 4 },
+      ],
+    });
     p.announce('mixed.example.net');
     const before = upstreamConnections;
     const { status } = await ask(port, connectLine('mixed.example.net:443'));
@@ -188,7 +193,10 @@ describe('the site CONNECT proxy', () => {
 
   it('caps: a CONNECT refused after it reserved a slot gives the slot back', async () => {
     let calls = 0;
-    const { p, port } = await proxy({ caps: { tunnels: 1 }, resolve: async () => (calls++ === 0 ? Promise.reject(Object.assign(new Error('nope'), { code: 'ENOTFOUND' })) : [{ address: '127.0.0.1', family: 4 }]) });
+    const { p, port } = await proxy({
+      caps: { tunnels: 1 },
+      resolve: async () => (calls++ === 0 ? Promise.reject(Object.assign(new Error('nope'), { code: 'ENOTFOUND' })) : [{ address: '127.0.0.1', family: 4 }]),
+    });
     p.announce('flaky.example.net');
     expect((await ask(port, connectLine('flaky.example.net:443'))).status).toMatch(/ 403 /);
     const ok = await ask(port, connectLine('flaky.example.net:443'));

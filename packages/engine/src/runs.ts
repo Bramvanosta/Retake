@@ -11,16 +11,7 @@ import { latestTake, orderRuns, takeNeedsTimeline, takeOf } from '@retake/core/r
 import { readRunFolder, readRunRecord } from '@retake/core/io';
 import type { LoadedProject, MissingTarget, RunMode, RunStatus } from '@retake/core/model';
 import type { RunId } from '@retake/core/ids';
-import type {
-  LatestPick,
-  RunRead,
-  RunRecord,
-  StoredRunPerf,
-  StoredRunRecord,
-  TakeVerdict,
-  UnknownRunStatus,
-  UnknownStatusRun,
-} from '@retake/core/run';
+import type { LatestPick, RunRead, RunRecord, StoredRunPerf, StoredRunRecord, TakeVerdict, UnknownRunStatus, UnknownStatusRun } from '@retake/core/run';
 import { EngineError } from './errors.js';
 import { checkRunId } from './refs.js';
 import { RunFolder } from './run-files.js';
@@ -279,9 +270,7 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
       ? {
           perf: {
             ...record.perf,
-            ...(record.perf.transitions
-              ? { transitions: { ...record.perf.transitions, slow: record.perf.transitions.slow.map(({ target: _t, ...x }) => x) } }
-              : {}),
+            ...(record.perf.transitions ? { transitions: { ...record.perf.transitions, slow: record.perf.transitions.slow.map(({ target: _t, ...x }) => x) } } : {}),
           },
         }
       : {}),

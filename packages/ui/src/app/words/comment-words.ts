@@ -394,7 +394,10 @@ function failureOf(e: unknown): FrameFailure {
 /** A random session id for render_frame (22 base64url characters; one per tab: its newest request wins on the server). */
 export function newSessionId(random: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))): string {
   const b = random(16);
-  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(String.fromCharCode(...b))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 /** The comment text's limit (core COMMENT_TEXT_MAX: the server's cap on one untrusted string). */
@@ -605,13 +608,17 @@ export function proposalButtons(offer: Offer | undefined | null): { buttons: Pro
  */
 export function appliedWords(a: { warnings?: readonly unknown[]; problems?: readonly unknown[] }): { tone: 'warning'; words: string } | null {
   const problems = (Array.isArray(a.problems) ? a.problems : []).filter((x): x is string => typeof x === 'string' && x !== '');
-  const warnings = (Array.isArray(a.warnings) ? a.warnings : []).map((w) => (w && typeof w === 'object' && typeof (w as { message?: unknown }).message === 'string' ? (w as { message: string }).message : null));
+  const warnings = (Array.isArray(a.warnings) ? a.warnings : []).map((w) =>
+    w && typeof w === 'object' && typeof (w as { message?: unknown }).message === 'string' ? (w as { message: string }).message : null,
+  );
   if (!problems.length && !warnings.length) return null;
   const lines: string[] = [];
   if (problems.length) lines.push(`Applied, but: ${problems.join(' ')}`);
   if (warnings.length) {
     const named = warnings.filter((w): w is string => w !== null).slice(0, 3);
-    lines.push(`${problems.length ? 'The' : 'Applied. The'} scenario has ${warnings.length === 1 ? '1 warning' : `${warnings.length} warnings`}${named.length ? `: ${named.join(' · ')}` : ''}${warnings.length > named.length ? ' …' : ''}`);
+    lines.push(
+      `${problems.length ? 'The' : 'Applied. The'} scenario has ${warnings.length === 1 ? '1 warning' : `${warnings.length} warnings`}${named.length ? `: ${named.join(' · ')}` : ''}${warnings.length > named.length ? ' …' : ''}`,
+    );
   }
   return { tone: 'warning', words: lines.join('\n') };
 }

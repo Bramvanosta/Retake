@@ -62,12 +62,12 @@ beforeAll(async () => {
   await writeFile(join(root, 'templates', 'brandx', 'template.yaml'), yaml.replace(/^name: .*$/m, 'name: brandx').replace(/^  layout: .*$/m, '  layout: acme/frame'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   ws = { root } as WorkspaceConfig;
-  await createComponent(root, { write: plainWrite,  id: 'acme/frame', kind: 'layout', description: 'A frame.' });
-  const card = await createComponent(root, { write: plainWrite,  id: 'acme/card-x', kind: 'card', description: 'A card with assets.' });
+  await createComponent(root, { write: plainWrite, id: 'acme/frame', kind: 'layout', description: 'A frame.' });
+  const card = await createComponent(root, { write: plainWrite, id: 'acme/card-x', kind: 'card', description: 'A card with assets.' });
   await writeFile(join(card.dir, 'bg.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x01]));
   await writeFile(card.entry, `import bg from './bg.png';\n${await readFile(card.entry, 'utf8')}\nexport const background = bg;\n`);
   await writeFile(join(card.dir, 'data.json'), '{"rows": 1}\n');
-  await createComponent(root, { write: plainWrite,  id: 'acme/other', kind: 'card', description: 'Unrelated.' });
+  await createComponent(root, { write: plainWrite, id: 'acme/other', kind: 'card', description: 'Unrelated.' });
 });
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
@@ -89,7 +89,9 @@ async function keysOf(ctx?: LibraryKeyContext): Promise<Record<string, string>> 
 
 /** The keys that differ between two sets. */
 function changed(a: Record<string, string>, b: Record<string, string>): string[] {
-  return Object.keys(a).filter((k) => a[k] !== b[k]).sort();
+  return Object.keys(a)
+    .filter((k) => a[k] !== b[k])
+    .sort();
 }
 
 describe('library preview keys', () => {
@@ -191,7 +193,14 @@ describe('library preview keys', () => {
     const fixture = join(REPO, 'packages', 'engine', 'test', 'fixtures', 'library-key.mts');
     // A process of its own, as the worker the Studio starts (the Studio hands it cleanWorkerEnv of its own environment).
     const keyIn = (env: NodeJS.ProcessEnv): string =>
-      (JSON.parse(execFileSync(process.execPath, ['--conditions=source', '--import', 'tsx', fixture, root], { cwd: REPO, env: cleanWorkerEnv(env, root), encoding: 'utf8' }).trim().split('\n').pop()!) as { browser: string }).browser;
+      (
+        JSON.parse(
+          execFileSync(process.execPath, ['--conditions=source', '--import', 'tsx', fixture, root], { cwd: REPO, env: cleanWorkerEnv(env, root), encoding: 'utf8' })
+            .trim()
+            .split('\n')
+            .pop()!,
+        ) as { browser: string }
+      ).browser;
     const yaml = await readFile(join(root, 'retake.yaml'), 'utf8');
     try {
       process.env.RETAKE_RENDER_GL = 'gpu';
@@ -221,7 +230,17 @@ async function entry(dir: string, key: string, o: { kind?: 'poster' | 'loop'; im
   const e = join(dir, key);
   await mkdir(e, { recursive: true });
   if (o.image !== null) await writeFile(join(e, LIBRARY_FILES[kind]), o.image ?? (kind === 'poster' ? PNG : GIF));
-  const meta: LibraryEntryMeta = { format: LIBRARY_PREVIEW_FORMAT, key, kind, component: 'studio/intro-stack', theme: o.theme ?? THEME, at: new Date().toISOString(), state: 'ok', bytes: 10, ...o.meta };
+  const meta: LibraryEntryMeta = {
+    format: LIBRARY_PREVIEW_FORMAT,
+    key,
+    kind,
+    component: 'studio/intro-stack',
+    theme: o.theme ?? THEME,
+    at: new Date().toISOString(),
+    state: 'ok',
+    bytes: 10,
+    ...o.meta,
+  };
   await writeFile(join(e, LIBRARY_FILES.meta), JSON.stringify(meta));
   return e;
 }
@@ -324,7 +343,8 @@ describe('library preview cache', () => {
     await mkdir(tmpNew);
     await utimes(tmpOld, old, old);
     // Five entries: two of another version of brandx (oldest read last), three of the current one.
-    const at = (n: number, minutesAgo: number, theme = THEME) => entry(dir, key(n), { theme }).then((e) => utimes(join(e, LIBRARY_FILES.meta), new Date(now - minutesAgo * 60_000), new Date(now - minutesAgo * 60_000)));
+    const at = (n: number, minutesAgo: number, theme = THEME) =>
+      entry(dir, key(n), { theme }).then((e) => utimes(join(e, LIBRARY_FILES.meta), new Date(now - minutesAgo * 60_000), new Date(now - minutesAgo * 60_000)));
     await at(10, 1, { name: 'brandx', hash: 'h0' });
     await at(11, 2, { name: 'brandx', hash: 'h0' });
     await at(12, 50);
@@ -347,7 +367,10 @@ describe('library preview cache', () => {
   });
 
   it('the disk gate: under 1 GB free a library job is refused with what is left', async () => {
-    await expect(checkLibraryDisk(root, async () => 512_000_000)).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/^the disk has 512 MB free: library previews need at least 1 GB free/) });
+    await expect(checkLibraryDisk(root, async () => 512_000_000)).rejects.toMatchObject({
+      code: 'refused',
+      message: expect.stringMatching(/^the disk has 512 MB free: library previews need at least 1 GB free/),
+    });
     await expect(checkLibraryDisk(root, async () => 2_000_000_000)).resolves.toBeUndefined();
     await expect(checkLibraryDisk(root, async () => undefined)).resolves.toBeUndefined();
   });

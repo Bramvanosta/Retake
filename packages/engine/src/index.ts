@@ -47,7 +47,17 @@ export { rollbackActionLines } from '@retake/hooks/describe';
 export { environmentLine, findingLine, summaryLine } from '@retake/review/checks';
 export { JOURNAL_FILES_MAX, JOURNAL_VERSION, appendJournal, hookEntry, hookRunRecorder, journalFile, journalLine, journalPath, readJournal } from './store/journal.js';
 export type { HookRunResult, JournalBy, JournalEntry, JournalHook, JournalQuery, JournalWhat, JournalWrite } from './store/journal.js';
-export { README_MAX_CHARS, createProjectFromRequest, writeNewProject, firstErrorLine, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';
+export {
+  README_MAX_CHARS,
+  createProjectFromRequest,
+  writeNewProject,
+  firstErrorLine,
+  listProjectSummaries,
+  maskUrlCredentials,
+  openProjectBySlug,
+  projectView,
+  updateProjectReadme,
+} from './projects.js';
 export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary, ProjectView } from './projects.js';
 export { editScenario, getScenario, knownScenarioVersion, prepareScenarioEdit, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
 export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry, timelineView } from './timeline-view.js';
@@ -60,7 +70,20 @@ export { RECORD_KEEP, RECORD_MAX_ENV, activeRecords, defaultRecordName, newRecor
 export type { RecordCheck, RecordOutcome, RecordPorts, RecordRequest, RecordStart } from './record.js';
 export { RECORD_META_FILE, RECORD_STUDIO_FILE, RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile } from './record-files.js';
 export type { RecordMeta } from './record-files.js';
-export { RECORD_EVENTS_MAX_BYTES, RECORD_LIST_MAX, checkAgentCancel, readRecordEvents, recordAnnotate, recordDiscard, recordList, recordLive, recordSave, recordStop, recordView, saveRecordedDraft } from './record-studio.js';
+export {
+  RECORD_EVENTS_MAX_BYTES,
+  RECORD_LIST_MAX,
+  checkAgentCancel,
+  readRecordEvents,
+  recordAnnotate,
+  recordDiscard,
+  recordList,
+  recordLive,
+  recordSave,
+  recordStop,
+  recordView,
+  saveRecordedDraft,
+} from './record-studio.js';
 export type { RecordAnnotated, RecordCheckView, RecordDiscarded, RecordListItem, RecordSaved, RecordState, RecordStopped, RecordTargetOption, RecordView, RecordZoomView } from './record-studio.js';
 export type { ScriptDraftView } from './authoring.js';
 export { listRuns, runStatus } from './runs.js';
@@ -104,7 +127,24 @@ export type { AgentChannel, Caller, CallerChannel, CallerTrust } from './caller.
 export * from './jobs/job-input.js';
 export { EXPORTS_OPEN_MAX, SUBMIT_RULES, admission, confirmWhy, opChain, sessionsToConfirm } from './admission.js';
 export type { Admission, AdmissionDeps, OpChain, PreparedTake, RunAdmit, SessionToConfirm, SessionsView } from './admission.js';
-export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, CompactRunStatus, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, ScenarioSessions, WaitOptions } from './engine.js';
+export type {
+  AuthStatus,
+  AuthStatusItem,
+  Engine,
+  EngineClient,
+  EngineInfo,
+  EngineOptions,
+  InspectSubmitted,
+  PreviewSubmitted,
+  RecordSubmitted,
+  CompactRunStatus,
+  RunJobView,
+  RunListItem,
+  RunStatusWithJob,
+  ScenarioCheck,
+  ScenarioSessions,
+  WaitOptions,
+} from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
 export type { InterruptOptions, InterruptPort, InterruptScope } from './interrupts.js';
@@ -153,7 +193,18 @@ export { buildDirs, buildStamp } from './jobs/build.js';
 export { isAlive, processStart, selfIdentity } from './jobs/proc.js';
 export type { ProcessIdentity } from './jobs/proc.js';
 export { PAUSE_MAX_ENV, executeRunJob, finaliseReservedRun, pauseMaxMs, preflightJournal, runBlockers, runCommandLine } from './jobs/run-job.js';
-export { LIVE_FILE_VERSION, LIVE_FRAME_MAX_BYTES, LIVE_IDLE_MS, LIVE_PATH, LIVE_SOCKETS_MAX, LIVE_STREAMS_MAX, encodeRecord, openLiveChannel, openLiveFeed, readLiveChannel } from './jobs/live-channel.js';
+export {
+  LIVE_FILE_VERSION,
+  LIVE_FRAME_MAX_BYTES,
+  LIVE_IDLE_MS,
+  LIVE_PATH,
+  LIVE_SOCKETS_MAX,
+  LIVE_STREAMS_MAX,
+  encodeRecord,
+  openLiveChannel,
+  openLiveFeed,
+  readLiveChannel,
+} from './jobs/live-channel.js';
 export type { LiveChannel, LiveChannelInfo, LiveFeedFrame, LiveFrameHeader } from './jobs/live-channel.js';
 export {
   checkEnvName,
@@ -169,13 +220,51 @@ export type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job
 export { HooksSourceError, createHookContext, hooksAccess, selectHooks } from './hooks.js';
 export type { HookContextOptions, HookSelection } from './hooks.js';
 export { envResetWork, hooksRunWork, rollbackWork } from './hooks-work.js';
-export type { EnvResetOutcome, EnvResetWorkOptions, HookInterrupt, HookWorkOptions, HooksRunOutcome, HooksRunProtection, HooksRunWorkOptions, Protected, RollbackOutcome, RollbackWorkOptions } from './hooks-work.js';
+export type {
+  EnvResetOutcome,
+  EnvResetWorkOptions,
+  HookInterrupt,
+  HookWorkOptions,
+  HooksRunOutcome,
+  HooksRunProtection,
+  HooksRunWorkOptions,
+  Protected,
+  RollbackOutcome,
+  RollbackWorkOptions,
+} from './hooks-work.js';
 export { SANDBOX_INTERRUPT_MESSAGE, sandboxWork } from './sandbox-work.js';
 export type { SandboxDownWorkOptions, SandboxHeldOptions, SandboxInitView, SandboxResetWorkOptions, SandboxSeedingOptions, SandboxUpWorkOptions, SeedTrusted } from './sandbox-work.js';
 // L7.27: the shell hooks of a scenario an agent wrote, asked about before a person's command runs them.
-export { agentWrittenShellHooks, hooksTrustView, hooksWrittenBy, trustScenarioHooks, listingContext, recordScenarioWrite, renderForListing, reserveListedRun, scenarioHookSurface, scenarioShellHooks, scenarioWritesFile } from './agent-written.js';
+export {
+  agentWrittenShellHooks,
+  hooksTrustView,
+  hooksWrittenBy,
+  trustScenarioHooks,
+  listingContext,
+  recordScenarioWrite,
+  renderForListing,
+  reserveListedRun,
+  scenarioHookSurface,
+  scenarioShellHooks,
+  scenarioWritesFile,
+} from './agent-written.js';
 export type { AgentWrittenShellHooks, HooksAuthor, HooksTrustView, ListingContext, RenderedText, ScenarioHookPhases, ScenarioShellHook } from './agent-written.js';
-export { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, PRUNE_FORM_MAX_LINES, approvalChecker, approvalFormText, approvalItemTitle, preflightHooks, pruneApprovalFormText, pruneApprovalRequest, pruneKindsText, refusedError, takeApprovals, takePruneApproval, takeSiteApproval } from './approvals.js';
+export {
+  APPROVAL_FORM_MAX_CHARS,
+  APPROVAL_HOOK_MAX_CHARS,
+  PRUNE_FORM_MAX_LINES,
+  approvalChecker,
+  approvalFormText,
+  approvalItemTitle,
+  preflightHooks,
+  pruneApprovalFormText,
+  pruneApprovalRequest,
+  pruneKindsText,
+  refusedError,
+  takeApprovals,
+  takePruneApproval,
+  takeSiteApproval,
+} from './approvals.js';
 export type { ApprovalItem, ApprovalOutcome, ApprovalRequest, Approver, Preflight, PruneApprovalRequest, SiteApprovalRequest } from './approvals.js';
 export type { RunBlocker, RunBlockerKind, RunSubmitRequest } from './jobs/run-job.js';
 export { ensureWorker, otherCopyWarning, spawnWorker, workerCommand } from './jobs/spawn.js';
@@ -183,7 +272,26 @@ export type { WorkerSpawnFn, WorkerSpawnOptions } from './jobs/spawn.js';
 export { WORKER_ENV_DROPPED, cleanWorkerEnv } from './jobs/worker-env.js';
 export type { WorkerEnvOptions } from './jobs/worker-env.js';
 export { runWorker } from './jobs/worker.js';
-export { BEAT_MS, CAP_CARRY_MS, FilmingMarker, FilmingWatch, HELD_FILE, HOLD_MAX_MIN, TakeBeside, heldFile, isTakeOwnerCommand, workerHolds, MARKER_MAX_BYTES, MARKER_NAME_RE, STALE_MS, ancestorPids, capMinutes, capturesDir, capturesLocation, workspaceCaptureId } from './jobs/captures.js';
+export {
+  BEAT_MS,
+  CAP_CARRY_MS,
+  FilmingMarker,
+  FilmingWatch,
+  HELD_FILE,
+  HOLD_MAX_MIN,
+  TakeBeside,
+  heldFile,
+  isTakeOwnerCommand,
+  workerHolds,
+  MARKER_MAX_BYTES,
+  MARKER_NAME_RE,
+  STALE_MS,
+  ancestorPids,
+  capMinutes,
+  capturesDir,
+  capturesLocation,
+  workspaceCaptureId,
+} from './jobs/captures.js';
 export type { FilmingState, FilmingWatchOptions, LiveTake, MarkerRecord, TakeBesideReport } from './jobs/captures.js';
 // What a take reports to its filming callback: the runner's types, re-exported so that the CLI's `retake run` names them
 // without importing the runner (a shell imports no adapter: the import rules' R4, scripts/audit/lib.mjs).
@@ -231,7 +339,17 @@ export type {
 } from './jobs/types.js';
 export { LoginOptionError, loginTarget, signInPersona } from './login.js';
 export type { SignInOutcome, SignInPorts } from './login.js';
-export { AUTH_HEADED_MAX_ENV, AUTH_HEADED_MAX_MS, cancelSignIn, executeAuthLoginJob, headedSignInMaxMs, loginCommandLine, signInStoppedText, submitAuthLoginJob, withTimeLimit } from './jobs/auth-job.js';
+export {
+  AUTH_HEADED_MAX_ENV,
+  AUTH_HEADED_MAX_MS,
+  cancelSignIn,
+  executeAuthLoginJob,
+  headedSignInMaxMs,
+  loginCommandLine,
+  signInStoppedText,
+  submitAuthLoginJob,
+  withTimeLimit,
+} from './jobs/auth-job.js';
 export type { AuthLoginSubmitRequest } from './jobs/auth-job.js';
 export { executeSandboxJob, sandboxCommandLine, submitSandboxJob } from './jobs/sandbox-job.js';
 export {
@@ -248,7 +366,20 @@ export {
   reviewInline,
 } from './jobs/render-job.js';
 export type { InlineReview, LatestRunNotice, PassedOverRuns, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
-export { SCENARIO_RENDERS_MAX, failureWords, latestRenderMembers, pathFree, planPreview, planSignature, renderForWork, renderRecordReads, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
+export {
+  SCENARIO_RENDERS_MAX,
+  failureWords,
+  latestRenderMembers,
+  pathFree,
+  planPreview,
+  planSignature,
+  renderForWork,
+  renderRecordReads,
+  renderStatus,
+  reportReads,
+  scenarioRenders,
+  withoutPaths,
+} from './renders.js';
 export type { LatestRenderNotice, PassedOverRenders, RenderForWork } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
@@ -331,7 +462,18 @@ export type { BrandFileList } from './brand/file-list.js';
 export { siteList } from './site-list.js';
 export type { SiteList, SiteListEntry } from './site-list.js';
 export type { ReviewFindingView, ReviewImageRef, ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
-export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueView, RenderReviewSummary, RenderStatusRecord, RenderStatusView, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from './renders.js';
+export type {
+  PlanPreviewSegment,
+  PlanPreviewView,
+  RenderJobView,
+  RenderQueueView,
+  RenderReviewSummary,
+  RenderStatusRecord,
+  RenderStatusView,
+  ScenarioRenderJobView,
+  ScenarioRenderView,
+  ScenarioRendersView,
+} from './renders.js';
 export type { SandboxJobKind, SandboxSubmitRequest } from './jobs/sandbox-job.js';
 export { HISTORY_VERSION, appendHistory, historyFile, runCounted, usageCounts } from './history.js';
 export type { HistoryEntry, UsageCounts } from './history.js';
@@ -397,13 +539,42 @@ export type {
 } from './comments.js';
 export { PROPOSAL_ROWS_MAX, buildProposal, checkProposedText, diffRows, proposalRowsProblem, rebuildProposal } from './comment-proposals.js';
 export type { BuiltProposal, ProposalInput } from './comment-proposals.js';
-export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, FRAME_SRC_RE, PERMISSIONS_POLICY, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders, studioCsp } from './http/gate.js';
+export {
+  ENGINE_HTTP_API,
+  BODY_DRAIN_MAX,
+  BodyTooLargeError,
+  FRAME_SRC_RE,
+  PERMISSIONS_POLICY,
+  STUDIO_CSP,
+  allowedHosts,
+  allowedOrigins,
+  checkRequest,
+  drainBody,
+  fromBrowser,
+  isJsonType,
+  readBody,
+  securityHeaders,
+  studioCsp,
+} from './http/gate.js';
 export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, privateFileProblem, readPrivateText, readPrivateToken, replacePrivateFile, stableToken } from './http/token-file.js';
 export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from './http/gate.js';
 export { BOOTSTRAP_CODES_MAX, BOOTSTRAP_CODE_TTL_MS, BootstrapCodes, bearerToken, newSecret, secretEquals } from './http/token.js';
 export { LOOPBACK, isLoopbackAddress, listenLoopback } from './http/listen.js';
 export { ERROR_STATUS } from './http/status.js';
-export { DISCOVERY_VERSION, claimDiscovery, discoveryFile, holderAlive, readDiscovery, readStudioToken, releaseDiscovery, releaseStudioToken, studioTokenDir, studioTokenFile, tokenHolderAlive, writeStudioToken } from './http/discovery.js';
+export {
+  DISCOVERY_VERSION,
+  claimDiscovery,
+  discoveryFile,
+  holderAlive,
+  readDiscovery,
+  readStudioToken,
+  releaseDiscovery,
+  releaseStudioToken,
+  studioTokenDir,
+  studioTokenFile,
+  tokenHolderAlive,
+  writeStudioToken,
+} from './http/discovery.js';
 export type { DiscoveryClaim, DiscoveryRecord, StudioTokenRecord } from './http/discovery.js';
 export { INDEX_SCHEMA, RUNS_INDEX_MAX, WorkspaceIndex, ftsQuery, indexFile } from './index-db/index-db.js';
 export type { ActivityItem, HistoryRow, IndexChanges, IndexOptions, IndexRebuild, SearchHit } from './index-db/index-db.js';
@@ -417,10 +588,40 @@ export type { Entitlements } from './entitlements.js';
 export { SHELL_SEED_REASON, agentChannel, checkAgentTrust, seedApprovalItems } from './approvals.js';
 export { checkNewProjectHosts, checkWorkspaceProtection, protectedHostOf, setProtectedHostResolver, workspaceProtectedHosts } from './protected-hosts.js';
 export type { HostLookup, ProtectedHostHit, WorkspaceProtectedHost } from './protected-hosts.js';
-export { APPROVALS_USED_DIR, APPROVAL_KEY_FILE, approvalKeyFile, approvalsOf, approvalsUsedDir, consumeApprovals, pruneUsedApprovals, recordDigest, restoreApprovals, signApprovals, verifiedApprovals } from './jobs/signing.js';
+export {
+  APPROVALS_USED_DIR,
+  APPROVAL_KEY_FILE,
+  approvalKeyFile,
+  approvalsOf,
+  approvalsUsedDir,
+  consumeApprovals,
+  pruneUsedApprovals,
+  recordDigest,
+  restoreApprovals,
+  signApprovals,
+  verifiedApprovals,
+} from './jobs/signing.js';
 export { DEFAULT_BRAND_BASE, PACKAGE_ROOT, THEME_PROVENANCE_FILE, createThemeFromBrand, fileNameFace, replaceProblem } from './brand/create.js';
 export type { ThemeCreateOptions, ThemeCreated, ThemeFontView } from './brand/create.js';
-export { SITE_KEEP, checkSiteUrl, executeSiteJob, extractSiteForAuthor, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readSite, siteApproved, siteCommandLine, siteDir, siteDraft, siteHostConflicts, siteRoot, siteView, submitSiteJob } from './jobs/site-job.js';
+export {
+  SITE_KEEP,
+  checkSiteUrl,
+  executeSiteJob,
+  extractSiteForAuthor,
+  isSiteWarning,
+  makeSiteDir,
+  newSiteId,
+  pruneSites,
+  readSite,
+  siteApproved,
+  siteCommandLine,
+  siteDir,
+  siteDraft,
+  siteHostConflicts,
+  siteRoot,
+  siteView,
+  submitSiteJob,
+} from './jobs/site-job.js';
 export type { SiteJobContext, SiteSubmitted } from './jobs/site-job.js';
 export {
   BRAND_TOTAL_MAX_BYTES,
@@ -441,7 +642,19 @@ export {
 } from './brand/files.js';
 export type { BrandFileKind, BrandTrust, FontFormat, FontInfo, ImageInfo, ResolvedBrandFile, SvgScan } from './brand/files.js';
 // The library / theme screens' stat walks (L7.17: from the Studio's server, with library_view's memo that reads them).
-export { WATCH_DEPTH_MAX, WATCH_ENTRIES_MAX, WATCH_FOLDERS_MAX, WATCH_SCAN_BUDGET, componentNamespaceSignatures, libraryChanges, libraryWatchScan, siteSignature, themeSignatures, treeSignature, watchBudget } from './library-watch.js';
+export {
+  WATCH_DEPTH_MAX,
+  WATCH_ENTRIES_MAX,
+  WATCH_FOLDERS_MAX,
+  WATCH_SCAN_BUDGET,
+  componentNamespaceSignatures,
+  libraryChanges,
+  libraryWatchScan,
+  siteSignature,
+  themeSignatures,
+  treeSignature,
+  watchBudget,
+} from './library-watch.js';
 export type { WatchBudget } from './library-watch.js';
 // theme_preview's spec (L7.17: built by the engine; the Studio serves it on its player origin).
 export { buildThemePreview } from './theme-preview.js';

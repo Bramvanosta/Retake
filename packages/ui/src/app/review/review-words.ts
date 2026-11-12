@@ -30,10 +30,24 @@ export const CHECK_FAMILIES: readonly CheckFamily[] = [
   {
     id: 'captions',
     label: 'Captions',
-    codes: ['caption-missing', 'caption-not-visible', 'caption-overlap', 'caption-overlaps-brandmark', 'caption-scene-mismatch', 'caption-shrunk', 'caption-too-long', 'caption-truncated', 'caption-contradicts-ui'],
+    codes: [
+      'caption-missing',
+      'caption-not-visible',
+      'caption-overlap',
+      'caption-overlaps-brandmark',
+      'caption-scene-mismatch',
+      'caption-shrunk',
+      'caption-too-long',
+      'caption-truncated',
+      'caption-contradicts-ui',
+    ],
   },
   { id: 'cursor', label: 'Cursor', codes: ['cursor-hidden', 'cursor-offscreen', 'cursor-outside-reframe', 'cursor-outside-view'] },
-  { id: 'camera', label: 'Camera and zoom', codes: ['camera-jump', 'reframe-jump', 'zoom-clamped', 'zoom-count', 'zoom-not-slow', 'zoom-reset', 'theme-zoom-count', 'theme-zoom-cut', 'theme-zoom-real', 'zoom-during-scroll'] },
+  {
+    id: 'camera',
+    label: 'Camera and zoom',
+    codes: ['camera-jump', 'reframe-jump', 'zoom-clamped', 'zoom-count', 'zoom-not-slow', 'zoom-reset', 'theme-zoom-count', 'theme-zoom-cut', 'theme-zoom-real', 'zoom-during-scroll'],
+  },
   { id: 'transitions', label: 'Transitions and speed', codes: ['slow-transition', 'transition-on-click'] },
   {
     id: 'targets',
@@ -45,7 +59,18 @@ export const CHECK_FAMILIES: readonly CheckFamily[] = [
   {
     id: 'media',
     label: 'Capture and media',
-    codes: ['capture-missing', 'capture-unreadable', 'frames-missing', 'media-missing', 'timeline-missing', 'size-mismatch', 'component-missing', 'registry-unavailable', 'render-failed', 'write-blocked'],
+    codes: [
+      'capture-missing',
+      'capture-unreadable',
+      'frames-missing',
+      'media-missing',
+      'timeline-missing',
+      'size-mismatch',
+      'component-missing',
+      'registry-unavailable',
+      'render-failed',
+      'write-blocked',
+    ],
   },
   { id: 'diff', label: 'Changes since the previous render', codes: ['diff-duration', 'diff-frames', 'diff-segment', 'previous-unreadable'] },
   { id: 'other', label: 'Other', codes: ['plan-warning'] },
@@ -73,7 +98,10 @@ export function groupFindings(findings: readonly ReviewFindingView[]): FamilyGro
     const id = familyOf(finding.code);
     by.set(id, [...(by.get(id) ?? []), { index, finding }]);
   });
-  return CHECK_FAMILIES.filter((f) => by.has(f.id)).map((family) => ({ family, items: [...by.get(family.id)!].sort((a, b) => SEVERITY_ORDER[a.finding.severity] - SEVERITY_ORDER[b.finding.severity] || a.index - b.index) }));
+  return CHECK_FAMILIES.filter((f) => by.has(f.id)).map((family) => ({
+    family,
+    items: [...by.get(family.id)!].sort((a, b) => SEVERITY_ORDER[a.finding.severity] - SEVERITY_ORDER[b.finding.severity] || a.index - b.index),
+  }));
 }
 
 /** A severity as a mark and its word. */
@@ -116,7 +144,15 @@ export function agoWords(iso: string, now = Date.now()): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return iso;
   const s = Math.round((now - t) / 1000);
-  return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86_400 ? `${Math.floor(s / 3600)} h ago` : s < 172_800 ? 'yesterday' : new Date(t).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' });
+  return s < 60
+    ? 'just now'
+    : s < 3600
+      ? `${Math.floor(s / 60)} min ago`
+      : s < 86_400
+        ? `${Math.floor(s / 3600)} h ago`
+        : s < 172_800
+          ? 'yesterday'
+          : new Date(t).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /** "12:30" — the time of day of an instant, in the viewer's zone ('' when it is not a date). */

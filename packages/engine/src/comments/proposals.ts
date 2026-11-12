@@ -58,7 +58,9 @@ export function notActionable(thread: CommentThread, entry: CommentEntry & { pro
     case 'undone':
       return new EngineError('conflict', `not ${stage}: a newer proposal (entry ${newest}) replaces the one of entry ${entry.id}`, { details: { state: st.state, newest } });
     default:
-      return new EngineError('conflict', `not ${stage}: ${today.file} changed since this was proposed — ask Claude to propose again on today's file`, { details: { state: st.state, current: today.hash } });
+      return new EngineError('conflict', `not ${stage}: ${today.file} changed since this was proposed — ask Claude to propose again on today's file`, {
+        details: { state: st.state, current: today.hash },
+      });
   }
 }
 
@@ -134,9 +136,18 @@ export async function applyProposal(
     }
     let edited: Awaited<ReturnType<typeof editScenario>>;
     try {
-      edited = await editScenario(project, r.thread.scenario, { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}), scope });
+      edited = await editScenario(
+        project,
+        r.thread.scenario,
+        { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } },
+        { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}), scope },
+      );
     } catch (e) {
-      if (e instanceof EngineError && e.message.startsWith('not saved: ')) throw new EngineError(e.code, e.message.replace(/^not saved: /, 'not applied: '), { ...(e.details !== undefined ? { details: e.details } : {}), ...(e.fix !== undefined ? { fix: e.fix } : {}) });
+      if (e instanceof EngineError && e.message.startsWith('not saved: '))
+        throw new EngineError(e.code, e.message.replace(/^not saved: /, 'not applied: '), {
+          ...(e.details !== undefined ? { details: e.details } : {}),
+          ...(e.fix !== undefined ? { fix: e.fix } : {}),
+        });
       throw e;
     }
     const problems: string[] = [];
@@ -210,7 +221,12 @@ export interface CommentProposalView {
  * rebuilt from today's file when it is the base (pending, undone) or the result (applied), checked (result hash,
  * canonical hunks) and shown with context; otherwise the stored hunks, unverified. Lines are data (`untrusted.rows`).
  */
-export async function getProposal(project: LoadedProject, id: string, entryId: string | undefined, o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts }): Promise<CommentProposalView> {
+export async function getProposal(
+  project: LoadedProject,
+  id: string,
+  entryId: string | undefined,
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts },
+): Promise<CommentProposalView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
   if (!r.ok) throw new EngineError('invalid', r.problem);

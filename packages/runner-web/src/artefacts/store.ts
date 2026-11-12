@@ -10,17 +10,7 @@ import { ARTEFACTS_DIR, isCaptureScene, isCard } from '@retake/core/model';
 import { normalizeStep } from '@retake/core/language';
 import { isDocumentPath } from '@retake/core/scenario';
 import { writeJson } from '@retake/core/io';
-import type {
-  BBox,
-  BrowserConfig,
-  DocumentArtefact,
-  EmailArtefact,
-  LoadedProject,
-  NotificationArtefact,
-  Scenario,
-  TextArtefact,
-  TimelineArtefact,
-} from '@retake/core/model';
+import type { BBox, BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TextArtefact, TimelineArtefact } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import { errorMessage } from '../errors.js';
 import type { MailboxClient, MailMessage } from './mailbox.js';

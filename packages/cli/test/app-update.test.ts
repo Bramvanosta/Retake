@@ -33,7 +33,9 @@ function testKey() {
     const tc = `timestamp:1\tfile:Retake.app.tar.gz\tversion:${version}`;
     const s = edSign(null, createHash('blake2b512').update(data).digest(), privateKey);
     const g = edSign(null, Buffer.concat([s, Buffer.from(tc)]), privateKey);
-    return Buffer.from(`untrusted comment: signature from tauri secret key\n${Buffer.concat([Buffer.from('ED'), keyId, s]).toString('base64')}\ntrusted comment: ${tc}\n${g.toString('base64')}\n`).toString('base64');
+    return Buffer.from(
+      `untrusted comment: signature from tauri secret key\n${Buffer.concat([Buffer.from('ED'), keyId, s]).toString('base64')}\ntrusted comment: ${tc}\n${g.toString('base64')}\n`,
+    ).toString('base64');
   };
   return { pub, sig };
 }
@@ -78,7 +80,10 @@ describe('the feed and the key (build-time environment only)', () => {
     expect(JSON.stringify(o)).not.toMatch(/dangerous/i);
     expect(() => updaterOverlay({ feed: 'http://downloads.example.test/retake/latest.json', pubkey: key.pub })).toThrow(/https/);
     const t = testUpdaterOverlay({ port: 4990, pubkey: key.pub, version: '0.2.1' });
-    expect(t).toEqual({ version: '0.2.1', plugins: { updater: { pubkey: key.pub, endpoints: ['http://127.0.0.1:4990/retake/latest.json'], requireSignedVersion: true, allowDowngrades: false, dangerousInsecureTransportProtocol: true } } });
+    expect(t).toEqual({
+      version: '0.2.1',
+      plugins: { updater: { pubkey: key.pub, endpoints: ['http://127.0.0.1:4990/retake/latest.json'], requireSignedVersion: true, allowDowngrades: false, dangerousInsecureTransportProtocol: true } },
+    });
     expect(() => testUpdaterOverlay({ port: 80, pubkey: key.pub })).toThrow(/port/);
     // Only the gated test uses the test overlay; the command line has no way to it.
     const src = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
@@ -86,7 +91,8 @@ describe('the feed and the key (build-time environment only)', () => {
     expect(src).toMatch(/const report = build\(\{ out: flag\('--out'\) \?\? process\.env\.RETAKE_BUNDLE_OUT, mode: [^}]*\}\);/);
     expect(/const report = build\(\{[^}]*\}\);/.exec(src)?.[0]).not.toMatch(/updater|dmg/);
     for (const f of readdirSync(join(REPO, 'packages', 'cli', 'test'))) {
-      if (f.endsWith('.ts') && f !== 'app-update.test.ts' && f !== 'app-update-e2e.test.ts') expect(readFileSync(join(REPO, 'packages', 'cli', 'test', f), 'utf8'), f).not.toContain('testUpdaterOverlay');
+      if (f.endsWith('.ts') && f !== 'app-update.test.ts' && f !== 'app-update-e2e.test.ts')
+        expect(readFileSync(join(REPO, 'packages', 'cli', 'test', f), 'utf8'), f).not.toContain('testUpdaterOverlay');
     }
   });
 
@@ -102,7 +108,9 @@ describe('the feed and the key (build-time environment only)', () => {
     const { build } = await bundle();
     const out = dir('out');
     expect(() => build({ out, env: { PATH: '/usr/bin:/bin', HOME: tmp, RETAKE_UPDATE_FEED: FEED } })).toThrow(/go together/);
-    expect(() => build({ out, env: { PATH: '/usr/bin:/bin', HOME: tmp, RETAKE_UPDATE_FEED: 'http://downloads.example.test/retake/latest.json', RETAKE_UPDATE_PUBKEY: key.pub } })).toThrow(/must be https/);
+    expect(() => build({ out, env: { PATH: '/usr/bin:/bin', HOME: tmp, RETAKE_UPDATE_FEED: 'http://downloads.example.test/retake/latest.json', RETAKE_UPDATE_PUBKEY: key.pub } })).toThrow(
+      /must be https/,
+    );
     expect(readdirSync(out)).toEqual([]);
   });
 });
@@ -170,8 +178,18 @@ describe.skipIf(!MAC)('the update archive (critique H3)', () => {
     const goodSig = key.sig(readFileSync(archive), '0.2.1');
     const cliJs = join(d, 'tauri.js');
     // The stand-in writes the .sig the real one would (made here with the test key) and dumps what it was given.
-    writeFileSync(cliJs, `const fs = require('node:fs'); fs.writeFileSync(${JSON.stringify(dump)}, JSON.stringify({ argv: process.argv.slice(2), env: process.env })); fs.writeFileSync(process.argv.at(-1) + '.sig', process.env.SIG_FOR_TEST || ${JSON.stringify(goodSig)});\n`);
-    const env = { PATH: '/usr/bin:/bin', HOME: tmp, TAURI_SIGNING_PRIVATE_KEY: 'private-key-canary', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'password-canary', APPLE_PASSWORD: 'apple-canary', UPDATES_UPLOAD_TOKEN: 'upload-canary' };
+    writeFileSync(
+      cliJs,
+      `const fs = require('node:fs'); fs.writeFileSync(${JSON.stringify(dump)}, JSON.stringify({ argv: process.argv.slice(2), env: process.env })); fs.writeFileSync(process.argv.at(-1) + '.sig', process.env.SIG_FOR_TEST || ${JSON.stringify(goodSig)});\n`,
+    );
+    const env = {
+      PATH: '/usr/bin:/bin',
+      HOME: tmp,
+      TAURI_SIGNING_PRIVATE_KEY: 'private-key-canary',
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'password-canary',
+      APPLE_PASSWORD: 'apple-canary',
+      UPDATES_UPLOAD_TOKEN: 'upload-canary',
+    };
     expect(signUpdateArchive({ cliJs, archive, version: '0.2.1', pubkey: key.pub, env })).toBe(`${archive}.sig`);
     const got = JSON.parse(readFileSync(dump, 'utf8'));
     expect(got.argv).toEqual(['signer', 'sign', '--app-version', '0.2.1', archive]);

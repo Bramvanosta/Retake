@@ -62,7 +62,11 @@ export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/
  * case-sensitive file system too only errs on the safe side).
  */
 export function agentWritable(rel: string): boolean {
-  const p = rel.split(sep).join('/').replace(/^(?:\.\/)+/, '').toLowerCase();
+  const p = rel
+    .split(sep)
+    .join('/')
+    .replace(/^(?:\.\/)+/, '')
+    .toLowerCase();
   return AGENT_WRITABLE_PATHS.some((w) => (w.endsWith('/') ? p === w.slice(0, -1) || p.startsWith(w) : p === w.toLowerCase()));
 }
 
@@ -191,7 +195,7 @@ export interface AgentShellOptions {
 function projectPlace(path: string, o: AgentShellOptions & { tilde?: boolean }): { own: string } | { beside: string; rest: string } | null {
   let p = path.replace(/^file:\/\//i, '');
   if (o.tilde !== false && (p === '~' || p.startsWith('~/'))) {
-    if (o.home === undefined) throw new Error('agentWritablePath: a path starting with `~` needs `home` (the account\'s home folder)');
+    if (o.home === undefined) throw new Error("agentWritablePath: a path starting with `~` needs `home` (the account's home folder)");
     p = join(o.home, p.slice(1));
   }
   const files = needFiles(o.files, 'agentWritablePath');
@@ -224,7 +228,10 @@ export function agentWritablePath(path: string, o: AgentShellOptions & { tilde?:
 function personFilePath(path: string, o: AgentShellOptions): { rel: string; file: 'hooks/' | 'project.yaml' } | null {
   const at = projectPlace(path, { ...o, tilde: false });
   if (!at) return null;
-  const rel = ('own' in at ? at.own : at.rest).split(sep).join('/').replace(/^(?:\.\/)+/, '');
+  const rel = ('own' in at ? at.own : at.rest)
+    .split(sep)
+    .join('/')
+    .replace(/^(?:\.\/)+/, '');
   const shown = 'own' in at ? rel : `../${at.beside.split(sep).join('/')}`;
   const lower = rel.toLowerCase();
   if (lower === 'project.yaml' || lower === 'project.yml') return { rel: shown, file: 'project.yaml' };
@@ -264,7 +271,30 @@ const REFUSED_BUILTINS: Record<string, string> = {
  * words a shell reads as a prefix of the command after them: bash's `coproc`, zsh's `noglob`, `nocorrect` and `-` (an
  * `sh` that is bash or zsh reads them so).
  */
-const WRAPPERS = new Set(['env', 'nice', 'nohup', 'timeout', 'gtimeout', 'time', 'sudo', 'doas', 'stdbuf', 'caffeinate', 'ionice', 'chrt', 'taskset', 'setsid', 'unbuffer', 'flock', 'command', 'builtin', 'coproc', 'noglob', 'nocorrect', '-']);
+const WRAPPERS = new Set([
+  'env',
+  'nice',
+  'nohup',
+  'timeout',
+  'gtimeout',
+  'time',
+  'sudo',
+  'doas',
+  'stdbuf',
+  'caffeinate',
+  'ionice',
+  'chrt',
+  'taskset',
+  'setsid',
+  'unbuffer',
+  'flock',
+  'command',
+  'builtin',
+  'coproc',
+  'noglob',
+  'nocorrect',
+  '-',
+]);
 
 /** Builtins that set the variables they name (`export NAME`, `read NAME`, `printf -v NAME`…). */
 const VARIABLE_SETTERS = new Set(['export', 'declare', 'typeset', 'local', 'readonly', 'read', 'getopts', 'mapfile', 'readarray', 'let', 'printf', 'unset']);
@@ -662,7 +692,10 @@ export function sandboxSwitchOff(arg: string, o: { platform?: string } = {}): st
   if (name === 'disable-features' && m[2] !== undefined) {
     const off = SITE_ISOLATION_OFF_FEATURES.map(featureKey);
     for (const entry of m[2].split(',')) {
-      const feature = entry.replace(/[<:].*$/s, '').replace(/^\s*\*?/, '').trim();
+      const feature = entry
+        .replace(/[<:].*$/s, '')
+        .replace(/^\s*\*?/, '')
+        .trim();
       if (feature && off.includes(featureKey(feature))) return `--disable-features=${showHiddenChars(feature)} turns Chromium's site isolation off — ${fix}`;
     }
   }
@@ -761,7 +794,8 @@ export const AGENT_REFUSED_FEATURES: Readonly<{ enable: readonly string[]; disab
   disable: ['NetworkServiceSandbox'],
 };
 
-const AGENT_ARGS_FIX = 'jobs the Studio, the desktop app or an MCP client start pass Chromium only the switches of a short list (see `browser.args` in the workspace guide): remove it from browser.args (a run typed in a terminal keeps it)';
+const AGENT_ARGS_FIX =
+  'jobs the Studio, the desktop app or an MCP client start pass Chromium only the switches of a short list (see `browser.args` in the workspace guide): remove it from browser.args (a run typed in a terminal keeps it)';
 
 /**
  * Why `arg` may not be passed to Chromium for a job an agent can shape (null when it may), besides
@@ -784,7 +818,10 @@ export function agentArgProblem(arg: string): string | null {
   if (side && m[2] !== undefined) {
     const refused = AGENT_REFUSED_FEATURES[side].map(featureKey);
     for (const entry of m[2].split(',')) {
-      const feature = entry.replace(/[<:].*$/s, '').replace(/^\s*\*?/, '').trim();
+      const feature = entry
+        .replace(/[<:].*$/s, '')
+        .replace(/^\s*\*?/, '')
+        .trim();
       if (feature && refused.includes(featureKey(feature))) return `--${name}=${showHiddenChars(feature)} takes Chromium's network service out of its sandbox — ${AGENT_ARGS_FIX}`;
     }
   }
@@ -897,9 +934,15 @@ export function agentProgram(program: string, what: string, folders: readonly st
     const files = needFiles(o.files, 'agentProgram');
     const found = onPath(p, o.path, o.exists ?? ((f) => files.isExecutable(f)));
     if (!found) return { program, problem: null };
-    if (!isAbsolute(found.entry)) return refused(`${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
+    if (!isAbsolute(found.entry))
+      return refused(
+        `${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`,
+      );
     const inside = folders.find((f) => isUnder(found.file, f, files));
-    if (inside) return refused(`${what} (${shown}) is found on PATH at ${showHiddenChars(found.file)}, inside the workspace (${inside}) — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
+    if (inside)
+      return refused(
+        `${what} (${shown}) is found on PATH at ${showHiddenChars(found.file)}, inside the workspace (${inside}) — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`,
+      );
     return { program: realPathOf(found.file, files), problem: null };
   }
   const files = needFiles(o.files, 'agentProgram');
@@ -946,13 +989,10 @@ export const CHILD_ENV_BASE: readonly RegExp[] = [
  * config folder, the API version, the default platform, BuildKit and its progress output — never another DOCKER_*
  * variable (a registry password or token the person exported).
  */
-export const DOCKER_CHILD_ENV: readonly RegExp[] = [
-  /^DOCKER_(?:HOST|CONTEXT|CONFIG|CERT_PATH|TLS|TLS_VERIFY|API_VERSION|DEFAULT_PLATFORM|BUILDKIT)$/,
-  /^BUILDKIT_PROGRESS$/,
-];
+export const DOCKER_CHILD_ENV: readonly RegExp[] = [/^DOCKER_(?:HOST|CONTEXT|CONFIG|CERT_PATH|TLS|TLS_VERIFY|API_VERSION|DEFAULT_PLATFORM|BUILDKIT)$/, /^BUILDKIT_PROGRESS$/];
 
 /** How to give a job's programs another variable: the fix line of every refusal and hint about it. */
-export const PASS_ENV_FIX = 'a person lists its name in project.yaml `pass_env:` (e.g. `pass_env: [NAME]`), or sets it in the hook\'s own `env` (`{{env:NAME}}` reads it from the worker\'s environment)';
+export const PASS_ENV_FIX = "a person lists its name in project.yaml `pass_env:` (e.g. `pass_env: [NAME]`), or sets it in the hook's own `env` (`{{env:NAME}}` reads it from the worker's environment)";
 
 /**
  * Why `name` may not be listed in project.yaml `pass_env:` (null when it may): not a plain identifier, or a loader

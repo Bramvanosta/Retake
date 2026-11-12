@@ -265,11 +265,11 @@ export interface RenderLoopsResult {
  * gradients). Returns false when ffmpeg is not available.
  */
 async function quantizePng(src: string, out: string, work: WorkPolicy): Promise<boolean> {
-  const r = await runMediaTool(ffmpegBin(work), [
-    '-v', 'error', '-y', '-i', src,
-    '-vf', 'split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4',
-    '-frames:v', '1', out,
-  ], { maxBuffer: 8 * 1024 * 1024 });
+  const r = await runMediaTool(
+    ffmpegBin(work),
+    ['-v', 'error', '-y', '-i', src, '-vf', 'split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-frames:v', '1', out],
+    { maxBuffer: 8 * 1024 * 1024 },
+  );
   return r.code === 0;
 }
 
@@ -391,20 +391,22 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
     return {
       async still(spec, out, scale) {
         const composition = await select(spec);
-        await plainly(() => renderStill({
-          ...common,
-          composition,
-          serveUrl: o.serveUrl,
-          frame: spec.frame,
-          output: out,
-          imageFormat: 'png',
-          scale,
-          overwrite: true,
-          inputProps: previewProps(spec),
-          puppeteerInstance: puppeteer,
-          browserExecutable: executable,
-          ...remotion,
-        }));
+        await plainly(() =>
+          renderStill({
+            ...common,
+            composition,
+            serveUrl: o.serveUrl,
+            frame: spec.frame,
+            output: out,
+            imageFormat: 'png',
+            scale,
+            overwrite: true,
+            inputProps: previewProps(spec),
+            puppeteerInstance: puppeteer,
+            browserExecutable: executable,
+            ...remotion,
+          }),
+        );
       },
       async gif(spec, out, g) {
         const composition = await select(spec);
@@ -412,24 +414,26 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
         const onAbort = () => cancel();
         o.signal?.addEventListener('abort', onAbort);
         try {
-          await plainly(() => renderMedia({
-            ...common,
-            composition,
-            serveUrl: o.serveUrl,
-            codec: 'gif',
-            scale: g.scale,
-            everyNthFrame: g.everyNthFrame,
-            numberOfGifLoops: null,
-            frameRange: g.frames,
-            outputLocation: out,
-            overwrite: true,
-            inputProps: previewProps(spec),
-            cancelSignal,
-            puppeteerInstance: puppeteer,
-            browserExecutable: executable,
-            ...(opened.chromium.gl ? { chromiumOptions: opened.chromium } : {}),
-            ...remotion,
-          }));
+          await plainly(() =>
+            renderMedia({
+              ...common,
+              composition,
+              serveUrl: o.serveUrl,
+              codec: 'gif',
+              scale: g.scale,
+              everyNthFrame: g.everyNthFrame,
+              numberOfGifLoops: null,
+              frameRange: g.frames,
+              outputLocation: out,
+              overwrite: true,
+              inputProps: previewProps(spec),
+              cancelSignal,
+              puppeteerInstance: puppeteer,
+              browserExecutable: executable,
+              ...(opened.chromium.gl ? { chromiumOptions: opened.chromium } : {}),
+              ...remotion,
+            }),
+          );
         } finally {
           o.signal?.removeEventListener('abort', onAbort);
         }

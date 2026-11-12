@@ -334,7 +334,9 @@ export function parseRenderRecord(value: unknown): RenderRead {
   rest = lenient(rest, state.shape as Record<string, z.ZodType>, '', notes, TABLES) ?? rest;
   if (!known) {
     const unknown = UnknownStatusRenderSchema.safeParse(rest);
-    return unknown.success ? { ok: false, problem: 'unknown-status', record: asRead<UnknownStatusRender>(rest), lacks } : { ok: false, problem: 'invalid', detail: firstPath(unknown.error.issues), said };
+    return unknown.success
+      ? { ok: false, problem: 'unknown-status', record: asRead<UnknownStatusRender>(rest), lacks }
+      : { ok: false, problem: 'invalid', detail: firstPath(unknown.error.issues), said };
   }
   const parsed = StoredRenderRecordSchema.safeParse(rest);
   return parsed.success ? { ok: true, value: asRead<StoredRenderRecord>(rest), notes, lacks } : { ok: false, problem: 'invalid', detail: firstPath(parsed.error.issues), said };
@@ -435,17 +437,7 @@ export function previousRender<T extends Pick<StoredRenderRecord, 'id' | 'file' 
  * Why an entry of renders/ is no render a `latest` or a list takes — a closed list, said with fixed words
  * (renderNotWords), never with a text read from a file.
  */
-export type RenderNot =
-  | 'linked'
-  | 'too-big'
-  | 'unreadable'
-  | 'newer-format'
-  | 'unknown-status'
-  | 'renamed'
-  | 'incomplete'
-  | 'another-scenario'
-  | 'other-name'
-  | 'not-succeeded';
+export type RenderNot = 'linked' | 'too-big' | 'unreadable' | 'newer-format' | 'unknown-status' | 'renamed' | 'incomplete' | 'another-scenario' | 'other-name' | 'not-succeeded';
 
 const RENDER_NOT_WORDS: Record<RenderNot, string> = {
   linked: 'its record is a link',
@@ -574,7 +566,13 @@ export function renderOutputName(entry: Pick<RenderEntry, 'name'>, id: string, t
   return one(entry.name) && !taken.has(entry.name) ? entry.name : null;
 }
 
-const UNREAD_DETAIL: Readonly<Record<string, string>> = { 'not-json': 'it is not JSON', 'not-a-file': 'it is no file', 'too-big': 'it is too big to read', unreadable: 'it cannot be read', missing: 'it cannot be read' };
+const UNREAD_DETAIL: Readonly<Record<string, string>> = {
+  'not-json': 'it is not JSON',
+  'not-a-file': 'it is no file',
+  'too-big': 'it is too big to read',
+  unreadable: 'it cannot be read',
+  missing: 'it cannot be read',
+};
 
 /**
  * What a sentence may say of why a file is no render record: the member that does not read when it is one of the
@@ -623,8 +621,14 @@ export interface UnknownStatusProjectRender {
  * (a status question: answered as `unknown`, never as a status of the tool's); `quotable`: one a message may quote.
  */
 export function latestProjectRender(entries: readonly RenderEntry[], o: { scenario?: string; variant?: string; status: 'succeeded'; quotable?: boolean }): RenderLatestPick<ProjectRender>;
-export function latestProjectRender(entries: readonly RenderEntry[], o: { scenario?: string; variant?: string; status: 'any'; quotable?: boolean }): RenderLatestPick<ProjectRender | UnknownStatusProjectRender>;
-export function latestProjectRender(entries: readonly RenderEntry[], o: { scenario?: string; variant?: string; status: 'succeeded' | 'any'; quotable?: boolean }): RenderLatestPick<ProjectRender | UnknownStatusProjectRender>;
+export function latestProjectRender(
+  entries: readonly RenderEntry[],
+  o: { scenario?: string; variant?: string; status: 'any'; quotable?: boolean },
+): RenderLatestPick<ProjectRender | UnknownStatusProjectRender>;
+export function latestProjectRender(
+  entries: readonly RenderEntry[],
+  o: { scenario?: string; variant?: string; status: 'succeeded' | 'any'; quotable?: boolean },
+): RenderLatestPick<ProjectRender | UnknownStatusProjectRender>;
 export function latestProjectRender(
   entries: readonly RenderEntry[],
   o: { scenario?: string; variant?: string; status: 'succeeded' | 'any'; quotable?: boolean },
@@ -784,12 +788,10 @@ export interface RenderKeeps {
  * file: never an item, never counted; the id it says is kept too (no record with that id is an item while the file
  * is there), and the take it says is protected. A file too big to read could say anything: nothing is an item.
  */
-export function renderKeeper(o: {
-  keep: number;
-  thread(id: string): boolean;
-  busy(id: string): boolean;
-  unread(r: { id: string; scenario: string }): boolean;
-}): { add(entry: RenderEntry, said?: RenderSaid | 'too-big' | null): void; done(files: readonly string[]): RenderKeeps } {
+export function renderKeeper(o: { keep: number; thread(id: string): boolean; busy(id: string): boolean; unread(r: { id: string; scenario: string }): boolean }): {
+  add(entry: RenderEntry, said?: RenderSaid | 'too-big' | null): void;
+  done(files: readonly string[]): RenderKeeps;
+} {
   const mine: Array<{ entry: RenderEntry; record: StoredRenderRecord }> = [];
   const foreign: Array<{ entry: RenderEntry; said: RenderSaid | null }> = [];
   let tooBig = 0;

@@ -88,10 +88,7 @@ export function fieldState(id: string | null): FieldState | null {
   // Inside an open floating popover that lists options (a listbox's filter); never a modal or anchored dialog, nor a
   // popover holding a small form (a rename field): their fields are not searches.
   const pop = deepClosest(el, FLOATING_SEL);
-  search ||=
-    pop !== null &&
-    !pop.matches('dialog,[aria-modal=true],[role=dialog]:not([data-side]),[role=alertdialog]') &&
-    (pop.matches(LIST_SEL) || deepQsa(pop, LIST_SEL).length > 0);
+  search ||= pop !== null && !pop.matches('dialog,[aria-modal=true],[role=dialog]:not([data-side]),[role=alertdialog]') && (pop.matches(LIST_SEL) || deepQsa(pop, LIST_SEL).length > 0);
   if (!search) {
     const names = ['name', 'id', 'placeholder', 'aria-label', 'title'].map((n) => el.getAttribute(n) ?? '');
     names.push(accessibleName(el));

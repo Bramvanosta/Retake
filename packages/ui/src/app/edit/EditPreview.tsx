@@ -56,7 +56,6 @@ export interface EditPreviewProps {
   children: ReactNode;
 }
 
-
 export function EditPreview(p: EditPreviewProps) {
   const { m, frame, capture } = p;
   const duration = timecode(m.frames, m.fps);
@@ -138,7 +137,13 @@ export function EditPreview(p: EditPreviewProps) {
           onChange={(v) => p.onRate(Number(v) as 0.5 | 1 | 2)}
         />
         {p.commentOn !== null ? (
-          <LinkButton size="sm" testId="comment-here" dataRender={p.commentOn} to={{ name: 'comments', slug: p.slug, scenario: p.name, at: { render: p.commentOn, frame } }} label={`Comment frame ${frame.toLocaleString('en')} of render ${p.commentOn}`}>
+          <LinkButton
+            size="sm"
+            testId="comment-here"
+            dataRender={p.commentOn}
+            to={{ name: 'comments', slug: p.slug, scenario: p.name, at: { render: p.commentOn, frame } }}
+            label={`Comment frame ${frame.toLocaleString('en')} of render ${p.commentOn}`}
+          >
             Comment
           </LinkButton>
         ) : (
@@ -162,7 +167,9 @@ export function EditPreview(p: EditPreviewProps) {
         <Txt text={` · ${duration} · ${plural(m.frames, 'frame')} at ${m.fps} fps · ${m.width}×${m.height}`} />
         {capture.codec && (
           <span data-testid="capture-codec">
-            <Txt text={` · ${codecWords(capture.codec)}${capture.keyframe_interval_s !== undefined ? `, keyframes ${capture.at_least ? 'at least ' : ''}every ${capture.keyframe_interval_s.toFixed(1)} s` : ''}`} />
+            <Txt
+              text={` · ${codecWords(capture.codec)}${capture.keyframe_interval_s !== undefined ? `, keyframes ${capture.at_least ? 'at least ' : ''}every ${capture.keyframe_interval_s.toFixed(1)} s` : ''}`}
+            />
             {capture.b_frames ? ', B-frames' : ''}
           </span>
         )}

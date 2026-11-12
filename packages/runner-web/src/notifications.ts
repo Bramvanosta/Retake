@@ -124,12 +124,7 @@ export function watchNotifications(rt: Runtime): { settled: () => Promise<void> 
       }
     }
     const job = rt.artefacts
-      .addNotification(
-        { title: n.title, body: n.body, tag: n.tag, icon: n.icon, origin: n.origin, via: n.via, time: n.time, page: pageId },
-        t,
-        cur ? { scene: cur.scene, step: cur.step } : {},
-        icon,
-      )
+      .addNotification({ title: n.title, body: n.body, tag: n.tag, icon: n.icon, origin: n.origin, via: n.via, time: n.time, page: pageId }, t, cur ? { scene: cur.scene, step: cur.step } : {}, icon)
       .then((a) => {
         rt.log('info', `notification captured: "${title}" (${a.name}) from ${a.origin}`);
         if (!cur) {

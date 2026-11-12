@@ -8,8 +8,37 @@ import { agentArgsProblems, agentProgramProblem, workspaceFolders } from '@retak
 import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, defaultRetakeHome, statePath } from '@retake/core/project';
 import { sandboxAdvice, sandboxAdviceText, sandboxNames } from '@retake/core/sandbox';
 import { UNSAFE_TEST_RESOLVE_ENV, unsafeTestResolve } from '@retake/core/theme';
-import { findWorkspaceRoot, listProjects, listTemplates, loadTemplate, retakeHome, bundleInfoOrNull, bundleProblems, resolveMediaTools, clientPath, engineLocation, nodeFileFacts, fileFacts } from '@retake/core/io';
-import { CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, cliLinkState, cliOnPath, defaultCliDir, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, stableNodePath, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/engine/integrations';
+import {
+  findWorkspaceRoot,
+  listProjects,
+  listTemplates,
+  loadTemplate,
+  retakeHome,
+  bundleInfoOrNull,
+  bundleProblems,
+  resolveMediaTools,
+  clientPath,
+  engineLocation,
+  nodeFileFacts,
+  fileFacts,
+} from '@retake/core/io';
+import {
+  CLI_NAME,
+  LAUNCHER_REL,
+  MOVE_TO_APPLICATIONS,
+  cliLinkState,
+  cliOnPath,
+  defaultCliDir,
+  installLocation,
+  installLocationWords,
+  onReadOnlyVolume,
+  readAppSettings,
+  readUpdateChecks,
+  stableNodePath,
+  updateChecksOff,
+  UPDATE_DISABLE_ENV,
+  zshQuote,
+} from '@retake/engine/integrations';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { BundleInfo, MediaToolSource, MediaTools } from '@retake/core/io';
@@ -188,7 +217,7 @@ function execProbe(cmd: string, args: string[], timeoutMs: number): Promise<Exec
   return new Promise((resolve) => {
     execFile(cmd, args, { timeout: timeoutMs, encoding: 'utf8' }, (err, stdout, stderr) => {
       if (err && (err as NodeJS.ErrnoException).code === 'ENOENT') return resolve(null);
-      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? ((err as { code: number }).code) : 1) : 0;
+      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1) : 0;
       resolve({ code, stdout: String(stdout), stderr: String(stderr) });
     });
   });
@@ -231,7 +260,15 @@ async function capturesProbe(root: string): Promise<CapturesProbe> {
     // Review A L3: a Retake worker or `retake run` only (any other node process is not one).
     takes.push({ here: t.here, paused: t.paused, capped: t.capped, retake: e.isTakeOwnerCommand(cmd.trim()) });
   }
-  return { dir: loc.dir, override: loc.override, exists, ...(usable.problem ? { problem: usable.problem } : {}), takes, qos: process.platform === 'darwin' && existsSync('/usr/sbin/taskpolicy'), capMin: e.capMinutes(process.env) };
+  return {
+    dir: loc.dir,
+    override: loc.override,
+    exists,
+    ...(usable.problem ? { problem: usable.problem } : {}),
+    takes,
+    qos: process.platform === 'darwin' && existsSync('/usr/sbin/taskpolicy'),
+    capMin: e.capMinutes(process.env),
+  };
 }
 
 /** The jobs worker serving a workspace (its lock), or null. */
@@ -277,7 +314,11 @@ export function systemProbes(): DoctorProbes {
   };
 }
 
-const firstLine = (s: string) => s.split('\n').find((l) => l.trim())?.trim() ?? '';
+const firstLine = (s: string) =>
+  s
+    .split('\n')
+    .find((l) => l.trim())
+    ?.trim() ?? '';
 
 /** How a doctor line names where a tool comes from (L5.16: every tool line says it). */
 const SOURCE_WORDS: Record<MediaToolSource, string> = { 'retake.yaml': 'retake.yaml', RETAKE_FFMPEG: '$RETAKE_FFMPEG', RETAKE_FFPROBE: '$RETAKE_FFPROBE', bundled: 'bundled', PATH: 'PATH' };
@@ -372,12 +413,12 @@ function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined, bun
       hint: /as root|crbug\.com\/638180/i.test(c.error ?? '')
         ? 'Chromium does not run sandboxed as root, and Retake never turns its sandbox off: run Retake as a regular user (in a container, a USER that is not root)'
         : /sandbox/i.test(c.error ?? '')
-        ? "Chromium's sandbox could not start (Retake always runs it sandboxed): on Linux it needs unprivileged user namespaces (kernel.unprivileged_userns_clone=1, or AppArmor's restriction lifted for that binary)"
-        : fromApp
-          ? 'reinstall Retake (its Chromium did not start)'
-          : bundle
-            ? "check that binary, or remove $RETAKE_CHROMIUM / browser.executable to use the app's own"
-            : 'reinstall it (playwright-core install chromium); on Linux install its system libraries (playwright-core install-deps chromium)',
+          ? "Chromium's sandbox could not start (Retake always runs it sandboxed): on Linux it needs unprivileged user namespaces (kernel.unprivileged_userns_clone=1, or AppArmor's restriction lifted for that binary)"
+          : fromApp
+            ? 'reinstall Retake (its Chromium did not start)'
+            : bundle
+              ? "check that binary, or remove $RETAKE_CHROMIUM / browser.executable to use the app's own"
+              : 'reinstall it (playwright-core install chromium); on Linux install its system libraries (playwright-core install-deps chromium)',
     };
   }
   const mode = browser?.channel === 'headless-shell' ? 'headless shell' : 'new headless';
@@ -391,7 +432,8 @@ function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined, bun
 export function chromiumSandboxCheck(c: ChromiumProbe): DoctorCheck | null {
   if (!c.launched) return null;
   const name = 'Chromium sandbox';
-  if (!c.sandbox) return { status: 'warn', name, detail: 'the capture browser did not report its command line', hint: 'open chrome://version in that Chromium: its command line must not hold --no-sandbox' };
+  if (!c.sandbox)
+    return { status: 'warn', name, detail: 'the capture browser did not report its command line', hint: 'open chrome://version in that Chromium: its command line must not hold --no-sandbox' };
   if (c.sandbox.on) return { status: 'ok', name, detail: "on · read from the capture browser's command line" };
   const own = c.source === 'browser.executable' || c.source === 'RETAKE_CHROMIUM';
   return {
@@ -412,7 +454,12 @@ function renderBrowserCheck(p: DoctorProbes): DoctorCheck | null {
   if (b.path) return { status: b.note ? 'warn' : 'ok', name, detail: `${b.path} · ${browserSource(b.source)}`, ...(b.note ? { hint: b.note } : {}) };
   if (p.bundle) return { status: 'fail', name, detail: "the app's headless shell is missing", hint: 'reinstall Retake' };
   // Remotion never downloads a browser of its own: no render starts without one.
-  return { status: 'fail', name, detail: 'no headless shell: renders do not start', hint: 'pnpm --filter @retake/runner-web exec playwright-core install chromium-headless-shell — or point $RETAKE_CHROMIUM_HEADLESS_SHELL at one' };
+  return {
+    status: 'fail',
+    name,
+    detail: 'no headless shell: renders do not start',
+    hint: 'pnpm --filter @retake/runner-web exec playwright-core install chromium-headless-shell — or point $RETAKE_CHROMIUM_HEADLESS_SHELL at one',
+  };
 }
 
 /**
@@ -504,9 +551,15 @@ export function rendersCheck(r: RendersProbe): DoctorCheck {
   if (r.error) return { status: 'fail', name, detail: `${r.error}${tail}`, hint: 'every render would fail: change retake.yaml render: or the RETAKE_RENDER_* variables' };
   if (r.gl === 'angle') {
     const gpu = r.gpu?.accelerated ? `GPU (${r.gpu.renderer ?? 'ANGLE'})` : `ANGLE without a GPU (${r.gpu?.renderer ?? r.browserError ?? 'no GPU status'})`;
-    if (!r.gpu?.accelerated) return { status: 'warn', name, detail: `${gpu} · ${encoder} · ${frames}${tail}`, hint: 'render gl: gpu is set, but the render browser found no GPU: renders may fail or crawl (set it to auto)' };
+    if (!r.gpu?.accelerated)
+      return { status: 'warn', name, detail: `${gpu} · ${encoder} · ${frames}${tail}`, hint: 'render gl: gpu is set, but the render browser found no GPU: renders may fail or crawl (set it to auto)' };
     if (r.videotoolbox && !r.videotoolbox.ok && p.encoder.asked === 'auto') {
-      return { status: 'warn', name, detail: `${gpu} · VideoToolbox does not work here (${r.videotoolbox.error ?? 'its probe failed'}): ${encoder} · ${frames}${tail}`, hint: 'renders encode with libx264 (more CPU): a Mac VM often has no media engine' };
+      return {
+        status: 'warn',
+        name,
+        detail: `${gpu} · VideoToolbox does not work here (${r.videotoolbox.error ?? 'its probe failed'}): ${encoder} · ${frames}${tail}`,
+        hint: 'renders encode with libx264 (more CPU): a Mac VM often has no media engine',
+      };
     }
     return ownAsked({ status: 'ok', name, detail: `${gpu} · ${encoder} · ${frames}${tail}` }, r);
   }
@@ -525,7 +578,11 @@ export function rendersCheck(r: RendersProbe): DoctorCheck {
 /** `render.ffmpeg: own` asked by name and the rendering library's ffmpeg encodes: a WARN on a line that was fine (renders work). */
 function ownAsked(check: DoctorCheck, r: RendersProbe): DoctorCheck {
   if (r.policy?.ffmpeg?.asked !== 'own' || r.ffmpeg?.used !== 'library' || !r.ffmpeg.note) return check;
-  return { ...check, status: 'warn', hint: "render ffmpeg: own is set and this machine's ffmpeg does not encode renders here: they use the rendering library's (set it to auto, or see the ffmpeg line)" };
+  return {
+    ...check,
+    status: 'warn',
+    hint: "render ffmpeg: own is set and this machine's ffmpeg does not encode renders here: they use the rendering library's (set it to auto, or see the ffmpeg line)",
+  };
 }
 
 /** The encoder captures feed during the take (L5.7): the Mac's hardware H.264 encoder through ffmpeg, else libx264. */
@@ -678,7 +735,12 @@ async function templateChecks(p: DoctorProbes, ws: OpenedWorkspace): Promise<Doc
   const templates = await listTemplates(ws.root).catch(() => []);
   if (!templates.length) {
     // The check names `Templates` / `Template <name>` stay (`retake doctor --json` reads them; docs/GLOSSARY.md).
-    out.push({ status: 'warn', name: 'Templates', detail: `no themes in ${ws.templatesDir}`, hint: p.bundle ? "the app's starter themes are missing: reinstall Retake" : "copy a starter from the repository's templates/ folder" });
+    out.push({
+      status: 'warn',
+      name: 'Templates',
+      detail: `no themes in ${ws.templatesDir}`,
+      hint: p.bundle ? "the app's starter themes are missing: reinstall Retake" : "copy a starter from the repository's templates/ folder",
+    });
   }
   for (const t of templates) {
     try {
@@ -748,7 +810,12 @@ function defaultEnvOf(project: LoadedProject, envNames: string[]): string | unde
 function projectBrowserCheck({ ws, project, slug }: ProjectContext): DoctorCheck | null {
   const own = project.config.browser;
   if (!own || (own.executable === ws.browser?.executable && (own.args?.length ?? 0) === (ws.browser?.args?.length ?? 0))) return null;
-  return agentJobsCheck({}, ws, { ...(own.executable !== ws.browser?.executable ? { executable: own.executable } : {}), args: own.args?.slice(ws.browser?.args?.length ?? 0) ?? [] }, `Project ${slug}: Studio and MCP jobs`);
+  return agentJobsCheck(
+    {},
+    ws,
+    { ...(own.executable !== ws.browser?.executable ? { executable: own.executable } : {}), args: own.args?.slice(ws.browser?.args?.length ?? 0) ?? [] },
+    `Project ${slug}: Studio and MCP jobs`,
+  );
 }
 
 /** Browser profile(s) of the single-account form (auth.profile / storage_state): global, or one per environment; one line each. */
@@ -765,7 +832,12 @@ async function profileChecks({ p, project, slug, loginCommand, envNames }: Proje
       if (!lock) {
         out.push({ status: 'warn', name: label, detail: `${auth.profileDir} does not exist yet`, hint: `sign in once: ${loginCommand({ project: slug, env })}` });
       } else if (lock.state === 'live') {
-        out.push({ status: 'warn', name: label, detail: `${auth.profileDir} is in use by a browser${lock.pid ? ` (pid ${lock.pid})` : ''}`, hint: 'close the login window (or the other run) before capturing' });
+        out.push({
+          status: 'warn',
+          name: label,
+          detail: `${auth.profileDir} is in use by a browser${lock.pid ? ` (pid ${lock.pid})` : ''}`,
+          hint: 'close the login window (or the other run) before capturing',
+        });
       } else {
         out.push((await gitPlacement(p, auth.profileDir, true, label, auth.profileDir)) ?? { status: 'ok', name: label, detail: auth.profileDir });
       }
@@ -818,7 +890,11 @@ async function hostChecks({ p, project, envNames, defaultEnv, sandboxes }: Proje
           status: env === defaultEnv ? 'fail' : 'warn',
           name,
           detail: `${url} unreachable: ${r.error ?? 'no answer'}`,
-          hint: /localhost|127\.0\.0\.1/.test(url) ? (p.bundle ? 'start the app first' : 'start the app first (the bundled fixture: pnpm fixture)') : 'check the URL, your VPN / network, or the environment status',
+          hint: /localhost|127\.0\.0\.1/.test(url)
+            ? p.bundle
+              ? 'start the app first'
+              : 'start the app first (the bundled fixture: pnpm fixture)'
+            : 'check the URL, your VPN / network, or the environment status',
         });
       }
     }
@@ -842,7 +918,12 @@ async function sandboxCheck(p: DoctorProbes, project: LoadedProject, env: string
   if (s.state === 'down') {
     return { status: 'warn', name, detail: `${s.provider} · not running`, hint: `${studio} sandbox up ${project.slug}${envFlag} (retake run … --sandbox starts it too)` };
   }
-  return { status: 'warn', name, detail: `${s.provider} · partly up: ${s.problems.join('; ')}`, hint: `${studio} sandbox status ${project.slug}${envFlag}, then ${studio} sandbox up ${project.slug}${envFlag}` };
+  return {
+    status: 'warn',
+    name,
+    detail: `${s.provider} · partly up: ${s.problems.join('; ')}`,
+    hint: `${studio} sandbox status ${project.slug}${envFlag}, then ${studio} sandbox up ${project.slug}${envFlag}`,
+  };
 }
 
 /** The git work tree a path sits in (walking up from it), or null. */
@@ -870,7 +951,10 @@ async function gitPlacement(p: DoctorProbes, path: string, dir: boolean, name: s
     status: 'warn',
     name,
     detail: `${tildePath(path)} is inside the git work tree ${tildePath(root)}${res ? ', not ignored' : ' (git not found: cannot tell whether it is ignored)'}: a commit could publish a signed-in session`,
-    hint: name === 'Session home' ? 'set RETAKE_HOME to a folder outside any repository (or ignore it in that repository)' : 'keep sessions outside repositories: name the account in auth.personas (its session then lives in ~/.retake), or ignore the path',
+    hint:
+      name === 'Session home'
+        ? 'set RETAKE_HOME to a folder outside any repository (or ignore it in that repository)'
+        : 'keep sessions outside repositories: name the account in auth.personas (its session then lives in ~/.retake), or ignore the path',
   };
 }
 
@@ -880,10 +964,16 @@ async function personaCheck(p: DoctorProbes, s: PersonaState, home: string, rech
   const where = s.session === 'profile' ? 'profile' : 'snapshot';
   if (s.status === 'never') return { status: 'warn', name, detail: 'never signed in', hint: `sign in once: ${s.command}` };
   if (s.in_use) {
-    return { status: 'warn', name, detail: `its profile is in use by a browser${s.in_use.pid ? ` (pid ${s.in_use.pid})` : ''}`, hint: 'close the retake login window (or the other browser) before capturing' };
+    return {
+      status: 'warn',
+      name,
+      detail: `its profile is in use by a browser${s.in_use.pid ? ` (pid ${s.in_use.pid})` : ''}`,
+      hint: 'close the retake login window (or the other browser) before capturing',
+    };
   }
   if (s.status === 'expired') return { status: 'warn', name, detail: `expired · ${checkedText(s)}${s.detail ? `: ${s.detail}` : ''}`, hint: `sign in again: ${s.command}` };
-  if (s.status === 'error') return { status: 'warn', name, detail: `could not be checked · ${checkedText(s)}${s.detail ? `: ${s.detail}` : ''}`, hint: `is the app running? Then sign in again if needed: ${s.command}` };
+  if (s.status === 'error')
+    return { status: 'warn', name, detail: `could not be checked · ${checkedText(s)}${s.detail ? `: ${s.detail}` : ''}`, hint: `is the app running? Then sign in again if needed: ${s.command}` };
   const detail = s.status === 'valid' ? `valid · ${checkedText(s)} · ${where}` : `${where} saved, not checked yet (${recheck})`;
   // A git work tree nested in the Retake home (the home itself is reported once).
   const file = s.session === 'profile' ? s.profile : s.snapshot;
@@ -923,11 +1013,24 @@ export function updateCheck(env: Record<string, string | undefined>, home: strin
     checks = { checked: null, failed: null };
   }
   const off = updateChecksOff(env[UPDATE_DISABLE_ENV]) ? ` · ${UPDATE_DISABLE_ENV} is set here (the app started from this shell checks nothing)` : '';
-  if (checks.failed && checks.failed.failure === 'install') return { status: 'warn', name, detail: `the update to ${checks.failed.version} could not be installed: the app kept this version${off}`, hint: 'open the app: Help › Check for Updates… tries again, or install the new version from its disk image' };
+  if (checks.failed && checks.failed.failure === 'install')
+    return {
+      status: 'warn',
+      name,
+      detail: `the update to ${checks.failed.version} could not be installed: the app kept this version${off}`,
+      hint: 'open the app: Help › Check for Updates… tries again, or install the new version from its disk image',
+    };
   if (checks.checked === null) return { status: 'ok', name, detail: `not checked yet — the app checks at launch, at most once a day (Help › Check for Updates…)${off}` };
   const when = new Date(checks.checked * 1000).toISOString().replace('T', ' ').slice(0, 16);
   const days = Math.floor((now / 1000 - checks.checked) / 86_400);
-  return days > 30 ? { status: 'warn', name, detail: `last successful check ${when} UTC, ${days} days ago${off}`, hint: 'open the app (it checks at launch), or Help › Check for Updates… — a feed that cannot be read says so there' } : { status: 'ok', name, detail: `last successful check ${when} UTC${off}` };
+  return days > 30
+    ? {
+        status: 'warn',
+        name,
+        detail: `last successful check ${when} UTC, ${days} days ago${off}`,
+        hint: 'open the app (it checks at launch), or Help › Check for Updates… — a feed that cannot be read says so there',
+      }
+    : { status: 'ok', name, detail: `last successful check ${when} UTC${off}` };
 }
 
 export function appChecks(p: DoctorProbes): DoctorCheck[] {
@@ -960,7 +1063,16 @@ function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
   const app = b && b.sealed.endsWith('.app') ? b : null;
   if (app) {
     const loc = installLocation(app.sealed, { readOnly: (p.readOnly ?? onReadOnlyVolume)(app.sealed) });
-    out.push(loc === 'ok' ? { status: 'ok', name: 'App location', detail: tildePath(app.sealed) } : { status: 'warn', name: 'App location', detail: `${installLocationWords(loc)} (${app.sealed}): the command and the Claude registrations would point into a folder that goes away`, hint: MOVE_TO_APPLICATIONS });
+    out.push(
+      loc === 'ok'
+        ? { status: 'ok', name: 'App location', detail: tildePath(app.sealed) }
+        : {
+            status: 'warn',
+            name: 'App location',
+            detail: `${installLocationWords(loc)} (${app.sealed}): the command and the Claude registrations would point into a folder that goes away`,
+            hint: MOVE_TO_APPLICATIONS,
+          },
+    );
   }
   // The command's place is under the HOME of the probes' environment (a shell always has one).
   const home = p.env.HOME?.trim();
@@ -980,15 +1092,34 @@ function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
   const first = cliOnPath(dirname(link), p.env.PATH ?? '').first;
   const firstNote = first && first !== link ? ` · ${tildePath(first)} comes first on this PATH` : '';
   if (st.state === 'other_app' && st.dangling) {
-    out.push({ status: 'warn', name, detail: `${tildePath(link)} points to a Retake app that is gone (${st.target}): the command fails`, hint: `install it again from the app (Help › Install the retake Command…), or remove it: rm ${pastePath(link)}` });
+    out.push({
+      status: 'warn',
+      name,
+      detail: `${tildePath(link)} points to a Retake app that is gone (${st.target}): the command fails`,
+      hint: `install it again from the app (Help › Install the retake Command…), or remove it: rm ${pastePath(link)}`,
+    });
   } else if (!app) {
     return out;
   } else if (st.state === 'ours') {
-    out.push(firstNote ? { status: 'warn', name, detail: `${tildePath(link)} → this app${firstNote}`, hint: `that one runs when you type retake: remove it, or put ${tildePath(dirname(link))} before it on your PATH` } : { status: 'ok', name, detail: `${tildePath(link)} → this app` });
+    out.push(
+      firstNote
+        ? {
+            status: 'warn',
+            name,
+            detail: `${tildePath(link)} → this app${firstNote}`,
+            hint: `that one runs when you type retake: remove it, or put ${tildePath(dirname(link))} before it on your PATH`,
+          }
+        : { status: 'ok', name, detail: `${tildePath(link)} → this app` },
+    );
   } else if (st.state === 'other_app') {
     out.push({ status: 'warn', name, detail: `${tildePath(link)} runs another copy of Retake (${st.target})`, hint: 'point it at this one: Help › Install the retake Command… (Replace)' });
   } else if (st.state === 'foreign') {
-    out.push({ status: 'warn', name, detail: `${tildePath(link)} is not Retake's command (${st.what}${st.target ? ` → ${st.target}` : ''}): the app leaves it as it is`, hint: 'remove or rename it yourself to install the command from the app, or choose another folder there' });
+    out.push({
+      status: 'warn',
+      name,
+      detail: `${tildePath(link)} is not Retake's command (${st.what}${st.target ? ` → ${st.target}` : ''}): the app leaves it as it is`,
+      hint: 'remove or rename it yourself to install the command from the app, or choose another folder there',
+    });
   } else {
     out.push({ status: 'ok', name, detail: `not installed${first ? ` (${tildePath(first)} is on this PATH)` : ''} · the app's Help › Install the retake Command… links it` });
   }
@@ -1009,7 +1140,10 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
   if (Number(p.nodeVersion.split('.')[0]) < MIN_NODE_MAJOR) {
     warns.push({ detail: `the registration would name Node.js ${p.nodeVersion}`, hint: `run retake mcp --print-config with Node.js ${MIN_NODE_MAJOR}+` });
   } else if (node === exec && /\/v?\d+\.\d+\.\d+\//.test(node)) {
-    warns.push({ detail: `${tildePath(node)} names a patch version: an upgrade of Node.js removes it`, hint: 'register again after an upgrade (retake mcp --print-config), or point it at a version manager alias' });
+    warns.push({
+      detail: `${tildePath(node)} names a patch version: an upgrade of Node.js removes it`,
+      hint: 'register again after an upgrade (retake mcp --print-config), or point it at a version manager alias',
+    });
   }
   // What the MCP client's server gets: the registration's PATH and RETAKE_HOME only (the integrations' config snippet)
   // — never the shell's $RETAKE_FFMPEG / $RETAKE_FFPROBE.
@@ -1019,7 +1153,10 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
     if (whichOnPath('ffmpeg', { PATH: path }, p.platform)) parts.push('ffmpeg on the PATH it registers');
     else {
       const shellOnly = p.env.RETAKE_FFMPEG?.trim() ? ' ($RETAKE_FFMPEG is set in this shell only: the registration does not carry it)' : '';
-      warns.push({ detail: `ffmpeg is not on the PATH a GUI client gets from the registration${shellOnly}`, hint: p.bundle ? 'set ffmpeg: in retake.yaml' : 'install ffmpeg (Homebrew), or set ffmpeg: in retake.yaml' });
+      warns.push({
+        detail: `ffmpeg is not on the PATH a GUI client gets from the registration${shellOnly}`,
+        hint: p.bundle ? 'set ffmpeg: in retake.yaml' : 'install ffmpeg (Homebrew), or set ffmpeg: in retake.yaml',
+      });
     }
   }
   const worker = p.worker ? await p.worker(ws.root).catch(() => null) : null;
@@ -1029,14 +1166,18 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
   if (worker && ((worker.engine !== undefined && worker.engine !== self) || (worker.version !== undefined && worker.version !== RETAKE_VERSION))) {
     warns.push({
       detail: `this workspace's worker runs another copy of Retake (${lockText(worker.version ?? '?')}${worker.engine ? `, ${lockText(tildePath(worker.engine))}` : ''}) than this one (${RETAKE_VERSION}, ${tildePath(self)})`,
-      hint: 'jobs submitted now run with that copy\'s browsers and tools: let it finish, it exits a minute after its last job — the next submit starts this copy\'s',
+      hint: "jobs submitted now run with that copy's browsers and tools: let it finish, it exits a minute after its last job — the next submit starts this copy's",
     });
   }
   const tree = gitWorkTree(p, ws.root);
   if (tree) {
     const rel = relative(tree, statePath(ws.root));
     const res = await p.exec('git', ['-C', tree, 'check-ignore', '-q', `${rel}/`], 5000);
-    if (!res || res.code !== 0) warns.push({ detail: `${tildePath(statePath(ws.root))} (the job queue and history of this machine) is not ignored by git`, hint: `add ${WORKSPACE_GITIGNORE.join(', ')} to the workspace's .gitignore` });
+    if (!res || res.code !== 0)
+      warns.push({
+        detail: `${tildePath(statePath(ws.root))} (the job queue and history of this machine) is not ignored by git`,
+        hint: `add ${WORKSPACE_GITIGNORE.join(', ')} to the workspace's .gitignore`,
+      });
   }
   if (warns.length) return { status: 'warn', name, detail: [...warns.map((w) => w.detail), ...parts].join(' · '), hint: warns.map((w) => w.hint).join('; ') };
   return { status: 'ok', name, detail: `${parts.join(' · ')} · register: retake mcp --print-config` };
@@ -1065,7 +1206,13 @@ export function capturesCheck(c: CapturesProbe): DoctorCheck {
     c.qos ? 'a render running when a take starts is slowed (background priority)' : 'no background priority here: a running render is not slowed, new heavy jobs only wait',
     `cap ${c.capMin} min (RETAKE_CAPTURE_HOLD_MAX_MIN)`,
   ];
-  if (c.problem) return { status: 'warn', name, detail: [c.problem, ...parts.slice(1)].join(' · '), hint: 'captures first is off until the folder is a directory of this user, mode 0700 (or set RETAKE_CAPTURES_DIR to one)' };
+  if (c.problem)
+    return {
+      status: 'warn',
+      name,
+      detail: [c.problem, ...parts.slice(1)].join(' · '),
+      hint: 'captures first is off until the folder is a directory of this user, mode 0700 (or set RETAKE_CAPTURES_DIR to one)',
+    };
   const foreign = c.takes.filter((t) => !t.retake).length;
   if (foreign) {
     return {

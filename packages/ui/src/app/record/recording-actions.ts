@@ -29,7 +29,10 @@ export interface RecordingSend {
 }
 
 /** The recording's changes (annotate, stop, discard, save) and whether one is being written. */
-export function useRecordingActions({ slug, rec, cursor, setCursor, reload, accept, resync, latest, setNote, setTaken, setDiscarding, setConfirming }: RecordingSend): { act: RecordingActions; busy: boolean } {
+export function useRecordingActions({ slug, rec, cursor, setCursor, reload, accept, resync, latest, setNote, setTaken, setDiscarding, setConfirming }: RecordingSend): {
+  act: RecordingActions;
+  busy: boolean;
+} {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const job = () => {
@@ -76,7 +79,8 @@ export function useRecordingActions({ slug, rec, cursor, setCursor, reload, acce
           accept(r.view, true);
           say(annotatedWords(change, change.op === 'insert' ? (where?.label ?? null) : null));
           // A hold or a wait added after a row: the cursor moves onto it (the next one goes right after it).
-          if (change.op === 'insert' && cursor.at === 'after' && r.insert_id && (change.insert.kind === 'hold' || change.insert.kind === 'wait_for')) setCursor({ at: 'after', row: `i:${r.insert_id}` });
+          if (change.op === 'insert' && cursor.at === 'after' && r.insert_id && (change.insert.kind === 'hold' || change.insert.kind === 'wait_for'))
+            setCursor({ at: 'after', row: `i:${r.insert_id}` });
         } catch (e) {
           if (e instanceof CallError) setNote({ tone: 'warning', text: annotateErrorWords(e.status, e.error.code, e.error.message) });
           else setNote({ tone: 'danger', text: errorText(e) });

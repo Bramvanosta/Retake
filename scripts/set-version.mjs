@@ -64,7 +64,9 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       process.exit(off.length ? 1 : 0);
     }
     const changed = setVersion(arg ?? '');
-    process.stdout.write(`${changed.length} files now at ${arg}${changed.length ? `:\n  ${changed.join('\n  ')}` : ''}\nThen: a "## [${arg}]" section in CHANGELOG.md (its first paragraph is the release notes), and pnpm build.\n`);
+    process.stdout.write(
+      `${changed.length} files now at ${arg}${changed.length ? `:\n  ${changed.join('\n  ')}` : ''}\nThen: a "## [${arg}]" section in CHANGELOG.md (its first paragraph is the release notes), and pnpm build.\n`,
+    );
   } catch (e) {
     process.stderr.write(`set-version: ${e.message}\n`);
     process.exit(1);

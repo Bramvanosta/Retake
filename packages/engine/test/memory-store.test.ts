@@ -80,7 +80,8 @@ describe('the README on in-memory ports (engine.projects: updateReadme, get)', (
   let root: string;
   let dir: string;
   let engine: Engine;
-  const readmeLine = (o: Record<string, unknown>) => JSON.stringify({ v: 1, at: AT, by: { client: 'mcp', channel: 'mcp', trust: 'mcp' }, project: 'acme', op: 'write', what: 'readme', path: 'projects/acme/README.md', ...o });
+  const readmeLine = (o: Record<string, unknown>) =>
+    JSON.stringify({ v: 1, at: AT, by: { client: 'mcp', channel: 'mcp', trust: 'mcp' }, project: 'acme', op: 'write', what: 'readme', path: 'projects/acme/README.md', ...o });
 
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'retake-memory-readme-'));
@@ -106,7 +107,11 @@ describe('the README on in-memory ports (engine.projects: updateReadme, get)', (
     expect([view.readme, view.readme_hash]).toEqual(['# Acme\n', sha256Hex('# Acme\n')]);
     // Exists: if_match is required, and must be its hash.
     const none = await failure(engine.projects.updateReadme('acme', '# New', undefined));
-    expect([none.code, none.message, none.details]).toEqual(['conflict', 'README.md of acme exists: pass if_match with the readme_hash you read (project_get), so a change made meanwhile is not lost', { current: view.readme_hash }]);
+    expect([none.code, none.message, none.details]).toEqual([
+      'conflict',
+      'README.md of acme exists: pass if_match with the readme_hash you read (project_get), so a change made meanwhile is not lost',
+      { current: view.readme_hash },
+    ]);
     const stale = await failure(engine.projects.updateReadme('acme', '# New', sha256Hex('stale')));
     expect([stale.code, stale.message, stale.details]).toEqual(['conflict', 'README.md: changed since it was read (if_match does not match its content)', { current: view.readme_hash }]);
     await engine.projects.updateReadme('acme', '# New\n', view.readme_hash);
@@ -124,7 +129,10 @@ describe('the README on in-memory ports (engine.projects: updateReadme, get)', (
     const current = (await engine.projects.get('acme')).readme_hash;
     const before = stores.journalLines(root).length;
     const over = await failure(engine.projects.updateReadme('acme', 'x'.repeat(README_MAX_CHARS), current));
-    expect([over.code, over.message]).toEqual(['invalid', `README.md would be ${(README_MAX_CHARS + 1).toLocaleString('en')} characters with its final line break: at most ${README_MAX_CHARS.toLocaleString('en')}`]);
+    expect([over.code, over.message]).toEqual([
+      'invalid',
+      `README.md would be ${(README_MAX_CHARS + 1).toLocaleString('en')} characters with its final line break: at most ${README_MAX_CHARS.toLocaleString('en')}`,
+    ]);
     expect(stores.journalLines(root)).toHaveLength(before);
     const at = await engine.projects.updateReadme('acme', `${'x'.repeat(README_MAX_CHARS - 1)}\n`, current);
     expect(at.hash).toBe(sha256Hex(`${'x'.repeat(README_MAX_CHARS - 1)}\n`));

@@ -5,16 +5,7 @@
  * `{{keychain:…}}` references and persona sessions itself, from its own environment and ~/.retake.
  */
 import { z } from 'zod';
-import {
-  COMPONENT_ID_RE,
-  ComponentRefSchema,
-  FrameSpecSchema,
-  KEY_RE,
-  SLUG_RE,
-  TargetSpecSchema,
-  TransitionSchema,
-  TutorialSwitchSchema,
-} from '@retake/core/model';
+import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from '@retake/core/model';
 import { INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, SITE_ID_RE, zRenderId, zRunId, zThemeName } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { INSPECT_PATH_MAX, inspectPathProblem } from '@retake/core/run';
@@ -220,7 +211,10 @@ const projectFileRef = z
   .max(500)
   .refine((s) => !s.includes('\0') && !/^(?:[\\/]|~|[A-Za-z]:)/.test(s) && !s.split(/[\\/]/).includes('..'), 'a file of the project folder, relative to it (no absolute path, no "..")');
 /** A scene or segment id of a timeline ("intro", "<scene id>", "interstitial-3"). */
-const segmentKey = z.string().max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/, 'a scene id, a segment id or a component kind');
+const segmentKey = z
+  .string()
+  .max(100)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/, 'a scene id, a segment id or a component kind');
 
 /**
  * The edit overrides a client may pass with a render (the editor's EditOverrides, minus `theme`: a render job names
@@ -427,7 +421,10 @@ export const InspectJobInputSchema = z.strictObject({
   source: z.discriminatedUnion('kind', [
     z.strictObject({
       kind: z.literal('page'),
-      page: z.string().max(100).regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/, 'an environment page key of project.yaml, never a URL or a path'),
+      page: z
+        .string()
+        .max(100)
+        .regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/, 'an environment page key of project.yaml, never a URL or a path'),
       path: inspectPath,
       /** The persona the page is signed in as (`none`: signed out); default the persona whose `pages` list it. */
       persona: personaName.optional(),
@@ -436,7 +433,12 @@ export const InspectJobInputSchema = z.strictObject({
       kind: z.literal('scenario'),
       scenario: scenarioName,
       scenario_sha256: sha256,
-      until: z.string().min(1).max(200).refine((s) => !s.includes('{{'), 'no {{…}} template').optional(),
+      until: z
+        .string()
+        .min(1)
+        .max(200)
+        .refine((s) => !s.includes('{{'), 'no {{…}} template')
+        .optional(),
     }),
   ]),
   within: InspectTargetSchema.optional(),
@@ -464,7 +466,10 @@ export const RecordJobInputSchema = z.strictObject({
   env: envName.optional(),
   /** The page the window opens: an environment page key and a path under it. */
   source: z.strictObject({
-    page: z.string().max(100).regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/, 'an environment page key of project.yaml, never a URL or a path'),
+    page: z
+      .string()
+      .max(100)
+      .regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/, 'an environment page key of project.yaml, never a URL or a path'),
     path: inspectPath,
   }),
   /** The persona the window is signed in as (`none`: signed out); default the persona whose `pages` list the page. */

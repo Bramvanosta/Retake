@@ -120,7 +120,7 @@ export function readRecordAnnotations(dir: string): { annotations: RecordAnnotat
   const r = readPlainFile(join(dir, RECORD_STUDIO_FILE), 64 * 1024 + 1);
   if (!r.ok) {
     if (r.reason === 'missing') return { annotations: null };
-    if (r.reason === 'link') return { problem: 'studio.json is a symbolic link: the recording\'s annotations are never read or written through a link — remove it' };
+    if (r.reason === 'link') return { problem: "studio.json is a symbolic link: the recording's annotations are never read or written through a link — remove it" };
     if (r.reason === 'too_large') return { problem: 'studio.json is larger than its limit: remove it to start the annotations again' };
     return { problem: 'studio.json cannot be read: remove it to start the annotations again' };
   }

@@ -25,7 +25,10 @@ export async function writeOrExit(w: Worker, rec: JobRecord): Promise<void> {
 export async function closeJob(w: Worker, final: JobRecord, opts: { cleanup?: boolean } = {}): Promise<void> {
   await writeOrExit(w, final);
   try {
-    await w.queue.append(final.id, await w.queue.lastSeq(final.id), [{ type: 'state', state: final.state }, { type: 'result', ...(final.error ? { error: final.error } : {}) }]);
+    await w.queue.append(final.id, await w.queue.lastSeq(final.id), [
+      { type: 'state', state: final.state },
+      { type: 'result', ...(final.error ? { error: final.error } : {}) },
+    ]);
   } catch (e) {
     w.log(`job ${final.id}: events not written (${(e as Error).message})`);
   }

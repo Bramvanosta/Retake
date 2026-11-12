@@ -14,4 +14,27 @@ export * from '../media.js';
 export * from '../file-facts.js';
 export * from '../render-settings.js';
 export * from '../confinement.js';
-export { BBoxSchema, COMPONENT_ID_RE, CameraHintSchema, CaptionSpecSchema, ComponentKindSchema, ComponentRefSchema, EaseSpecSchema, FRAME_STYLES, FrameSpecSchema, FrameStyleSchema, KEY_RE, MULTI_PAGE_FRAMES, PointSchema, SLUG_RE, ScopeSpecSchema, SlotsSchema, TargetObjectSchema, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema, componentIdSchema, keyString } from '../schemas/primitives.js';
+export {
+  BBoxSchema,
+  COMPONENT_ID_RE,
+  CameraHintSchema,
+  CaptionSpecSchema,
+  ComponentKindSchema,
+  ComponentRefSchema,
+  EaseSpecSchema,
+  FRAME_STYLES,
+  FrameSpecSchema,
+  FrameStyleSchema,
+  KEY_RE,
+  MULTI_PAGE_FRAMES,
+  PointSchema,
+  SLUG_RE,
+  ScopeSpecSchema,
+  SlotsSchema,
+  TargetObjectSchema,
+  TargetSpecSchema,
+  TransitionSchema,
+  TutorialSwitchSchema,
+  componentIdSchema,
+  keyString,
+} from '../schemas/primitives.js';

@@ -36,7 +36,20 @@ import {
   renderSuffix,
 } from '@retake/core';
 import * as mirror from '../src/app/id-words.js';
-import { ANY_THEME_NAME, ANY_THEME_NAME_MAX, NEW_THEME_NAME, NEW_THEME_NAME_MAX, PROJECT_SLUG, RENDER_ID, RENDER_ID_MAX, RUN_ID, RUN_ID_MAX, okNewThemeName, okRenderIdShape, renderVersionWords } from '../src/app/id-words.js';
+import {
+  ANY_THEME_NAME,
+  ANY_THEME_NAME_MAX,
+  NEW_THEME_NAME,
+  NEW_THEME_NAME_MAX,
+  PROJECT_SLUG,
+  RENDER_ID,
+  RENDER_ID_MAX,
+  RUN_ID,
+  RUN_ID_MAX,
+  okNewThemeName,
+  okRenderIdShape,
+  renderVersionWords,
+} from '../src/app/id-words.js';
 import { renderWords } from '../src/app/words/comment-words.js';
 import { versionWords } from '../src/app/words/render-words.js';
 import { NAME_MAX, NEW_THEME_NAME_HINT, NEW_THEME_TOO_LONG, okName, okTheme, themeNameProblem } from '../src/app/words/library-words.js';
@@ -52,7 +65,13 @@ import type { LibraryItem, LibraryViewAnswer } from '../src/index.js';
 
 const a = (n: number, ch = 'a') => ch.repeat(n);
 /** The words of a piece of markup (tags dropped, entities read). */
-const text = (html: string) => html.replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').trim();
+const text = (html: string) =>
+  html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, '&')
+    .trim();
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const src = (file: string) => readFileSync(fileURLToPath(new URL(`../src/app/${file}`, import.meta.url)), 'utf8');
 
@@ -69,10 +88,39 @@ function generated(count: number, alphabet: string[], maxLen: number): string[] 
   return out;
 }
 
-const NAMES: unknown[] = ['editorial', 'my-theme', 'My_Theme', 'a.b', '', '-x', '_x', 'x\n', 'x y', '../x', 'x/y', '\uff11', 7, null, undefined, ['a'], a(59), a(60), a(61), a(64), a(65), a(100), a(101), a(60, 'A'), a(100, 'A'), a(101, 'A'), a(200), a(201)];
+const NAMES: unknown[] = [
+  'editorial',
+  'my-theme',
+  'My_Theme',
+  'a.b',
+  '',
+  '-x',
+  '_x',
+  'x\n',
+  'x y',
+  '../x',
+  'x/y',
+  '\uff11',
+  7,
+  null,
+  undefined,
+  ['a'],
+  a(59),
+  a(60),
+  a(61),
+  a(64),
+  a(65),
+  a(100),
+  a(101),
+  a(60, 'A'),
+  a(100, 'A'),
+  a(101, 'A'),
+  a(200),
+  a(201),
+];
 
-describe('the app\'s mirror of the id grammar', () => {
-  it('⚑ every pattern is core\'s source for source, every cap core\'s', () => {
+describe("the app's mirror of the id grammar", () => {
+  it("⚑ every pattern is core's source for source, every cap core's", () => {
     expect([RUN_ID.source, RUN_ID.flags, RUN_ID_MAX]).toEqual([RUN_ID_RE.source, RUN_ID_RE.flags, CORE_RUN_MAX]);
     expect([RENDER_ID.source, RENDER_ID.flags, RENDER_ID_MAX]).toEqual([RENDER_ID_RE.source, RENDER_ID_RE.flags, CORE_RENDER_MAX]);
     expect([ANY_THEME_NAME.source, ANY_THEME_NAME.flags, ANY_THEME_NAME_MAX]).toEqual([ANY_THEME_NAME_RE.source, ANY_THEME_NAME_RE.flags, CORE_ANY_MAX]);
@@ -86,7 +134,20 @@ describe('the app\'s mirror of the id grammar', () => {
       '^[a-z0-9][a-z0-9-]*$',
     ]);
     // The whole file is held: a name added to it is added to this test.
-    expect(Object.keys(mirror).sort()).toEqual(['ANY_THEME_NAME', 'ANY_THEME_NAME_MAX', 'NEW_THEME_NAME', 'NEW_THEME_NAME_MAX', 'PROJECT_SLUG', 'RENDER_ID', 'RENDER_ID_MAX', 'RUN_ID', 'RUN_ID_MAX', 'okNewThemeName', 'okRenderIdShape', 'renderVersionWords']);
+    expect(Object.keys(mirror).sort()).toEqual([
+      'ANY_THEME_NAME',
+      'ANY_THEME_NAME_MAX',
+      'NEW_THEME_NAME',
+      'NEW_THEME_NAME_MAX',
+      'PROJECT_SLUG',
+      'RENDER_ID',
+      'RENDER_ID_MAX',
+      'RUN_ID',
+      'RUN_ID_MAX',
+      'okNewThemeName',
+      'okRenderIdShape',
+      'renderVersionWords',
+    ]);
   });
 
   it('the mirror imports nothing, and the names the screens use are its objects', () => {
@@ -97,7 +158,7 @@ describe('the app\'s mirror of the id grammar', () => {
     expect(PROJECT_SLUG.source).toBe(PROJECT_SLUG_RE.source);
   });
 
-  it('⚑ a new theme\'s name: the app answers as core, at most 60 characters', () => {
+  it("⚑ a new theme's name: the app answers as core, at most 60 characters", () => {
     for (const n of NAMES) expect(okNewThemeName(n), String(n).slice(0, 20)).toBe(isNewThemeName(n));
     const many = generated(4000, ['a', 'z', '0', '9', '-', '_', 'A', '.', '\n', ' '], 6);
     expect(many.filter((s) => okNewThemeName(s) !== isNewThemeName(s))).toEqual([]);
@@ -105,14 +166,14 @@ describe('the app\'s mirror of the id grammar', () => {
     expect([a(59), a(60), a(61), a(64), a(100)].map((n) => okNewThemeName(n))).toEqual([true, true, false, false, false]);
   });
 
-  it('a listed theme\'s name and a project slug: at most 100 characters, as before', () => {
+  it("a listed theme's name and a project slug: at most 100 characters, as before", () => {
     for (const n of NAMES) expect(okTheme(n), String(n).slice(0, 20)).toBe(isThemeName(n));
     expect([a(60), a(61), a(100), a(101)].map((n) => okTheme(n))).toEqual([true, true, true, false]);
     expect(NAME_MAX).toBe(100);
     expect([a(60), a(61), a(100), a(101), a(100, 'A')].map((n) => okName(n))).toEqual([true, true, true, false, false]);
   });
 
-  it('a run id with its cap answers as core (the raw export\'s command)', () => {
+  it("a run id with its cap answers as core (the raw export's command)", () => {
     const ok = (s: unknown) => typeof s === 'string' && s.length <= RUN_ID_MAX && RUN_ID.test(s);
     const ids: unknown[] = ['20261017-142233-quote', 'a..b', 'my-take', '.tmp-quote', '-quote', 'a/b', '..', '', 'quote\n', 'a\u0000b', '\uff11', 7, a(200), a(201)];
     for (const id of ids) expect(ok(id), String(id).slice(0, 20)).toBe(isRunId(id));
@@ -121,13 +182,36 @@ describe('the app\'s mirror of the id grammar', () => {
     for (const id of [...ids.filter((x): x is string => typeof x === 'string'), ...many]) expect(rawExportCommand('shop', id) !== null, id.slice(0, 20)).toBe(isRunId(id));
   });
 
-  it('a render id: the published pattern with its cap — core\'s test but for the bound on the version', () => {
+  it("a render id: the published pattern with its cap — core's test but for the bound on the version", () => {
     const shape = (s: string) => okRenderIdShape(s);
     expect([okRenderIdShape(`${a(197)}-v1`), okRenderIdShape(`${a(198)}-v1`), okRenderIdShape(7), RENDER_ID.test(`${a(198)}-v1`)]).toEqual([true, false, false, true]);
     // An address holds it with its cap, both ways: a longer one is no review address and is left out of a link.
     const at = (render: string) => [parseRoute(`#/p/shop/s/quote/review/${render}`).name, hrefTo({ name: 'review', slug: 'shop', scenario: 'quote', render })];
-    expect([at('quote-v3'), at(`${a(197)}-v1`), at(`${a(198)}-v1`)]).toEqual([['review', '#/p/shop/s/quote/review/quote-v3'], ['review', `#/p/shop/s/quote/review/${a(197)}-v1`], ['not-found', '#/p/shop/s/quote/review']]);
-    const ids = ['quote-v3', 'quote-v3-vertical', 'quote-v3-square', 'quote-v0', 'quote-v007', 'quote-v2-v1', 'Quote_2-v1', 'quote', 'final', 'quote-v1-tall', 'quote-V1', 'a.b-v1', '-v1', 'quote-v1\n', '', `${a(197)}-v1`, `${a(198)}-v1`, `quote-v${RENDER_VERSION_MAX}`];
+    expect([at('quote-v3'), at(`${a(197)}-v1`), at(`${a(198)}-v1`)]).toEqual([
+      ['review', '#/p/shop/s/quote/review/quote-v3'],
+      ['review', `#/p/shop/s/quote/review/${a(197)}-v1`],
+      ['not-found', '#/p/shop/s/quote/review'],
+    ]);
+    const ids = [
+      'quote-v3',
+      'quote-v3-vertical',
+      'quote-v3-square',
+      'quote-v0',
+      'quote-v007',
+      'quote-v2-v1',
+      'Quote_2-v1',
+      'quote',
+      'final',
+      'quote-v1-tall',
+      'quote-V1',
+      'a.b-v1',
+      '-v1',
+      'quote-v1\n',
+      '',
+      `${a(197)}-v1`,
+      `${a(198)}-v1`,
+      `quote-v${RENDER_VERSION_MAX}`,
+    ];
     for (const id of ids) expect(shape(id), id.slice(0, 20)).toBe(isRenderId(id));
     // Past the bound the pattern still matches: the server refuses such an id (isRenderId), the app only routes it.
     for (const id of [`quote-v${RENDER_VERSION_MAX + 1}`, 'quote-v9007199254740992', 'quote-v99999999999999999999']) expect([shape(id), isRenderId(id)], id).toEqual([true, false]);
@@ -138,7 +222,24 @@ describe('the app\'s mirror of the id grammar', () => {
       const r = renderSuffix(s);
       return r ? `v${r.digits}${r.variant === 'landscape' ? '' : ` ${r.variant}`}` : s;
     };
-    const ids = ['quote-v3', 'quote-v3-vertical', 'quote-v3-square', 'quote-v007', 'quote-v2-v1', 'quote-v1000000', 'final', 'quote-v1-tall', 'quote-V1', '-v1', '', 'quote-v1\n', 'quote-v', 'quote-v1-', 'q-v1-v2-vertical', 'quote-v3-square-vertical'];
+    const ids = [
+      'quote-v3',
+      'quote-v3-vertical',
+      'quote-v3-square',
+      'quote-v007',
+      'quote-v2-v1',
+      'quote-v1000000',
+      'final',
+      'quote-v1-tall',
+      'quote-V1',
+      '-v1',
+      '',
+      'quote-v1\n',
+      'quote-v',
+      'quote-v1-',
+      'q-v1-v2-vertical',
+      'quote-v3-square-vertical',
+    ];
     for (const id of ids) expect(renderVersionWords(id), id).toBe(words(id));
     const many = generated(6000, ['q', '-', 'v', 'V', '1', '0', '-vertical', '-square', '-v', '\n'], 6);
     expect(many.filter((s) => renderVersionWords(s) !== words(s))).toEqual([]);
@@ -147,8 +248,8 @@ describe('the app\'s mirror of the id grammar', () => {
   });
 });
 
-describe('60 characters for a new theme\'s name, wherever the app asks for one (D-3)', () => {
-  it('both forms say so, after the grammar\'s sentence', () => {
+describe("60 characters for a new theme's name, wherever the app asks for one (D-3)", () => {
+  it("both forms say so, after the grammar's sentence", () => {
     expect(NEW_THEME_TOO_LONG).toBe('At most 60 characters.');
     const copy = (name: string) => themeNameProblem(name, []);
     const form = (name: string) => newThemeProblem({ ...EMPTY_FORM, name, logo: 'brand/logo.svg' }, []);
@@ -158,7 +259,7 @@ describe('60 characters for a new theme\'s name, wherever the app asks for one (
     expect(form(a(61, 'A'))).toMatch(/lower-case/);
   });
 
-  it('⚑ the four fields that take a new theme\'s name stop at the cap, by its name, and say the rule under the field', () => {
+  it("⚑ the four fields that take a new theme's name stop at the cap, by its name, and say the rule under the field", () => {
     // The field stops at 60, so the sentence of a name too long cannot show: the limit is said before it is met.
     expect(NEW_THEME_NAME_HINT).toBe('Lower-case letters, digits and "-", at most 60 characters.');
     // L7.34: each form rendered (react-dom/server: a sheet's content is in the markup closed or open) — its name field
@@ -177,12 +278,29 @@ describe('60 characters for a new theme\'s name, wherever the app asks for one (
     const cap = { max: NEW_THEME_NAME_MAX, hinted: true };
     expect(NEW_THEME_NAME_MAX).toBe(CORE_NEW_MAX);
     expect(fields(createElement(CopyToEdit, { slug: 'p', theme: 'editorial', why: 'a starter', taken: ['editorial'] }))).toEqual([{ label: 'Name of the copy', ...cap }]);
-    const item = { component: 'acme/card', kind: 'card', version: '1.0.0', source: 'workspace', slots: [], picked_by: [], theme_default: [], poster: { key: 'b'.repeat(32), state: 'missing' }, loop: { key: 'c'.repeat(32), state: 'missing' }, untrusted: { name: 'Card', description: '' } } as unknown as LibraryItem;
+    const item = {
+      component: 'acme/card',
+      kind: 'card',
+      version: '1.0.0',
+      source: 'workspace',
+      slots: [],
+      picked_by: [],
+      theme_default: [],
+      poster: { key: 'b'.repeat(32), state: 'missing' },
+      loop: { key: 'c'.repeat(32), state: 'missing' },
+      untrusted: { name: 'Card', description: '' },
+    } as unknown as LibraryItem;
     const view = { project: 'p', theme: { name: 'editorial', project_default: true }, themes: [{ name: 'editorial' }], items: [item] } as unknown as LibraryViewAnswer;
     const lib = { slug: 'p', theme: 'editorial' } as LibraryCtx;
-    const inspector = createElement(LibraryContext.Provider, { value: lib }, createElement(ComponentInspector, { item, view, d: { state: 'loading' }, playing: false, onCreate: () => undefined, detail: true }));
+    const inspector = createElement(
+      LibraryContext.Provider,
+      { value: lib },
+      createElement(ComponentInspector, { item, view, d: { state: 'loading' }, playing: false, onCreate: () => undefined, detail: true }),
+    );
     expect(fields(inspector)).toEqual([{ label: 'Name of the copy', ...cap }]);
     expect(fields(createElement(RowCopy, { slug: 'p', from: 'editorial', taken: ['editorial'], onCancel: () => undefined }))).toEqual([{ label: 'Name of the copy', ...cap }]);
-    expect(fields(createElement(NewTheme, { slug: 'p', initial: EMPTY_FORM, taken: [], themes: ['editorial'], onClose: () => undefined, onMade: () => undefined }))).toEqual([{ label: 'Name', ...cap }]);
+    expect(fields(createElement(NewTheme, { slug: 'p', initial: EMPTY_FORM, taken: [], themes: ['editorial'], onClose: () => undefined, onMade: () => undefined }))).toEqual([
+      { label: 'Name', ...cap },
+    ]);
   });
 });

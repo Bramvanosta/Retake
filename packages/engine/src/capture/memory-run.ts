@@ -141,7 +141,15 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
   let hooks: { journal: HookJournal; ctx: HookContext } | undefined;
   const runHooks = async (list: HookStep[], phase: HookPhase, agentWritten: boolean) => {
     const res = await req.hookRunner.run(list, hooks!.ctx, { phase, journal: hooks!.journal, agentWritten });
-    res.results.forEach((r, i) => emit({ type: 'hook', phase: phase === 'step' ? 'step' : phase === 'teardown' ? 'teardown' : 'setup', name: r.name ?? r.description ?? `hook ${i + 1}`, status: r.ok ? 'ok' : 'failed', ...(r.error ?? r.message ? { message: r.error ?? r.message } : {}) }));
+    res.results.forEach((r, i) =>
+      emit({
+        type: 'hook',
+        phase: phase === 'step' ? 'step' : phase === 'teardown' ? 'teardown' : 'setup',
+        name: r.name ?? r.description ?? `hook ${i + 1}`,
+        status: r.ok ? 'ok' : 'failed',
+        ...((r.error ?? r.message) ? { message: r.error ?? r.message } : {}),
+      }),
+    );
     return res;
   };
 
@@ -243,7 +251,14 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
         record.steps_done++;
         emit({ type: 'step_end', scene, step: s.step.index, action: s.step.action, status, ms: Math.round(performance.now() - t) });
       }
-      if (req.live?.wanted) req.live.frame({ data: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), width: project.config.capture.width, height: project.config.capture.height, at: clock.now(), page: s.scene.page ?? Object.keys(env.pages)[0] });
+      if (req.live?.wanted)
+        req.live.frame({
+          data: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+          width: project.config.capture.width,
+          height: project.config.capture.height,
+          at: clock.now(),
+          page: s.scene.page ?? Object.keys(env.pages)[0],
+        });
     }
     if (until) {
       const last = toRun.at(-1);
@@ -268,8 +283,30 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
       scale: project.config.capture.scale,
       screenshot: null,
       file: join(dir, 'inspect.json'),
-      replay: { steps_done: record.steps_done, steps_total: record.steps_total, until: req.until ?? null, skipped_irreversible: 0, hooks: record.hooks.setup === 'skipped' || record.hooks.teardown === 'skipped' ? 'skipped' : 'none', failed: stop },
-      counts: { interactive: 0, listed: 0, in_view: 0, suggested: 0, ambiguous: 0, unsuggested: 0, verifications: 0, shadow_roots: 0, same_origin_frames: 0, cross_origin_frames: 0, partial: false, within_found: true, dropped: 0, targets_checked: 0 },
+      replay: {
+        steps_done: record.steps_done,
+        steps_total: record.steps_total,
+        until: req.until ?? null,
+        skipped_irreversible: 0,
+        hooks: record.hooks.setup === 'skipped' || record.hooks.teardown === 'skipped' ? 'skipped' : 'none',
+        failed: stop,
+      },
+      counts: {
+        interactive: 0,
+        listed: 0,
+        in_view: 0,
+        suggested: 0,
+        ambiguous: 0,
+        unsuggested: 0,
+        verifications: 0,
+        shadow_roots: 0,
+        same_origin_frames: 0,
+        cross_origin_frames: 0,
+        partial: false,
+        within_found: true,
+        dropped: 0,
+        targets_checked: 0,
+      },
       popups: [],
       scrollers: [],
       elements: [],

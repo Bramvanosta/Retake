@@ -49,7 +49,9 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
   const theme = program.command('theme').description('workspace themes (templates/<name>/) from brand files or a site');
   theme
     .command('create')
-    .description('a new workspace theme (templates/<name>/) from a logo, hex colours and fonts over a base theme: palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Retake made)')
+    .description(
+      'a new workspace theme (templates/<name>/) from a logo, hex colours and fonts over a base theme: palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Retake made)',
+    )
     .argument('<name>', 'new theme name: lower-case letters, digits and "-", not a starter\'s or an existing folder\'s')
     .requiredOption('--accent <hex>', 'brand colour (#rrggbb): kicker, rules, clock hand, cursor ripple — never changed')
     .requiredOption('--logo <file>', 'logo: .svg, .png, .jpg or .webp')
@@ -60,8 +62,8 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
     .option('--background <spec>', 'a hex (solid) or radial:<from>:<to> / linear:<from>:<to> (default derived)')
     .option('--base <theme>', 'theme whose components, frame, captions and motion are kept (default editorial)')
     .option('--wordmark <file>', 'wordmark image of the outro (default: the brand name as text)')
-    .option('--display-font <file>', 'display font: .ttf, .otf, .woff or .woff2 (default the base theme\'s)')
-    .option('--body-font <file>', 'body font file, one per weight (repeatable; default the base theme\'s)', collect)
+    .option('--display-font <file>', "display font: .ttf, .otf, .woff or .woff2 (default the base theme's)")
+    .option('--body-font <file>', "body font file, one per weight (repeatable; default the base theme's)", collect)
     .option('--brand-name <name>', 'brand name (drawn when there is no wordmark)')
     .option('--brand-url <url>', 'brand URL shown in the outro, e.g. example.com')
     .option('--no-adjust', 'keep colours that miss a contrast threshold (warnings only)')
@@ -70,7 +72,9 @@ export function registerLookCommands({ program, action }: ProgramContext): void 
     .action(action((u, g, n: string, o: ThemeCreateOptions) => themeCreateCommand(u, g, n, o)));
   theme
     .command('from-site')
-    .description('open one public https page in a clean headless browser (no profile, GET only, public addresses only) and extract its colours by role, font family names, logo candidates (PNG) and a screenshot into .retake/site/<id>/, with a draft for `retake theme create`')
+    .description(
+      'open one public https page in a clean headless browser (no profile, GET only, public addresses only) and extract its colours by role, font family names, logo candidates (PNG) and a screenshot into .retake/site/<id>/, with a draft for `retake theme create`',
+    )
     .argument('<url>', 'https://<site>/<path>: default port, no query or fragment')
     .option('--json', 'machine-readable output')
     .action(action((u, g, url: string, o: { json?: boolean }) => themeFromSiteCommand(u, g, url, o)));

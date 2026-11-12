@@ -30,11 +30,10 @@ export function planEntries(s: PlanScope): Entry[] {
       notes.add(`scene "${scene.id}" was played off camera (offscreen: true): not in the edit`);
       continue;
     }
-    if (scene.status === 'failed' || scene.status === 'partial') warnings.add(`scene "${scene.id}" ${scene.status === 'failed' ? 'failed' : 'is partial'} in the run: its clip shows what was captured`);
+    if (scene.status === 'failed' || scene.status === 'partial')
+      warnings.add(`scene "${scene.id}" ${scene.status === 'failed' ? 'failed' : 'is partial'} in the run: its clip shows what was captured`);
     // Notification events (step -1, L2.9) belong to no step: they are artefacts, not provenance.
-    const events = timeline.events
-      .filter((e) => e.scene === scene.id && e.scene_index === scene.index && e.action !== 'notification')
-      .sort((a, b) => a.t_start - b.t_start || a.step - b.step);
+    const events = timeline.events.filter((e) => e.scene === scene.id && e.scene_index === scene.index && e.action !== 'notification').sort((a, b) => a.t_start - b.t_start || a.step - b.step);
     const open = events.find((e) => e.action === 'scene_open');
     const still = events.find((e) => e.action === 'scene_still');
     const s0 = still ? still.t_start : open ? open.t_end : scene.t_start;
@@ -46,7 +45,8 @@ export function planEntries(s: PlanScope): Entry[] {
     const pages = scene.pages && scene.pages.length > 0 ? scene.pages : undefined;
     if (pages) {
       const missing = pages.filter((pg) => !trackSources[pg.track]);
-      if (missing.length > 0) warnings.add(`scene "${scene.id}": no track for page${missing.length > 1 ? 's' : ''} ${missing.map((m) => `"${m.id}"`).join(', ')} in the run: shown from the main capture`);
+      if (missing.length > 0)
+        warnings.add(`scene "${scene.id}": no track for page${missing.length > 1 ? 's' : ''} ${missing.map((m) => `"${m.id}"`).join(', ')} in the run: shown from the main capture`);
     }
     if (prev && prev.type === 'clip' && !open) {
       const gap = s0 - prev.s1;
@@ -170,7 +170,9 @@ export function planRuns(s: PlanScope, entries: Entry[]): { runs: ClipEntry[][];
       }
       if (c.reason === 'busy') {
         const kept = (c.idle.b - c.idle.a - (c.b - c.a)) / srcFps;
-        notes.add(`"${runEntries[c.clip].scene.id}": wait after a click ${secs((c.idle.b - c.idle.a) / srcFps)} at ${secs(c.idle.a / srcFps)} of the capture shortened to ${secs(kept)} (a skeleton, a spinner or a blank panel)`);
+        notes.add(
+          `"${runEntries[c.clip].scene.id}": wait after a click ${secs((c.idle.b - c.idle.a) / srcFps)} at ${secs(c.idle.a / srcFps)} of the capture shortened to ${secs(kept)} (a skeleton, a spinner or a blank panel)`,
+        );
         continue;
       }
       const kept = (c.idle.b - c.idle.a - (c.b - c.a)) / srcFps;

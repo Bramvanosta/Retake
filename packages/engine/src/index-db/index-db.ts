@@ -235,7 +235,14 @@ export class WorkspaceIndex {
     await mkdir(stateDir(ws.root), { recursive: true });
     // lstat, never stat: a link (even a dangling one) in place of the db, its -wal or its -shm is not followed (review
     // A L4) — the files are removed (rm removes a link itself) and the index rebuilt.
-    const kinds = await Promise.all([file, `${file}-wal`, `${file}-shm`].map((f) => lstat(f).then((st) => (st.isFile() ? 'file' : 'other'), () => 'none')));
+    const kinds = await Promise.all(
+      [file, `${file}-wal`, `${file}-shm`].map((f) =>
+        lstat(f).then(
+          (st) => (st.isFile() ? 'file' : 'other'),
+          () => 'none',
+        ),
+      ),
+    );
     const existed = kinds[0] !== 'none';
     const remove = async () => {
       for (const f of [file, `${file}-wal`, `${file}-shm`]) await rm(f, { force: true });
@@ -350,12 +357,9 @@ export class WorkspaceIndex {
         }
         if (r.summary) {
           const s = r.summary;
-          db.prepare('INSERT INTO projects(slug, name, error, scenarios) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET name = excluded.name, error = excluded.error, scenarios = excluded.scenarios').run(
-            s.slug,
-            s.name,
-            s.error ?? null,
-            s.scenarios.length,
-          );
+          db.prepare(
+            'INSERT INTO projects(slug, name, error, scenarios) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET name = excluded.name, error = excluded.error, scenarios = excluded.scenarios',
+          ).run(s.slug, s.name, s.error ?? null, s.scenarios.length);
           delSearch.run(s.slug, 'scenario');
           for (const name of s.scenarios) addSearch.run('scenario', s.slug, name, name, '');
         }
@@ -523,7 +527,13 @@ export class WorkspaceIndex {
     if (!match) return [];
     const limit = Math.max(1, Math.min(o.limit ?? 20, 50));
     const sql = `SELECT kind, project, ref, title, snippet(search, 4, '', '', '…', 12) AS snippet FROM search WHERE search MATCH ?${o.project !== undefined ? ' AND project = ?' : ''} ORDER BY rank LIMIT ?`;
-    const rows = (o.project !== undefined ? this.db.prepare(sql).all(match, o.project, limit) : this.db.prepare(sql).all(match, limit)) as Array<{ kind: SearchHit['kind']; project: string; ref: string; title: string; snippet: string }>;
+    const rows = (o.project !== undefined ? this.db.prepare(sql).all(match, o.project, limit) : this.db.prepare(sql).all(match, limit)) as Array<{
+      kind: SearchHit['kind'];
+      project: string;
+      ref: string;
+      title: string;
+      snippet: string;
+    }>;
     return rows.map((r) => ({
       kind: r.kind,
       project: r.project,

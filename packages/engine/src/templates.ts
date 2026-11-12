@@ -68,7 +68,14 @@ export async function themeUnusable(dir: string, reg: ComponentRegistry, root: s
   } catch (e) {
     issue = toEngineError(e).message;
   }
-  return issue === undefined ? null : issue.split(`${root}/`).join('').split(root).join('.').replace(/\s*\n\s*/g, ' ');
+  return issue === undefined
+    ? null
+    : issue
+        .split(`${root}/`)
+        .join('')
+        .split(root)
+        .join('.')
+        .replace(/\s*\n\s*/g, ' ');
 }
 
 /**
@@ -174,7 +181,7 @@ export async function templateGet(ws: OpenedWorkspace, o: { template?: string; p
     t = await themeForWork(project, o.template, fileFacts(ws.policy));
     const own = project.config.template;
     isDefault = o.template === undefined || o.template === own;
-    source = o.template === undefined && isTemplatePath(own) ? 'project' : (await listTemplates(ws.root)).find((e) => e.name === t.name)?.source ?? 'workspace';
+    source = o.template === undefined && isTemplatePath(own) ? 'project' : ((await listTemplates(ws.root)).find((e) => e.name === t.name)?.source ?? 'workspace');
   } else {
     checkTemplateName(o.template!);
     try {

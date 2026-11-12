@@ -44,7 +44,7 @@ jobQueueContract('memory', async (name, cli, clock) => {
 });
 
 describe('the file queue (its files)', () => {
-  it('keeps the port\'s entries as the files of the job folder, a submit\'s files readable by this user only', async () => {
+  it("keeps the port's entries as the files of the job folder, a submit's files readable by this user only", async () => {
     const q = new FileJobQueue(join(ws, 'files'));
     const job = await q.enqueue(RUN_INPUT, { files: { 'edit.yaml': 'a: 1\n' } });
     const dir = q.files.job(job.id);
@@ -69,7 +69,7 @@ describe('the file queue (its files)', () => {
     }
   });
 
-  it('jobFile never follows a link: a submit\'s file replaced by one reads as `link`, not as its target', async () => {
+  it("jobFile never follows a link: a submit's file replaced by one reads as `link`, not as its target", async () => {
     const q = new FileJobQueue(join(ws, 'job-file-link'));
     const job = await q.enqueue(RUN_INPUT, { files: { 'edit.yaml': 'a: 1\n' } });
     const file = join(q.files.job(job.id), 'edit.yaml');
@@ -119,7 +119,7 @@ function ownMemory(adapter: string, make: () => Promise<{ queue: JobQueueView; s
   });
 }
 
-describe('a queue\'s own memory of the filming takes', () => {
+describe("a queue's own memory of the filming takes", () => {
   const saved = { cap: process.env.RETAKE_CAPTURE_HOLD_MAX_MIN };
   afterEach(() => {
     vi.restoreAllMocks();

@@ -23,11 +23,6 @@ export function finalizeIssues(issues: LocatedIssue[]): ValidationIssue[] {
     .map((x) => x.issue);
 }
 
-export function issue(
-  severity: ValidationIssue['severity'],
-  path: IssuePath,
-  message: string,
-  loc?: LocatedIssue['loc'],
-): LocatedIssue {
+export function issue(severity: ValidationIssue['severity'], path: IssuePath, message: string, loc?: LocatedIssue['loc']): LocatedIssue {
   return loc ? { severity, path, message, loc } : { severity, path, message };
 }

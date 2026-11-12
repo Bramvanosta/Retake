@@ -87,12 +87,16 @@ export type OperationDef<S extends z.ZodType = z.ZodType, D extends object = obj
  * An operation, its types inferred from its definition: the input from `input`, the data from what `run` answers (the
  * union of its answers: inferred through the whole output, so that each `return` adds its own), the name.
  */
-export function defineTool<S extends z.ZodType, O extends ToolOutput, N extends string>(t: Omit<ToolDef<S, O['data'], N>, 'run'> & { run(args: z.output<S>, ctx: ToolContext): Promise<O> }): ToolDef<S, O['data'], N> {
+export function defineTool<S extends z.ZodType, O extends ToolOutput, N extends string>(
+  t: Omit<ToolDef<S, O['data'], N>, 'run'> & { run(args: z.output<S>, ctx: ToolContext): Promise<O> },
+): ToolDef<S, O['data'], N> {
   return t;
 }
 
 /** An engine operation (defineTool's inference), its name held to the catalogue at compile time. */
-export function defineOperation<S extends z.ZodType, O extends ToolOutput, N extends OperationName>(t: Omit<OperationDef<S, O['data'], N>, 'run'> & { run(args: z.output<S>, ctx: ToolContext): Promise<O> }): OperationDef<S, O['data'], N> {
+export function defineOperation<S extends z.ZodType, O extends ToolOutput, N extends OperationName>(
+  t: Omit<OperationDef<S, O['data'], N>, 'run'> & { run(args: z.output<S>, ctx: ToolContext): Promise<O> },
+): OperationDef<S, O['data'], N> {
   return t;
 }
 

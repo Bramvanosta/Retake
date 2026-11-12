@@ -35,13 +35,7 @@ export function printIssues(ui: Ui, issues: readonly ValidationIssue[], file?: s
  * and the scenario (or every scenario when none is given). Prints `file:line:col severity path: message`; exit 1 when
  * any error.
  */
-export async function validateCommand(
-  ui: Ui,
-  global: GlobalOptions,
-  projectArg: string,
-  scenarioArg: string | undefined,
-  opts: ValidateOptions,
-): Promise<ExitCode> {
+export async function validateCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string | undefined, opts: ValidateOptions): Promise<ExitCode> {
   const reports: FileReport[] = [];
   let project: LoadedProject;
   let files: WorkFileFacts;
@@ -85,12 +79,7 @@ export async function validateCommand(
   return finish(ui, reports, opts);
 }
 
-async function validateScenarioFile(
-  project: LoadedProject,
-  name: string,
-  opts: ValidateOptions & { template?: Template },
-  files: WorkFileFacts,
-): Promise<FileReport> {
+async function validateScenarioFile(project: LoadedProject, name: string, opts: ValidateOptions & { template?: Template }, files: WorkFileFacts): Promise<FileReport> {
   try {
     const loaded = await loadScenario(project, name, { files, env: opts.env, until: opts.until, template: opts.template });
     return { kind: 'scenario', name: loaded.name, file: loaded.file, issues: loaded.issues };
@@ -98,10 +87,7 @@ async function validateScenarioFile(
     if (e instanceof ScenarioError && e.file) {
       // loadScenario only reports errors: re-parse to list the warnings too.
       const text = await readFile(e.file, 'utf8').catch(() => null);
-      const issues =
-        text === null
-          ? e.issues
-          : parseScenario(text, { files, file: e.file, project, env: opts.env, until: opts.until, template: opts.template }).issues;
+      const issues = text === null ? e.issues : parseScenario(text, { files, file: e.file, project, env: opts.env, until: opts.until, template: opts.template }).issues;
       return { kind: 'scenario', name, file: e.file, issues };
     }
     return { kind: 'scenario', name, issues: [], error: errorMessage(e) };
@@ -123,9 +109,7 @@ function finish(ui: Ui, reports: FileReport[], opts: ValidateOptions): ExitCode 
       ui.line(`${c.red('✗')} ${label}: ${c.red(r.error)}`);
       continue;
     }
-    const counts = [errors ? c.red(plural(errors, 'error')) : '', warnings ? c.yellow(plural(warnings, 'warning')) : '']
-      .filter(Boolean)
-      .join(', ');
+    const counts = [errors ? c.red(plural(errors, 'error')) : '', warnings ? c.yellow(plural(warnings, 'warning')) : ''].filter(Boolean).join(', ');
     ui.line(`${errors ? c.red('✗') : c.green('✓')} ${label}${r.file ? c.dim(` ${ui.path(r.file)}`) : ''}${counts ? `  ${counts}` : ''}`);
     printIssues(ui, r.issues, r.file);
   }

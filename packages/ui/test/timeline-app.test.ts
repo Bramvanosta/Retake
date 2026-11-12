@@ -5,7 +5,21 @@
  * decides between the preview and the "cannot play" message.
  */
 import { describe, expect, it } from 'vitest';
-import { canPlay, cannotPlayWords, codecType, codecWords, cutWords, frameWords, keyAction, landingOf, skippedWords, targetFrame, timecode, whereAt, zoomFactor } from '../src/app/words/timeline-words.js';
+import {
+  canPlay,
+  cannotPlayWords,
+  codecType,
+  codecWords,
+  cutWords,
+  frameWords,
+  keyAction,
+  landingOf,
+  skippedWords,
+  targetFrame,
+  timecode,
+  whereAt,
+  zoomFactor,
+} from '../src/app/words/timeline-words.js';
 
 const model = {
   fps: 30,
@@ -22,7 +36,7 @@ const model = {
 } as unknown as Parameters<typeof targetFrame>[2] & Parameters<typeof frameWords>[1];
 
 describe('the timeline keys (plan D11, critique "smaller points")', () => {
-  it('⚑ never while typing or in a radio group; the scrubber keeps its arrows, Home and End; Space on a button is the button\'s', () => {
+  it("⚑ never while typing or in a radio group; the scrubber keeps its arrows, Home and End; Space on a button is the button's", () => {
     const body = { tag: 'BODY' };
     expect(keyAction({ key: ' ' }, body)).toEqual({ kind: 'toggle' });
     expect(keyAction({ key: 'ArrowRight' }, body)).toEqual({ kind: 'step', frames: 1 });
@@ -32,7 +46,15 @@ describe('the timeline keys (plan D11, critique "smaller points")', () => {
     expect(keyAction({ key: ']' }, body)).toEqual({ kind: 'segment', dir: 1 });
     expect(keyAction({ key: '[' }, body)).toEqual({ kind: 'segment', dir: -1 });
     // Typing: nothing is the screen's.
-    for (const t of [{ tag: 'INPUT', type: 'text' }, { tag: 'INPUT', type: 'number' }, { tag: 'TEXTAREA' }, { tag: 'SELECT' }, { tag: 'DIV', editable: true }, { tag: 'BUTTON', inRadioGroup: true }, { tag: 'INPUT', type: 'radio', inRadioGroup: true }]) {
+    for (const t of [
+      { tag: 'INPUT', type: 'text' },
+      { tag: 'INPUT', type: 'number' },
+      { tag: 'TEXTAREA' },
+      { tag: 'SELECT' },
+      { tag: 'DIV', editable: true },
+      { tag: 'BUTTON', inRadioGroup: true },
+      { tag: 'INPUT', type: 'radio', inRadioGroup: true },
+    ]) {
       for (const key of [' ', 'ArrowLeft', 'ArrowRight', 'Home', 'End', '[', ']']) expect(keyAction({ key }, t), `${JSON.stringify(t)} ${key}`).toBeNull();
     }
     // The scrubber: its own arrows / Home / End (one frame per press, not two); Space plays.
@@ -95,7 +117,7 @@ describe('review B (low): landing on a segment, the words of a short cut', () =>
 });
 
 describe('the words of a frame', () => {
-  it('timecodes, the segment and step on screen, the scrubber\'s value text (1-based steps, labels as given)', () => {
+  it("timecodes, the segment and step on screen, the scrubber's value text (1-based steps, labels as given)", () => {
     expect(timecode(0, 30)).toBe('0:00.00');
     expect(timecode(372, 30)).toBe('0:12.40');
     expect(timecode(1799, 30)).toBe('0:59.97');
@@ -113,7 +135,7 @@ describe('the words of a frame', () => {
 });
 
 describe('the codec check (plan D3, critique B14)', () => {
-  it('asks the browser about the capture\'s codec; an unknown codec or no way to ask is playable; the message names it', async () => {
+  it("asks the browser about the capture's codec; an unknown codec or no way to ask is playable; the message names it", async () => {
     const size = { width: 1920, height: 1080, fps: 30 };
     const asked: string[] = [];
     const noH264 = { isTypeSupported: (t: string) => (asked.push(t), !t.includes('avc1')) };

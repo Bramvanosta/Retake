@@ -157,7 +157,11 @@ describe('CFR schedule as frames arrive (stream.ts)', () => {
       expect(thumbs).toEqual([...Array(12).keys()]);
       // Frame 4 (0.4 s) still shows red, frame 5 (0.5 s) green, frame 9 blue.
       const px = async (n: number) => {
-        const { stdout: raw } = await execFileP('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', out, '-vf', `select=eq(n\\,${n}),scale=1:1`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { encoding: 'buffer' } as never);
+        const { stdout: raw } = await execFileP(
+          'ffmpeg',
+          ['-hide_banner', '-loglevel', 'error', '-i', out, '-vf', `select=eq(n\\,${n}),scale=1:1`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+          { encoding: 'buffer' } as never,
+        );
         return [...(raw as unknown as Buffer)];
       };
       const [r4, r5, r9] = [await px(4), await px(5), await px(9)];
@@ -204,7 +208,18 @@ function masksOf(changes: number[][]): Uint8Array[] {
   return rec.masks;
 }
 
-const click = (t: number, step: number, extra: Partial<TimelineEvent> = {}): TimelineEvent => ({ scene: 's', scene_index: 0, step, action: 'click', t_start: t - 0.5, t_end: t + 0.3, t_click: t, status: 'ok', target: { desc: `button ${step}` }, ...extra });
+const click = (t: number, step: number, extra: Partial<TimelineEvent> = {}): TimelineEvent => ({
+  scene: 's',
+  scene_index: 0,
+  step,
+  action: 'click',
+  t_start: t - 0.5,
+  t_end: t + 0.3,
+  t_click: t,
+  status: 'ok',
+  target: { desc: `button ${step}` },
+  ...extra,
+});
 
 describe('what the screen did after each click (activity.ts)', () => {
   it('cell masks: a cell changes when at least two of its pixels move by more than 12 grey levels', () => {
@@ -351,7 +366,10 @@ describe('the CPU sampler (perf.ts)', () => {
 describe('GPU, choppy motion, disk (R-FLD-24, R-FLD-28)', () => {
   it('reads the GPU report of Chromium: hardware compositing and rasterization, SwiftShader is software', () => {
     const metal = gpuInfoOf({
-      gpu: { featureStatus: { gpu_compositing: 'enabled', rasterization: 'enabled', webgl: 'enabled', video_decode: 'enabled' }, auxAttributes: { glRenderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4)' } },
+      gpu: {
+        featureStatus: { gpu_compositing: 'enabled', rasterization: 'enabled', webgl: 'enabled', video_decode: 'enabled' },
+        auxAttributes: { glRenderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4)' },
+      },
     });
     expect(metal).toEqual({ accelerated: true, renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4)' });
     const shell = gpuInfoOf({
@@ -369,7 +387,9 @@ describe('GPU, choppy motion, disk (R-FLD-24, R-FLD-28)', () => {
     const machine = { cpus: 10, load_mean: 2, load_max: 3 };
     const cpu = { browser: 20, gpu: 4, renderer: 3, chromium_other: 1, retake: 6, encoder: 5, total: 39, cores: 0.8 };
     const gpu = { accelerated: true, renderer: 'ANGLE Metal' };
-    expect(choppyCause({ gpu: { accelerated: false, renderer: 'SwiftShader' }, cpu, machine, seconds: 50, frameRateLimit: true })).toMatch(/^measured: the browser renders in software.*no GPU acceleration \(SwiftShader\)/);
+    expect(choppyCause({ gpu: { accelerated: false, renderer: 'SwiftShader' }, cpu, machine, seconds: 50, frameRateLimit: true })).toMatch(
+      /^measured: the browser renders in software.*no GPU acceleration \(SwiftShader\)/,
+    );
     expect(choppyCause({ gpu, cpu, machine: { ...machine, load_max: 24 }, seconds: 50, frameRateLimit: true })).toMatch(/^measured: the machine was busy.*machine load up to 24\.0 on 10 cores/);
     expect(choppyCause({ gpu, cpu: { ...cpu, renderer: 45 }, machine, seconds: 50, frameRateLimit: true })).toMatch(/page's own rendering is heavy.*renderer 0\.90/);
     expect(choppyCause({ gpu, cpu, machine, seconds: 50, frameRateLimit: false })).toMatch(/frame_rate_limit: false/);

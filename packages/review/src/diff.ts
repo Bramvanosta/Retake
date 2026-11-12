@@ -34,10 +34,28 @@ function segmentChanges(prev: PlanSegment, cur: PlanSegment): string[] {
   if (isClip(prev) && isClip(cur)) {
     const cap = componentChange('caption', prev.caption, cur.caption);
     if (cap) out.push(cap);
-    if (!same(prev.cues.map((x) => [x.kicker, x.text]), cur.cues.map((x) => [x.kicker, x.text]))) out.push('caption text');
+    if (
+      !same(
+        prev.cues.map((x) => [x.kicker, x.text]),
+        cur.cues.map((x) => [x.kicker, x.text]),
+      )
+    )
+      out.push('caption text');
     if (!same(prev.layout, cur.layout)) out.push('layout geometry');
-    if (!same(prev.zooms.map((z) => [z.step, z.zoom]), cur.zooms.map((z) => [z.step, z.zoom]))) out.push('camera zooms');
-    if (!same(prev.overlays.map((o) => [o.component.id, o.step]), cur.overlays.map((o) => [o.component.id, o.step]))) out.push('overlays');
+    if (
+      !same(
+        prev.zooms.map((z) => [z.step, z.zoom]),
+        cur.zooms.map((z) => [z.step, z.zoom]),
+      )
+    )
+      out.push('camera zooms');
+    if (
+      !same(
+        prev.overlays.map((o) => [o.component.id, o.step]),
+        cur.overlays.map((o) => [o.component.id, o.step]),
+      )
+    )
+      out.push('overlays');
     if (prev.src.from_s !== cur.src.from_s || prev.src.to_s !== cur.src.to_s) out.push(`source range ${prev.src.from_s}–${prev.src.to_s} s → ${cur.src.from_s}–${cur.src.to_s} s`);
   }
   return out;

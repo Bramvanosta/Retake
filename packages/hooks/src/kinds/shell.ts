@@ -4,16 +4,7 @@ import { resolve } from 'node:path';
 import { listTemplateTokens } from '@retake/core/base';
 import { confinementWords } from '@retake/core/model';
 import { allowedHosts } from '@retake/core/environment';
-import {
-  AGENT_SHELL_GRAMMAR,
-  agentShellCwdProblems,
-  agentShellEnvProblems,
-  agentShellProblems,
-  bareEnvHint,
-  childEnv,
-  childEnvHint,
-  policyChildEnv,
-} from '@retake/core/policy';
+import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, bareEnvHint, childEnv, childEnvHint, policyChildEnv } from '@retake/core/policy';
 import { shellHostRefs } from '@retake/core/hooks';
 import { projectPath } from '@retake/core/project';
 import { sandboxOf } from '@retake/core/sandbox';
@@ -230,12 +221,7 @@ function hostsOf(ctx: HookContext, cmd: ShellCommand): string[] {
   return shellHostRefs(cmd.run, { vars: hookEnv(ctx, cmd), env: cmd.env }).flatMap((r) => (r.unresolved ? [] : [r.host]));
 }
 
-async function execute(
-  ctx: HookContext,
-  log: (level: HookLogLevel, msg: string) => void,
-  cmd: ShellCommand,
-  timeoutS: number,
-): Promise<string> {
+async function execute(ctx: HookContext, log: (level: HookLogLevel, msg: string) => void, cmd: ShellCommand, timeoutS: number): Promise<string> {
   const cwd = await resolveCwd(ctx, cmd.cwd);
   const env = hookEnv(ctx, cmd);
   const r = await runShell(cmd.run, cwd, env, timeoutS * 1000, ctx);
@@ -375,7 +361,13 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
   const destructive = shellDestructiveReason(cmd.run, { projectDir: baseDirOf(ctx), files: nodeFileFacts });
   return {
     description: redactText(ctx, describeShell(cmd.run)),
-    shown: { kind: 'shell', run: rendered.run, ...(rendered.cwd !== undefined ? { cwd: rendered.cwd } : {}), ...(rendered.env ? { env: rendered.env } : {}), ...(s.timeout !== undefined ? { timeout: s.timeout } : {}) },
+    shown: {
+      kind: 'shell',
+      run: rendered.run,
+      ...(rendered.cwd !== undefined ? { cwd: rendered.cwd } : {}),
+      ...(rendered.env ? { env: rendered.env } : {}),
+      ...(s.timeout !== undefined ? { timeout: s.timeout } : {}),
+    },
     destructive,
     writes:
       declared?.writes !== false

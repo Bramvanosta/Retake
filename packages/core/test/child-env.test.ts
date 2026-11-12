@@ -32,9 +32,8 @@ const SOURCE: NodeJS.ProcessEnv = {
   COMPOSE_PROFILES: 'debug',
 };
 
-
 describe('the environment of the programs a job starts under the agent policy (core childEnv)', () => {
-  it('keeps the shell\'s own variables and drops everything else: secrets, loader variables, docker\'s', () => {
+  it("keeps the shell's own variables and drops everything else: secrets, loader variables, docker's", () => {
     const env = childEnv(SOURCE, { folders: [WS], files });
     expect(Object.keys(env).sort()).toEqual(
       ['HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'LOGNAME', 'NODE_EXTRA_CA_CERTS', 'NO_PROXY', 'PATH', 'SHELL', 'SSL_CERT_FILE', 'TERM', 'TMPDIR', 'TZ', 'USER', 'https_proxy'].sort(),
@@ -68,7 +67,18 @@ describe('the environment of the programs a job starts under the agent policy (c
   });
 
   it("docker's variables by name only: a registry password or token exported as DOCKER_* / BUILDKIT_* never reaches it", () => {
-    const named = { DOCKER_HOST: 'h', DOCKER_CONTEXT: 'c', DOCKER_CONFIG: '/c', DOCKER_CERT_PATH: '/p', DOCKER_TLS: '1', DOCKER_TLS_VERIFY: '1', DOCKER_API_VERSION: '1.45', DOCKER_DEFAULT_PLATFORM: 'linux/amd64', DOCKER_BUILDKIT: '1', BUILDKIT_PROGRESS: 'plain' };
+    const named = {
+      DOCKER_HOST: 'h',
+      DOCKER_CONTEXT: 'c',
+      DOCKER_CONFIG: '/c',
+      DOCKER_CERT_PATH: '/p',
+      DOCKER_TLS: '1',
+      DOCKER_TLS_VERIFY: '1',
+      DOCKER_API_VERSION: '1.45',
+      DOCKER_DEFAULT_PLATFORM: 'linux/amd64',
+      DOCKER_BUILDKIT: '1',
+      BUILDKIT_PROGRESS: 'plain',
+    };
     const secrets = { DOCKER_PASSWORD: 'pw', DOCKER_AUTH_CONFIG: '{"auths":{}}', DOCKER_TOKEN: 't', DOCKER_REGISTRY_PASSWORD: 'pw', BUILDKIT_TOKEN: 't', DOCKER_HOST_X: 'x' };
     const env = childEnv({ ...named, ...secrets }, { folders: [WS], files, docker: true });
     expect(env).toEqual(named);
@@ -82,7 +92,7 @@ describe('the environment of the programs a job starts under the agent policy (c
     expect(env?.STRIPE_SECRET_KEY).toBeUndefined();
   });
 
-  it('a failed hook\'s hint names the variables it saw (never their values) and how to pass one', () => {
+  it("a failed hook's hint names the variables it saw (never their values) and how to pass one", () => {
     const hint = childEnvHint(['PATH', 'HOME', 'RETAKE_ENV', 'HOME']);
     expect(hint).toContain('saw HOME, PATH, RETAKE_ENV;');
     expect(hint).toContain('project.yaml `pass_env:`');
@@ -90,7 +100,9 @@ describe('the environment of the programs a job starts under the agent policy (c
 
   it("an unsigned rollback's hint names the variables it saw and never advises pass_env (it does not reach one)", () => {
     const hint = bareEnvHint(['PATH', 'HOME', 'PATH']);
-    expect(hint).toBe("a rollback Retake did not sign gets only the shell's own variables of this environment, never project.yaml `pass_env:` — this one saw HOME, PATH; if it needs another, run it by hand");
+    expect(hint).toBe(
+      "a rollback Retake did not sign gets only the shell's own variables of this environment, never project.yaml `pass_env:` — this one saw HOME, PATH; if it needs another, run it by hand",
+    );
     expect(hint).not.toContain('e.g. `pass_env:');
   });
 });
@@ -108,7 +120,11 @@ describe('project.yaml `pass_env:`', () => {
     const r = parseProjectYaml(project('[DATABASE_URL, NODE_OPTIONS, LD_PRELOAD, "A-B"]'));
     expect(r.config).toBeUndefined();
     const errors = r.issues.filter((i) => i.severity === 'error');
-    expect(errors.map((i) => i.path)).toEqual([['pass_env', 1], ['pass_env', 2], ['pass_env', 3]]);
+    expect(errors.map((i) => i.path)).toEqual([
+      ['pass_env', 1],
+      ['pass_env', 2],
+      ['pass_env', 3],
+    ]);
     expect(errors[0].message).toContain('NODE_OPTIONS is a loader variable');
     expect(errors[0].message).toContain('own `env`');
     expect(errors[2].message).toContain('not a variable name');

@@ -387,8 +387,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
     }
     return null;
   }
-  const valueOf = (el: Element): string =>
-    el.localName === 'input' || el.localName === 'textarea' ? (el as HTMLInputElement).value : ((el as HTMLElement).innerText ?? el.textContent ?? '');
+  const valueOf = (el: Element): string => (el.localName === 'input' || el.localName === 'textarea' ? (el as HTMLInputElement).value : ((el as HTMLElement).innerText ?? el.textContent ?? ''));
 
   // ── Typing ────────────────────────────────────────────────────────────────
   interface Field {
@@ -429,7 +428,8 @@ export function demoRecorder(cfg: RecorderConfig): void {
     if (kind) share(v);
     const el = f.info ? { ...f.info, secret: kind !== null } : null;
     const tag = f.el.localName;
-    const plain = tag === 'textarea' ? 'multiline' : tag === 'input' ? (/^(search)$/.test((f.el as HTMLInputElement).type) || f.el.getAttribute('role') === 'combobox' ? 'search' : 'text') : 'contenteditable';
+    const plain =
+      tag === 'textarea' ? 'multiline' : tag === 'input' ? (/^(search)$/.test((f.el as HTMLInputElement).type) || f.el.getAttribute('role') === 'combobox' ? 'search' : 'text') : 'contenteditable';
     emit({
       kind: 'type',
       el,
@@ -607,7 +607,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
       commit(false);
       const s = t as HTMLSelectElement;
       const opt = s.selectedOptions[0];
-      emit({ kind: 'select_native', el: info(t, true), option: (opt ? (opt.label || opt.text) : '').trim().slice(0, 200) });
+      emit({ kind: 'select_native', el: info(t, true), option: (opt ? opt.label || opt.text : '').trim().slice(0, 200) });
     } else if (t.localName === 'input' && (t as HTMLInputElement).type === 'file') {
       commit(false);
       const files = Array.from((t as HTMLInputElement).files ?? []);

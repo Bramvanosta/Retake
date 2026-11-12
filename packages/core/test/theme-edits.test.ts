@@ -30,7 +30,10 @@ function applied(t: string, edit: Edit) {
   const r = applyThemeEdit(t, edit);
   expect(verifyEditText(r.text, r.intended), JSON.stringify(edit)).toBeNull();
   const p = parseTemplateYaml(r.text);
-  expect(p.issues.filter((i) => i.severity === 'error'), JSON.stringify(edit)).toEqual([]);
+  expect(
+    p.issues.filter((i) => i.severity === 'error'),
+    JSON.stringify(edit),
+  ).toEqual([]);
   return r;
 }
 const refusal = (t: string, edit: unknown): StepEditError => {
@@ -52,8 +55,11 @@ const changedLines = (a: string, b: string) => {
   return { removed: x.slice(i, x.length - j), added: y.slice(i, y.length - j) };
 };
 /** Every comment of `a` (its `# …` text) is still in `b`. */
-const commentsOf = (t: string) => t.split('\n').flatMap((l) => (/(^|\s)#\s.*$/.exec(l)?.[0].trim() ?? []));
-const warningsOf = (t: string) => parseTemplateYaml(t).issues.filter((i) => i.path[0] === 'components').map((i) => i.message);
+const commentsOf = (t: string) => t.split('\n').flatMap((l) => /(^|\s)#\s.*$/.exec(l)?.[0].trim() ?? []);
+const warningsOf = (t: string) =>
+  parseTemplateYaml(t)
+    .issues.filter((i) => i.path[0] === 'components')
+    .map((i) => i.message);
 
 /** A new value for each field, different from every starter's. */
 const NEW: Record<ThemeField, ThemeFieldValue> = {
@@ -130,7 +136,10 @@ describe('theme set_field on the three starters', () => {
     const before = e.split('\n');
     const after = r.text.split('\n');
     expect(after.length).toBe(before.length);
-    expect(after.filter((l, i) => l !== before[i])).toEqual(['  accent: "#102030"   # deep wine: kicker, rules, clock hour hand, cursor ripple', 'cursor: {style: arrow-dark, ripple_color: "rgba(16, 32, 48, 0.45)"}']);
+    expect(after.filter((l, i) => l !== before[i])).toEqual([
+      '  accent: "#102030"   # deep wine: kicker, rules, clock hour hand, cursor ripple',
+      'cursor: {style: arrow-dark, ripple_color: "rgba(16, 32, 48, 0.45)"}',
+    ]);
     const m = applied(starter('motion'), { kind: 'set_field', field: 'colors.accent', from: '#ff5c38', to: '#00ff00', ripple: true });
     expect(readAt(m.text, 'cursor.ripple_color')).toBe('rgba(0, 255, 0, 0.5)');
     expect(refusal(e, { kind: 'set_field', field: 'colors.text', from: '#1f1413', to: '#000000', ripple: true }).message).toMatch(/ripple goes only with a new colors.accent/);
@@ -159,7 +168,29 @@ describe('theme set_field on the three starters', () => {
 describe('theme set_field: the allow-list and value checks (⚑ nothing else is reachable)', () => {
   it('a path outside the allow-list is refused, nothing written', () => {
     const t = starter('editorial');
-    for (const field of ['name', 'version', 'components', 'components.intro', 'captions.kicker.color', 'captions.position', 'frame.style', 'frame', 'intro.layout', 'cursor.size', 'motion.zoom_ease', 'fonts', 'colors', 'colors.__proto__', '__proto__', 'constructor', 'background.type', 'background', 'brandmark.position', '', 'colors.accent.x']) {
+    for (const field of [
+      'name',
+      'version',
+      'components',
+      'components.intro',
+      'captions.kicker.color',
+      'captions.position',
+      'frame.style',
+      'frame',
+      'intro.layout',
+      'cursor.size',
+      'motion.zoom_ease',
+      'fonts',
+      'colors',
+      'colors.__proto__',
+      '__proto__',
+      'constructor',
+      'background.type',
+      'background',
+      'brandmark.position',
+      '',
+      'colors.accent.x',
+    ]) {
       const e = refusal(t, { kind: 'set_field', field, to: 'x' });
       expect(e.code, field).toBe('invalid');
       expect(e.message, field).toMatch(/is not a value the theme editor sets/);
@@ -256,7 +287,10 @@ describe('theme set_background (critique B7a: type and colours in one write)', (
     const t = starter('editorial');
     const solid = applied(t, { kind: 'set_background', from: { type: 'radial', from: '#f8f4ef', to: '#ebe4dc' }, to: { type: 'solid', color: '#FFFFFF' } });
     expect(readAt(solid.text, 'background')).toEqual({ type: 'solid', color: '#ffffff' });
-    expect(changedLines(t, solid.text)).toEqual({ removed: ['background: {type: radial, from: "#f8f4ef", to: "#ebe4dc"}'], added: ['background: { type: solid, color: "#ffffff" }'.replace('{ ', '{').replace(' }', '}')] });
+    expect(changedLines(t, solid.text)).toEqual({
+      removed: ['background: {type: radial, from: "#f8f4ef", to: "#ebe4dc"}'],
+      added: ['background: { type: solid, color: "#ffffff" }'.replace('{ ', '{').replace(' }', '}')],
+    });
     expect(solid.label).toBe('Set the background to solid #ffffff');
     const lin = applied(solid.text, { kind: 'set_background', from: { type: 'solid', color: '#ffffff' }, to: { type: 'linear', from: '#000000', to: '#222222' } });
     expect(readAt(lin.text, 'background')).toEqual({ type: 'linear', from: '#000000', to: '#222222' });
@@ -270,7 +304,9 @@ describe('theme set_background (critique B7a: type and colours in one write)', (
     const r = applied(block, { kind: 'set_background', from: { type: 'radial', from: '#ffffff', to: '#eeeeee' }, to: { type: 'solid', color: '#123456' } });
     expect(r.text).toBe('version: 1\nbackground: {type: solid, color: "#123456"}\nstyle_bias: real\n');
     const commented = 'version: 1\nbackground:\n  type: radial   # soft\n  from: "#ffffff"\n  to: "#eeeeee"\n';
-    expect(refusal(commented, { kind: 'set_background', from: { type: 'radial', from: '#ffffff', to: '#eeeeee' }, to: { type: 'solid', color: '#123456' } }).message).toMatch(/with comments \(they would go\): edit template.yaml by hand/);
+    expect(refusal(commented, { kind: 'set_background', from: { type: 'radial', from: '#ffffff', to: '#eeeeee' }, to: { type: 'solid', color: '#123456' } }).message).toMatch(
+      /with comments \(they would go\): edit template.yaml by hand/,
+    );
     const none = 'version: 1\nstyle_bias: real\n# components\ncomponents:\n  card: studio/card-title\n';
     const a = applied(none, { kind: 'set_background', to: { type: 'solid', color: '#123456' } });
     expect(a.text).toBe('version: 1\nstyle_bias: real\nbackground: {type: solid, color: "#123456"}\n# components\ncomponents:\n  card: studio/card-title\n');
@@ -298,7 +334,9 @@ describe('theme set_component (critique B7b / B7c)', () => {
     expect(lay.removed).toEqual(['frame.style', 'frame.width', 'frame.radius', 'frame.shadow']);
     expect(readAt(lay.text, 'frame')).toBeUndefined();
     expect(lay.dropped_params).toEqual(['width', 'radius', 'shadow']);
-    expect(lay.label).toBe('Set the layout component to studio/layout-browser (params width, radius, shadow dropped); removed frame.style, frame.width, frame.radius, frame.shadow (they contradicted it)');
+    expect(lay.label).toBe(
+      'Set the layout component to studio/layout-browser (params width, radius, shadow dropped); removed frame.style, frame.width, frame.radius, frame.shadow (they contradicted it)',
+    );
     expect(warningsOf(lay.text)).toEqual([]);
     expect(commentsOf(lay.text)).toEqual(commentsOf(e));
     const intro = applied(e, { kind: 'set_component', component: 'intro', from: 'studio/intro-stack', id: 'studio/intro-minimal', params: 'drop' });
@@ -322,7 +360,11 @@ describe('theme set_component (critique B7b / B7c)', () => {
     // default: interstitial-plain {tone: dark} ⇄ interstitial.style dark. Back to the clock contradicts; the clock on
     // `dark-clock` agrees.
     const clock = applied(starter('editorial').replace('components:\n  intro: studio/intro-stack', 'components:\n  intro: studio/intro-minimal'), {
-      kind: 'set_component', component: 'intro', from: 'studio/intro-minimal', id: 'studio/intro-stack', params: 'drop',
+      kind: 'set_component',
+      component: 'intro',
+      from: 'studio/intro-minimal',
+      id: 'studio/intro-stack',
+      params: 'drop',
     });
     expect(clock.removed).toEqual([]);
     expect(readAt(clock.text, 'intro')).toEqual({ duration: 3.2, layout: 'logo-kicker-title' });
@@ -455,7 +497,13 @@ describe('theme edits: fuzz', () => {
           const remove = THEME_REMOVABLE_FIELDS.includes(field) && from !== undefined && rnd(4) === 0;
           // A value that differs from today's (a no-op is said, not written): the fuzz is about writes.
           const pool = POOL[field]!.filter((v) => JSON.stringify(v) !== JSON.stringify(from));
-          edit = { kind: 'set_field', field, ...(from !== undefined ? { from } : {}), ...(remove ? {} : { to: pool[rnd(pool.length)] }), ...(field === 'colors.accent' && rnd(2) ? { ripple: true } : {}) };
+          edit = {
+            kind: 'set_field',
+            field,
+            ...(from !== undefined ? { from } : {}),
+            ...(remove ? {} : { to: pool[rnd(pool.length)] }),
+            ...(field === 'colors.accent' && rnd(2) ? { ripple: true } : {}),
+          };
         } else if (pick < 8) {
           const from = readAt(text, 'background');
           const c = ['#ffffff', '#000000', '#abcdef'];
@@ -477,13 +525,21 @@ describe('theme edits: fuzz', () => {
           continue;
         }
         if (verifyEditText(r.text, r.intended) !== null) mismatches++;
-        expect(parseTemplateYaml(r.text).issues.filter((x) => x.severity === 'error'), `${s} ${JSON.stringify(edit)}`).toEqual([]);
-        if (edit.kind === 'set_component') expect(warningsOf(r.text).filter((m) => m.startsWith(`components.${edit.component} `)), `${s} ${JSON.stringify(edit)}`).toEqual([]);
+        expect(
+          parseTemplateYaml(r.text).issues.filter((x) => x.severity === 'error'),
+          `${s} ${JSON.stringify(edit)}`,
+        ).toEqual([]);
+        if (edit.kind === 'set_component')
+          expect(
+            warningsOf(r.text).filter((m) => m.startsWith(`components.${edit.component} `)),
+            `${s} ${JSON.stringify(edit)}`,
+          ).toEqual([]);
         text = r.text;
         done++;
       }
       // Comments that belong to values still there are kept (a removed section takes its own).
-      for (const c of comments) if (!/deep wine|warm ink|taglines|warm paper|calm blue|slate ink|light surface|hot coral|near-white|Dark surface|use the `paper`/.test(c)) expect(text, `${s}: ${c}`).toContain(c);
+      for (const c of comments)
+        if (!/deep wine|warm ink|taglines|warm paper|calm blue|slate ink|light surface|hot coral|near-white|Dark surface|use the `paper`/.test(c)) expect(text, `${s}: ${c}`).toContain(c);
     }
     expect(mismatches).toBe(0);
     expect(done).toBeGreaterThan(1200);

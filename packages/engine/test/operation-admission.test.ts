@@ -96,15 +96,41 @@ beforeAll(async () => {
   const dir = join(ws, 'projects', D);
   await mkdir(join(dir, 'scenarios'), { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'version: 1\nname: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  const t = synthTimeline({ duration: 3, entries: [{ id: 'a', t_start: 0.5, t_end: 2.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] }], video: { intro: false, outro: false, template: 'editorial' } });
+  const t = synthTimeline({
+    duration: 3,
+    entries: [{ id: 'a', t_start: 0.5, t_end: 2.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 2.5 }] }],
+    video: { intro: false, outro: false, template: 'editorial' },
+  });
   await writeTake(dir, 'tl', { run: TAKE, text: TEXT, timeline: t, codec: 'h264-x264', seconds: 3 });
   await mkdir(join(dir, 'renders'), { recursive: true });
   await writeFile(join(dir, 'renders', 'tl-v7.mp4'), 'video');
   await writeFile(
     join(dir, 'renders', 'tl-v7.json'),
     JSON.stringify({
-      version: 1, id: 'tl-v7', project: D, scenario: 'tl', run_id: TAKE, run_dir: join(dir, 'runs', TAKE), template: 'editorial', overrides: {}, edit: { from: 'scenario', sha256: sha(TEXT) }, variant: 'landscape', status: 'succeeded',
-      file: join(dir, 'renders', 'tl-v7.mp4'), record: join(dir, 'renders', 'tl-v7.json'), render_version: 7, created_at: '2026-01-02T10:00:00.000Z', finished_at: '2026-01-02T10:00:00.000Z', duration_s: 3, frames: 90, fps: 30, width: 1920, height: 1080, size_bytes: 1234, plan: {}, warnings: [],
+      version: 1,
+      id: 'tl-v7',
+      project: D,
+      scenario: 'tl',
+      run_id: TAKE,
+      run_dir: join(dir, 'runs', TAKE),
+      template: 'editorial',
+      overrides: {},
+      edit: { from: 'scenario', sha256: sha(TEXT) },
+      variant: 'landscape',
+      status: 'succeeded',
+      file: join(dir, 'renders', 'tl-v7.mp4'),
+      record: join(dir, 'renders', 'tl-v7.json'),
+      render_version: 7,
+      created_at: '2026-01-02T10:00:00.000Z',
+      finished_at: '2026-01-02T10:00:00.000Z',
+      duration_s: 3,
+      frames: 90,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      size_bytes: 1234,
+      plan: {},
+      warnings: [],
     }),
   );
   for (const client of ['mcp', 'ui'] as const) engines[client] = await createEngine({ root: ws, client, autoStartWorker: false });
@@ -123,7 +149,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRun)("admission stays inside the submits: once per call, before the job (L7.15)", () => {
+describe.skipIf(!canRun)('admission stays inside the submits: once per call, before the job (L7.15)', () => {
   it('every operation the catalogue holds to admission rules is an engine operation, with a case here', () => {
     const admitted = CATALOGUE.filter((o) => o.admission?.length).map((o) => o.name);
     expect([...admitted].sort()).toEqual(Object.keys(CASES).sort());

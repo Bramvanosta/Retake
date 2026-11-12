@@ -126,9 +126,7 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
           </h1>
           {info.state === 'ready' && <p className="wl-version">{shown(`Version ${info.data.version}`)}</p>}
           <p className="wl-lede">Write a scenario: the Studio films your product, edits the video and films it again when the product changes.</p>
-          <Blocker fix={{ copy: 'retake new <slug>' }}>
-            New project: create one in a terminal; it shows here at once.
-          </Blocker>
+          <Blocker fix={{ copy: 'retake new <slug>' }}>New project: create one in a terminal; it shows here at once.</Blocker>
           {projectsDir && (
             <p className="sc-quiet">
               {'Projects live in '}
@@ -175,15 +173,26 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
               { key: 'folder', label: 'Folder', value: <Txt className="k-mono" text={info.state === 'ready' ? info.data.root : list.state === 'ready' ? list.data.root : ''} /> },
               { key: 'projects', label: 'Projects', value: list.state === 'ready' ? plural(list.data.projects.length, 'project') : '…' },
               { key: 'version', label: 'Version', value: info.state === 'ready' ? info.data.version : '…' },
-              { key: 'worker', label: 'Worker', value: info.state === 'ready' ? (info.data.worker ? <Txt text={`running (pid ${info.data.worker.pid})${otherCopyWords(otherCopyOf(info.data, 'worker_other_copy'))}`} /> : 'idle: it starts with the next job') : '…' },
+              {
+                key: 'worker',
+                label: 'Worker',
+                value:
+                  info.state === 'ready' ? (
+                    info.data.worker ? (
+                      <Txt text={`running (pid ${info.data.worker.pid})${otherCopyWords(otherCopyOf(info.data, 'worker_other_copy'))}`} />
+                    ) : (
+                      'idle: it starts with the next job'
+                    )
+                  ) : (
+                    '…'
+                  ),
+              },
             ]}
           />
         </InspectorSection>
         <InspectorSection title="Claude">
           <p className="sc-quiet">Claude writes scenarios, runs them and reads the review through the MCP server; what it does shows up here too.</p>
-          <Blocker fix={{ copy: 'retake mcp --print-config', label: 'Copy command' }}>
-            Register the MCP server with Claude.
-          </Blocker>
+          <Blocker fix={{ copy: 'retake mcp --print-config', label: 'Copy command' }}>Register the MCP server with Claude.</Blocker>
         </InspectorSection>
       </ShellSlot>
     </div>

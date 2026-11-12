@@ -204,7 +204,14 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
       await mkdir(join(dir, 'review', id), { recursive: true });
       await writeFile(
         join(dir, 'review', id, 'report.json'),
-        JSON.stringify({ version: 1, clean: false, counts: { error: 0, warning: 1, info: 0 }, review: { created_at: later(n + 0.5), fps: 1 }, findings: [{ severity: 'warning', code: 'caption-too-long', message: 'long', at: { frame: 12, segment: 'a' } }], files: { sheets: [], keyframes: {} } }),
+        JSON.stringify({
+          version: 1,
+          clean: false,
+          counts: { error: 0, warning: 1, info: 0 },
+          review: { created_at: later(n + 0.5), fps: 1 },
+          findings: [{ severity: 'warning', code: 'caption-too-long', message: 'long', at: { frame: 12, segment: 'a' } }],
+          files: { sheets: [], keyframes: {} },
+        }),
       );
     };
     // `render --no-intro --scale 0.25` of the same file and capture (another plan), and a copy of v1 (the same plan).
@@ -233,7 +240,17 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     expect(await page.getByTestId('edit-seek-note').count()).toBe(0);
     // A render that failed after them: Edit's status bar says so (not "Latest: v3").
     const queue = new FileJobQueue(ws);
-    const job = await queue.enqueue({ version: 1, kind: 'render', project: 'demo', scenario: 'tiny', run_id: RUN, timeline_sha256: 'a'.repeat(64), render_id: 'tiny-v4', overrides: {}, submitted_by: 'test' });
+    const job = await queue.enqueue({
+      version: 1,
+      kind: 'render',
+      project: 'demo',
+      scenario: 'tiny',
+      run_id: RUN,
+      timeline_sha256: 'a'.repeat(64),
+      render_id: 'tiny-v4',
+      overrides: {},
+      submitted_by: 'test',
+    });
     const rec = (await queue.get(job.id))!;
     await queue.write({ ...rec, state: 'failed', finished_at: later(10), error: { code: 'internal', message: 'Error: the render failed' } } as JobRecord);
     await expect.poll(() => page.getByTestId('render-status').innerText(), POLL).toContain('v4 failed');

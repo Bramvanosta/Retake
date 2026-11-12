@@ -39,7 +39,9 @@ export function agentChannel(client: JobClient | undefined): AgentChannel {
 
 /** Why the client cannot ask its human, for a `needs_approval` refusal. */
 function cannotAsk(client: JobClient | undefined): string {
-  return agentChannel(client) === 'studio' ? 'The Studio cannot approve hooks yet: run it in a terminal' : 'This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal';
+  return agentChannel(client) === 'studio'
+    ? 'The Studio cannot approve hooks yet: run it in a terminal'
+    : 'This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal';
 }
 
 /** One hook a human is asked to approve. */
@@ -119,9 +121,7 @@ export interface ApprovalRequest {
   fix: string;
 }
 
-export type ApprovalOutcome =
-  | { approved: true }
-  | { approved: false; reason: 'declined' | 'cancelled' | 'timeout' | 'error'; message?: string };
+export type ApprovalOutcome = { approved: true } | { approved: false; reason: 'declined' | 'cancelled' | 'timeout' | 'error'; message?: string };
 
 /**
  * What a human is asked before a site extraction (L3.5, R-MCP-12): open exactly this URL in a clean browser. `href` is
@@ -229,7 +229,8 @@ export async function preflightHooks(
       // Its rollback as the dry run templated it, else as its file declares it (a setup hook's only).
       const rollback = r?.status === 'dry' ? r.rollback : phase === 'setup' ? describeRollback(hook) : undefined;
       // The dry run's fingerprint, else the one the worker checks (the files it references bound): never re-derived here.
-      const fingerprint = r?.approval?.fingerprint ?? (await runner.approval.fingerprint(hook, { phase, index, env: ctx.env.name, files: (await runner.approval.files(hook, { projectDir: project.dir })).files }));
+      const fingerprint =
+        r?.approval?.fingerprint ?? (await runner.approval.fingerprint(hook, { phase, index, env: ctx.env.name, files: (await runner.approval.files(hook, { projectDir: project.dir })).files }));
       items.push({
         fingerprint,
         phase,
@@ -336,11 +337,7 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
     throw new EngineError('refused', `${req.what} was not started: ${long} — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
   }
   if (!approver) {
-    throw new EngineError(
-      'needs_approval',
-      `${req.what} has hooks a human must approve before they run: ${listItems(req.items)}. ${cannotAsk(client)}`,
-      { fix: req.fix, details },
-    );
+    throw new EngineError('needs_approval', `${req.what} has hooks a human must approve before they run: ${listItems(req.items)}. ${cannotAsk(client)}`, { fix: req.fix, details });
   }
   let outcome: ApprovalOutcome;
   try {
@@ -357,10 +354,14 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
           : outcome.reason === 'timeout'
             ? 'the user did not answer in time'
             : `the question failed${outcome.message ? ` (${outcome.message})` : ''}`;
-    throw new EngineError('refused', `${req.what} was not started: ${why} — hooks needing approval: ${listItems(req.items)}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
-      fix: req.fix,
-      details: { ...details, outcome: outcome.reason },
-    });
+    throw new EngineError(
+      'refused',
+      `${req.what} was not started: ${why} — hooks needing approval: ${listItems(req.items)}. Do not retry on your own: ask the user, or let them run it in a terminal`,
+      {
+        fix: req.fix,
+        details: { ...details, outcome: outcome.reason },
+      },
+    );
   }
   const at = stampOf(clock);
   return req.items.map((i) => ({ fingerprint: i.fingerprint, by: 'human-elicitation' as const, at }));
@@ -425,7 +426,18 @@ export function pruneApprovalRequest(listed: PruneResult, fix: string): PruneApp
     })
     .filter((k) => k.count > 0);
   const lines = listed.items.slice(0, PRUNE_FORM_MAX_LINES).map((i) => `${PRUNE_KIND_WORDS[i.kind][0]} ${visibleName(i.id)} — ${i.reason}, ${formatBytes(i.bytes)}`);
-  return { what: 'prune', project: listed.project, keep_renders: listed.keep_renders, count: listed.items.length, bytes: listed.bytes, by_kind, lines, more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES), fix, ...(listed.renders_alone ? { renders_alone: listed.renders_alone.count } : {}) };
+  return {
+    what: 'prune',
+    project: listed.project,
+    keep_renders: listed.keep_renders,
+    count: listed.items.length,
+    bytes: listed.bytes,
+    by_kind,
+    lines,
+    more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES),
+    fix,
+    ...(listed.renders_alone ? { renders_alone: listed.renders_alone.count } : {}),
+  };
 }
 
 /**
@@ -438,7 +450,11 @@ export function pruneApprovalFormText(req: PruneApprovalRequest): string {
   return [
     `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
     `Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone, and so is a file of renders/ that is no render of its own name, or a record that lacks a member, with the render and the take it names; exports/ is not touched.`,
-    ...(req.renders_alone ? [`${req.renders_alone} ${req.renders_alone === 1 ? 'file' : 'files'} of renders/ ${req.renders_alone === 1 ? 'is no render of its own name, or lacks a member' : 'are no render of their own name, or lack a member'}: left alone, with the renders and the takes ${req.renders_alone === 1 ? 'it names' : 'they name'}.`] : []),
+    ...(req.renders_alone
+      ? [
+          `${req.renders_alone} ${req.renders_alone === 1 ? 'file' : 'files'} of renders/ ${req.renders_alone === 1 ? 'is no render of its own name, or lacks a member' : 'are no render of their own name, or lack a member'}: left alone, with the renders and the takes ${req.renders_alone === 1 ? 'it names' : 'they name'}.`,
+        ]
+      : []),
     req.more ? `The first ${req.lines.length} of the ${items}:` : `${req.count === 1 ? 'It' : 'They'}:`,
     ...req.lines.map((l) => `- ${l}`),
     ...(req.more ? [`… and ${req.more} more, not listed here (counted in the totals above).`] : []),
@@ -463,7 +479,11 @@ export async function takePruneApproval(req: PruneApprovalRequest, approver: App
   const details = { count: req.count, bytes: req.bytes, by_kind: req.by_kind };
   const size = pruneApprovalFormText(req).length;
   if (size > APPROVAL_FORM_MAX_CHARS) {
-    throw new EngineError('refused', `nothing was deleted: the list of ${what} makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
+    throw new EngineError(
+      'refused',
+      `nothing was deleted: the list of ${what} makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — too long to approve in a form: run it in a terminal`,
+      { fix: req.fix, details: { ...details, too_long: true } },
+    );
   }
   if (!approver?.approvePrune) {
     throw new EngineError(

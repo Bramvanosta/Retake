@@ -23,14 +23,16 @@ export interface BrowserTheme {
 const FROM: Record<BrowserTheme['source'], string> = { starter: 'Starter', workspace: 'Workspace', project: 'Project folder' };
 
 export function LibraryBrowser({ slug, at, themes, current, components }: { slug: string; at: 'library' | 'themes'; themes: BrowserTheme[]; current?: string; components?: number }) {
-  const themeRows: SourceItem[] = themes.filter((t) => t.opens).map((t) => ({
-    key: `t-${t.source}-${t.name}`,
-    label: <Txt text={t.name} />,
-    current: t.name === current,
-    icon: 'theme',
-    flag: t.default ? "Project's" : FROM[t.source],
-    to: (at === 'library' ? { name: 'library', slug, theme: t.name } : { name: 'themes', slug, theme: t.name }) as Route,
-  }));
+  const themeRows: SourceItem[] = themes
+    .filter((t) => t.opens)
+    .map((t) => ({
+      key: `t-${t.source}-${t.name}`,
+      label: <Txt text={t.name} />,
+      current: t.name === current,
+      icon: 'theme',
+      flag: t.default ? "Project's" : FROM[t.source],
+      to: (at === 'library' ? { name: 'library', slug, theme: t.name } : { name: 'themes', slug, theme: t.name }) as Route,
+    }));
   return (
     <ShellSlot name="browser">
       <SourceList
@@ -42,7 +44,15 @@ export function LibraryBrowser({ slug, at, themes, current, components }: { slug
             heading: 'Library',
             label: 'Library',
             items: [
-              { key: 'components', to: { name: 'library', slug }, label: 'Components', icon: 'components', current: at === 'library', testId: 'library-link', ...(components !== undefined ? { count: components } : {}) },
+              {
+                key: 'components',
+                to: { name: 'library', slug },
+                label: 'Components',
+                icon: 'components',
+                current: at === 'library',
+                testId: 'library-link',
+                ...(components !== undefined ? { count: components } : {}),
+              },
               { key: 'themes', to: { name: 'themes', slug }, label: 'Themes', icon: 'theme', current: at === 'themes' && current === undefined, count: themes.length },
             ],
           },

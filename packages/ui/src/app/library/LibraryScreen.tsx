@@ -44,7 +44,20 @@ import { LibraryDetail } from './LibraryDetail.js';
 import { ComponentInspector, LibraryInspector } from './LibraryInspector.js';
 import { LibraryImages, RenderPump } from './library-load.js';
 import type { RenderRequest } from './library-load.js';
-import { KIND_ORDER, NO_FILTER, SOURCE_WORDS, alsoServing, alsoServingWords, filterCounts, filterItems, groupByKind, isKind, kindHeading, libraryEventAction, okTheme } from '../words/library-words.js';
+import {
+  KIND_ORDER,
+  NO_FILTER,
+  SOURCE_WORDS,
+  alsoServing,
+  alsoServingWords,
+  filterCounts,
+  filterItems,
+  groupByKind,
+  isKind,
+  kindHeading,
+  libraryEventAction,
+  okTheme,
+} from '../words/library-words.js';
 import type { LibraryFilter, SourceFilter } from '../words/library-words.js';
 import { hrefTo } from '../route.js';
 import { SessionEnded } from '../session.js';
@@ -105,7 +118,10 @@ function ThemeSelect({ view, slug }: { view: LibraryViewAnswer; slug: string }) 
       value={view.theme.name}
       testId="lib-theme"
       onChange={(t) => (location.hash = hrefTo({ name: 'library', slug, theme: t }))}
-      options={view.themes.map((t) => ({ value: t.name, label: `${t.name}${t.default ? " — the project's theme" : ''}${t.source === 'starter' ? ' (starter)' : t.source === 'project' ? ' (project folder)' : ''}` }))}
+      options={view.themes.map((t) => ({
+        value: t.name,
+        label: `${t.name}${t.default ? " — the project's theme" : ''}${t.source === 'starter' ? ' (starter)' : t.source === 'project' ? ' (project folder)' : ''}`,
+      }))}
     />
   );
 }
@@ -118,7 +134,8 @@ function Notices({ notices }: { notices: LibraryViewAnswer['notices'] }) {
       <ul className="lb-notices">
         {notices.map((n, i) => (
           <li key={i}>
-            <StatusMark state={n.severity === 'error' ? 'fail' : 'warn'} word={n.severity === 'error' ? 'Not loadable' : 'Warning'} /> {n.id && <Txt className="k-mono" text={n.id} />} <Txt text={n.untrusted.message} />
+            <StatusMark state={n.severity === 'error' ? 'fail' : 'warn'} word={n.severity === 'error' ? 'Not loadable' : 'Warning'} /> {n.id && <Txt className="k-mono" text={n.id} />}{' '}
+            <Txt text={n.untrusted.message} />
             {n.issues > 0 && <Txt className="lb-quiet" text={` (${plural(n.issues, 'issue')})`} />}
             {n.command && (
               <>
@@ -151,7 +168,19 @@ function Filters({ items, filter, set }: { items: LibraryItem[]; filter: Library
           options={(['all', 'builtin', 'workspace'] as const).map((s) => ({ value: s, label: s === 'all' ? 'All' : SOURCE_WORDS[s].badge }))}
         />
         <div className="lb-search">
-          <TextField label="Search components" labelHidden type="search" value={filter.text} onChange={(t) => set({ ...filter, text: t })} unsaved={null} placeholder="Name, id or description" maxLength={200} autoComplete="off" spellCheck={false} testId="lib-find" />
+          <TextField
+            label="Search components"
+            labelHidden
+            type="search"
+            value={filter.text}
+            onChange={(t) => set({ ...filter, text: t })}
+            unsaved={null}
+            placeholder="Name, id or description"
+            maxLength={200}
+            autoComplete="off"
+            spellCheck={false}
+            testId="lib-find"
+          />
         </div>
       </div>
       <div className="lb-kinds">
@@ -264,11 +293,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
     useCallback((fn: () => void) => pump.subscribe(fn), [pump]),
     () => pump.error,
   );
-  const images = useMemo(
-    () =>
-      new LibraryImages((keys, committed, signal) => libraryImages({ project: slug, keys, ...(committed.length ? { committed } : {}) }, { signal })),
-    [slug],
-  );
+  const images = useMemo(() => new LibraryImages((keys, committed, signal) => libraryImages({ project: slug, keys, ...(committed.length ? { committed } : {}) }, { signal })), [slug]);
   const observer = useObserver();
   useEffect(
     () => () => {
@@ -311,7 +336,10 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
   const v = view.state === 'ready' ? view.data : last.current;
   const shownTheme = v?.theme.name ?? '';
   // One context object per theme: the memoised cards never re-render because the screen did.
-  const ctx = useMemo<LibraryCtx>(() => ({ slug, theme: shownTheme, images, pump, setPlaying, select, reload, observe: observer.observe }), [slug, shownTheme, images, pump, setPlaying, select, reload, observer]);
+  const ctx = useMemo<LibraryCtx>(
+    () => ({ slug, theme: shownTheme, images, pump, setPlaying, select, reload, observe: observer.observe }),
+    [slug, shownTheme, images, pump, setPlaying, select, reload, observer],
+  );
   const shown = useMemo(() => (v ? filterItems(v.items, filter) : []), [v, filter]);
   const groups = useMemo(() => groupByKind(shown, filter.kind), [shown, filter.kind]);
   const openCreate = (kind?: string, like?: string) => {
@@ -382,7 +410,13 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
   return (
     <LibraryContext.Provider value={ctx}>
       <div className="lb-screen" data-testid="library" data-theme={v.theme.name}>
-        <LibraryBrowser slug={slug} at="library" current={v.theme.name} components={v.items.length} themes={v.themes.map((t) => ({ name: t.name, source: t.source, default: t.default, opens: okTheme(t.name) }))} />
+        <LibraryBrowser
+          slug={slug}
+          at="library"
+          current={v.theme.name}
+          components={v.items.length}
+          themes={v.themes.map((t) => ({ name: t.name, source: t.source, default: t.default, opens: okTheme(t.name) }))}
+        />
         <ShellSlot name="context">
           <ThemeSelect view={v} slug={slug} />
         </ShellSlot>
@@ -446,25 +480,25 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
             {groups.length === 0 && <p className="lb-quiet">No component matches.</p>}
             {/* The grid: one tab stop; its keys move the selection (gridKeys). */}
             <div className="lb-cards" onKeyDown={gridKeys}>
-            {groups.map((g) => (
-              <section key={g.kind} className="lb-section" data-testid="lib-section" data-kind={g.kind} aria-labelledby={`lb-h-${g.kind}`}>
-                <div className="lb-section-head">
-                  <h2 id={`lb-h-${g.kind}`} className="lb-h2" data-testid="lib-section-title">
-                    <Txt text={kindHeading(g.kind)} /> <Txt className="lb-num" text={`(${g.items.length})`} />
-                  </h2>
-                  {filter.kind === 'all' && alsoServing(shown, g.kind) > 0 && (
-                    <Button size="sm" variant="ghost" onClick={() => setFilter({ ...filter, kind: g.kind })} data-testid="lib-also-serving">
-                      <Txt text={alsoServingWords(alsoServing(shown, g.kind))} />
-                    </Button>
-                  )}
-                </div>
-                <ul className="lb-grid">
-                  {g.items.map((i) => (
-                    <LibraryCard key={i.component} item={i} selected={i.component === selected} playing={playing.has(i.component)} tabStop={i.component === tabStop} testId="lib-card" />
-                  ))}
-                </ul>
-              </section>
-            ))}
+              {groups.map((g) => (
+                <section key={g.kind} className="lb-section" data-testid="lib-section" data-kind={g.kind} aria-labelledby={`lb-h-${g.kind}`}>
+                  <div className="lb-section-head">
+                    <h2 id={`lb-h-${g.kind}`} className="lb-h2" data-testid="lib-section-title">
+                      <Txt text={kindHeading(g.kind)} /> <Txt className="lb-num" text={`(${g.items.length})`} />
+                    </h2>
+                    {filter.kind === 'all' && alsoServing(shown, g.kind) > 0 && (
+                      <Button size="sm" variant="ghost" onClick={() => setFilter({ ...filter, kind: g.kind })} data-testid="lib-also-serving">
+                        <Txt text={alsoServingWords(alsoServing(shown, g.kind))} />
+                      </Button>
+                    )}
+                  </div>
+                  <ul className="lb-grid">
+                    {g.items.map((i) => (
+                      <LibraryCard key={i.component} item={i} selected={i.component === selected} playing={playing.has(i.component)} tabStop={i.component === tabStop} testId="lib-card" />
+                    ))}
+                  </ul>
+                </section>
+              ))}
             </div>
           </>
         )}

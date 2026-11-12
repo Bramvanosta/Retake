@@ -104,11 +104,10 @@ describe('templateSceneEntry (R-RUN-16)', () => {
     process.env.RETAKE_TEST_PASSWORD = 'S3cret-pw-42';
     const scene: Scene = { id: 'login', steps: [{ type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } }] };
     expect(templateSceneEntry(scene, 0, ctx).steps[0]).toEqual({ type: { into: { label: 'Password' }, text: 'S3cret-pw-42' } });
-    const viaResolver = templateSceneEntry(
-      { id: 'kc', steps: [{ type: { text: '{{keychain:demo-test/agent}}' } }] },
-      0,
-      { ...ctx, secrets: (ref) => (ref === 'keychain:demo-test/agent' ? 'kc-value-1' : undefined) },
-    );
+    const viaResolver = templateSceneEntry({ id: 'kc', steps: [{ type: { text: '{{keychain:demo-test/agent}}' } }] }, 0, {
+      ...ctx,
+      secrets: (ref) => (ref === 'keychain:demo-test/agent' ? 'kc-value-1' : undefined),
+    });
     expect(viaResolver.steps[0]).toEqual({ type: { text: 'kc-value-1' } });
     const bad: Scene = { id: 'bad', steps: [{ wait: 1 }, { type: { text: '{{vars.nope}}' } }] };
     expect(() => templateSceneEntry(bad, 3, ctx)).toThrow(TemplateError);
@@ -125,7 +124,7 @@ describe('display URLs in edit text (L1.7, R-ENV-01)', () => {
     expect(displayPages({ pages: { app: 'http://localhost:3000/' } })).toEqual({ app: 'http://localhost:3000/' });
   });
 
-  it('captions, cards, overlay slots, page labels and tutorial text read the display URL; steps, open and targets (an overlay\'s too) the real one', () => {
+  it("captions, cards, overlay slots, page labels and tutorial text read the display URL; steps, open and targets (an overlay's too) the real one", () => {
     const scene: Scene = {
       id: 'shop',
       caption: { kicker: 'Live', text: 'Order at {{shop}}' },

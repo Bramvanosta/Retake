@@ -50,7 +50,17 @@ beforeAll(async () => {
   await mkdir(join(project, 'scenarios'), { recursive: true });
   await writeFile(
     join(project, 'project.yaml'),
-    ['name: W', 'environments:', '  local:', `    console: http://127.0.0.1:${PORT}`, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', 'browser:', `  executable: ${JSON.stringify(chrome)}`, ''].join('\n'),
+    [
+      'name: W',
+      'environments:',
+      '  local:',
+      `    console: http://127.0.0.1:${PORT}`,
+      'capture: {width: 1280, height: 720, scale: 1, fps: 30}',
+      'template: default',
+      'browser:',
+      `  executable: ${JSON.stringify(chrome)}`,
+      '',
+    ].join('\n'),
   );
   await writeFile(join(project, 'scenarios', 'short.yaml'), SHORT);
   server = createServer((_q, r) => r.end('<p>page</p>'));
@@ -75,11 +85,13 @@ describe('a program inside the workspace: refused for a job of the worker, run b
     // The job ran; the run failed at its browser's launch, with the refusal.
     expect(job?.state, logs.join('\n')).toBe('succeeded');
     expect(job?.result).toMatchObject({ kind: 'run', status: 'failed', steps_done: 0 });
-    expect((job?.result as { untrusted?: { error_message?: string } }).untrusted?.error_message).toMatch(/browser\.executable \(.*\/bin\/chrome\) lies inside the workspace .*move the program out of the workspace and point browser\.executable at its new place/);
+    expect((job?.result as { untrusted?: { error_message?: string } }).untrusted?.error_message).toMatch(
+      /browser\.executable \(.*\/bin\/chrome\) lies inside the workspace .*move the program out of the workspace and point browser\.executable at its new place/,
+    );
     expect(existsSync(marker)).toBe(false);
   }, 60_000);
 
-  it('the engine of the MCP server and of the Studio server turns the policy on; the CLI\'s keeps it off', async () => {
+  it("the engine of the MCP server and of the Studio server turns the policy on; the CLI's keeps it off", async () => {
     for (const client of ['mcp', 'ui', 'cli'] as const) {
       const engine = await createEngine({ root: ws, client, autoStartWorker: false });
       if (client === 'cli') expect(engine.workspace.policy.agentFolders, client).toBeNull();

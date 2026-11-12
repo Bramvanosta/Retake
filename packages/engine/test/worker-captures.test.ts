@@ -73,14 +73,26 @@ async function waitFor<T>(what: string, fn: () => Promise<T | undefined | false>
 /** pid → `ps -o pri` of every process of a job process's tree (its group and descendants). */
 function priorities(pid: number): Map<number, number> {
   const out = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,pgid=,pri='], { encoding: 'utf8' }).stdout;
-  const rows = out.split('\n').map((l) => l.trim().split(/\s+/).map(Number)).filter((r) => r.length === 4);
-  const tree = new Set(treeOf(rows.map(([p, pp, g]) => ({ pid: p!, ppid: pp!, pgid: g!, start: null })), pid, { group: true }).map((p) => p.pid));
+  const rows = out
+    .split('\n')
+    .map((l) => l.trim().split(/\s+/).map(Number))
+    .filter((r) => r.length === 4);
+  const tree = new Set(
+    treeOf(
+      rows.map(([p, pp, g]) => ({ pid: p!, ppid: pp!, pgid: g!, start: null })),
+      pid,
+      { group: true },
+    ).map((p) => p.pid),
+  );
   return new Map(rows.filter(([p]) => tree.has(p!)).map(([p, , , pri]) => [p!, pri!]));
 }
 
 function framemd5(file: string): string[] {
   const out = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-map', '0:v', '-f', 'framemd5', '-'], { encoding: 'utf8', maxBuffer: 64e6 }).stdout;
-  return out.split('\n').filter((l) => l && !l.startsWith('#')).map((l) => l.split(',').pop()!.trim());
+  return out
+    .split('\n')
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => l.split(',').pop()!.trim());
 }
 
 beforeAll(async () => {
@@ -122,89 +134,109 @@ afterAll(async () => {
 let unheld: string[] = [];
 
 describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', () => {
-  it('a render waits while a take films, then runs in a job process of the worker\'s build (no refusal, no hand-over)', async () => {
-    const take = film({ root, source: 'cli', owner: me });
-    const sub = await engine.renders.submit({ project: 'demo', scenario: 'held', overrides: { scale: 0.5 } });
-    logs.length = 0;
-    const worker = work();
-    // The worker serves (and polls every 50 ms) well before the take ends.
-    await waitFor('the worker serving', async () => logs.some((l) => l.startsWith('serving ')));
-    await new Promise((r) => setTimeout(r, 1_500));
-    expect((await queue.stored(sub.job.id))?.state).toBe('queued');
-    expect(await queue.claimOf(sub.job.id)).toBeUndefined();
-    const ended = Date.now();
-    take.closeSync();
-    const running = await waitFor('the render running', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'running' ? j : undefined;
-    });
-    expect(Date.parse(running.started_at!) - ended).toBeLessThan(5_000);
-    // Its own process: the job's worker is the job process, the claiming worker its supervisor.
-    expect(running.worker?.pid).not.toBe(process.pid);
-    expect(running.supervisor?.pid).toBe(process.pid);
-    expect(await worker).toBe(0);
-    const job = (await engine.jobs.get(sub.job.id)) as JobRecord;
-    expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
-    const log = await readFile(join(workersDir(root), 'worker.log'), 'utf8').catch(() => '');
-    expect(log).not.toMatch(/not the worker's|refused/);
-    expect(logs.join('\n')).not.toMatch(/handing over|another build/);
-    const result = job.result as { kind: 'render'; file: string };
-    unheld = framemd5(result.file);
-    expect(unheld.length).toBeGreaterThan(100);
-  }, LONG);
+  it(
+    "a render waits while a take films, then runs in a job process of the worker's build (no refusal, no hand-over)",
+    async () => {
+      const take = film({ root, source: 'cli', owner: me });
+      const sub = await engine.renders.submit({ project: 'demo', scenario: 'held', overrides: { scale: 0.5 } });
+      logs.length = 0;
+      const worker = work();
+      // The worker serves (and polls every 50 ms) well before the take ends.
+      await waitFor('the worker serving', async () => logs.some((l) => l.startsWith('serving ')));
+      await new Promise((r) => setTimeout(r, 1_500));
+      expect((await queue.stored(sub.job.id))?.state).toBe('queued');
+      expect(await queue.claimOf(sub.job.id)).toBeUndefined();
+      const ended = Date.now();
+      take.closeSync();
+      const running = await waitFor('the render running', async () => {
+        const j = await queue.get(sub.job.id);
+        return j?.state === 'running' ? j : undefined;
+      });
+      expect(Date.parse(running.started_at!) - ended).toBeLessThan(5_000);
+      // Its own process: the job's worker is the job process, the claiming worker its supervisor.
+      expect(running.worker?.pid).not.toBe(process.pid);
+      expect(running.supervisor?.pid).toBe(process.pid);
+      expect(await worker).toBe(0);
+      const job = (await engine.jobs.get(sub.job.id)) as JobRecord;
+      expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
+      const log = await readFile(join(workersDir(root), 'worker.log'), 'utf8').catch(() => '');
+      expect(log).not.toMatch(/not the worker's|refused/);
+      expect(logs.join('\n')).not.toMatch(/handing over|another build/);
+      const result = job.result as { kind: 'render'; file: string };
+      unheld = framemd5(result.file);
+      expect(unheld.length).toBeGreaterThan(100);
+    },
+    LONG,
+  );
 
-  it.skipIf(process.platform !== 'darwin')('a take starting mid-render: the whole tree (its browser too) at background priority, back after; identical frames', async () => {
-    const sub = await engine.renders.submit({ project: 'demo', scenario: 'held', overrides: { scale: 0.5 } });
-    const worker = work();
-    const running = await waitFor('the render rendering, its browser recorded', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'running' && j.progress?.phase === 'rendering' && existsSync(queue.files.browser(sub.job.id)) ? j : undefined;
-    });
-    const child = running.worker!.pid;
-    const browser = JSON.parse(await readFile(queue.files.browser(sub.job.id), 'utf8')) as RecordedBrowser;
-    const before = priorities(child);
-    expect(before.has(browser.pid)).toBe(true);
-    const take = film({ root, source: 'job', owner: me });
-    const held = await waitFor('every process at background priority', async () => {
-      const p = priorities(child);
-      return p.size > 0 && [...p.values()].every((x) => x === 4) ? p : undefined;
-    }, 10_000);
-    expect(held.has(browser.pid)).toBe(true);
-    expect(JSON.parse(await readFile(queue.files.yield(sub.job.id), 'utf8'))).toMatchObject({ v: 1, state: 'background', cause: 'here' });
-    await new Promise((r) => setTimeout(r, 2_000));
-    take.closeSync();
-    await waitFor('normal priority again', async () => {
-      const p = priorities(child);
-      return p.size === 0 || [...p.values()].every((x) => x !== 4);
-    }, 10_000);
-    // yield.json goes as the hold ends (the worker removes it first, then releases): waited for, never read in between.
-    await waitFor('yield.json removed', async () => !existsSync(queue.files.yield(sub.job.id)), 10_000);
-    expect(await worker).toBe(0);
-    const job = (await engine.jobs.get(sub.job.id)) as JobRecord;
-    expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
-    expect(framemd5((job.result as { file: string }).file)).toEqual(unheld);
-  }, LONG);
+  it.skipIf(process.platform !== 'darwin')(
+    'a take starting mid-render: the whole tree (its browser too) at background priority, back after; identical frames',
+    async () => {
+      const sub = await engine.renders.submit({ project: 'demo', scenario: 'held', overrides: { scale: 0.5 } });
+      const worker = work();
+      const running = await waitFor('the render rendering, its browser recorded', async () => {
+        const j = await queue.get(sub.job.id);
+        return j?.state === 'running' && j.progress?.phase === 'rendering' && existsSync(queue.files.browser(sub.job.id)) ? j : undefined;
+      });
+      const child = running.worker!.pid;
+      const browser = JSON.parse(await readFile(queue.files.browser(sub.job.id), 'utf8')) as RecordedBrowser;
+      const before = priorities(child);
+      expect(before.has(browser.pid)).toBe(true);
+      const take = film({ root, source: 'job', owner: me });
+      const held = await waitFor(
+        'every process at background priority',
+        async () => {
+          const p = priorities(child);
+          return p.size > 0 && [...p.values()].every((x) => x === 4) ? p : undefined;
+        },
+        10_000,
+      );
+      expect(held.has(browser.pid)).toBe(true);
+      expect(JSON.parse(await readFile(queue.files.yield(sub.job.id), 'utf8'))).toMatchObject({ v: 1, state: 'background', cause: 'here' });
+      await new Promise((r) => setTimeout(r, 2_000));
+      take.closeSync();
+      await waitFor(
+        'normal priority again',
+        async () => {
+          const p = priorities(child);
+          return p.size === 0 || [...p.values()].every((x) => x !== 4);
+        },
+        10_000,
+      );
+      // yield.json goes as the hold ends (the worker removes it first, then releases): waited for, never read in between.
+      await waitFor('yield.json removed', async () => !existsSync(queue.files.yield(sub.job.id)), 10_000);
+      expect(await worker).toBe(0);
+      const job = (await engine.jobs.get(sub.job.id)) as JobRecord;
+      expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
+      expect(framemd5((job.result as { file: string }).file)).toEqual(unheld);
+    },
+    LONG,
+  );
 
-  it('a cancel while held: the job process ends it itself (cancelled, nothing left under the render id), no kill', async () => {
-    const sub = await engine.renders.submit({ project: 'demo', scenario: 'held', overrides: { scale: 0.5 } });
-    const worker = work({ cancelGraceMs: 60_000 });
-    await waitFor('the render rendering', async () => {
-      const j = await queue.get(sub.job.id);
-      return j?.state === 'running' && j.progress?.phase === 'rendering';
-    });
-    const take = film({ root, source: 'job', owner: me });
-    await waitFor('held', async () => existsSync(queue.files.yield(sub.job.id)), 10_000);
-    await engine.jobs.cancel(sub.job.id);
-    expect(await worker).toBe(0);
-    take.closeSync();
-    const job = (await engine.jobs.get(sub.job.id)) as JobRecord;
-    expect(job.state).toBe('cancelled');
-    expect(job.error?.message).not.toMatch(/was killed/);
-    expect(logs.join('\n')).not.toMatch(/killing its job process/);
-    const renders = await readdir(join(root, 'projects', 'demo', 'renders'));
-    expect(renders.filter((f) => f.startsWith(sub.render_id) || f.startsWith(`.${sub.render_id}`))).toEqual([]);
-    expect(existsSync(queue.files.yield(sub.job.id))).toBe(false);
-  }, LONG);
+  it(
+    'a cancel while held: the job process ends it itself (cancelled, nothing left under the render id), no kill',
+    async () => {
+      const sub = await engine.renders.submit({ project: 'demo', scenario: 'held', overrides: { scale: 0.5 } });
+      const worker = work({ cancelGraceMs: 60_000 });
+      await waitFor('the render rendering', async () => {
+        const j = await queue.get(sub.job.id);
+        return j?.state === 'running' && j.progress?.phase === 'rendering';
+      });
+      const take = film({ root, source: 'job', owner: me });
+      await waitFor('held', async () => existsSync(queue.files.yield(sub.job.id)), 10_000);
+      await engine.jobs.cancel(sub.job.id);
+      expect(await worker).toBe(0);
+      take.closeSync();
+      const job = (await engine.jobs.get(sub.job.id)) as JobRecord;
+      expect(job.state).toBe('cancelled');
+      expect(job.error?.message).not.toMatch(/was killed/);
+      expect(logs.join('\n')).not.toMatch(/killing its job process/);
+      const renders = await readdir(join(root, 'projects', 'demo', 'renders'));
+      expect(renders.filter((f) => f.startsWith(sub.render_id) || f.startsWith(`.${sub.render_id}`))).toEqual([]);
+      expect(existsSync(queue.files.yield(sub.job.id))).toBe(false);
+    },
+    LONG,
+  );
 });
 
 describe('a job process (L5.14a)', () => {
@@ -217,7 +249,7 @@ describe('a job process (L5.14a)', () => {
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 
-  it('refuses another build than its worker\'s (exit 3) and writes nothing', async () => {
+  it("refuses another build than its worker's (exit 3) and writes nothing", async () => {
     const q = new FileJobQueue(ws);
     const rec = await q.enqueue({ version: 1, kind: 'review', project: 'demo', render_id: 'held-v1', fps: 1, submitted_by: 'test' } as never);
     expect(await q.claim(rec.id, me)).toBe(true);
@@ -231,7 +263,16 @@ describe('a job process (L5.14a)', () => {
     const { buildStamp } = await import('../src/index.js');
     const build = buildStamp();
     const q = new FileJobQueue(ws);
-    const take = await q.enqueue({ version: 1, kind: 'run', project: 'demo', scenario: 's', scenario_sha256: 'a'.repeat(64), run_id: '20260101-120000-s', mode: 'capture', submitted_by: 'test' } as never);
+    const take = await q.enqueue({
+      version: 1,
+      kind: 'run',
+      project: 'demo',
+      scenario: 's',
+      scenario_sha256: 'a'.repeat(64),
+      run_id: '20260101-120000-s',
+      mode: 'capture',
+      submitted_by: 'test',
+    } as never);
     await q.claim(take.id, me);
     const quiet = { log: () => undefined };
     expect(await runJobChild({ root: ws, id: take.id, kind: 'run', build, supervisor: process.pid, digest: recordDigest(take), ...quiet })).toBe(JOB_EXIT.refused);

@@ -56,7 +56,13 @@ describe('scenario_actions', () => {
   it('⚑ is a Studio read in the ui allow-list; its input is pinned (strict: no run, no path, a slug and a name only)', async () => {
     expect(OWN_OPS).toContain('scenario_actions');
     expect(UI_OPS).toContain('scenario_actions');
-    for (const bad of [{ project: P, name: 'quote', run: '20261020-100000-quote' }, { project: P, name: '../quote' }, { project: '/tmp', name: 'quote' }, { project: P, name: 'quote', env: 'a/b' }, { project: P }]) {
+    for (const bad of [
+      { project: P, name: 'quote', run: '20261020-100000-quote' },
+      { project: P, name: '../quote' },
+      { project: '/tmp', name: 'quote' },
+      { project: P, name: 'quote', env: 'a/b' },
+      { project: P },
+    ]) {
       const r = await call('scenario_actions', bad);
       expect(r.status, JSON.stringify(bad)).toBe(400);
     }

@@ -9,7 +9,28 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { ConfigError, PERSON_POLICY, workPolicyFrom } from '@retake/core';
-import { BundleError, bundleProblems, H264EncoderError, assertOutsideBundle, findBundle, h264CodecArgs, h264Encoder, insideBundle, loadProject, loadWorkspaceConfig, mediaTools, overrideBundleInfo, parseEncoders, pickH264, prepareBundle, readBundleManifest, resetFfmpegEncoders, resolveMediaTools, retakeHome, starterTemplatesDir } from '@retake/core/io';
+import {
+  BundleError,
+  bundleProblems,
+  H264EncoderError,
+  assertOutsideBundle,
+  findBundle,
+  h264CodecArgs,
+  h264Encoder,
+  insideBundle,
+  loadProject,
+  loadWorkspaceConfig,
+  mediaTools,
+  overrideBundleInfo,
+  parseEncoders,
+  pickH264,
+  prepareBundle,
+  readBundleManifest,
+  resetFfmpegEncoders,
+  resolveMediaTools,
+  retakeHome,
+  starterTemplatesDir,
+} from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -28,7 +49,19 @@ function fakeBundle(opts: { paths?: Record<string, unknown>; app?: boolean } = {
   const module = join(root, 'engine/node_modules/@retake/core/dist/io/bundle.js');
   writeFileSync(module, '');
   const paths = { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: 'ffmpeg/bin', templates: 'engine/templates', plugin: 'plugin', ...opts.paths };
-  writeFileSync(join(root, 'bundle.json'), JSON.stringify({ v: 1, app: '0.2.0', node: '22.16.0', playwright: { core: '1.56.1', chromium: '1194', headless_shell: '1194' }, compositor: '4.0.534', ffmpeg: null, minimum_macos: '15.0', paths }));
+  writeFileSync(
+    join(root, 'bundle.json'),
+    JSON.stringify({
+      v: 1,
+      app: '0.2.0',
+      node: '22.16.0',
+      playwright: { core: '1.56.1', chromium: '1194', headless_shell: '1194' },
+      compositor: '4.0.534',
+      ffmpeg: null,
+      minimum_macos: '15.0',
+      paths,
+    }),
+  );
   return { root, module };
 }
 
@@ -60,7 +93,20 @@ describe('bundle discovery and the manifest', () => {
     const outer = resolve(b.root, '..');
     rmSync(join(b.root, 'bundle.json'));
     const rel = (p: string) => p.slice(outer.length + 1);
-    writeFileSync(join(outer, 'bundle.json'), JSON.stringify({ v: 1, paths: { node: rel(join(b.root, 'node/bin/node')), engine: rel(join(b.root, 'engine')), browsers: rel(join(b.root, 'browsers')), ffmpeg: null, templates: rel(join(b.root, 'engine/templates')), plugin: rel(join(b.root, 'plugin')) } }));
+    writeFileSync(
+      join(outer, 'bundle.json'),
+      JSON.stringify({
+        v: 1,
+        paths: {
+          node: rel(join(b.root, 'node/bin/node')),
+          engine: rel(join(b.root, 'engine')),
+          browsers: rel(join(b.root, 'browsers')),
+          ffmpeg: null,
+          templates: rel(join(b.root, 'engine/templates')),
+          plugin: rel(join(b.root, 'plugin')),
+        },
+      }),
+    );
     expect(findBundle(b.module)).toBeNull();
     // A manifest at the right depth whose engine holds the module somewhere else than node_modules/@retake/core.
     const c = fakeBundle();
@@ -110,11 +156,21 @@ console.log(JSON.stringify({ problems: m.bundleProblems(), threw, templates, env
     const bundle = readBundleManifest(fakeBundle().root);
     const order: string[] = [];
     writeFileSync(join(bundle.root, 'node', 'guard.cjs'), '');
-    prepareBundle({}, bundle, () => order.push('playwright-core'), (f) => order.push(f));
+    prepareBundle(
+      {},
+      bundle,
+      () => order.push('playwright-core'),
+      (f) => order.push(f),
+    );
     expect(order).toEqual([join(bundle.root, 'node', 'guard.cjs'), 'playwright-core']);
     expect(bundleProblems()).toEqual([]);
     rmSync(join(bundle.root, 'node', 'guard.cjs'));
-    prepareBundle({}, bundle, () => order.push('playwright-core'), (f) => order.push(f));
+    prepareBundle(
+      {},
+      bundle,
+      () => order.push('playwright-core'),
+      (f) => order.push(f),
+    );
     expect(order.slice(2)).toEqual(['playwright-core']);
     expect(bundleProblems()).toEqual([expect.stringMatching(/module lookup guard does not load \(.*node\/guard\.cjs is missing\): reinstall Retake/)]);
   });
@@ -151,9 +207,19 @@ describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → sys
   const all = () => true;
 
   it('each branch, in order', () => {
-    expect(resolveMediaTools({ configured: '/cfg/bin/ffmpeg', env, bundle, exists: all })).toEqual({ ffmpeg: '/cfg/bin/ffmpeg', ffprobe: '/cfg/bin/ffprobe', ffmpegSource: 'retake.yaml', ffprobeSource: 'retake.yaml' });
+    expect(resolveMediaTools({ configured: '/cfg/bin/ffmpeg', env, bundle, exists: all })).toEqual({
+      ffmpeg: '/cfg/bin/ffmpeg',
+      ffprobe: '/cfg/bin/ffprobe',
+      ffmpegSource: 'retake.yaml',
+      ffprobeSource: 'retake.yaml',
+    });
     expect(resolveMediaTools({ env, bundle, exists: all })).toEqual({ ffmpeg: '/env/bin/ffmpeg', ffprobe: '/env/bin/ffprobe', ffmpegSource: 'RETAKE_FFMPEG', ffprobeSource: 'RETAKE_FFMPEG' });
-    expect(resolveMediaTools({ env: {}, bundle })).toEqual({ ffmpeg: join(bundle.root, 'ffmpeg/bin/ffmpeg'), ffprobe: join(bundle.root, 'ffmpeg/bin/ffprobe'), ffmpegSource: 'bundled', ffprobeSource: 'bundled' });
+    expect(resolveMediaTools({ env: {}, bundle })).toEqual({
+      ffmpeg: join(bundle.root, 'ffmpeg/bin/ffmpeg'),
+      ffprobe: join(bundle.root, 'ffmpeg/bin/ffprobe'),
+      ffmpegSource: 'bundled',
+      ffprobeSource: 'bundled',
+    });
     expect(resolveMediaTools({ env: {}, bundle: null })).toEqual({ ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', ffmpegSource: 'PATH', ffprobeSource: 'PATH' });
     // a bundle without its own ffmpeg (ffmpeg: null) uses the system's
     expect(resolveMediaTools({ env: {}, bundle: noFfmpeg }).ffmpegSource).toBe('PATH');
@@ -166,7 +232,11 @@ describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → sys
 
   it("ffprobe beside retake.yaml's (or $RETAKE_FFMPEG's) ffmpeg only when it is there; else the normal order (a lone static ffmpeg keeps the old ffprobe)", () => {
     const none = () => false;
-    expect(resolveMediaTools({ configured: '/cfg/bin/ffmpeg', env: { RETAKE_FFPROBE: '/p/ffprobe' }, bundle, exists: none })).toMatchObject({ ffmpeg: '/cfg/bin/ffmpeg', ffprobe: '/p/ffprobe', ffprobeSource: 'RETAKE_FFPROBE' });
+    expect(resolveMediaTools({ configured: '/cfg/bin/ffmpeg', env: { RETAKE_FFPROBE: '/p/ffprobe' }, bundle, exists: none })).toMatchObject({
+      ffmpeg: '/cfg/bin/ffmpeg',
+      ffprobe: '/p/ffprobe',
+      ffprobeSource: 'RETAKE_FFPROBE',
+    });
     expect(resolveMediaTools({ configured: '/cfg/bin/ffmpeg', env: {}, bundle, exists: none })).toMatchObject({ ffprobe: join(bundle.root, 'ffmpeg/bin/ffprobe'), ffprobeSource: 'bundled' });
     expect(resolveMediaTools({ configured: '/cfg/bin/ffmpeg', env: {}, bundle: null, exists: none })).toMatchObject({ ffprobe: 'ffprobe', ffprobeSource: 'PATH' });
     expect(resolveMediaTools({ env, bundle: null, exists: none })).toMatchObject({ ffmpeg: '/env/bin/ffmpeg', ffprobe: 'ffprobe', ffprobeSource: 'PATH' });
@@ -186,7 +256,12 @@ describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → sys
     const dir = join(tmp, `wsff${n++}`);
     mkdirSync(dir);
     for (const t of ['ffmpeg', 'ffprobe']) writeFileSync(join(dir, t), '');
-    expect(mediaTools(workPolicyFrom(null, join(dir, 'ffmpeg')))).toMatchObject({ ffmpeg: join(dir, 'ffmpeg'), ffprobe: join(dir, 'ffprobe'), ffmpegSource: 'retake.yaml', ffprobeSource: 'retake.yaml' });
+    expect(mediaTools(workPolicyFrom(null, join(dir, 'ffmpeg')))).toMatchObject({
+      ffmpeg: join(dir, 'ffmpeg'),
+      ffprobe: join(dir, 'ffprobe'),
+      ffmpegSource: 'retake.yaml',
+      ffprobeSource: 'retake.yaml',
+    });
   });
 
   it("retake.yaml's ffmpeg: a path is the workspace's (made absolute against its root, whatever the cwd); a command name stays one", async () => {
@@ -207,7 +282,9 @@ describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → sys
 describe('nothing writes inside the bundle (M3)', () => {
   it('assertOutsideBundle refuses a path inside (even one not created yet), allows one outside', () => {
     const bundle = readBundleManifest(fakeBundle().root);
-    expect(() => assertOutsideBundle(join(bundle.paths.engine, 'node_modules/@retake/components/library/x/preview.png'), 'the preview of x', bundle)).toThrow(/refused: the preview of x .* inside the Retake app/);
+    expect(() => assertOutsideBundle(join(bundle.paths.engine, 'node_modules/@retake/components/library/x/preview.png'), 'the preview of x', bundle)).toThrow(
+      /refused: the preview of x .* inside the Retake app/,
+    );
     expect(() => assertOutsideBundle(join(tmp, 'ws'), 'the workspace', bundle)).not.toThrow();
     expect(() => assertOutsideBundle(join(bundle.root, 'x'), 'w', null)).not.toThrow();
   });

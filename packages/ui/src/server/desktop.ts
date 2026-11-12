@@ -85,12 +85,12 @@ export class DesktopPipe {
   }
 
   private send(w: (line: string) => boolean, line: string): void {
-    if (!w(line)) throw new EngineError('unavailable', 'the desktop app\'s pipe is closed (this Studio server is stopping): the answer was not sent', { details: { reason: 'stopped' } });
+    if (!w(line)) throw new EngineError('unavailable', "the desktop app's pipe is closed (this Studio server is stopping): the answer was not sent", { details: { reason: 'stopped' } });
     this.written++;
   }
 
   private need(): (line: string) => boolean {
-    if (!this.write) throw new EngineError('conflict', 'this Studio server is not the desktop app\'s (not supervised): there is no question to answer', { details: { reason: 'not_supervised' } });
+    if (!this.write) throw new EngineError('conflict', "this Studio server is not the desktop app's (not supervised): there is no question to answer", { details: { reason: 'not_supervised' } });
     return this.write;
   }
 }

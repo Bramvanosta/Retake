@@ -17,8 +17,12 @@ import { plural } from './words.js';
 /** One hook's line, from the trusted fields only (what a hook returned stays under "untrusted"). */
 function hookLine(r: HookResultView): string {
   const icon = r.status === 'ok' ? '✓' : r.status === 'dry' ? '◦' : '✗';
-  const who = r.phase === 'rollback' ? `rollback of journal entry ${r.journal_seq ?? r.index}` : `${r.index + 1}. ${r.name ?? r.declared ?? `${r.kind ?? 'invalid'} hook`}${r.name && r.declared ? ` (${r.declared})` : ''}`;
-  const status = r.status === 'dry' ? 'checked, not executed' : r.status === 'ok' ? 'ran' : r.status === 'refused' ? 'refused (the reason is under "untrusted")' : 'failed (the error is under "untrusted")';
+  const who =
+    r.phase === 'rollback'
+      ? `rollback of journal entry ${r.journal_seq ?? r.index}`
+      : `${r.index + 1}. ${r.name ?? r.declared ?? `${r.kind ?? 'invalid'} hook`}${r.name && r.declared ? ` (${r.declared})` : ''}`;
+  const status =
+    r.status === 'dry' ? 'checked, not executed' : r.status === 'ok' ? 'ran' : r.status === 'refused' ? 'refused (the reason is under "untrusted")' : 'failed (the error is under "untrusted")';
   return `  ${icon} ${who}: ${status}${r.approval ? ` — ${r.status === 'dry' ? 'needs a human approval to run' : 'approval'}: ${r.approval.reason}` : ''}${r.optional ? ' (optional)' : ''}`;
 }
 
@@ -27,7 +31,11 @@ export function hooksJobSummary(job: JobRecord): string {
   const head = `job ${job.id}: ${job.state}`;
   const r = job.result;
   if (!r || (r.kind !== 'hooks' && r.kind !== 'env_reset')) {
-    return [head, ...(job.error ? [`${job.error.message}${job.error.fix ? ` — fix: ${job.error.fix}` : ''}`] : []), ...(job.state === 'queued' || job.state === 'running' ? [`follow it: job_status {job_id: "${job.id}", wait_s: 25}`] : [])].join('\n');
+    return [
+      head,
+      ...(job.error ? [`${job.error.message}${job.error.fix ? ` — fix: ${job.error.fix}` : ''}`] : []),
+      ...(job.state === 'queued' || job.state === 'running' ? [`follow it: job_status {job_id: "${job.id}", wait_s: 25}`] : []),
+    ].join('\n');
   }
   const lines = [head];
   if (r.kind === 'hooks') {
@@ -60,7 +68,9 @@ async function hooksJobOutput(engine: Engine, job: JobRecord, seconds: number, c
 const dryInput = z
   .boolean()
   .default(true)
-  .describe('Default true: fill in the hooks\' {{…}} values and security-check them without executing anything (nobody is asked). false runs them: hooks that are destructive or run shell commands need the user\'s approval first.');
+  .describe(
+    "Default true: fill in the hooks' {{…}} values and security-check them without executing anything (nobody is asked). false runs them: hooks that are destructive or run shell commands need the user's approval first.",
+  );
 
 export const hooksRun = defineOperation({
   name: 'hooks_run',
@@ -89,7 +99,7 @@ export const envReset = defineOperation({
   name: 'env_reset',
   title: 'Reset an environment',
   description:
-    'Put an environment back as the hooks found it, as a job: replay every pending rollback (journals of captures and hook runs, most recent first — also those an interrupted job left), then run the project\'s reset hooks. dry (default true) only describes them. With dry: false, reset hooks that are destructive or run shell commands are approved by the user first (else refused with the command a human runs); rollbacks are never asked about (they undo). Only the rollbacks Retake recorded in their journal with this Retake home are replayed: an older journal, or one moved, copied or edited, is refused and said — a person can review it and replay it from a terminal.',
+    "Put an environment back as the hooks found it, as a job: replay every pending rollback (journals of captures and hook runs, most recent first — also those an interrupted job left), then run the project's reset hooks. dry (default true) only describes them. With dry: false, reset hooks that are destructive or run shell commands are approved by the user first (else refused with the command a human runs); rollbacks are never asked about (they undo). Only the rollbacks Retake recorded in their journal with this Retake home are replayed: an older journal, or one moved, copied or edited, is refused and said — a person can review it and replay it from a terminal.",
   input: z.strictObject({
     project: projectSlug,
     env: envName.optional().describe("Environment (default: the project's default_env)."),
@@ -102,4 +112,3 @@ export const envReset = defineOperation({
     return hooksJobOutput(ctx.engine, sub.job, wait_s, ctx, `environment reset${dry ? ' (dry)' : ''} submitted (job ${sub.job.id}).`);
   },
 });
-

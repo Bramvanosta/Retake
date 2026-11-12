@@ -78,7 +78,13 @@ describe('compact review', () => {
       counts: { error: 1, warning: COMPACT_FINDINGS_MAX + 5, info: 1 },
       findings,
       durations: { total_s: 60.9, segments: Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, kind: 'clip', from_s: i, to_s: i + 1, duration_s: 1, component: 'studio/layout-card' })) },
-      files: { sheets: ['/p/review/quote-v1/sheet_1fps.jpg'], scene_sheets: { a: ['/x/a.jpg'], b: ['/x/b.jpg'] }, keyframes: Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`k${i}`, `/x/k${i}.jpg`])), report_json: '/p/review/quote-v1/report.json', report_md: '/p/review/quote-v1/report.md' },
+      files: {
+        sheets: ['/p/review/quote-v1/sheet_1fps.jpg'],
+        scene_sheets: { a: ['/x/a.jpg'], b: ['/x/b.jpg'] },
+        keyframes: Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`k${i}`, `/x/k${i}.jpg`])),
+        report_json: '/p/review/quote-v1/report.json',
+        report_md: '/p/review/quote-v1/report.md',
+      },
       images: [],
       untrusted: { messages: findings.map((f, i) => `message ${i} ${'x'.repeat(i === 0 ? 900 : 10)}`), environment: { name: 'local' } },
     } as unknown as ReviewView;
@@ -89,7 +95,13 @@ describe('compact review', () => {
     expect(c.findings_left_out).toBe(5);
     expect(c.untrusted.messages).toHaveLength(c.findings.length);
     expect(c.untrusted.messages[0]).toMatch(/^message 0 x+… \(\d+ more characters\)$/);
-    expect(c.files).toEqual({ sheets: ['/p/review/quote-v1/sheet_1fps.jpg'], report_md: '/p/review/quote-v1/report.md', report_json: '/p/review/quote-v1/report.json', keyframes: { dir: '/p/review/quote-v1/keyframes', count: 17 }, scene_sheets: 2 });
+    expect(c.files).toEqual({
+      sheets: ['/p/review/quote-v1/sheet_1fps.jpg'],
+      report_md: '/p/review/quote-v1/report.md',
+      report_json: '/p/review/quote-v1/report.json',
+      keyframes: { dir: '/p/review/quote-v1/keyframes', count: 17 },
+      scene_sheets: 2,
+    });
     expect(c.duration_s).toBe(60.9);
     expect(c).not.toHaveProperty('durations');
   });
@@ -108,7 +120,20 @@ describe('compact inspection', () => {
     fragile: [],
     action: 'click',
     action_verified: true,
-    untrusted: { role: 'button', tag: 'button', input_type: null, name: `Button ${mark}`, text: `Button ${mark}`, label: null, placeholder: null, testid: null, href_path: null, target: `Button ${mark}`, target_yaml: `Button ${mark}`, hint: { step: { click: `Button ${mark}` }, yaml: `{ click: Button ${mark} }` } },
+    untrusted: {
+      role: 'button',
+      tag: 'button',
+      input_type: null,
+      name: `Button ${mark}`,
+      text: `Button ${mark}`,
+      label: null,
+      placeholder: null,
+      testid: null,
+      href_path: null,
+      target: `Button ${mark}`,
+      target_yaml: `Button ${mark}`,
+      hint: { step: { click: `Button ${mark}` }, yaml: `{ click: Button ${mark} }` },
+    },
     ...o,
   });
 
@@ -123,7 +148,16 @@ describe('compact inspection', () => {
     expect(left_out).toBe(2);
     expect(elements).toEqual([
       { mark: 1, in: 'page', action: 'click', untrusted: { role: 'button', name: 'Button 1', hint: '{ click: Button 1 }' } },
-      { mark: 3, in: 'dialog', action: 'click', matches: 2, fragile: ['nth'], state: ['disabled', 'covered'], out_of_view: true, untrusted: { role: 'button', name: 'Button 3', hint: '{ click: Button 3 }' } },
+      {
+        mark: 3,
+        in: 'dialog',
+        action: 'click',
+        matches: 2,
+        fragile: ['nth'],
+        state: ['disabled', 'covered'],
+        out_of_view: true,
+        untrusted: { role: 'button', name: 'Button 3', hint: '{ click: Button 3 }' },
+      },
       { mark: 5, in: 'page', action: 'click', untrusted: { role: 'link', name: 'Coffees', target: null, href_path: '/products' } },
     ]);
   });
@@ -142,7 +176,9 @@ describe('the tools', () => {
   });
 
   it("an error result carries the documentation URL of the error's guide page in its data", () => {
-    expect(errorResult(new ScenarioError('scenario x is invalid')).structuredContent).toEqual({ error: { code: 'invalid', message: 'scenario x is invalid', docs: `${DOCS_BASE_URL}docs/guide/scenarios.md` } });
+    expect(errorResult(new ScenarioError('scenario x is invalid')).structuredContent).toEqual({
+      error: { code: 'invalid', message: 'scenario x is invalid', docs: `${DOCS_BASE_URL}docs/guide/scenarios.md` },
+    });
     expect(errorResult(new Error('boom')).structuredContent).toEqual({ error: { code: 'internal', message: 'boom' } });
   });
 

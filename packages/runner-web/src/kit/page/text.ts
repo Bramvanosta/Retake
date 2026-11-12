@@ -4,7 +4,10 @@ import { isA } from './trees.js';
 
 // ───────────────────────────── text helpers ─────────────────────────────
 export const norm = (s: string | null | undefined): string =>
-  (s ?? '').replace(/[\u00a0\u2007\u202f]/g, ' ').replace(/\s+/g, ' ').trim();
+  (s ?? '')
+    .replace(/[\u00a0\u2007\u202f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 export const lc = (s: string): string => s.toLowerCase();
 /** Lower-cased normalised textContent (memoised during an inspection). */
 export function lowText(n: Node): string {

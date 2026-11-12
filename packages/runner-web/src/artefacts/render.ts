@@ -135,10 +135,10 @@ export class ArtefactRenderer {
       const count = await page.evaluate(async () => (window as unknown as { openPdf: () => Promise<number> }).openPdf());
       const pages: Array<RenderedPage & { file: string }> = [];
       for (let i = 1; i <= Math.min(count, PDF_MAX_PAGES); i++) {
-        const r = await page.evaluate(
-          async ([n, scale]) => (window as unknown as { renderPage: (n: number, s: number) => Promise<RenderedPage & { data: string }> }).renderPage(n, scale),
-          [i, PDF_SCALE] as [number, number],
-        );
+        const r = await page.evaluate(async ([n, scale]) => (window as unknown as { renderPage: (n: number, s: number) => Promise<RenderedPage & { data: string }> }).renderPage(n, scale), [
+          i,
+          PDF_SCALE,
+        ] as [number, number]);
         const out = join(outDir, `page-${i}.png`);
         await writeFile(out, Buffer.from(r.data.slice(r.data.indexOf(',') + 1), 'base64'));
         pages.push({ file: out, width: r.width, height: r.height, width_pt: r.width_pt, height_pt: r.height_pt });
@@ -202,5 +202,8 @@ window.pdfReady = true;
       return route.fulfill({ status: 404, body: '' });
     }
   });
-  await ctx.route((url) => !url.href.startsWith(PDFJS_ORIGIN) && !url.href.startsWith('data:') && !url.href.startsWith('blob:'), (r) => r.abort());
+  await ctx.route(
+    (url) => !url.href.startsWith(PDFJS_ORIGIN) && !url.href.startsWith('data:') && !url.href.startsWith('blob:'),
+    (r) => r.abort(),
+  );
 }

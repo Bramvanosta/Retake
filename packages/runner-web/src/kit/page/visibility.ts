@@ -94,8 +94,7 @@ export function textVisible(text: string): boolean {
   if (!needle) return true;
   if (!body) return false;
   const has = (el: Element) => lc(norm(el.textContent ?? '')).includes(needle);
-  const seen = (el: Element) =>
-    isVisible(el) && effectiveOpacity(el) >= 0.5 && lc(norm((el as HTMLElement).innerText ?? el.textContent ?? '')).includes(needle);
+  const seen = (el: Element) => isVisible(el) && effectiveOpacity(el) >= 0.5 && lc(norm((el as HTMLElement).innerText ?? el.textContent ?? '')).includes(needle);
   const innermost = (from: Element): Element[] => {
     const hits: Element[] = [];
     const visit = (el: Element) => {

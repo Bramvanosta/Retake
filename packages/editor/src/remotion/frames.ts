@@ -43,7 +43,16 @@ export function transitionWindows(plan: Pick<EditPlan, 'segments'>, index: numbe
   if (t && t.kind !== 'cut' && t.frames > 0) {
     const component = t.component ?? standInTransition(t.kind);
     if (t.kind === 'crossfade') {
-      out.entering = { direction: 'entering', from: 0, to: Math.min(t.frames, seg.durationInFrames), offset: 0, frames: t.frames, kind: 'crossfade', component, ...(t.anchor ? { anchor: t.anchor } : {}) };
+      out.entering = {
+        direction: 'entering',
+        from: 0,
+        to: Math.min(t.frames, seg.durationInFrames),
+        offset: 0,
+        frames: t.frames,
+        kind: 'crossfade',
+        component,
+        ...(t.anchor ? { anchor: t.anchor } : {}),
+      };
     } else {
       const half = Math.floor(t.frames / 2);
       const inn = Math.min(t.frames - half, seg.durationInFrames);
@@ -59,7 +68,16 @@ export function transitionWindows(plan: Pick<EditPlan, 'segments'>, index: numbe
       out.exiting = { direction: 'exiting', from: d - n, to: d, offset: nt.frames - n, frames: nt.frames, kind: 'crossfade', component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
     } else {
       const half = Math.min(Math.floor(nt.frames / 2), d);
-      out.exiting = { direction: 'exiting', from: d - half, to: d, offset: Math.floor(nt.frames / 2) - half, frames: nt.frames, kind: 'fade-black', component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
+      out.exiting = {
+        direction: 'exiting',
+        from: d - half,
+        to: d,
+        offset: Math.floor(nt.frames / 2) - half,
+        frames: nt.frames,
+        kind: 'fade-black',
+        component,
+        ...(nt.anchor ? { anchor: nt.anchor } : {}),
+      };
     }
   }
   return out;
@@ -298,7 +316,16 @@ export function captionBandOver(plan: Pick<EditPlan, 'width' | 'height' | 'unit'
   const params = clip.caption?.params ?? {};
   if (!clip.caption || clip.cues.length === 0 || params.position !== 'over') return undefined;
   const maxWidth = typeof params.max_width === 'number' ? params.max_width : 1400;
-  const band = captionBandBox({ rects: { screen: clip.layout.capture }, area: clip.layout.caption, width: plan.width, height: plan.height, unit: plan.unit, position: 'over', maxWidth, variant: plan.variant });
+  const band = captionBandBox({
+    rects: { screen: clip.layout.capture },
+    area: clip.layout.caption,
+    width: plan.width,
+    height: plan.height,
+    unit: plan.unit,
+    position: 'over',
+    maxWidth,
+    variant: plan.variant,
+  });
   return band.over ? band.box : undefined;
 }
 
@@ -458,10 +485,12 @@ export function loupePlacement(
   const sides = use.track.map((k, i) => lensAt(k, i, 'auto').side);
   if (sides.every((s) => s === sides[0])) return undefined;
   for (const side of ['below', 'above'] as const) {
-    if (use.track.every((k, i) => {
-      const b = lensAt(k, i, side);
-      return b.fits && b.side === side;
-    }))
+    if (
+      use.track.every((k, i) => {
+        const b = lensAt(k, i, side);
+        return b.fits && b.side === side;
+      })
+    )
       return side;
   }
   return undefined;
@@ -483,7 +512,8 @@ export function drawnOverlayBox(plan: EditPlan, clip: ClipSegment, use: OverlayU
     const lay = plateOf(plan, use);
     const m = lay.metrics;
     const screen = rects.screen;
-    const bounds = screen && screen.w > lay.W + 2 * m.inset ? { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset } : safeAreaRect(plan.width, plan.height, 0.04);
+    const bounds =
+      screen && screen.w > lay.W + 2 * m.inset ? { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset } : safeAreaRect(plan.width, plan.height, 0.04);
     const box = shortcutPlateBox({ bounds, w: lay.W, h: lay.H, position: shortcutSlot(plan, clip, use), ...(staticAvoid.length ? { avoid: staticAvoid } : {}), gap: m.clearance });
     return { x: box.x, y: box.y, w: box.w, h: box.h };
   }
@@ -492,14 +522,36 @@ export function drawnOverlayBox(plan: EditPlan, clip: ClipSegment, use: OverlayU
   const avoid = [...staticAvoid, ...overlayTargets(plan, clip, use, local)];
   if (use.component.id === 'studio/overlay-steps') {
     const placement = p.placement === 'left' || p.placement === 'right' || p.placement === 'above' || p.placement === 'below' ? p.placement : 'auto';
-    const b = stepBadgeBox({ ...(anchor ? { anchor } : {}), screen: rects.screen, width: plan.width, height: plan.height, unit: plan.unit, variant, size: typeof p.size === 'number' ? p.size : 44, placement, ...(avoid.length ? { avoid } : {}) });
+    const b = stepBadgeBox({
+      ...(anchor ? { anchor } : {}),
+      screen: rects.screen,
+      width: plan.width,
+      height: plan.height,
+      unit: plan.unit,
+      variant,
+      size: typeof p.size === 'number' ? p.size : 44,
+      placement,
+      ...(avoid.length ? { avoid } : {}),
+    });
     return { x: b.x, y: b.y, w: b.w, h: b.h };
   }
   if (use.component.id === 'studio/overlay-loupe' && use.region && anchor) {
     const region = use.track && a ? a : use.region;
     const side = loupePlacement(plan, clip, use, staticAvoid);
     const placement = side ?? (p.placement === 'below' || p.placement === 'above' ? p.placement : 'auto');
-    const lens = loupeLens({ anchor, region, screen: rects.screen, width: plan.width, height: plan.height, unit: plan.unit, variant, zoom: typeof p.zoom === 'number' ? p.zoom : 2, maxWidth: typeof p.max_width === 'number' ? p.max_width : 900, placement, avoid });
+    const lens = loupeLens({
+      anchor,
+      region,
+      screen: rects.screen,
+      width: plan.width,
+      height: plan.height,
+      unit: plan.unit,
+      variant,
+      zoom: typeof p.zoom === 'number' ? p.zoom : 2,
+      maxWidth: typeof p.max_width === 'number' ? p.max_width : 900,
+      placement,
+      avoid,
+    });
     return { x: lens.box.x, y: lens.box.y, w: lens.box.w, h: lens.box.h };
   }
   return undefined;
@@ -509,7 +561,12 @@ export function drawnOverlayBox(plan: EditPlan, clip: ClipSegment, use: OverlayU
  * The clip-path that keeps an overlay of a picture in picture's main page off the inset (its card or phone, edge
  * included) at clip frame `f`: the whole frame minus the inset (even-odd). Undefined for other overlays.
  */
-export function insetHole(plan: Pick<EditPlan, 'tracks' | 'source' | 'fps' | 'unit' | 'width' | 'height'>, clip: Pick<ClipSegment, 'inset' | 'panes' | 'acting'>, use: Pick<OverlayUse, 'pane'>, f: number): string | undefined {
+export function insetHole(
+  plan: Pick<EditPlan, 'tracks' | 'source' | 'fps' | 'unit' | 'width' | 'height'>,
+  clip: Pick<ClipSegment, 'inset' | 'panes' | 'acting'>,
+  use: Pick<OverlayUse, 'pane'>,
+  f: number,
+): string | undefined {
   const inset = clip.inset;
   if (!inset || !clip.panes || use.pane === undefined || use.pane === inset.pane) return undefined;
   const r = insetRectAt(clip, f, plan.fps);

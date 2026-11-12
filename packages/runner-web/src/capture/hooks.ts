@@ -113,15 +113,15 @@ export async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps)
   } finally {
     delete h.ctx.signal;
   }
-  res.results.forEach((r, i) =>
-    d.emit({ type: 'hook', phase: 'setup', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
-  );
+  res.results.forEach((r, i) => d.emit({ type: 'hook', phase: 'setup', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }));
   d.record.hooks.setup = res.ok ? 'ok' : 'failed';
   if (!res.ok) {
     throwIfAborted(d.signal);
     // An optional hook may have failed before the one that stopped the setup: report the blocking one.
     const failed = res.results.find((r) => hookResultFailed(r) && r.optional !== true) ?? res.results.find(hookResultFailed);
-    throw new RunnerError(`setup hooks failed${failed ? ` (${hookResultName(failed, res.results.indexOf(failed))}: ${failed.error ?? failed.message ?? 'error'})` : ''}; completed setup hooks were rolled back`);
+    throw new RunnerError(
+      `setup hooks failed${failed ? ` (${hookResultName(failed, res.results.indexOf(failed))}: ${failed.error ?? failed.message ?? 'error'})` : ''}; completed setup hooks were rolled back`,
+    );
   }
 }
 
@@ -159,21 +159,14 @@ export function stepHookRunner(h: HooksState, sc: Scenario, d: SetupDeps): (name
  * Teardown hooks always run, then the setup hooks still pending in the journal are rolled back (most recent first),
  * like `finally` blocks unwinding: teardown cleans what the scenario did, rollbacks undo what setup did.
  */
-export async function teardownHooks(
-  h: HooksState,
-  teardown: HookStep[],
-  emit: (e: RunProgress) => void,
-  log: (level: LogLevel, message: string) => void,
-): Promise<RunRecord['hooks']['teardown']> {
+export async function teardownHooks(h: HooksState, teardown: HookStep[], emit: (e: RunProgress) => void, log: (level: LogLevel, message: string) => void): Promise<RunRecord['hooks']['teardown']> {
   let ok = true;
   let ran = false;
   if (teardown.length) {
     ran = true;
     emit({ type: 'hook', phase: 'teardown', name: 'teardown', status: 'start', message: `${teardown.length} hook(s)` });
     const res = await h.runner.run(teardown, h.ctx, { phase: 'teardown', journal: h.journal, agentWritten: true });
-    res.results.forEach((r, i) =>
-      emit({ type: 'hook', phase: 'teardown', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
-    );
+    res.results.forEach((r, i) => emit({ type: 'hook', phase: 'teardown', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }));
     ok = res.ok;
   }
   const pending = h.journal.pending().length;
@@ -182,9 +175,7 @@ export async function teardownHooks(
     log('info', `rolling back ${pending} setup hook(s)`);
     emit({ type: 'hook', phase: 'rollback', name: 'rollback', status: 'start', message: `${pending} setup hook(s)` });
     const results = await h.journal.rollbackAll(h.ctx);
-    results.forEach((r, i) =>
-      emit({ type: 'hook', phase: 'rollback', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
-    );
+    results.forEach((r, i) => emit({ type: 'hook', phase: 'rollback', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }));
     if (results.some(hookResultFailed)) ok = false;
   }
   if (!ran) return 'none';

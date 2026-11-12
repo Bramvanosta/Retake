@@ -128,7 +128,14 @@ export function filmedPartsOf(value: unknown): FilmedParts {
     collectStrings(own, strings);
     for (const s of rawSteps) {
       if (!isPlainObject(s)) continue;
-      collectStrings(Object.fromEntries(Object.entries(s).filter(([k]) => !EDIT_STEP_KEYS.has(k) || k === 'overlay' || k === 'camera').map(([k, v]) => [k, k === 'overlay' || k === 'camera' ? (isPlainObject(v) ? v.target : undefined) : v])), strings);
+      collectStrings(
+        Object.fromEntries(
+          Object.entries(s)
+            .filter(([k]) => !EDIT_STEP_KEYS.has(k) || k === 'overlay' || k === 'camera')
+            .map(([k, v]) => [k, k === 'overlay' || k === 'camera' ? (isPlainObject(v) ? v.target : undefined) : v]),
+        ),
+        strings,
+      );
     }
     scenes.push({ id: typeof entry.id === 'string' ? entry.id : `#${i}`, keys, steps: rawSteps.map(filmedStep), strings });
   }

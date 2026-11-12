@@ -53,7 +53,10 @@ async function projectSlugs(ws: OpenedWorkspace): Promise<string[]> {
     return [];
   }
   // As core's listProjects: real folders, not hidden.
-  return entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name).sort();
+  return entries
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+    .map((e) => e.name)
+    .sort();
 }
 
 /** Scenario names of a scenarios/ folder → their files (.yaml, then .yml), sorted. */

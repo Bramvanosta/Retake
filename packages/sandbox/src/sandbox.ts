@@ -252,7 +252,8 @@ export class Sandbox {
       const recorded = ctx.state.provider_state?.snapshot as SnapshotState | undefined;
       if (snap) {
         if (await snap.repair()) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} accepted no connections (an interrupted reset): repaired`);
-        const valid = !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
+        const valid =
+          !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (fa === null || fa.valid(hash)) && (await snap.valid(hash));
         if (valid) {
           ctx.progress?.step('snapshot', `restoring ${describeDatabase(snap.target)}`);
           const r = await snap.restore(recorded.owner);
@@ -269,7 +270,8 @@ export class Sandbox {
           delete ctx.state.seed;
           ctx.save();
         }
-        if (snap && (await snap.ensureDatabase(recorded?.owner))) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} was missing (an interrupted restore): created empty before the seed`);
+        if (snap && (await snap.ensureDatabase(recorded?.owner)))
+          ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} was missing (an interrupted restore): created empty before the seed`);
         if (fa) {
           // The seed creates its accounts on an empty emulator (an account of an earlier take would collide).
           fa.forget();
@@ -322,7 +324,20 @@ export class Sandbox {
     const restored = snapshot?.action === 'restored';
     ctx.state.last_reset = { strategy: this.strategy, at, ms, restored, by };
     ctx.save();
-    return { strategy: this.strategy, restored, ms, hash, at, seed, mailbox, ...(snapshot ? { snapshot } : {}), restarted, superseded, ...(firebaseAuth ? { firebase_auth: firebaseAuth } : {}), hooks };
+    return {
+      strategy: this.strategy,
+      restored,
+      ms,
+      hash,
+      at,
+      seed,
+      mailbox,
+      ...(snapshot ? { snapshot } : {}),
+      restarted,
+      superseded,
+      ...(firebaseAuth ? { firebase_auth: firebaseAuth } : {}),
+      hooks,
+    };
   }
 
   /**

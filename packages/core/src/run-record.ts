@@ -19,7 +19,21 @@ import { asRead, firstPath, isObj, lenient } from './record-read.js';
 import type { LenientTables } from './record-read.js';
 import type { z } from 'zod';
 import { StoredRunEngineSchema, StoredRunPerfSchema, StoredRunRecordSchema, StoredRunStateSchemas, UnknownStatusRunSchema } from './schemas/timeline.js';
-import type { EnvironmentAccess, OptionalFailure, RunEngine, RunError, RunMode, RunOutlineStep, RunPause, RunPerf, RunPerfCpu, RunSandbox, RunSessionStatus, Timeline, TimelineEvent } from './types.js';
+import type {
+  EnvironmentAccess,
+  OptionalFailure,
+  RunEngine,
+  RunError,
+  RunMode,
+  RunOutlineStep,
+  RunPause,
+  RunPerf,
+  RunPerfCpu,
+  RunSandbox,
+  RunSessionStatus,
+  Timeline,
+  TimelineEvent,
+} from './types.js';
 
 // ── The states ───────────────────────────────────────────────────────────────
 
@@ -215,10 +229,7 @@ export function finishRun(run: RunningRun, end: RunEnd): FinishedRun {
  * takes whatever run.json held — a record the reader refuses must still be closed —, keeps every member (where the
  * run was, what it had filmed, an error's other members) and writes the status, the end and the message.
  */
-export function closeReservedRun(
-  run: { status: 'queued' | 'running' } & Record<string, unknown>,
-  end: { status: 'failed' | 'cancelled'; at: string; message: string },
-): Record<string, unknown> {
+export function closeReservedRun(run: { status: 'queued' | 'running' } & Record<string, unknown>, end: { status: 'failed' | 'cancelled'; at: string; message: string }): Record<string, unknown> {
   return { ...run, status: end.status, finished_at: end.at, error: { ...((run.error ?? {}) as object), message: end.message } };
 }
 

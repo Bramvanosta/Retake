@@ -47,7 +47,10 @@ async function retake(...args: string[]) {
 /** Dry-run a variant of the committed scenario (quick pacing, environment local); its run record and timeline. */
 async function variant(name: string, edit: (yaml: string) => string): Promise<{ run: RunRecord; tl: Timeline | null; out: string }> {
   const text = edit(committed.replace(/^env: signed-in\n/m, '').replace(/^\s+- hold: [\d.]+\n/gm, ''));
-  await writeFile(join(ws, 'projects', 'fx', 'scenarios', `${name}.yaml`), `${text}\npacing: {scene_start_still: 0.2, after_click_ms: 120, after_popup_ms: 350, after_navigation_ms: 500, settle_ms: 800, move_max_ms: 450}\n`);
+  await writeFile(
+    join(ws, 'projects', 'fx', 'scenarios', `${name}.yaml`),
+    `${text}\npacing: {scene_start_still: 0.2, after_click_ms: 120, after_popup_ms: 350, after_navigation_ms: 500, settle_ms: 800, move_max_ms: 450}\n`,
+  );
   const r = await retake('run', 'fx', name, '--dry', '--hooks', 'run', '--json');
   const end = JSON.parse(r.out.trim().split('\n').pop()!) as RunProgress;
   expect(end.type, r.err).toBe('run_end');
@@ -92,7 +95,7 @@ describe.skipIf(!chromiumAvailable())('capture reliability on the fixture (L5.6)
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 
-  it('the committed scenario: types into the dialog\'s fields below its fold, the broken PDF transfer is fetched again, the supplier\'s copy is taken by address', async () => {
+  it("the committed scenario: types into the dialog's fields below its fold, the broken PDF transfer is fetched again, the supplier's copy is taken by address", async () => {
     const { run, tl } = await variant('proforma', (y) => y);
     expect(run.error?.message ?? '').toBe('');
     expect(run.status).toBe('succeeded');
@@ -122,14 +125,16 @@ describe.skipIf(!chromiumAvailable())('capture reliability on the fixture (L5.6)
   }, 120_000);
 
   it('a dead button is reported at once with a screenshot; the take goes on', async () => {
-    const { run, tl } = await variant('dead', (y) => y.replace('      - type: {into: {label: Unit price (EUR/kg)}, text: "21.80", cps: 9}\n', '      - type: {into: {label: Unit price (EUR/kg)}, text: "21.80", cps: 9}\n      - click: Preview\n'));
+    const { run, tl } = await variant('dead', (y) =>
+      y.replace('      - type: {into: {label: Unit price (EUR/kg)}, text: "21.80", cps: 9}\n', '      - type: {into: {label: Unit price (EUR/kg)}, text: "21.80", cps: 9}\n      - click: Preview\n'),
+    );
     expect(run.status, run.error?.message).toBe('succeeded');
     const dead = tl!.warnings.filter((w) => w.includes('produced nothing'));
     expect(dead).toEqual([expect.stringMatching(/^write\.5: clicking button "Preview" produced nothing within 1 s .* screenshot: \S+dead-click-write-5\.png/)]);
     expect(existsSync(/screenshot: (\S+\.png)/.exec(dead[0])![1])).toBe(true);
   }, 120_000);
 
-  it('a mail sent to another address than the persona\'s: the error lists what came, sender and recipients', async () => {
+  it("a mail sent to another address than the persona's: the error lists what came, sender and recipients", async () => {
     const { run } = await variant('other-address', (y) => y.replace('{to: "persona:supplier", subject: Pro forma, as: copy}', '{to: "persona:buyer", subject: Pro forma, as: copy, timeout: 3}'));
     expect(run.status).toBe('failed');
     expect(run.error).toMatchObject({ scene: 'send', step: 3, action: 'wait_for_email' });
@@ -139,9 +144,7 @@ describe.skipIf(!chromiumAvailable())('capture reliability on the fixture (L5.6)
   }, 120_000);
 
   it('a field the open calendar covers: the step fails before typing, naming the field that kept the focus', async () => {
-    const { run } = await variant('covered', (y) =>
-      y.replace('      - click: {outside: true}\n', '      - type: {into: {label: Customer}, text: Café Lumen, clear: true}\n'),
-    );
+    const { run } = await variant('covered', (y) => y.replace('      - click: {outside: true}\n', '      - type: {into: {label: Customer}, text: Café Lumen, clear: true}\n'));
     expect(run.status).toBe('failed');
     expect(run.error).toMatchObject({ scene: 'write', step: 2, action: 'type' });
     expect(run.error!.message).toMatch(/put the focus on textbox "Delivery date" instead: nothing was typed/);

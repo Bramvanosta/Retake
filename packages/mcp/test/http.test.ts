@@ -222,7 +222,15 @@ describe('MCP over HTTP: abandoned sessions make room (review A L1 / B M2)', () 
 function holdStream(port: number, sid: string): Promise<{ status: number; close(): void }> {
   return new Promise((resolve, reject) => {
     const req = request(
-      { host: '127.0.0.1', port, path: '/mcp', method: 'GET', agent: false, setHost: false, headers: { host: `127.0.0.1:${port}`, authorization: `Bearer ${token}`, accept: 'text/event-stream', 'mcp-session-id': sid, 'mcp-protocol-version': '2025-06-18' } },
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/mcp',
+        method: 'GET',
+        agent: false,
+        setHost: false,
+        headers: { host: `127.0.0.1:${port}`, authorization: `Bearer ${token}`, accept: 'text/event-stream', 'mcp-session-id': sid, 'mcp-protocol-version': '2025-06-18' },
+      },
       (res) => {
         res.on('data', () => undefined);
         res.on('error', () => undefined);
@@ -267,7 +275,13 @@ describe('MCP over HTTP: idle sessions', () => {
       const end = Date.now() + 5000;
       while (quick.sessions > 0 && Date.now() < end) await new Promise((x) => setTimeout(x, 100));
       expect(quick.sessions).toBe(0);
-      const gone = await raw(quick.port, 'POST', '/mcp', { authorization: `Bearer ${token}`, ...MCP_ACCEPT, 'mcp-session-id': String(r.headers['mcp-session-id']) }, JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }));
+      const gone = await raw(
+        quick.port,
+        'POST',
+        '/mcp',
+        { authorization: `Bearer ${token}`, ...MCP_ACCEPT, 'mcp-session-id': String(r.headers['mcp-session-id']) },
+        JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+      );
       expect(gone.status).toBe(404);
     } finally {
       await quick.close();
@@ -411,7 +425,15 @@ describe("the fixed port taken: only this account's own Retake MCP server keeps 
     expect(listenersAreOurs([{ pid: 9, uid, args: 'retake mcp --http' }], uid)).toBe(true);
     expect(listenersAreOurs([], uid)).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid: uid + 1, args: RETAKE_ARGS }], uid)).toBe(false);
-    expect(listenersAreOurs([{ pid: 9, uid, args: RETAKE_ARGS }, { pid: 10, uid: uid + 1, args: RETAKE_ARGS }], uid)).toBe(false);
+    expect(
+      listenersAreOurs(
+        [
+          { pid: 9, uid, args: RETAKE_ARGS },
+          { pid: 10, uid: uid + 1, args: RETAKE_ARGS },
+        ],
+        uid,
+      ),
+    ).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid, args: 'python3 -m http.server 4971' }], uid)).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid, args: '/opt/retake/bin.js mcp' }], uid)).toBe(false);
     expect(listenersAreOurs([{ pid: 9, uid, args: '/opt/retake/bin.js ui --http' }], uid)).toBe(false);

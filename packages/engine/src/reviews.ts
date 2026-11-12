@@ -144,7 +144,9 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   for (const v of Object.values((files.scene_sheets ?? {}) as Record<string, unknown>)) {
     const l = list(v).filter((f) => /^sheet_scene_.+\.jpg$/.test(basename(f)));
     if (!l.length) continue;
-    const k = basename(l[0]).replace(/^sheet_scene_/, '').replace(/(?:_p\d+)?\.jpg$/, '');
+    const k = basename(l[0])
+      .replace(/^sheet_scene_/, '')
+      .replace(/(?:_p\d+)?\.jpg$/, '');
     if (SAFE_ID.test(k) && !sceneSheets[k]) sceneSheets[k] = l;
   }
   const keyframes: Record<string, string> = {};
@@ -203,7 +205,16 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
       if (s.scene !== undefined && !scene) bad.scene = s.scene;
       if (Object.keys(bad).length) heldSegments[i] = bad;
       if (!id) return;
-      segments.push({ id, kind, ...(scene ? { scene } : {}), from_s: num(s.from_s), to_s: num(s.to_s), duration_s: num(s.duration_s), component, ...(typeof s.speed === 'number' && Number.isFinite(s.speed) ? { speed: s.speed } : {}) });
+      segments.push({
+        id,
+        kind,
+        ...(scene ? { scene } : {}),
+        from_s: num(s.from_s),
+        to_s: num(s.to_s),
+        duration_s: num(s.duration_s),
+        component,
+        ...(typeof s.speed === 'number' && Number.isFinite(s.speed) ? { speed: s.speed } : {}),
+      });
     });
     view.durations = { total_s: num(durations.total_s), segments };
     if (Object.keys(heldSegments).length) view.untrusted.segments = heldSegments;
@@ -293,7 +304,8 @@ const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 export async function reviewImage(ws: OpenedWorkspace, frames: Pick<FrameTools, 'load' | 'thumb'>, slug: string, renderId: string, image: string): Promise<ReviewImageView> {
   checkProjectSlug(slug);
   if (!isRenderId(renderId)) throw new EngineError('invalid', `invalid render id "${String(renderId)}": <scenario>-v<N>`);
-  if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image)) throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
+  if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image))
+    throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
   const project = await openProjectBySlug(ws, slug);
   const dir = projectPath(project.dir, 'review', renderId);
   if (!existsSync(dir)) throw new EngineError('not_found', `render ${renderId} has no review yet`);

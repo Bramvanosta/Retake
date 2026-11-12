@@ -91,13 +91,18 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
       const ends: string[] = [];
       const t0 = Date.now();
       const rec = await c.runner.run(
-        request(c, 'cancel-during', { scenes: [{ id: 'one', page: 'app', open: '/', steps: [{ hold: 0.1 }, { wait: 20 }, { hold: 0.1 }] }] }, {
-          signal: during.signal,
-          onProgress: (e) => {
-            if (e.type === 'step_start' && e.step === 1) setTimeout(() => during.abort(c.runner.cancelled('run cancelled (SIGTERM)')), 200);
-            if (e.type === 'step_end') ends.push(`${e.step} ${e.status}`);
+        request(
+          c,
+          'cancel-during',
+          { scenes: [{ id: 'one', page: 'app', open: '/', steps: [{ hold: 0.1 }, { wait: 20 }, { hold: 0.1 }] }] },
+          {
+            signal: during.signal,
+            onProgress: (e) => {
+              if (e.type === 'step_start' && e.step === 1) setTimeout(() => during.abort(c.runner.cancelled('run cancelled (SIGTERM)')), 200);
+              if (e.type === 'step_end') ends.push(`${e.step} ${e.status}`);
+            },
           },
-        }),
+        ),
       );
       expect(Date.now() - t0).toBeLessThan(15_000);
       expect(rec.status).toBe('cancelled');
@@ -123,13 +128,18 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
       const gate = { requested: true };
       const events: RunProgress[] = [];
       const rec = await c.runner.run(
-        request(c, 'pause', { scenes: ONE }, {
-          pause: gate,
-          onProgress: (e) => {
-            events.push(e);
-            if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 300);
+        request(
+          c,
+          'pause',
+          { scenes: ONE },
+          {
+            pause: gate,
+            onProgress: (e) => {
+              events.push(e);
+              if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 300);
+            },
           },
-        }),
+        ),
       );
       expect(rec.status).toBe('succeeded');
       expect(rec.steps_done).toBe(3);
@@ -163,7 +173,12 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
       const reports: InspectReport[] = [];
       const hookRunner = new MemoryHookRunner();
       const rec = await c.runner.run(
-        request(c, 'inspect', { setup: [{ name: 'arm', shell: { run: 'true' } }], scenes: ONE }, { runsDir, runId: 'i_01JCONTRACTINSPECT0000000', hookRunner, inspect: { onResult: (r) => void reports.push(r) } }),
+        request(
+          c,
+          'inspect',
+          { setup: [{ name: 'arm', shell: { run: 'true' } }], scenes: ONE },
+          { runsDir, runId: 'i_01JCONTRACTINSPECT0000000', hookRunner, inspect: { onResult: (r) => void reports.push(r) } },
+        ),
       );
       expect(rec.error?.message).toBeUndefined();
       expect(rec.dir).toBe(join(runsDir, 'i_01JCONTRACTINSPECT0000000'));
@@ -175,7 +190,7 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
       expect(rec.hooks.setup).toBe('skipped');
     });
 
-    it('the setup, then the teardown, run through the handed hook runner as the agent\'s; their outcome is the record\'s', async () => {
+    it("the setup, then the teardown, run through the handed hook runner as the agent's; their outcome is the record's", async () => {
       const c = await make('hooks');
       const hookRunner = new MemoryHookRunner();
       const rec = await c.runner.run(

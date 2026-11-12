@@ -102,9 +102,7 @@ export function jobOutcome(j: JobRecord): string {
     case 'inspect':
       return `${r.reported ? `${r.status}${r.counts ? `, ${r.counts.listed} elements listed` : ''}` : `not inspected (replay ${r.run_status})`} → ${r.dir}`;
     case 'record':
-      return r.not_saved === 'nothing_recorded'
-        ? 'nothing recorded'
-        : `${r.stats.steps} steps${r.saved ? ` → ${r.saved.file}` : ` (not saved: ${r.not_saved})`} · check ${r.check.status}`;
+      return r.not_saved === 'nothing_recorded' ? 'nothing recorded' : `${r.stats.steps} steps${r.saved ? ` → ${r.saved.file}` : ` (not saved: ${r.not_saved})`} · check ${r.check.status}`;
     case 'site':
       return `${r.status === 'ok' ? `${r.candidates.length} logo candidate${r.candidates.length === 1 ? '' : 's'}${r.palette ? `, accent ${r.palette.roles.accent ?? 'none'}` : ''}` : 'the page could not be read'} → ${r.dir}`;
     default:
@@ -136,12 +134,16 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
   const jobs = await engine.jobs.list({ ...(opts.project ? { project: opts.project } : {}), ...(opts.state?.length ? { states: opts.state as JobState[] } : {}), limit });
   const worker = await engine.jobs.worker();
   if (opts.json) {
-    ui.result(JSON.stringify({ jobs, worker: worker ? { pid: worker.pid, since: worker.since, build: worker.build, ...(worker.started_by ? { started_by: worker.started_by } : {}) } : null }, null, 2));
+    ui.result(
+      JSON.stringify({ jobs, worker: worker ? { pid: worker.pid, since: worker.since, build: worker.build, ...(worker.started_by ? { started_by: worker.started_by } : {}) } : null }, null, 2),
+    );
     return EXIT.ok;
   }
   const c = ui.c;
   if (!jobs.length) {
-    ui.line(`no jobs${opts.project ? ` of ${opts.project}` : ''}${opts.state?.length ? ` ${opts.state.join(' / ')}` : ''} — jobs are what an MCP client (Claude) starts; \`retake run\` runs in the terminal`);
+    ui.line(
+      `no jobs${opts.project ? ` of ${opts.project}` : ''}${opts.state?.length ? ` ${opts.state.join(' / ')}` : ''} — jobs are what an MCP client (Claude) starts; \`retake run\` runs in the terminal`,
+    );
   }
   const now = Date.now();
   for (const j of jobs) {
@@ -151,9 +153,15 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
     const cancel = j.cancel_requested_at && (j.state === 'running' || j.state === 'queued') ? c.yellow(' · cancel requested') : '';
     // L5.14: a heavy job a filming take holds (waiting to start, or slowed while it runs).
     const held = j.yield ? c.yellow(` · ${yieldWords(j.yield)}`) : '';
-    ui.result(`${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j)}${held}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`);
+    ui.result(
+      `${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j)}${held}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`,
+    );
   }
-  ui.line(c.dim(`worker: ${worker ? `running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''}, since ${ago(worker.since, now)})` : 'not running (an MCP client or the Studio starts it when it submits a job)'}`));
+  ui.line(
+    c.dim(
+      `worker: ${worker ? `running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''}, since ${ago(worker.since, now)})` : 'not running (an MCP client or the Studio starts it when it submits a job)'}`,
+    ),
+  );
   return EXIT.ok;
 }
 
@@ -174,9 +182,18 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   const approvals = 'approvals' in job.input ? (job.input.approvals ?? []) : [];
   row('by', `${job.input.submitted_by}${approvals.length ? ` · ${approvals.length} ${job.input.kind === 'site' ? 'URL' : 'hook'} approval${approvals.length === 1 ? '' : 's'} given at submit` : ''}`);
   row('created', job.created_at);
-  if (job.started_at) row('started', `${job.started_at}${job.worker ? (job.supervisor ? ` (job process pid ${job.worker.pid}, worker pid ${job.supervisor.pid})` : ` (worker pid ${job.worker.pid})`) : ''}`);
+  if (job.started_at)
+    row('started', `${job.started_at}${job.worker ? (job.supervisor ? ` (job process pid ${job.worker.pid}, worker pid ${job.supervisor.pid})` : ` (worker pid ${job.worker.pid})`) : ''}`);
   if (job.finished_at) row('finished', `${job.finished_at}${job.started_at ? ` · ${formatMs(Date.parse(job.finished_at) - Date.parse(job.started_at))}` : ''}`);
-  if (position) row('queue', position.held_by === 'take' ? `${job.yield ? yieldWords(job.yield) : 'waiting for a take to finish'}${position.ahead ? ` · ${position.ahead} ahead` : ''}` : position.ahead ? `${position.ahead} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next');
+  if (position)
+    row(
+      'queue',
+      position.held_by === 'take'
+        ? `${job.yield ? yieldWords(job.yield) : 'waiting for a take to finish'}${position.ahead ? ` · ${position.ahead} ahead` : ''}`
+        : position.ahead
+          ? `${position.ahead} ahead${position.running ? ` (running: ${position.running})` : ''}`
+          : 'next',
+    );
   if (job.yield?.state === 'background') row('held', `${yieldWords(job.yield)}${job.yield.since ? ` since ${job.yield.since}` : ''}`);
   const p = job.progress;
   if (p && job.state === 'running') row('progress', progressText(p));

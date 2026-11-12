@@ -46,10 +46,11 @@ async function missing(ctx: StepContext, what: string, scope: TargetObject['in']
       : searched === 'auto'
         ? ` — typed in the list's search field, no option matched: give \`search:\` with the text that finds it`
         : '';
-  return new StepError(
-    `${ctx.step.action}: "${what}" not found in the open ${scope}${scopeNote} after ${(timeoutMs / 1000).toFixed(1)} s${hint}; ${formatNear(near)}`,
-    { target: describeTarget({ text: what, in: scope }), candidates: 0, near },
-  );
+  return new StepError(`${ctx.step.action}: "${what}" not found in the open ${scope}${scopeNote} after ${(timeoutMs / 1000).toFixed(1)} s${hint}; ${formatNear(near)}`, {
+    target: describeTarget({ text: what, in: scope }),
+    candidates: 0,
+    near,
+  });
 }
 
 function optionTargets(option: string): TargetObject[] {
@@ -198,9 +199,7 @@ export async function select(ctx: StepContext, args: SelectArgs): Promise<Action
     await rt.kit.ripple(trigger.point.x, trigger.point.y);
     const res = await rt.kit.selectNative(trigger.ref, args.option);
     if (!res.ok) {
-      throw new StepError(
-        `select: option "${args.option}" not found in ${trigger.desc}; options: ${res.options.map((o) => JSON.stringify(o)).join(', ')}`,
-      );
+      throw new StepError(`select: option "${args.option}" not found in ${trigger.desc}; options: ${res.options.map((o) => JSON.stringify(o)).join(', ')}`);
     }
     await rt.sleep(ctx.jitter.ms(rt.pacing.after_click_ms));
     ctx.clicks.push({ role: 'trigger', t: t_click, point: trigger.point, desc: trigger.desc, bbox: trigger.bbox, strategy: 'native', popup_opened: false });
@@ -256,14 +255,27 @@ export async function closeOpened(ctx: StepContext, initial: Set<number>, close:
   if (!opened.length || close === 'none') return;
   // Only what the step opened is closed: a popover that was open before (the one holding the field) stays open.
   if (close === 'auto') {
-    if (await waitPopupsGone(ctx, opened.map((p) => p.id), autoMs)) return;
+    if (
+      await waitPopupsGone(
+        ctx,
+        opened.map((p) => p.id),
+        autoMs,
+      )
+    )
+      return;
     const left = await mine();
     if (left.length) await clickOutside(ctx, left);
   } else if (close === 'outside') {
     await clickOutside(ctx, opened);
   } else {
     await rt.page.keyboard.press('Escape');
-    if (!(await waitPopupsGone(ctx, opened.map((p) => p.id)))) rt.warn(`${ctx.scene.id}.${ctx.step.index}: the popover did not close on Escape`);
+    if (
+      !(await waitPopupsGone(
+        ctx,
+        opened.map((p) => p.id),
+      ))
+    )
+      rt.warn(`${ctx.scene.id}.${ctx.step.index}: the popover did not close on Escape`);
     await rt.sleep(ctx.jitter.ms(rt.pacing.after_click_ms));
   }
 }
@@ -280,7 +292,14 @@ async function settleMenus(ctx: StepContext): Promise<void> {
   const still = await layers('menu');
   if (still.length) {
     await rt.page.keyboard.press('Escape');
-    if (!(await waitPopupsGone(ctx, still.map((p) => p.id), 1000))) rt.warn(`${ctx.scene.id}.${ctx.step.index}: a menu stayed open`);
+    if (
+      !(await waitPopupsGone(
+        ctx,
+        still.map((p) => p.id),
+        1000,
+      ))
+    )
+      rt.warn(`${ctx.scene.id}.${ctx.step.index}: a menu stayed open`);
   }
 }
 
@@ -326,11 +345,7 @@ export async function menuTriggerFor(ctx: StepContext, args: MenuArgs): Promise<
     rt.warn(`${ctx.scene.id}.${ctx.step.index}: menu: no button in ${rowDesc}; clicking the element at its ${pos.where} (position, last resort)`);
     return { trigger: await resolveRef(ctx, pos.ref, `element at the ${pos.where} of ${rowDesc}`), rowDesc };
   }
-  throw new StepError(
-    `menu: ${rowDesc} has no menu trigger (no [aria-haspopup] element, button or clickable element at its right end, even on hover); give \`trigger:\``,
-    {},
-    rowRef,
-  );
+  throw new StepError(`menu: ${rowDesc} has no menu trigger (no [aria-haspopup] element, button or clickable element at its right end, even on hover); give \`trigger:\``, {}, rowRef);
 }
 
 export async function menu(ctx: StepContext, args: MenuArgs): Promise<ActionResult> {
@@ -344,9 +359,7 @@ export async function menu(ctx: StepContext, args: MenuArgs): Promise<ActionResu
     const text = typeof args.confirm === 'string' ? args.confirm : null;
     const ref = await poll(ctx, () => rt.kit.confirmButton(text), ctx.timeoutMs);
     if (!ref) {
-      throw new StepError(
-        `menu: no ${text ? `"${text}" button` : 'confirmation button'} in a dialog after choosing "${args.item}"`,
-      );
+      throw new StepError(`menu: no ${text ? `"${text}" button` : 'confirmation button'} in a dialog after choosing "${args.item}"`);
     }
     const btn = await resolveRef(ctx, ref, text ? `confirm button "${text}"` : 'confirm button');
     await clickResolved(ctx, btn, { expect_popup: false, click_role: 'confirm' });

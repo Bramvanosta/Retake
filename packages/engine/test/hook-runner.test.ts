@@ -78,7 +78,10 @@ describe('the memory hook runner', () => {
       files: () => ({ files: { 'data/x.sql': 'f'.repeat(64) }, problems: [] }),
     });
     const journal = await runner.journals.open(join(dir, 'j.json'));
-    const hooks: HookStep[] = [{ name: 'del', http: { method: 'DELETE', url: '{{console}}/x' } }, { name: 'sh', shell: 'echo hi' }];
+    const hooks: HookStep[] = [
+      { name: 'del', http: { method: 'DELETE', url: '{{console}}/x' } },
+      { name: 'sh', shell: 'echo hi' },
+    ];
     let asked = 0;
     const dry = await runner.run(hooks, ctx({ dryRun: true, trust: 'mcp', confirmDestructive: () => (asked++, true) }), { phase: 'setup', journal, agentWritten: true });
     expect(asked).toBe(0);

@@ -69,7 +69,15 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
       const c = await make('status');
       const file = c.persona('ada').statusFile;
       expect(await c.runner.sessions.status(file)).toBeNull();
-      const rec: PersonaStatusRecord = { version: 1, status: 'expired', checked_at: '2026-11-11T10:00:00.000Z', by: 'preflight', run: '20261111-100000-quote', at: 'http://127.0.0.1/sign-in', detail: 'signed out' };
+      const rec: PersonaStatusRecord = {
+        version: 1,
+        status: 'expired',
+        checked_at: '2026-11-11T10:00:00.000Z',
+        by: 'preflight',
+        run: '20261111-100000-quote',
+        at: 'http://127.0.0.1/sign-in',
+        detail: 'signed out',
+      };
       await c.arrangeStatus(file, rec);
       expect(await c.runner.sessions.status(file)).toEqual(rec);
     });
@@ -115,14 +123,27 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
         const env = resolveEnvironment(c.project, 'test');
         const ada = c.persona('ada');
         await c.runner.sessions.signIn({ project: c.project, policy: PERSON_POLICY, env, persona: ada, mode: 'auto' });
-        const browser = await c.runner.hookPages.open({ policy: PERSON_POLICY, project: c.project, persona: ada, runId: '20261111-100000-hooks', log: () => undefined, failure: 'js hooks cannot use the saved session of persona ada:' });
+        const browser = await c.runner.hookPages.open({
+          policy: PERSON_POLICY,
+          project: c.project,
+          persona: ada,
+          runId: '20261111-100000-hooks',
+          log: () => undefined,
+          failure: 'js hooks cannot use the saved session of persona ada:',
+        });
         try {
           expect(await c.runner.hookPages.evalIn(browser, { project: c.project, env, log: () => undefined }, 'app', c.answer)).toBe(42);
           // The environment's first page when none is named.
           expect(await c.runner.hookPages.evalIn(browser, { project: c.project, env, log: () => undefined }, undefined, c.answer)).toBe(42);
           let opens = 0;
           const own = [new URL(env.pages.app).origin];
-          const read = await c.runner.hookPages.authReader({ persona: ada, browser: async () => (opens++, browser), envPages: env.pages, relogin: 'retake login contract --env test --persona ada', origins: own });
+          const read = await c.runner.hookPages.authReader({
+            persona: ada,
+            browser: async () => (opens++, browser),
+            envPages: env.pages,
+            relogin: 'retake login contract --env test --persona ada',
+            origins: own,
+          });
           expect(opens).toBe(0);
           const auth = await read(`${env.pages.app}/api/whoami`);
           expect(auth.cookie).toMatch(/(^|; )sid=/);
@@ -144,7 +165,17 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
           const eventsFile = join(dir, 'events.jsonl');
           const opened: string[] = [];
           const seen: RecordedEvent[] = [];
-          const r = await c.runner.record({ policy: PERSON_POLICY, project: c.project, env, persona: null, eventsFile, log: () => undefined, onOpen: (u) => opened.push(u), onEvent: (e) => seen.push(e), ...c.record });
+          const r = await c.runner.record({
+            policy: PERSON_POLICY,
+            project: c.project,
+            env,
+            persona: null,
+            eventsFile,
+            log: () => undefined,
+            onOpen: (u) => opened.push(u),
+            onEvent: (e) => seen.push(e),
+            ...c.record,
+          });
           expect(opened).toEqual([c.record.url]);
           expect(r.stop).toBe('closed');
           expect(r.persona).toBeNull();
@@ -156,7 +187,9 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
           expect(lines.map((l) => (JSON.parse(l) as RecordedEvent).seq)).toEqual(r.events.map((e) => e.seq));
           const cancel = new AbortController();
           cancel.abort();
-          const cancelled = await named(c.runner.record({ policy: PERSON_POLICY, project: c.project, env, eventsFile: join(dir, 'cancelled.jsonl'), signal: cancel.signal, log: () => undefined, ...c.record }));
+          const cancelled = await named(
+            c.runner.record({ policy: PERSON_POLICY, project: c.project, env, eventsFile: join(dir, 'cancelled.jsonl'), signal: cancel.signal, log: () => undefined, ...c.record }),
+          );
           expect(cancelled?.name).toBe('CancelledError');
           expect(existsSync(join(dir, 'cancelled.jsonl'))).toBe(false);
         } finally {

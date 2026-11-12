@@ -12,7 +12,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, parseScenario } from '@retake/core';
 import { fileFacts, loadProject } from '@retake/core/io';
 import type { Scenario } from '@retake/core';
-import { callerOf, createEngine, hooksTrustView, hooksWrittenBy, trustScenarioHooks, ManualClock, journalFile, renderForListing, scenarioHookSurface, scenarioShellHooks, scenarioWritesFile } from '../src/index.js';
+import {
+  callerOf,
+  createEngine,
+  hooksTrustView,
+  hooksWrittenBy,
+  trustScenarioHooks,
+  ManualClock,
+  journalFile,
+  renderForListing,
+  scenarioHookSurface,
+  scenarioShellHooks,
+  scenarioWritesFile,
+} from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -22,7 +34,12 @@ let studio: Engine;
 let mcp: Engine;
 let person: Engine;
 const savedHome = process.env.RETAKE_HOME;
-const PROJECT = { slug: 'demo', get dir() { return projectDir; } };
+const PROJECT = {
+  slug: 'demo',
+  get dir() {
+    return projectDir;
+  },
+};
 const SCENES = 'scenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
 const HOOKED = (v: string, cmd = 'touch a') => `video: ${v}\nsetup:\n  - shell: "${cmd}"\n${SCENES}`;
 const parsed = (text: string): Scenario => parseScenario(text, {}).scenario as Scenario;
@@ -38,7 +55,10 @@ async function author(name: string) {
 async function journalLine(root: string, o: { path: string; sha256: string; trust: 'author' | 'mcp'; at: string }): Promise<void> {
   const client = o.trust === 'author' ? 'cli' : 'mcp';
   await mkdir(join(root, '.retake'), { recursive: true });
-  await appendFile(journalFile(root), `${JSON.stringify({ v: 1, at: o.at, by: { client, channel: client, trust: o.trust }, project: 'demo', op: 'write', what: 'scenario', path: o.path, sha256: o.sha256, outcome: 'ok' })}\n`);
+  await appendFile(
+    journalFile(root),
+    `${JSON.stringify({ v: 1, at: o.at, by: { client, channel: client, trust: o.trust }, project: 'demo', op: 'write', what: 'scenario', path: o.path, sha256: o.sha256, outcome: 'ok' })}\n`,
+  );
 }
 
 beforeAll(async () => {
@@ -74,10 +94,30 @@ describe('the shell hooks a run executes, rendered as they will run', () => {
 
   it('setup, teardown and the named hooks of its steps (the scenario’s, then project.yaml’s; a skipped scene’s left out), shell and sql (L7.33), with cwd, env and rollback', () => {
     expect(scenarioShellHooks(sc, project, TPL)).toEqual([
-      { kind: 'shell', phase: 'setup', position: 2, name: 'seed', run: t('touch {{vars.who}}', 'touch world'), cwd: t('data'), env: [{ name: 'A', value: t('{{app}}/a', 'http://app.example.test/a') }, { name: 'B', value: t('{{env:TOKEN}}') }], rollback: t('rm {{who}}', 'rm world') },
+      {
+        kind: 'shell',
+        phase: 'setup',
+        position: 2,
+        name: 'seed',
+        run: t('touch {{vars.who}}', 'touch world'),
+        cwd: t('data'),
+        env: [
+          { name: 'A', value: t('{{app}}/a', 'http://app.example.test/a') },
+          { name: 'B', value: t('{{env:TOKEN}}') },
+        ],
+        rollback: t('rm {{who}}', 'rm world'),
+      },
       { kind: 'shell', phase: 'teardown', position: 1, run: t('touch t'), env: [] },
       { kind: 'sql', phase: 'teardown', position: 2, run: t('delete from t'), env: [] },
-      { kind: 'shell', phase: 'step', position: 1, name: 'own', named: { name: 'own', source: 'scenario' }, run: t('echo {{hooks.tok.json.id}} {{run.id}}', 'echo <unknown until the run: {{hooks.tok.json.id}}> 20260101-120000-x', ['{{hooks.tok.json.id}}']), env: [] },
+      {
+        kind: 'shell',
+        phase: 'step',
+        position: 1,
+        name: 'own',
+        named: { name: 'own', source: 'scenario' },
+        run: t('echo {{hooks.tok.json.id}} {{run.id}}', 'echo <unknown until the run: {{hooks.tok.json.id}}> 20260101-120000-x', ['{{hooks.tok.json.id}}']),
+        env: [],
+      },
       { kind: 'shell', phase: 'step', position: 1, name: 'shared', named: { name: 'shared', source: 'project' }, run: t('touch p1'), env: [] },
     ]);
     expect(scenarioShellHooks(sc, project, TPL, ['teardown']).map((h) => h.run.written)).toEqual(['touch t', 'delete from t']);
@@ -88,7 +128,18 @@ describe('the shell hooks a run executes, rendered as they will run', () => {
     await writeFile(join(projectDir, 'hooks', 'list.sql'), 'SELECT * FROM {{vars.who}};\n');
     const withSql = { setup: [{ name: 'q', sql: { file: 'hooks/list.sql', db: 'main', rollback: { file: 'hooks/none.sql' } } }, { sql: 'hooks/list.sql' }] } as never;
     const [one, two] = scenarioShellHooks(withSql, { config: {}, dir: projectDir } as never, TPL);
-    expect(one).toEqual({ kind: 'sql', phase: 'setup', position: 1, name: 'q', run: t('SELECT * FROM {{vars.who}};\n', 'SELECT * FROM world;\n'), file: 'hooks/list.sql', db: 'main', env: [], rollback: t('<hooks/none.sql cannot be read now: ENOENT>'), rollbackFile: 'hooks/none.sql' });
+    expect(one).toEqual({
+      kind: 'sql',
+      phase: 'setup',
+      position: 1,
+      name: 'q',
+      run: t('SELECT * FROM {{vars.who}};\n', 'SELECT * FROM world;\n'),
+      file: 'hooks/list.sql',
+      db: 'main',
+      env: [],
+      rollback: t('<hooks/none.sql cannot be read now: ENOENT>'),
+      rollbackFile: 'hooks/none.sql',
+    });
     expect(two).toMatchObject({ kind: 'sql', run: { shown: 'SELECT * FROM world;\n' }, file: 'hooks/list.sql' });
     expect(two!.db).toBeUndefined();
   });
@@ -138,7 +189,10 @@ describe('who wrote the hooks: the project’s record, by hook surface', () => {
     expect(await readFile(join(projectDir, 'scenarios', 'edited.yaml'), 'utf8')).toContain('hold: 3');
     expect(await author('edited')).toEqual({ agent: false, why: 'record' });
     // The edit has its own line: the Studio's, its surface the one it found.
-    const lines = (await readFile(scenarioWritesFile(projectDir), 'utf8')).split('\n').filter(Boolean).map((l) => JSON.parse(l) as { path: string; by: { client: string }; surface: string; prev_surface: string | null });
+    const lines = (await readFile(scenarioWritesFile(projectDir), 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { path: string; by: { client: string }; surface: string; prev_surface: string | null });
     const last = lines.at(-1)!;
     expect({ path: last.path, client: last.by.client, kept: last.prev_surface === last.surface }).toEqual({ path: 'scenarios/edited.yaml', client: 'ui', kept: true });
   });
@@ -192,7 +246,10 @@ describe('who wrote the hooks: before the record, and when it cannot be known', 
 
   it('the record read is that of the project holding the file, whichever project the command opened', async () => {
     await mkdir(join(ws, 'projects', 'other', 'scenarios'), { recursive: true });
-    await writeFile(join(ws, 'projects', 'other', 'project.yaml'), 'name: Other\nenvironments:\n  staging:\n    app: http://app.example.test\ncapture: {width: 1280, height: 720, scale: 1, fps: 30}\n');
+    await writeFile(
+      join(ws, 'projects', 'other', 'project.yaml'),
+      'name: Other\nenvironments:\n  staging:\n    app: http://app.example.test\ncapture: {width: 1280, height: 720, scale: 1, fps: 30}\n',
+    );
     await mcp.scenarios.save('other', 'theirs', HOOKED('theirs'));
     const file = join(ws, 'projects', 'other', 'scenarios', 'theirs.yaml');
     await writeFile(file, `${HOOKED('theirs')}# a note\n`);
@@ -247,12 +304,21 @@ describe('who wrote the hooks: before the record, and when it cannot be known', 
       await mkdir(join(lonely.dir, 'scenarios'), { recursive: true });
       const f = join(lonely.dir, 'scenarios', 'x.yaml');
       await writeFile(f, text);
-      expect(await hooksWrittenBy(broken, lonely, { file: f, sha256: sha(text), scenario: parsed(text) })).toMatchObject({ agent: true, unknown: expect.stringContaining('the workspace journal cannot be read') });
+      expect(await hooksWrittenBy(broken, lonely, { file: f, sha256: sha(text), scenario: parsed(text) })).toMatchObject({
+        agent: true,
+        unknown: expect.stringContaining('the workspace journal cannot be read'),
+      });
       // No workspace places it, and nothing decides: asked.
-      expect(await hooksWrittenBy(loose, lonely, { file: f, sha256: sha(text), scenario: parsed(text) })).toMatchObject({ agent: true, unknown: expect.stringContaining('projects folder of no workspace') });
+      expect(await hooksWrittenBy(loose, lonely, { file: f, sha256: sha(text), scenario: parsed(text) })).toMatchObject({
+        agent: true,
+        unknown: expect.stringContaining('projects folder of no workspace'),
+      });
       // Its own record says the person: the person's.
       await mkdir(join(lonely.dir, '.retake'), { recursive: true });
-      await writeFile(scenarioWritesFile(lonely.dir), `${JSON.stringify({ v: 1, at: '2026-01-01T00:00:00.000Z', path: 'scenarios/x.yaml', sha256: sha(text), surface: scenarioHookSurface(parsed(text)), prev_surface: null, by: { client: 'cli', channel: 'cli', trust: 'author' } })}\n`);
+      await writeFile(
+        scenarioWritesFile(lonely.dir),
+        `${JSON.stringify({ v: 1, at: '2026-01-01T00:00:00.000Z', path: 'scenarios/x.yaml', sha256: sha(text), surface: scenarioHookSurface(parsed(text)), prev_surface: null, by: { client: 'cli', channel: 'cli', trust: 'author' } })}\n`,
+      );
       expect(await hooksWrittenBy(loose, lonely, { file: f, sha256: sha(text), scenario: parsed(text) })).toEqual({ agent: false, why: 'record' });
     } finally {
       await rm(broken, { recursive: true, force: true });

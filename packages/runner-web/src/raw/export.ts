@@ -27,11 +27,23 @@ import type { RunFolderFacts } from '@retake/core/run';
 import type { H264Encoder } from '@retake/core/io';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
-import { LAYER_ENCODING, RAW_ENCODING, clipFrameFiles, concatClips, decodeVideoFrames, encodeClip, exportSchedule, probeVideo, rawCodecLabel, readFrameSource, type FrameSource, type ProbedVideo } from './encode.js';
+import {
+  LAYER_ENCODING,
+  RAW_ENCODING,
+  clipFrameFiles,
+  concatClips,
+  decodeVideoFrames,
+  encodeClip,
+  exportSchedule,
+  probeVideo,
+  rawCodecLabel,
+  readFrameSource,
+  type FrameSource,
+  type ProbedVideo,
+} from './encode.js';
 import { encodeCursorLayer, renderCursorAtlas, type CursorAtlas } from './layer.js';
 import { MARKER_COLORS, markersCsv, markersJson, rawMarkers, timecode, writeEdl, writeFcpxml, writeOtio, type PackageFiles, type RawMarkerKind } from './markers.js';
 import { clipFrameAt, mainSource, planRawExport, sequenceStartOf, trackSource, type RawClipPlan, type RawPlan } from './plan.js';
-
 
 /** The display table of a run as an edit uses it (core editDisplayTable): project.yaml's current pages, then the run's. */
 export function exportDisplayTable(project: Pick<LoadedProject, 'config'>, timeline: Timeline, runEnv: string | undefined): DisplayEntry[] {
@@ -142,7 +154,17 @@ export interface RawManifest {
     /** Whether the in-page cursor is in the run's pictures. */
     cursor: 'visible' | 'hidden';
   };
-  settings: { format: RawFormat; codec: string; fps: RawFps; cursor: RawCursorMode; layer?: RawLayerFormat; layer_codec?: string; cuts: boolean; selects: boolean; frames_from: 'screencast frames' | 'capture video' };
+  settings: {
+    format: RawFormat;
+    codec: string;
+    fps: RawFps;
+    cursor: RawCursorMode;
+    layer?: RawLayerFormat;
+    layer_codec?: string;
+    cuts: boolean;
+    selects: boolean;
+    frames_from: 'screencast frames' | 'capture video';
+  };
   sequence: { fps: number; frames: number; duration_s: number; start_tc: string; end_tc: string };
   clips: RawManifestClip[];
   selects?: { file: string; frames: number; duration_s: number; codec: string; size_bytes: number };
@@ -166,7 +188,7 @@ export interface RawExportResult {
   readme: string;
 }
 
-const pick = <T extends string | number>(v: unknown, allowed: readonly T[]): T | undefined => (allowed as readonly unknown[]).includes(v) ? (v as T) : undefined;
+const pick = <T extends string | number>(v: unknown, allowed: readonly T[]): T | undefined => ((allowed as readonly unknown[]).includes(v) ? (v as T) : undefined);
 
 /** Resolved settings: the call's, else project.yaml `raw`, else the defaults (mp4, 30, cursor as captured). */
 export function rawSettings(project: LoadedProject, timeline: Pick<Timeline, 'capture'>, opts: Pick<ExportCaptureOptions, 'format' | 'fps' | 'cursor' | 'layer' | 'selects' | 'cuts'>) {
@@ -244,10 +266,13 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
   notes.push(...plan.notes);
   warnings.push(...plan.warnings);
   if (plan.clips.length === 0) throw new RawExportError(`run ${timeline.run_id}: no captured scene to export${plan.warnings.length ? ` (${plan.warnings.join('; ')})` : ''}`);
-  if (!s.hidden && s.cursor === 'layer') notes.push('the clips show the cursor as captured (this run was captured with it): the layer duplicates it — capture with `run --raw --cursor layer` for clean clips under the layer');
+  if (!s.hidden && s.cursor === 'layer')
+    notes.push('the clips show the cursor as captured (this run was captured with it): the layer duplicates it — capture with `run --raw --cursor layer` for clean clips under the layer');
   if (s.hidden) notes.push('captured without the in-page cursor: the clips show no cursor; its track, icon, presses and ripples are in cursor/ (and the layers with --cursor layer)');
   if (s.cursor === 'layer' && s.layer === 'webm') {
-    notes.push('cursor layers in VP9 WebM: no timecode (media time from 0), alpha kept in a VP9 side channel (ffmpeg needs -c:v libvpx-vp9 to decode it), not read by Final Cut Pro or Premiere Pro — left out of the FCPXML, in the OTIO; use --layer prores for those tools');
+    notes.push(
+      'cursor layers in VP9 WebM: no timecode (media time from 0), alpha kept in a VP9 side channel (ffmpeg needs -c:v libvpx-vp9 to decode it), not read by Final Cut Pro or Premiere Pro — left out of the FCPXML, in the OTIO; use --layer prores for those tools',
+    );
   }
 
   const dir = resolve(opts.out ?? rawPackageDir(opts.project, timeline.run_id, s));
@@ -273,7 +298,9 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
         if (!source) {
           source = await decodeVideoFrames(runDir, c.source, timeline.capture.fps, tmp, ffmpeg, opts.signal);
           fromVideo = true;
-          notes.push(`${c.source.track === 'main' ? 'the capture' : `page ${c.source.track}`}: the run did not keep its screencast frames (capture.keep_frames) — clips made from ${c.source.video}${s.fps > timeline.capture.fps ? ` at ${timeline.capture.fps} fps, each frame repeated for ${s.fps} fps (not interpolated)` : ''}`);
+          notes.push(
+            `${c.source.track === 'main' ? 'the capture' : `page ${c.source.track}`}: the run did not keep its screencast frames (capture.keep_frames) — clips made from ${c.source.video}${s.fps > timeline.capture.fps ? ` at ${timeline.capture.fps} fps, each frame repeated for ${s.fps} fps (not interpolated)` : ''}`,
+          );
         }
         entry = { source, schedule: exportSchedule(source, timeline.capture.duration, s.fps) };
         sources.set(c.source.track, entry);
@@ -288,20 +315,21 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
       emit({ stage: 'clip', done: c.index, total: plan.clips.length, message: clipRel(c) });
       const { source, schedule } = await sourceOf(c);
       const out = join(work, clipRel(c));
-      h264 = (await encodeClip({
-        source,
-        files: clipFrameFiles(c, schedule),
-        fps: s.fps,
-        width: c.source.width,
-        height: c.source.height,
-        format: s.format,
-        timecode: timecode(sequenceStartOf(plan, c), s.fps),
-        out,
-        tmp,
-        ffmpeg,
-        policy: opts.policy,
-        signal: opts.signal,
-      })) ?? h264;
+      h264 =
+        (await encodeClip({
+          source,
+          files: clipFrameFiles(c, schedule),
+          fps: s.fps,
+          width: c.source.width,
+          height: c.source.height,
+          format: s.format,
+          timecode: timecode(sequenceStartOf(plan, c), s.fps),
+          out,
+          tmp,
+          ffmpeg,
+          policy: opts.policy,
+          signal: opts.signal,
+        })) ?? h264;
       const p = await probeVideo(out, { ffprobe: opts.ffprobe, policy: opts.policy });
       if (p.frames !== c.frames) warnings.push(`${clipRel(c)}: ${p.frames} frames written, ${c.frames} planned`);
       probes.set(c.index, p);
@@ -364,7 +392,13 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
       } else {
         emit({ stage: 'selects', done: 0, total: 1 });
         const rel = `selects${enc.ext}`;
-        await concatClips(primaries.map((c) => join(work, clipRel(c))), join(work, rel), tmp, ffmpeg, opts.signal);
+        await concatClips(
+          primaries.map((c) => join(work, clipRel(c))),
+          join(work, rel),
+          tmp,
+          ffmpeg,
+          opts.signal,
+        );
         const p = await probeVideo(join(work, rel), { ffprobe: opts.ffprobe, policy: opts.policy });
         if (p.frames !== plan.frames) warnings.push(`${rel}: ${p.frames} frames, the sequence has ${plan.frames}`);
         selects = { file: rel, frames: p.frames, duration_s: round3(p.frames / s.fps), codec: rawCodecLabel(s.format, h264), size_bytes: p.size_bytes };
@@ -449,8 +483,29 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
           seq_start_frame: start,
           seq_start_tc: timecode(start, s.fps),
           capture: { from: c.t0, to: c.t1 },
-          cuts: c.cuts.map((x) => ({ at_frame: x.at, at_tc: timecode(start + x.at, s.fps), capture_from: x.from, capture_to: x.to, seconds: round3(x.to - x.from), reason: x.reason, ...(x.wait_step !== undefined ? { wait_step: x.wait_step } : {}), ...(x.after_step !== undefined ? { after_step: x.after_step } : {}) })),
-          ...(lp ? { layer: { file: layerRel(c), codec: lp.codec, ...(lp.profile ? { profile: lp.profile } : {}), pix_fmt: lp.alpha && !/^yuva/.test(lp.pix_fmt) ? `${lp.pix_fmt} + alpha` : lp.pix_fmt, alpha: lp.alpha, frames: lp.frames, size_bytes: lp.size_bytes } } : {}),
+          cuts: c.cuts.map((x) => ({
+            at_frame: x.at,
+            at_tc: timecode(start + x.at, s.fps),
+            capture_from: x.from,
+            capture_to: x.to,
+            seconds: round3(x.to - x.from),
+            reason: x.reason,
+            ...(x.wait_step !== undefined ? { wait_step: x.wait_step } : {}),
+            ...(x.after_step !== undefined ? { after_step: x.after_step } : {}),
+          })),
+          ...(lp
+            ? {
+                layer: {
+                  file: layerRel(c),
+                  codec: lp.codec,
+                  ...(lp.profile ? { profile: lp.profile } : {}),
+                  pix_fmt: lp.alpha && !/^yuva/.test(lp.pix_fmt) ? `${lp.pix_fmt} + alpha` : lp.pix_fmt,
+                  alpha: lp.alpha,
+                  frames: lp.frames,
+                  size_bytes: lp.size_bytes,
+                },
+              }
+            : {}),
         };
       }),
       ...(selects ? { selects } : {}),
@@ -534,7 +589,9 @@ export function packageReadme(m: RawManifest, plan: RawPlan): string {
     ...rows,
     '',
     '## Markers',
-    `Scenes (blue, chapter markers in Final Cut Pro), steps (green), marks (red), captions (yellow, lasting until the next one) and loading cuts (magenta) — ${Object.entries(m.markers.count).map(([k, v]) => `${v} ${k}`).join(', ')}.`,
+    `Scenes (blue, chapter markers in Final Cut Pro), steps (green), marks (red), captions (yellow, lasting until the next one) and loading cuts (magenta) — ${Object.entries(m.markers.count)
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ')}.`,
     '',
     `- \`${m.markers.fcpxml}\` — **Final Cut Pro** (File → Import → XML…; FCPXML 1.10): an event with one project, the clips on the primary storyline, markers on them${m.cursor.mode === 'layer' ? (webm ? ' (the WebM cursor layers are not in it: Final Cut Pro cannot read them — they are in the OTIO)' : ', the cursor layers connected above') : ''}${m.clips.some((c) => !c.primary) ? ', the other page of a multi-page scene connected and disabled (enable it for a split screen)' : ''}. **DaVinci Resolve** imports it too (File → Import → Timeline…).`,
     `- \`${m.markers.otio}\` — **OpenTimelineIO** (DaVinci Resolve: File → Import → Timeline…; any OTIO tool or adapter, e.g. to Premiere via otio adapters): track V1 with the clips${m.cursor.mode === 'layer' ? `, a Cursor track above${webm ? ' (WebM layers referenced from media time 0)' : ''}` : ''}, markers with names, colours and comments.`,
@@ -543,7 +600,15 @@ export function packageReadme(m: RawManifest, plan: RawPlan): string {
     '',
     'The interchange files point at the clips by absolute path (file:// URLs in the FCPXML and OTIO); if you move this folder, relink to `clips/` (names are unique). In Premiere Pro, import the clips folder and the EDL, or convert the OTIO with an OTIO adapter (e.g. otio-fcp-adapter to FCP 7 XML).',
     '',
-    ...(m.edit_files.length ? ['## Files the edit used', 'Your own media the Retake edit of this scenario uses (intro / outro videos, overlays, images) — reuse them in your tool:', '', ...m.edit_files.map((f) => `- \`${f}\``), ''] : []),
+    ...(m.edit_files.length
+      ? [
+          '## Files the edit used',
+          'Your own media the Retake edit of this scenario uses (intro / outro videos, overlays, images) — reuse them in your tool:',
+          '',
+          ...m.edit_files.map((f) => `- \`${f}\``),
+          '',
+        ]
+      : []),
     ...(m.notes.length ? ['## Notes', ...m.notes.map((n) => `- ${n}`), ''] : []),
     ...(m.warnings.length ? ['## Warnings', ...m.warnings.map((n) => `- ${n}`), ''] : []),
     `Sizes: clips ${mb(m.clips.reduce((n, c) => n + c.size_bytes, 0))}${m.cursor.mode === 'layer' ? `, layers ${mb(m.clips.reduce((n, c) => n + (c.layer?.size_bytes ?? 0), 0))}` : ''}. Everything is described in \`manifest.json\`.`,
@@ -552,4 +617,3 @@ export function packageReadme(m: RawManifest, plan: RawPlan): string {
     .filter((l, i, a) => !(l === '' && a[i - 1] === ''))
     .join('\n');
 }
-

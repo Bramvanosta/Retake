@@ -175,10 +175,11 @@ export function pluginInstallSteps(o: McpConfigInput & { repo: string }): Array<
   const env = o.env ?? process.env;
   // The entry point is the argument before --root (an app bundle's guard comes first; the plugin's own .mcp.json starts
   // `node cli` without it: core prepareBundle loads it then).
-  const config: Array<[string, string]> = [['node', e.command], ['cli', e.args[e.args.indexOf('--root') - 1]!], ['workspace', o.root]];
-  if (env.RETAKE_HOME?.trim()) config.push(['home', retakeHome(env)]);
-  return [
-    { argv: ['plugin', 'marketplace', 'add', o.repo] },
-    { argv: ['plugin', 'install', PLUGIN_ID, '--scope', 'local', ...config.flatMap(([k, v]) => ['--config', `${k}=${v}`])], cwd: o.root },
+  const config: Array<[string, string]> = [
+    ['node', e.command],
+    ['cli', e.args[e.args.indexOf('--root') - 1]!],
+    ['workspace', o.root],
   ];
+  if (env.RETAKE_HOME?.trim()) config.push(['home', retakeHome(env)]);
+  return [{ argv: ['plugin', 'marketplace', 'add', o.repo] }, { argv: ['plugin', 'install', PLUGIN_ID, '--scope', 'local', ...config.flatMap(([k, v]) => ['--config', `${k}=${v}`])], cwd: o.root }];
 }

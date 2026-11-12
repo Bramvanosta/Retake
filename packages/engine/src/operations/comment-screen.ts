@@ -63,7 +63,10 @@ const scenario = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/
 const commentId = z.string().max(40).regex(COMMENT_ID_RE, 'a comment id (c_…, threads_list names them), never a path');
 const entryId = z.string().max(40).regex(COMMENT_ENTRY_ID_RE, 'an entry id of the thread (r_…)');
 const renderId = zRenderId('a render id (scenario_renders lists them), never a path');
-const createdAt = z.string().max(40).refine((s) => isIsoUtcDate(s), "the render's created_at as the page read it (an ISO 8601 UTC date)");
+const createdAt = z
+  .string()
+  .max(40)
+  .refine((s) => isIsoUtcDate(s), "the render's created_at as the page read it (an ISO 8601 UTC date)");
 const frame = z.number().int().min(0).max(10_000_000).describe('An output frame of the render (0-based).');
 const ifMatch = z.string().regex(/^[0-9a-f]{64}$/, 'the thread hash the page showed (thread_get / threads_list `hash`)');
 const unit = z.number().finite().min(0).max(1);
@@ -244,7 +247,12 @@ export function proposalOffer(p: CommentProposalView, f: OfferFacts): ProposalOf
   // Apply's own checks before its write said no (review A L4): nothing is offered that the server would refuse.
   if (typeof p.blocked === 'string') return { apply: false, preview: false, apply_render: false, why: `Apply would refuse it now (${blockedWords(p.blocked)}): ask Claude to propose again` };
   if (!p.verified || p.same_take !== true) {
-    return { apply: true, preview: false, apply_render: false, why: "It does not render on the commented take (the take is gone, or the scenario's filmed part changed since): apply it, then capture again" };
+    return {
+      apply: true,
+      preview: false,
+      apply_render: false,
+      why: "It does not render on the commented take (the take is gone, or the scenario's filmed part changed since): apply it, then capture again",
+    };
   }
   const no = (why: string): ProposalOffer => ({ apply: true, preview: true, apply_render: false, why });
   if (f.variant !== 'landscape') return no(`The comment is on a ${f.variant} render and the Studio renders landscape only: ${LATER}`);
@@ -274,7 +282,10 @@ async function offerFacts(engine: Engine, slug: string, t: CommentView): Promise
       if (rec.created_at !== t.render_created_at) render = { missing: 'The commented render was replaced since' };
       else {
         const o = rec.overrides && typeof rec.overrides === 'object' ? (rec.overrides as Record<string, unknown>) : {};
-        const overrides = Object.keys(o).filter((k) => k !== 'theme' && o[k] !== undefined).map((k) => (OVERRIDE_KEY.test(k) ? k : 'an option')).sort();
+        const overrides = Object.keys(o)
+          .filter((k) => k !== 'theme' && o[k] !== undefined)
+          .map((k) => (OVERRIDE_KEY.test(k) ? k : 'an option'))
+          .sort();
         render = typeof rec.template === 'string' ? { template: rec.template, overrides } : { missing: "The commented render's theme cannot be read" };
       }
     } catch {
@@ -365,7 +376,8 @@ export const threadsCounts = defineOperation({
 export const threadGet = defineOperation({
   name: 'thread_get',
   title: 'A comment thread',
-  description: "One frame comment thread without any path: where it points, its entries (texts as untrusted data), and its newest proposal as the canonical diff of what Apply writes, with what may be offered for it.",
+  description:
+    'One frame comment thread without any path: where it points, its entries (texts as untrusted data), and its newest proposal as the canonical diff of what Apply writes, with what may be offered for it.',
   input: GetInput,
   annotations: READ,
   async run(a, { engine }) {
@@ -388,7 +400,7 @@ export const threadGet = defineOperation({
 export const threadStill = defineOperation({
   name: 'thread_still',
   title: "A thread's still",
-  description: "The still made when a thread was written (its region outlined) as a base64 JPEG (≤ 1280 px): what it showed when its render is gone.",
+  description: 'The still made when a thread was written (its region outlined) as a base64 JPEG (≤ 1280 px): what it showed when its render is gone.',
   input: StillInput,
   annotations: READ,
   async run(a, { engine }) {
@@ -448,7 +460,7 @@ const written = (r: { thread: CommentView; entry: string; hash: string }) => ({ 
 export const threadReply = defineOperation({
   name: 'thread_reply',
   title: 'Reply to a thread',
-  description: 'A reply on a thread, written as the channel studio (never a proposal: proposals are Claude\'s).',
+  description: "A reply on a thread, written as the channel studio (never a proposal: proposals are Claude's).",
   input: ReplyInput,
   annotations: WRITE,
   serialize: (a) => threadKey(a.project, a.comment_id),
@@ -486,7 +498,8 @@ export const threadReopen = defineOperation({
 export const threadApply = defineOperation({
   name: 'thread_apply',
   title: "Apply Claude's proposal",
-  description: "Apply a thread's newest proposal (pending, or undone) on the version the page showed (if_match): the text rebuilt and checked, written by the Studio's own write path; `previous` is what Undo apply restores (scenario_edit restore).",
+  description:
+    "Apply a thread's newest proposal (pending, or undone) on the version the page showed (if_match): the text rebuilt and checked, written by the Studio's own write path; `previous` is what Undo apply restores (scenario_edit restore).",
   input: ApplyInput,
   annotations: WRITE,
   callers: (c, a) => proposalApplyRefused(c, a.if_match),
@@ -494,7 +507,9 @@ export const threadApply = defineOperation({
     // The scenario's key, then the thread's, on the engine's chain (see the header: no `serialize`).
     const chain = operationChain(engine);
     const t = await engine.comments.get(a.project, a.comment_id);
-    const r = await chain(scenarioKey(a.project, t.scenario), () => chain(threadKey(a.project, a.comment_id), () => engine.comments.apply(a.project, a.comment_id, { entry_id: a.entry_id, if_match: a.if_match })));
+    const r = await chain(scenarioKey(a.project, t.scenario), () =>
+      chain(threadKey(a.project, a.comment_id), () => engine.comments.apply(a.project, a.comment_id, { entry_id: a.entry_id, if_match: a.if_match })),
+    );
     const data: ThreadApplyAnswer = {
       thread: threadAnswer(r.thread),
       hash: r.hash,

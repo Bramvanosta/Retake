@@ -74,9 +74,7 @@ export function signInStoppedText(r: { timed_out?: boolean; profile_kept?: boole
 }
 
 const stoppedLeft = (profileKept: boolean) =>
-  profileKept
-    ? "; the saved session and its status were not updated, but what the window changed stays in the persona's browser profile (the next run starts from it)"
-    : ', nothing was saved';
+  profileKept ? "; the saved session and its status were not updated, but what the window changed stays in the persona's browser profile (the next run starts from it)" : ', nothing was saved';
 
 /** Stop a sign-in (its window closes; signInStoppedText says what stays): an `auth_login` job only — never a run or any other job. */
 export async function cancelSignIn(queue: JobQueueView, jobId: string, by: string): Promise<JobRecord> {
@@ -101,11 +99,20 @@ function q(s: string): string {
 
 /** The `retake login` command a human runs for the same sign-in. */
 export function loginCommandLine(cli: string, r: AuthLoginSubmitRequest): string {
-  return [cli, 'login', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.persona !== undefined ? ['--persona', q(r.persona)] : []), ...(r.mode === 'auto' ? ['--auto'] : [])].join(' ');
+  return [cli, 'login', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.persona !== undefined ? ['--persona', q(r.persona)] : []), ...(r.mode === 'auto' ? ['--auto'] : [])].join(
+    ' ',
+  );
 }
 
 function loginError(e: unknown): EngineError {
-  if (e instanceof LoginOptionError) return new EngineError('invalid', e.message.replace(/--persona /g, 'persona ').replace(/--env /g, 'env ').replace(/--auto/g, 'mode "auto"'));
+  if (e instanceof LoginOptionError)
+    return new EngineError(
+      'invalid',
+      e.message
+        .replace(/--persona /g, 'persona ')
+        .replace(/--env /g, 'env ')
+        .replace(/--auto/g, 'mode "auto"'),
+    );
   return toEngineError(e);
 }
 
@@ -166,7 +173,12 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
   const base = { kind: 'auth_login' as const, env: env.name, persona: target.persona.name, mode: input.mode, command };
   // A profile persona that already has a browser profile signs in on it: a stop leaves what the window changed there.
   const dir = target.persona.session === 'profile' ? target.persona.profileDir : undefined;
-  const profileKept = dir !== undefined && (await readdir(dir).then((l) => l.length > 0, () => false));
+  const profileKept =
+    dir !== undefined &&
+    (await readdir(dir).then(
+      (l) => l.length > 0,
+      () => false,
+    ));
   // A headed window holds the single worker while it is open: it closes at its time limit.
   let timedOut = false;
   let maxMs = AUTH_HEADED_MAX_MS;
@@ -178,24 +190,31 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
     }
   }
   const interrupts = input.mode === 'headed' ? withTimeLimit(ctx.interrupts, maxMs, () => (timedOut = true)) : ctx.interrupts;
-  const outcome = await signInPersona(project, env, target.persona, { mode: input.mode, policy: ctx.ws.policy }, {
-    interrupts,
-    sessions: ctx.capture.sessions,
-    log: (level, message) => {
-      if (level !== 'debug') ctx.event({ type: 'log', level, message });
+  const outcome = await signInPersona(
+    project,
+    env,
+    target.persona,
+    { mode: input.mode, policy: ctx.ws.policy },
+    {
+      interrupts,
+      sessions: ctx.capture.sessions,
+      log: (level, message) => {
+        if (level !== 'debug') ctx.event({ type: 'log', level, message });
+      },
+      onOpen: (url) =>
+        ctx.event({
+          type: 'log',
+          level: 'info',
+          message:
+            input.mode === 'auto'
+              ? `${target.persona.name}: checking its saved session, else signing in with its login steps, headless`
+              : `${target.persona.name}: a browser window is open on this machine — the user signs in, then closes the window (it closes by itself after ${formatLimit(maxMs)})`,
+        }),
     },
-    onOpen: (url) =>
-      ctx.event({
-        type: 'log',
-        level: 'info',
-        message:
-          input.mode === 'auto'
-            ? `${target.persona.name}: checking its saved session, else signing in with its login steps, headless`
-            : `${target.persona.name}: a browser window is open on this machine — the user signs in, then closes the window (it closes by itself after ${formatLimit(maxMs)})`,
-      }),
-  });
+  );
   if (outcome.interrupted) {
-    if (timedOut) ctx.event({ type: 'log', level: 'warn', message: `${target.persona.name}: the sign-in window stayed open longer than ${formatLimit(maxMs)}: it was closed${stoppedLeft(profileKept)}` });
+    if (timedOut)
+      ctx.event({ type: 'log', level: 'warn', message: `${target.persona.name}: the sign-in window stayed open longer than ${formatLimit(maxMs)}: it was closed${stoppedLeft(profileKept)}` });
     return { ...base, status: 'never', signed_in: false, cookies: 0, interrupted: true, ...(timedOut ? { timed_out: true as const } : {}), ...(profileKept ? { profile_kept: true as const } : {}) };
   }
   const res = outcome.result;

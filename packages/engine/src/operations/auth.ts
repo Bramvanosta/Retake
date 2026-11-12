@@ -27,7 +27,11 @@ export const authStatus = defineOperation({
   async run({ project, env }, { engine }) {
     const r = await engine.auth.status({ project, env });
     const lines = r.personas.map((p) => {
-      const next = p.sandbox ? '' : p.status === 'never' || p.status === 'expired' || p.status === 'error' ? ` — sign it in: auth_login (the user signs in in a window), or a human runs ${p.command ?? p.fix}` : '';
+      const next = p.sandbox
+        ? ''
+        : p.status === 'never' || p.status === 'expired' || p.status === 'error'
+          ? ` — sign it in: auth_login (the user signs in in a window), or a human runs ${p.command ?? p.fix}`
+          : '';
       return `- ${p.project} · ${p.env} · ${p.persona}: ${p.sandbox && p.status === 'never' ? 'sandbox account (a take signs it in automatically)' : p.status}${p.in_use ? ' (in use by a browser)' : ''}${next}`;
     });
     return {
@@ -53,12 +57,21 @@ export function environmentJobSummary(job: JobRecord): string {
           : `${r.persona} on ${r.env} is not signed in (${r.status}; the check's message is under "untrusted"). A human tries again: ${r.command}`,
     );
   } else if (r?.kind === 'sandbox_up' || r?.kind === 'sandbox_reset') {
-    if (r.services) lines.push(`services: ${[r.services.started.length ? `started ${r.services.started.join(', ')}` : '', r.services.kept.length ? `already running ${r.services.kept.join(', ')}` : ''].filter(Boolean).join(' · ') || 'none'}${r.services.changed.length ? ` (changed in sandbox.yaml since they started: ${r.services.changed.join(', ')} — down, then up)` : ''}`);
+    if (r.services)
+      lines.push(
+        `services: ${[r.services.started.length ? `started ${r.services.started.join(', ')}` : '', r.services.kept.length ? `already running ${r.services.kept.join(', ')}` : ''].filter(Boolean).join(' · ') || 'none'}${r.services.changed.length ? ` (changed in sandbox.yaml since they started: ${r.services.changed.join(', ')} — down, then up)` : ''}`,
+      );
     if (r.reset) {
       const seed = r.reset.restored ? `snapshot${r.reset.snapshot ? ` of ${r.reset.snapshot.database}` : ''} restored` : `seed ${plural(r.reset.seed.steps, 'step')}`;
-      lines.push(`reset (${r.reset.strategy}): ${seed}${r.reset.mailbox === 'cleared' ? ' · mailbox emptied' : ''}${r.reset.restarted.length ? ` · restarted ${r.reset.restarted.join(', ')}` : ''}${r.reset.firebase_auth ? ` · ${plural(r.reset.firebase_auth.accounts, 'Firebase Auth account')} put back` : ''}${r.reset.hooks?.steps ? ` · ${plural(r.reset.hooks.steps, 'reset hook')}` : ''}${r.reset.superseded ? ` · ${plural(r.reset.superseded, 'pending rollback')} superseded` : ''}`);
+      lines.push(
+        `reset (${r.reset.strategy}): ${seed}${r.reset.mailbox === 'cleared' ? ' · mailbox emptied' : ''}${r.reset.restarted.length ? ` · restarted ${r.reset.restarted.join(', ')}` : ''}${r.reset.firebase_auth ? ` · ${plural(r.reset.firebase_auth.accounts, 'Firebase Auth account')} put back` : ''}${r.reset.hooks?.steps ? ` · ${plural(r.reset.hooks.steps, 'reset hook')}` : ''}${r.reset.superseded ? ` · ${plural(r.reset.superseded, 'pending rollback')} superseded` : ''}`,
+      );
     } else lines.push('no seed needed (already seeded with the current seed)');
-    lines.push(`pages: ${Object.entries(r.pages).map(([k, u]) => `${k} ${u}`).join(' · ')}`);
+    lines.push(
+      `pages: ${Object.entries(r.pages)
+        .map(([k, u]) => `${k} ${u}`)
+        .join(' · ')}`,
+    );
   }
   if (job.error && job.state !== 'succeeded') lines.push(`${job.error.message}${job.error.fix ? ` — a human runs: ${job.error.fix}` : ''}`);
   if (job.state === 'queued' || job.state === 'running') lines.push(`follow it: job_status {job_id: "${job.id}", wait_s: 25}`);
@@ -81,7 +94,7 @@ export const authLogin = defineOperation({
     project: projectSlug,
     persona: z.string().max(100).regex(SLUG_RE, 'a persona name of project.yaml').optional().describe("The persona (default: the environment's only one)."),
     env: envName.optional().describe("Environment (default: the project's default_env)."),
-    mode: z.enum(['headed', 'auto']).default('headed').describe('headed (default): a window for the user to sign in; auto: the persona\'s login steps, headless.'),
+    mode: z.enum(['headed', 'auto']).default('headed').describe("headed (default): a window for the user to sign in; auto: the persona's login steps, headless."),
     wait_s: waitS(0, 'the sign-in to finish'),
   }),
   annotations: SIGN_IN,

@@ -28,12 +28,7 @@ describe.skipIf(!can)('site extraction of the brand-site fixture', () => {
   beforeAll(async () => {
     site = await startBrandSite();
     out = await mkdtemp(join(tmpdir(), 'site-extract-'));
-    report = await extractSite({ policy: PERSON_POLICY,
-      url: BRAND_SITE_URL,
-      host: 'brand.test',
-      outDir: out,
-      testResolve: site.testResolve,
-    });
+    report = await extractSite({ policy: PERSON_POLICY, url: BRAND_SITE_URL, host: 'brand.test', outDir: out, testResolve: site.testResolve });
   }, 120_000);
 
   afterAll(async () => {

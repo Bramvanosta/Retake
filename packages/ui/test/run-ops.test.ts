@@ -120,7 +120,7 @@ describe('the Sessions panel: auth_status, auth_login (headed only, no wait), si
     await call('run_cancel', { project: P, run_id: run.run_id });
   });
 
-  it('auth_status reads every persona without a path; the last check\'s text under untrusted', async () => {
+  it("auth_status reads every persona without a path; the last check's text under untrusted", async () => {
     const files = personaPaths(home, P, 'signed-in', 'buyer');
     await mkdir(join(files.snapshot, '..'), { recursive: true });
     await writeFile(files.snapshot, '{"cookies":[],"origins":[]}', { mode: 0o600 });
@@ -137,7 +137,12 @@ describe('the Sessions panel: auth_status, auth_login (headed only, no wait), si
 describe('run_pause', () => {
   it('pinned arguments; a queued run 409 (no marker); a running dry run pauses and resumes; a running capture too; a finished run 409', async () => {
     const q = (await call('scenario_run', { project: P, name: 'pause-a', mode: 'dry' })).json<{ data: { run_id: string; job: string } }>().data;
-    for (const bad of [{ project: P, run_id: q.run_id }, { project: P, run_id: q.run_id, paused: 'yes' }, { project: P, run_id: q.run_id, paused: true, scene: 'a' }, { project: P, run_id: '../x', paused: true }]) {
+    for (const bad of [
+      { project: P, run_id: q.run_id },
+      { project: P, run_id: q.run_id, paused: 'yes' },
+      { project: P, run_id: q.run_id, paused: true, scene: 'a' },
+      { project: P, run_id: '../x', paused: true },
+    ]) {
       expect((await call('run_pause', bad)).status, JSON.stringify(bad)).toBe(400);
     }
     const queued = await call('run_pause', { project: P, run_id: q.run_id, paused: true });

@@ -28,18 +28,12 @@ function scenarioNameFiles(project: Pick<LoadedProject, 'dir'>, name: string): s
 /** "catalogue" → <project>/scenarios/catalogue.yaml; paths are taken relative to the project dir, then the cwd. */
 async function resolveScenarioFile(project: LoadedProject, nameOrPath: string): Promise<string> {
   const pathLike = /[\\/]/.test(nameOrPath) || /\.ya?ml$/i.test(nameOrPath);
-  const candidates = pathLike
-    ? isAbsolute(nameOrPath)
-      ? [nameOrPath]
-      : [resolve(project.dir, nameOrPath), resolve(nameOrPath)]
-    : scenarioNameFiles(project, nameOrPath);
+  const candidates = pathLike ? (isAbsolute(nameOrPath) ? [nameOrPath] : [resolve(project.dir, nameOrPath), resolve(nameOrPath)]) : scenarioNameFiles(project, nameOrPath);
   const found = candidates.find((c) => existsSync(c));
   if (found) return found;
   const available = await listScenarioNames(project.dir);
   const where = pathLike ? candidates.join(' or ') : scenariosDir(project);
-  throw new ScenarioError(
-    `scenario "${nameOrPath}" not found in ${where}${suggestion(nameOrPath, available)} (available: ${available.join(', ') || 'none'})`,
-  );
+  throw new ScenarioError(`scenario "${nameOrPath}" not found in ${where}${suggestion(nameOrPath, available)} (available: ${available.join(', ') || 'none'})`);
 }
 
 /** How a scenario file is read: once, hashed, and compared with an expected sha256 before it is parsed. */
@@ -97,4 +91,3 @@ export async function scenarioEnvOf(project: LoadedProject, nameOrPath: string):
     return undefined; // loadScenario reports it
   }
 }
-

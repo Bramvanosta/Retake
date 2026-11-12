@@ -35,7 +35,17 @@ export const SOURCES_FILE = join(ROOT, 'scripts', 'ffmpeg-sources.json');
 export const SOURCE_NAMES = ['x264', 'libvpx', 'opus', 'ffmpeg'];
 
 /** Flags the configuration must carry (the person's decision: GPL with libx264, the Mac's encoders). */
-export const REQUIRED_FLAGS = ['--enable-gpl', '--enable-libx264', '--enable-libvpx', '--enable-libopus', '--enable-videotoolbox', '--enable-audiotoolbox', '--disable-nonfree', '--disable-autodetect', '--disable-network'];
+export const REQUIRED_FLAGS = [
+  '--enable-gpl',
+  '--enable-libx264',
+  '--enable-libvpx',
+  '--enable-libopus',
+  '--enable-videotoolbox',
+  '--enable-audiotoolbox',
+  '--disable-nonfree',
+  '--disable-autodetect',
+  '--disable-network',
+];
 /** Flags it must never carry: nonfree code (libfdk-aac & co.) and what configure counts as nonfree next to GPL. */
 export const FORBIDDEN_FLAGS = ['--enable-nonfree', '--enable-libfdk-aac', '--enable-libfdk_aac', '--enable-openssl', '--enable-decklink', '--enable-cuda-nvcc', '--enable-libnpp'];
 
@@ -148,14 +158,38 @@ export async function obtainArchive(source, cacheDir, { fetch: allowFetch = fals
 const minFlag = (min) => `-mmacosx-version-min=${min}`;
 
 export function x264ConfigureArgs({ deps, minMacos }) {
-  return [`--prefix=${deps}`, '--enable-static', '--enable-pic', '--disable-cli', '--disable-opencl', '--disable-avs', '--disable-swscale', '--disable-lavf', '--disable-ffms', '--disable-gpac', '--disable-lsmash', `--extra-cflags=${minFlag(minMacos)}`, `--extra-ldflags=${minFlag(minMacos)}`];
+  return [
+    `--prefix=${deps}`,
+    '--enable-static',
+    '--enable-pic',
+    '--disable-cli',
+    '--disable-opencl',
+    '--disable-avs',
+    '--disable-swscale',
+    '--disable-lavf',
+    '--disable-ffms',
+    '--disable-gpac',
+    '--disable-lsmash',
+    `--extra-cflags=${minFlag(minMacos)}`,
+    `--extra-ldflags=${minFlag(minMacos)}`,
+  ];
 }
 
 export function libvpxConfigureArgs({ minMacos }) {
   // darwin24 = macOS 15, the bundle's minimum; the explicit -mmacosx-version-min keeps it whatever the target says.
   // No --prefix: libvpx compiles its configure line into the library (vpx_codec_build_config), so a prefix would put
   // a folder of the build machine into ffmpeg; the scratch prefix goes to `make` (libvpxMakeVars).
-  return ['--target=arm64-darwin24-gcc', '--enable-static', '--disable-shared', '--enable-pic', '--disable-examples', '--disable-tools', '--disable-docs', '--disable-unit-tests', `--extra-cflags=${minFlag(minMacos)}`];
+  return [
+    '--target=arm64-darwin24-gcc',
+    '--enable-static',
+    '--disable-shared',
+    '--enable-pic',
+    '--disable-examples',
+    '--disable-tools',
+    '--disable-docs',
+    '--disable-unit-tests',
+    `--extra-cflags=${minFlag(minMacos)}`,
+  ];
 }
 
 /** `make` variables of libvpx: its prefix (written into vpx.pc) and install folder, outside its configure line. */
@@ -171,19 +205,38 @@ export function opusConfigureArgs({ deps, minMacos }) {
  */
 export function ffmpegConfigureArgs({ minMacos }) {
   return [
-    '--cc=clang', '--arch=arm64', '--target-os=darwin',
-    '--enable-static', '--disable-shared', '--disable-autodetect',
-    '--enable-gpl', '--disable-nonfree', '--enable-libx264', '--enable-libvpx', '--enable-libopus',
-    '--enable-videotoolbox', '--enable-audiotoolbox', '--enable-zlib',
-    '--disable-network', '--disable-ffplay', '--disable-doc', '--disable-debug',
-    '--pkg-config=pkg-config', '--pkg-config-flags=--static',
-    `--extra-cflags=${minFlag(minMacos)}`, `--extra-ldflags=${minFlag(minMacos)}`,
+    '--cc=clang',
+    '--arch=arm64',
+    '--target-os=darwin',
+    '--enable-static',
+    '--disable-shared',
+    '--disable-autodetect',
+    '--enable-gpl',
+    '--disable-nonfree',
+    '--enable-libx264',
+    '--enable-libvpx',
+    '--enable-libopus',
+    '--enable-videotoolbox',
+    '--enable-audiotoolbox',
+    '--enable-zlib',
+    '--disable-network',
+    '--disable-ffplay',
+    '--disable-doc',
+    '--disable-debug',
+    '--pkg-config=pkg-config',
+    '--pkg-config-flags=--static',
+    `--extra-cflags=${minFlag(minMacos)}`,
+    `--extra-ldflags=${minFlag(minMacos)}`,
   ];
 }
 
 /** Problems of an ffmpeg configuration (the `configuration:` line or `-buildconf`): a required flag missing, a forbidden one present. */
 export function checkConfiguration(text) {
-  const flags = new Set(String(text).split(/\s+/).filter((t) => t.startsWith('--')));
+  const flags = new Set(
+    String(text)
+      .split(/\s+/)
+      .filter((t) => t.startsWith('--')),
+  );
   const out = [];
   for (const f of REQUIRED_FLAGS) if (!flags.has(f)) out.push(`missing ${f}`);
   for (const f of flags) if (FORBIDDEN_FLAGS.includes(f) || /^--enable-(nonfree|libfdk)/.test(f)) out.push(`forbidden ${f}`);
@@ -236,7 +289,13 @@ export function machinePaths(buf) {
   const out = [];
   for (const p of ['/Users/', '/private/tmp/', '/private/var/', '/var/folders/', '/opt/homebrew/', '/usr/local/Cellar/']) {
     const i = buf.indexOf(p);
-    if (i >= 0) out.push(buf.subarray(i, Math.min(buf.length, i + 80)).toString('latin1').split('\0')[0]);
+    if (i >= 0)
+      out.push(
+        buf
+          .subarray(i, Math.min(buf.length, i + 80))
+          .toString('latin1')
+          .split('\0')[0],
+      );
   }
   return out;
 }
@@ -247,7 +306,11 @@ function sh(cmd, args, opts = {}) {
     let tail = '';
     if (opts.log) {
       const out = createWriteStream(opts.log, { flags: 'a' });
-      for (const s of [child.stdout, child.stderr]) s.on('data', (d) => { out.write(d); tail = (tail + d).slice(-4000); });
+      for (const s of [child.stdout, child.stderr])
+        s.on('data', (d) => {
+          out.write(d);
+          tail = (tail + d).slice(-4000);
+        });
       child.on('close', () => out.end());
     }
     child.on('error', fail);
@@ -370,11 +433,20 @@ async function main() {
   // The system's tools first; pkg-config (not part of macOS) through a link of its own, so no other folder of the
   // machine (Homebrew's bin) is on the build's PATH.
   const pkgConfig = capture('/bin/sh', ['-c', 'command -v pkg-config']).stdout.trim();
-  if (!pkgConfig) throw new Error('pkg-config is not on PATH (it finds the static libraries for ffmpeg\'s configure)');
+  if (!pkgConfig) throw new Error("pkg-config is not on PATH (it finds the static libraries for ffmpeg's configure)");
   const bin = join(work, 'bin');
   await mkdir(bin, { recursive: true });
-  await symlink(pkgConfig, join(bin, 'pkg-config')).catch((e) => { if (e.code !== 'EEXIST') throw e; });
-  const env = { PATH: `/usr/bin:/bin:/usr/sbin:/sbin:${bin}`, HOME: process.env.HOME ?? work, PKG_CONFIG_LIBDIR: join(deps, 'lib', 'pkgconfig'), CC: 'clang', TMPDIR: process.env.TMPDIR ?? tmpdir(), LC_ALL: 'C' };
+  await symlink(pkgConfig, join(bin, 'pkg-config')).catch((e) => {
+    if (e.code !== 'EEXIST') throw e;
+  });
+  const env = {
+    PATH: `/usr/bin:/bin:/usr/sbin:/sbin:${bin}`,
+    HOME: process.env.HOME ?? work,
+    PKG_CONFIG_LIBDIR: join(deps, 'lib', 'pkgconfig'),
+    CC: 'clang',
+    TMPDIR: process.env.TMPDIR ?? tmpdir(),
+    LC_ALL: 'C',
+  };
   const make = ['-j', String(o.jobs)];
   const step = async (name, args, makeVars = []) => {
     const t = Date.now();

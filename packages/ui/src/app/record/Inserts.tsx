@@ -101,7 +101,11 @@ export function Inserts({
             <Txt text={where.label} />
           </>
         ) : (
-          shown(live ? 'Insert at the end — a hold or a wait goes before your next action; a caption, a mark or a zoom goes on it.' : 'Insert at the end — a hold or a wait goes after the last step; a caption, a mark or a zoom goes on it.')
+          shown(
+            live
+              ? 'Insert at the end — a hold or a wait goes before your next action; a caption, a mark or a zoom goes on it.'
+              : 'Insert at the end — a hold or a wait goes after the last step; a caption, a mark or a zoom goes on it.',
+          )
         )}
       </p>
       <Toolbar label={visibleControls(label)}>

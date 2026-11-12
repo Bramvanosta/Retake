@@ -46,7 +46,16 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 describe('a listing of renders/', () => {
   it('every *.json, dot files aside, as a record or a typed problem; a listing follows no link (decision i)', async () => {
     const got = (await readRendersFolder(dir)).map(said).sort();
-    expect(got).toEqual(['big: too-big', 'cut: not-json', 'dangling (link): not-a-file', 'folder: not-a-file', 'list: invalid', 'newer: newer-format', 'quote-v1: record quote-v1', 'quote-v3 (link): not-a-file']);
+    expect(got).toEqual([
+      'big: too-big',
+      'cut: not-json',
+      'dangling (link): not-a-file',
+      'folder: not-a-file',
+      'list: invalid',
+      'newer: newer-format',
+      'quote-v1: record quote-v1',
+      'quote-v3 (link): not-a-file',
+    ]);
   });
 
   it('`links: follow` reads through a link and says the entry was one; a link to nothing is missing', async () => {
@@ -78,7 +87,7 @@ describe('a listing of renders/', () => {
     expect(opened.sort()).toEqual(['quote-v1.json', 'quote-v3.json']);
   });
 
-  it('the reader asks its file system for a listing\'s cap and no link, and for neither when a person named the file', async () => {
+  it("the reader asks its file system for a listing's cap and no link, and for neither when a person named the file", async () => {
     const asked: string[] = [];
     const fs: RecordFs = { names: async () => ['a.json'], text: async (_f, o) => (asked.push(`${o.max} ${o.follow}`), { ok: true, text: record('a'), link: false }) };
     await readRendersFolder(dir, { fs });
@@ -97,17 +106,26 @@ describe('a listing of renders/', () => {
       // Renamed by hand: it says quote-v1, its video is quote-v1's (decision iv refuses it)…
       '/p/renders/quote-final.json': renderRecordText({ file: 'quote-final', id: 'quote-v1', at: '2026-10-02T09:09:00.000Z' }, { ...VARS, dir: '/p' })!,
       // … this one's `file` was corrected to its own video: it works, named after its file.
-      '/p/renders/quote-own.json': JSON.stringify({ ...(JSON.parse(renderRecordText({ file: 'quote-own', id: 'quote-v1', at: '2026-10-02T09:08:00.000Z' }, { ...VARS, dir: '/p' })!) as object), file: '/p/renders/quote-own.mp4' }),
+      '/p/renders/quote-own.json': JSON.stringify({
+        ...(JSON.parse(renderRecordText({ file: 'quote-own', id: 'quote-v1', at: '2026-10-02T09:08:00.000Z' }, { ...VARS, dir: '/p' })!) as object),
+        file: '/p/renders/quote-own.mp4',
+      }),
     };
     const asked: string[] = [];
     const fs: RecordFs = {
-      names: async (d) => (asked.push(`names ${d}`), Object.keys(files).filter((f) => f.startsWith(`${d}/`)).map((f) => f.slice(d.length + 1))),
+      names: async (d) => (
+        asked.push(`names ${d}`),
+        Object.keys(files)
+          .filter((f) => f.startsWith(`${d}/`))
+          .map((f) => f.slice(d.length + 1))
+      ),
       text: async (f, o) => (asked.push(`text ${f} ${o.follow}`), f in files ? { ok: true, text: files[f]!, link: false } : { ok: false, problem: 'missing', link: false }),
       identity: async (f) => (asked.push(`identity ${f}`), f in files ? f : null),
     };
     const find = (arg: string, trust?: 'mcp') => findNamedRender('/p/renders', arg, { verb: 'export', slug: 'p', ...(trust ? { trust } : {}), fs });
     const got = await Promise.all([find('quote-v1', 'mcp'), find('quote-v1'), find('/p/renders/quote-own.json'), find('latest')]);
-    const refused = 'renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to export — correct "file" in the record, or render again with --out';
+    const refused =
+      'renders/quote-final.json says it is quote-v1, and renders/quote-v1.mp4 is now the video of another render: nothing to export — correct "file" in the record, or render again with --out';
     expect(got.map((f) => (f.ok ? `${f.render.entry.name} → ${f.render.output}` : f.message))).toEqual(['quote-v1 → quote-v1', 'quote-v1 → quote-v1', 'quote-own → quote-own', refused]);
     expect(new Set(asked.map((a) => a.split(' ')[0]))).toEqual(new Set(['names', 'text', 'identity']));
     expect(asked).toContain('text /p/renders/quote-v1.json false');
@@ -137,7 +155,7 @@ describe('a listing of renders/', () => {
 });
 
 describe('a record a person named at a terminal', () => {
-  it('is read through a link and whatever its size; its name is the file\'s, without .json', async () => {
+  it("is read through a link and whatever its size; its name is the file's, without .json", async () => {
     expect(said(await readNamedRender(join(dir, 'quote-v3.json')))).toBe('quote-v3 (link): record quote-v3');
     expect(said(await readNamedRender(join(dir, 'quote-v1.json')))).toBe('quote-v1: record quote-v1');
     // Over a listing's cap: read (here: zeros after the text, so no JSON — but opened and read whole, not refused for its size).
@@ -167,7 +185,7 @@ describe('a render named at a terminal or by its id (findNamedRender)', () => {
     return f.ok ? `${f.render.output}${f.render.renamed ? ' (renamed)' : ''}` : f.message.replaceAll(root, '<root>');
   };
 
-  it('a named record bigger than a listing\'s cap is read whole (a render someone names has no cap); a listing says it is too big', async () => {
+  it("a named record bigger than a listing's cap is read whole (a render someone names has no cap); a listing says it is too big", async () => {
     const huge = JSON.parse(renderRecordText({ file: 'quote-v7', at: '2026-10-02T09:07:00.000Z' }, VARS)!) as Record<string, unknown>;
     huge.warnings = ['x'.repeat(RENDER_RECORD_MAX + 1024)];
     writeFileSync(join(named, 'quote-v7.json'), JSON.stringify(huge));
@@ -183,7 +201,14 @@ describe('a render named at a terminal or by its id (findNamedRender)', () => {
     writeFileSync(join(root, 'outside', 'quote-v4.json'), renderRecordText({ file: 'quote-v4', at: '2026-10-02T09:04:00.000Z' }, VARS)!);
     symlinkSync(join(root, 'outside', 'quote-v4.json'), join(named, 'quote-v4.json'));
     writeFileSync(join(named, 'quote-v5.json'), '{"version": 1, "id": "quote-v5"}');
-    expect([await out('quote-v1', { trust: 'mcp' }), await out('quote-final', { trust: 'mcp' }), await out('quote-v2', { trust: 'mcp' }), await out('quote-v4', { trust: 'mcp' }), await out('quote-v5', { trust: 'mcp' }), await out('quote-v6', { trust: 'mcp' })]).toEqual([
+    expect([
+      await out('quote-v1', { trust: 'mcp' }),
+      await out('quote-final', { trust: 'mcp' }),
+      await out('quote-v2', { trust: 'mcp' }),
+      await out('quote-v4', { trust: 'mcp' }),
+      await out('quote-v5', { trust: 'mcp' }),
+      await out('quote-v6', { trust: 'mcp' }),
+    ]).toEqual([
       'quote-v1',
       'render "quote-final": through MCP a render is named by its id',
       'render "quote-v2": renders/quote-v2.json says it is another render',
@@ -196,7 +221,7 @@ describe('a render named at a terminal or by its id (findNamedRender)', () => {
     for (const f of ['quote-v2.json', 'quote-v4.json', 'quote-v5.json']) rmSync(join(named, f));
   });
 
-  it('the name of its folder of exports/ or review/ is the id its record says when that is one folder name, else its file\'s name; what a terminal says of a renamed record names no text of the file but a render id', async () => {
+  it("the name of its folder of exports/ or review/ is the id its record says when that is one folder name, else its file's name; what a terminal says of a renamed record names no text of the file but a render id", async () => {
     write('x', '');
     write('y', '../../escape');
     write('quote-v1 copy', 'quote-v1');
@@ -221,14 +246,25 @@ describe('a render named at a terminal or by its id (findNamedRender)', () => {
       'renders/z.json says an id that is no render id — its exports and review are named z',
       null,
     ]);
-    expect([renderOutputName({ name: '.' }, ''), renderOutputName({ name: 'a' }, '..'), renderOutputName({ name: 'a' }, 'b/c'), renderOutputName({ name: 'a' }, 'quote-v1')]).toEqual([null, 'a', 'a', 'quote-v1']);
+    expect([renderOutputName({ name: '.' }, ''), renderOutputName({ name: 'a' }, '..'), renderOutputName({ name: 'a' }, 'b/c'), renderOutputName({ name: 'a' }, 'quote-v1')]).toEqual([
+      null,
+      'a',
+      'a',
+      'quote-v1',
+    ]);
     // An id over 200 bytes, or one with a space a terminal hides, names no folder; a name taken by another file of
     // renders/ is passed over, and when both are taken there is none.
-    expect([renderOutputName({ name: 'a' }, 'q'.repeat(201)), renderOutputName({ name: 'a' }, 'q'.repeat(200)), renderOutputName({ name: 'a' }, 'quote v1 '), renderOutputName({ name: 'a' }, 'quote-v1', new Set(['quote-v1'])), renderOutputName({ name: 'a' }, 'quote-v1', new Set(['quote-v1', 'a']))]).toEqual(['a', 'q'.repeat(200), 'a', 'a', null]);
+    expect([
+      renderOutputName({ name: 'a' }, 'q'.repeat(201)),
+      renderOutputName({ name: 'a' }, 'q'.repeat(200)),
+      renderOutputName({ name: 'a' }, 'quote v1 '),
+      renderOutputName({ name: 'a' }, 'quote-v1', new Set(['quote-v1'])),
+      renderOutputName({ name: 'a' }, 'quote-v1', new Set(['quote-v1', 'a'])),
+    ]).toEqual(['a', 'q'.repeat(200), 'a', 'a', null]);
     for (const f of ['x.json', 'y.json', 'quote-v1 copy.json', 'z.json']) rmSync(join(named, f));
   });
 
-  it('the folder of exports/ or review/ is never one another file of renders/ owns: an id another file has — as the file system compares names, case and Unicode normalisation included — names the folder after the record\'s own file; when that too is taken, one sentence (L7.6b fix pass)', async () => {
+  it("the folder of exports/ or review/ is never one another file of renders/ owns: an id another file has — as the file system compares names, case and Unicode normalisation included — names the folder after the record's own file; when that too is taken, one sentence (L7.6b fix pass)", async () => {
     // The newest record, renamed by hand, says the id of a live render, its `file` corrected to its own video.
     const at = (m: number): string => `2026-10-02T09:${String(m).padStart(2, '0')}:00.000Z`;
     const renamed = (name: string, id: string): void => {
@@ -279,7 +315,7 @@ describe('a render named at a terminal or by its id (findNamedRender)', () => {
     for (const n of ['notes.json', 'list.json']) rmSync(join(named, n));
   });
 
-  it('what a terminal\'s `latest` passed over: the first five files named (printable) with their reason, then a count; files that say nothing readable counted', () => {
+  it("what a terminal's `latest` passed over: the first five files named (printable) with their reason, then a count; files that say nothing readable counted", () => {
     const passed = ['a\u001b.json', 'b.json', 'c.json', 'd.json', 'e.json'].map((file) => ({ file, why: 'renamed' as const }));
     expect(latestRenderLines({ passed, passed_more: 2, not_considered: 1 })).toEqual([
       '7 newer files of renders/ passed over — a .json: its record says another id; b.json: its record says another id; c.json: its record says another id; d.json: its record says another id; e.json: its record says another id; and 2 more',

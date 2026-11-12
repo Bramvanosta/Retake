@@ -42,7 +42,12 @@ describe('retake components', () => {
       expect(c.tags ?? [], c.id).not.toContain('placeholder');
       expect(c.preview, c.id).toBe(join(c.dir, 'preview.png'));
     }
-    expect(json.components.filter((c) => c.tags?.includes('reference-look')).map((c) => c.id).sort()).toEqual(reference);
+    expect(
+      json.components
+        .filter((c) => c.tags?.includes('reference-look'))
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(reference);
     expect(json.components_dir).toBe(join(ws, 'components'));
   });
 

@@ -129,7 +129,22 @@ function ZoomField({ label, field, view, off, send }: { label: string; field: st
     if (text === shown || text === '') return setText(shown);
     send(fieldEdit(view, field, Number(text)));
   };
-  return <NumberField label={label} layout="row" min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} value={text} disabled={off} testId={`number-${field}`} onChange={setText} onBlur={commit} onEnter={commit} hint="× (1 to 3, steps of 0.01)" />;
+  return (
+    <NumberField
+      label={label}
+      layout="row"
+      min={ZOOM_MIN}
+      max={ZOOM_MAX}
+      step={ZOOM_STEP}
+      value={text}
+      disabled={off}
+      testId={`number-${field}`}
+      onChange={setText}
+      onBlur={commit}
+      onEnter={commit}
+      hint="× (1 to 3, steps of 0.01)"
+    />
+  );
 }
 
 /** The default zoom: none, or a number from 1 to 3 (removable: the theme's default). */
@@ -158,7 +173,9 @@ function DefaultZoom({ view, off, send }: { view: ThemeEditView; off: boolean; s
           { value: 'number', label: 'A zoom' },
         ]}
       />
-      {mode === 'number' && <NumberField label="Default zoom factor" layout="row" min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} value={text} disabled={off} onChange={setText} onBlur={commit} onEnter={commit} />}
+      {mode === 'number' && (
+        <NumberField label="Default zoom factor" layout="row" min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} value={text} disabled={off} onChange={setText} onBlur={commit} onEnter={commit} />
+      )}
     </>
   );
 }
@@ -189,7 +206,25 @@ function Chips({ label, name, value, options, off, onPick }: { label: string; na
 }
 
 /** The background: its type (a switch writes type and colours together, critique B7a) and its colours. */
-function BackgroundField({ bg, paper, draft, off, version, onType, onDraft, onCommit }: { bg: ReturnType<typeof backgroundOf>; paper: string; draft?: Background; off: boolean; version: string; onType(t: Background['type']): void; onDraft(b: Background): void; onCommit(part: 'color' | 'from' | 'to', hex: string): void }) {
+function BackgroundField({
+  bg,
+  paper,
+  draft,
+  off,
+  version,
+  onType,
+  onDraft,
+  onCommit,
+}: {
+  bg: ReturnType<typeof backgroundOf>;
+  paper: string;
+  draft?: Background;
+  off: boolean;
+  version: string;
+  onType(t: Background['type']): void;
+  onDraft(b: Background): void;
+  onCommit(part: 'color' | 'from' | 'to', hex: string): void;
+}) {
   const cur = draft ?? bg.value;
   if (bg.why) {
     return (
@@ -201,7 +236,8 @@ function BackgroundField({ bg, paper, draft, off, version, onType, onDraft, onCo
   }
   const type = cur?.type ?? 'radial';
   const grad = cur && cur.type !== 'solid' ? cur : null;
-  const valueOf = (b: Background | null | undefined, name: 'color' | 'from' | 'to') => (b ? (b.type === 'solid' ? (name === 'color' ? b.color : undefined) : name === 'from' ? b.from : name === 'to' ? b.to : undefined) : undefined);
+  const valueOf = (b: Background | null | undefined, name: 'color' | 'from' | 'to') =>
+    b ? (b.type === 'solid' ? (name === 'color' ? b.color : undefined) : name === 'from' ? b.from : name === 'to' ? b.to : undefined) : undefined;
   const part = (name: 'color' | 'from' | 'to', label: string) => {
     const value = valueOf(cur, name);
     const writtenValue = valueOf(bg.value, name);
@@ -218,7 +254,11 @@ function BackgroundField({ bg, paper, draft, off, version, onType, onDraft, onCo
         disabled={off || !bg.value}
         version={version}
         testId={`background-${name}`}
-        onDraft={(hex) => onDraft(name === 'color' ? { type: 'solid', color: hex } : { type: grad?.type ?? 'radial', from: name === 'from' ? hex : (grad?.from ?? paper), to: name === 'to' ? hex : (grad?.to ?? paper) })}
+        onDraft={(hex) =>
+          onDraft(
+            name === 'color' ? { type: 'solid', color: hex } : { type: grad?.type ?? 'radial', from: name === 'from' ? hex : (grad?.from ?? paper), to: name === 'to' ? hex : (grad?.to ?? paper) },
+          )
+        }
         onCommit={(hex) => onCommit(name, hex)}
       />
     );
@@ -238,7 +278,13 @@ function BackgroundField({ bg, paper, draft, off, version, onType, onDraft, onCo
           { value: 'linear', label: 'Linear gradient' },
         ]}
       />
-      {(type === 'solid' ? ([['color', 'Background colour']] as const) : ([['from', 'From (centre / top)'], ['to', 'To (edge / bottom)']] as const)).map(([name, label]) => part(name, label))}
+      {(type === 'solid'
+        ? ([['color', 'Background colour']] as const)
+        : ([
+            ['from', 'From (centre / top)'],
+            ['to', 'To (edge / bottom)'],
+          ] as const)
+      ).map(([name, label]) => part(name, label))}
     </div>
   );
 }
@@ -275,7 +321,14 @@ function ComponentPick({ kind, view, choices, slug, off, send }: { kind: (typeof
   const options = [...(none || row.picked === null ? [{ value: '', label: none ?? '(not set)' }] : []), ...all.map((id) => ({ value: id, label: componentOptionWords(id, choices) }))];
   return (
     <div className="tm-comp" data-testid={`component-${kind}`}>
-      <Select label={kindLabel(kind)} layout="row" value={row.picked ?? ''} disabled={off || row.why !== undefined} options={options} onChange={(x) => send(componentEdit(view, kind, x === '' ? null : x, params))} />
+      <Select
+        label={kindLabel(kind)}
+        layout="row"
+        value={row.picked ?? ''}
+        disabled={off || row.why !== undefined}
+        options={options}
+        onChange={(x) => send(componentEdit(view, kind, x === '' ? null : x, params))}
+      />
       {row.why && (
         <p className="tm-quiet">
           <Txt text={row.why} />
@@ -329,7 +382,21 @@ interface ColourActions {
 }
 
 /** One colour of the theme (memoised: a drag of another colour does not render it). */
-const ColourRow = memo(function ColourRow({ c, value, dragged, off, version, actions }: { c: (typeof COLOR_FIELDS)[number]; value: string; dragged: string | undefined; off: boolean; version: string; actions: ColourActions }) {
+const ColourRow = memo(function ColourRow({
+  c,
+  value,
+  dragged,
+  off,
+  version,
+  actions,
+}: {
+  c: (typeof COLOR_FIELDS)[number];
+  value: string;
+  dragged: string | undefined;
+  off: boolean;
+  version: string;
+  actions: ColourActions;
+}) {
   return (
     <ColorField
       label={c.label}
@@ -397,7 +464,12 @@ const TypeSection = memo(function TypeSection({ v, off, send }: { v: ThemeEditVi
             checked={body.includes(f.file)}
             disabled={off}
             onChange={(on) => {
-              const next = bodyFonts(body, f.file, on, fonts.map((x) => x.file));
+              const next = bodyFonts(
+                body,
+                f.file,
+                on,
+                fonts.map((x) => x.file),
+              );
               send(Array.isArray(next) ? fieldEdit(v, 'fonts.body', next) : next);
             }}
           />

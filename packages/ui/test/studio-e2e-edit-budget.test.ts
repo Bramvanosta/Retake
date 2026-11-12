@@ -136,7 +136,12 @@ describe.skipIf(!canRun)('Edit with 1,200 steps (L5.12a)', () => {
       const w = window as unknown as { __trackRenders: number; __mutations: number };
       w.__trackRenders = 0;
       w.__mutations = 0;
-      new MutationObserver((list) => (w.__mutations += list.length)).observe(document.querySelector('[data-testid="tracks"]')!, { subtree: true, childList: true, attributes: true, characterData: true });
+      new MutationObserver((list) => (w.__mutations += list.length)).observe(document.querySelector('[data-testid="tracks"]')!, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
     });
     const views: string[] = [];
     page.on('request', (r) => r.url().includes('/v1/call/timeline_view') && views.push(r.url()));
@@ -153,7 +158,10 @@ describe.skipIf(!canRun)('Edit with 1,200 steps (L5.12a)', () => {
     expect(counts).toEqual({ renders: 0, mutations: 0 });
     // The hook does count: a change of the selection (the segments' pressed state) re-renders the tracks once.
     // (The bits take's segments sit in the first 180 of the 40,000 frames: a click from the page, not the pointer.)
-    await page.locator('[data-testid="tl-segment"]').first().evaluate((el) => (el as HTMLButtonElement).click());
+    await page
+      .locator('[data-testid="tl-segment"]')
+      .first()
+      .evaluate((el) => (el as HTMLButtonElement).click());
     await expect.poll(() => page.evaluate(() => (window as unknown as { __trackRenders: number }).__trackRenders), POLL).toBeGreaterThan(0);
   }, 120_000);
 });

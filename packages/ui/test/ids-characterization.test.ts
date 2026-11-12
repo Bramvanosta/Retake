@@ -44,18 +44,28 @@ describe('the scenario a job names', () => {
       ['-v1', null],
       ['', null],
     ];
-    for (const kind of ['review', 'export']) expect(rows.map(([id]) => of(kind, { project: 'p', render_id: id })), kind).toEqual(rows.map((r) => r[1]));
+    for (const kind of ['review', 'export'])
+      expect(
+        rows.map(([id]) => of(kind, { project: 'p', render_id: id })),
+        kind,
+      ).toEqual(rows.map((r) => r[1]));
     expect(of('review', { project: 'p', render_id: 7 })).toBeNull();
     expect(of('render', { project: 'p', scenario: 'quote', render_id: 'other-v1' })).toBe('quote');
   });
 });
 
-describe('a proposal\'s offer when the commented render used another theme', () => {
+describe("a proposal's offer when the commented render used another theme", () => {
   const offer = (render: string, files: string) =>
-    short(proposalOffer({ actionable: true, verified: true, same_take: true } as never, { variant: 'landscape', render: { template: render, overrides: [] }, files_theme: { name: files } } satisfies OfferFacts).why ?? '(none)');
+    short(
+      proposalOffer({ actionable: true, verified: true, same_take: true } as never, {
+        variant: 'landscape',
+        render: { template: render, overrides: [] },
+        files_theme: { name: files },
+      } satisfies OfferFacts).why ?? '(none)',
+    );
   const LATER = 'apply it, then render it from your terminal or ask Claude';
 
-  it('names the two themes when both are names of a theme: the rule the board and a render\'s theme read a folder\'s name by', () => {
+  it("names the two themes when both are names of a theme: the rule the board and a render's theme read a folder's name by", () => {
     const other = `The commented render used another theme than the files': ${LATER}`;
     expect(offer('editorial', 'editorial')).toBe('(none)');
     expect(offer('editorial', 'motion')).toBe(`The commented render used the theme editorial, not the files' motion: ${LATER}`);
@@ -72,8 +82,8 @@ describe('a proposal\'s offer when the commented render used another theme', () 
   });
 });
 
-describe('the live view\'s request (POST /v1/live, outside the op table)', () => {
-  it('names its run by a run id of at most 200 characters, with the route\'s own sentence', () => {
+describe("the live view's request (POST /v1/live, outside the op table)", () => {
+  it("names its run by a run id of at most 200 characters, with the route's own sentence", () => {
     const issues = (run_id: unknown) => {
       const r = RunLiveInput.safeParse({ project: 'shop', run_id });
       return r.success ? 'ok' : r.error.issues.map((i) => `${i.path.join('.')}: ${i.code}: ${i.message}`).join(' | ');
@@ -86,8 +96,8 @@ describe('the live view\'s request (POST /v1/live, outside the op table)', () =>
   });
 });
 
-describe('the app\'s own readings', () => {
-  it('the raw export\'s command takes a project slug and a run id of at most 200 characters each', () => {
+describe("the app's own readings", () => {
+  it("the raw export's command takes a project slug and a run id of at most 200 characters each", () => {
     expect(rawExportCommand('shop', '20261017-142233-quote')).toBe('retake export-capture shop 20261017-142233-quote');
     expect(rawExportCommand('shop', 'a..b')).toBe('retake export-capture shop a..b');
     expect(short(rawExportCommand('shop', a(200)) ?? '(none)')).toBe('retake export-capture shop <200 a>');
@@ -96,7 +106,7 @@ describe('the app\'s own readings', () => {
     expect(rawExportCommand('Shop', 'quote')).toBeNull();
   });
 
-  it('the review route\'s render id: the grammar, with no bound on the version', () => {
+  it("the review route's render id: the grammar, with no bound on the version", () => {
     expect(RENDER_ID.source).toBe('^[A-Za-z0-9][A-Za-z0-9_-]*-v\\d+(?:-vertical|-square)?$');
     const rows: Array<[string, boolean]> = [
       ['quote-v3', true],
@@ -136,7 +146,7 @@ describe('the app\'s own readings', () => {
 });
 
 describe('names in the library and the theme forms', () => {
-  it('a project slug is lower-case, a listed theme\'s name any-case, both at most 100 characters; a new theme\'s name is lower-case, at most 60', () => {
+  it("a project slug is lower-case, a listed theme's name any-case, both at most 100 characters; a new theme's name is lower-case, at most 60", () => {
     expect([PROJECT_SLUG.source, ANY_THEME_NAME.source, NAME_MAX]).toEqual(['^[a-z0-9][a-z0-9-]*$', '^[A-Za-z0-9][A-Za-z0-9_-]*$', 100]);
     const names = ['editorial', 'my-theme', a(60), a(61), a(100), a(101), 'My_Theme', a(100, 'A'), 'a.b', '', '-x', 'x\n', 7];
     expect(names.filter(okName).map((n) => short(String(n)))).toEqual(['editorial', 'my-theme', '<60 a>', '<61 a>', '<100 a>']);
@@ -151,7 +161,7 @@ describe('names in the library and the theme forms', () => {
     expect(prompt('Shop')).not.toContain('for project');
   });
 
-  it('a copy\'s proposed name: the theme\'s, lowered, with -copy', () => {
+  it("a copy's proposed name: the theme's, lowered, with -copy", () => {
     expect(copyName('editorial', [])).toBe('editorial-copy');
     expect(copyName('editorial', ['editorial-copy'])).toBe('editorial-copy-2');
     expect(copyName('My_Theme', [])).toBe('my-theme-copy');
@@ -171,7 +181,7 @@ describe('names in the library and the theme forms', () => {
     for (const source of [a(60), a(61), a(80), a(100), a(100, 'A'), `${a(50)}_${a(40)}`]) expect(okNewThemeName(copyName(source, [])), source).toBe(true);
   });
 
-  it('why a new theme\'s name cannot be used', () => {
+  it("why a new theme's name cannot be used", () => {
     const lower = 'Lower-case letters, digits and "-" only, starting with a letter or a digit.';
     const copy = (name: string) => themeNameProblem(name, ['taken']);
     expect([copy(''), copy('My_Theme'), copy('a.b'), copy('taken'), copy('mine'), copy(a(60))]).toEqual(['Give the copy a name.', lower, lower, 'A theme of that name exists.', null, null]);

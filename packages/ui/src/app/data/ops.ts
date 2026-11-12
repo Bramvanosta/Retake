@@ -31,9 +31,7 @@ interface Narrowed {
 
 /** Every op the Studio serves: its arguments and its result, derived from the op table (NARROWED for the few held narrower). */
 export type StudioOps = {
-  [K in StudioOp]: K extends keyof Narrowed
-    ? { args: Sent<Narrowed[K]['args']>; result: Narrowed[K]['result'] }
-    : { args: Sent<ToolArgs<StudioTools[K]>>; result: ToolData<StudioTools[K]> };
+  [K in StudioOp]: K extends keyof Narrowed ? { args: Sent<Narrowed[K]['args']>; result: Narrowed[K]['result'] } : { args: Sent<ToolArgs<StudioTools[K]>>; result: ToolData<StudioTools[K]> };
 };
 
 /** The narrowed result is one of the op's own answers (a compile-time check: never a type the op does not answer). */

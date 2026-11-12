@@ -20,7 +20,10 @@ type Job = { steps: Step[]; env?: Record<string, string>; permissions?: Record<s
 const raw = read('.github/workflows/ci.yml');
 const wf = YAML.parse(raw);
 /** The workflow without its comment lines (they name what it never does). */
-const code = raw.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+const code = raw
+  .split('\n')
+  .filter((l) => !/^\s*#/.test(l))
+  .join('\n');
 const jobs = wf.jobs as Record<string, Job>;
 const names = (job: string) => jobs[job]!.steps.map((s) => s.name ?? s.uses);
 const step = (job: string, name: string) => {
@@ -64,7 +67,7 @@ describe('the CI workflow (ci.yml)', () => {
   it('the pinned Node.js first in each job; the guards after the build; no test suite on the runner (BL-163)', () => {
     for (const job of Object.keys(jobs)) expect(names(job)[1], job).toBe('Node.js, the pinned build');
     for (const job of Object.keys(jobs)) expect(step(job, 'Node.js, the pinned build').run).toBe('bash apps/desktop/scripts/ci-node.sh');
-    const order = ['pnpm (corepack, at package.json\'s packageManager)', 'Dependencies', 'Build the packages', "The repository's guards"];
+    const order = ["pnpm (corepack, at package.json's packageManager)", 'Dependencies', 'Build the packages', "The repository's guards"];
     const at = order.map((n) => names('checks').indexOf(n));
     expect(at.every((i) => i > 1)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -74,7 +77,15 @@ describe('the CI workflow (ci.yml)', () => {
     // one), in a step that is its name and its script (no `if:`, no `continue-on-error`).
     const guards = step('checks', "The repository's guards");
     expect(Object.keys(guards).sort()).toEqual(['name', 'run']);
-    expect(guards.run!.trim().split('\n')).toEqual(['set -eu', 'node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites', 'npx tsc -p tsconfig.test.json', 'node scripts/lint.mjs']);
+    expect(guards.run!.trim().split('\n')).toEqual([
+      'set -eu',
+      'node scripts/set-version.mjs --check',
+      'node scripts/audit/rules.mjs . --check',
+      'node scripts/requirements.mjs --untested 1',
+      'node scripts/requirements.mjs --check-cites',
+      'npx tsc -p tsconfig.test.json',
+      'node scripts/lint.mjs',
+    ]);
     expect(Object.keys(step('checks', 'Build the packages')).sort()).toEqual(['name', 'run']);
     // The suite runs on the Mac only until it is faster and steadier (BL-163): no test step, no browser, no gated test.
     expect(names('checks').at(-1)).toBe("The repository's guards");

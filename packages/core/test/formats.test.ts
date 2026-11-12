@@ -63,7 +63,7 @@ describe('file format versions (R-PRIN-13)', () => {
     expect(validateScenario({ version: 1, video: 'demo', scenes: [{ id: 'a', steps: [{ hold: 1 }] }] }).filter((i) => i.severity === 'error')).toEqual([]);
   });
 
-  it('template.yaml: the version is the file\'s, not a section of the merged template', () => {
+  it("template.yaml: the version is the file's, not a section of the merged template", () => {
     const one = parseTemplateYaml('version: 1\nname: brand\ncolors: {accent: "#3b5ec9"}\n');
     expect(msgs(one.issues)).toEqual([]);
     expect(one.template?.name).toBe('brand');
@@ -98,8 +98,21 @@ describe('file format versions (R-PRIN-13)', () => {
     await writeFile(join(run.dir, 'run.json'), '{"version": 2, "id": "r"}');
     expect(await newerRunMessage(run.dir)).toBe(newer('run.json'));
     const base = {
-      id: 'r', project: 'p', scenario: 's', mode: 'capture', status: 'succeeded', started_at: 't', finished_at: 't', dir: '/r', env: 'local',
-      options: { hooks: 'run', headed: false }, steps_total: 0, steps_done: 0, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [],
+      id: 'r',
+      project: 'p',
+      scenario: 's',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: 't',
+      finished_at: 't',
+      dir: '/r',
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 0,
+      steps_done: 0,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
     };
     expect(RunRecordSchema.safeParse(base).success).toBe(true);
     const engine = { retake: '0.1.0', node: '22.1.0', chromium: '141.0.7390.37', os: 'darwin 25.6.0 arm64', fonts: { files: 3, digest: 'abcdef012345' } };

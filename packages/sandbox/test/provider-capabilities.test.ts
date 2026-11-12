@@ -57,13 +57,18 @@ describe('the providers declare their capabilities (X8)', () => {
     const p: Provider = new ProcessProvider();
     const ctx = ctxOf(sandbox('process'));
     const refused = async (what: Promise<unknown>) => {
-      const e = await what.then(() => null, (x: unknown) => x);
+      const e = await what.then(
+        () => null,
+        (x: unknown) => x,
+      );
       expect(e).toBeInstanceOf(SandboxError);
       return (e as SandboxError).message;
     };
     expect(await refused(p.exec(ctx, { service: 'app', command: 'true' }))).toBe('sandbox sandbox: exec steps — a capability of the docker-compose provider, not of a process sandbox');
     expect(await refused(p.logs(ctx, { lines: 5 }))).toMatch(/^sandbox sandbox: reading logs other than its log files — a capability of the docker-compose provider/);
-    expect(await refused(p.followLogs(ctx, { lines: 5, signal: new AbortController().signal, write: () => undefined }))).toMatch(/^sandbox sandbox: following logs — a capability of the docker-compose provider/);
+    expect(await refused(p.followLogs(ctx, { lines: 5, signal: new AbortController().signal, write: () => undefined }))).toMatch(
+      /^sandbox sandbox: following logs — a capability of the docker-compose provider/,
+    );
     expect(await refused(p.publishedBy(ctx, 5432))).toMatch(/^sandbox sandbox: snapshot resets — a capability of the docker-compose provider/);
     expect(await p.address(ctx, 5432)).toBeUndefined();
     expect(await p.hashInputs(ctx)).toEqual([]);

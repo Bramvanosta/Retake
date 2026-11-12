@@ -6,10 +6,8 @@ import { ComponentParamsSchema, ComponentRefSchema, FrameStyleSchema, Transition
 const FONT_RE = /\.(ttf|otf|woff2?)$/i;
 const IMAGE_RE = /\.(svg|png|jpe?g|webp)$/i;
 
-const fontFile = () =>
-  z.string().regex(FONT_RE, { error: 'expected a font file (.ttf, .otf, .woff or .woff2) relative to the template dir' });
-const imageFile = () =>
-  z.string().regex(IMAGE_RE, { error: 'expected an image file (.svg, .png, .jpg or .webp) relative to the template dir' });
+const fontFile = () => z.string().regex(FONT_RE, { error: 'expected a font file (.ttf, .otf, .woff or .woff2) relative to the template dir' });
+const imageFile = () => z.string().regex(IMAGE_RE, { error: 'expected an image file (.svg, .png, .jpg or .webp) relative to the template dir' });
 
 const colorsShape = {
   accent: nonEmpty().describe('Accent colour (CSS).'),
@@ -93,10 +91,10 @@ const KIND_HINTS: Record<ComponentKind, string> = {
 const TemplateMediaSchema = z
   .strictObject({
     ...mediaFileShape,
-    duration: positiveSeconds().describe('Seconds on screen (default: a video or Lottie file: its own length; an image: the kind\'s duration).').optional(),
+    duration: positiveSeconds().describe("Seconds on screen (default: a video or Lottie file: its own length; an image: the kind's duration).").optional(),
     params: ComponentParamsSchema.optional(),
   })
-  .describe('The theme\'s own file instead of a component: {video | image | lottie, from, to, fit, background, volume, duration} (paths relative to the template folder).');
+  .describe("The theme's own file instead of a component: {video | image | lottie, from, to, fit, background, volume, duration} (paths relative to the template folder).");
 
 /** `components:` — default component per kind; null = none. */
 const ComponentsSchema = z

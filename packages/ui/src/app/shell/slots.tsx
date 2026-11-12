@@ -27,7 +27,7 @@ export interface SlotHost {
 
 export const SlotContext = createContext<SlotHost | null>(null);
 
-export function ShellSlot({ name, children, inline }: { name: SlotName; children: ReactNode; /** Shown in place (under this heading) while the person hides the slot. */ inline?: string }) {
+export function ShellSlot({ name, children, inline }: { name: SlotName; children: ReactNode /** Shown in place (under this heading) while the person hides the slot. */; inline?: string }) {
   const host = useContext(SlotContext);
   useEffect(() => host?.claim(name), [host, name]);
   if (inline !== undefined && host?.hidden?.[name]) {

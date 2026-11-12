@@ -217,7 +217,6 @@ export function verifyMinisign({ data, signatureB64, pubkeyB64, version }) {
   return s.trusted;
 }
 
-
 // ---- where it goes ------------------------------------------------------------------------------------------------
 
 /** `<owner>/<repo>` as GitHub names them (GITHUB_REPOSITORY); else a PublishError. */
@@ -257,7 +256,7 @@ export function feedUrl(version, location) {
 
 /** The environment's settings, checked: the token, the repository, both https addresses, the public key. */
 export function settings(env) {
-  if (!env.GITHUB_TOKEN?.trim()) throw new PublishError('GITHUB_TOKEN is not set (a token that may write the repository\'s releases: the workflow\'s job token, or `gh auth token` by hand)');
+  if (!env.GITHUB_TOKEN?.trim()) throw new PublishError("GITHUB_TOKEN is not set (a token that may write the repository's releases: the workflow's job token, or `gh auth token` by hand)");
   const location = feedLocation(env);
   if (!env.RETAKE_UPDATE_PUBKEY?.trim()) throw new PublishError('RETAKE_UPDATE_PUBKEY is not set (the public key the apps were built with: the signature is checked before anything is written)');
   return { token: env.GITHUB_TOKEN.trim(), ...location, api: checkUrl(env.GITHUB_API_URL?.trim() || GITHUB_API, 'GITHUB_API_URL'), pubkey: env.RETAKE_UPDATE_PUBKEY.trim() };
@@ -282,7 +281,8 @@ export function uploadOrigin(api) {
 export function uploadUrl(template, name, api) {
   const u = String(template ?? '').replace(/\{[^}]*\}$/, '');
   if (!u.startsWith('https://')) throw new PublishError(`the release's upload address is not https (${u.slice(0, 80)})`);
-  if (new URL(u).origin !== uploadOrigin(api)) throw new PublishError(`the release's upload address is not on ${uploadOrigin(api)}, the API's upload host (${new URL(u).origin}): refused — the token goes there`);
+  if (new URL(u).origin !== uploadOrigin(api))
+    throw new PublishError(`the release's upload address is not on ${uploadOrigin(api)}, the API's upload host (${new URL(u).origin}): refused — the token goes there`);
   return `${u}?name=${encodeURIComponent(name)}`;
 }
 
@@ -318,7 +318,17 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
  * may be sent again (GET, DELETE, PATCH: not an upload, not a creation) are, after a server error, a rate limit or a
  * network error, with a pause (`sleep`, RETRY_DELAYS_MS).
  */
-export function createGitHub({ token, api, repository, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS, uploadTimeoutMs = UPLOAD_TIMEOUT_MS, retryDelays = RETRY_DELAYS_MS, sleep = pause, log = () => {} }) {
+export function createGitHub({
+  token,
+  api,
+  repository,
+  fetchImpl = fetch,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+  uploadTimeoutMs = UPLOAD_TIMEOUT_MS,
+  retryDelays = RETRY_DELAYS_MS,
+  sleep = pause,
+  log = () => {},
+}) {
   const base = `${api}/repos/${repository}`;
   const common = { 'user-agent': 'retake-publish-update', 'x-github-api-version': '2022-11-28' };
   /** One request, tried again when `retry` and the answer (or its absence) says so; a PublishError when it cannot be sent. */
@@ -382,7 +392,12 @@ export function createGitHub({ token, api, repository, fetchImpl = fetch, timeou
     /** The file's text, at most JSON_MAX bytes. */
     async read(asset) {
       const what = `reading ${asset.name}`;
-      let res = await send(what, `${base}/releases/assets/${asset.id}`, { headers: { ...common, authorization: `Bearer ${token}`, accept: 'application/octet-stream' }, redirect: 'manual' }, { retry: true });
+      let res = await send(
+        what,
+        `${base}/releases/assets/${asset.id}`,
+        { headers: { ...common, authorization: `Bearer ${token}`, accept: 'application/octet-stream' }, redirect: 'manual' },
+        { retry: true },
+      );
       for (let hops = 0; res.status >= 300 && res.status < 400; hops++) {
         await res.body?.cancel().catch(() => {});
         if (hops === MAX_REDIRECTS) throw new PublishError(`${asset.name}: GitHub redirected its download more than ${MAX_REDIRECTS} times`);
@@ -402,7 +417,8 @@ export function createGitHub({ token, api, repository, fetchImpl = fetch, timeou
       return bytes.toString('utf8');
     },
     /** The new asset, or null on 422 (the name is taken). */
-    upload: (release, name, body, type) => call('POST', uploadUrl(release.upload_url, name, api), { body, type, allow: [422], timeout: Buffer.byteLength(body) > JSON_MAX ? uploadTimeoutMs : timeoutMs }),
+    upload: (release, name, body, type) =>
+      call('POST', uploadUrl(release.upload_url, name, api), { body, type, allow: [422], timeout: Buffer.byteLength(body) > JSON_MAX ? uploadTimeoutMs : timeoutMs }),
     remove: (asset) => call('DELETE', `${base}/releases/assets/${asset.id}`, { allow: [404] }),
     /** The renamed asset, or null on 422 (the name is taken — or GitHub's list was not up to date yet). */
     rename: (asset, name) => call('PATCH', `${base}/releases/assets/${asset.id}`, { json: { name }, allow: [422] }),
@@ -495,11 +511,19 @@ export async function replaceAsset(gh, release, name, body, run, { version, know
     const holder = (await gh.assets(release)).find((a) => a.name === name);
     const v = holder && (await newer(holder));
     if (v) return await keep(v);
-    if (holder) throw new PublishError(`could not replace ${where}: another publication keeps writing an older feed there (${tries} tries). This run's feed of ${version} is kept as ${release.tag_name}/${tmp}: ${rerun}`);
-    throw new PublishError(`could not rename ${release.tag_name}/${tmp} to ${name} (${tries} tries, the name refused though no file holds it): ${where} is MISSING — every app's check fails until it is back. This run's feed of ${version} is kept as ${release.tag_name}/${tmp}: ${rerun}`);
+    if (holder)
+      throw new PublishError(
+        `could not replace ${where}: another publication keeps writing an older feed there (${tries} tries). This run's feed of ${version} is kept as ${release.tag_name}/${tmp}: ${rerun}`,
+      );
+    throw new PublishError(
+      `could not rename ${release.tag_name}/${tmp} to ${name} (${tries} tries, the name refused though no file holds it): ${where} is MISSING — every app's check fails until it is back. This run's feed of ${version} is kept as ${release.tag_name}/${tmp}: ${rerun}`,
+    );
   } catch (e) {
     if (!(e instanceof PublishError) || /^could not (replace|rename) /.test(e.message)) throw e;
-    if (deleted) throw new PublishError(`${e.message} — while replacing ${where}: it may be MISSING (its old file was deleted, or being deleted) and every app's check fails until it is back. This run's feed of ${version} is kept as ${release.tag_name}/${tmp}: ${rerun}`);
+    if (deleted)
+      throw new PublishError(
+        `${e.message} — while replacing ${where}: it may be MISSING (its old file was deleted, or being deleted) and every app's check fails until it is back. This run's feed of ${version} is kept as ${release.tag_name}/${tmp}: ${rerun}`,
+      );
     throw new PublishError(`${e.message} — while replacing ${where} (left as it was; ${release.tag_name}/${tmp} goes at the next publication): re-run this publication`);
   }
 }
@@ -514,7 +538,7 @@ async function feedRelease(gh, log) {
   const created = await gh.createRelease({
     tag_name: FEED_TAG,
     name: 'Update feed',
-    body: 'What the installed Retake apps read to find updates: `latest.json` (stable versions) and `rc.json` (pre-releases too), replaced at every release. Nothing to download here: see the versions\' releases.',
+    body: "What the installed Retake apps read to find updates: `latest.json` (stable versions) and `rc.json` (pre-releases too), replaced at every release. Nothing to download here: see the versions' releases.",
     draft: false,
     prerelease: true,
     make_latest: 'false',
@@ -536,8 +560,11 @@ export function parseArgs(argv) {
   const out = { version, platforms: DEFAULT_PLATFORMS, artifact: null, signature: null, notes: null };
   for (let i = 0; i < rest.length; i++) {
     const v = rest[i + 1];
-    if (rest[i] === '--force') throw new PublishError('--force is gone: a public release\'s files are never replaced — a fixed build is a new version (node scripts/set-version.mjs, then tag it)');
-    if (rest[i] === '--platforms') out.platforms = String(v ?? '').split(',').filter(Boolean);
+    if (rest[i] === '--force') throw new PublishError("--force is gone: a public release's files are never replaced — a fixed build is a new version (node scripts/set-version.mjs, then tag it)");
+    if (rest[i] === '--platforms')
+      out.platforms = String(v ?? '')
+        .split(',')
+        .filter(Boolean);
     else if (rest[i] === '--artifact') out.artifact = v ?? null;
     else if (rest[i] === '--signature') out.signature = v ?? null;
     else if (rest[i] === '--notes') out.notes = v ?? null;
@@ -559,10 +586,14 @@ export async function publish({ args, env = process.env, fetchImpl = fetch, net 
   if (!args.artifact || !args.signature) throw new PublishError('--artifact and --signature are required');
   if (!args.platforms.length) throw new PublishError('--platforms names no platform');
   for (const p of args.platforms) if (!KNOWN_PLATFORMS.includes(p)) throw new PublishError(`unknown platform "${p}" (known: ${KNOWN_PLATFORMS.join(', ')})`);
-  for (const p of args.platforms) if (!SUPPORTED_PLATFORMS.includes(p)) throw new PublishError(`the archive is the macOS app on Apple silicon: it cannot be published for ${p} (only ${SUPPORTED_PLATFORMS.join(', ')} for now)`);
+  for (const p of args.platforms)
+    if (!SUPPORTED_PLATFORMS.includes(p)) throw new PublishError(`the archive is the macOS app on Apple silicon: it cannot be published for ${p} (only ${SUPPORTED_PLATFORMS.join(', ')} for now)`);
   const feed = env.RETAKE_UPDATE_FEED?.trim();
   const want = feedUrl(version, cfg);
-  if (feed && feed !== want) throw new PublishError(`RETAKE_UPDATE_FEED is ${feed}, but ${version} belongs to ${want} (a pre-release goes to rc.json, a stable version to latest.json): the apps built with that feed would never see it`);
+  if (feed && feed !== want)
+    throw new PublishError(
+      `RETAKE_UPDATE_FEED is ${feed}, but ${version} belongs to ${want} (a pre-release goes to rc.json, a stable version to latest.json): the apps built with that feed would never see it`,
+    );
   const data = readFileSync(args.artifact);
   if (data.length < 2 || data[0] !== 0x1f || data[1] !== 0x8b) throw new PublishError(`${args.artifact} is not a gzip archive (the app's .tar.gz)`);
   const sigBytes = readFileSync(args.signature);
@@ -591,7 +622,7 @@ export async function publish({ args, env = process.env, fetchImpl = fetch, net 
   const half = listed.filter((a) => !uploaded(a));
   const held = listed.filter(uploaded);
   const archive = held.find((a) => a.name === file);
-  const never = 'a public release\'s files are never replaced — a fixed build is a new version';
+  const never = "a public release's files are never replaced — a fixed build is a new version";
   if (archive && !sameBytes(archive, data)) throw new PublishError(`${tag}'s ${file} is not the archive checked here (${archive.size} bytes on the release, ${data.length} here): ${never}`);
   const sigAsset = held.find((a) => a.name === sigFile);
   if (sigAsset && !sameBytes(sigAsset, sigBytes)) throw new PublishError(`${tag}'s ${sigFile} is not the signature checked here: ${never}`);
@@ -691,7 +722,11 @@ export function frozen(channel, version, repository) {
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   try {
     const r = await publish({ args: parseArgs(process.argv.slice(2)), log: (m) => process.stdout.write(`${m}\n`) });
-    process.stdout.write(`feed: ${Object.keys(r.manifest.platforms).join(', ')} — ${Object.entries(r.channels).map(([c, s]) => `${c} ${s}`).join(', ')}\n`);
+    process.stdout.write(
+      `feed: ${Object.keys(r.manifest.platforms).join(', ')} — ${Object.entries(r.channels)
+        .map(([c, s]) => `${c} ${s}`)
+        .join(', ')}\n`,
+    );
   } catch (e) {
     process.stderr.write(`publish-update: ${e instanceof PublishError ? e.message : e.stack}\n`);
     process.exit(1);

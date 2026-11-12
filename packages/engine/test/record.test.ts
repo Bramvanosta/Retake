@@ -87,7 +87,8 @@ async function reset(): Promise<void> {
 /** Record with `drive` playing the person; the window closes after it. */
 async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, ports: Partial<RecordPorts> = {}): Promise<{ o: RecordOutcome; logs: string[] }> {
   const logs: string[] = [];
-  const o = await recordScenario(ws, await project(), req, { ...enginePorts(),
+  const o = await recordScenario(ws, await project(), req, {
+    ...enginePorts(),
     queue: new FileJobQueue(ws.root),
     headless: true,
     windowSize: { width: 1400, height: 1000 },
@@ -111,16 +112,18 @@ async function record(req: RecordRequest, drive: (page: Page) => Promise<void>, 
  * the windows it opened.
  */
 let memoryWindows = 0;
-async function recordInMemory(
-  req: RecordRequest,
-  m: MemoryRecordOptions & { sessions?: MemorySessionsOptions } = {},
-  ports: Partial<RecordPorts> = {},
-): Promise<{ o: RecordOutcome; logs: string[] }> {
+async function recordInMemory(req: RecordRequest, m: MemoryRecordOptions & { sessions?: MemorySessionsOptions } = {}, ports: Partial<RecordPorts> = {}): Promise<{ o: RecordOutcome; logs: string[] }> {
   const logs: string[] = [];
   const window = memoryRecord({ events: oneButtonPress({ pageKey: 'shop', button: 'Request a quote' }), ...m });
   const capture = new MemoryCaptureRunner({ sessions: new MemorySessions(m.sessions), record: async (o) => (memoryWindows++, window(o)) });
   // `drive` stands for the person (no display needed); the in-memory window never reads it.
-  const o = await recordScenario(ws, await project(), req, { ...enginePorts({ capture }), queue: new FileJobQueue(ws.root), drive: async () => undefined, log: (l, msg) => logs.push(`${l} ${msg}`), ...ports });
+  const o = await recordScenario(ws, await project(), req, {
+    ...enginePorts({ capture }),
+    queue: new FileJobQueue(ws.root),
+    drive: async () => undefined,
+    log: (l, msg) => logs.push(`${l} ${msg}`),
+    ...ports,
+  });
   return { o, logs };
 }
 
@@ -186,13 +189,21 @@ async function catalogueFlow(page: Page): Promise<void> {
   // The address bar: a new scene that opens its page.
   await page.goto(new URL('/availability/products/finca-lirandel-geisha', page.url()).href);
   await page.waitForTimeout(800);
-  await page.getByRole('row', { name: /Iceland/ }).getByRole('button').last().click();
+  await page
+    .getByRole('row', { name: /Iceland/ })
+    .getByRole('button')
+    .last()
+    .click();
   await page.waitForTimeout(400);
   await page.getByRole('menuitem', { name: 'Pause' }).click();
   await page.waitForTimeout(400);
   await page.getByRole('alertdialog').getByRole('button', { name: 'Pause' }).click();
   await page.waitForTimeout(500);
-  await page.getByRole('row', { name: /Sweden/ }).getByRole('button').last().click();
+  await page
+    .getByRole('row', { name: /Sweden/ })
+    .getByRole('button')
+    .last()
+    .click();
   await page.waitForTimeout(400);
   await page.getByRole('menuitem', { name: 'Edit' }).click();
   await page.waitForTimeout(500);
@@ -295,7 +306,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
     await page.getByRole('button', { name: 'Request a quote' }).waitFor();
   };
 
-  it('a taken name: the draft is kept in the recording\'s folder, never saved over the scenario; the check still runs', async () => {
+  it("a taken name: the draft is kept in the recording's folder, never saved over the scenario; the check still runs", async () => {
     const p = await project();
     const before = await readFile(join(p.dir, 'scenarios', 'quote.yaml'), 'utf8');
     const { o } = await record({ page: 'shop', name: 'quote' }, oneClick);
@@ -361,7 +372,7 @@ describe('recordScenario: names, stop, cancel, limits', () => {
 });
 
 describe('recordScenario: access, sign-in, secrets', () => {
-  it('a read-only environment: the window\'s writes are answered by a mock, noted on their step; the whole draft is checked', async () => {
+  it("a read-only environment: the window's writes are answered by a mock, noted on their step; the whole draft is checked", async () => {
     const { o } = await record({ env: 'production', page: 'shop', path: '/record-lab', name: 'bell' }, async (page) => {
       await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
       await page.getByRole('button', { name: 'Mark notifications read' }).click();
@@ -405,7 +416,12 @@ describe('recordScenario: access, sign-in, secrets', () => {
     const sessions = new MemorySessions({ checks: { buyer: { status: 'expired', detail: 'shop:/account landed on the sign-in page', ms: 0 } } });
     const capture = new MemoryCaptureRunner({ sessions, record: memoryRecord({ events: oneButtonPress({ pageKey: 'shop', button: 'Request a quote' }) }) });
     const logs: string[] = [];
-    const o = await recordScenario(ws, await project(), { env: 'signed-in', page: 'shop', check: false }, { ...enginePorts({ capture }), queue: new FileJobQueue(ws.root), drive: async () => undefined, log: (l, m) => logs.push(`${l} ${m}`) });
+    const o = await recordScenario(
+      ws,
+      await project(),
+      { env: 'signed-in', page: 'shop', check: false },
+      { ...enginePorts({ capture }), queue: new FileJobQueue(ws.root), drive: async () => undefined, log: (l, m) => logs.push(`${l} ${m}`) },
+    );
     expect(sessions.calls).toEqual([
       { member: 'check', persona: 'buyer' },
       { member: 'signIn', persona: 'buyer', mode: 'auto' },

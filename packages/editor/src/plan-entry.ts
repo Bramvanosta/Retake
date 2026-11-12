@@ -16,7 +16,19 @@ export type { PlanEditInput, PlanInputFile } from './planner/input.js';
 export { CLEAR_LOOKAHEAD_S, CONTIGUOUS_GAP_S, DEFAULT_ZOOM, MUSIC_DEFAULTS, REFRAME_CLICK_WINDOW_S } from './planner/rules.js';
 export { markDoneAt, reframeTargets } from './planner/targets.js';
 export { musicFile, musicPlays, musicSpecOf } from './planner/music.js';
-export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planBadgeNumbers, planClipTutorial, planProgress, stepNavigates, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
+export {
+  TRACK_GLIDE_S,
+  TUTORIAL_TIMING,
+  eventClicks,
+  loupeRegion,
+  planBadgeNumbers,
+  planClipTutorial,
+  planProgress,
+  stepNavigates,
+  tutorialReframeTargets,
+  tutorialRequested,
+  tutorialStateOf,
+} from './tutorial.js';
 export {
   DEFAULT_IDLE_THRESHOLD_S,
   IDLE_KEEP_S,
@@ -62,7 +74,35 @@ export { withPlan } from './render-record.js';
 export type { FinishedRender, NamedRender, RenderAttempt, RenderRecord, StoredRender } from './render-record.js';
 // The frame geometry of src/remotion/frames.ts is renderer-free (no React, no Remotion): the compositions draw with it,
 // the review checks frames with it.
-export { OVERLAY_BOX_MARGIN, brandmarkRect, captionBandOver, drawnOverlayBox, duckSpans, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayBoxAt, overlayRects, overlayTargets, plateOf, playsSound, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, standInTransition, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
+export {
+  OVERLAY_BOX_MARGIN,
+  brandmarkRect,
+  captionBandOver,
+  drawnOverlayBox,
+  duckSpans,
+  insetHole,
+  layoutRects,
+  loupePlacement,
+  mapUseRect,
+  overlayAvoid,
+  overlayBoxAt,
+  overlayRects,
+  overlayTargets,
+  plateOf,
+  playsSound,
+  shortcutRow,
+  shortcutSlot,
+  musicPlayGain,
+  musicVolumeAt,
+  srcFrameAt,
+  standInTransition,
+  staysInInset,
+  trackBoxAt,
+  trackKeysAt,
+  transitionWindows,
+  urlAt,
+  useScreen,
+} from './remotion/frames.js';
 export type { TransitionWindow } from './remotion/frames.js';
 export {
   ACTING_EASE_S,

@@ -106,10 +106,7 @@ export interface ServeOptions extends WireOptions {
  * when the client declared it), and the calls still running.
  */
 function wireServer(o: WireOptions): { server: Server; inFlight: Set<Promise<unknown>> } {
-  const server = new Server(
-    { name: o.name, version: o.version },
-    { capabilities: { tools: { listChanged: false }, logging: {} }, instructions: o.instructions },
-  );
+  const server = new Server({ name: o.name, version: o.version }, { capabilities: { tools: { listChanged: false }, logging: {} }, instructions: o.instructions });
   const byName = new Map(o.tools.map((t) => [t.name, t]));
   /** Calls still running: the end of the input waits for their answers before closing. */
   const inFlight = new Set<Promise<unknown>>();
@@ -133,13 +130,19 @@ function wireServer(o: WireOptions): { server: Server; inFlight: Set<Promise<unk
         ? undefined
         : progressReporter((p) => {
             void extra
-              .sendNotification({ method: 'notifications/progress', params: { progressToken: token, progress: p.progress, ...(p.total !== undefined ? { total: p.total } : {}), ...(p.message ? { message: p.message } : {}) } })
+              .sendNotification({
+                method: 'notifications/progress',
+                params: { progressToken: token, progress: p.progress, ...(p.total !== undefined ? { total: p.total } : {}), ...(p.message ? { message: p.message } : {}) },
+              })
               .catch(() => undefined);
           });
     // Form elicitation, when the client declared it (`elicitation: {}` is normalised to `{form: {}}` by the SDK).
     const elicit = server.getClientCapabilities()?.elicitation?.form
       ? async (form: ElicitForm, eo: { timeoutMs: number }): Promise<ElicitAnswer> => {
-          const r = await server.elicitInput({ mode: 'form', message: form.message, requestedSchema: form.requestedSchema as never }, { relatedRequestId: extra.requestId, timeout: eo.timeoutMs, signal: extra.signal });
+          const r = await server.elicitInput(
+            { mode: 'form', message: form.message, requestedSchema: form.requestedSchema as never },
+            { relatedRequestId: extra.requestId, timeout: eo.timeoutMs, signal: extra.signal },
+          );
           return { action: r.action, ...(r.content ? { content: r.content as Record<string, unknown> } : {}) };
         }
       : undefined;
@@ -240,10 +243,13 @@ export function mcpHttpHandler(o: HttpHandlerOptions): McpHttpHandler {
   const idleMs = o.idleMs ?? MCP_HTTP_IDLE_MS;
   let evicted = 0;
   const unused = (s: Session) => s.inFlight.size === 0 && s.streams === 0;
-  const sweep = setInterval(() => {
-    const now = Date.now();
-    for (const s of sessions.values()) if (unused(s) && now - s.seen > idleMs) void s.transport.close().catch(() => undefined);
-  }, Math.min(60_000, Math.max(1000, Math.floor(idleMs / 2))));
+  const sweep = setInterval(
+    () => {
+      const now = Date.now();
+      for (const s of sessions.values()) if (unused(s) && now - s.seen > idleMs) void s.transport.close().catch(() => undefined);
+    },
+    Math.min(60_000, Math.max(1000, Math.floor(idleMs / 2))),
+  );
   sweep.unref();
   /** Close the least recently seen session not in use; false when every session is in use. */
   const evictOne = (): boolean => {
@@ -278,7 +284,8 @@ export function mcpHttpHandler(o: HttpHandlerOptions): McpHttpHandler {
         return s.transport.handleRequest(req, res, body);
       }
       if (req.method !== 'POST' || !isInitializeRequest(body)) return rpcError(res, 400, -32000, 'no session: send initialize first (without an Mcp-Session-Id header)');
-      if (sessions.size >= max && !evictOne()) return rpcError(res, 503, -32000, `this server holds ${max} sessions, each running a call or holding its event stream: close one (DELETE) or try again later`);
+      if (sessions.size >= max && !evictOne())
+        return rpcError(res, 503, -32000, `this server holds ${max} sessions, each running a call or holding its event stream: close one (DELETE) or try again later`);
       const { server, inFlight } = wireServer(o);
       let entry: Session | undefined;
       const transport = new StreamableHTTPServerTransport({

@@ -25,8 +25,22 @@ const thread = (entries: unknown[] = []) => ({
   anchor: { segment: 's1', kind: 'clip' },
   entries,
 });
-const proposal = (o: Record<string, unknown> = {}) => ({ base_sha256: H('a'), result_sha256: H('b'), eol: 'lf', delta: 'edit', hunks: [{ at: 3, del: ['    caption: A very long caption'], add: ['    caption: Short'] }], ...o });
-const reply = (n: number, extra: Record<string, unknown> = {}) => ({ id: `r_01JABCDEFGHJKMNPQRSTVWXYZ${n}`, kind: 'reply', author: { via: 'mcp', name: 'agent' }, text: 'Shorter caption proposed.', created_at: T0, ...extra });
+const proposal = (o: Record<string, unknown> = {}) => ({
+  base_sha256: H('a'),
+  result_sha256: H('b'),
+  eol: 'lf',
+  delta: 'edit',
+  hunks: [{ at: 3, del: ['    caption: A very long caption'], add: ['    caption: Short'] }],
+  ...o,
+});
+const reply = (n: number, extra: Record<string, unknown> = {}) => ({
+  id: `r_01JABCDEFGHJKMNPQRSTVWXYZ${n}`,
+  kind: 'reply',
+  author: { via: 'mcp', name: 'agent' },
+  text: 'Shorter caption proposed.',
+  created_at: T0,
+  ...extra,
+});
 const apply = (n: number, applies: number, extra: Record<string, unknown> = {}) => ({
   id: `r_01JABCDEFGHJKMNPQRSTVWXYZ${n}`,
   kind: 'apply',
@@ -68,11 +82,32 @@ describe('the thread schema in L4.6 (T2)', () => {
     const p = (o: Record<string, unknown>) => ok(thread([reply(1, { proposal: proposal(o) })]));
     expect(p({})).toBe(true);
     expect(p({ hunks: [] })).toBe(false);
-    expect(p({ hunks: [{ at: 4, del: ['d'], add: ['D'] }, { at: 2, del: ['b'], add: ['B'] }] })).toBe(false);
-    expect(p({ hunks: [{ at: 2, del: ['b'], add: ['B'] }, { at: 3, del: ['c'], add: ['C'] }] })).toBe(false);
+    expect(
+      p({
+        hunks: [
+          { at: 4, del: ['d'], add: ['D'] },
+          { at: 2, del: ['b'], add: ['B'] },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      p({
+        hunks: [
+          { at: 2, del: ['b'], add: ['B'] },
+          { at: 3, del: ['c'], add: ['C'] },
+        ],
+      }),
+    ).toBe(false);
     expect(p({ hunks: [{ at: 2, del: [], add: [] }] })).toBe(false);
     expect(p({ hunks: [{ at: 0, del: [], add: ['x'] }] })).toBe(false);
-    expect(p({ hunks: [{ at: 2, del: ['b'], add: ['B'] }, { at: 4, del: ['d'], add: ['D'] }] })).toBe(true);
+    expect(
+      p({
+        hunks: [
+          { at: 2, del: ['b'], add: ['B'] },
+          { at: 4, del: ['d'], add: ['D'] },
+        ],
+      }),
+    ).toBe(true);
     expect(p({ result_sha256: H('a') })).toBe(false);
     expect(p({ delta: 'filmed' })).toBe(false);
     expect(p({ eol: 'cr' })).toBe(false);

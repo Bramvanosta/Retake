@@ -141,7 +141,13 @@ async function readFiles(dir: string, o: ReadFileOptions & { whole?: boolean; ti
   if ((o.timeline && !o.timeline(record)) || (o.filmFirst && !(await mayHoldFilm(fs, dir)))) {
     // Not opened: said to be there or not, and a link or not (a folder with neither file is no run folder at all).
     const kind = await kindOf(fs, join(dir, 'timeline.json'), false);
-    return { record, timeline: { ok: false, problem: kind === 'missing' ? 'missing' : 'not-read' }, film: await kindOf(fs, join(dir, DEFAULT_FILM), false), recordLink: rec.link, timelineLink: kind === 'link' };
+    return {
+      record,
+      timeline: { ok: false, problem: kind === 'missing' ? 'missing' : 'not-read' },
+      film: await kindOf(fs, join(dir, DEFAULT_FILM), false),
+      recordLink: rec.link,
+      timelineLink: kind === 'link',
+    };
   }
   const tl = await readJsonFile(join(dir, 'timeline.json'), TIMELINE_MAX, o);
   const timeline: Read<TimelineHead> = 'problem' in tl ? tl.problem : parseTimelineHead(tl.value);

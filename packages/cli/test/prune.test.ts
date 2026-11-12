@@ -30,7 +30,22 @@ beforeAll(async () => {
   await writeFile(join(old, 'capture.mp4'), Buffer.alloc(2_000_000));
   await writeFile(
     join(old, 'run.json'),
-    JSON.stringify({ id: '20261015-090000-catalogue', project: 'northfield-fixture', scenario: 'catalogue', mode: 'capture', status: 'succeeded', started_at: '2026-10-15T07:00:00.000Z', dir: old, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }),
+    JSON.stringify({
+      id: '20261015-090000-catalogue',
+      project: 'northfield-fixture',
+      scenario: 'catalogue',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: '2026-10-15T07:00:00.000Z',
+      dir: old,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+    }),
   );
 });
 
@@ -51,7 +66,25 @@ describe('retake prune', () => {
     const engine = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
     const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'quote', mode: 'dry' });
     await mkdir(join(runs, sub.run_id), { recursive: true });
-    await writeFile(join(runs, sub.run_id, 'run.json'), JSON.stringify({ id: sub.run_id, project: 'northfield-fixture', scenario: 'quote', mode: 'dry', status: 'failed', started_at: '2026-10-26T10:00:00.000Z', dir: join(runs, sub.run_id), env: 'local', options: { hooks: 'skip', headed: false }, steps_total: 1, steps_done: 0, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+    await writeFile(
+      join(runs, sub.run_id, 'run.json'),
+      JSON.stringify({
+        id: sub.run_id,
+        project: 'northfield-fixture',
+        scenario: 'quote',
+        mode: 'dry',
+        status: 'failed',
+        started_at: '2026-10-26T10:00:00.000Z',
+        dir: join(runs, sub.run_id),
+        env: 'local',
+        options: { hooks: 'skip', headed: false },
+        steps_total: 1,
+        steps_done: 0,
+        screenshots: [],
+        hooks: { setup: 'none', teardown: 'none' },
+        warnings: [],
+      }),
+    );
     const json = JSON.parse((await retake('prune', 'northfield-fixture', '--json')).out) as { items: Array<{ id: string }>; dry_run: boolean };
     expect(json.dry_run).toBe(true);
     expect(json.items.map((i) => i.id)).not.toContain(sub.run_id);
@@ -71,7 +104,25 @@ describe('retake prune', () => {
     const project = join(ws, 'projects', 'northfield-fixture');
     const dry = join(runs, '20261018-090000-quote');
     await mkdir(dry, { recursive: true });
-    await writeFile(join(dry, 'run.json'), JSON.stringify({ id: '20261018-090000-quote', project: 'northfield-fixture', scenario: 'quote', mode: 'dry', status: 'succeeded', started_at: '2026-10-18T07:00:00.000Z', dir: dry, env: 'local', options: { hooks: 'skip', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+    await writeFile(
+      join(dry, 'run.json'),
+      JSON.stringify({
+        id: '20261018-090000-quote',
+        project: 'northfield-fixture',
+        scenario: 'quote',
+        mode: 'dry',
+        status: 'succeeded',
+        started_at: '2026-10-18T07:00:00.000Z',
+        dir: dry,
+        env: 'local',
+        options: { hooks: 'skip', headed: false },
+        steps_total: 1,
+        steps_done: 1,
+        screenshots: [],
+        hooks: { setup: 'none', teardown: 'none' },
+        warnings: [],
+      }),
+    );
     expect((await retake('prune', 'northfield-fixture')).err).toMatch(/would delete +run +20261018-090000-quote +dry run/);
     // A thread file of quote that is not JSON: the dry run of quote stays.
     await mkdir(join(project, 'comments', 'quote'), { recursive: true });
@@ -84,7 +135,25 @@ describe('retake prune', () => {
     // With something else to prune (an older capture of catalogue): listed, and the warning still shown; --yes keeps quote's.
     const old = join(runs, '20261014-090000-catalogue');
     await mkdir(old, { recursive: true });
-    await writeFile(join(old, 'run.json'), JSON.stringify({ id: '20261014-090000-catalogue', project: 'northfield-fixture', scenario: 'catalogue', mode: 'capture', status: 'succeeded', started_at: '2026-10-14T07:00:00.000Z', dir: old, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }));
+    await writeFile(
+      join(old, 'run.json'),
+      JSON.stringify({
+        id: '20261014-090000-catalogue',
+        project: 'northfield-fixture',
+        scenario: 'catalogue',
+        mode: 'capture',
+        status: 'succeeded',
+        started_at: '2026-10-14T07:00:00.000Z',
+        dir: old,
+        env: 'local',
+        options: { hooks: 'run', headed: false },
+        steps_total: 1,
+        steps_done: 1,
+        screenshots: [],
+        hooks: { setup: 'ok', teardown: 'ok' },
+        warnings: [],
+      }),
+    );
     const some = await retake('prune', 'northfield-fixture');
     expect(some.err).toMatch(/would delete +run +20261014-090000-catalogue/);
     expect(some.err).not.toMatch(/20261018-090000-quote/);

@@ -51,10 +51,23 @@ export function frameOfColour([r, g, b]: [number, number, number]): number {
 /** A 320×180 CFR capture of `seconds` whose frame n is a solid frameColour(n). */
 export function makeColourCapture(file: string, seconds = CAPTURE_SECONDS, fps = CAPTURE_FPS): void {
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y',
-    '-f', 'lavfi', '-i', `color=c=black:s=320x180:r=${fps}:d=${seconds}`,
-    '-vf', "geq=r='16+40*mod(N\\,6)':g='16+40*mod(floor(N/6)\\,6)':b='16+40*floor(N/36)'",
-    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-g', '30', '-crf', '12',
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=black:s=320x180:r=${fps}:d=${seconds}`,
+    '-vf',
+    "geq=r='16+40*mod(N\\,6)':g='16+40*mod(floor(N/6)\\,6)':b='16+40*floor(N/36)'",
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    '-g',
+    '30',
+    '-crf',
+    '12',
     file,
   ]);
 }
@@ -62,9 +75,21 @@ export function makeColourCapture(file: string, seconds = CAPTURE_SECONDS, fps =
 /** RGB of pixel (x, y) of frame `frame` of a video (or of a PNG with frame 0). */
 export function pixelAt(file: string, frame: number, x: number, y: number): [number, number, number] {
   const out = execFileSync('ffmpeg', [
-    '-v', 'error', '-i', file,
-    '-vf', `select=eq(n\\,${frame}),format=rgb24,crop=1:1:${Math.round(x)}:${Math.round(y)}`,
-    '-fps_mode', 'passthrough', '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+    '-v',
+    'error',
+    '-i',
+    file,
+    '-vf',
+    `select=eq(n\\,${frame}),format=rgb24,crop=1:1:${Math.round(x)}:${Math.round(y)}`,
+    '-fps_mode',
+    'passthrough',
+    '-frames:v',
+    '1',
+    '-f',
+    'rawvideo',
+    '-pix_fmt',
+    'rgb24',
+    '-',
   ]);
   return [out[0], out[1], out[2]];
 }

@@ -64,7 +64,9 @@ function codeOf(e: unknown): string {
 
 /** The first line of what was thrown, for a `detail`. */
 function saidBy(e: unknown): string {
-  return String((e as Error)?.message ?? e).split('\n')[0].slice(0, 200);
+  return String((e as Error)?.message ?? e)
+    .split('\n')[0]
+    .slice(0, 200);
 }
 
 /**
@@ -78,7 +80,8 @@ export function rewritePreStitcher(info: { type: 'pre-stitcher' | 'stitcher'; ar
   const args = info.args;
   if (!readsImagePipe(args)) throw new EncodeToolsError('the frame encode does not read the image pipe (-f image2pipe): not a command this version knows');
   const at = args.reduce<number[]>((all, a, i) => (a === '-vf' || a === '-filter:v' || a === '-filter_complex' || a === '-lavfi' ? [...all, i] : all), []);
-  if (at.length !== 1 || args[at[0]] !== '-vf') throw new EncodeToolsError(`the frame encode has ${at.length === 0 ? 'no filter' : 'filters this version does not know'}: not a command this version knows`);
+  if (at.length !== 1 || args[at[0]] !== '-vf')
+    throw new EncodeToolsError(`the frame encode has ${at.length === 0 ? 'no filter' : 'filters this version does not know'}: not a command this version knows`);
   const value = args[at[0] + 1];
   if (value !== LIBRARY_FRAME_FILTER) throw new EncodeToolsError(`the frame encode's filter is "${String(value).slice(0, 120)}": not the one this version knows`);
   const out = [...args];
@@ -159,21 +162,21 @@ function scriptable(path: string): boolean {
  */
 export async function ownFfmpeg(o: { resolve: () => string; compositorDir: string; platform?: NodeJS.Platform }): Promise<OwnFfmpeg> {
   // The dispatcher is a /bin/sh script and the routing was measured on macOS only.
-  if ((o.platform ?? process.platform) !== 'darwin') return { ok: false, reason: 'this machine\'s ffmpeg encodes renders on macOS only' };
+  if ((o.platform ?? process.platform) !== 'darwin') return { ok: false, reason: "this machine's ffmpeg encodes renders on macOS only" };
   let path: string;
   try {
     path = o.resolve();
   } catch (e) {
-    return { ok: false, reason: 'this machine\'s ffmpeg may not be started for this work', detail: saidBy(e) };
+    return { ok: false, reason: "this machine's ffmpeg may not be started for this work", detail: saidBy(e) };
   }
   if (!isAbsolute(path)) return { ok: false, reason: 'no ffmpeg found on this machine' };
   try {
     path = realpathSync(path);
   } catch {
-    return { ok: false, reason: 'this machine\'s ffmpeg is not a file that can be read' };
+    return { ok: false, reason: "this machine's ffmpeg is not a file that can be read" };
   }
-  if (!scriptable(path)) return { ok: false, reason: 'the path of this machine\'s ffmpeg holds a quote or a control character' };
-  if (same(path, join(o.compositorDir, 'ffmpeg'))) return { ok: false, reason: 'this machine\'s ffmpeg is the rendering library\'s own' };
+  if (!scriptable(path)) return { ok: false, reason: "the path of this machine's ffmpeg holds a quote or a control character" };
+  if (same(path, join(o.compositorDir, 'ffmpeg'))) return { ok: false, reason: "this machine's ffmpeg is the rendering library's own" };
   const id = fileId(path);
   let p = facts.get(id);
   if (!p) {
@@ -216,7 +219,10 @@ function same(a: string, b: string): boolean {
 
 /** The first line ffmpeg said of an error. */
 function firstError(stderr: string, code: number | null): string {
-  const line = stderr.split('\n').map((l) => l.trim()).find((l) => l && !/^Try\b/.test(l));
+  const line = stderr
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l && !/^Try\b/.test(l));
   return (line ?? `exit ${code ?? '?'}`).slice(0, 200);
 }
 
@@ -227,19 +233,63 @@ function firstError(stderr: string, code: number | null): string {
  */
 export function frameEncodeProbeArgs(s: { width: number; height: number; fps: number }, codec: readonly string[]): string[] {
   return [
-    '-hide_banner', '-loglevel', 'error',
-    '-r', String(s.fps), '-f', 'image2pipe', '-s', `${s.width}x${s.height}`, '-vcodec', 'mjpeg', '-i', '-',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-r',
+    String(s.fps),
+    '-f',
+    'image2pipe',
+    '-s',
+    `${s.width}x${s.height}`,
+    '-vcodec',
+    'mjpeg',
+    '-i',
+    '-',
     ...codec,
-    '-pix_fmt', 'yuv420p', '-video_track_timescale', '90000',
-    '-colorspace:v', 'bt709', '-color_primaries:v', 'bt709', '-color_trc:v', 'bt709', '-color_range', 'tv',
-    '-vf', OWN_FRAME_FILTER,
-    '-f', 'null', '-',
+    '-pix_fmt',
+    'yuv420p',
+    '-video_track_timescale',
+    '90000',
+    '-colorspace:v',
+    'bt709',
+    '-color_primaries:v',
+    'bt709',
+    '-color_trc:v',
+    'bt709',
+    '-color_range',
+    'tv',
+    '-vf',
+    OWN_FRAME_FILTER,
+    '-f',
+    'null',
+    '-',
   ];
 }
 
 /** The arguments that make the probe's three JPEG frames (pure): a flat full-range picture at the render's size, on the pipe. */
 export function probeFramesArgs(s: { width: number; height: number; fps: number }): string[] {
-  return ['-hide_banner', '-loglevel', 'error', '-nostdin', '-f', 'lavfi', '-i', `color=c=gray:s=${s.width}x${s.height}:r=${s.fps}`, '-frames:v', '3', '-c:v', 'mjpeg', '-q:v', '2', '-pix_fmt', 'yuvj420p', '-f', 'image2pipe', '-'];
+  return [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-nostdin',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=gray:s=${s.width}x${s.height}:r=${s.fps}`,
+    '-frames:v',
+    '3',
+    '-c:v',
+    'mjpeg',
+    '-q:v',
+    '2',
+    '-pix_fmt',
+    'yuvj420p',
+    '-f',
+    'image2pipe',
+    '-',
+  ];
 }
 
 /**
@@ -261,8 +311,8 @@ export function dispatcherScript(compositorDir: string, ffmpegPath: string): str
   if (!scriptable(compositorDir) || !scriptable(ffmpegPath)) throw new EncodeToolsError('a path of the encode tools holds a quote or a control character');
   return [
     '#!/bin/sh',
-    '# Retake encode tools (generated; made again when it differs). The frames of a render go to this machine\'s ffmpeg,',
-    '# every other call to the rendering library\'s own, started as the library starts it.',
+    "# Retake encode tools (generated; made again when it differs). The frames of a render go to this machine's ffmpeg,",
+    "# every other call to the rendering library's own, started as the library starts it.",
     'p=',
     'for a in "$@"; do',
     `  if [ "$p" = "-f" ] && [ "$a" = "image2pipe" ]; then unset DYLD_LIBRARY_PATH; exec '${ffmpegPath}' "$@"; fi`,
@@ -282,7 +332,10 @@ export function linkedEntries(compositorEntries: readonly string[]): string[] {
 
 /** The folder's name (pure): what it holds — the script, with both paths in it, and the names it links. */
 export function encodeFolderName(script: string, links: readonly string[]): string {
-  return createHash('sha256').update([script, ...links].join('\0')).digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update([script, ...links].join('\0'))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 /** This person's own (where the system says who owns a file). */
@@ -370,7 +423,8 @@ export function encodeFolder(o: { home: string; compositorDir: string; ffmpegPat
   } catch (e) {
     throw new EncodeToolsError(`the rendering library's programs cannot be listed (${codeOf(e)})`, saidBy(e));
   }
-  if (!links.includes('remotion') || !links.includes('ffprobe') || !existsSync(join(o.compositorDir, 'ffmpeg'))) throw new EncodeToolsError('the rendering library\'s folder does not hold its programs');
+  if (!links.includes('remotion') || !links.includes('ffprobe') || !existsSync(join(o.compositorDir, 'ffmpeg')))
+    throw new EncodeToolsError("the rendering library's folder does not hold its programs");
   const parent = join(o.home, ENCODE_TOOLS_DIR);
   const dir = join(parent, encodeFolderName(script, links));
   const right = (at: string = dir) => folderIsRight(at, links, o.compositorDir, script);

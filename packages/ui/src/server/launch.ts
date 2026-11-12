@@ -151,6 +151,9 @@ export async function launchStudio(o: StudioServerOptions): Promise<Launched> {
   }
   const close = server.close;
   let released: Promise<void> | undefined;
-  server.close = () => (released ??= close().then(() => releaseStudioToken(tokenFile, token)).then(() => releaseDiscovery(file, record)));
+  server.close = () =>
+    (released ??= close()
+      .then(() => releaseStudioToken(tokenFile, token))
+      .then(() => releaseDiscovery(file, record)));
   return { reused: false, server, url: server.launchUrl(), port: server.port, pid: me.pid, file, player: server.player.origin };
 }

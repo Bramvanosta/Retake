@@ -183,7 +183,16 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
         )}
       </div>
       <div className="sp-live-box" data-state={state}>
-        <canvas ref={canvas} width={W} height={H} className="sp-live-canvas" role="img" aria-label="Live picture of the page the run is acting on (not recorded)" data-testid="live-canvas" hidden={!on} />
+        <canvas
+          ref={canvas}
+          width={W}
+          height={H}
+          className="sp-live-canvas"
+          role="img"
+          aria-label="Live picture of the page the run is acting on (not recorded)"
+          data-testid="live-canvas"
+          hidden={!on}
+        />
         {live && (
           <span className="sp-live-mark">
             <StatusMark state="recording" word="Live" />
@@ -202,7 +211,13 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
         )}
       </div>
       <p className="sc-quiet" data-testid="picture-help">
-        {shown(live ? STATE_WORDS.live : capture ? 'A capture shows its live picture only when asked: drawing it costs Chromium CPU during the take.' : 'A rehearsal shows its live picture by default; hiding it stops the picture, not the run.')}{' '}
+        {shown(
+          live
+            ? STATE_WORDS.live
+            : capture
+              ? 'A capture shows its live picture only when asked: drawing it costs Chromium CPU during the take.'
+              : 'A rehearsal shows its live picture by default; hiding it stops the picture, not the run.',
+        )}{' '}
         The picture stops while this tab is hidden.
       </p>
     </section>

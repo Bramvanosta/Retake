@@ -62,15 +62,19 @@ export async function exportInProcess(o: OnRenderer<ExportRenderOptions> & { pro
 export async function runInProcess(p: PreparedRun, req: RunRequest, opts: ExecuteRunOptions & { clock: Clock }, ports: RunPorts): Promise<RunRecord> {
   const { clock, ...run } = opts;
   const record = await executeRun(p, req, run, ports);
-  await appendHistory(p.ws.root, {
-    kind: 'run',
-    project: p.project.slug,
-    submitted_by: IN_PROCESS,
-    state: record.status === 'cancelled' ? 'cancelled' : 'succeeded',
-    ...(record.finished_at ? { at: record.finished_at, ms: Date.parse(record.finished_at) - Date.parse(record.started_at) } : {}),
-    run: { id: record.id, scenario: record.scenario, mode: record.mode, status: record.status },
-    counted: runCounted(record.mode, record.status),
-  }, clock);
+  await appendHistory(
+    p.ws.root,
+    {
+      kind: 'run',
+      project: p.project.slug,
+      submitted_by: IN_PROCESS,
+      state: record.status === 'cancelled' ? 'cancelled' : 'succeeded',
+      ...(record.finished_at ? { at: record.finished_at, ms: Date.parse(record.finished_at) - Date.parse(record.started_at) } : {}),
+      run: { id: record.id, scenario: record.scenario, mode: record.mode, status: record.status },
+      counted: runCounted(record.mode, record.status),
+    },
+    clock,
+  );
   return record;
 }
 
@@ -86,14 +90,18 @@ export async function inspectInProcess(o: InspectionOptions & { root: string; cl
   const run = await runInspection(inspection);
   if (pruneUnlessOpenIn) await pruneInspections(project, INSPECT_KEEP, [o.id], pruneUnlessOpenIn);
   const r = run.report;
-  await appendHistory(root, {
-    kind: 'inspect',
-    project: project.slug,
-    submitted_by: IN_PROCESS,
-    state: run.record.status === 'cancelled' ? 'cancelled' : 'succeeded',
-    ms: Date.now() - started,
-    inspect: { id: o.id, source: o.prepared.source.kind, status: r ? r.status : 'failed', reported: r !== null },
-    counted: rendered(0),
-  }, clock);
+  await appendHistory(
+    root,
+    {
+      kind: 'inspect',
+      project: project.slug,
+      submitted_by: IN_PROCESS,
+      state: run.record.status === 'cancelled' ? 'cancelled' : 'succeeded',
+      ms: Date.now() - started,
+      inspect: { id: o.id, source: o.prepared.source.kind, status: r ? r.status : 'failed', reported: r !== null },
+      counted: rendered(0),
+    },
+    clock,
+  );
   return run;
 }

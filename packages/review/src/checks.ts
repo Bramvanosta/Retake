@@ -9,7 +9,24 @@ import type { DisplayEntry } from '@retake/core/environment';
 import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
 import { BUTTON_LABEL_MIN, CAPTION_BAND_PAD_X, buttonColors, captionBandBox, captionMaxLines, fitText, insetPhoneEdge } from '@retake/components/geometry';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@retake/components/geometry';
-import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@retake/editor/plan';
+import {
+  CLEAR_LOOKAHEAD_S,
+  brandmarkRect,
+  drawnOverlayBox,
+  drawsUrl,
+  focusBox,
+  insetRectAt,
+  mapPaneRect,
+  mapSourceRect,
+  mapUseRect,
+  overlayBoxAt,
+  paneCaptureAt,
+  paneSource,
+  paneViewOf,
+  stepBoxes,
+  trackBoxAt,
+  viewOf,
+} from '@retake/editor/plan';
 import type { CameraFrame, ClipSegment, EditPlan, NamedRender, ResolvedComponent } from '@retake/editor/plan';
 import type { OutputClick } from './timeline.js';
 import { cursorAt } from './timeline.js';
@@ -119,7 +136,7 @@ export function checkDurations(ctx: CheckContext, durations: SegmentDuration[]):
       finding(
         far ? 'warning' : 'info',
         'video-length',
-        `the video lasts ${fmtS(total)}: ${side} the ${lo}–${hi} s target ${r.video_target === 'scenario' ? "of the scenario (target_length)" : 'of the reference look'}${far ? '' : ` (within the ${Math.round(r.video_tolerance * 100)} % tolerance)`}`,
+        `the video lasts ${fmtS(total)}: ${side} the ${lo}–${hi} s target ${r.video_target === 'scenario' ? 'of the scenario (target_length)' : 'of the reference look'}${far ? '' : ` (within the ${Math.round(r.video_tolerance * 100)} % tolerance)`}`,
       ),
     );
   }
@@ -229,11 +246,23 @@ interface CaptionFit {
  * (studio/caption-overlay), the band box over the capture (kit `captionBandBox`, the box the component draws in).
  * `inset` = the horizontal padding of the text inside it. Undefined when there is no place.
  */
-export function captionRegion(plan: Pick<EditPlan, 'width' | 'height' | 'unit'> & Partial<Pick<EditPlan, 'variant'>>, clip: ClipSegment): { rect: { x: number; y: number; w: number; h: number }; over: boolean; inset: number } | undefined {
+export function captionRegion(
+  plan: Pick<EditPlan, 'width' | 'height' | 'unit'> & Partial<Pick<EditPlan, 'variant'>>,
+  clip: ClipSegment,
+): { rect: { x: number; y: number; w: number; h: number }; over: boolean; inset: number } | undefined {
   const params = clip.caption?.params ?? {};
   if (params.position === 'over') {
     const maxWidth = typeof params.max_width === 'number' ? params.max_width : 1400;
-    const band = captionBandBox({ rects: { screen: clip.layout.capture }, area: clip.layout.caption, width: plan.width, height: plan.height, unit: plan.unit, position: 'over', maxWidth, variant: plan.variant });
+    const band = captionBandBox({
+      rects: { screen: clip.layout.capture },
+      area: clip.layout.caption,
+      width: plan.width,
+      height: plan.height,
+      unit: plan.unit,
+      position: 'over',
+      maxWidth,
+      variant: plan.variant,
+    });
     return { rect: band.box, over: band.over, inset: CAPTION_BAND_PAD_X * plan.unit };
   }
   const area = clip.layout.caption;
@@ -299,8 +328,7 @@ export function checkCaptions(ctx: CheckContext): Finding[] {
   }
 
   // 2. Video-level cues: within the segments of their scene (plus the transitions at their edges), never overlapping.
-  const sceneFrames = (scene: string): Array<[number, number]> =>
-    ctx.spans.filter((s) => isClip(s.segment) && s.segment.scene === scene).map((s) => [s.from, s.to] as [number, number]);
+  const sceneFrames = (scene: string): Array<[number, number]> => ctx.spans.filter((s) => isClip(s.segment) && s.segment.scene === scene).map((s) => [s.from, s.to] as [number, number]);
   const sorted = [...plan.captions].sort((a, b) => a.from - b.from);
   for (const cue of sorted) {
     const own = sceneFrames(cue.scene);
@@ -379,7 +407,14 @@ export function checkCaptions(ctx: CheckContext): Finding[] {
       const at = locate(ctx, clip.from + Math.max(cue.from, 0));
       const pct = Math.round(fit.scale * 100);
       if (fit.truncated) {
-        out.push(finding('error', 'caption-truncated', `the caption "${cue.text}" (${cue.text.length} characters) does not fit its area even at ${Math.round(rules.caption_floor_scale * 100)} % of the theme size: it is cut with "…"`, at));
+        out.push(
+          finding(
+            'error',
+            'caption-truncated',
+            `the caption "${cue.text}" (${cue.text.length} characters) does not fit its area even at ${Math.round(rules.caption_floor_scale * 100)} % of the theme size: it is cut with "…"`,
+            at,
+          ),
+        );
       } else if (fit.scale < rules.caption_min_scale) {
         out.push(finding('warning', 'caption-too-long', `the caption "${cue.text}" (${cue.text.length} characters) shrinks to ${pct} % of the theme size to fit its area: shorten it`, at));
       } else if (fit.scale < 0.999) {
@@ -426,7 +461,12 @@ export function checkTextSlots(ctx: CheckContext): Finding[] {
       }
       if (v !== undefined && spec.max_chars !== undefined && [...v].length > spec.max_chars) {
         out.push(
-          finding('warning', 'text-slot-overflow', `${where}: "${name}" is ${[...v].length} characters (${c.id} allows ${spec.max_chars}): "${v.length > 60 ? `${v.slice(0, 57)}…` : v}"`, locate(ctx, frame)),
+          finding(
+            'warning',
+            'text-slot-overflow',
+            `${where}: "${name}" is ${[...v].length} characters (${c.id} allows ${spec.max_chars}): "${v.length > 60 ? `${v.slice(0, 57)}…` : v}"`,
+            locate(ctx, frame),
+          ),
         );
       }
     }
@@ -467,7 +507,14 @@ export function checkButtonContrast(ctx: CheckContext, colors: typeof buttonColo
     seen.add(c.id);
     const b = colors(tokens);
     if (b.ratio !== undefined && b.ratio < BUTTON_LABEL_MIN) {
-      out.push(finding('warning', 'button-contrast', `${where}: the label of ${c.id}'s button (${b.label} on ${b.fill}) contrasts ${b.ratio.toFixed(1)}:1, under ${BUTTON_LABEL_MIN}:1 — change the theme's accent or its text / paper colours`, locate(ctx, frame)));
+      out.push(
+        finding(
+          'warning',
+          'button-contrast',
+          `${where}: the label of ${c.id}'s button (${b.label} on ${b.fill}) contrasts ${b.ratio.toFixed(1)}:1, under ${BUTTON_LABEL_MIN}:1 — change the theme's accent or its text / paper colours`,
+          locate(ctx, frame),
+        ),
+      );
     }
   };
   for (const s of ctx.plan.segments) {
@@ -541,7 +588,9 @@ export function checkCursor(ctx: CheckContext): Finding[] {
             out.push(finding('error', 'target-cut', `${what}: the ${plan.variant} reframe cuts its target (${c.target ?? ev?.target?.desc ?? 'element'})`, at));
           } else if (reframed && inside(corners[0], view, -0.5)) {
             // Wider (taller) than the view: its leading part — where its text starts — and the click are what can be shown.
-            out.push(finding('info', 'target-outside-view', `${what}: its target (${c.target ?? ev?.target?.desc ?? 'element'}) is larger than the ${viewName}: its leading part and the click are shown`, at));
+            out.push(
+              finding('info', 'target-outside-view', `${what}: its target (${c.target ?? ev?.target?.desc ?? 'element'}) is larger than the ${viewName}: its leading part and the click are shown`, at),
+            );
           } else {
             out.push(finding('warning', 'target-outside-view', `${what}: its target (${c.target ?? ev?.target?.desc ?? 'element'}) is partly outside the ${viewName}`, at));
           }
@@ -554,7 +603,8 @@ export function checkCursor(ctx: CheckContext): Finding[] {
 
 // ── Camera ────────────────────────────────────────────────────────────────────
 
-const camAt = (plan: EditPlan, clip: ClipSegment, f: number): CameraFrame => clip.camera?.[Math.max(0, Math.min(clip.durationInFrames - 1, f))] ?? [1, plan.source.cssWidth / 2, plan.source.cssHeight / 2];
+const camAt = (plan: EditPlan, clip: ClipSegment, f: number): CameraFrame =>
+  clip.camera?.[Math.max(0, Math.min(clip.durationInFrames - 1, f))] ?? [1, plan.source.cssWidth / 2, plan.source.cssHeight / 2];
 
 export function checkCamera(ctx: CheckContext): Finding[] {
   const out: Finding[] = [];
@@ -570,7 +620,9 @@ export function checkCamera(ctx: CheckContext): Finding[] {
   const hinted = list.filter((z) => z.zoom.source !== 'theme');
   const themed = list.filter((z) => z.zoom.source === 'theme');
   if (themed.length > 0 && plan.brand.style_bias === 'real') {
-    out.push(finding('warning', 'theme-zoom-real', `${themed.length} theme zoom(s) with style_bias "real": a real-style theme keeps a static camera`, locate(ctx, themed[0].clip.from + themed[0].zoom.from)));
+    out.push(
+      finding('warning', 'theme-zoom-real', `${themed.length} theme zoom(s) with style_bias "real": a real-style theme keeps a static camera`, locate(ctx, themed[0].clip.from + themed[0].zoom.from)),
+    );
   }
   const perScene = new Map<string, number>();
   for (const { clip, zoom } of themed) {
@@ -580,7 +632,14 @@ export function checkCamera(ctx: CheckContext): Finding[] {
     const end = clip.durationInFrames - clip.heldFrames;
     const last = camAt(plan, clip, end - 1);
     if (zoom.out_at + zoom.out_frames > end + 0.5 || last[0] > 1.001) {
-      out.push(finding('warning', 'theme-zoom-cut', `the theme zoom of "${zoom.scene}" is still ${last[0].toFixed(2)}× when the scene ends: it must ease back out before the cut`, locate(ctx, clip.from + end - 1, { scene: zoom.scene })));
+      out.push(
+        finding(
+          'warning',
+          'theme-zoom-cut',
+          `the theme zoom of "${zoom.scene}" is still ${last[0].toFixed(2)}× when the scene ends: it must ease back out before the cut`,
+          locate(ctx, clip.from + end - 1, { scene: zoom.scene }),
+        ),
+      );
     }
   }
   if (hinted.length > rules.max_zooms) {
@@ -599,7 +658,12 @@ export function checkCamera(ctx: CheckContext): Finding[] {
     const inS = zoom.in_frames / plan.fps;
     if (inS < rules.slow_zoom_min_s || zoom.zoom > rules.slow_zoom_max) {
       out.push(
-        finding('info', 'zoom-not-slow', `zoom ${zoom.zoom}× in ${inS.toFixed(1)} s (step ${zoom.step} of "${zoom.scene}"): the reference zoom is very slow (≈ 1.12× over ≈ 6 s, ≤ ${rules.slow_zoom_max}× over ≥ ${rules.slow_zoom_min_s} s)`, at),
+        finding(
+          'info',
+          'zoom-not-slow',
+          `zoom ${zoom.zoom}× in ${inS.toFixed(1)} s (step ${zoom.step} of "${zoom.scene}"): the reference zoom is very slow (≈ 1.12× over ≈ 6 s, ≤ ${rules.slow_zoom_max}× over ≥ ${rules.slow_zoom_min_s} s)`,
+          at,
+        ),
       );
     }
     if (zoom.requested_zoom !== undefined) {
@@ -615,12 +679,24 @@ export function checkCamera(ctx: CheckContext): Finding[] {
     const cb = camAt(plan, b, 0);
     if (Math.abs(ca[0] - cb[0]) > 0.01 || Math.abs(ca[1] - cb[1]) > 0.01 * W || Math.abs(ca[2] - cb[2]) > 0.01 * H) {
       out.push(
-        finding('warning', 'zoom-reset', `the camera jumps at the same-page join "${a.scene}" → "${b.scene}" (${ca[0].toFixed(2)}× → ${cb[0].toFixed(2)}×): a zoom must continue across a join without a transition`, locate(ctx, b.from)),
+        finding(
+          'warning',
+          'zoom-reset',
+          `the camera jumps at the same-page join "${a.scene}" → "${b.scene}" (${ca[0].toFixed(2)}× → ${cb[0].toFixed(2)}×): a zoom must continue across a join without a transition`,
+          locate(ctx, b.from),
+        ),
       );
     }
   }
   // Reframed variants: the crop glides (no jump, no jolt) and the cursor never leaves it (each page of a multi-page clip).
-  type Reframed = { clip: ClipSegment; rf: Array<[number, number]>; crop: { w: number; h: number }; page?: string; view: (f: number) => { cx: number; cy: number; w: number; h: number }; name: string };
+  type Reframed = {
+    clip: ClipSegment;
+    rf: Array<[number, number]>;
+    crop: { w: number; h: number };
+    page?: string;
+    view: (f: number) => { cx: number; cy: number; w: number; h: number };
+    name: string;
+  };
   const reframes: Reframed[] = [];
   for (const clip of clips) {
     if (clip.panes) {
@@ -757,7 +833,9 @@ export function checkOverlayCover(ctx: CheckContext): Finding[] {
           if (c.frame < f - before || c.frame > f + ahead) continue;
           const t = targetAt(c, rel);
           if (overlapArea(box, t) > COVER_SHARE * t.w * t.h) {
-            out.push(finding('warning', 'overlay-covers-target', `${clip.id}: the ${name} of step ${o.step} covers ${what(c)} at ${timecode(f / fps)}`, locate(ctx, f, { scene: c.scene, step: c.step })));
+            out.push(
+              finding('warning', 'overlay-covers-target', `${clip.id}: the ${name} of step ${o.step} covers ${what(c)} at ${timecode(f / fps)}`, locate(ctx, f, { scene: c.scene, step: c.step })),
+            );
             reported = true;
             break;
           }
@@ -778,7 +856,14 @@ export function checkOverlayCover(ctx: CheckContext): Finding[] {
         const drawn = { x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e };
         const t = targetAt(c, rel);
         if (overlapArea(drawn, t) > COVER_SHARE * t.w * t.h) {
-          out.push(finding('warning', 'overlay-covers-target', `${clip.id}: the picture-in-picture inset (page ${clip.panes[inset.pane].page}) covers ${what(c)}`, locate(ctx, clip.from + rel, { scene: c.scene, step: c.step })));
+          out.push(
+            finding(
+              'warning',
+              'overlay-covers-target',
+              `${clip.id}: the picture-in-picture inset (page ${clip.panes[inset.pane].page}) covers ${what(c)}`,
+              locate(ctx, clip.from + rel, { scene: c.scene, step: c.step }),
+            ),
+          );
           break;
         }
       }
@@ -942,7 +1027,9 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
         finding(
           file ? 'error' : 'warning',
           'media-missing',
-          file ? `${where}: your ${spec.type === 'lottie' ? 'Lottie ' : ''}file "${v}" could not be read — nothing is shown` : `${where}: ${c.id} slot "${name}" (${spec.type} "${v}") could not be resolved — the component shows a fallback`,
+          file
+            ? `${where}: your ${spec.type === 'lottie' ? 'Lottie ' : ''}file "${v}" could not be read — nothing is shown`
+            : `${where}: ${c.id} slot "${name}" (${spec.type} "${v}") could not be resolved — the component shows a fallback`,
           locate(ctx, frame),
         ),
       );
@@ -1181,7 +1268,9 @@ export function checkLoadingFilmed(ctx: CheckContext): Finding[] {
   const out: Finding[] = [];
   // The reader checks the lists every timeline has; this optional one is a list of spans here (a timeline edited by hand).
   const listed: unknown = ctx.timeline?.loading_ui;
-  const spans = (Array.isArray(listed) ? listed : []).filter((x): x is TimelineLoadingUi => typeof x === 'object' && x !== null && Number.isFinite((x as TimelineLoadingUi).t_start) && Number.isFinite((x as TimelineLoadingUi).t_end));
+  const spans = (Array.isArray(listed) ? listed : []).filter(
+    (x): x is TimelineLoadingUi => typeof x === 'object' && x !== null && Number.isFinite((x as TimelineLoadingUi).t_start) && Number.isFinite((x as TimelineLoadingUi).t_end),
+  );
   if (!spans.length) return out;
   const fps = ctx.plan.source.fps;
   for (const span of spans) {
@@ -1307,7 +1396,14 @@ export function checkOverlaysKept(ctx: CheckContext): Finding[] {
     const where = `${ev.scene}.${ev.step}`;
     const last = mine[mine.length - 1];
     if (!uses.length) {
-      out.push(finding('warning', 'overlay-lost', `the overlay of step ${where} is not in the video: the step ends after its clip (the last step of a scene) — put it on an earlier step, or hold after it`, locate(ctx, last.from + last.durationInFrames - 1, { scene: ev.scene, step: ev.step })));
+      out.push(
+        finding(
+          'warning',
+          'overlay-lost',
+          `the overlay of step ${where} is not in the video: the step ends after its clip (the last step of a scene) — put it on an earlier step, or hold after it`,
+          locate(ctx, last.from + last.durationInFrames - 1, { scene: ev.scene, step: ev.step }),
+        ),
+      );
       continue;
     }
     for (const { c, o } of uses) {

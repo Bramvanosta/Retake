@@ -23,7 +23,26 @@ async function run(id: string, mode: 'capture' | 'dry', status: string, bytes = 
   const d = join(dir, 'runs', id);
   await mkdir(d, { recursive: true });
   const scenario = id.replace(/^\d{8}-\d{6}-/, '');
-  await writeFile(join(d, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario, mode, status, started_at: '2026-10-20T10:00:00.000Z', dir: d, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+  await writeFile(
+    join(d, 'run.json'),
+    JSON.stringify({
+      version: 1,
+      id,
+      project: 'p',
+      scenario,
+      mode,
+      status,
+      started_at: '2026-10-20T10:00:00.000Z',
+      dir: d,
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 1,
+      steps_done: 1,
+      screenshots: [],
+      hooks: { setup: 'none', teardown: 'none' },
+      warnings: [],
+    }),
+  );
   await writeFile(join(d, 'capture.mp4'), Buffer.alloc(bytes));
 }
 
@@ -95,7 +114,12 @@ describe('retake prune / project_prune (engine pruneProject)', () => {
       ['review', 'orphan-v9', 'review of a deleted render'],
       ['review', 'quote-v1', 'review of an older render'],
     ]);
-    expect(r.items.find((i) => i.id === 'quote-v1')!.paths.map((p) => p.split('/').pop()).sort()).toEqual(['quote-v1.json', 'quote-v1.mp4']);
+    expect(
+      r.items
+        .find((i) => i.id === 'quote-v1')!
+        .paths.map((p) => p.split('/').pop())
+        .sort(),
+    ).toEqual(['quote-v1.json', 'quote-v1.mp4']);
     expect(r.items.find((i) => i.id === '20261020-100000-quote')!.bytes).toBeGreaterThanOrEqual(4000);
     expect(r.bytes).toBe(r.items.reduce((n, i) => n + i.bytes, 0));
     expect(r.kept).toEqual({ runs: 6, renders: 6, reviews: 2 });
@@ -134,7 +158,7 @@ describe('retake prune / project_prune (engine pruneProject)', () => {
   });
 });
 
-describe('an agent\'s prune asks the person first (projects.prune under agent trust)', () => {
+describe("an agent's prune asks the person first (projects.prune under agent trust)", () => {
   /** A workspace with project p: four takes that can go, the last good one, and an orphan review. */
   async function workspace(): Promise<{ root: string; proj: string; take: (id: string, status: string, mode?: 'capture' | 'dry') => Promise<void>; left: () => Promise<string[]> }> {
     const root = await mkdtemp(join(tmpdir(), 'retake-prune-ask-'));
@@ -145,7 +169,26 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
     const take = async (id: string, status: string, mode: 'capture' | 'dry' = 'capture') => {
       const d = join(proj, 'runs', id);
       await mkdir(d, { recursive: true });
-      await writeFile(join(d, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario: 'quote', mode, status, started_at: '2026-10-20T10:00:00.000Z', dir: d, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+      await writeFile(
+        join(d, 'run.json'),
+        JSON.stringify({
+          version: 1,
+          id,
+          project: 'p',
+          scenario: 'quote',
+          mode,
+          status,
+          started_at: '2026-10-20T10:00:00.000Z',
+          dir: d,
+          env: 'local',
+          options: { hooks: 'run', headed: false },
+          steps_total: 1,
+          steps_done: 1,
+          screenshots: [],
+          hooks: { setup: 'none', teardown: 'none' },
+          warnings: [],
+        }),
+      );
       await writeFile(join(d, 'capture.mp4'), Buffer.alloc(2000));
     };
     await take('20261020-100000-quote', 'failed');
@@ -211,7 +254,12 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
     const w = await workspace();
     try {
       const mcp = await engineOf(w.root, 'mcp');
-      for (const outcome of [{ approved: false, reason: 'declined' }, { approved: false, reason: 'cancelled' }, { approved: false, reason: 'timeout' }, { approved: false, reason: 'error', message: 'closed' }] as const) {
+      for (const outcome of [
+        { approved: false, reason: 'declined' },
+        { approved: false, reason: 'cancelled' },
+        { approved: false, reason: 'timeout' },
+        { approved: false, reason: 'error', message: 'closed' },
+      ] as const) {
         const a = asking(outcome);
         const e = await refusal(mcp.projects.prune('p', { dry_run: false }, { approver: a }));
         expect(e.code, outcome.reason).toBe('refused');
@@ -258,7 +306,10 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
         const id = `j_${ulid()}`;
         await mkdir(join(w.root, '.retake', 'jobs', id), { recursive: true });
         const input = { version: 1, kind: 'render', project: 'p', scenario: 'quote', run_id: '20261020-130000-quote', render_id: 'quote-v1', submitted_by: 'test' };
-        await writeFile(join(w.root, '.retake', 'jobs', id, 'job.json'), JSON.stringify({ version: JOB_RECORD_VERSION, id, kind: 'render', input, state: 'queued', created_at: new Date().toISOString() }));
+        await writeFile(
+          join(w.root, '.retake', 'jobs', id, 'job.json'),
+          JSON.stringify({ version: JOB_RECORD_VERSION, id, kind: 'render', input, state: 'queued', created_at: new Date().toISOString() }),
+        );
         await w.take('20261020-150000-quote', 'failed');
         return { approved: true };
       });
@@ -304,7 +355,19 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
     const w = await workspace();
     try {
       await mkdir(join(w.proj, 'renders'), { recursive: true });
-      await writeFile(join(w.proj, 'renders', 'quote-v9.json'), JSON.stringify({ version: 1, id: 'quote-v9', scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+      await writeFile(
+        join(w.proj, 'renders', 'quote-v9.json'),
+        JSON.stringify({
+          version: 1,
+          id: 'quote-v9',
+          scenario: 'quote',
+          run_id: '20261020-140000-quote',
+          status: 'failed',
+          created_at: '2026-10-20T15:00:00.000Z',
+          variant: 'landscape',
+          plan: { fps: 30 },
+        }),
+      );
       const a = asking(async (req) => {
         expect(req.lines).toContainEqual(expect.stringMatching(/^render quote-v9 — failed render, /));
         await writeFile(join(w.proj, 'renders', 'quote-v9.log'), 'written while the person reads');
@@ -326,7 +389,10 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
         // L7.6b: a render is the record of its own file, so a long line comes from a name a file can have — 155
         // DEL characters, each written out in the form as `\u{7f}` (935 visible characters, as before).
         const id = `r${String(i).padStart(2, '0')}-x${'\x7f'.repeat(155)}`;
-        await writeFile(join(w.proj, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+        await writeFile(
+          join(w.proj, 'renders', `${id}.json`),
+          JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }),
+        );
       }
       // Its lines and command alone fit in 16,000 characters; with the form's other lines they do not.
       const mcp = await engineOf(w.root, 'mcp');
@@ -350,7 +416,10 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
       for (let i = 0; i < 20; i++) {
         // (L7.6b: named as its file — 200 DEL characters, 1,200 visible ones in the form.)
         const id = `r${i}-${'\x7f'.repeat(200)}`;
-        await writeFile(join(w.proj, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+        await writeFile(
+          join(w.proj, 'renders', `${id}.json`),
+          JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }),
+        );
       }
       const a = asking({ approved: true });
       const e = await refusal((await engineOf(w.root, 'mcp')).projects.prune('p', { dry_run: false }, { approver: a }));
@@ -447,11 +516,19 @@ describe('comment threads that do not read as threads (L7.5)', () => {
     const p = { slug: 'p', dir: d, root: d, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(d, 'project.yaml') } as unknown as LoadedProject;
     await mkdir(join(d, 'renders'), { recursive: true });
     for (const s of ['quote', 'catalogue']) {
-      for (const [stamp, mode] of [['20261020-100000', 'capture'], ['20261020-110000', 'dry'], ['20261020-120000', 'capture']] as const) {
+      for (const [stamp, mode] of [
+        ['20261020-100000', 'capture'],
+        ['20261020-110000', 'dry'],
+        ['20261020-120000', 'capture'],
+      ] as const) {
         await mkdir(join(d, 'runs', `${stamp}-${s}`), { recursive: true });
-        await writeFile(join(d, 'runs', `${stamp}-${s}`, 'run.json'), JSON.stringify({ version: 1, id: `${stamp}-${s}`, project: 'p', scenario: s, mode, status: 'succeeded', started_at: '2026-10-20T10:00:00.000Z' }));
+        await writeFile(
+          join(d, 'runs', `${stamp}-${s}`, 'run.json'),
+          JSON.stringify({ version: 1, id: `${stamp}-${s}`, project: 'p', scenario: s, mode, status: 'succeeded', started_at: '2026-10-20T10:00:00.000Z' }),
+        );
       }
-      const made = (id: string, runId: string, status: string, at: string) => writeFile(join(d, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: s, run_id: runId, status, created_at: at, variant: 'landscape', plan: { fps: 30 } }));
+      const made = (id: string, runId: string, status: string, at: string) =>
+        writeFile(join(d, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: s, run_id: runId, status, created_at: at, variant: 'landscape', plan: { fps: 30 } }));
       await made(`${s}-v1`, `20261020-100000-${s}`, 'succeeded', '2026-10-20T10:30:00.000Z');
       await made(`${s}-v2`, `20261020-120000-${s}`, 'succeeded', '2026-10-20T12:30:00.000Z');
       await made(`${s}-v3`, `20261020-120000-${s}`, 'failed', '2026-10-20T12:40:00.000Z');
@@ -460,7 +537,20 @@ describe('comment threads that do not read as threads (L7.5)', () => {
     return { d, p, all: [...of('catalogue'), ...of('quote')].sort() };
   }
   const ids = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id}`).sort();
-  const thread = (scenario: string, id = ID) => JSON.stringify({ version: 1, id, scenario, render: { id: `${scenario}-v9`, created_at: '2026-10-20T09:30:00.000Z', run_id: `20261020-090000-${scenario}`, variant: 'landscape', fps: 30, frames: 300, width: 1920, height: 1080 }, frame: 10, time_s: 0.33, text: 'A comment', author: { via: 'cli', name: 'Reviewer' }, created_at: '2026-10-20T10:00:00.000Z', anchor: { segment: 'intro', kind: 'intro' }, entries: [] });
+  const thread = (scenario: string, id = ID) =>
+    JSON.stringify({
+      version: 1,
+      id,
+      scenario,
+      render: { id: `${scenario}-v9`, created_at: '2026-10-20T09:30:00.000Z', run_id: `20261020-090000-${scenario}`, variant: 'landscape', fps: 30, frames: 300, width: 1920, height: 1080 },
+      frame: 10,
+      time_s: 0.33,
+      text: 'A comment',
+      author: { via: 'cli', name: 'Reviewer' },
+      created_at: '2026-10-20T10:00:00.000Z',
+      anchor: { segment: 'intro', kind: 'intro' },
+      entries: [],
+    });
 
   it('a thread file that is broken, a link or under another id keeps every render and take of its scenario; the other scenario is pruned as before', async () => {
     const { d, p, all } = await twoScenarios();
@@ -471,7 +561,13 @@ describe('comment threads that do not read as threads (L7.5)', () => {
       const cases: Array<[string, () => Promise<void>]> = [
         ['not JSON', () => writeFile(join(folder, `${ID}.json`), '{"version": 1, ')],
         ['not a thread', () => writeFile(join(folder, `${ID}.json`), '{"version": 1}')],
-        ['a symbolic link', async () => { await writeFile(join(d, 'elsewhere.json'), thread('quote')); await symlink(join(d, 'elsewhere.json'), join(folder, `${ID}.json`)); }],
+        [
+          'a symbolic link',
+          async () => {
+            await writeFile(join(d, 'elsewhere.json'), thread('quote'));
+            await symlink(join(d, 'elsewhere.json'), join(folder, `${ID}.json`));
+          },
+        ],
         ['another id', () => writeFile(join(folder, `${ID}.json`), thread('quote', OTHER))],
       ];
       // Nothing unread yet: everything that can go is listed.
@@ -495,7 +591,7 @@ describe('comment threads that do not read as threads (L7.5)', () => {
     }
   });
 
-  it('a thread in another scenario\'s folder keeps both scenarios; a scenario folder that is a link keeps its scenario', async () => {
+  it("a thread in another scenario's folder keeps both scenarios; a scenario folder that is a link keeps its scenario", async () => {
     const { d, p, all } = await twoScenarios();
     try {
       await mkdir(join(d, 'comments', 'quote'), { recursive: true });
@@ -562,7 +658,11 @@ describe('comment threads that do not read as threads (L7.5)', () => {
         await mkdir(join(d, 'runs', id), { recursive: true });
         await writeFile(join(d, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario, mode: 'capture', status: 'failed', started_at: '2026-10-20T10:00:00.000Z' }));
       };
-      const failed = (id: string, scenario: string) => writeFile(join(d, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario, run_id: '20261020-120000-quote', status: 'failed', created_at: '2026-10-20T13:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+      const failed = (id: string, scenario: string) =>
+        writeFile(
+          join(d, 'renders', `${id}.json`),
+          JSON.stringify({ version: 1, id, scenario, run_id: '20261020-120000-quote', status: 'failed', created_at: '2026-10-20T13:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }),
+        );
       // Each names quote on one side only: by its id, or by its record.
       await take('20261020-130000-quote', 'other'); // a take: its id
       await take('20261020-131500-other', 'quote'); // a take: its record
@@ -611,17 +711,32 @@ describe('the last renders of a scenario are counted among its renders only (L7.
   const ids = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id} — ${i.reason}`).sort();
   const LONG = `${'q'.repeat(198)}-v1`; // 201 characters: one more than a render id holds
 
-  it('a record that is no render of its scenario takes no render\'s place; it stays when it succeeded and goes when it failed', async () => {
+  it("a record that is no render of its scenario takes no render's place; it stays when it succeeded and goes when it failed", async () => {
     const d = await mkdtemp(join(tmpdir(), 'ds-prune-count-'));
     try {
       const p = p0(d);
       await mkdir(join(d, 'renders'), { recursive: true });
       const take = async (id: string) => {
         await mkdir(join(d, 'runs', id), { recursive: true });
-        await writeFile(join(d, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-20T10:00:00.000Z' }));
+        await writeFile(
+          join(d, 'runs', id, 'run.json'),
+          JSON.stringify({ version: 1, id, project: 'p', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-20T10:00:00.000Z' }),
+        );
       };
       const made = (id: string, o: { scenario?: string; status?: string; at: string; run?: string }) =>
-        writeFile(join(d, 'renders', `${id.length > 200 ? 'long' : id}.json`), JSON.stringify({ version: 1, id, scenario: o.scenario ?? 'quote', run_id: o.run ?? '20261020-120000-quote', status: o.status ?? 'succeeded', created_at: o.at, variant: 'landscape', plan: { fps: 30 } }));
+        writeFile(
+          join(d, 'renders', `${id.length > 200 ? 'long' : id}.json`),
+          JSON.stringify({
+            version: 1,
+            id,
+            scenario: o.scenario ?? 'quote',
+            run_id: o.run ?? '20261020-120000-quote',
+            status: o.status ?? 'succeeded',
+            created_at: o.at,
+            variant: 'landscape',
+            plan: { fps: 30 },
+          }),
+        );
       await take('20261020-080000-quote'); // only `final` uses it
       await take('20261020-120000-quote'); // the last good take
       for (const n of [1, 2, 3, 4]) await made(`quote-v${n}`, { at: `2026-10-20T1${n}:00:00.000Z` });
@@ -651,7 +766,19 @@ describe('the last renders of a scenario are counted among its renders only (L7.
       expect(ids(await pruneProject(p))).toEqual(['render draft — cancelled render', 'render quote-v1 — older render', 'render quote-v1000009 — failed render']);
       const done = await pruneProject(p, { dry_run: false });
       expect(done.problems).toEqual([]);
-      expect((await readdir(join(d, 'renders'))).sort()).toEqual(['final.json', 'long.json', 'other-v1.json', 'quote-v1000000.json', 'quote-v1000001.json', 'quote-v1000002.json', 'quote-v1000003.json', 'quote-v1000004.json', 'quote-v2.json', 'quote-v3.json', 'quote-v4.json']);
+      expect((await readdir(join(d, 'renders'))).sort()).toEqual([
+        'final.json',
+        'long.json',
+        'other-v1.json',
+        'quote-v1000000.json',
+        'quote-v1000001.json',
+        'quote-v1000002.json',
+        'quote-v1000003.json',
+        'quote-v1000004.json',
+        'quote-v2.json',
+        'quote-v3.json',
+        'quote-v4.json',
+      ]);
       expect((await readdir(join(d, 'runs'))).sort()).toEqual(['20261020-080000-quote', '20261020-120000-quote']);
     } finally {
       await rm(d, { recursive: true, force: true });
@@ -668,14 +795,34 @@ describe('the files of renders/ that are no render of their own name (L7.6b, R-1
     await mkdir(join(d, 'renders'), { recursive: true });
     for (const id of [old, young]) {
       await mkdir(join(d, 'runs', id), { recursive: true });
-      await writeFile(join(d, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-01T10:00:00.000Z', dir: join(d, 'runs', id), env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+      await writeFile(
+        join(d, 'runs', id, 'run.json'),
+        JSON.stringify({
+          version: 1,
+          id,
+          project: 'p',
+          scenario: 'quote',
+          mode: 'capture',
+          status: 'succeeded',
+          started_at: '2026-10-01T10:00:00.000Z',
+          dir: join(d, 'runs', id),
+          env: 'local',
+          options: { hooks: 'run', headed: false },
+          steps_total: 1,
+          steps_done: 1,
+          screenshots: [],
+          hooks: { setup: 'none', teardown: 'none' },
+          warnings: [],
+        }),
+      );
     }
     for (const n of [1, 2, 3, 4]) await writeFile(join(d, 'renders', `quote-v${n}.json`), record(`quote-v${n}`, young, `2026-10-02T09:0${n}:00.000Z`));
     await writeFile(join(d, 'renders', 'quote-v5.json'), record('quote-v5', young, '2026-10-02T09:05:00.000Z', { status: 'failed', error: 'x' }));
     const list = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id === old ? 'OLD' : i.id === young ? 'NEW' : i.id}`);
     return { d, p, old, young, list };
   }
-  const record = (id: string, run: string, at: string, o: Record<string, unknown> = {}): string => JSON.stringify({ version: 1, id, scenario: 'quote', run_id: run, status: 'succeeded', created_at: at, variant: 'landscape', plan: { fps: 30 }, ...o });
+  const record = (id: string, run: string, at: string, o: Record<string, unknown> = {}): string =>
+    JSON.stringify({ version: 1, id, scenario: 'quote', run_id: run, status: 'succeeded', created_at: at, variant: 'landscape', plan: { fps: 30 }, ...o });
 
   it('a record file that is a link is left alone and still keeps the render and the take it names; a link to nothing keeps nothing and stops nothing', async () => {
     const w = await projectOf();
@@ -699,11 +846,24 @@ describe('the files of renders/ that are no render of their own name (L7.6b, R-1
       expect(r.untrusted?.renders_alone.map((a) => `${a.file} ${a.why}`)).toEqual(expect.arrayContaining(['quote-kept.json linked', 'quote-v7.json linked']));
       // The form an agent's prune asks with says how many files are left alone: a count, never a name.
       const form = pruneApprovalRequest(r, 'retake prune p --yes');
-      expect([form.renders_alone, pruneApprovalFormText(form).split('\n')[2], pruneApprovalFormText(form).includes('quote-kept')]).toEqual([4, '4 files of renders/ are no render of their own name, or lack a member: left alone, with the renders and the takes they name.', false]);
+      expect([form.renders_alone, pruneApprovalFormText(form).split('\n')[2], pruneApprovalFormText(form).includes('quote-kept')]).toEqual([
+        4,
+        '4 files of renders/ are no render of their own name, or lack a member: left alone, with the renders and the takes they name.',
+        false,
+      ]);
       // A deletion removes the failed render only: the links and what they point at are as they were.
       const done = await pruneProject(w.p, { dry_run: false });
       expect(w.list(done)).toEqual(['render quote-v5']);
-      expect((await readdir(join(w.d, 'renders'))).sort()).toEqual(['quote-kept.json', 'quote-v1.json', 'quote-v2.json', 'quote-v3.json', 'quote-v4.json', 'quote-v7.json', 'quote-v8.json', 'quote-v9.json']);
+      expect((await readdir(join(w.d, 'renders'))).sort()).toEqual([
+        'quote-kept.json',
+        'quote-v1.json',
+        'quote-v2.json',
+        'quote-v3.json',
+        'quote-v4.json',
+        'quote-v7.json',
+        'quote-v8.json',
+        'quote-v9.json',
+      ]);
       expect([existsSync(join(w.d, 'elsewhere', 'kept.json')), existsSync(join(w.d, 'notes.txt')), existsSync(join(w.d, 'runs', w.old))]).toEqual([true, true, true]);
     } finally {
       await rm(w.d, { recursive: true, force: true });
@@ -737,7 +897,11 @@ describe('the files of renders/ that are no render of their own name (L7.6b, R-1
       await writeFile(join(w.d, 'renders', 'quote-v6.json'), JSON.stringify(noPlan));
       let r = await pruneProject(w.p);
       // The record without its plan is kept (never an item, never counted among the last renders) and protects OLD.
-      expect([w.list(r), r.renders_alone?.reasons, r.kept_takes]).toEqual([['render quote-v1', 'render quote-v5'], [{ why: 'incomplete', count: 1, reason: 'its record lacks its scenario, its creation time or its plan' }], undefined]);
+      expect([w.list(r), r.renders_alone?.reasons, r.kept_takes]).toEqual([
+        ['render quote-v1', 'render quote-v5'],
+        [{ why: 'incomplete', count: 1, reason: 'its record lacks its scenario, its creation time or its plan' }],
+        undefined,
+      ]);
       await writeFile(join(w.d, 'renders', 'quote-v6.json'), record('quote-v6', w.old, '2026-10-01T09:06:00.000Z', { status: 'paused' }));
       await writeFile(join(w.d, 'renders', 'quote-v6.mp4'), 'mp4');
       r = await pruneProject(w.p);

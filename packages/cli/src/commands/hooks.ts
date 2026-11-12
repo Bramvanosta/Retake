@@ -147,7 +147,13 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
       onSelected: async (sel, { runId }) => {
         if (!sel.scenario || sel.file === undefined || (sel.phase !== 'setup' && sel.phase !== 'teardown')) return;
         const sc = sel.scenario;
-        const found = await agentWrittenShellHooks(ws.root, project, { file: sel.file, ...(sel.sha256 !== undefined ? { sha256: sel.sha256 } : {}), scenario: sc }, async () => listingContext(project, sc, opts.env ?? sel.env, { id: runId }), [sel.phase]);
+        const found = await agentWrittenShellHooks(
+          ws.root,
+          project,
+          { file: sel.file, ...(sel.sha256 !== undefined ? { sha256: sel.sha256 } : {}), scenario: sc },
+          async () => listingContext(project, sc, opts.env ?? sel.env, { id: runId }),
+          [sel.phase],
+        );
         if (!found) return;
         const verdict = await askAgentHooks(ui, found, {
           scenario: sel.label.replace(/-(setup|teardown)$/, ''),
@@ -165,7 +171,9 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
         }
       },
       onStart: ({ sel, ctx, access }) => {
-        ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
+        ui.line(
+          `${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`,
+        );
         printAccess(ui, access);
       },
       onResults: (r) => {
@@ -187,13 +195,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
 }
 
 /** `retake hooks rollback <project> [id]`: replay pending rollbacks (one run or hooks journal, or every pending one). */
-export async function hooksRollbackCommand(
-  ui: Ui,
-  global: GlobalOptions,
-  projectArg: string,
-  runId: string | undefined,
-  opts: HookCommandOptions,
-): Promise<ExitCode> {
+export async function hooksRollbackCommand(ui: Ui, global: GlobalOptions, projectArg: string, runId: string | undefined, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   checkReplayUnsigned(ui, opts);

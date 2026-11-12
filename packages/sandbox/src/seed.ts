@@ -280,11 +280,7 @@ export async function runSeed(
  * own services publish a port (docker-compose: 127.0.0.1…): a mailbox on a loopback host name is reached there, never
  * where `localhost` resolves first. Throws SandboxError on failure.
  */
-export async function clearMailbox(
-  project: LoadedProject,
-  sandbox: LoadedSandbox,
-  address?: (port: number) => Promise<string | undefined>,
-): Promise<'cleared' | 'kept' | 'none' | 'not-mailpit'> {
+export async function clearMailbox(project: LoadedProject, sandbox: LoadedSandbox, address?: (port: number) => Promise<string | undefined>): Promise<'cleared' | 'kept' | 'none' | 'not-mailpit'> {
   const m = sandbox.manifest.mailbox;
   if (!m) return 'none';
   if (m.clear === false) return 'kept';

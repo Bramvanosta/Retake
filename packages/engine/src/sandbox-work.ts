@@ -33,9 +33,7 @@ export interface SandboxHeldOptions {
  * runs them, no seed trust) or the engine (trust `mcp`, a job: the seed trust of the engine's trust, with the approvals
  * taken at submit). The type cannot forget it; seedingCheck refuses it at run time too.
  */
-export type SeedTrusted =
-  | { trust: 'author'; seedTrust?: undefined }
-  | { trust: typeof ENGINE_TRUST; seedTrust: SeedTrust & { trust: typeof ENGINE_TRUST } };
+export type SeedTrusted = { trust: 'author'; seedTrust?: undefined } | { trust: typeof ENGINE_TRUST; seedTrust: SeedTrust & { trust: typeof ENGINE_TRUST } };
 
 /** up / reset: the seed run is journalled as `recordAs` (the caller and its clock). */
 export type SandboxSeedingOptions = SandboxHeldOptions &

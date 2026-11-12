@@ -149,11 +149,23 @@ function themeRef(o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'>,
 }
 
 /** Gate 1 (trust `mcp`): what the plan will read, checked before anything is read. Empty: nothing refused. */
-export function preReadProblems(project: LoadedProject, timeline: Timeline, video: Timeline['video'], o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'> & { registry?: ComponentRegistry }): string[] {
+export function preReadProblems(
+  project: LoadedProject,
+  timeline: Timeline,
+  video: Timeline['video'],
+  o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'> & { registry?: ComponentRegistry },
+): string[] {
   const problems: string[] = [];
   const theme = themeRef(o, timeline);
   if (typeof theme === 'string') {
-    const where = o.template !== undefined ? 'the theme asked' : o.overrides?.theme !== undefined ? 'the theme of the overrides' : timeline.video?.template !== undefined ? "the run's theme (the scenario's template:)" : 'the theme';
+    const where =
+      o.template !== undefined
+        ? 'the theme asked'
+        : o.overrides?.theme !== undefined
+          ? 'the theme of the overrides'
+          : timeline.video?.template !== undefined
+            ? "the run's theme (the scenario's template:)"
+            : 'the theme';
     const p = templateRefProblem(theme, project.config.template, where);
     if (p) problems.push(p);
   }

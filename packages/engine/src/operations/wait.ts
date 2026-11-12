@@ -21,7 +21,9 @@ export const waitS = (def: number, what: string, max = WAIT_MAX_S) =>
     .min(0)
     .max(max)
     .default(def)
-    .describe(`Wait up to this many seconds (0–${max}, default ${def}) for ${what} before answering; progress notifications are sent meanwhile. Call the status tool (run_status, render_status, job_status) again to keep following.`);
+    .describe(
+      `Wait up to this many seconds (0–${max}, default ${def}) for ${what} before answering; progress notifications are sent meanwhile. Call the status tool (run_status, render_status, job_status) again to keep following.`,
+    );
 
 /** Wait on a job (when asked) with progress notifications; the call's cancel ends the wait, never the job. */
 export async function waitJob(engine: Engine, job: JobRecord, seconds: number, ctx: ToolContext): Promise<void> {

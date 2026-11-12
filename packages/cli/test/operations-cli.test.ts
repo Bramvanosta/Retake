@@ -54,7 +54,7 @@ vi.mock('@retake/core/ids', async (importOriginal) => {
       if (date) return real.newRunId(label, date);
       const st = fakes.stamps;
       if (st.repeat) st.repeat = false;
-      else st.last = (st.next += 1000);
+      else st.last = st.next += 1000;
       return real.newRunId(label, new Date(st.last));
     },
   };
@@ -82,7 +82,11 @@ vi.mock('../../engine/src/sandboxes/package-sandboxes.ts', async (importOriginal
       superseded: 0,
       hooks: { steps: 1, ms: 30 },
     });
-    type Opts = Record<string, unknown> & { progress?: { step(n: string, d?: string): void; note(t: string): void }; recordSeedRun?: (r: Record<string, unknown>) => Promise<void>; log?: (l: string, m: string) => void };
+    type Opts = Record<string, unknown> & {
+      progress?: { step(n: string, d?: string): void; note(t: string): void };
+      recordSeedRun?: (r: Record<string, unknown>) => Promise<void>;
+      log?: (l: string, m: string) => void;
+    };
     const seedRun = async (o: Opts) => {
       await o.recordSeedRun?.({ index: 0, name: 'mark', kind: 'shell', phase: 'seed', status: 'ok', ms: 5 });
     };
@@ -138,7 +142,9 @@ vi.mock('../../engine/src/sandboxes/package-sandboxes.ts', async (importOriginal
               ? { name: 'app', state: 'running', pid: 4242, started_at: '2026-01-01T09:00:00.000Z', command: 'node service.mjs', health: 'ok', healthy: true }
               : { name: 'app', state: 'stopped', health: null },
           ],
-          ...(isUp ? { seed: { hash: 'a1b2c3d4e5f6', at: '2026-01-01T09:00:00.000Z', ms: 120, current: true }, last_reset: { strategy: sb.strategy, at: '2026-01-01T09:00:00.000Z', ms: 240, by: 'cli' } } : {}),
+          ...(isUp
+            ? { seed: { hash: 'a1b2c3d4e5f6', at: '2026-01-01T09:00:00.000Z', ms: 120, current: true }, last_reset: { strategy: sb.strategy, at: '2026-01-01T09:00:00.000Z', ms: 240, by: 'cli' } }
+            : {}),
           logs: sb.paths.logs,
           notes: isUp ? [] : ['a note of the fake sandbox'],
         };
@@ -198,7 +204,16 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
         size_bytes: 2_097_152,
         primary: i === 0,
         cuts: i === 0 && s.cuts ? [{ seconds: 0.8, reason: 'page load' }] : [],
-        ...(s.cursor === 'layer' ? { layer: { file: `${String(i + 1).padStart(2, '0')}-${sc.id}.cursor.${s.layer === 'webm' ? 'webm' : 'mov'}`, codec: s.layer === 'webm' ? 'vp9' : 'prores_4444', pix_fmt: s.layer === 'webm' ? 'yuva420p' : 'yuva444p10le', size_bytes: 65_536 } } : {}),
+        ...(s.cursor === 'layer'
+          ? {
+              layer: {
+                file: `${String(i + 1).padStart(2, '0')}-${sc.id}.cursor.${s.layer === 'webm' ? 'webm' : 'mov'}`,
+                codec: s.layer === 'webm' ? 'vp9' : 'prores_4444',
+                pix_fmt: s.layer === 'webm' ? 'yuva420p' : 'yuva444p10le',
+                size_bytes: 65_536,
+              },
+            }
+          : {}),
       }));
       const manifest = {
         version: 1,
@@ -207,7 +222,16 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
         project: { slug: o.project.slug, name: o.project.config.name },
         scenario: timeline.scenario,
         run: { id: timeline.run_id, dir: o.runDir, captured_at: '2026-01-01T12:00:00.000Z', capture: { width: 1920, height: 1080, scale: 1, fps: 30, duration_s: 6, frames: 180 }, cursor: 'visible' },
-        settings: { format: s.format, codec: s.format === 'prores' ? 'prores_hq' : 'h264', fps: s.fps, cursor: s.cursor, ...(s.cursor === 'layer' ? { layer: s.layer, layer_codec: s.layer === 'webm' ? 'vp9' : 'prores_4444' } : {}), cuts: s.cuts, selects: s.selects, frames_from: 'capture video' },
+        settings: {
+          format: s.format,
+          codec: s.format === 'prores' ? 'prores_hq' : 'h264',
+          fps: s.fps,
+          cursor: s.cursor,
+          ...(s.cursor === 'layer' ? { layer: s.layer, layer_codec: s.layer === 'webm' ? 'vp9' : 'prores_4444' } : {}),
+          cuts: s.cuts,
+          selects: s.selects,
+          frames_from: 'capture video',
+        },
         sequence: { fps: s.fps, frames: 180, duration_s: 6, start_tc: '00:00:00:00', end_tc: '00:00:06:00' },
         clips,
         ...(s.selects ? { selects: { file: `selects.${ext}`, frames: 180, duration_s: 6, codec: 'h264', size_bytes: 4_194_304 } } : {}),
@@ -217,7 +241,19 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
         notes: [],
         warnings: o.template ? [] : ['the cursor layer uses the default look'],
       };
-      for (const f of [...clips.flatMap((k) => [k.file, ...(k.layer ? [k.layer.file] : [])]), ...(s.selects ? [`selects.${ext}`] : []), 'cursor.json', 'cursor.csv', 'clicks.csv', 'markers.fcpxml', 'markers.edl', 'markers.otio', 'markers.json', 'markers.csv']) await wf(join(dir, f), 'fake');
+      for (const f of [
+        ...clips.flatMap((k) => [k.file, ...(k.layer ? [k.layer.file] : [])]),
+        ...(s.selects ? [`selects.${ext}`] : []),
+        'cursor.json',
+        'cursor.csv',
+        'clicks.csv',
+        'markers.fcpxml',
+        'markers.edl',
+        'markers.otio',
+        'markers.json',
+        'markers.csv',
+      ])
+        await wf(join(dir, f), 'fake');
       await wf(join(dir, 'manifest.json'), JSON.stringify(manifest));
       await wf(join(dir, 'README.md'), '# raw package\n');
       o.onProgress?.({ stage: 'done', done: 2, total: 2 });
@@ -338,7 +374,13 @@ async function tree(dir = ws, out = new Map<string, string>()): Promise<Map<stri
     const rel = relative(ws, p);
     if (rel === '.home' || rel === join('.retake', 'history.jsonl') || rel === join('.retake', 'journal.jsonl')) continue;
     if (e.isDirectory()) await tree(p, out);
-    else out.set(rel, createHash('sha256').update(await readFile(p)).digest('hex'));
+    else
+      out.set(
+        rel,
+        createHash('sha256')
+          .update(await readFile(p))
+          .digest('hex'),
+      );
   }
   return out;
 }
@@ -419,7 +461,8 @@ async function retake(name: string, ...rest: Array<string | { answers: string[] 
   return c;
 }
 
-const scenario = (video: string, page: string, extra: string[] = []) => [`video: ${video}`, ...extra, 'scenes:', '  - id: home', `    page: ${page}`, '    open: /', '    steps:', '      - hold: 1', ''].join('\n');
+const scenario = (video: string, page: string, extra: string[] = []) =>
+  [`video: ${video}`, ...extra, 'scenes:', '  - id: home', `    page: ${page}`, '    open: /', '    steps:', '      - hold: 1', ''].join('\n');
 
 async function runFolder(id: string, o: { timeline?: (t: Record<string, unknown>) => Record<string, unknown>; record?: Record<string, unknown> } = {}): Promise<string> {
   const dir = join(ws, 'projects', 'film', 'runs', id);
@@ -428,7 +471,10 @@ async function runFolder(id: string, o: { timeline?: (t: Record<string, unknown>
     const t = JSON.parse(await readFile(join(FIXTURES, 'signup.timeline.json'), 'utf8')) as Record<string, unknown>;
     await writeFile(join(dir, 'timeline.json'), JSON.stringify(o.timeline({ ...t, run_id: id, project: 'film' })));
   }
-  await writeFile(join(dir, 'run.json'), JSON.stringify({ ...syntheticRunRecord(dir, { id, scenario: 'signup', project: 'film' }), engine: { retake: '0.0.0', node: '0.0.0', os: 'test' }, ...o.record }));
+  await writeFile(
+    join(dir, 'run.json'),
+    JSON.stringify({ ...syntheticRunRecord(dir, { id, scenario: 'signup', project: 'film' }), engine: { retake: '0.0.0', node: '0.0.0', os: 'test' }, ...o.record }),
+  );
   await writeFile(join(dir, 'capture.mp4'), 'never read');
   return dir;
 }
@@ -474,7 +520,12 @@ beforeAll(async () => {
   await runFolder(OLDER, { timeline: (t) => t });
   await runFolder(RUN, { timeline: (t) => t });
   await runFolder(CARDED, {
-    timeline: (t) => ({ ...t, scenes: (t.scenes as Array<Record<string, unknown>>).map((sc, i) => (i === 0 ? { ...sc, card: { component: 'studio/card-figure', slots: { image: 'assets/figure.png', title: 'A figure' } } } : sc)) }),
+    timeline: (t) => ({
+      ...t,
+      scenes: (t.scenes as Array<Record<string, unknown>>).map((sc, i) =>
+        i === 0 ? { ...sc, card: { component: 'studio/card-figure', slots: { image: 'assets/figure.png', title: 'A figure' } } } : sc,
+      ),
+    }),
   });
   await mkdir(join(film, 'assets'), { recursive: true });
   await writeFile(join(film, 'assets', 'figure.png'), 'not read');
@@ -512,12 +563,22 @@ beforeAll(async () => {
   );
   await writeFile(
     join(ops, 'scenarios', 'tour.yaml'),
-    scenario('tour', 'app', ['setup:', '  - name: prepare', '    shell: {run: "echo setup >> setup-marker.txt", rollback: "echo undone >> undo-marker.txt"}', 'teardown:', '  - name: tidy', '    shell: "touch teardown-marker.txt"']),
+    scenario('tour', 'app', [
+      'setup:',
+      '  - name: prepare',
+      '    shell: {run: "echo setup >> setup-marker.txt", rollback: "echo undone >> undo-marker.txt"}',
+      'teardown:',
+      '  - name: tidy',
+      '    shell: "touch teardown-marker.txt"',
+    ]),
   );
   await writeFile(join(ops, 'scenarios', 'broken.yaml'), scenario('broken', 'app', ['setup:', '  - name: drop', '    shell: "echo drop"', '    destructive: true']));
   await writeFile(join(ops, 'hooks', 'mark.yaml'), '- name: mark\n  shell: {run: "echo mark >> mark-marker.txt", rollback: "echo unmark >> unmark-marker.txt"}\n');
   await writeFile(join(ops, 'hooks', 'peek.yaml'), '- name: peek\n  shell: {run: "echo peek >> peek-marker.txt"}\n  writes: false\n');
-  await writeFile(join(ops, 'hooks', 'fail.yaml'), '- name: ok first\n  shell: "echo first >> fail-marker.txt"\n- name: boom\n  shell: "exit 3"\n- name: never\n  shell: "echo never >> fail-marker.txt"\n');
+  await writeFile(
+    join(ops, 'hooks', 'fail.yaml'),
+    '- name: ok first\n  shell: "echo first >> fail-marker.txt"\n- name: boom\n  shell: "exit 3"\n- name: never\n  shell: "echo never >> fail-marker.txt"\n',
+  );
   await writeFile(join(ops, 'hooks', 'drop.yaml'), '- name: drop\n  shell: "echo dropped >> drop-marker.txt"\n  destructive: true\n');
   await writeFile(join(ops, 'sandbox', 'service.mjs'), 'process.stdin.resume();\n');
   await writeFile(
@@ -615,7 +676,11 @@ describe('the commands U8 moves, held against fixtures/operations-cli.json (U8.0
   it('hooks rollback: none pending, one run, a run without a journal, an unsigned entry, all', async () => {
     expect.soft((await retake('hooks rollback none pending', 'hooks', 'rollback', 'fresh')).code).toBe(EXIT.ok);
     expect.soft((await retake('hooks rollback no journal', 'hooks', 'rollback', 'ops', '20260101-080000-nothing')).code).toBe(EXIT.failure);
-    const journals = async (label: string) => (await readdir(join(ws, 'projects', 'ops', '.retake', 'journals'))).filter((f) => f.includes(label)).sort().map((f) => f.replace(/\.json$/, ''));
+    const journals = async (label: string) =>
+      (await readdir(join(ws, 'projects', 'ops', '.retake', 'journals')))
+        .filter((f) => f.includes(label))
+        .sort()
+        .map((f) => f.replace(/\.json$/, ''));
     // The journal of `hooks run ops tour:setup` (the first real run above).
     const [one] = await journals('hooks-tour-setup');
     expect(one).toBeDefined();
@@ -709,7 +774,29 @@ describe('the commands U8 moves, held against fixtures/operations-cli.json (U8.0
 
   it('export-capture: formats, cursor modes, the template note, latest, an unknown run, a dry run', async () => {
     expect.soft((await retake('export-capture', 'export-capture', 'film', RUN)).code).toBe(EXIT.ok);
-    expect.soft((await retake('export-capture prores 60 layer webm --selects --no-cuts --json', 'export-capture', 'film', RUN, '--format', 'prores', '--fps', '60', '--cursor', 'layer', '--layer', 'webm', '--selects', '--no-cuts', '--json')).code).toBe(EXIT.ok);
+    expect
+      .soft(
+        (
+          await retake(
+            'export-capture prores 60 layer webm --selects --no-cuts --json',
+            'export-capture',
+            'film',
+            RUN,
+            '--format',
+            'prores',
+            '--fps',
+            '60',
+            '--cursor',
+            'layer',
+            '--layer',
+            'webm',
+            '--selects',
+            '--no-cuts',
+            '--json',
+          )
+        ).code,
+      )
+      .toBe(EXIT.ok);
     expect.soft((await retake('export-capture --cursor none --out', 'export-capture', 'film', RUN, '--cursor', 'none', '--out', join(ws, 'raw'), '--no-wait')).code).toBe(EXIT.ok);
     expect.soft((await retake('export-capture --cursor layer', 'export-capture', 'film', RUN, '--cursor', 'layer')).code).toBe(EXIT.ok);
     expect.soft((await retake('export-capture a run whose edit names a file', 'export-capture', 'film', CARDED, '--json')).code).toBe(EXIT.ok);
@@ -729,7 +816,11 @@ describe('the commands U8 moves, held against fixtures/operations-cli.json (U8.0
     await writeFile(join(trusty, 'project.yaml'), 'name: Trusty\nenvironments:\n  local: {app: "http://app.example.test"}\n');
     const { createEngine } = await import('@retake/engine');
     const agent = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
-    await agent.scenarios.save('trusty', 'agentmade', scenario('agentmade', 'app', ['vars:', '  file: made.txt', 'setup:', '  - name: make', '    shell: {run: "touch {{vars.file}}", env: {MODE: "{{app}}"}, rollback: "rm -f {{vars.file}}"}']));
+    await agent.scenarios.save(
+      'trusty',
+      'agentmade',
+      scenario('agentmade', 'app', ['vars:', '  file: made.txt', 'setup:', '  - name: make', '    shell: {run: "touch {{vars.file}}", env: {MODE: "{{app}}"}, rollback: "rm -f {{vars.file}}"}']),
+    );
     await agent.scenarios.save('trusty', 'plainmade', scenario('plainmade', 'app', []));
     expect.soft((await retake('hooks trust no terminal', 'hooks', 'trust', 'trusty', 'agentmade')).code).toBe(EXIT.failure);
     expect.soft((await retake('hooks trust answered no', 'hooks', 'trust', 'trusty', 'agentmade', { answers: ['n'] })).code).toBe(EXIT.failure);

@@ -56,8 +56,16 @@ export function sandboxContract(subject: () => SandboxSubject, timeout = 120_000
   describe('the Sandboxes contract', () => {
     it_('open refuses a project without a sandbox and an environment that is not one, in the words of the package', async () => {
       s = subject();
-      expect(await refusal(s.sandboxes.open(s.bare, undefined, PERSON_POLICY))).toEqual({ code: 'failed', kind: 'not_found', message: `project ${s.bare.slug} has no sandbox: add \`sandboxes: {sandbox: sandbox/sandbox.yaml}\` to project.yaml` });
-      expect(await refusal(s.sandboxes.open(s.project, 'nope', PERSON_POLICY))).toMatchObject({ code: 'failed', kind: 'not_found', message: `nope is not a sandbox of project ${s.project.slug} (sandboxes: sandbox)` });
+      expect(await refusal(s.sandboxes.open(s.bare, undefined, PERSON_POLICY))).toEqual({
+        code: 'failed',
+        kind: 'not_found',
+        message: `project ${s.bare.slug} has no sandbox: add \`sandboxes: {sandbox: sandbox/sandbox.yaml}\` to project.yaml`,
+      });
+      expect(await refusal(s.sandboxes.open(s.project, 'nope', PERSON_POLICY))).toMatchObject({
+        code: 'failed',
+        kind: 'not_found',
+        message: `nope is not a sandbox of project ${s.project.slug} (sandboxes: sandbox)`,
+      });
       sb = await s.sandboxes.open(s.project, undefined, PERSON_POLICY);
     });
 
@@ -77,7 +85,9 @@ export function sandboxContract(subject: () => SandboxSubject, timeout = 120_000
       expect(st.lock).toBeUndefined();
       const down = await refusal(sb.reset({ log }));
       expect(down).toMatchObject({ code: 'down', kind: 'unavailable' });
-      expect(down.message).toBe(`sandbox sandbox is not running (${s.services.map((n) => `${n} is not running`).join(', ')}): retake sandbox up ${s.project.slug} --env sandbox, or run with --sandbox`);
+      expect(down.message).toBe(
+        `sandbox sandbox is not running (${s.services.map((n) => `${n} is not running`).join(', ')}): retake sandbox up ${s.project.slug} --env sandbox, or run with --sandbox`,
+      );
       expect(await refusal(sb.checkRunning())).toMatchObject({ code: 'down', message: down.message });
     });
 

@@ -40,7 +40,8 @@ async function run(p: LoadedProject, id: string, scenario: string | null, mode: 
   await mkdir(dir, { recursive: true });
   const named = scenario ?? 'quote';
   if (scenario !== null) await writeFile(join(dir, 'run.json'), JSON.stringify({ ...syntheticRunRecord(dir, { id, scenario, project: 'p' }), mode: mode === 'dry' ? 'dry' : 'capture' }));
-  if (mode !== 'none') await writeFile(join(dir, 'timeline.json'), JSON.stringify({ version: 1, run_id: id, project: 'p', scenario: named, mode, capture: { file: mode === 'dry' ? '' : 'capture.mp4' } }));
+  if (mode !== 'none')
+    await writeFile(join(dir, 'timeline.json'), JSON.stringify({ version: 1, run_id: id, project: 'p', scenario: named, mode, capture: { file: mode === 'dry' ? '' : 'capture.mp4' } }));
   if (mode !== 'dry') await writeFile(join(dir, 'capture.mp4'), 'not really a video');
 }
 
@@ -225,15 +226,27 @@ describe('the versions taken in renders/', () => {
     expect(await twoRenders('quote-v999998.json')).toEqual({ versions: ['999999', 'refused: quote-v999999.mp4 999999'], locks: ['.quote-v999999.lock'] }); // G
     expect(await twoRenders('quote-v999999.mp4')).toEqual({ versions: ['refused: quote-v999999.mp4 999999', 'refused: quote-v999999.mp4 999999'], locks: [] }); // G
     expect(await twoRenders('.quote-v1000000.lock')).toEqual({ versions: ['refused: .quote-v1000000.lock 1000000', 'refused: .quote-v1000000.lock 1000000'], locks: [] }); // G
-    expect((await twoRenders('quote-v9007199254740990-vertical.mp4')).versions).toEqual(['refused: quote-v9007199254740990-vertical.mp4 9007199254740990', 'refused: quote-v9007199254740990-vertical.mp4 9007199254740990']); // G
+    expect((await twoRenders('quote-v9007199254740990-vertical.mp4')).versions).toEqual([
+      'refused: quote-v9007199254740990-vertical.mp4 9007199254740990',
+      'refused: quote-v9007199254740990-vertical.mp4 9007199254740990',
+    ]); // G
   });
 
   it('a file that claims a version past what a number holds is named with its digits as written, and nothing is reserved', async () => {
     // L7.5 G (the version bound): two renders never get the same version.
-    expect(await twoRenders('quote-v9007199254740992.json')).toEqual({ versions: ['refused: quote-v9007199254740992.json 9007199254740992', 'refused: quote-v9007199254740992.json 9007199254740992'], locks: [] }); // G
+    expect(await twoRenders('quote-v9007199254740992.json')).toEqual({
+      versions: ['refused: quote-v9007199254740992.json 9007199254740992', 'refused: quote-v9007199254740992.json 9007199254740992'],
+      locks: [],
+    }); // G
     expect((await twoRenders('quote-v9007199254740993.mp4')).versions).toEqual(['refused: quote-v9007199254740993.mp4 9007199254740993', 'refused: quote-v9007199254740993.mp4 9007199254740993']); // G
-    expect((await twoRenders('.quote-v99999999999999999999.lock')).versions).toEqual(['refused: .quote-v99999999999999999999.lock 99999999999999999999', 'refused: .quote-v99999999999999999999.lock 99999999999999999999']); // G
-    expect(await twoRenders('quote-v9999999999999999999999-vertical.mp4')).toEqual({ versions: ['refused: quote-v9999999999999999999999-vertical.mp4 9999999999999999999999', 'refused: quote-v9999999999999999999999-vertical.mp4 9999999999999999999999'], locks: [] }); // G
+    expect((await twoRenders('.quote-v99999999999999999999.lock')).versions).toEqual([
+      'refused: .quote-v99999999999999999999.lock 99999999999999999999',
+      'refused: .quote-v99999999999999999999.lock 99999999999999999999',
+    ]); // G
+    expect(await twoRenders('quote-v9999999999999999999999-vertical.mp4')).toEqual({
+      versions: ['refused: quote-v9999999999999999999999-vertical.mp4 9999999999999999999999', 'refused: quote-v9999999999999999999999-vertical.mp4 9999999999999999999999'],
+      locks: [],
+    }); // G
   });
 
   it('a file of one scenario never changes the versions of another', async () => {
@@ -247,10 +260,14 @@ describe('the versions taken in renders/', () => {
   });
 });
 
-describe('an export under an agent\'s trust names its render by its id', () => {
+describe("an export under an agent's trust names its render by its id", () => {
   it('a name that is not one is refused before anything is read', async () => {
     const p = await project();
-    const failedRecord = (id: string) => writeFile(join(p.dir, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', status: 'failed', file: join(p.dir, 'renders', `${id}.mp4`), run_dir: join(p.dir, 'runs', 'r'), plan: {} }));
+    const failedRecord = (id: string) =>
+      writeFile(
+        join(p.dir, 'renders', `${id}.json`),
+        JSON.stringify({ version: 1, id, scenario: 'quote', status: 'failed', file: join(p.dir, 'renders', `${id}.mp4`), run_dir: join(p.dir, 'runs', 'r'), plan: {} }),
+      );
     await failedRecord('quote-v1');
     await failedRecord('final');
     await mkdir(join(p.dir, 'runs', 'r'), { recursive: true });

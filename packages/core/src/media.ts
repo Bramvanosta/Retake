@@ -144,7 +144,6 @@ export class MediaProbeError extends Error {
   }
 }
 
-
 /** What a Lottie file says about itself. */
 export interface LottieMeta {
   /** bodymovin version that exported it. */

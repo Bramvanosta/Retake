@@ -47,11 +47,7 @@ async function accountsRoot(ctx: HookContext, value: unknown, env?: string): Pro
  * results, run id and folder, optional extra roots ({{response…}}), the secrets used by `value` and, in a sandbox
  * environment, the accounts it reads (`{{accounts.<persona>.password}}`).
  */
-export async function hookTemplateContext(
-  ctx: HookContext,
-  value: unknown,
-  extra?: Record<string, unknown>,
-): Promise<TemplateContext> {
+export async function hookTemplateContext(ctx: HookContext, value: unknown, extra?: Record<string, unknown>): Promise<TemplateContext> {
   const dry = ctx.dryRun ? drySaved.get(ctx) : undefined;
   const accounts = await accountsRoot(ctx, value);
   return {
@@ -83,10 +79,7 @@ function placeholder(path: string): object {
         if (p === 'toJSON' || p === 'toString' || p === Symbol.toPrimitive) return () => `${MARK}${path}${MARK}`;
         return typeof p === 'symbol' ? undefined : placeholder(`${path}.${p}`);
       },
-      getOwnPropertyDescriptor: (_t, p) =>
-        typeof p === 'symbol'
-          ? undefined
-          : { configurable: true, enumerable: true, writable: true, value: placeholder(`${path}.${p}`) },
+      getOwnPropertyDescriptor: (_t, p) => (typeof p === 'symbol' ? undefined : { configurable: true, enumerable: true, writable: true, value: placeholder(`${path}.${p}`) }),
       has: () => true,
       ownKeys: () => [],
     },
@@ -125,12 +118,7 @@ export function renderDeep<T>(value: T, tpl: TemplateContext): T {
  * Template context of a rollback: the captured snapshot plus freshly resolved secrets — and sandbox accounts, read
  * again from the sandbox of the environment the hook ran in (`env`; default: the context's).
  */
-export async function snapshotTemplateContext(
-  ctx: HookContext,
-  snapshot: TemplateSnapshot,
-  value: unknown,
-  env?: string,
-): Promise<TemplateContext> {
+export async function snapshotTemplateContext(ctx: HookContext, snapshot: TemplateSnapshot, value: unknown, env?: string): Promise<TemplateContext> {
   const accounts = await accountsRoot(ctx, value, env);
   return {
     pages: snapshot.pages ?? {},

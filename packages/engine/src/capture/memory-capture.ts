@@ -39,12 +39,7 @@ export class MemoryCancelledError extends Error {
   }
 }
 
-export type MemoryCaptureCall =
-  | { member: 'load' }
-  | { member: 'run'; req: CaptureRequest }
-  | { member: 'cancelled'; message?: string }
-  | { member: 'cleanupSync' }
-  | MemoryRawCall;
+export type MemoryCaptureCall = { member: 'load' } | { member: 'run'; req: CaptureRequest } | { member: 'cancelled'; message?: string } | { member: 'cleanupSync' } | MemoryRawCall;
 
 export interface MemoryCaptureRunnerOptions {
   /** What its runs stamp (default a ManualClock at 2026-11-11T12:00:00Z: the stamps stand still, elapsed times do not). */

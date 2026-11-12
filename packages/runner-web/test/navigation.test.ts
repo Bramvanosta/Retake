@@ -121,9 +121,15 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
     }
     // The fresh tab: from about:blank to the paint, before the still.
     const direct = loadsIn('direct');
-    expect(direct.some((l) => l.page === 'other' && l.until === 'paint' && l.t_end - l.t_start > 0.9), JSON.stringify(direct)).toBe(true);
+    expect(
+      direct.some((l) => l.page === 'other' && l.until === 'paint' && l.t_end - l.t_start > 0.9),
+      JSON.stringify(direct),
+    ).toBe(true);
     // A page that never paints content: shown once loaded and quiet.
-    expect(loadsIn('plain').some((l) => l.page === 'app' && l.until === 'load'), JSON.stringify(loadsIn('plain'))).toBe(true);
+    expect(
+      loadsIn('plain').some((l) => l.page === 'app' && l.until === 'load'),
+      JSON.stringify(loadsIn('plain')),
+    ).toBe(true);
     // A client-side route (pushState) is no page load.
     expect(loadsIn('spa').filter((l) => l.t_start >= click('spa').t_click! - 1e-3)).toEqual([]);
     expect(tl.warnings.filter((w) => /painted nothing|froze/.test(w))).toEqual([]);
@@ -132,7 +138,10 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
   it.skipIf(!MAC_TIMING)('no frame inside a held load; every still starts after them; the first frame after one shows the cursor', async () => {
     const frames = await frameIndex(join(runDir, 'frames.jsonl'));
     for (const l of tl.loading ?? []) {
-      expect(frames.filter((f) => f.t >= l.t_start && f.t < l.t_end), JSON.stringify(l)).toEqual([]);
+      expect(
+        frames.filter((f) => f.t >= l.t_start && f.t < l.t_end),
+        JSON.stringify(l),
+      ).toEqual([]);
       const still = tl.events.find((e) => e.action === 'scene_still' && e.scene === sceneOf(l.t_start).id)!;
       if (l.t_start < still.t_start) expect(l.t_end, JSON.stringify(l)).toBeLessThanOrEqual(still.t_start + 1e-3);
     }
@@ -169,34 +178,48 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
 });
 
 describe('control: the same navigation recorded without the hold (R-ISS-08)', () => {
-  it.skipIf(!MAC_TIMING)('the skeleton is filmed without the hold, never with it', async () => {
-    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
-    try {
-      const page = await session.page('main');
-      const out: Record<string, { frames: Buffer[]; loading: TimelineLoading[] }> = {};
-      for (const holdLoads of [false, true]) {
-        await page.goto(`${here.url}/`);
-        const clock = new CaptureClock();
-        const sub = join(dir, `control-${holdLoads}`);
-        const rec = new ScreencastRecorder({ framesDir: join(sub, 'frames'), indexFile: join(sub, 'frames.jsonl'), format: 'jpeg', quality: 80, width: 800, height: 600, scale: 1, clock, holdLoads });
-        await rec.start(page);
-        await page.waitForTimeout(200);
-        await page.click('#late');
-        await page.waitForFunction(() => document.body.innerText.includes('Report ready'));
-        await page.waitForTimeout(400);
-        await rec.stop();
-        out[String(holdLoads)] = { frames: decodeSmall(['-framerate', '30', '-i', join(sub, 'frames', '%06d.jpg')]), loading: rec.loadingIntervals() };
+  it.skipIf(!MAC_TIMING)(
+    'the skeleton is filmed without the hold, never with it',
+    async () => {
+      const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+      try {
+        const page = await session.page('main');
+        const out: Record<string, { frames: Buffer[]; loading: TimelineLoading[] }> = {};
+        for (const holdLoads of [false, true]) {
+          await page.goto(`${here.url}/`);
+          const clock = new CaptureClock();
+          const sub = join(dir, `control-${holdLoads}`);
+          const rec = new ScreencastRecorder({
+            framesDir: join(sub, 'frames'),
+            indexFile: join(sub, 'frames.jsonl'),
+            format: 'jpeg',
+            quality: 80,
+            width: 800,
+            height: 600,
+            scale: 1,
+            clock,
+            holdLoads,
+          });
+          await rec.start(page);
+          await page.waitForTimeout(200);
+          await page.click('#late');
+          await page.waitForFunction(() => document.body.innerText.includes('Report ready'));
+          await page.waitForTimeout(400);
+          await rec.stop();
+          out[String(holdLoads)] = { frames: decodeSmall(['-framerate', '30', '-i', join(sub, 'frames', '%06d.jpg')]), loading: rec.loadingIntervals() };
+        }
+        const yellow = (fs: Buffer[]) => fs.map(corner).filter((c) => YELLOWS.some((y) => near(c, y))).length;
+        expect(yellow(out.false.frames)).toBeGreaterThan(5);
+        expect(out.false.loading).toEqual([]);
+        expect(yellow(out.true.frames)).toBe(0);
+        expect(out.true.frames.map(corner).some((c) => near(c, GREEN))).toBe(true);
+        expect(out.true.loading).toEqual([expect.objectContaining({ until: 'paint' })]);
+      } finally {
+        await session.close();
       }
-      const yellow = (fs: Buffer[]) => fs.map(corner).filter((c) => YELLOWS.some((y) => near(c, y))).length;
-      expect(yellow(out.false.frames)).toBeGreaterThan(5);
-      expect(out.false.loading).toEqual([]);
-      expect(yellow(out.true.frames)).toBe(0);
-      expect(out.true.frames.map(corner).some((c) => near(c, GREEN))).toBe(true);
-      expect(out.true.loading).toEqual([expect.objectContaining({ until: 'paint' })]);
-    } finally {
-      await session.close();
-    }
-  }, 60_000);
+    },
+    60_000,
+  );
 });
 
 describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08, L1.2 review)', () => {
@@ -232,7 +255,11 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
     // Both slow pages held until their paint (≥ 1 s of skeleton), no frame inside a hold.
     expect((tl2.loading ?? []).filter((l) => l.until === 'paint' && l.t_end - l.t_start > 0.9).map((l) => l.page)).toEqual(['app', 'other']);
     const frames = await frameIndex(join(dir2, 'frames.jsonl'));
-    for (const l of tl2.loading ?? []) expect(frames.filter((f) => f.t >= l.t_start && f.t < l.t_end), JSON.stringify(l)).toEqual([]);
+    for (const l of tl2.loading ?? [])
+      expect(
+        frames.filter((f) => f.t >= l.t_start && f.t < l.t_end),
+        JSON.stringify(l),
+      ).toEqual([]);
   });
 
   it('a step that navigated without a click ends on the painted page: its hold is never inside the held load', () => {
@@ -281,8 +308,15 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
     // The left page's own navigation (the skeleton page, ≥ 1 s) happened during the right page's steps.
     const held = (t.tracks?.find((tr) => tr.id === 'left')?.loading ?? []).filter((l) => l.until === 'paint' && l.t_end - l.t_start > 0.9);
     const still = t.events.find((e) => e.action === 'scene_still')!;
-    expect(held.filter((l) => l.t_start > still.t_end), JSON.stringify(t.tracks?.map((tr) => tr.loading))).toHaveLength(1);
+    expect(
+      held.filter((l) => l.t_start > still.t_end),
+      JSON.stringify(t.tracks?.map((tr) => tr.loading)),
+    ).toHaveLength(1);
     const starts = t.events.filter((e) => e.step >= 0).map((e) => e.t_start);
-    for (const l of held) expect(starts.filter((x) => x > l.t_start + 0.02 && x < l.t_end - 1e-3), JSON.stringify(l)).toEqual([]);
+    for (const l of held)
+      expect(
+        starts.filter((x) => x > l.t_start + 0.02 && x < l.t_end - 1e-3),
+        JSON.stringify(l),
+      ).toEqual([]);
   }, 60_000);
 });

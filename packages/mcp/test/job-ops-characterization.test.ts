@@ -189,9 +189,30 @@ async function writeRecord(dir: string, id: string, created: string): Promise<vo
   await writeFile(
     join(r, `${id}.json`),
     JSON.stringify({
-      version: 1, id, project: D, scenario: 'tl', run_id: TAKE, run_dir: join(dir, 'runs', TAKE), template: 'editorial', overrides: {},
-      edit: { from: 'scenario', sha256: sha(TEXT) }, variant: 'landscape', status: 'succeeded', file: join(r, `${id}.mp4`), record: join(r, `${id}.json`),
-      render_version: Number(/-v(\d+)/.exec(id)![1]), created_at: created, finished_at: created, duration_s: 3, frames: 90, fps: 30, width: 1920, height: 1080, size_bytes: 1234, plan: {}, warnings: [],
+      version: 1,
+      id,
+      project: D,
+      scenario: 'tl',
+      run_id: TAKE,
+      run_dir: join(dir, 'runs', TAKE),
+      template: 'editorial',
+      overrides: {},
+      edit: { from: 'scenario', sha256: sha(TEXT) },
+      variant: 'landscape',
+      status: 'succeeded',
+      file: join(r, `${id}.mp4`),
+      record: join(r, `${id}.json`),
+      render_version: Number(/-v(\d+)/.exec(id)![1]),
+      created_at: created,
+      finished_at: created,
+      duration_s: 3,
+      frames: 90,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+      size_bytes: 1234,
+      plan: {},
+      warnings: [],
     }),
   );
 }
@@ -399,8 +420,16 @@ describe.skipIf(!canRun)('submitting and controlling jobs through their shells (
       const x = a.answer as { isError?: boolean; status?: number; twice?: Array<{ isError?: boolean; status?: number }> };
       return x.twice ? x.twice.some((y) => y.isError === false || y.status === 200) : x.isError === false || x.status === 200;
     };
-    for (const op of ['run_dry', 'run_capture', 'render', 'review', 'export', 'page_inspect', 'job_cancel', 'job_status']) expect(mcpAnswers.some((a) => a.op === op && ok(a)), op).toBe(true);
-    for (const op of ['scenario_run', 'scenario_render', 'review_export', 'sign_in_cancel', 'render_cancel']) expect(studioAnswers.some((a) => a.op === op && ok(a)), op).toBe(true);
+    for (const op of ['run_dry', 'run_capture', 'render', 'review', 'export', 'page_inspect', 'job_cancel', 'job_status'])
+      expect(
+        mcpAnswers.some((a) => a.op === op && ok(a)),
+        op,
+      ).toBe(true);
+    for (const op of ['scenario_run', 'scenario_render', 'review_export', 'sign_in_cancel', 'render_cancel'])
+      expect(
+        studioAnswers.some((a) => a.op === op && ok(a)),
+        op,
+      ).toBe(true);
     // The refusals the family is held to are in it: two submits at once (one 409 naming the job), sessions_ack missing
     // (details.sessions), a changed file, the export cap (details.open).
     expect(text).toContain('"sessions": [');

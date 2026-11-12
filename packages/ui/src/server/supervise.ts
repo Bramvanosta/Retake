@@ -431,12 +431,26 @@ export class Supervisor {
  * `server.close()` (which stops it first), polls again after each Studio write op.
  */
 export function startSupervisor(o: {
-  server: { engine: { workspace: { root: string; projectsDir: string }; queue: JobQueueView }; unsaved: UnsavedBoard; desktop?: DesktopPipe; onWrite(f: () => void): () => void; close(): Promise<void> };
+  server: {
+    engine: { workspace: { root: string; projectsDir: string }; queue: JobQueueView };
+    unsaved: UnsavedBoard;
+    desktop?: DesktopPipe;
+    onWrite(f: () => void): () => void;
+    close(): Promise<void>;
+  };
   out: PipeOut;
   pollMs?: number;
   log?: (message: string) => void;
 }): Supervisor {
-  const sup = new Supervisor({ root: o.server.engine.workspace.root, queue: o.server.engine.queue, projectsDir: o.server.engine.workspace.projectsDir, board: o.server.unsaved, out: o.out, ...(o.pollMs ? { pollMs: o.pollMs } : {}), ...(o.log ? { log: o.log } : {}) });
+  const sup = new Supervisor({
+    root: o.server.engine.workspace.root,
+    queue: o.server.engine.queue,
+    projectsDir: o.server.engine.workspace.projectsDir,
+    board: o.server.unsaved,
+    out: o.out,
+    ...(o.pollMs ? { pollMs: o.pollMs } : {}),
+    ...(o.log ? { log: o.log } : {}),
+  });
   const off = o.server.onWrite(() => void sup.nudge());
   // L5.12d: the window page's ack and answer to the quit question go out on the same pipe.
   o.server.desktop?.attach((line) => sup.pageLine(line));

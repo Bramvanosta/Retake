@@ -168,7 +168,10 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
     const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
-    await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
+    await writeFile(
+      join(project, 'project.yaml'),
+      yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
+    );
     await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
     studio = await startStudioServer({ root, startWorker: false, pollMs: 150, log: () => undefined });
     const executablePath = process.env.RETAKE_CHROMIUM;
@@ -295,14 +298,18 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     if (SHOTS) {
       const video = join(rendersDir, (await readdir(rendersDir)).find((f) => f.startsWith(render.render_id) && f.endsWith('.mp4'))!);
       const at = (frame: number) => (frame / model.fps).toFixed(3);
-      const cut = (name: string, frame: number) => execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', at(frame), '-i', video, '-frames:v', '1', '-vf', 'scale=960:-1', join(SHOTS, `acc-frame-${name}.png`)]);
+      const cut = (name: string, frame: number) =>
+        execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', at(frame), '-i', video, '-frames:v', '1', '-vf', 'scale=960:-1', join(SHOTS, `acc-frame-${name}.png`)]);
       cut('before-zoom', Math.max(0, zoom!.from - 15));
       cut('zoom-in', zoom!.in_to + 2);
       cut('zoom-end', zoom!.out_from - 2);
       cut('caption', Math.round((caption.from + caption.to) / 2));
       cut('marker', marker.frame);
       cut('marker-done', marker.done ?? marker.frame + 30);
-      await writeFile(join(SHOTS, 'acc-model.json'), `${JSON.stringify({ captions: model.captions, camera: model.camera, markers: model.markers, steps: model.steps, untrusted: model.untrusted, frames: model.frames, fps: model.fps }, null, 1)}\n`);
+      await writeFile(
+        join(SHOTS, 'acc-model.json'),
+        `${JSON.stringify({ captions: model.captions, camera: model.camera, markers: model.markers, steps: model.steps, untrusted: model.untrusted, frames: model.frames, fps: model.fps }, null, 1)}\n`,
+      );
     }
     timings.video_s = record.duration_s;
     expect(consoleErrors).toEqual([]);

@@ -18,27 +18,29 @@ export async function writeFiles(root: string, files: Record<string, string>): P
 
 /** A small valid card manifest; `extra` lines are appended (YAML). */
 export function cardManifest(id = 'acme/title-card', extra = ''): string {
-  return [
-    `id: ${id}`,
-    'version: 1.0.0',
-    'kind: card',
-    'name: Title card',
-    'description: A title on the theme background.',
-    'slots:',
-    '  title: {type: text, required: true, max_chars: 60}',
-    '  kicker: {type: text}',
-    'params:',
-    '  type: object',
-    '  properties:',
-    '    align: {type: string, enum: [center, left], default: center}',
-    '    size: {type: number, minimum: 20, maximum: 120, default: 84}',
-    'duration: {default: 2.5, min: 1, max: 10}',
-    'preview:',
-    '  slots: {title: Hello}',
-    extra,
-  ]
-    .filter((l) => l !== '')
-    .join('\n') + '\n';
+  return (
+    [
+      `id: ${id}`,
+      'version: 1.0.0',
+      'kind: card',
+      'name: Title card',
+      'description: A title on the theme background.',
+      'slots:',
+      '  title: {type: text, required: true, max_chars: 60}',
+      '  kicker: {type: text}',
+      'params:',
+      '  type: object',
+      '  properties:',
+      '    align: {type: string, enum: [center, left], default: center}',
+      '    size: {type: number, minimum: 20, maximum: 120, default: 84}',
+      'duration: {default: 2.5, min: 1, max: 10}',
+      'preview:',
+      '  slots: {title: Hello}',
+      extra,
+    ]
+      .filter((l) => l !== '')
+      .join('\n') + '\n'
+  );
 }
 
 /** A minimal valid implementation. */

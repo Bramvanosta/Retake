@@ -22,7 +22,28 @@
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
-import { constants, accessSync, chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeSync } from 'node:fs';
+import {
+  constants,
+  accessSync,
+  chmodSync,
+  closeSync,
+  copyFileSync,
+  existsSync,
+  fsyncSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeSync,
+} from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { isUnder } from '@retake/core/base';
@@ -196,10 +217,17 @@ export function installCliLink(dir: string, launcher: string, o: { replace?: boo
   const now = cliLinkState(link, launcher);
   if (now.state === 'ours') return { path: link, result: 'kept' };
   if (now.state === 'foreign') {
-    throw new SetupError('foreign', `${link} already exists and is not Retake's command (${now.what}${now.target ? ` → ${now.target}` : ''}): it is left as it is — remove or rename it yourself, or choose another folder`, { what: now.what });
+    throw new SetupError(
+      'foreign',
+      `${link} already exists and is not Retake's command (${now.what}${now.target ? ` → ${now.target}` : ''}): it is left as it is — remove or rename it yourself, or choose another folder`,
+      { what: now.what },
+    );
   }
   if (now.state === 'other_app' && !o.replace) {
-    throw new SetupError('other_app', `${link} runs another copy of Retake (${now.target}${now.dangling ? ', which is gone' : ''}): Replace points it at this one`, { target: now.target, dangling: now.dangling });
+    throw new SetupError('other_app', `${link} runs another copy of Retake (${now.target}${now.dangling ? ', which is gone' : ''}): Replace points it at this one`, {
+      target: now.target,
+      dangling: now.dangling,
+    });
   }
   if (now.state === 'absent') {
     symlinkSync(launcher, link);
@@ -342,7 +370,15 @@ export function readUpdateChecks(home: string): UpdateChecks {
     if (!v || typeof v !== 'object' || Array.isArray(v) || v.version !== 1) return none;
     const checked = typeof v.checked === 'number' && Number.isSafeInteger(v.checked) && v.checked >= 0 ? v.checked : null;
     const f = v.failed as Record<string, unknown> | null | undefined;
-    const failed = f && typeof f === 'object' && ['check', 'download', 'install', 'not_writable'].includes(f.failure as string) && typeof f.version === 'string' && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(f.version) && f.version.length <= 64 ? { failure: f.failure as string, version: f.version } : null;
+    const failed =
+      f &&
+      typeof f === 'object' &&
+      ['check', 'download', 'install', 'not_writable'].includes(f.failure as string) &&
+      typeof f.version === 'string' &&
+      /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(f.version) &&
+      f.version.length <= 64
+        ? { failure: f.failure as string, version: f.version }
+        : null;
     return { checked, failed };
   } catch {
     return none;
@@ -470,7 +506,19 @@ export interface DesktopWriteResult {
  * kept); the file is read back and must hold the entry. A different entry needs `replace` (SetupError `needs_replace`,
  * with the one there now).
  */
-export function writeDesktopEntry(file: string, entry: Record<string, unknown>, o: { backupDir: string; replace?: boolean; now?: Date; name?: string; backupsMax?: number; /** Tests: another program writes between the write and the read-back. */ afterWrite?: (file: string) => void }): DesktopWriteResult {
+export function writeDesktopEntry(
+  file: string,
+  entry: Record<string, unknown>,
+  o: {
+    backupDir: string;
+    replace?: boolean;
+    now?: Date;
+    name?: string;
+    backupsMax?: number;
+    /** Tests: another program writes between the write and the read-back. */
+    afterWrite?: (file: string) => void;
+  },
+): DesktopWriteResult {
   const name = o.name ?? 'retake';
   let real = file;
   let text: string | null = null;
@@ -617,7 +665,11 @@ export const CLAUDE_KILL_MS = 2000;
  * answer never waits for it). The whole run has `timeoutMs`: then the step's process group gets SIGTERM, SIGKILL
  * CLAUDE_KILL_MS later, and the step answers at once with `timedOut` set.
  */
-export async function runClaudeSteps(claude: string, steps: ClaudeStep[], o: { env: NodeJS.ProcessEnv; timeoutMs?: number; outputMax?: number; spawn?: SpawnFn; drainMs?: number; killMs?: number }): Promise<ClaudeRunResult> {
+export async function runClaudeSteps(
+  claude: string,
+  steps: ClaudeStep[],
+  o: { env: NodeJS.ProcessEnv; timeoutMs?: number; outputMax?: number; spawn?: SpawnFn; drainMs?: number; killMs?: number },
+): Promise<ClaudeRunResult> {
   const deadline = Date.now() + (o.timeoutMs ?? CLAUDE_RUN_MS);
   const max = o.outputMax ?? CLAUDE_OUTPUT_MAX;
   const out: ClaudeStepResult[] = [];
@@ -652,18 +704,21 @@ export async function runClaudeSteps(claude: string, steps: ClaudeStep[], o: { e
         }
       };
       timers.push(
-        setTimeout(() => {
-          // Exited already (its pipes draining): its exit code decides, not the clock.
-          if (exited) return finish(exitCode);
-          timedOut = true;
-          kill('SIGTERM');
-          timers.push(
-            setTimeout(() => {
-              kill('SIGKILL');
-              finish(exitCode);
-            }, o.killMs ?? CLAUDE_KILL_MS),
-          );
-        }, Math.max(0, deadline - Date.now())),
+        setTimeout(
+          () => {
+            // Exited already (its pipes draining): its exit code decides, not the clock.
+            if (exited) return finish(exitCode);
+            timedOut = true;
+            kill('SIGTERM');
+            timers.push(
+              setTimeout(() => {
+                kill('SIGKILL');
+                finish(exitCode);
+              }, o.killMs ?? CLAUDE_KILL_MS),
+            );
+          },
+          Math.max(0, deadline - Date.now()),
+        ),
       );
       child.once('error', (e) => finish(null, e.message));
       child.once('exit', (code) => {

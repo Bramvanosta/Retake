@@ -85,9 +85,7 @@ export function calendar(): CalendarInfo | null {
         near(b),
     );
   };
-  const floats = deepQsa(document, FLOATING_SEL).filter(
-    (e) => e !== host && (!e.hasAttribute('popover') || isPopoverOpen(e)) && cells.some((c) => deepContains(e, c)) && isVisible(e),
-  );
+  const floats = deepQsa(document, FLOATING_SEL).filter((e) => e !== host && (!e.hasAttribute('popover') || isPopoverOpen(e)) && cells.some((c) => deepContains(e, c)) && isVisible(e));
   const LAYER = `${POPUP_SEL},${FLOATING_SEL}`;
   const climb = (start: Element, inPopup: boolean): Element => {
     let r = start;
@@ -122,9 +120,7 @@ export function calendar(): CalendarInfo | null {
       ref: ref(c),
       label: norm(c.getAttribute('aria-label')) || short(textOf(c), 40),
       iso: dayIso(c),
-      disabled:
-        (c as HTMLButtonElement).disabled === true ||
-        dayFlag(c, '[aria-disabled=true],[data-disabled]:not([data-disabled=false])'),
+      disabled: (c as HTMLButtonElement).disabled === true || dayFlag(c, '[aria-disabled=true],[data-disabled]:not([data-disabled=false])'),
       outside: dayFlag(c, '[data-outside],[data-outside-month],[class*=outside],[class*=other-month],[class*=adjacent]'),
     })),
   };

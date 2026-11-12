@@ -76,7 +76,14 @@ async function psTimes(pids: readonly number[]): Promise<Map<number, number>> {
 export async function listeningPids(ports: readonly number[]): Promise<number[]> {
   if (!ports.length || process.platform === 'win32') return [];
   const out = await run('lsof', ['-nP', '-t', '-sTCP:LISTEN', ...ports.map((p) => `-iTCP:${p}`)]);
-  return [...new Set(out.split('\n').map((l) => Number(l.trim())).filter((n) => Number.isInteger(n) && n > 0 && n !== process.pid))];
+  return [
+    ...new Set(
+      out
+        .split('\n')
+        .map((l) => Number(l.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0 && n !== process.pid),
+    ),
+  ];
 }
 
 /** Local ports of page URLs (localhost, 127.0.0.1, [::1], *.localhost). */

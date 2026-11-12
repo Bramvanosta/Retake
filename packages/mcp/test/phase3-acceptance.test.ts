@@ -254,7 +254,10 @@ async function checkPhase(p: string, expected: string[], skills: Array<[string, 
   const named = new Set<string>();
   for (const [skill, headings] of skills) for (const t of await skillTools(skill, headings)) named.add(t);
   const used = [...new Set(events.flatMap((e) => (e.kind === 'call' ? [e.name] : [])))];
-  expect(used.filter((t) => !named.has(t)), `${p}: tools its skill sections do not name`).toEqual([]);
+  expect(
+    used.filter((t) => !named.has(t)),
+    `${p}: tools its skill sections do not name`,
+  ).toEqual([]);
 }
 
 /** The rules the skills state, checked over every call of the story. Returns the broken ones. */
@@ -359,23 +362,52 @@ describe('phase 3 acceptance: the rule checker (L3.8 review L8)', () => {
   const C = (name: string, args: Json = {}, d: Json = {}): Event => ({ phase: 'p', kind: 'call', name, args, data: d });
   const W = (file: string): Event => ({ phase: 'p', kind: 'write', file });
   const captured = (id: string) => [C('run_capture', {}, { id }), C('run_status', {}, { id, mode: 'capture', status: 'succeeded' })];
-  const base = [C('scenario_validate', { yaml: 'A' }, { ok: true }), C('scenario_save', { yaml: 'A', if_match: null }, { hash: 'h1' }), ...captured('r1'), C('render', {}, { render_id: 'v1', run_id: 'r1' })];
+  const base = [
+    C('scenario_validate', { yaml: 'A' }, { ok: true }),
+    C('scenario_save', { yaml: 'A', if_match: null }, { hash: 'h1' }),
+    ...captured('r1'),
+    C('render', {}, { render_id: 'v1', run_id: 'r1' }),
+  ];
   const edit = [C('scenario_get', {}, { hash: 'h1' }), C('scenario_validate', { yaml: 'B' }, { ok: true }), C('scenario_save', { yaml: 'B', if_match: 'h1' }, { hash: 'h2' })];
   const reply = C('comment_reply', {}, { hash: 'rh' });
   const cases: Array<[string, Event[], string | null]> = [
-    ['the story as the skills write it', [...base, reply, ...edit, ...captured('r2'), C('render', {}, { render_id: 'v2', run_id: 'r2' }), C('comment_resolve', { if_match: 'rh', render_id: 'v2' })], null],
+    [
+      'the story as the skills write it',
+      [...base, reply, ...edit, ...captured('r2'), C('render', {}, { render_id: 'v2', run_id: 'r2' }), C('comment_resolve', { if_match: 'rh', render_id: 'v2' })],
+      null,
+    ],
     ['a render after a save, before any capture', [...base, ...edit, C('render', { run_id: 'r1' }, { render_id: 'v2', run_id: 'r1' })], 'before a new capture succeeded'],
-    ['a render after a capture started, not succeeded', [...base, ...edit, C('run_capture', {}, { id: 'r2' }), C('render', { run_id: 'r2' }, { render_id: 'v2', run_id: 'r2' })], 'before a new capture succeeded'],
-    ['a render of the OLD run after a successful re-capture', [...base, ...edit, ...captured('r2'), C('render', { run_id: 'r1' }, { render_id: 'v2', run_id: 'r1' })], 'renders run r1, not the newest capture r2'],
-    ['a dry run instead of a capture', [...base, ...edit, C('run_dry', {}, { id: 'd2' }), C('run_status', {}, { id: 'd2', mode: 'dry', status: 'succeeded' }), C('render', {}, { render_id: 'v2', run_id: 'r1' })], 'before a new capture succeeded'],
+    [
+      'a render after a capture started, not succeeded',
+      [...base, ...edit, C('run_capture', {}, { id: 'r2' }), C('render', { run_id: 'r2' }, { render_id: 'v2', run_id: 'r2' })],
+      'before a new capture succeeded',
+    ],
+    [
+      'a render of the OLD run after a successful re-capture',
+      [...base, ...edit, ...captured('r2'), C('render', { run_id: 'r1' }, { render_id: 'v2', run_id: 'r1' })],
+      'renders run r1, not the newest capture r2',
+    ],
+    [
+      'a dry run instead of a capture',
+      [...base, ...edit, C('run_dry', {}, { id: 'd2' }), C('run_status', {}, { id: 'd2', mode: 'dry', status: 'succeeded' }), C('render', {}, { render_id: 'v2', run_id: 'r1' })],
+      'before a new capture succeeded',
+    ],
     ['a render whose data names no run', [...captured('r1'), C('render', { run_id: 'r1' }, { render_id: 'v1' })], 'renders run undefined'],
     ['a stale if_match', [...base, C('scenario_validate', { yaml: 'B' }, { ok: true }), C('scenario_save', { yaml: 'B', if_match: 'stale' }, { hash: 'h2' })], 'is not the last hash h1'],
     ['a save of a text never validated', [...base, C('scenario_get', {}, { hash: 'h1' }), C('scenario_save', { yaml: 'C', if_match: 'h1' }, { hash: 'h2' })], 'saves a text that was not validated'],
-    ['a save after a failed validation', [C('scenario_validate', { yaml: 'A' }, { ok: false }), C('scenario_save', { yaml: 'A', if_match: null }, { hash: 'h1' })], 'saves a text that was not validated'],
+    [
+      'a save after a failed validation',
+      [C('scenario_validate', { yaml: 'A' }, { ok: false }), C('scenario_save', { yaml: 'A', if_match: null }, { hash: 'h1' })],
+      'saves a text that was not validated',
+    ],
     ['a component preview after a code write, not validated', [W('components/x/index.tsx'), C('component_preview', { component: COMPONENT })], 'not validated before this preview'],
-    ['a component preview after a failed validation', [W('components/x/index.tsx'), C('component_validate', {}, { ok: false }), C('component_preview', { component: COMPONENT })], 'not validated before this preview'],
+    [
+      'a component preview after a failed validation',
+      [W('components/x/index.tsx'), C('component_validate', {}, { ok: false }), C('component_preview', { component: COMPONENT })],
+      'not validated before this preview',
+    ],
     ['a resolve naming the render of the old run', [...base, reply, ...edit, ...captured('r2'), C('comment_resolve', { if_match: 'rh', render_id: 'v1' })], 'is not a render of the newest capture r2'],
-    ['a resolve with the thread\'s hash, not the reply\'s', [...base, reply, C('comment_resolve', { if_match: 'threadhash', render_id: 'v1' })], 'if_match is not the hash comment_reply returned'],
+    ["a resolve with the thread's hash, not the reply's", [...base, reply, C('comment_resolve', { if_match: 'threadhash', render_id: 'v1' })], 'if_match is not the hash comment_reply returned'],
   ];
   it.each(cases)('%s', (_name, events, problem) => {
     const found = ruleProblems(events);
@@ -389,416 +421,536 @@ describe('phase 3 acceptance: the rule checker (L3.8 review L8)', () => {
   });
 });
 
-describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project → script → scenario → theme → component → capture → render → review → comment → re-capture → resolve (RETAKE_TEST_SLOW=1)', () => {
-  beforeAll(async () => {
-    const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
-    fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
-    // An empty workspace: retake.yaml, an empty templates/ (the starters still resolve), the user's brand/ files.
-    root = await mkdtemp(join(tmpdir(), 'studio-mcp-phase3-'));
-    await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
-    await mkdir(join(root, 'templates'), { recursive: true });
-    await mkdir(join(root, 'brand'), { recursive: true });
-    await writeFile(join(root, 'brand', 'roastery-mark.svg'), LOGO);
-    // The user's font files (the starters' OFL fonts under other names): a display face, a text family.
-    await cp(join(TEMPLATES, 'motion', 'fonts', 'SpaceGrotesk-Bold.ttf'), join(root, 'brand', 'Roastery-Display-Bold.ttf'));
-    for (const w of ['Regular', 'SemiBold', 'Bold']) await cp(join(TEMPLATES, 'default', 'fonts', `Inter-${w}.ttf`), join(root, 'brand', `Roastery-Text-${w}.ttf`));
-    await linkSharedCache(root);
-    // The session's folder is the workspace (engine_info checks it), tsx loaded by its path.
-    const transport = new StdioClientTransport({
-      command: process.execPath,
-      args: ['--conditions=source', '--import', TSX, BIN, '--root', root, 'mcp'],
-      cwd: root,
-      env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' }),
-      stderr: 'pipe',
-    });
-    transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-    // A client that can show approval forms: every request is recorded and declined — none may come in this chain.
-    client = new Client({ name: 'retake-phase3-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
-    client.setRequestHandler(ElicitRequestSchema, async (req) => {
-      asked.push((req.params as { message: string }).message);
-      return { action: 'decline' };
-    });
-    await client.connect(transport);
-    tools = (await client.listTools()).tools.map((t) => t.name);
-    mutations.push(await health());
-  }, 120_000);
+describe.skipIf(!ENABLED)(
+  'phase 3 acceptance through MCP: README → project → script → scenario → theme → component → capture → render → review → comment → re-capture → resolve (RETAKE_TEST_SLOW=1)',
+  () => {
+    beforeAll(async () => {
+      const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
+      fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
+      // An empty workspace: retake.yaml, an empty templates/ (the starters still resolve), the user's brand/ files.
+      root = await mkdtemp(join(tmpdir(), 'studio-mcp-phase3-'));
+      await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+      await mkdir(join(root, 'templates'), { recursive: true });
+      await mkdir(join(root, 'brand'), { recursive: true });
+      await writeFile(join(root, 'brand', 'roastery-mark.svg'), LOGO);
+      // The user's font files (the starters' OFL fonts under other names): a display face, a text family.
+      await cp(join(TEMPLATES, 'motion', 'fonts', 'SpaceGrotesk-Bold.ttf'), join(root, 'brand', 'Roastery-Display-Bold.ttf'));
+      for (const w of ['Regular', 'SemiBold', 'Bold']) await cp(join(TEMPLATES, 'default', 'fonts', `Inter-${w}.ttf`), join(root, 'brand', `Roastery-Text-${w}.ttf`));
+      await linkSharedCache(root);
+      // The session's folder is the workspace (engine_info checks it), tsx loaded by its path.
+      const transport = new StdioClientTransport({
+        command: process.execPath,
+        args: ['--conditions=source', '--import', TSX, BIN, '--root', root, 'mcp'],
+        cwd: root,
+        env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' }),
+        stderr: 'pipe',
+      });
+      transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
+      // A client that can show approval forms: every request is recorded and declined — none may come in this chain.
+      client = new Client({ name: 'retake-phase3-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
+      client.setRequestHandler(ElicitRequestSchema, async (req) => {
+        asked.push((req.params as { message: string }).message);
+        return { action: 'decline' };
+      });
+      await client.connect(transport);
+      tools = (await client.listTools()).tools.map((t) => t.name);
+      mutations.push(await health());
+    }, 120_000);
 
-  afterAll(async () => {
-    await client?.close().catch(() => undefined);
-    const w = root ? readWorkerLock(root) : null;
-    if (w) {
-      try {
-        process.kill(w.pid, 'SIGKILL');
-      } catch {
-        /* gone */
+    afterAll(async () => {
+      await client?.close().catch(() => undefined);
+      const w = root ? readWorkerLock(root) : null;
+      if (w) {
+        try {
+          process.kill(w.pid, 'SIGKILL');
+        } catch {
+          /* gone */
+        }
       }
-    }
-    await fixture?.close();
-    if (root) await rm(root, { recursive: true, force: true });
-  });
-
-  it('R-ACC3-01: a project created from the README the user hands (project_create on an empty workspace)', async () => {
-    phase = 'project';
-    const info = data<{ root: string; started_outside_workspace: boolean; projects: number }>(await call('engine_info', {}));
-    expect(info).toMatchObject({ started_outside_workspace: false, projects: 0 });
-    expect(await call('project_list', {}).then((r) => r.content[0].text)).toMatch(/^No project yet/);
-    const text = readme(fixture.urls);
-    const env = { local: { shop: fixture.urls.shop.replace(/\/$/, ''), console: fixture.urls.console.replace(/\/$/, '') } };
-    const made = data<{ slug: string; dir: string }>(await call('project_create', { name: 'Northfield Roasters', slug: PROJECT, readme: text, environments: env }));
-    expect(made).toMatchObject({ slug: PROJECT, dir: projectDir() });
-    const got = data<{ readme: string; readme_hash: string; scenarios: string[]; environments: Array<{ name: string; access: string; production?: boolean; pages: Record<string, unknown> }> }>(await call('project_get', { project: PROJECT }));
-    expect(got.readme).toBe(text);
-    expect(got.readme_hash).toMatch(/^[0-9a-f]{64}$/);
-    expect(got.scenarios).toEqual([]);
-    expect(got.environments).toEqual([expect.objectContaining({ name: 'local', access: 'read-write' })]);
-    expect(Object.keys(got.environments[0].pages).sort()).toEqual(['console', 'shop']);
-    expect(readdirSync(projectDir()).sort()).toEqual(['.gitignore', 'README.md', 'assets', 'hooks', 'project.yaml', 'scenarios']);
-    projectYamlSha = sha(await readFile(join(projectDir(), 'project.yaml')));
-    await checkPhase('project', ['engine_info', 'project_list', 'project_create', 'project_get'], [['retake-scenario', ['Before you start']]]);
-  }, STEP);
-
-  it('R-ACC3-02: a scenario from the timecoded script, its beats rewritten from page_inspect hints; run_dry; nothing written to the product', async () => {
-    phase = 'scenario';
-    // The aid: an outline and a skeleton that validates (one hold per beat, the action as its note).
-    const r = await call('scenario_from_script', { project: PROJECT, script_markdown: SCRIPT, name: SCENARIO });
-    const d = data<{ yaml: string; validation: { ok: boolean }; outline: { scenes: Array<{ id?: string; page?: string; path?: string }> } }>(r);
-    expect(d.validation.ok, r.content[0].text).toBe(true);
-    expect(d.outline.scenes.map((s) => [s.id, s.page ?? null, s.path ?? null])).toEqual([
-      ['discover', 'shop', '/'],
-      ['request', null, null],
-      ['delivery', null, null],
-      ['quotes', 'shop', '/quotes'],
-    ]);
-    draft = parseYaml(d.yaml).value as Json;
-    expect(draft).toMatchObject({ title: { kicker: 'For cafés', text: 'Request a quote in a minute' }, outro: { tagline: 'From request to proposal, in one place.' } });
-
-    // Discover: the shop's home — a lot to hover, the lot to open (their hints), a scroll target checked first.
-    const home = await inspect({ page: 'shop', path: '/' }, '1-home');
-    const geisha = pick(home, (e) => e.untrusted.name.includes('Finca Lirandel'), 'the Finca Lirandel card');
-    const lot = pick(home, (e) => e.untrusted.name.includes('Selowa Ridge'), 'the Selowa Ridge card');
-    const checked = await inspect({ page: 'shop', path: '/', targets: ['Fresh arrivals'] }, '1-home-targets');
-    expect(checked.untrusted.targets_checked?.[0]?.count, 'Fresh arrivals resolves to one element').toBe(1);
-    steps.discover.push(flowYaml(hoverOf(geisha, 700)), flowYaml({ scroll: { to: { text: 'Fresh arrivals' }, offset: -100, duration: 1.6 } }), flowYaml(hint(lot)));
-    await validateAndSave(scenarioYaml());
-
-    // The product page the click opens: wait for its "Request a quote" button, hold; the request scene starts on it.
-    // Two targets the agent writes itself from the script (a tasting note, the 5 kg price), checked on that page.
-    const product = await inspect({ scenario: SCENARIO, until: 'discover.2', targets: ['Bergamot', '5 kg bags'] }, '2-product');
-    expect(product.at).toBe('until');
-    expect(product.untrusted.targets_checked?.map((t) => t.count), 'each target resolves to one element').toEqual([1, 1]);
-    const raq = pick(product, (e) => e.untrusted.role === 'button' && e.untrusted.name === 'Request a quote', 'Request a quote');
-    steps.discover.push(
-      flowYaml({ wait_for: { target: raq.untrusted.target } }),
-      flowYaml({ hover: { text: 'Bergamot', ms: 900 } }),
-      flowYaml({ hover: { text: '5 kg bags', ms: 900 } }),
-      flowYaml({ hold: 2.5 }),
-    );
-    steps.request.push(flowYaml(hint(raq)));
-    await validateAndSave(scenarioYaml());
-
-    // The quote dialog: its fields first, with label targets.
-    const dialog = await inspect({ scenario: SCENARIO, until: 'request.0' }, '3-dialog');
-    expect(dialog.popups[0]?.kind).toBe('dialog');
-    const inDialog = (name: string) => (e: Element) => e.in === 'dialog' && e.untrusted.name === name;
-    const increase = pick(dialog, inDialog('Increase'), 'Increase');
-    const select = (field: string) => pick(dialog, (e) => e.in === 'dialog' && e.action === 'select' && JSON.stringify(e.untrusted.hint?.step ?? {}).includes(field), field);
-    const fill = (e: Element, option: string) => ({ select: { ...(hint(e).select as Json), option } });
-    steps.request.push(flowYaml(hint(increase)), flowYaml(hint(increase)), flowYaml(fill(select('Bag size'), '5 kg')), flowYaml(fill(select('Grind'), 'Whole bean')), flowYaml({ hold: 3 }));
-    const window = pick(dialog, inDialog('Delivery window'), 'Delivery window');
-    const message = pick(dialog, (e) => e.in === 'dialog' && e.action === 'type' && e.untrusted.target_yaml === '{ label: Message }', 'Message');
-    const send = pick(dialog, (e) => e.in === 'dialog' && e.untrusted.role === 'button' && e.untrusted.name === 'Send request', 'Send request');
-    steps.delivery.push(flowYaml(hint(window)));
-    await validateAndSave(scenarioYaml());
-
-    // The calendar the field opens: the next month, then the window's two days.
-    const calendar = await inspect({ scenario: SCENARIO, until: 'delivery.0' }, '4-calendar');
-    steps.delivery.push(flowYaml(hint(pick(calendar, (e) => e.untrusted.name === 'Next month', 'Next month'))));
-    await validateAndSave(scenarioYaml());
-    // The days of January, and the estimate the viewer reads before sending (a target the agent writes, checked).
-    const january = await inspect({ scenario: SCENARIO, until: 'delivery.1', targets: ['Estimated'] }, '5-january');
-    expect(january.untrusted.targets_checked?.[0]?.count, 'the estimate resolves to one element').toBe(1);
-    const day = (n: number) => pick(january, (e) => e.untrusted.role === 'button' && new RegExp(`^(\\w+, )?${n} January 2027$`).test(e.untrusted.name), `${n} January`);
-    steps.delivery.push(flowYaml(hint(day(10))), flowYaml(hint(day(24))));
-    // The note (its hint, text filled in), Send — irreversible, as the skill says —, then its confirmation from the
-    // script (a replay never sends), marked and held in the same scene.
-    const typed = hint(message) as { type: Json };
-    steps.delivery.push(
-      flowYaml({ type: { ...typed.type, text: 'Light roast for filter, please. Deliveries before 9 am, at the back door; we are closed on Mondays.', cps: 18 } }),
-      flowYaml({ hover: { text: 'Estimated', ms: 1500 } }),
-      flowYaml({ ...hint(send), irreversible: true }),
-      flowYaml({ wait_for: { text: 'Quote request sent' }, mark: 'sent', hold: 1 }),
-    );
-    await validateAndSave(scenarioYaml());
-    // A replay up to Send shows it without sending it.
-    const sendAt = steps.delivery.length - 2;
-    const atSend = await inspect({ scenario: SCENARIO, until: `delivery.${sendAt}` }, '6-send');
-    expect(atSend.replay.skipped_irreversible).toBe(1);
-
-    // The quotes page (read-only): the list held where the viewer reads, then an accepted proposal opened.
-    const quotes = await inspect({ page: 'shop', path: '/quotes' }, '7-quotes');
-    const row = pick(quotes, (e) => e.untrusted.role === 'link' && /Mountfern AA/.test(e.untrusted.name) && /Accepted/.test(e.untrusted.name), 'the accepted Mountfern AA quote');
-    steps.quotes.push(flowYaml({ wait_for: { target: row.untrusted.target } }), flowYaml({ hold: 3 }), flowYaml(hint(row)), flowYaml({ wait_for: { url: row.untrusted.href_path } }), flowYaml({ hold: 5.5 }));
-    await validateAndSave(scenarioYaml());
-
-    // The saved file: real steps only (no note hold left), the script's captions, Send irreversible.
-    const saved = await readFile(join(projectDir(), 'scenarios', `${SCENARIO}.yaml`), 'utf8');
-    expect(saved).toBe(scenarioYaml());
-    expect(saved).not.toMatch(/note:/);
-    const value = parseYaml(saved).value as { scenes: Array<{ id: string; caption: { text: string }; steps: Json[] }> };
-    expect(value.scenes.map((s) => s.caption.text)).toEqual(['Award-winning lots and fresh arrivals, roasted to order.', 'Choose the quantity, the bag size and the grind.', 'Pick your delivery window and leave a note for the roaster.', 'Every request and proposal, in one place.']);
-    const sendStep = value.scenes.find((s) => s.id === 'delivery')!.steps[sendAt] as { click: unknown; irreversible: boolean };
-    expect(JSON.stringify(sendStep.click)).toContain('Send request');
-    expect(sendStep.irreversible).toBe(true);
-    if (KEEP) await writeFile(join(KEEP, `${SCENARIO}-1.yaml`), saved);
-
-    // The dry run: every step resolves; Send is shown, not executed, the scene stops there and the next one continues.
-    const dry = await follow('run_status', { project: PROJECT, run_id: data<{ id: string }>(await call('run_dry', { project: PROJECT, scenario: SCENARIO, wait_s: 25 })).id }, runDone);
-    const run = data<{ status: string; steps_done: number; steps_total: number; stopped_at: Json }>(dry);
-    expect(run.status, dry.content[0].text).toBe('succeeded');
-    expect(run.stopped_at).toEqual({ scene: 'delivery', step: sendAt, reason: 'irreversible' });
-    expect(run.steps_done).toBe(run.steps_total - 1);
-    mutations.push(await health());
-    expect(mutations[1], 'no write from the inspections or the dry run').toBe(mutations[0]);
-    await checkPhase(
-      'scenario',
-      [
-        'scenario_from_script',
-        'page_inspect', 'page_inspect', 'scenario_validate', 'scenario_save',
-        'page_inspect', 'scenario_validate', 'scenario_save',
-        'page_inspect', 'scenario_validate', 'scenario_save',
-        'page_inspect', 'scenario_validate', 'scenario_save',
-        'page_inspect', 'scenario_validate', 'scenario_save',
-        'page_inspect',
-        'page_inspect', 'scenario_validate', 'scenario_save',
-        'run_dry',
-      ],
-      [['retake-scenario', ['The user hands a timecoded script', 'The loop']]],
-    );
-  }, 1_200_000);
-
-  it('R-ACC3-03: a theme from the brand files and the README colours (unlifted), previewed', async () => {
-    phase = 'theme';
-    const list = await call('template_list', { project: PROJECT });
-    expect(data<{ templates: Array<{ name: string }> }>(list).templates.map((t) => t.name)).toEqual(['default', 'editorial', 'motion']);
-    const r = await call('template_create_from_brand', {
-      name: THEME,
-      colors: COLORS,
-      logo: 'brand/roastery-mark.svg',
-      fonts: { display: 'brand/Roastery-Display-Bold.ttf', body: ['brand/Roastery-Text-Regular.ttf', 'brand/Roastery-Text-SemiBold.ttf', 'brand/Roastery-Text-Bold.ttf'] },
-      brand: { name: 'Northfield Roasters', url: 'northfield-roasters.test' },
+      await fixture?.close();
+      if (root) await rm(root, { recursive: true, force: true });
     });
-    const made = data<{ name: string; base: string; files: string[]; palette: { colors: Record<string, string>; adjusted: unknown[]; checks: Array<{ check: string; ok: boolean }> }; warnings: string[] }>(r);
-    expect(made).toMatchObject({ name: THEME, base: 'editorial' });
-    expect(made.files).toEqual(expect.arrayContaining(['template.yaml', 'logo.svg', 'LICENSES.md']));
-    // The README's colours pass the thresholds as they are: nothing lifted, every check ok.
-    expect(made.palette.adjusted, r.content[0].text).toEqual([]);
-    expect(made.palette.checks.filter((c) => !c.ok), r.content[0].text).toEqual([]);
-    expect(made.palette.colors).toMatchObject(COLORS);
-    expect((await call('template_list', {})).content[0].text).toMatch(new RegExp(`- ${THEME} \\(workspace, real\\)`));
-    const pv = await job(await call('template_preview', { project: PROJECT, template: THEME, wait_s: 25 }));
-    const stills = data<{ stills: Array<{ kind: string; file: string; bytes: number }> }>(pv).stills;
-    expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
-    expect(images(pv).length).toBeGreaterThanOrEqual(1);
-    // The palette drawn: the interstitial on the README's dark tone, the outro on (a tint of) its paper.
-    expect(near(pixel(stills.find((s) => s.kind === 'interstitial')!.file), COLORS.dark, 6)).toBe(true);
-    expect(near(pixel(stills.find((s) => s.kind === 'outro')!.file), COLORS.paper, 14)).toBe(true);
-    await keep('theme', stills.map((s) => s.file));
-    await checkPhase('theme', ['template_list', 'template_create_from_brand', 'template_list', 'template_preview'], [['retake-theme', ['Before you start', 'Entry A: brand files (preferred)', 'Then, for both entries']]]);
-  }, STEP);
 
-  it('R-ACC3-04: a component through the skill — look first, scaffold, the kit example, validate after each code write, preview in the new theme, iterate', async () => {
-    phase = 'component';
-    // Look first.
-    expect((await call('component_list', { kind: 'intro' })).content[0].text).toContain('studio/intro-stack');
-    expect((await call('component_get', { component: 'studio/intro-stack' })).content[0].text).toContain('slots:');
-    const existing = await job(await call('component_preview', { project: PROJECT, component: 'studio/intro-stack', template: THEME, wait_s: 25 }));
-    expect(images(existing)).toHaveLength(1);
-    // Create: the scaffold, then the kit reference's example (what the skill hands Claude) as the user agreed.
-    const made = data<{ id: string; dir: string }>(await call('component_create', { id: COMPONENT, kind: 'intro', description: 'Logo on the left, title on the right.' }));
-    expect(made).toMatchObject({ id: COMPONENT, dir: join(root, 'components', 'northfield', 'intro-split') });
-    const kit = await readFile(join(REPO, 'skills', 'retake-component', 'reference', 'kit.md'), 'utf8');
-    const blocks = [...kit.matchAll(/```(yaml|tsx)\n([\s\S]*?)```/g)];
-    const manifest = blocks.find((b) => b[1] === 'yaml')![2].replace('acme/intro-split', COMPONENT);
-    const code = blocks.find((b) => b[1] === 'tsx')![2];
-    await write(join(made.dir, 'component.yaml'), manifest);
-    await write(join(made.dir, 'index.tsx'), code);
-    expect(data<{ ok: boolean }>(await call('component_validate', { component: COMPONENT })).ok).toBe(true);
-    // Previews in the user's new theme (the project's own is still the default one: template names it).
-    const a = await job(await call('component_preview', { project: PROJECT, component: COMPONENT, template: THEME, wait_s: 25 }));
-    expect(images(a)).toHaveLength(1);
-    const stillsOf = (x: Result) => data<{ stills?: Array<{ file: string }> }>(x).stills?.map((s) => s.file) ?? [];
-    expect(near(pixel(stillsOf(a)[0]), COLORS.paper, 14), 'the still is on the theme\'s paper').toBe(true);
-    // Iterate on the code: the logo larger.
-    const v2 = code.replace('size={96}', 'size={150}');
-    expect(v2).not.toBe(code);
-    await write(join(made.dir, 'index.tsx'), v2);
-    expect(data<{ ok: boolean }>(await call('component_validate', { component: COMPONENT })).ok).toBe(true);
-    const b = await job(await call('component_preview', { project: PROJECT, component: COMPONENT, template: THEME, wait_s: 25 }));
-    expect(images(b)).toHaveLength(1);
-    expect(sha(images(b)[0].data!), 'the code change shows in the still').not.toBe(sha(images(a)[0].data!));
-    // One still in another theme: it adapts.
-    const other = await job(await call('component_preview', { project: PROJECT, component: COMPONENT, template: 'editorial', wait_s: 25 }));
-    expect(images(other)).toHaveLength(1);
-    await keep('component/intro-stack', stillsOf(existing));
-    await keep('component/a', stillsOf(a));
-    await keep('component/b', stillsOf(b));
-    await keep('component/editorial', stillsOf(other));
-    await checkPhase(
-      'component',
-      ['component_list', 'component_get', 'component_preview', 'component_create', 'write:component.yaml', 'write:index.tsx', 'component_validate', 'component_preview', 'write:index.tsx', 'component_validate', 'component_preview', 'component_preview'],
-      [['retake-component', ['Look first: an existing component may already do it', 'Create one']]],
+    it(
+      'R-ACC3-01: a project created from the README the user hands (project_create on an empty workspace)',
+      async () => {
+        phase = 'project';
+        const info = data<{ root: string; started_outside_workspace: boolean; projects: number }>(await call('engine_info', {}));
+        expect(info).toMatchObject({ started_outside_workspace: false, projects: 0 });
+        expect(await call('project_list', {}).then((r) => r.content[0].text)).toMatch(/^No project yet/);
+        const text = readme(fixture.urls);
+        const env = { local: { shop: fixture.urls.shop.replace(/\/$/, ''), console: fixture.urls.console.replace(/\/$/, '') } };
+        const made = data<{ slug: string; dir: string }>(await call('project_create', { name: 'Northfield Roasters', slug: PROJECT, readme: text, environments: env }));
+        expect(made).toMatchObject({ slug: PROJECT, dir: projectDir() });
+        const got = data<{ readme: string; readme_hash: string; scenarios: string[]; environments: Array<{ name: string; access: string; production?: boolean; pages: Record<string, unknown> }> }>(
+          await call('project_get', { project: PROJECT }),
+        );
+        expect(got.readme).toBe(text);
+        expect(got.readme_hash).toMatch(/^[0-9a-f]{64}$/);
+        expect(got.scenarios).toEqual([]);
+        expect(got.environments).toEqual([expect.objectContaining({ name: 'local', access: 'read-write' })]);
+        expect(Object.keys(got.environments[0].pages).sort()).toEqual(['console', 'shop']);
+        expect(readdirSync(projectDir()).sort()).toEqual(['.gitignore', 'README.md', 'assets', 'hooks', 'project.yaml', 'scenarios']);
+        projectYamlSha = sha(await readFile(join(projectDir(), 'project.yaml')));
+        await checkPhase('project', ['engine_info', 'project_list', 'project_create', 'project_get'], [['retake-scenario', ['Before you start']]]);
+      },
+      STEP,
     );
-  }, STEP);
 
-  it('R-ACC3-05: capture, plan (≥ 60 s, the component as the intro), render with the new theme and the component, review clean', async () => {
-    phase = 'film';
-    const cap = await call('run_capture', { project: PROJECT, scenario: SCENARIO });
-    ids.run1 = data<{ id: string }>(cap).id;
-    const st = await follow('run_status', { project: PROJECT, run_id: ids.run1 }, runDone);
-    expect(data<{ status: string }>(st).status, st.content[0].text).toBe('succeeded');
-    mutations.push(await health());
-    expect(mutations[2] - mutations[1], 'the capture sent the request').toBeGreaterThanOrEqual(1);
-    expectAbout(await sentHold(ids.run1), 1);
-    const args = { project: PROJECT, scenario: SCENARIO, run_id: ids.run1, template: THEME, overrides: { components: { intro: COMPONENT } } };
-    const plan = await call('plan_preview', args);
-    const p = data<{ duration_s: number; theme: string; scenario_changed?: boolean; segments: Array<{ kind: string; component: string; scene?: string; duration_s: number }> }>(plan);
-    expect(p.duration_s, `the video is too short for a clean review: ${plan.content[0].text}\n${p.segments.map((g) => `${g.kind} ${g.scene ?? ''} ${g.duration_s} s`).join(', ')}`).toBeGreaterThanOrEqual(60);
-    expect(p.theme).toBe(THEME);
-    expect(p.scenario_changed).toBe(false);
-    expect(plan.content[0].text).not.toContain('changed since');
-    expect(p.segments[0]).toMatchObject({ kind: 'intro', component: COMPONENT });
-    ids.plan1 = p as unknown as Json;
-    const r = await call('render', args);
-    ids.render1 = data<{ render_id: string }>(r).render_id;
-    const rs = await follow('render_status', { project: PROJECT, render_id: ids.render1 }, runDone);
-    const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[] } }>(rs);
-    expect(view.status, rs.content[0].text).toBe('succeeded');
-    expect(view.record).toMatchObject({ template: THEME, run_id: ids.run1 });
-    expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    const rv = await call('review', { project: PROJECT, render_id: ids.render1, wait_s: 25, detail: 'full' });
-    const done = data<{ finished: boolean }>(rv).finished ? rv : await follow('review_get', { project: PROJECT, render_id: ids.render1, detail: 'full' }, runDone);
-    const v = data<{ clean: boolean; counts: Record<string, number>; files: { sheets: string[]; keyframes: Record<string, string> } }>(done);
-    expect(v.clean, done.content[0].text).toBe(true);
-    expect(images(done).length).toBeGreaterThanOrEqual(1);
-    expect(Object.keys(v.files.keyframes)).toEqual(expect.arrayContaining(['intro-hold', 'sent', 'outro-hold']));
-    expect(near(pixel(v.files.keyframes['intro-hold']), COLORS.paper, 14), 'the intro on the theme\'s paper').toBe(true);
-    await keep('render1', [...v.files.sheets, ...Object.values(v.files.keyframes), view.file]);
-    await checkPhase(
-      'film',
-      ['run_capture', 'plan_preview', 'render', 'review'],
-      [
-        ['retake-scenario', ['The loop']],
-        ['retake-component', ['Create one']],
-        ['retake-theme', ['Then, for both entries']],
-      ],
+    it('R-ACC3-02: a scenario from the timecoded script, its beats rewritten from page_inspect hints; run_dry; nothing written to the product', async () => {
+      phase = 'scenario';
+      // The aid: an outline and a skeleton that validates (one hold per beat, the action as its note).
+      const r = await call('scenario_from_script', { project: PROJECT, script_markdown: SCRIPT, name: SCENARIO });
+      const d = data<{ yaml: string; validation: { ok: boolean }; outline: { scenes: Array<{ id?: string; page?: string; path?: string }> } }>(r);
+      expect(d.validation.ok, r.content[0].text).toBe(true);
+      expect(d.outline.scenes.map((s) => [s.id, s.page ?? null, s.path ?? null])).toEqual([
+        ['discover', 'shop', '/'],
+        ['request', null, null],
+        ['delivery', null, null],
+        ['quotes', 'shop', '/quotes'],
+      ]);
+      draft = parseYaml(d.yaml).value as Json;
+      expect(draft).toMatchObject({ title: { kicker: 'For cafés', text: 'Request a quote in a minute' }, outro: { tagline: 'From request to proposal, in one place.' } });
+
+      // Discover: the shop's home — a lot to hover, the lot to open (their hints), a scroll target checked first.
+      const home = await inspect({ page: 'shop', path: '/' }, '1-home');
+      const geisha = pick(home, (e) => e.untrusted.name.includes('Finca Lirandel'), 'the Finca Lirandel card');
+      const lot = pick(home, (e) => e.untrusted.name.includes('Selowa Ridge'), 'the Selowa Ridge card');
+      const checked = await inspect({ page: 'shop', path: '/', targets: ['Fresh arrivals'] }, '1-home-targets');
+      expect(checked.untrusted.targets_checked?.[0]?.count, 'Fresh arrivals resolves to one element').toBe(1);
+      steps.discover.push(flowYaml(hoverOf(geisha, 700)), flowYaml({ scroll: { to: { text: 'Fresh arrivals' }, offset: -100, duration: 1.6 } }), flowYaml(hint(lot)));
+      await validateAndSave(scenarioYaml());
+
+      // The product page the click opens: wait for its "Request a quote" button, hold; the request scene starts on it.
+      // Two targets the agent writes itself from the script (a tasting note, the 5 kg price), checked on that page.
+      const product = await inspect({ scenario: SCENARIO, until: 'discover.2', targets: ['Bergamot', '5 kg bags'] }, '2-product');
+      expect(product.at).toBe('until');
+      expect(
+        product.untrusted.targets_checked?.map((t) => t.count),
+        'each target resolves to one element',
+      ).toEqual([1, 1]);
+      const raq = pick(product, (e) => e.untrusted.role === 'button' && e.untrusted.name === 'Request a quote', 'Request a quote');
+      steps.discover.push(
+        flowYaml({ wait_for: { target: raq.untrusted.target } }),
+        flowYaml({ hover: { text: 'Bergamot', ms: 900 } }),
+        flowYaml({ hover: { text: '5 kg bags', ms: 900 } }),
+        flowYaml({ hold: 2.5 }),
+      );
+      steps.request.push(flowYaml(hint(raq)));
+      await validateAndSave(scenarioYaml());
+
+      // The quote dialog: its fields first, with label targets.
+      const dialog = await inspect({ scenario: SCENARIO, until: 'request.0' }, '3-dialog');
+      expect(dialog.popups[0]?.kind).toBe('dialog');
+      const inDialog = (name: string) => (e: Element) => e.in === 'dialog' && e.untrusted.name === name;
+      const increase = pick(dialog, inDialog('Increase'), 'Increase');
+      const select = (field: string) => pick(dialog, (e) => e.in === 'dialog' && e.action === 'select' && JSON.stringify(e.untrusted.hint?.step ?? {}).includes(field), field);
+      const fill = (e: Element, option: string) => ({ select: { ...(hint(e).select as Json), option } });
+      steps.request.push(flowYaml(hint(increase)), flowYaml(hint(increase)), flowYaml(fill(select('Bag size'), '5 kg')), flowYaml(fill(select('Grind'), 'Whole bean')), flowYaml({ hold: 3 }));
+      const window = pick(dialog, inDialog('Delivery window'), 'Delivery window');
+      const message = pick(dialog, (e) => e.in === 'dialog' && e.action === 'type' && e.untrusted.target_yaml === '{ label: Message }', 'Message');
+      const send = pick(dialog, (e) => e.in === 'dialog' && e.untrusted.role === 'button' && e.untrusted.name === 'Send request', 'Send request');
+      steps.delivery.push(flowYaml(hint(window)));
+      await validateAndSave(scenarioYaml());
+
+      // The calendar the field opens: the next month, then the window's two days.
+      const calendar = await inspect({ scenario: SCENARIO, until: 'delivery.0' }, '4-calendar');
+      steps.delivery.push(flowYaml(hint(pick(calendar, (e) => e.untrusted.name === 'Next month', 'Next month'))));
+      await validateAndSave(scenarioYaml());
+      // The days of January, and the estimate the viewer reads before sending (a target the agent writes, checked).
+      const january = await inspect({ scenario: SCENARIO, until: 'delivery.1', targets: ['Estimated'] }, '5-january');
+      expect(january.untrusted.targets_checked?.[0]?.count, 'the estimate resolves to one element').toBe(1);
+      const day = (n: number) => pick(january, (e) => e.untrusted.role === 'button' && new RegExp(`^(\\w+, )?${n} January 2027$`).test(e.untrusted.name), `${n} January`);
+      steps.delivery.push(flowYaml(hint(day(10))), flowYaml(hint(day(24))));
+      // The note (its hint, text filled in), Send — irreversible, as the skill says —, then its confirmation from the
+      // script (a replay never sends), marked and held in the same scene.
+      const typed = hint(message) as { type: Json };
+      steps.delivery.push(
+        flowYaml({ type: { ...typed.type, text: 'Light roast for filter, please. Deliveries before 9 am, at the back door; we are closed on Mondays.', cps: 18 } }),
+        flowYaml({ hover: { text: 'Estimated', ms: 1500 } }),
+        flowYaml({ ...hint(send), irreversible: true }),
+        flowYaml({ wait_for: { text: 'Quote request sent' }, mark: 'sent', hold: 1 }),
+      );
+      await validateAndSave(scenarioYaml());
+      // A replay up to Send shows it without sending it.
+      const sendAt = steps.delivery.length - 2;
+      const atSend = await inspect({ scenario: SCENARIO, until: `delivery.${sendAt}` }, '6-send');
+      expect(atSend.replay.skipped_irreversible).toBe(1);
+
+      // The quotes page (read-only): the list held where the viewer reads, then an accepted proposal opened.
+      const quotes = await inspect({ page: 'shop', path: '/quotes' }, '7-quotes');
+      const row = pick(quotes, (e) => e.untrusted.role === 'link' && /Mountfern AA/.test(e.untrusted.name) && /Accepted/.test(e.untrusted.name), 'the accepted Mountfern AA quote');
+      steps.quotes.push(
+        flowYaml({ wait_for: { target: row.untrusted.target } }),
+        flowYaml({ hold: 3 }),
+        flowYaml(hint(row)),
+        flowYaml({ wait_for: { url: row.untrusted.href_path } }),
+        flowYaml({ hold: 5.5 }),
+      );
+      await validateAndSave(scenarioYaml());
+
+      // The saved file: real steps only (no note hold left), the script's captions, Send irreversible.
+      const saved = await readFile(join(projectDir(), 'scenarios', `${SCENARIO}.yaml`), 'utf8');
+      expect(saved).toBe(scenarioYaml());
+      expect(saved).not.toMatch(/note:/);
+      const value = parseYaml(saved).value as { scenes: Array<{ id: string; caption: { text: string }; steps: Json[] }> };
+      expect(value.scenes.map((s) => s.caption.text)).toEqual([
+        'Award-winning lots and fresh arrivals, roasted to order.',
+        'Choose the quantity, the bag size and the grind.',
+        'Pick your delivery window and leave a note for the roaster.',
+        'Every request and proposal, in one place.',
+      ]);
+      const sendStep = value.scenes.find((s) => s.id === 'delivery')!.steps[sendAt] as { click: unknown; irreversible: boolean };
+      expect(JSON.stringify(sendStep.click)).toContain('Send request');
+      expect(sendStep.irreversible).toBe(true);
+      if (KEEP) await writeFile(join(KEEP, `${SCENARIO}-1.yaml`), saved);
+
+      // The dry run: every step resolves; Send is shown, not executed, the scene stops there and the next one continues.
+      const dry = await follow('run_status', { project: PROJECT, run_id: data<{ id: string }>(await call('run_dry', { project: PROJECT, scenario: SCENARIO, wait_s: 25 })).id }, runDone);
+      const run = data<{ status: string; steps_done: number; steps_total: number; stopped_at: Json }>(dry);
+      expect(run.status, dry.content[0].text).toBe('succeeded');
+      expect(run.stopped_at).toEqual({ scene: 'delivery', step: sendAt, reason: 'irreversible' });
+      expect(run.steps_done).toBe(run.steps_total - 1);
+      mutations.push(await health());
+      expect(mutations[1], 'no write from the inspections or the dry run').toBe(mutations[0]);
+      await checkPhase(
+        'scenario',
+        [
+          'scenario_from_script',
+          'page_inspect',
+          'page_inspect',
+          'scenario_validate',
+          'scenario_save',
+          'page_inspect',
+          'scenario_validate',
+          'scenario_save',
+          'page_inspect',
+          'scenario_validate',
+          'scenario_save',
+          'page_inspect',
+          'scenario_validate',
+          'scenario_save',
+          'page_inspect',
+          'scenario_validate',
+          'scenario_save',
+          'page_inspect',
+          'page_inspect',
+          'scenario_validate',
+          'scenario_save',
+          'run_dry',
+        ],
+        [['retake-scenario', ['The user hands a timecoded script', 'The loop']]],
+      );
+    }, 1_200_000);
+
+    it(
+      'R-ACC3-03: a theme from the brand files and the README colours (unlifted), previewed',
+      async () => {
+        phase = 'theme';
+        const list = await call('template_list', { project: PROJECT });
+        expect(data<{ templates: Array<{ name: string }> }>(list).templates.map((t) => t.name)).toEqual(['default', 'editorial', 'motion']);
+        const r = await call('template_create_from_brand', {
+          name: THEME,
+          colors: COLORS,
+          logo: 'brand/roastery-mark.svg',
+          fonts: { display: 'brand/Roastery-Display-Bold.ttf', body: ['brand/Roastery-Text-Regular.ttf', 'brand/Roastery-Text-SemiBold.ttf', 'brand/Roastery-Text-Bold.ttf'] },
+          brand: { name: 'Northfield Roasters', url: 'northfield-roasters.test' },
+        });
+        const made = data<{
+          name: string;
+          base: string;
+          files: string[];
+          palette: { colors: Record<string, string>; adjusted: unknown[]; checks: Array<{ check: string; ok: boolean }> };
+          warnings: string[];
+        }>(r);
+        expect(made).toMatchObject({ name: THEME, base: 'editorial' });
+        expect(made.files).toEqual(expect.arrayContaining(['template.yaml', 'logo.svg', 'LICENSES.md']));
+        // The README's colours pass the thresholds as they are: nothing lifted, every check ok.
+        expect(made.palette.adjusted, r.content[0].text).toEqual([]);
+        expect(
+          made.palette.checks.filter((c) => !c.ok),
+          r.content[0].text,
+        ).toEqual([]);
+        expect(made.palette.colors).toMatchObject(COLORS);
+        expect((await call('template_list', {})).content[0].text).toMatch(new RegExp(`- ${THEME} \\(workspace, real\\)`));
+        const pv = await job(await call('template_preview', { project: PROJECT, template: THEME, wait_s: 25 }));
+        const stills = data<{ stills: Array<{ kind: string; file: string; bytes: number }> }>(pv).stills;
+        expect(stills.map((s) => s.kind)).toEqual(['intro', 'layout', 'card', 'interstitial', 'outro']);
+        expect(images(pv).length).toBeGreaterThanOrEqual(1);
+        // The palette drawn: the interstitial on the README's dark tone, the outro on (a tint of) its paper.
+        expect(near(pixel(stills.find((s) => s.kind === 'interstitial')!.file), COLORS.dark, 6)).toBe(true);
+        expect(near(pixel(stills.find((s) => s.kind === 'outro')!.file), COLORS.paper, 14)).toBe(true);
+        await keep(
+          'theme',
+          stills.map((s) => s.file),
+        );
+        await checkPhase(
+          'theme',
+          ['template_list', 'template_create_from_brand', 'template_list', 'template_preview'],
+          [['retake-theme', ['Before you start', 'Entry A: brand files (preferred)', 'Then, for both entries']]],
+        );
+      },
+      STEP,
     );
-  }, STEP);
 
-  it('R-ACC3-06: a person comments a frame → the scenario adapted → re-captured → rendered → reviewed → replied → resolved; no approval asked', async () => {
-    phase = 'comment';
-    // The person, in their own terminal.
-    const out = execFileSync(
-      process.execPath,
-      ['--conditions=source', '--import', TSX, BIN, '--root', root, 'comment', 'add', PROJECT, ids.render1!, '--marker', 'sent', '--region', '0.72,0.73,0.18,0.11', '--json', 'Keep the confirmation on screen longer'],
-      { cwd: root, env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    it(
+      'R-ACC3-04: a component through the skill — look first, scaffold, the kit example, validate after each code write, preview in the new theme, iterate',
+      async () => {
+        phase = 'component';
+        // Look first.
+        expect((await call('component_list', { kind: 'intro' })).content[0].text).toContain('studio/intro-stack');
+        expect((await call('component_get', { component: 'studio/intro-stack' })).content[0].text).toContain('slots:');
+        const existing = await job(await call('component_preview', { project: PROJECT, component: 'studio/intro-stack', template: THEME, wait_s: 25 }));
+        expect(images(existing)).toHaveLength(1);
+        // Create: the scaffold, then the kit reference's example (what the skill hands Claude) as the user agreed.
+        const made = data<{ id: string; dir: string }>(await call('component_create', { id: COMPONENT, kind: 'intro', description: 'Logo on the left, title on the right.' }));
+        expect(made).toMatchObject({ id: COMPONENT, dir: join(root, 'components', 'northfield', 'intro-split') });
+        const kit = await readFile(join(REPO, 'skills', 'retake-component', 'reference', 'kit.md'), 'utf8');
+        const blocks = [...kit.matchAll(/```(yaml|tsx)\n([\s\S]*?)```/g)];
+        const manifest = blocks.find((b) => b[1] === 'yaml')![2].replace('acme/intro-split', COMPONENT);
+        const code = blocks.find((b) => b[1] === 'tsx')![2];
+        await write(join(made.dir, 'component.yaml'), manifest);
+        await write(join(made.dir, 'index.tsx'), code);
+        expect(data<{ ok: boolean }>(await call('component_validate', { component: COMPONENT })).ok).toBe(true);
+        // Previews in the user's new theme (the project's own is still the default one: template names it).
+        const a = await job(await call('component_preview', { project: PROJECT, component: COMPONENT, template: THEME, wait_s: 25 }));
+        expect(images(a)).toHaveLength(1);
+        const stillsOf = (x: Result) => data<{ stills?: Array<{ file: string }> }>(x).stills?.map((s) => s.file) ?? [];
+        expect(near(pixel(stillsOf(a)[0]), COLORS.paper, 14), "the still is on the theme's paper").toBe(true);
+        // Iterate on the code: the logo larger.
+        const v2 = code.replace('size={96}', 'size={150}');
+        expect(v2).not.toBe(code);
+        await write(join(made.dir, 'index.tsx'), v2);
+        expect(data<{ ok: boolean }>(await call('component_validate', { component: COMPONENT })).ok).toBe(true);
+        const b = await job(await call('component_preview', { project: PROJECT, component: COMPONENT, template: THEME, wait_s: 25 }));
+        expect(images(b)).toHaveLength(1);
+        expect(sha(images(b)[0].data!), 'the code change shows in the still').not.toBe(sha(images(a)[0].data!));
+        // One still in another theme: it adapts.
+        const other = await job(await call('component_preview', { project: PROJECT, component: COMPONENT, template: 'editorial', wait_s: 25 }));
+        expect(images(other)).toHaveLength(1);
+        await keep('component/intro-stack', stillsOf(existing));
+        await keep('component/a', stillsOf(a));
+        await keep('component/b', stillsOf(b));
+        await keep('component/editorial', stillsOf(other));
+        await checkPhase(
+          'component',
+          [
+            'component_list',
+            'component_get',
+            'component_preview',
+            'component_create',
+            'write:component.yaml',
+            'write:index.tsx',
+            'component_validate',
+            'component_preview',
+            'write:index.tsx',
+            'component_validate',
+            'component_preview',
+            'component_preview',
+          ],
+          [['retake-component', ['Look first: an existing component may already do it', 'Create one']]],
+        );
+      },
+      STEP,
     );
-    const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
-    expect(added.warnings).toEqual([]);
-    ids.comment = added.thread.id;
 
-    // The agent reads it: the anchor (the marked wait_for of delivery), the still; the text only under untrusted.
-    const listed = await call('comments_list', { project: PROJECT, scenario: SCENARIO });
-    const t = data<{ threads: Array<{ id: string; still: string; anchor: { step_ref: string; action: string; marker: string; scene: string }; untrusted: { text: string } }> }>(listed).threads;
-    expect(t).toHaveLength(1);
-    expect(t[0]).toMatchObject({ id: ids.comment, anchor: { scene: 'delivery', step_ref: `delivery.${steps.delivery.length - 1}`, action: 'wait_for', marker: 'sent' }, untrusted: { text: 'Keep the confirmation on screen longer' } });
-    expect(listed.content[0].text).not.toContain('confirmation on screen');
-    expect(listed.content[0].text).toContain('shows only in a new capture: run_capture');
-    expect(images(listed)).toHaveLength(1);
-    await keep('comment', [t[0].still]);
-
-    // The change: the hold of the anchored step, 1 s → 3 s (scenario_get first, validate, save with its hash).
-    const got = await call('scenario_get', { project: PROJECT, name: SCENARIO });
-    hash = data<{ hash: string }>(got).hash;
-    const before = data<{ yaml: string }>(got).yaml;
-    const at = Number(t[0].anchor.step_ref.split('.')[1]);
-    expect(steps.delivery[at]).toBe('{ wait_for: { text: Quote request sent }, mark: sent, hold: 1 }');
-    steps.delivery[at] = steps.delivery[at].replace('hold: 1 }', 'hold: 3 }');
-    const after = scenarioYaml();
-    expect(after).toBe(before.replace('mark: sent, hold: 1 }', 'mark: sent, hold: 3 }'));
-    await validateAndSave(after);
-    if (KEEP) await writeFile(join(KEEP, `${SCENARIO}-2.yaml`), after);
-
-    // A plan of the old run says the render would show the run as captured (the trusted line, the flag).
-    const args = { project: PROJECT, scenario: SCENARIO, template: THEME, overrides: { components: { intro: COMPONENT } } };
-    const stale = await call('plan_preview', { ...args, run_id: ids.run1 });
-    expect(stale.structuredContent).toMatchObject({ scenario_changed: true });
-    expect((stale.content[0].text ?? '').split('\n')[1]).toBe(scenarioChangedMessage(SCENARIO, ids.run1!, `run_capture {project: "${PROJECT}", scenario: "${SCENARIO}"}`, [`scene delivery: step delivery.${at} changed`]));
-    expect((stale.content[0].text ?? '').split('\n').at(-1)).toMatch(/^capture first: run_capture \{/); // never "render it" on the old run (review M1)
-
-    // So: a new capture, then the render.
-    ids.run2 = data<{ id: string }>(await call('run_capture', { project: PROJECT, scenario: SCENARIO })).id;
-    const st = await follow('run_status', { project: PROJECT, run_id: ids.run2 }, runDone);
-    expect(data<{ status: string }>(st).status, st.content[0].text).toBe('succeeded');
-    mutations.push(await health());
-    expect(mutations[3] - mutations[2], 'each capture writes the same').toBe(mutations[2] - mutations[1]);
-    expectAbout(await sentHold(ids.run2), 3);
-    const plan = await call('plan_preview', { ...args, run_id: ids.run2 });
-    const p2 = data<{ duration_s: number; scenario_changed?: boolean; segments: Array<{ scene?: string; kind: string; duration_s: number }> }>(plan);
-    expect(p2.scenario_changed).toBe(false);
-    const clip = (p: { segments: Array<{ scene?: string; kind: string; duration_s: number }> }) => p.segments.find((s) => s.kind === 'clip' && s.scene === 'delivery')!.duration_s;
-    // The longer confirmation is in the edit whole, at 1×: no cut or speed-up of the plan touches the 3 s hold of the new
-    // take. (Comparing the two takes' clip lengths depended on everything else each take did: idle gaps around the
-    // threshold, and since L5.7 the freezes a loaded machine adds, which the edit cuts.)
-    const tl2 = JSON.parse(await readFile(join(projectDir(), 'runs', ids.run2, 'timeline.json'), 'utf8')) as { events: Array<{ mark?: string; hold?: { t_start: number; t_end: number } }> };
-    const hold = tl2.events.find((x) => x.mark === 'sent')!.hold!;
-    const summary = data<{ untrusted: { summary: string } }>(plan).untrusted.summary;
-    const touched = summary
-      .split('\n')
-      .filter((l) => l.includes('"delivery"'))
-      .flatMap((l) => {
-        const span = /(\d+\.\d+) s–(\d+\.\d+) s/.exec(l);
-        if (span) return [[Number(span[1]), Number(span[2]), l] as const];
-        const at = /(\d+\.\d+) s at (\d+\.\d+) s/.exec(l);
-        return at ? [[Number(at[2]), Number(at[2]) + Number(at[1]), l] as const] : [];
-      })
-      .filter(([a, b]) => a < hold.t_end - 0.05 && b > hold.t_start + 0.05)
-      .map(([, , l]) => l);
-    expect(touched, 'the delivery clip holds the confirmation longer: nothing of the 3 s hold is cut or sped up').toEqual([]);
-    expect(clip(p2), 'the delivery clip holds the confirmation longer').toBeGreaterThan(hold.t_end - hold.t_start);
-    const r = await call('render', { ...args, run_id: ids.run2 });
-    ids.render2 = data<{ render_id: string }>(r).render_id;
-    expect(ids.render2).not.toBe(ids.render1);
-    const rs = await follow('render_status', { project: PROJECT, render_id: ids.render2 }, runDone);
-    const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[] } }>(rs);
-    expect(view.status, rs.content[0].text).toBe('succeeded');
-    expect(view.record).toMatchObject({ template: THEME, run_id: ids.run2 });
-    expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    await call('review', { project: PROJECT, render_id: ids.render2, wait_s: 0 });
-    const done = await follow('review_get', { project: PROJECT, render_id: ids.render2, detail: 'full' }, runDone);
-    const v = data<{ clean: boolean; diff?: { previous: string }; files: { sheets: string[]; keyframes: Record<string, string>; diff_sheet?: string } }>(done);
-    expect(v.clean, done.content[0].text).toBe(true);
-    expect(v.diff?.previous).toBe(ids.render1);
-    await keep('render2', [...v.files.sheets, ...Object.values(v.files.keyframes), ...(v.files.diff_sheet ? [v.files.diff_sheet] : []), view.file]);
-
-    // Reply, then resolve with the new render and the hash the reply returned.
-    const reply = await call('comment_reply', { project: PROJECT, comment_id: ids.comment, text: 'Held the confirmation for 3 s instead of 1 s, re-captured and re-rendered.' });
-    ids.replyHash = data<{ hash: string }>(reply).hash;
-    const res = await call('comment_resolve', { project: PROJECT, comment_id: ids.comment, note: 'The confirmation stays 3 s on screen.', render_id: ids.render2, if_match: ids.replyHash });
-    expect(data<{ thread: Json }>(res).thread).toMatchObject({ status: 'resolved', resolution: { via: 'mcp', render_id: ids.render2 } });
-    expect(data<{ threads: unknown[] }>(await call('comments_list', { project: PROJECT })).threads).toEqual([]);
-
-    await checkPhase(
-      'comment',
-      ['comments_list', 'scenario_get', 'scenario_validate', 'scenario_save', 'plan_preview', 'run_capture', 'plan_preview', 'render', 'review', 'comment_reply', 'comment_resolve', 'comments_list'],
-      [['retake-scenario', ['Frame comments on a render', 'The loop']]],
+    it(
+      'R-ACC3-05: capture, plan (≥ 60 s, the component as the intro), render with the new theme and the component, review clean',
+      async () => {
+        phase = 'film';
+        const cap = await call('run_capture', { project: PROJECT, scenario: SCENARIO });
+        ids.run1 = data<{ id: string }>(cap).id;
+        const st = await follow('run_status', { project: PROJECT, run_id: ids.run1 }, runDone);
+        expect(data<{ status: string }>(st).status, st.content[0].text).toBe('succeeded');
+        mutations.push(await health());
+        expect(mutations[2] - mutations[1], 'the capture sent the request').toBeGreaterThanOrEqual(1);
+        expectAbout(await sentHold(ids.run1), 1);
+        const args = { project: PROJECT, scenario: SCENARIO, run_id: ids.run1, template: THEME, overrides: { components: { intro: COMPONENT } } };
+        const plan = await call('plan_preview', args);
+        const p = data<{ duration_s: number; theme: string; scenario_changed?: boolean; segments: Array<{ kind: string; component: string; scene?: string; duration_s: number }> }>(plan);
+        expect(
+          p.duration_s,
+          `the video is too short for a clean review: ${plan.content[0].text}\n${p.segments.map((g) => `${g.kind} ${g.scene ?? ''} ${g.duration_s} s`).join(', ')}`,
+        ).toBeGreaterThanOrEqual(60);
+        expect(p.theme).toBe(THEME);
+        expect(p.scenario_changed).toBe(false);
+        expect(plan.content[0].text).not.toContain('changed since');
+        expect(p.segments[0]).toMatchObject({ kind: 'intro', component: COMPONENT });
+        ids.plan1 = p as unknown as Json;
+        const r = await call('render', args);
+        ids.render1 = data<{ render_id: string }>(r).render_id;
+        const rs = await follow('render_status', { project: PROJECT, render_id: ids.render1 }, runDone);
+        const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[] } }>(rs);
+        expect(view.status, rs.content[0].text).toBe('succeeded');
+        expect(view.record).toMatchObject({ template: THEME, run_id: ids.run1 });
+        expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+        const rv = await call('review', { project: PROJECT, render_id: ids.render1, wait_s: 25, detail: 'full' });
+        const done = data<{ finished: boolean }>(rv).finished ? rv : await follow('review_get', { project: PROJECT, render_id: ids.render1, detail: 'full' }, runDone);
+        const v = data<{ clean: boolean; counts: Record<string, number>; files: { sheets: string[]; keyframes: Record<string, string> } }>(done);
+        expect(v.clean, done.content[0].text).toBe(true);
+        expect(images(done).length).toBeGreaterThanOrEqual(1);
+        expect(Object.keys(v.files.keyframes)).toEqual(expect.arrayContaining(['intro-hold', 'sent', 'outro-hold']));
+        expect(near(pixel(v.files.keyframes['intro-hold']), COLORS.paper, 14), "the intro on the theme's paper").toBe(true);
+        await keep('render1', [...v.files.sheets, ...Object.values(v.files.keyframes), view.file]);
+        await checkPhase(
+          'film',
+          ['run_capture', 'plan_preview', 'render', 'review'],
+          [
+            ['retake-scenario', ['The loop']],
+            ['retake-component', ['Create one']],
+            ['retake-theme', ['Then, for both entries']],
+          ],
+        );
+      },
+      STEP,
     );
-    // No approval was asked; nothing else changed.
-    expect(asked).toEqual([]);
-    expect(sha(await readFile(join(projectDir(), 'project.yaml')))).toBe(projectYamlSha);
-    expect(readdirSync(join(root, 'templates'))).toEqual([THEME]);
-    expect(readdirSync(join(root, 'components'))).toEqual(['northfield']);
-    expect(readdirSync(join(root, 'components', 'northfield'))).toEqual(['intro-split']);
-    expect(existsSync(join(REPO, 'components'))).toBe(false);
-    expect(stderr).not.toMatch(/Unhandled|TypeError|cancelRender/i);
-  }, STEP);
-});
+
+    it(
+      'R-ACC3-06: a person comments a frame → the scenario adapted → re-captured → rendered → reviewed → replied → resolved; no approval asked',
+      async () => {
+        phase = 'comment';
+        // The person, in their own terminal.
+        const out = execFileSync(
+          process.execPath,
+          [
+            '--conditions=source',
+            '--import',
+            TSX,
+            BIN,
+            '--root',
+            root,
+            'comment',
+            'add',
+            PROJECT,
+            ids.render1!,
+            '--marker',
+            'sent',
+            '--region',
+            '0.72,0.73,0.18,0.11',
+            '--json',
+            'Keep the confirmation on screen longer',
+          ],
+          { cwd: root, env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+        );
+        const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
+        expect(added.warnings).toEqual([]);
+        ids.comment = added.thread.id;
+
+        // The agent reads it: the anchor (the marked wait_for of delivery), the still; the text only under untrusted.
+        const listed = await call('comments_list', { project: PROJECT, scenario: SCENARIO });
+        const t = data<{ threads: Array<{ id: string; still: string; anchor: { step_ref: string; action: string; marker: string; scene: string }; untrusted: { text: string } }> }>(listed).threads;
+        expect(t).toHaveLength(1);
+        expect(t[0]).toMatchObject({
+          id: ids.comment,
+          anchor: { scene: 'delivery', step_ref: `delivery.${steps.delivery.length - 1}`, action: 'wait_for', marker: 'sent' },
+          untrusted: { text: 'Keep the confirmation on screen longer' },
+        });
+        expect(listed.content[0].text).not.toContain('confirmation on screen');
+        expect(listed.content[0].text).toContain('shows only in a new capture: run_capture');
+        expect(images(listed)).toHaveLength(1);
+        await keep('comment', [t[0].still]);
+
+        // The change: the hold of the anchored step, 1 s → 3 s (scenario_get first, validate, save with its hash).
+        const got = await call('scenario_get', { project: PROJECT, name: SCENARIO });
+        hash = data<{ hash: string }>(got).hash;
+        const before = data<{ yaml: string }>(got).yaml;
+        const at = Number(t[0].anchor.step_ref.split('.')[1]);
+        expect(steps.delivery[at]).toBe('{ wait_for: { text: Quote request sent }, mark: sent, hold: 1 }');
+        steps.delivery[at] = steps.delivery[at].replace('hold: 1 }', 'hold: 3 }');
+        const after = scenarioYaml();
+        expect(after).toBe(before.replace('mark: sent, hold: 1 }', 'mark: sent, hold: 3 }'));
+        await validateAndSave(after);
+        if (KEEP) await writeFile(join(KEEP, `${SCENARIO}-2.yaml`), after);
+
+        // A plan of the old run says the render would show the run as captured (the trusted line, the flag).
+        const args = { project: PROJECT, scenario: SCENARIO, template: THEME, overrides: { components: { intro: COMPONENT } } };
+        const stale = await call('plan_preview', { ...args, run_id: ids.run1 });
+        expect(stale.structuredContent).toMatchObject({ scenario_changed: true });
+        expect((stale.content[0].text ?? '').split('\n')[1]).toBe(
+          scenarioChangedMessage(SCENARIO, ids.run1!, `run_capture {project: "${PROJECT}", scenario: "${SCENARIO}"}`, [`scene delivery: step delivery.${at} changed`]),
+        );
+        expect((stale.content[0].text ?? '').split('\n').at(-1)).toMatch(/^capture first: run_capture \{/); // never "render it" on the old run (review M1)
+
+        // So: a new capture, then the render.
+        ids.run2 = data<{ id: string }>(await call('run_capture', { project: PROJECT, scenario: SCENARIO })).id;
+        const st = await follow('run_status', { project: PROJECT, run_id: ids.run2 }, runDone);
+        expect(data<{ status: string }>(st).status, st.content[0].text).toBe('succeeded');
+        mutations.push(await health());
+        expect(mutations[3] - mutations[2], 'each capture writes the same').toBe(mutations[2] - mutations[1]);
+        expectAbout(await sentHold(ids.run2), 3);
+        const plan = await call('plan_preview', { ...args, run_id: ids.run2 });
+        const p2 = data<{ duration_s: number; scenario_changed?: boolean; segments: Array<{ scene?: string; kind: string; duration_s: number }> }>(plan);
+        expect(p2.scenario_changed).toBe(false);
+        const clip = (p: { segments: Array<{ scene?: string; kind: string; duration_s: number }> }) => p.segments.find((s) => s.kind === 'clip' && s.scene === 'delivery')!.duration_s;
+        // The longer confirmation is in the edit whole, at 1×: no cut or speed-up of the plan touches the 3 s hold of the new
+        // take. (Comparing the two takes' clip lengths depended on everything else each take did: idle gaps around the
+        // threshold, and since L5.7 the freezes a loaded machine adds, which the edit cuts.)
+        const tl2 = JSON.parse(await readFile(join(projectDir(), 'runs', ids.run2, 'timeline.json'), 'utf8')) as { events: Array<{ mark?: string; hold?: { t_start: number; t_end: number } }> };
+        const hold = tl2.events.find((x) => x.mark === 'sent')!.hold!;
+        const summary = data<{ untrusted: { summary: string } }>(plan).untrusted.summary;
+        const touched = summary
+          .split('\n')
+          .filter((l) => l.includes('"delivery"'))
+          .flatMap((l) => {
+            const span = /(\d+\.\d+) s–(\d+\.\d+) s/.exec(l);
+            if (span) return [[Number(span[1]), Number(span[2]), l] as const];
+            const at = /(\d+\.\d+) s at (\d+\.\d+) s/.exec(l);
+            return at ? [[Number(at[2]), Number(at[2]) + Number(at[1]), l] as const] : [];
+          })
+          .filter(([a, b]) => a < hold.t_end - 0.05 && b > hold.t_start + 0.05)
+          .map(([, , l]) => l);
+        expect(touched, 'the delivery clip holds the confirmation longer: nothing of the 3 s hold is cut or sped up').toEqual([]);
+        expect(clip(p2), 'the delivery clip holds the confirmation longer').toBeGreaterThan(hold.t_end - hold.t_start);
+        const r = await call('render', { ...args, run_id: ids.run2 });
+        ids.render2 = data<{ render_id: string }>(r).render_id;
+        expect(ids.render2).not.toBe(ids.render1);
+        const rs = await follow('render_status', { project: PROJECT, render_id: ids.render2 }, runDone);
+        const view = data<{ status: string; file: string; record: { template: string; run_id: string }; untrusted: { warnings: string[] } }>(rs);
+        expect(view.status, rs.content[0].text).toBe('succeeded');
+        expect(view.record).toMatchObject({ template: THEME, run_id: ids.run2 });
+        expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+        await call('review', { project: PROJECT, render_id: ids.render2, wait_s: 0 });
+        const done = await follow('review_get', { project: PROJECT, render_id: ids.render2, detail: 'full' }, runDone);
+        const v = data<{ clean: boolean; diff?: { previous: string }; files: { sheets: string[]; keyframes: Record<string, string>; diff_sheet?: string } }>(done);
+        expect(v.clean, done.content[0].text).toBe(true);
+        expect(v.diff?.previous).toBe(ids.render1);
+        await keep('render2', [...v.files.sheets, ...Object.values(v.files.keyframes), ...(v.files.diff_sheet ? [v.files.diff_sheet] : []), view.file]);
+
+        // Reply, then resolve with the new render and the hash the reply returned.
+        const reply = await call('comment_reply', { project: PROJECT, comment_id: ids.comment, text: 'Held the confirmation for 3 s instead of 1 s, re-captured and re-rendered.' });
+        ids.replyHash = data<{ hash: string }>(reply).hash;
+        const res = await call('comment_resolve', { project: PROJECT, comment_id: ids.comment, note: 'The confirmation stays 3 s on screen.', render_id: ids.render2, if_match: ids.replyHash });
+        expect(data<{ thread: Json }>(res).thread).toMatchObject({ status: 'resolved', resolution: { via: 'mcp', render_id: ids.render2 } });
+        expect(data<{ threads: unknown[] }>(await call('comments_list', { project: PROJECT })).threads).toEqual([]);
+
+        await checkPhase(
+          'comment',
+          [
+            'comments_list',
+            'scenario_get',
+            'scenario_validate',
+            'scenario_save',
+            'plan_preview',
+            'run_capture',
+            'plan_preview',
+            'render',
+            'review',
+            'comment_reply',
+            'comment_resolve',
+            'comments_list',
+          ],
+          [['retake-scenario', ['Frame comments on a render', 'The loop']]],
+        );
+        // No approval was asked; nothing else changed.
+        expect(asked).toEqual([]);
+        expect(sha(await readFile(join(projectDir(), 'project.yaml')))).toBe(projectYamlSha);
+        expect(readdirSync(join(root, 'templates'))).toEqual([THEME]);
+        expect(readdirSync(join(root, 'components'))).toEqual(['northfield']);
+        expect(readdirSync(join(root, 'components', 'northfield'))).toEqual(['intro-split']);
+        expect(existsSync(join(REPO, 'components'))).toBe(false);
+        expect(stderr).not.toMatch(/Unhandled|TypeError|cancelRender/i);
+      },
+      STEP,
+    );
+  },
+);

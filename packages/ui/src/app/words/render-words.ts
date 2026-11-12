@@ -88,7 +88,14 @@ export function jobWords(j: ScenarioRenderJobView): string {
     const ahead = j.queue?.ahead ?? 0;
     const r = j.queue?.running;
     // L5.14: a render a take holds does not start before the take ends, whatever its place.
-    const first = j.yield?.state === 'waiting' ? yieldWords(j.yield) : j.queue?.held_by === 'take' ? 'waiting for a take to finish' : ahead === 0 ? 'next in the queue' : `${ahead} ${ahead === 1 ? 'job' : 'jobs'} before it`;
+    const first =
+      j.yield?.state === 'waiting'
+        ? yieldWords(j.yield)
+        : j.queue?.held_by === 'take'
+          ? 'waiting for a take to finish'
+          : ahead === 0
+            ? 'next in the queue'
+            : `${ahead} ${ahead === 1 ? 'job' : 'jobs'} before it`;
     const running = r ? ` (a ${r.kind.replace(/_/g, ' ')} is running${r.fraction !== undefined ? `, ${Math.round(r.fraction * 100)} %` : ''})` : '';
     return `${v} · queued — ${first}${running}`;
   }
@@ -219,7 +226,9 @@ export const RENDER_NOT_WORDS: Record<RenderNot, string> = {
  */
 export function notShownWords(n: ScenarioRendersView['not_shown']): string[] {
   // (The reason's words speak of one file — "its record …": with several, said of each.)
-  return (n?.reasons ?? []).map((r) => (r.count === 1 ? `1 file of renders/ is not shown as a render: ${RENDER_NOT_WORDS[r.why]}` : `${r.count} files of renders/ are not shown as renders — for each, ${RENDER_NOT_WORDS[r.why]}`));
+  return (n?.reasons ?? []).map((r) =>
+    r.count === 1 ? `1 file of renders/ is not shown as a render: ${RENDER_NOT_WORDS[r.why]}` : `${r.count} files of renders/ are not shown as renders — for each, ${RENDER_NOT_WORDS[r.why]}`,
+  );
 }
 
 export function shownJobsOf(v: ScenarioRendersView): Set<string> {

@@ -77,7 +77,11 @@ export function processStart(pid: number): Promise<number | null> {
 
 export function processStartSync(pid: number): number | null {
   try {
-    return parseLstart(execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { env: PS_ENV, stdio: ['ignore', 'pipe', 'ignore'], timeout: PS_TIMEOUT_MS }).toString().trim());
+    return parseLstart(
+      execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { env: PS_ENV, stdio: ['ignore', 'pipe', 'ignore'], timeout: PS_TIMEOUT_MS })
+        .toString()
+        .trim(),
+    );
   } catch {
     return null;
   }

@@ -149,7 +149,12 @@ export const SORT_LABEL: Record<BoardSort, string> = { activity: 'Last activity'
 
 /** The newest moment something happened to a production (a take, a render), ISO or ''. */
 function lastActivity(s: BoardScenario): string {
-  return [s.running?.started_at, s.last_run?.finished_at ?? s.last_run?.started_at, s.render?.created_at, s.render_failed?.at].filter((x): x is string => typeof x === 'string').sort().at(-1) ?? '';
+  return (
+    [s.running?.started_at, s.last_run?.finished_at ?? s.last_run?.started_at, s.render?.created_at, s.render_failed?.at]
+      .filter((x): x is string => typeof x === 'string')
+      .sort()
+      .at(-1) ?? ''
+  );
 }
 
 /** The productions a search keeps (name or title, every word), sorted. */
@@ -168,7 +173,9 @@ export function filterSort(list: readonly BoardScenario[], query: string, sort: 
 /** An environment's flags in words: "default · production · read-only · sandbox" (empty: none). */
 export function envFlagWords(e: { production: boolean; access: 'read-only' | 'read-write'; sandbox: boolean }, isDefault: boolean, name?: string): string {
   // L5.10b fixes (review A L7): beside its name, a flag word that only repeats it is left out ("production · read-only").
-  return [...(isDefault ? ['default'] : []), ...(e.production ? ['production'] : []), ...(e.access === 'read-only' ? ['read-only'] : []), ...(e.sandbox ? ['sandbox'] : [])].filter((w) => w !== name).join(' · ');
+  return [...(isDefault ? ['default'] : []), ...(e.production ? ['production'] : []), ...(e.access === 'read-only' ? ['read-only'] : []), ...(e.sandbox ? ['sandbox'] : [])]
+    .filter((w) => w !== name)
+    .join(' · ');
 }
 
 /** The one flag a browser row has room for (production, read-only, sandbox, default — the riskiest first). */

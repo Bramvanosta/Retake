@@ -27,7 +27,14 @@ export function barTones(theme: ThemeTokens): { bar: string; field: string; ink:
     const base = mixColors(nightTone(theme), light, 0.07);
     return { bar: base, field: mixColors(base, light, 0.09), ink: mixColors(light, base, 0.08), quiet: mixColors(light, base, 0.45), hairline: withAlpha(light, 0.1), dark: true };
   }
-  return { bar: mixColors(light, dark, 0.025), field: mixColors(light, dark, 0.065), ink: mixColors(dark, light, 0.06), quiet: mixColors(dark, light, 0.5), hairline: withAlpha(dark, 0.11), dark: false };
+  return {
+    bar: mixColors(light, dark, 0.025),
+    field: mixColors(light, dark, 0.065),
+    ink: mixColors(dark, light, 0.06),
+    quiet: mixColors(dark, light, 0.5),
+    hairline: withAlpha(dark, 0.11),
+    dark: false,
+  };
 }
 
 /**
@@ -106,14 +113,36 @@ export function PaneLabel({ theme, x, y, w, label, acting, unit }: { theme: Them
   const centre = y + (PANE_LABEL_ROW * u) / 2;
   return (
     <div style={{ position: 'absolute', left: 0, top: 0, width: 0, height: 0 }}>
-      <div style={{ position: 'absolute', left: roundTo(x, 2), top: roundTo(centre - u, 2), width: roundTo(rule, 2), height: Math.max(1, 2 * u), background: accent, opacity: roundTo(0.55 + 0.45 * acting, 3) }} />
+      <div
+        style={{
+          position: 'absolute',
+          left: roundTo(x, 2),
+          top: roundTo(centre - u, 2),
+          width: roundTo(rule, 2),
+          height: Math.max(1, 2 * u),
+          background: accent,
+          opacity: roundTo(0.55 + 0.45 * acting, 3),
+        }}
+      />
       <CapText layout={layout} x={x + rule + gap} capTop={centre - layout.capHeight / 2} color={color} />
     </div>
   );
 }
 
 /** A plain card around an inset page that is not a phone: rounded, the strong shadow, a hairline edge of the light tone. */
-export function InsetCard({ theme, rect, radius, unit, children }: { theme: ThemeTokens; rect: { x: number; y: number; w: number; h: number }; radius: number; unit: number; children?: ReactNode }): ReactNode {
+export function InsetCard({
+  theme,
+  rect,
+  radius,
+  unit,
+  children,
+}: {
+  theme: ThemeTokens;
+  rect: { x: number; y: number; w: number; h: number };
+  radius: number;
+  unit: number;
+  children?: ReactNode;
+}): ReactNode {
   const { light } = darkLight(theme);
   const edge = Math.max(2, 4 * unit);
   return (
@@ -129,7 +158,9 @@ export function InsetCard({ theme, rect, radius, unit, children }: { theme: Them
         boxShadow: cardShadow(theme, 'strong', unit),
       }}
     >
-      <div style={{ position: 'absolute', left: edge, top: edge, width: rect.w, height: rect.h, borderRadius: radius, overflow: 'hidden', isolation: 'isolate', background: nightTone(theme) }}>{children}</div>
+      <div style={{ position: 'absolute', left: edge, top: edge, width: rect.w, height: rect.h, borderRadius: radius, overflow: 'hidden', isolation: 'isolate', background: nightTone(theme) }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -139,7 +170,19 @@ export function InsetCard({ theme, rect, radius, unit, children }: { theme: Them
  * rounded display showing the page — no island or status bar over it (the page shows whole) — and a strong shadow so
  * it reads over the main page.
  */
-export function InsetPhone({ theme, display, unit, shadow = 'strong', children }: { theme: ThemeTokens; display: { x: number; y: number; w: number; h: number }; unit: number; shadow?: ShadowKind; children?: ReactNode }): ReactNode {
+export function InsetPhone({
+  theme,
+  display,
+  unit,
+  shadow = 'strong',
+  children,
+}: {
+  theme: ThemeTokens;
+  display: { x: number; y: number; w: number; h: number };
+  unit: number;
+  shadow?: ShadowKind;
+  children?: ReactNode;
+}): ReactNode {
   const t = deviceTones(theme, 'dark');
   const e = insetPhoneEdge(display.h);
   const radius = Math.round(display.w * 0.12);

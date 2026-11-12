@@ -197,7 +197,10 @@ export function applyFieldEdit(text: string, edit: FieldEdit): FieldEditApplied 
   if (!at || !Object.hasOwn(FIELD_PATHS, at.entry)) throw new StepEditError('invalid', 'at.entry is one of top, scene, card, interstitial');
   const allowed = FIELD_PATHS[at.entry] as readonly string[];
   if (typeof edit.field !== 'string' || !allowed.includes(edit.field)) {
-    throw new StepEditError('invalid', `${String(edit.field).slice(0, 60)} is not a value the timeline sets on ${at.entry === 'top' ? 'the video' : `a ${at.entry}`} (it sets ${allowed.join(', ')}): change it in the YAML view`);
+    throw new StepEditError(
+      'invalid',
+      `${String(edit.field).slice(0, 60)} is not a value the timeline sets on ${at.entry === 'top' ? 'the video' : `a ${at.entry}`} (it sets ${allowed.join(', ')}): change it in the YAML view`,
+    );
   }
   const field = edit.field;
   const kind = fieldKindOf(field);
@@ -221,7 +224,11 @@ export function applyFieldEdit(text: string, edit: FieldEdit): FieldEditApplied 
     const content = isObj(v) ? Object.keys(v).filter((k) => k !== 'component' && k !== 'duration') : [];
     if (content.length) {
       const named = content.filter((k) => /^[a-z_]{1,40}$/.test(k)).slice(0, 6);
-      throw new StepEditError('not_editable', `the ${field} has its own ${named.length ? named.join(', ') : 'content'}: turn it off or back to the theme's in the YAML view (a switch would drop it)`, field);
+      throw new StepEditError(
+        'not_editable',
+        `the ${field} has its own ${named.length ? named.join(', ') : 'content'}: turn it off or back to the theme's in the YAML view (a switch would drop it)`,
+        field,
+      );
     }
   }
   const protectedKey = at.entry === 'card' || at.entry === 'interstitial' ? at.entry : undefined;

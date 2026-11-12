@@ -82,7 +82,12 @@ describe('the Record screen words', () => {
   });
 
   it('target flags and inserts in words; the Studio text of an insert apart (shown through Txt)', () => {
-    expect(fragileWords(['css', 'dynamic_text', 'broader', 'other'])).toEqual(['depends on the page’s code (a CSS selector)', 'holds a number or a date that may change', 'matches a wider text than its own', 'may be fragile']);
+    expect(fragileWords(['css', 'dynamic_text', 'broader', 'other'])).toEqual([
+      'depends on the page’s code (a CSS selector)',
+      'holds a number or a date that may change',
+      'matches a wider text than its own',
+      'may be fragile',
+    ]);
     const ins = (x: Record<string, unknown>) => ({ id: 'i1', after_seq: 1, ...x }) as RecordInsert;
     expect(insertWords(ins({ kind: 'hold', seconds: 2 }))).toBe('Hold 2 s');
     expect(insertWords(ins({ kind: 'wait_for', until: 'next_target' }))).toBe('Wait for the next target');
@@ -116,11 +121,17 @@ describe('the Record screen words', () => {
   it('⚑ a preflight refusal for a persona not signed in maps to Sign in — nothing else does', () => {
     const v = (code: string, message: string, persona: string | null = 'supplier') => ({ job: { error: { code, message } }, persona, env: 'signed-in' });
     expect(preflightSignIn(v('refused', 'persona supplier is not signed in on signed-in (expired): sign it in first — retake -C . login p'))).toEqual({ persona: 'supplier', env: 'signed-in' });
-    expect(preflightSignIn(v('refused', 'persona supplier could not be signed in by its login steps (x): sign it in by hand — retake -C . login p'))).toEqual({ persona: 'supplier', env: 'signed-in' });
+    expect(preflightSignIn(v('refused', 'persona supplier could not be signed in by its login steps (x): sign it in by hand — retake -C . login p'))).toEqual({
+      persona: 'supplier',
+      env: 'signed-in',
+    });
     expect(preflightSignIn(v('refused', 'page shop of environment local is not an http(s) URL: nothing to record'))).toBeNull();
     expect(preflightSignIn(v('failed', 'persona supplier is not signed in'))).toBeNull();
     // Before the folder exists the view has no persona: the engine's message names it (and the environment).
-    expect(preflightSignIn({ job: { error: { code: 'refused', message: 'persona supplier is not signed in on signed-in (never): sign it in first' } }, persona: null, env: null })).toEqual({ persona: 'supplier', env: 'signed-in' });
+    expect(preflightSignIn({ job: { error: { code: 'refused', message: 'persona supplier is not signed in on signed-in (never): sign it in first' } }, persona: null, env: null })).toEqual({
+      persona: 'supplier',
+      env: 'signed-in',
+    });
     expect(preflightSignIn({ job: { error: { code: 'refused', message: 'persona supplier could not be signed in by its login steps (x)' } }, persona: null, env: null })).toBeNull();
     expect(preflightSignIn({ job: { error: { code: 'refused', message: 'persona ../x is not signed in on y (never)' } }, persona: null, env: null })).toBeNull();
     expect(preflightSignIn({ job: null, persona: 'x', env: 'y' })).toBeNull();
@@ -156,7 +167,7 @@ describe('the Record screen words', () => {
 });
 
 describe('after the reviews (the screen)', () => {
-  it('B-L1: a poll answer older than the screen\'s revision never replaces a newer annotate answer', () => {
+  it("B-L1: a poll answer older than the screen's revision never replaces a newer annotate answer", () => {
     expect(newerView(null, { rev: 0 })).toBe(true);
     expect(newerView({ rev: 3 }, { rev: 3 })).toBe(true);
     expect(newerView({ rev: 3 }, { rev: 4 })).toBe(true);
@@ -164,14 +175,14 @@ describe('after the reviews (the screen)', () => {
     expect(newerView({ rev: 3 }, { rev: 5, unchanged: true })).toBe(false);
   });
 
-  it('B-H1: where an insert goes from the cursor\'s row — after an action or the recorder\'s scroll, right after its wait, right after an insert', () => {
+  it("B-H1: where an insert goes from the cursor's row — after an action or the recorder's scroll, right after its wait, right after an insert", () => {
     expect(insertAnchor({ role: 'action', seqs: [3, 5] })).toEqual({ after_step_seq: 5 });
     expect(insertAnchor({ role: 'helper', helper: 'scroll', seqs: [2, 4] })).toEqual({ after_step_seq: 4 });
     expect(insertAnchor({ role: 'helper', helper: 'wait', seqs: [6, 6] })).toEqual({ after_step_seq: 6, row: 'wait' });
     expect(insertAnchor({ role: 'insert', seqs: [6, 6], insert: 'i3' })).toEqual({ after_insert: 'i3' });
   });
 
-  it('B-M1: the cursor is keyed by its row\'s identity — an insert before it moves the row, the cursor and its words follow; a row that is gone has none', () => {
+  it("B-M1: the cursor is keyed by its row's identity — an insert before it moves the row, the cursor and its words follow; a row that is gone has none", () => {
     const view = (sources: unknown[], steps: number) =>
       ({
         blocks: { entries: [{ type: 'scene', id: 'lab', steps: Array.from({ length: steps }, (_, i) => ({ key: `lab.${i}`, index: i })) }] },
@@ -220,7 +231,21 @@ describe('after the reviews (the screen)', () => {
 describe('the draft rows and the events', () => {
   it('rows by scene with their source, alternatives, inserted step and modifiers', () => {
     const u = {
-      blocks: { entries: [{ type: 'card', id: 'c' }, { type: 'scene', id: 'lab', page: 'shop', open: '/record-lab', steps: [{ key: 'lab.0', index: 0 }, { key: 'lab.1', index: 1 }] }] },
+      blocks: {
+        entries: [
+          { type: 'card', id: 'c' },
+          {
+            type: 'scene',
+            id: 'lab',
+            page: 'shop',
+            open: '/record-lab',
+            steps: [
+              { key: 'lab.0', index: 0 },
+              { key: 'lab.1', index: 1 },
+            ],
+          },
+        ],
+      },
       sources: [
         { scene: 'lab', step: 0, seqs: [1, 2], role: 'action', row: 'a1', modifiers: ['i2', 'gone'] },
         { scene: 'lab', step: 1, seqs: [2, 2], role: 'insert', insert: 'i1', row: 'i:i1' },
@@ -252,7 +277,7 @@ describe('the draft rows and the events', () => {
   });
 });
 
-describe('L5.11b: a recording\'s state beside its mark (Shoot\'s browser, the screen)', () => {
+describe("L5.11b: a recording's state beside its mark (Shoot's browser, the screen)", () => {
   const STATES = Object.keys(STATE_WORDS) as RecordState[];
   /** The a11y checker's vocabulary a status mark needs beside it (a11y.ts saysState), as far as these words go. */
   const SAYS = /\b(waiting|pending|recording|draft|recorded|interrupted|invalid|failed|cancelled|discarded|missing|ended|done|saved)\b/i;
@@ -283,8 +308,31 @@ describe('L5.11b: a recording\'s state beside its mark (Shoot\'s browser, the sc
   });
 
   it('⚑ the Recordings group: a saved recording links its scenario (a row under it); its words through Txt (B-L6)', () => {
-    const item = (rec_id: string, saved: { name: string; file: string } | null) => ({ rec_id, state: 'done' as const, job: null, started_by: 'ui' as const, started_at: null, name: `draft-${rec_id}`, env: 'local', persona: null, page: 'shop', path: '/', steps: 4, actions: 4, saved, studio: saved === null });
-    const html = renderToStaticMarkup(createElement(ShootBrowser, { slug: 'p', name: null, runs: null, current: null, recordings: { items: [item('rec_a', { name: 'quote-v2', file: 'scenarios/quote-v2.yaml' }), item('rec_b', null)], current: 'rec_a' } }));
+    const item = (rec_id: string, saved: { name: string; file: string } | null) => ({
+      rec_id,
+      state: 'done' as const,
+      job: null,
+      started_by: 'ui' as const,
+      started_at: null,
+      name: `draft-${rec_id}`,
+      env: 'local',
+      persona: null,
+      page: 'shop',
+      path: '/',
+      steps: 4,
+      actions: 4,
+      saved,
+      studio: saved === null,
+    });
+    const html = renderToStaticMarkup(
+      createElement(ShootBrowser, {
+        slug: 'p',
+        name: null,
+        runs: null,
+        current: null,
+        recordings: { items: [item('rec_a', { name: 'quote-v2', file: 'scenarios/quote-v2.yaml' }), item('rec_b', null)], current: 'rec_a' },
+      }),
+    );
     expect(html).toMatch(/<a href="#\/p\/p\/s\/quote-v2"[^>]*data-testid="record-recent-saved"[^>]*>.*Open quote-v2/);
     expect((html.match(/data-testid="record-recent-saved"/g) ?? []).length).toBe(1);
     expect(html).toContain('Recorded · 4 steps · local · saved as quote-v2');

@@ -36,7 +36,9 @@ beforeAll(async () => {
   process.env.RETAKE_HOME = home;
   process.env[PASSWORD_ENV] = ACCOUNTS.supplier.password;
   auth = await startAuthServer();
-  rec = await startServer({ '/rec.html': '<!doctype html><html><body><h1>Record</h1><button id="go">Go</button><p id="s"></p><script>go.onclick = () => (s.textContent = "went")</script></body></html>' });
+  rec = await startServer({
+    '/rec.html': '<!doctype html><html><body><h1>Record</h1><button id="go">Go</button><p id="s"></p><script>go.onclick = () => (s.textContent = "went")</script></body></html>',
+  });
   if (hasChromium && hasOpenssl()) site = await startBrandSite();
 }, 60_000);
 

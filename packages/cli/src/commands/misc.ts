@@ -19,6 +19,8 @@ export function schemaCommand(ui: Ui, name: JsonSchemaName): ExitCode {
 export const LATER_COMMANDS: ReadonlyArray<{ name: string; phase: 4 | 5; summary: string }> = [];
 
 export function laterCommand(ui: Ui, name: string, phase: number): ExitCode {
-  ui.error(`retake ${name} is available in phase ${phase}; available now: init, new, list, validate, run, inspect, record, plan, render, still, review, export, comment, hooks, env reset, sandbox, components, theme create, schema, login, auth status, doctor, mcp and ui`);
+  ui.error(
+    `retake ${name} is available in phase ${phase}; available now: init, new, list, validate, run, inspect, record, plan, render, still, review, export, comment, hooks, env reset, sandbox, components, theme create, schema, login, auth status, doctor, mcp and ui`,
+  );
   return EXIT.failure;
 }

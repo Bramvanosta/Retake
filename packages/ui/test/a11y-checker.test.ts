@@ -20,7 +20,8 @@ import type { Finding, Rule } from './a11y.js';
 let browser: Browser;
 let page: Page;
 
-const ROOT = ':root{--danger:#b42318;--danger-soft:#fdecea;--warning:#8a5300;--info:#1f5fae;--success:#1d6b3a;--success-soft:#e6f4ea;--online:#2e9a5a} body{margin:0;font:14px/1.5 sans-serif;background:#fff;color:#16181d}';
+const ROOT =
+  ':root{--danger:#b42318;--danger-soft:#fdecea;--warning:#8a5300;--info:#1f5fae;--success:#1d6b3a;--success-soft:#e6f4ea;--online:#2e9a5a} body{margin:0;font:14px/1.5 sans-serif;background:#fff;color:#16181d}';
 
 async function on(html: string, width = 1000): Promise<void> {
   await page.setViewportSize({ width, height: 700 });
@@ -67,7 +68,10 @@ describe('the checker (L4.9 part A)', () => {
 
   it('contrast: grey text fails, muted passes; large text needs 3:1; a half-opaque parent counts', async () => {
     let r = await audit('<p style="color:#999">Grey words</p><p style="color:#565d69">Muted words</p>');
-    expect(of(r.findings, 'contrast').map((f) => f.text), formatFindings(r.findings)).toEqual(['Grey words']);
+    expect(
+      of(r.findings, 'contrast').map((f) => f.text),
+      formatFindings(r.findings),
+    ).toEqual(['Grey words']);
     expect(r.stats.texts).toBe(3);
     // #8a8a8a: 3.45:1 — fails at 14 px, passes at 24 px and at 19 px bold.
     r = await audit('<p style="color:#8a8a8a">Small</p><p style="color:#8a8a8a;font-size:24px">Large</p><p style="color:#8a8a8a;font-size:19px;font-weight:700">Bold</p>');
@@ -80,7 +84,9 @@ describe('the checker (L4.9 part A)', () => {
   });
 
   it('contrast: a gradient counts its worst stop; an image background is unmeasured, not passed', async () => {
-    let r = await audit('<div style="background:linear-gradient(90deg,#fff,#222)"><p style="color:#565d69">On a dark stop</p></div><div style="background:repeating-linear-gradient(135deg,#f1f2f5,#f1f2f5 6px,#eceef2 6px,#eceef2 12px)"><p style="color:#565d69">On light stripes</p></div>');
+    let r = await audit(
+      '<div style="background:linear-gradient(90deg,#fff,#222)"><p style="color:#565d69">On a dark stop</p></div><div style="background:repeating-linear-gradient(135deg,#f1f2f5,#f1f2f5 6px,#eceef2 6px,#eceef2 12px)"><p style="color:#565d69">On light stripes</p></div>',
+    );
     expect(of(r.findings, 'contrast').map((f) => f.text)).toEqual(['On a dark stop']);
     r = await audit('<div style="background:url(data:image/gif;base64,R0lGODlhAQABAAAAACw=)"><p>Over a picture</p></div>');
     expect(of(r.findings, 'contrast')).toEqual([]);
@@ -89,10 +95,14 @@ describe('the checker (L4.9 part A)', () => {
   });
 
   it('⚑ contrast over media: an overlay beside a picture is composited over black and white (the worse kept)', async () => {
-    const box = (veil: string, text: string) => `<div style="position:relative;width:320px;background:#fff"><canvas width="320" height="120" style="display:block"></canvas><span style="position:absolute;top:20px;left:20px;color:#16181d;background:${veil}">${text}</span></div>`;
+    const box = (veil: string, text: string) =>
+      `<div style="position:relative;width:320px;background:#fff"><canvas width="320" height="120" style="display:block"></canvas><span style="position:absolute;top:20px;left:20px;color:#16181d;background:${veil}">${text}</span></div>`;
     // Dark text on a thin white veil: fine on a white page, unreadable when the picture under it is dark.
     let r = await audit(box('rgba(255,255,255,.35)', 'Thin veil') + box('rgba(255,255,255,.92)', 'Thick veil'));
-    expect(of(r.findings, 'contrast').map((f) => f.text), formatFindings(r.findings)).toEqual(['Thin veil']);
+    expect(
+      of(r.findings, 'contrast').map((f) => f.text),
+      formatFindings(r.findings),
+    ).toEqual(['Thin veil']);
     expect(of(r.findings, 'contrast')[0].detail).toContain('over media');
     expect(r.stats.overMedia).toBe(2);
     // Text straight on the picture (nothing translucent between): unmeasured, never a silent pass.
@@ -100,25 +110,33 @@ describe('the checker (L4.9 part A)', () => {
     expect(of(r.findings, 'contrast')).toEqual([]);
     expect(r.stats.unmeasured.some((u) => u.includes('straight on media'))).toBe(true);
     // A picture painted above the text (it hides it) is not under it; text beside a picture is not over it.
-    r = await audit('<div style="position:relative;background:#fff"><p style="color:#16181d;margin:0;background:rgba(255,255,255,.35)">Beside</p><canvas width="100" height="40" style="display:block"></canvas></div>');
+    r = await audit(
+      '<div style="position:relative;background:#fff"><p style="color:#16181d;margin:0;background:rgba(255,255,255,.35)">Beside</p><canvas width="100" height="40" style="display:block"></canvas></div>',
+    );
     expect(r.stats.overMedia).toBe(0);
     expect(of(r.findings, 'contrast')).toEqual([]);
   });
 
   it('placeholder: its own colour and opacity on the field', async () => {
-    const r = await audit('<style>#a::placeholder{color:#bbb;opacity:1}#b::placeholder{color:#565d69;opacity:1}#c::placeholder{color:#565d69;opacity:.54}</style><label>A <input id="a" placeholder="Pale"></label><label>B <input id="b" placeholder="Muted"></label><label>C <input id="c" placeholder="Faded"></label>');
+    const r = await audit(
+      '<style>#a::placeholder{color:#bbb;opacity:1}#b::placeholder{color:#565d69;opacity:1}#c::placeholder{color:#565d69;opacity:.54}</style><label>A <input id="a" placeholder="Pale"></label><label>B <input id="b" placeholder="Muted"></label><label>C <input id="c" placeholder="Faded"></label>',
+    );
     expect(of(r.findings, 'placeholder').map((f) => f.text)).toEqual(['Pale', 'Faded']);
     expect(r.stats.placeholders).toBe(3);
   });
 
   it('a disabled control’s own text is exempt (counted); a disabled container’s other text is not', async () => {
-    const r = await audit('<button disabled style="color:#bbb">Off</button><label><input type="radio" disabled> <span style="color:#bbb">Its label</span></label><div role="radiogroup" aria-disabled="true" aria-label="Layout"><span role="radio" aria-checked="true" aria-disabled="true" tabindex="0" style="color:#bbb">Chip</span><span style="color:#bbb">The reason it is off</span></div>');
+    const r = await audit(
+      '<button disabled style="color:#bbb">Off</button><label><input type="radio" disabled> <span style="color:#bbb">Its label</span></label><div role="radiogroup" aria-disabled="true" aria-label="Layout"><span role="radio" aria-checked="true" aria-disabled="true" tabindex="0" style="color:#bbb">Chip</span><span style="color:#bbb">The reason it is off</span></div>',
+    );
     expect(of(r.findings, 'contrast').map((f) => f.text)).toEqual(['The reason it is off']);
     expect(r.stats.exempt).toBe(3);
   });
 
   it('name: a control with no name, or named only by a placeholder or title, is found (accessibility tree)', async () => {
-    const r = await audit('<button id="icon"><svg width="10" height="10"></svg></button><button aria-label="Close">×</button><input id="ph" placeholder="Search"><input id="ti" title="Filter"><label>Find <input id="ok"></label><div role="button" tabindex="0" id="bare"></div>');
+    const r = await audit(
+      '<button id="icon"><svg width="10" height="10"></svg></button><button aria-label="Close">×</button><input id="ph" placeholder="Search"><input id="ti" title="Filter"><label>Find <input id="ok"></label><div role="button" tabindex="0" id="bare"></div>',
+    );
     const names = of(r.findings, 'name');
     expect(names.map((f) => f.el).sort(), formatFindings(names)).toEqual(['button#icon', 'div#bare', 'input#ph', 'input#ti']);
     expect(names.find((f) => f.el === 'input#ph')!.detail).toContain('placeholder');
@@ -126,16 +144,20 @@ describe('the checker (L4.9 part A)', () => {
   });
 
   it('reachable: an interactive role the keyboard cannot reach; composites holding the tab stop pass', async () => {
-    const r = await audit('<div role="button" id="dead">Go</div><div role="button" tabindex="0">Fine</div><ul role="listbox" tabindex="0" aria-label="Steps" aria-activedescendant="o1"><li role="option" id="o1" aria-selected="true">One</li><li role="option" id="o2" aria-selected="false">Two</li></ul><div role="radiogroup" aria-label="Pick"><span role="radio" aria-checked="true" tabindex="0">A</span><span role="radio" aria-checked="false" tabindex="-1">B</span></div><div role="tablist" aria-label="Tabs"><span role="tab" id="lost">T</span></div>');
+    const r = await audit(
+      '<div role="button" id="dead">Go</div><div role="button" tabindex="0">Fine</div><ul role="listbox" tabindex="0" aria-label="Steps" aria-activedescendant="o1"><li role="option" id="o1" aria-selected="true">One</li><li role="option" id="o2" aria-selected="false">Two</li></ul><div role="radiogroup" aria-label="Pick"><span role="radio" aria-checked="true" tabindex="0">A</span><span role="radio" aria-checked="false" tabindex="-1">B</span></div><div role="tablist" aria-label="Tabs"><span role="tab" id="lost">T</span></div>',
+    );
     expect(of(r.findings, 'reachable').map((f) => f.el)).toEqual(['div#dead', 'span#lost']);
     // Two step lists sharing one tab stop (the arrows cross from one to the next): reachable; with no stop in the family, not.
-    const lists = (first: number) => `<ul role="listbox" class="steps" tabindex="${first}" aria-label="Scene a"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="Scene b"><li role="option" id="b1">B1</li></ul>`;
+    const lists = (first: number) =>
+      `<ul role="listbox" class="steps" tabindex="${first}" aria-label="Scene a"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="Scene b"><li role="option" id="b1">B1</li></ul>`;
     expect(of((await audit(lists(0))).findings, 'reachable')).toEqual([]);
     expect(of((await audit(lists(-1))).findings, 'reachable').map((f) => f.el)).toEqual(['li#a1', 'li#b1']);
   });
 
   it('⚑ focus ring: a stop must change a visible box — the chip whose ring rule is gone fails though its input has the global outline', async () => {
-    const chips = (ring: boolean) => `<style>:focus-visible{outline:2px solid #2357d9;outline-offset:2px} .chip{position:relative;display:inline-flex;padding:4px 10px;border:1px solid #ccc;border-radius:99px} .chip input{position:absolute;opacity:0;width:1px;height:1px;margin:0} ${ring ? '.chip:focus-within{outline:2px solid #2357d9}' : ''}</style><fieldset style="border:0"><legend>Show</legend><label class="chip"><input type="checkbox" id="c1"> One</label><label class="chip"><input type="checkbox" id="c2"> Two</label></fieldset>`;
+    const chips = (ring: boolean) =>
+      `<style>:focus-visible{outline:2px solid #2357d9;outline-offset:2px} .chip{position:relative;display:inline-flex;padding:4px 10px;border:1px solid #ccc;border-radius:99px} .chip input{position:absolute;opacity:0;width:1px;height:1px;margin:0} ${ring ? '.chip:focus-within{outline:2px solid #2357d9}' : ''}</style><fieldset style="border:0"><legend>Show</legend><label class="chip"><input type="checkbox" id="c1"> One</label><label class="chip"><input type="checkbox" id="c2"> Two</label></fieldset>`;
     await on(chips(true));
     let w = await tabWalk(page);
     expect(w.stops).toBe(2);
@@ -148,13 +170,16 @@ describe('the checker (L4.9 part A)', () => {
     w = await tabWalk(page);
     expect(w.findings.map((f) => f.el)).toEqual(['button#b']);
     // A listbox whose ring is drawn on its active option passes.
-    await on('<style>ul:focus-visible{outline:none} ul:focus-visible li[aria-selected=true]{box-shadow:0 0 0 2px #2357d9}</style><ul role="listbox" tabindex="0" aria-label="Steps" aria-activedescendant="o1"><li role="option" id="o1" aria-selected="true">One</li></ul>');
+    await on(
+      '<style>ul:focus-visible{outline:none} ul:focus-visible li[aria-selected=true]{box-shadow:0 0 0 2px #2357d9}</style><ul role="listbox" tabindex="0" aria-label="Steps" aria-activedescendant="o1"><li role="option" id="o1" aria-selected="true">One</li></ul>',
+    );
     w = await tabWalk(page);
     expect(w.findings).toEqual([]);
   });
 
   it('focus ring: text shown only while focused (a tooltip) is contrast-checked then', async () => {
-    const pin = (fg: string) => `<style>.tip{display:none;background:#16181d;color:${fg}} .pin:focus-within .tip{display:block}</style><span class="pin"><button>Pin</button><span class="tip">Open thread</span></span>`;
+    const pin = (fg: string) =>
+      `<style>.tip{display:none;background:#16181d;color:${fg}} .pin:focus-within .tip{display:block}</style><span class="pin"><button>Pin</button><span class="tip">Open thread</span></span>`;
     await on(pin('#555'));
     let w = await tabWalk(page);
     expect(w.findings.map((f) => `${f.rule} ${f.text}`)).toEqual(['contrast Open thread']);
@@ -166,7 +191,9 @@ describe('the checker (L4.9 part A)', () => {
   it('colour-only: a status colour with no word fails; the same mark hidden beside words passes', async () => {
     let r = await audit('<span id="dot" style="display:inline-block;width:8px;height:8px;background:var(--danger)"></span>');
     expect(of(r.findings, 'colour-only').map((f) => f.el)).toEqual(['span#dot']);
-    r = await audit('<span><span aria-hidden="true" style="display:inline-block;width:8px;height:8px;background:var(--danger)"></span> Failed</span><span>Connected <span style="display:inline-block;width:8px;height:8px;background:var(--online)"></span></span><span style="display:inline-block;width:8px;height:8px;background:#2357d9"></span>');
+    r = await audit(
+      '<span><span aria-hidden="true" style="display:inline-block;width:8px;height:8px;background:var(--danger)"></span> Failed</span><span>Connected <span style="display:inline-block;width:8px;height:8px;background:var(--online)"></span></span><span style="display:inline-block;width:8px;height:8px;background:#2357d9"></span>',
+    );
     expect(of(r.findings, 'colour-only'), formatFindings(r.findings)).toEqual([]);
     // A label only a screen reader hears is no word for a sighted person who cannot tell the colours apart.
     r = await audit('<p><span id="sr" role="img" aria-label="Online" style="display:inline-block;width:8px;height:8px;background:var(--online)"></span></p>');
@@ -175,20 +202,32 @@ describe('the checker (L4.9 part A)', () => {
     expect(of(r.findings, 'colour-only').map((f) => f.el)).toEqual(['span#lone']);
   });
 
-  it('⚑ L5.9 (critique H1): colour-only sees the kit\'s status tokens wherever they are declared — a dark default rule, a light @media block, a scope, a cascade layer — resolved on the element\'s own scope', async () => {
-    const TOKENS = "<style>:root,[data-appearance='dark']{--ui-fail:#ff7b72;--ui-ok:#4cd27a}@media (prefers-color-scheme: light){:root{--ui-fail:#d93a30;--ui-ok:#1a8d4c}}[data-appearance='light']{--ui-fail:#d93a30;--ui-ok:#1a8d4c}@layer legacy{:root{--ui-warn:#f2b84b}}</style>";
+  it("⚑ L5.9 (critique H1): colour-only sees the kit's status tokens wherever they are declared — a dark default rule, a light @media block, a scope, a cascade layer — resolved on the element's own scope", async () => {
+    const TOKENS =
+      "<style>:root,[data-appearance='dark']{--ui-fail:#ff7b72;--ui-ok:#4cd27a}@media (prefers-color-scheme: light){:root{--ui-fail:#d93a30;--ui-ok:#1a8d4c}}[data-appearance='light']{--ui-fail:#d93a30;--ui-ok:#1a8d4c}@layer legacy{:root{--ui-warn:#f2b84b}}</style>";
     const dot = (id: string, token: string) => `<span id="${id}" style="display:inline-block;width:8px;height:8px;background:var(${token})"></span>`;
     for (const scheme of ['dark', 'light'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      let r = await audit(`${TOKENS}<p>${dot('root-fail', '--ui-fail')}</p><div data-appearance="light"><p>${dot('scoped-fail', '--ui-fail')}</p></div><div data-appearance="dark"><p>${dot('dark-ok', '--ui-ok')}</p></div><p>${dot('layer-warn', '--ui-warn')}</p>`);
-      expect(of(r.findings, 'colour-only').map((f) => f.el), `${scheme}: ${formatFindings(r.findings)}`).toEqual(['span#root-fail', 'span#scoped-fail', 'span#dark-ok', 'span#layer-warn']);
+      let r = await audit(
+        `${TOKENS}<p>${dot('root-fail', '--ui-fail')}</p><div data-appearance="light"><p>${dot('scoped-fail', '--ui-fail')}</p></div><div data-appearance="dark"><p>${dot('dark-ok', '--ui-ok')}</p></div><p>${dot('layer-warn', '--ui-warn')}</p>`,
+      );
+      expect(
+        of(r.findings, 'colour-only').map((f) => f.el),
+        `${scheme}: ${formatFindings(r.findings)}`,
+      ).toEqual(['span#root-fail', 'span#scoped-fail', 'span#dark-ok', 'span#layer-warn']);
       expect(r.stats.statusTokens).toBeGreaterThanOrEqual(3);
       // Review A-L7: an SVG mark drawn in currentColor (outside a control), and the recording / idle / waiting families,
       // are watched too.
-      const svg = (id: string, token: string) => `<svg id="${id}" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" style="color:var(${token})"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>`;
+      const svg = (id: string, token: string) =>
+        `<svg id="${id}" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" style="color:var(${token})"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>`;
       const MORE = "<style>:root{--ui-recording:#3d2523;--ui-idle:#a3a9b4;--ui-waiting:#7a7f89}[data-appearance='light']{--ui-recording:#f2d4d1}</style>";
-      r = await audit(`${TOKENS}${MORE}<p>${svg('svg-fail', '--ui-fail')}</p><p>${dot('rec', '--ui-recording')}</p><p>${dot('idle', '--ui-idle')}</p><p>${dot('wait', '--ui-waiting')}</p><p><button type="button">${svg('btn-icon', '--ui-fail')} Delete</button></p><div data-appearance="light"><p>x</p></div>`);
-      expect(of(r.findings, 'colour-only').map((f) => f.el), `${scheme}: ${formatFindings(r.findings)}`).toEqual(['svg#svg-fail', 'span#rec', 'span#idle', 'span#wait']);
+      r = await audit(
+        `${TOKENS}${MORE}<p>${svg('svg-fail', '--ui-fail')}</p><p>${dot('rec', '--ui-recording')}</p><p>${dot('idle', '--ui-idle')}</p><p>${dot('wait', '--ui-waiting')}</p><p><button type="button">${svg('btn-icon', '--ui-fail')} Delete</button></p><div data-appearance="light"><p>x</p></div>`,
+      );
+      expect(
+        of(r.findings, 'colour-only').map((f) => f.el),
+        `${scheme}: ${formatFindings(r.findings)}`,
+      ).toEqual(['svg#svg-fail', 'span#rec', 'span#idle', 'span#wait']);
       // A scope's own colours count among the watched (its recording tint differs from the root's in both schemes).
       const withScope = r.stats.statusTokens;
       r = await audit(`${TOKENS}${MORE}<p>x</p>`);
@@ -196,14 +235,17 @@ describe('the checker (L4.9 part A)', () => {
       r = await audit(`${TOKENS}<p>${svg('svg-ok', '--ui-ok')} Ready</p>`);
       expect(of(r.findings, 'colour-only'), formatFindings(r.findings)).toEqual([]);
       // The same marks beside a state word pass.
-      r = await audit(`${TOKENS}<p>${dot('a', '--ui-fail')} Failed</p><div data-appearance="light"><p>${dot('b', '--ui-fail')} Failed</p></div><div data-appearance="dark"><p>${dot('c', '--ui-ok')} Ready</p></div>`);
+      r = await audit(
+        `${TOKENS}<p>${dot('a', '--ui-fail')} Failed</p><div data-appearance="light"><p>${dot('b', '--ui-fail')} Failed</p></div><div data-appearance="dark"><p>${dot('c', '--ui-ok')} Ready</p></div>`,
+      );
       expect(of(r.findings, 'colour-only'), formatFindings(r.findings)).toEqual([]);
     }
     await page.emulateMedia({ colorScheme: 'light' });
   });
 
   it('L5.10a fixes (review A-L6): reachable — a focusable listbox with nothing selected and no aria-activedescendant is its own tab stop; with a selection it needs the attribute; unfocusable, never', async () => {
-    const grid = (attrs: string, sel = 'false') => `<ul role="listbox" aria-label="Productions" ${attrs}><li role="option" id="p1" aria-selected="${sel}">One</li><li role="option" id="p2" aria-selected="false">Two</li></ul>`;
+    const grid = (attrs: string, sel = 'false') =>
+      `<ul role="listbox" aria-label="Productions" ${attrs}><li role="option" id="p1" aria-selected="${sel}">One</li><li role="option" id="p2" aria-selected="false">Two</li></ul>`;
     expect(of((await audit(grid('tabindex="0"'))).findings, 'reachable')).toEqual([]);
     expect(of((await audit(grid('tabindex="0"', 'true'))).findings, 'reachable').map((f) => f.el)).toEqual(['li#p1', 'li#p2']);
     expect(of((await audit(grid('tabindex="0" aria-activedescendant="p1"', 'true'))).findings, 'reachable')).toEqual([]);
@@ -211,7 +253,8 @@ describe('the checker (L4.9 part A)', () => {
   });
 
   it('⚑ L5.9 (critique M1): reachable — the options of a listbox a focusable combobox controls with aria-activedescendant are reached (the palette); without it they are not', async () => {
-    const palette = (attrs: string) => `<label>Command <input role="combobox" aria-expanded="true" aria-controls="lb" ${attrs}></label><ul id="lb" role="listbox" aria-label="Commands"><li role="option" id="o1" aria-selected="true">One</li><li role="option" id="o2" aria-selected="false">Two</li></ul>`;
+    const palette = (attrs: string) =>
+      `<label>Command <input role="combobox" aria-expanded="true" aria-controls="lb" ${attrs}></label><ul id="lb" role="listbox" aria-label="Commands"><li role="option" id="o1" aria-selected="true">One</li><li role="option" id="o2" aria-selected="false">Two</li></ul>`;
     expect(of((await audit(palette('aria-activedescendant="o1"'))).findings, 'reachable')).toEqual([]);
     expect(of((await audit(palette(''))).findings, 'reachable').map((f) => f.el)).toEqual(['li#o1', 'li#o2']);
     expect(of((await audit(palette('aria-activedescendant="o1" tabindex="-1"'))).findings, 'reachable').map((f) => f.el)).toEqual(['input', 'li#o1', 'li#o2']);
@@ -252,36 +295,62 @@ describe('the checker (L4.9 part A)', () => {
     expect(await dialogCheck(page, page.locator('#other'), () => page.locator('#open').click())).toEqual([expect.stringContaining('focus did not return')]);
     // (a fresh opener: the old one's click handler gone)
     await page.evaluate(() => document.getElementById('open')!.replaceWith(document.getElementById('open')!.cloneNode(true)));
-    await page.evaluate(() => document.getElementById('open')!.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        (document.getElementById('d') as HTMLDialogElement).open = true;
-      }
-    }));
+    await page.evaluate(() =>
+      document.getElementById('open')!.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          (document.getElementById('d') as HTMLDialogElement).open = true;
+        }
+      }),
+    );
     expect(await dialogCheck(page, page.locator('#open'), () => page.keyboard.press('Enter'))).toEqual(expect.arrayContaining(['focus is not inside the open dialog']));
   });
   it('⚑ contrast: a faded dark card counts its opacity on the card too; an unreadable colour is a finding; pseudo and submit text are measured', async () => {
     // White on #16181d at opacity .5 over white: the card shows grey (≈ 3.4:1), not 17:1 nor the 5:1 of fading the text only.
-    let r = await audit('<div style="opacity:.5;background:#16181d;padding:8px"><p id="dim" style="color:#fff">Dim on dark</p></div><div style="opacity:.95;background:#16181d;padding:8px"><p style="color:#fff">Nearly opaque</p></div>');
-    expect(of(r.findings, 'contrast').map((f) => f.text), formatFindings(r.findings)).toEqual(['Dim on dark']);
+    let r = await audit(
+      '<div style="opacity:.5;background:#16181d;padding:8px"><p id="dim" style="color:#fff">Dim on dark</p></div><div style="opacity:.95;background:#16181d;padding:8px"><p style="color:#fff">Nearly opaque</p></div>',
+    );
+    expect(
+      of(r.findings, 'contrast').map((f) => f.text),
+      formatFindings(r.findings),
+    ).toEqual(['Dim on dark']);
     expect(of(r.findings, 'contrast')[0].detail).toMatch(/^3\.\d+:1 < 4\.5:1/);
     // A colour space the checker does not convert: a finding (never transparent, never a silent pass).
     r = await audit('<div style="background:oklch(0.22 0 0);padding:8px"><p style="color:#333">Dark on oklch</p></div>');
-    expect(of(r.findings, 'contrast').map((f) => f.detail).join(' '), formatFindings(r.findings)).toContain('cannot be read');
+    expect(
+      of(r.findings, 'contrast')
+        .map((f) => f.detail)
+        .join(' '),
+      formatFindings(r.findings),
+    ).toContain('cannot be read');
     r = await audit('<div style="background:color-mix(in srgb, #000 90%, #fff);padding:8px"><p style="color:#333">Dark on mix</p></div>');
     expect(of(r.findings, 'contrast').map((f) => f.text)).toEqual(['Dark on mix']);
     // ::before / ::after quoted text and a submit button's value are text too.
-    r = await audit('<style>.b::after{content:"Failed";color:#ccc} .g::after{content:"Done";color:#565d69}</style><span class="b"></span><span class="g"></span><form><input type="submit" value="Save" style="color:#ccc;background:#fff"><input type="submit" value="Send" style="color:#16181d;background:#fff"></form>');
-    expect(of(r.findings, 'contrast').map((f) => f.text), formatFindings(r.findings)).toEqual(['Save', '::after Failed']);
+    r = await audit(
+      '<style>.b::after{content:"Failed";color:#ccc} .g::after{content:"Done";color:#565d69}</style><span class="b"></span><span class="g"></span><form><input type="submit" value="Save" style="color:#ccc;background:#fff"><input type="submit" value="Send" style="color:#16181d;background:#fff"></form>',
+    );
+    expect(
+      of(r.findings, 'contrast').map((f) => f.text),
+      formatFindings(r.findings),
+    ).toEqual(['Save', '::after Failed']);
   });
 
   it('⚑ colour-only: a status mark needs a state word (never any word); rows differing by a status colour start with a sign', async () => {
     const dot = (bg: string) => `<span aria-hidden="true" style="display:inline-block;width:8px;height:8px;background:${bg}"></span>`;
     // A dot beside an unrelated word; a glyph coloured by status; a ::before dot with no word; a soft background on one row.
-    let r = await audit(`<p id="p1">${dot('var(--danger)')} Session 2</p><ul><li><span id="g" aria-hidden="true" style="color:var(--danger)">●</span> Run 3</li><li>Run 4</li></ul><style>.st::before{content:"";display:inline-block;width:8px;height:8px;background:var(--danger)}</style><p><span class="st" id="pseudo"></span></p><ul><li id="soft" style="background:var(--danger-soft)">Run 5</li><li>Run 6</li></ul>`);
-    expect(of(r.findings, 'colour-only').map((f) => f.el).sort(), formatFindings(r.findings)).toEqual(['li#soft', 'span', 'span#g', 'span#pseudo.st']);
+    let r = await audit(
+      `<p id="p1">${dot('var(--danger)')} Session 2</p><ul><li><span id="g" aria-hidden="true" style="color:var(--danger)">●</span> Run 3</li><li>Run 4</li></ul><style>.st::before{content:"";display:inline-block;width:8px;height:8px;background:var(--danger)}</style><p><span class="st" id="pseudo"></span></p><ul><li id="soft" style="background:var(--danger-soft)">Run 5</li><li>Run 6</li></ul>`,
+    );
+    expect(
+      of(r.findings, 'colour-only')
+        .map((f) => f.el)
+        .sort(),
+      formatFindings(r.findings),
+    ).toEqual(['li#soft', 'span', 'span#g', 'span#pseudo.st']);
     // The same with state words or signs: a dot beside "Failed", ✓ / ✗ glyphs (their shape says it), diff rows with + / −.
-    r = await audit(`<p>${dot('var(--danger)')} Failed</p><ul><li><span aria-hidden="true" style="color:var(--success)">✓</span> Run 3</li><li><span aria-hidden="true" style="color:var(--danger)">✗</span> Run 4</li></ul><table><tbody><tr style="background:var(--success-soft)"><td><span aria-hidden="true">+</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)" class="sr-only">added</span></td><td>  - card: two</td></tr><tr><td> </td><td>  - card: one</td></tr><tr style="background:var(--danger-soft)"><td><span aria-hidden="true">−</span></td><td>  - card: old</td></tr></tbody></table>`);
+    r = await audit(
+      `<p>${dot('var(--danger)')} Failed</p><ul><li><span aria-hidden="true" style="color:var(--success)">✓</span> Run 3</li><li><span aria-hidden="true" style="color:var(--danger)">✗</span> Run 4</li></ul><table><tbody><tr style="background:var(--success-soft)"><td><span aria-hidden="true">+</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)" class="sr-only">added</span></td><td>  - card: two</td></tr><tr><td> </td><td>  - card: one</td></tr><tr style="background:var(--danger-soft)"><td><span aria-hidden="true">−</span></td><td>  - card: old</td></tr></tbody></table>`,
+    );
     expect(of(r.findings, 'colour-only'), formatFindings(r.findings)).toEqual([]);
     // The diff rows' sign dropped (the code itself holds a dash): caught.
     r = await audit('<table><tbody><tr id="add" style="background:var(--success-soft)"><td>12</td><td>  - card: two</td></tr><tr><td>13</td><td>  - card: one</td></tr></tbody></table>');
@@ -289,18 +358,27 @@ describe('the checker (L4.9 part A)', () => {
   });
 
   it('⚑ selected: a selected / current / pressed state must differ from its peer by more than colour (≥ 3:1 for its mark)', async () => {
-    const list = (sel: string) => `<style>li{padding:4px;border:1px solid transparent} .selected{background:#eaf0fd;border-color:#b8cbf5;${sel}}</style><ul><li class="selected" id="s">One</li><li>Two</li><li>Three</li></ul>`;
+    const list = (sel: string) =>
+      `<style>li{padding:4px;border:1px solid transparent} .selected{background:#eaf0fd;border-color:#b8cbf5;${sel}}</style><ul><li class="selected" id="s">One</li><li>Two</li><li>Three</li></ul>`;
     // A tint and a pale border (1.14:1 and 1.6:1): colour only.
     let r = await audit(list(''));
-    expect(of(r.findings, 'selected').map((f) => f.el), formatFindings(r.findings)).toEqual(['li#s.selected']);
+    expect(
+      of(r.findings, 'selected').map((f) => f.el),
+      formatFindings(r.findings),
+    ).toEqual(['li#s.selected']);
     expect(r.stats.selected).toBe(1);
     // Weight, an inset accent bar (3 px at 5:1), a dark fill: each survives greyscale.
     for (const cue of ['font-weight:600', 'box-shadow:inset 3px 0 0 #2357d9', 'background:#2357d9;color:#fff']) expect(of((await audit(list(cue))).findings, 'selected'), cue).toEqual([]);
     // A bar too thin or too pale is still colour only.
     for (const cue of ['box-shadow:inset 1px 0 0 #2357d9', 'box-shadow:inset 3px 0 0 #b8cbf5']) expect(of((await audit(list(cue))).findings, 'selected').length, cue).toBe(1);
     // aria-pressed and aria-current (a tab's underline appears: a mark); a marker child only on the checked radio.
-    r = await audit('<div><button aria-pressed="true" id="on" style="background:#eaf0fd;border:1px solid #ccc">1×</button><button aria-pressed="false" style="background:#fff;border:1px solid #ccc">2×</button></div><nav><a href="#a" aria-current="page" style="border-bottom:2px solid #2357d9">A</a> <a href="#b" style="border-bottom:2px solid transparent">B</a></nav><div role="radiogroup" aria-label="L"><button role="radio" aria-checked="true" tabindex="0"><span style="display:inline-block;width:8px;height:8px;border:1px solid #333;background:#333"></span> X</button><button role="radio" aria-checked="false" tabindex="-1"><span style="display:inline-block;width:8px;height:8px;border:1px solid #333"></span> Y</button></div>');
-    expect(of(r.findings, 'selected').map((f) => f.el), formatFindings(r.findings)).toEqual(['button#on']);
+    r = await audit(
+      '<div><button aria-pressed="true" id="on" style="background:#eaf0fd;border:1px solid #ccc">1×</button><button aria-pressed="false" style="background:#fff;border:1px solid #ccc">2×</button></div><nav><a href="#a" aria-current="page" style="border-bottom:2px solid #2357d9">A</a> <a href="#b" style="border-bottom:2px solid transparent">B</a></nav><div role="radiogroup" aria-label="L"><button role="radio" aria-checked="true" tabindex="0"><span style="display:inline-block;width:8px;height:8px;border:1px solid #333;background:#333"></span> X</button><button role="radio" aria-checked="false" tabindex="-1"><span style="display:inline-block;width:8px;height:8px;border:1px solid #333"></span> Y</button></div>',
+    );
+    expect(
+      of(r.findings, 'selected').map((f) => f.el),
+      formatFindings(r.findings),
+    ).toEqual(['button#on']);
     expect(r.stats.selected).toBe(3);
   });
 
@@ -310,16 +388,30 @@ describe('the checker (L4.9 part A)', () => {
       return (await tabWalk(page)).findings;
     };
     expect((await walk('<style>button:focus-visible{outline:2px solid transparent}</style><button id="b">Go</button>')).map((f) => f.el)).toEqual(['button#b']);
-    expect((await walk('<style>button{background:#fff;border:1px solid #ccc;outline:none!important} button:focus{background:#fdfdfd}</style><button id="b">Go</button>')).map((f) => f.el)).toEqual(['button#b']);
+    expect((await walk('<style>button{background:#fff;border:1px solid #ccc;outline:none!important} button:focus{background:#fdfdfd}</style><button id="b">Go</button>')).map((f) => f.el)).toEqual([
+      'button#b',
+    ]);
     const faint = await walk('<style>button{background:#fff;border:1px solid #ccc;outline:none!important} button:focus{box-shadow:0 0 0 2px #f3f4f6}</style><button id="b">Go</button>');
     expect(faint.map((f) => f.el)).toEqual(['button#b']);
     expect(faint[0].detail).toContain('too faint');
-    expect((await walk('<style>.p{padding:6px;background:#fff} .p:focus-within{background:#fefefe} input{outline:none!important;border:1px solid #ccc}</style><div class="p"><label>X <input id="i"></label></div>')).map((f) => f.el)).toEqual(['input#i']);
-    const covered = await walk('<style>header{position:fixed;top:0;left:0;right:0;height:200px;background:#fff;z-index:9}</style><header><h2>Bar</h2></header><button id="u" style="margin-top:20px">Under</button>');
+    expect(
+      (
+        await walk(
+          '<style>.p{padding:6px;background:#fff} .p:focus-within{background:#fefefe} input{outline:none!important;border:1px solid #ccc}</style><div class="p"><label>X <input id="i"></label></div>',
+        )
+      ).map((f) => f.el),
+    ).toEqual(['input#i']);
+    const covered = await walk(
+      '<style>header{position:fixed;top:0;left:0;right:0;height:200px;background:#fff;z-index:9}</style><header><h2>Bar</h2></header><button id="u" style="margin-top:20px">Under</button>',
+    );
     expect(covered.map((f) => f.detail).join(' '), formatFindings(covered)).toContain('entirely covered by header');
     // A 1 px border turning accent plus a 1 px shadow: 2 px at 3:1 (the steps' ring); a 1 px shadow alone is too thin.
-    expect(await walk('<style>button{background:#fff;border:1px solid #e2e5ea;outline:none!important} button:focus{border-color:#2357d9;box-shadow:0 0 0 1px #2357d9}</style><button>Go</button>')).toEqual([]);
-    expect((await walk('<style>button{background:#fff;border:1px solid #e2e5ea;outline:none!important} button:focus{box-shadow:0 0 0 1px #2357d9}</style><button id="b">Go</button>')).map((f) => f.el)).toEqual(['button#b']);
+    expect(
+      await walk('<style>button{background:#fff;border:1px solid #e2e5ea;outline:none!important} button:focus{border-color:#2357d9;box-shadow:0 0 0 1px #2357d9}</style><button>Go</button>'),
+    ).toEqual([]);
+    expect(
+      (await walk('<style>button{background:#fff;border:1px solid #e2e5ea;outline:none!important} button:focus{box-shadow:0 0 0 1px #2357d9}</style><button id="b">Go</button>')).map((f) => f.el),
+    ).toEqual(['button#b']);
     // The browser's own ring passes.
     expect(await walk('<button>Go</button><a href="#x">Link</a>')).toEqual([]);
   });
@@ -334,10 +426,16 @@ describe('the checker (L4.9 part A)', () => {
   });
 
   it('⚑ reachable: a native radio with no roving stop; an unrelated tab stop does not excuse a group; a shared stop the arrows must cross', async () => {
-    let r = await audit('<div role="radiogroup" aria-label="Lost"><button role="radio" id="r1" aria-checked="false" tabindex="-1">A</button><button role="radio" aria-checked="false" tabindex="-1">B</button></div><div role="tablist" aria-label="T"><span role="tab" id="lost">Lost</span><span tabindex="0">help</span></div>');
-    expect(of(r.findings, 'reachable').map((f) => f.el), formatFindings(r.findings)).toEqual(['button#r1', 'button', 'span#lost']);
+    let r = await audit(
+      '<div role="radiogroup" aria-label="Lost"><button role="radio" id="r1" aria-checked="false" tabindex="-1">A</button><button role="radio" aria-checked="false" tabindex="-1">B</button></div><div role="tablist" aria-label="T"><span role="tab" id="lost">Lost</span><span tabindex="0">help</span></div>',
+    );
+    expect(
+      of(r.findings, 'reachable').map((f) => f.el),
+      formatFindings(r.findings),
+    ).toEqual(['button#r1', 'button', 'span#lost']);
     // Two step lists sharing one stop: recorded as a family; the arrows must take the focus into the second one.
-    const lists = (arrows: boolean) => `<ul role="listbox" class="steps" tabindex="0" aria-label="a" aria-activedescendant="a1"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="b" aria-activedescendant="b1"><li role="option" id="b1">B1</li></ul>${arrows ? '<script>document.querySelectorAll(".steps").forEach((u, i, all) => u.addEventListener("keydown", (e) => { if (e.key === "ArrowDown" && all[i + 1]) { u.tabIndex = -1; all[i + 1].tabIndex = 0; all[i + 1].focus(); } }));</script>' : ''}`;
+    const lists = (arrows: boolean) =>
+      `<ul role="listbox" class="steps" tabindex="0" aria-label="a" aria-activedescendant="a1"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="b" aria-activedescendant="b1"><li role="option" id="b1">B1</li></ul>${arrows ? '<script>document.querySelectorAll(".steps").forEach((u, i, all) => u.addEventListener("keydown", (e) => { if (e.key === "ArrowDown" && all[i + 1]) { u.tabIndex = -1; all[i + 1].tabIndex = 0; all[i + 1].focus(); } }));</script>' : ''}`;
     r = await audit(lists(false));
     expect(of(r.findings, 'reachable')).toEqual([]);
     expect(r.stats.families).toEqual(['[role="listbox"].steps']);
@@ -346,12 +444,16 @@ describe('the checker (L4.9 part A)', () => {
     expect(await familyWalk(page, r.stats.families[0])).toEqual([]);
   });
 
-  it('⚑ L5.12b fixes (review B-L6): behind an open modal dialog the page is inert — the reachable rule and the families\' walk skip it; closed, the same page is found again', async () => {
-    const page_ = '<div role="button" id="dead">Go</div><ul role="listbox" class="steps" tabindex="0" aria-label="a" aria-activedescendant="a1"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="b" aria-activedescendant="b1"><li role="option" id="b1">B1</li></ul>';
+  it("⚑ L5.12b fixes (review B-L6): behind an open modal dialog the page is inert — the reachable rule and the families' walk skip it; closed, the same page is found again", async () => {
+    const page_ =
+      '<div role="button" id="dead">Go</div><ul role="listbox" class="steps" tabindex="0" aria-label="a" aria-activedescendant="a1"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="b" aria-activedescendant="b1"><li role="option" id="b1">B1</li></ul>';
     const modal = '<dialog id="m" aria-label="Palette"><input aria-label="Command"><div role="button" id="inside">Lost inside</div></dialog><script>document.getElementById("m").showModal()</script>';
     let r = await audit(page_ + modal);
     // Inside the modal the rule still holds; behind it nothing is reported, no family is walked.
-    expect(of(r.findings, 'reachable').map((f) => f.el), formatFindings(r.findings)).toEqual(['div#inside']);
+    expect(
+      of(r.findings, 'reachable').map((f) => f.el),
+      formatFindings(r.findings),
+    ).toEqual(['div#inside']);
     expect(r.stats.families).toEqual([]);
     expect(await familyWalk(page, '[role="listbox"].steps')).toEqual([]);
     // Closed: the page behind is checked again (the dead button, the family the arrows never cross).
@@ -363,8 +465,15 @@ describe('the checker (L4.9 part A)', () => {
   });
 
   it('⚑ name: focusable content under aria-hidden, a picture with no alt; headings: a second level-1 role heading, a hidden one not counted', async () => {
-    let r = await audit('<div aria-hidden="true"><button id="hid">Close</button><button tabindex="-1">Off</button></div><img id="pic" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="40" height="40"><img alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="40" height="40">');
-    expect(of(r.findings, 'name').map((f) => f.el).sort(), formatFindings(r.findings)).toEqual(['button#hid', 'img#pic']);
+    let r = await audit(
+      '<div aria-hidden="true"><button id="hid">Close</button><button tabindex="-1">Off</button></div><img id="pic" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="40" height="40"><img alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="40" height="40">',
+    );
+    expect(
+      of(r.findings, 'name')
+        .map((f) => f.el)
+        .sort(),
+      formatFindings(r.findings),
+    ).toEqual(['button#hid', 'img#pic']);
     r = await audit('<div role="heading" aria-level="1" id="top">Another top</div>');
     expect(of(r.findings, 'headings').map((f) => f.detail)).toEqual(['2 level-1 headings (one expected)']);
     r = await audit('<div style="display:none"><h1>In a closed panel</h1></div><h2>Section</h2>');

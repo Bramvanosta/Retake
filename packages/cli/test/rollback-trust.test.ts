@@ -73,7 +73,9 @@ describe('a terminal replay lists before it replays (L5.14)', () => {
     expect(listed).toBeGreaterThanOrEqual(0);
     // The unsigned entry: its journal, then every field of its action in full (never cut), not its own description.
     expect(first.err).toContain(`journal ${join(project, 'runs', '20261104-091000-placed', 'hooks-journal.json')}`);
-    expect(first.err).toMatch(/#1 · env local not signed by this Retake home: not replayed without --replay-unsigned \(in a terminal\)\n {6}kind: shell\n {6}run: printf placed >> placed\.log # x{120}\n/);
+    expect(first.err).toMatch(
+      /#1 · env local not signed by this Retake home: not replayed without --replay-unsigned \(in a terminal\)\n {6}kind: shell\n {6}run: printf placed >> placed\.log # x{120}\n/,
+    );
     expect(first.err).toMatch(/#1 shell "printf u >> undo\.log" · env local\n/);
     // The list comes before any replay.
     expect(first.err.indexOf('rollback ')).toBeGreaterThan(listed);
@@ -87,7 +89,9 @@ describe('a terminal replay lists before it replays (L5.14)', () => {
     expect(reset.err).toMatch(/pending rollbacks \(1 journal\)[\s\S]*not signed by this Retake home: not replayed without --replay-unsigned/);
     const dryOne = await retake('hooks', 'rollback', 'demo', '20261104-091000-placed', '--dry');
     expect(dryOne.code, dryOne.err).toBe(EXIT.ok);
-    expect(dryOne.err).toMatch(/#1 · env local not signed by this Retake home: listed only \(dry run\)\n {6}kind: shell\n[\s\S]*not executed \(dry run\); not signed by this Retake home: not replayed without --replay-unsigned/);
+    expect(dryOne.err).toMatch(
+      /#1 · env local not signed by this Retake home: listed only \(dry run\)\n {6}kind: shell\n[\s\S]*not executed \(dry run\); not signed by this Retake home: not replayed without --replay-unsigned/,
+    );
 
     // Not in a terminal: refused before anything runs.
     const noTty = await retake('hooks', 'rollback', 'demo', '--replay-unsigned');

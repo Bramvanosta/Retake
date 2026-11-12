@@ -53,10 +53,13 @@ const step = (job: string, name: string) => {
   return s;
 };
 /** The secrets a step's environment binds by value: variable → secret name. */
-const secretsOf = (s: Step) => Object.fromEntries(Object.entries(s.env ?? {}).flatMap(([k, v]) => {
-  const m = /^\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}$/.exec(String(v));
-  return m ? [[k, m[1]!]] : [];
-}));
+const secretsOf = (s: Step) =>
+  Object.fromEntries(
+    Object.entries(s.env ?? {}).flatMap(([k, v]) => {
+      const m = /^\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}$/.exec(String(v));
+      return m ? [[k, m[1]!]] : [];
+    }),
+  );
 /** A secret's presence only (`secrets.X != ''`: true or false, never its value). */
 const PRESENCE = /^\$\{\{ (secrets|vars)\.([A-Z0-9_]+) != '' \}\}$/;
 const usesToken = (s: Step) => Object.values(s.env ?? {}).some((v) => /github\.token|secrets\.GITHUB_TOKEN/.test(String(v)));
@@ -86,7 +89,12 @@ function runStep(s: Step, env: Record<string, string>, bin?: string, cwd = REPO)
     encoding: 'utf8',
     env: { PATH: `${bin ? `${bin}:` : ''}${dirname(process.execPath)}:/usr/bin:/bin`, HOME: tmp, RUNNER_TEMP: temp, GITHUB_OUTPUT: output, GITHUB_REF_NAME: 'v0.2.0', GITHUB_ACTIONS: 'true', ...env },
   });
-  const outputs = Object.fromEntries(readFileSync(output, 'utf8').split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+  const outputs = Object.fromEntries(
+    readFileSync(output, 'utf8')
+      .split('\n')
+      .filter((l) => l.includes('='))
+      .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
+  );
   return { ...r, temp, outputs };
 }
 
@@ -98,7 +106,9 @@ function runStep(s: Step, env: Record<string, string>, bin?: string, cwd = REPO)
 function fakeGh() {
   const bin = dir('fake-gh');
   const log = join(bin, 'calls.log');
-  writeFileSync(join(bin, 'gh'), `#!${process.execPath}
+  writeFileSync(
+    join(bin, 'gh'),
+    `#!${process.execPath}
 const fs = require('node:fs'), path = require('node:path');
 const a = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(a) + '\\n');
@@ -107,9 +117,20 @@ if (a[0] === 'release' && a[1] === 'view' && a.includes('isDraft')) console.log(
 else if (a[0] === 'release' && a[1] === 'view' && a.includes('assets')) for (const x of (process.env.FAKE_ASSETS || '').split(',').filter(Boolean)) console.log(x);
 else if (a[0] === 'api') process.stdout.write(process.env.FAKE_API || '');
 else if (a[0] === 'release' && a[1] === 'download') for (const p of opt('--pattern')) { const f = path.join(process.env.FAKE_RELEASE_DIR, p); if (fs.existsSync(f)) fs.copyFileSync(f, path.join(opt('--dir')[0], p)); }
-`);
+`,
+  );
   chmodSync(join(bin, 'gh'), 0o755);
-  return { bin, calls: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]) : []) };
+  return {
+    bin,
+    calls: () =>
+      existsSync(log)
+        ? readFileSync(log, 'utf8')
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((l) => JSON.parse(l) as string[])
+        : [],
+  };
 }
 
 /** The files a script runs with node, and the import graph of a module: every specifier, bare ones apart. */
@@ -153,18 +174,26 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
       const gh = j.steps.some((s) => CALLS_GH.test(s.run ?? ''));
       expect(j.permissions, name).toEqual({ contents: gh ? 'write' : 'read' });
     }
-    expect(Object.entries(jobs).filter(([, j]) => j.permissions?.contents === 'write').map(([k]) => k)).toEqual(['release', 'attach', 'publish']);
+    expect(
+      Object.entries(jobs)
+        .filter(([, j]) => j.permissions?.contents === 'write')
+        .map(([k]) => k),
+    ).toEqual(['release', 'attach', 'publish']);
     expect(wf.concurrency).toEqual({ group: 'release-${{ github.ref }}', 'cancel-in-progress': false });
   });
 
   it('the release environment (its secrets, its v*-only deployment rule) on release (presence only) and sign, and on publish as the gate before the release goes public — publish binds no secret', () => {
-    expect(Object.entries(jobs).filter(([, j]) => j.environment).map(([k, j]) => `${k}:${j.environment}`)).toEqual(['release:release', 'sign:release', 'publish:release']);
+    expect(
+      Object.entries(jobs)
+        .filter(([, j]) => j.environment)
+        .map(([k, j]) => `${k}:${j.environment}`),
+    ).toEqual(['release:release', 'sign:release', 'publish:release']);
     for (const [name, j] of Object.entries(jobs)) if (!j.environment || name === 'publish') expect(JSON.stringify(j), name).not.toMatch(/secrets\./);
     // The release job reads no secret's value: presence only.
     for (const s of jobs.release!.steps) for (const v of Object.values(s.env ?? {})) if (/secrets\./.test(String(v))) expect(String(v), label({ job: 'release', ...s })).toMatch(PRESENCE);
   });
 
-  it('every action is GitHub\'s own, pinned to the commit of an exact upstream tag, the tag written beside it (# vX.Y.Z)', () => {
+  it("every action is GitHub's own, pinned to the commit of an exact upstream tag, the tag written beside it (# vX.Y.Z)", () => {
     const lines = raw.split('\n').filter((l) => /^\s*-?\s*uses:/.test(l));
     expect(lines.length).toBeGreaterThanOrEqual(9);
     const used = new Set<string>();
@@ -186,7 +215,13 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
   });
 
   it('macOS 15 on Apple silicon for both macOS jobs; Node.js only through apps/desktop/scripts/ci-node.sh (its version in apps/desktop/bundle/node.json, nowhere in the workflow)', () => {
-    expect(Object.fromEntries(Object.entries(jobs).map(([k, j]) => [k, j['runs-on']]))).toEqual({ release: 'ubuntu-24.04', build: 'macos-15', sign: 'macos-15', attach: 'ubuntu-24.04', publish: 'ubuntu-24.04' });
+    expect(Object.fromEntries(Object.entries(jobs).map(([k, j]) => [k, j['runs-on']]))).toEqual({
+      release: 'ubuntu-24.04',
+      build: 'macos-15',
+      sign: 'macos-15',
+      attach: 'ubuntu-24.04',
+      publish: 'ubuntu-24.04',
+    });
     expect(raw).not.toMatch(/macos-1[34]\b|macos-latest/);
     expect(allSteps.filter((s) => s.run === 'bash apps/desktop/scripts/ci-node.sh').map((s) => s.job)).toEqual(Object.keys(jobs));
     expect(raw).not.toMatch(/setup-node|node-version|\b22\.16\b/);
@@ -195,7 +230,11 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
   it('no cache anywhere: no actions/cache step, no setup action and no cache setting in any step', () => {
     expect(allSteps.filter((s) => s.uses?.startsWith('actions/cache')).map(label)).toEqual([]);
     expect(raw).not.toMatch(/actions\/cache\b|restore-keys|cache-hit|CACHE_HIT|actions\/setup-/);
-    for (const s of allSteps) expect(Object.keys(s.with ?? {}).filter((k) => /cache/i.test(k)), label(s)).toEqual([]);
+    for (const s of allSteps)
+      expect(
+        Object.keys(s.with ?? {}).filter((k) => /cache/i.test(k)),
+        label(s),
+      ).toEqual([]);
   });
 });
 
@@ -229,14 +268,23 @@ describe('release.yml: every job installs the pinned Node.js tarball, checked in
     const bin = dir('fake-curl');
     const log = join(bin, 'curl.log');
     const ran = join(bin, 'node-ran');
-    writeFileSync(join(bin, 'curl'), `#!/bin/sh\nfor a; do printf '%s\\n' "$a"; done >> ${JSON.stringify(log)}\necho >> ${JSON.stringify(log)}\n${curlFails ? 'exit 22' : ''}\nout=; prev=\nfor a; do [ "$prev" = --output ] && out=$a; prev=$a; done\ncp ${JSON.stringify(serve ?? '/dev/null')} "$out"\n`);
+    writeFileSync(
+      join(bin, 'curl'),
+      `#!/bin/sh\nfor a; do printf '%s\\n' "$a"; done >> ${JSON.stringify(log)}\necho >> ${JSON.stringify(log)}\n${curlFails ? 'exit 22' : ''}\nout=; prev=\nfor a; do [ "$prev" = --output ] && out=$a; prev=$a; done\ncp ${JSON.stringify(serve ?? '/dev/null')} "$out"\n`,
+    );
     writeFileSync(join(bin, 'node'), `#!/bin/sh\ntouch ${JSON.stringify(ran)}\n`);
     chmodSync(join(bin, 'curl'), 0o755);
     chmodSync(join(bin, 'node'), 0o755);
     const temp = dir('node-temp');
     const ghPath = join(temp, 'github-path');
     writeFileSync(ghPath, '');
-    const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n\n').filter((c) => c.trim()).map((c) => c.trim().split('\n')) : []);
+    const calls = () =>
+      existsSync(log)
+        ? readFileSync(log, 'utf8')
+            .split('\n\n')
+            .filter((c) => c.trim())
+            .map((c) => c.trim().split('\n'))
+        : [];
     const go = (env: Record<string, string>) => {
       const r = runStep(step('publish', NODE_STEP), { RUNNER_TEMP: temp, GITHUB_PATH: ghPath, ...env }, bin, cwd);
       return { ...r, path: readFileSync(ghPath, 'utf8'), nodeRan: existsSync(ran), unpacked: existsSync(join(temp, 'node')), download: existsSync(join(temp, 'node-download')) };
@@ -255,12 +303,18 @@ describe('release.yml: every job installs the pinned Node.js tarball, checked in
       expect(j.steps[1]!.run, name).toBe('bash apps/desktop/scripts/ci-node.sh');
       expect(j.steps[1]!.env, name).toBeUndefined();
       expect(j.steps[0]!.run, name).toBeUndefined();
-      expect(j.steps.findIndex((s) => /(?:^|[\s;|&(`$])(?:node|corepack|pnpm)\s/m.test(s.run ?? '') || BUILD_TOOL.test(s.run ?? '')), name).toBeGreaterThan(1);
+      expect(
+        j.steps.findIndex((s) => /(?:^|[\s;|&(`$])(?:node|corepack|pnpm)\s/m.test(s.run ?? '') || BUILD_TOOL.test(s.run ?? '')),
+        name,
+      ).toBeGreaterThan(1);
     }
   });
 
-  it('run: the pinned tarball of the runner\'s platform is fetched over https from the Node.js project, checked, unpacked into RUNNER_TEMP/node and first on PATH — the script itself runs no node', () => {
-    for (const [env, platform] of [[linux, 'linux-x64'], [mac, 'darwin-arm64']] as const) {
+  it("run: the pinned tarball of the runner's platform is fetched over https from the Node.js project, checked, unpacked into RUNNER_TEMP/node and first on PATH — the script itself runs no node", () => {
+    for (const [env, platform] of [
+      [linux, 'linux-x64'],
+      [mac, 'darwin-arm64'],
+    ] as const) {
       const t = tarball(platform);
       const sc = scene({ sha256: { [platform]: t.binary }, tarballs: { [`node-v22.16.0-${platform}.tar.gz`]: t.sha } }, t.file);
       const r = sc.go(env);
@@ -271,7 +325,9 @@ describe('release.yml: every job installs the pinned Node.js tarball, checked in
       expect(readFileSync(join(home, 'lib', 'node_modules', 'npm', 'index.js'), 'utf8')).toBe('npm');
       expect(r.download).toBe(false);
       expect(r.nodeRan).toBe(false);
-      expect(r.stdout).toMatch(new RegExp(`Node\\.js 22\\.16\\.0 \\(${platform}\\): node-v22\\.16\\.0-${platform}\\.tar\\.gz checked \\(sha256 ${t.sha}\\), its bin/node the pinned binary; \\S+ first on PATH\\n$`));
+      expect(r.stdout).toMatch(
+        new RegExp(`Node\\.js 22\\.16\\.0 \\(${platform}\\): node-v22\\.16\\.0-${platform}\\.tar\\.gz checked \\(sha256 ${t.sha}\\), its bin/node the pinned binary; \\S+ first on PATH\\n$`),
+      );
       const calls = sc.calls();
       expect(calls.length).toBe(1);
       expect(calls[0]!.at(-1)).toBe(`https://nodejs.org/dist/v22.16.0/node-v22.16.0-${platform}.tar.gz`);
@@ -289,7 +345,11 @@ describe('release.yml: every job installs the pinned Node.js tarball, checked in
     expect([r.unpacked, r.download, r.path, r.nodeRan]).toEqual([false, false, '', false]);
     const binary = scene({ ...ok, sha256: { 'linux-x64': sha('another binary') } }, t.file).go(linux);
     expect(binary.status).not.toBe(0);
-    expect(binary.stdout).toMatch(new RegExp(`::error::\\S+/bin/node is not the Node\\.js binary apps/desktop/bundle/node\\.json pins for linux-x64 \\(sha256 ${t.binary}, pinned ${sha('another binary')}\\): its tarball and binary pins disagree`));
+    expect(binary.stdout).toMatch(
+      new RegExp(
+        `::error::\\S+/bin/node is not the Node\\.js binary apps/desktop/bundle/node\\.json pins for linux-x64 \\(sha256 ${t.binary}, pinned ${sha('another binary')}\\): its tarball and binary pins disagree`,
+      ),
+    );
     expect(binary.path).toBe('');
     for (const [pins, env, msg] of [
       [ok, mac, /::error::apps\/desktop\/bundle\/node\.json pins no sha256 for node-v22\.16\.0-darwin-arm64\.tar\.gz \(tarballs\)/],
@@ -310,12 +370,15 @@ describe('release.yml: every job installs the pinned Node.js tarball, checked in
     expect([down.unpacked, down.path]).toEqual([false, '']);
   });
 
-  it('run against the committed node.json: the version, and for each platform the jobs run on (darwin-arm64, linux-x64) its tarball\'s and its binary\'s pins', async () => {
+  it("run against the committed node.json: the version, and for each platform the jobs run on (darwin-arm64, linux-x64) its tarball's and its binary's pins", async () => {
     const { NODE_PIN } = await bundleModule();
     expect(Object.keys(NODE_PIN.sha256).sort()).toEqual(['darwin-arm64', 'linux-x64']);
     expect(Object.keys(NODE_PIN.tarballs).sort()).toEqual(['darwin-arm64', 'linux-x64'].map((p) => `node-v${NODE_PIN.version}-${p}.tar.gz`));
     for (const v of [...Object.values(NODE_PIN.sha256), ...Object.values(NODE_PIN.tarballs)]) expect(v).toMatch(/^[0-9a-f]{64}$/);
-    for (const [env, platform] of [[mac, 'darwin-arm64'], [linux, 'linux-x64']] as const) {
+    for (const [env, platform] of [
+      [mac, 'darwin-arm64'],
+      [linux, 'linux-x64'],
+    ] as const) {
       const t = tarball(platform, 'a node binary', NODE_PIN.version);
       const bin = dir('fake-curl');
       writeFileSync(join(bin, 'curl'), `#!/bin/sh\nout=; prev=\nfor a; do [ "$prev" = --output ] && out=$a; prev=$a; done\ncp ${JSON.stringify(t.file)} "$out"\n`);
@@ -324,7 +387,9 @@ describe('release.yml: every job installs the pinned Node.js tarball, checked in
       writeFileSync(join(temp, 'github-path'), '');
       const r = runStep(step('release', NODE_STEP), { ...env, RUNNER_TEMP: temp, GITHUB_PATH: join(temp, 'github-path') }, bin);
       expect(r.status).not.toBe(0);
-      expect(r.stdout).toContain(`node-v${NODE_PIN.version}-${platform}.tar.gz is not the tarball apps/desktop/bundle/node.json pins (sha256 ${t.sha}, pinned ${NODE_PIN.tarballs[`node-v${NODE_PIN.version}-${platform}.tar.gz`]})`);
+      expect(r.stdout).toContain(
+        `node-v${NODE_PIN.version}-${platform}.tar.gz is not the tarball apps/desktop/bundle/node.json pins (sha256 ${t.sha}, pinned ${NODE_PIN.tarballs[`node-v${NODE_PIN.version}-${platform}.tar.gz`]})`,
+      );
     }
     // The runners: the macOS jobs on Apple silicon, the others on x64 ubuntu — each with its pins.
     for (const j of Object.values(jobs)) expect(['macos-15', 'ubuntu-24.04']).toContain(j['runs-on']);
@@ -343,24 +408,42 @@ describe('release.yml: the keys never share a runner with dependency code (revie
   it('no other job runs a build tool; the sign job uses checkout and the artifact actions only, runs bash on the Node.js and keychain scripts and node on repository files only', () => {
     for (const s of allSteps.filter((x) => x.job !== 'build')) expect(BUILD_TOOL.test(s.run ?? ''), label(s)).toBe(false);
     const sign = jobs.sign!;
-    expect(sign.steps.filter((s) => s.uses).map((s) => s.uses!.split('@')[0]).sort()).toEqual(['actions/checkout', 'actions/download-artifact', 'actions/upload-artifact']);
+    expect(
+      sign.steps
+        .filter((s) => s.uses)
+        .map((s) => s.uses!.split('@')[0])
+        .sort(),
+    ).toEqual(['actions/checkout', 'actions/download-artifact', 'actions/upload-artifact']);
     const script = sign.steps.map((s) => s.run ?? '').join('\n');
     expect([...script.matchAll(/\bbash (\S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/ci-node.sh', 'apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/ci-keychain.sh']);
-    expect([...script.matchAll(/\bnode (\S+ \S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/release.mjs unpack', 'apps/desktop/scripts/release.mjs sign', 'apps/desktop/scripts/release.mjs sign']);
+    expect([...script.matchAll(/\bnode (\S+ \S+)/g)].map((m) => m[1])).toEqual([
+      'apps/desktop/scripts/release.mjs unpack',
+      'apps/desktop/scripts/release.mjs sign',
+      'apps/desktop/scripts/release.mjs sign',
+    ]);
     // Nothing of the app it was handed runs there: the unpacked folder is only named to release.mjs.
     expect(script).not.toMatch(/adhoc\/[^"\s]*\/(?:MacOS|bin)\//);
   });
 
-  it('the sign entry\'s whole import graph is Node.js built-ins and files of this repository — no package, no dynamic import (the sign job installs none)', () => {
+  it("the sign entry's whole import graph is Node.js built-ins and files of this repository — no package, no dynamic import (the sign job installs none)", () => {
     for (const entry of ['apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'scripts/publish-update.mjs']) {
       const g = importGraph(join(REPO, entry));
       expect(g.bare, entry).toEqual([]);
       // One dynamic import in the graph: desktop.mjs build() (`pnpm desktop:build`, the developer app — its own command,
       // started by its own main guard only) loads the engine's integrations entry; bundle.mjs takes words and the icon
       // maker from desktop.mjs.
-      expect(g.dynamic, entry).toEqual(g.files.includes('apps/desktop/scripts/desktop.mjs') ? ["apps/desktop/scripts/desktop.mjs: import(pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'integrations.js')"] : []);
+      expect(g.dynamic, entry).toEqual(
+        g.files.includes('apps/desktop/scripts/desktop.mjs') ? ["apps/desktop/scripts/desktop.mjs: import(pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'integrations.js')"] : [],
+      );
       for (const f of g.files) expect(f.startsWith('..') || f.includes('node_modules'), f).toBe(false);
-      if (entry === 'apps/desktop/scripts/release.mjs') expect(g.files).toEqual(['apps/desktop/scripts/bundle.mjs', 'apps/desktop/scripts/desktop.mjs', 'apps/desktop/scripts/release.mjs', 'apps/desktop/scripts/sign.mjs', 'scripts/publish-update.mjs']);
+      if (entry === 'apps/desktop/scripts/release.mjs')
+        expect(g.files).toEqual([
+          'apps/desktop/scripts/bundle.mjs',
+          'apps/desktop/scripts/desktop.mjs',
+          'apps/desktop/scripts/release.mjs',
+          'apps/desktop/scripts/sign.mjs',
+          'scripts/publish-update.mjs',
+        ]);
     }
     // The walk itself finds a package import, a dynamic one and a nested one (canaries).
     const d = dir('graph');
@@ -385,16 +468,16 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     const down = allSteps.filter((s) => s.uses?.startsWith('actions/download-artifact@'));
     expect(up.map((s) => `${s.job}:${(s.with as any).name}`)).toEqual(['build:retake-app-adhoc', 'sign:retake-release']);
     expect(down.map((s) => `${s.job}:${(s.with as any).name}`)).toEqual(['sign:retake-app-adhoc', 'attach:retake-release']);
-    expect(step('sign', 'The build job\'s app').env).toEqual({ SHA256: '${{ needs.build.outputs.sha256 }}' });
+    expect(step('sign', "The build job's app").env).toEqual({ SHA256: '${{ needs.build.outputs.sha256 }}' });
   });
 
-  it('the sign job\'s check, run: the packed app with its sha256 is unpacked — its two parts only (release.mjs unpack), before any key is written; another sha256 or none fails before anything is unpacked, an archive with anything else fails and leaves nothing', () => {
-    const s = step('sign', 'The build job\'s app');
+  it("the sign job's check, run: the packed app with its sha256 is unpacked — its two parts only (release.mjs unpack), before any key is written; another sha256 or none fails before anything is unpacked, an archive with anything else fails and leaves nothing", () => {
+    const s = step('sign', "The build job's app");
     expect(s.run).toMatch(/echo "\$SHA256 {2}\$A" \| shasum -a 256 -c\n[^]*node apps\/desktop\/scripts\/release\.mjs unpack "\$A" --into "\$D"\n?$/);
     expect(s.run).not.toMatch(/(?:^|[\s;|&(])(?:\/usr\/bin\/)?tar\s/m);
     // Unpacked before the signing material is written: nothing of the archive is ever read on a runner holding a key.
     const names = jobs.sign!.steps.map((x) => x.name ?? x.uses!.split('@')[0]);
-    expect(names.slice(0, 5)).toEqual(['actions/checkout', 'Node.js, the pinned build', 'actions/download-artifact', 'The build job\'s app', 'Signing material']);
+    expect(names.slice(0, 5)).toEqual(['actions/checkout', 'Node.js, the pinned build', 'actions/download-artifact', "The build job's app", 'Signing material']);
     /** The build job's pack (the same tar line, or `flags`) of a folder holding the parts, and `extra` beside them. */
     const pack = (temp: string, extra: string[] = [], flags = ['--no-mac-metadata', '--no-xattrs'], change: (src: string) => void = () => {}) => {
       const src = dir('packed');
@@ -446,7 +529,7 @@ describe('release.yml: the keys never share a runner with dependency code (revie
 });
 
 describe('release.yml: secrets and the job token go only where they are used', () => {
-  it('secrets appear in steps\' env only (never in the workflow\'s or a job\'s env, a `with`, an `if` or a script)', () => {
+  it("secrets appear in steps' env only (never in the workflow's or a job's env, a `with`, an `if` or a script)", () => {
     expect(JSON.stringify(wf.env ?? {})).not.toMatch(/secrets\./);
     for (const j of Object.values(jobs)) expect(JSON.stringify((j as any).env ?? {})).not.toMatch(/secrets\./);
     for (const s of allSteps) {
@@ -470,7 +553,14 @@ describe('release.yml: secrets and the job token go only where they are used', (
 
   it('the job token only in the steps that call gh and in publish › Publish the update (publish-update.mjs, no build tool), holding no secret; no update-host setting anywhere (L5.16f)', () => {
     const withToken = allSteps.filter(usesToken);
-    expect(withToken.map(label)).toEqual(['release › The repository\'s visibility', 'release › Create the release (draft)', 'attach › Attach to the draft release', 'publish › Publish the release', 'publish › Fetch the signed update archive', 'publish › Publish the update']);
+    expect(withToken.map(label)).toEqual([
+      "release › The repository's visibility",
+      'release › Create the release (draft)',
+      'attach › Attach to the draft release',
+      'publish › Publish the release',
+      'publish › Fetch the signed update archive',
+      'publish › Publish the update',
+    ]);
     for (const s of withToken) {
       expect(CALLS_GH.test(s.run ?? '') || label(s) === 'publish › Publish the update', label(s)).toBe(true);
       expect(secretsOf(s), label(s)).toEqual({});
@@ -480,26 +570,34 @@ describe('release.yml: secrets and the job token go only where they are used', (
     // The publication: the job token as GITHUB_TOKEN (what publish-update.mjs reads), our script only.
     const p = step('publish', 'Publish the update');
     expect(p.env!.GITHUB_TOKEN).toBe('${{ github.token }}');
-    expect(p.run!.split('\n').filter((l) => /\bnode\b/.test(l)).map((l) => l.trim().split(' ').slice(0, 2).join(' '))).toEqual(['RETAKE_UPDATE_FEED=$(node scripts/release.mjs', 'node scripts/publish-update.mjs']);
+    expect(
+      p
+        .run!.split('\n')
+        .filter((l) => /\bnode\b/.test(l))
+        .map((l) => l.trim().split(' ').slice(0, 2).join(' ')),
+    ).toEqual(['RETAKE_UPDATE_FEED=$(node scripts/release.mjs', 'node scripts/publish-update.mjs']);
     expect(raw).not.toMatch(/UPDATES_|update host/);
     // One publication at a time across tags: two runs never rewrite the feed together.
     expect((jobs.publish as any).concurrency).toEqual({ group: 'release-publish', 'cancel-in-progress': false });
   });
 
   it('every secret a step binds, its script (or the script it runs) uses; the sign step unsets the empty ones (an unset secret arrives as "")', () => {
-    const scriptOf = (s: Step) => [s.run ?? '', ...[...(s.run ?? '').matchAll(/(?:bash|node) ((?:apps\/desktop\/)?scripts\/[\w.-]+\.(?:sh|mjs))/g)].map((m) => readFileSync(join(REPO, m[1]!), 'utf8'))].join('\n');
+    const scriptOf = (s: Step) =>
+      [s.run ?? '', ...[...(s.run ?? '').matchAll(/(?:bash|node) ((?:apps\/desktop\/)?scripts\/[\w.-]+\.(?:sh|mjs))/g)].map((m) => readFileSync(join(REPO, m[1]!), 'utf8'))].join('\n');
     for (const s of allSteps) for (const k of Object.keys(secretsOf(s))) expect(scriptOf(s), `${label(s)} ${k}`).toContain(k);
     const sign = step('sign', 'Sign, notarise, the update archive and the DMG');
     const loop = /for v in ([\s\S]*?); do/.exec(sign.run!)?.[1]?.replace(/\\\n/g, ' ').split(/\s+/).filter(Boolean) ?? [];
     for (const k of Object.keys(sign.env!)) if (!['SIGNED', 'UPDATES', 'VERSION'].includes(k)) expect(loop, k).toContain(k);
     expect(sign.run).toMatch(/if \[ "\$UPDATES" != on \]; then\n\s+unset TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD RETAKE_UPDATE_PUBKEY/);
     // An ad hoc build gets no Apple variable at all; --release only with the Apple set.
-    expect(sign.run).toMatch(/if \[ "\$SIGNED" = true \]; then\n\s+node apps\/desktop\/scripts\/release\.mjs sign "\$@" --release\n\s*else\n\s+unset APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH APPLE_KEYCHAIN\n/);
+    expect(sign.run).toMatch(
+      /if \[ "\$SIGNED" = true \]; then\n\s+node apps\/desktop\/scripts\/release\.mjs sign "\$@" --release\n\s*else\n\s+unset APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH APPLE_KEYCHAIN\n/,
+    );
     expect(sign.run!.match(/release\.mjs sign "\$@"( --release)?\n/g)).toEqual(['release.mjs sign "$@" --release\n', 'release.mjs sign "$@"\n']);
     expect(sign.run).toMatch(/--app "\$RUNNER_TEMP\/adhoc\/app\/Retake\.app" --tauri-cli "\$RUNNER_TEMP\/adhoc\/tauri-cli" \\\n\s+--out "\$RUNNER_TEMP\/out" --app-version "\$VERSION"/);
   });
 
-  it('the temporary keychain is removed in an always() step at the sign job\'s end; its files go even when security fails (review e A-L2)', () => {
+  it("the temporary keychain is removed in an always() step at the sign job's end; its files go even when security fails (review e A-L2)", () => {
     const steps = jobs.sign!.steps;
     const del = steps.findIndex((s) => /ci-keychain\.sh delete/.test(s.run ?? ''));
     expect(del).toBe(steps.length - 1);
@@ -517,8 +615,10 @@ describe('release.yml: secrets and the job token go only where they are used', (
 });
 
 describe('release.yml: what it runs', () => {
-  it('every script it names exists; the pnpm scripts are the repository\'s; Rust through rustup at least the MSRV', () => {
-    const paths = new Set([...raw.matchAll(/(?:apps\/desktop\/)?scripts\/[\w.-]+\.(?:mjs|sh|json)|apps\/desktop\/bundle\/[\w.-]+\.json|packages\/[\w-]+\/node_modules\/[\w-]+\/[\w.-]+\.js/g)].map((m) => m[0]));
+  it("every script it names exists; the pnpm scripts are the repository's; Rust through rustup at least the MSRV", () => {
+    const paths = new Set(
+      [...raw.matchAll(/(?:apps\/desktop\/)?scripts\/[\w.-]+\.(?:mjs|sh|json)|apps\/desktop\/bundle\/[\w.-]+\.json|packages\/[\w-]+\/node_modules\/[\w-]+\/[\w.-]+\.js/g)].map((m) => m[0]),
+    );
     expect(paths.size).toBeGreaterThanOrEqual(9);
     for (const p of paths) {
       if (p.includes('/node_modules/')) {
@@ -539,11 +639,11 @@ describe('release.yml: what it runs', () => {
     expect(rust).toContain(`RUSTUP_TOOLCHAIN=${channel}"`);
   });
 
-  it('the build job: Node.js checked first, the browsers checked after their install, ffmpeg built at every run, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config\'s version said', () => {
+  it("the build job: Node.js checked first, the browsers checked after their install, ffmpeg built at every run, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config's version said", () => {
     const names = jobs.build!.steps.map((s) => s.name ?? s.uses);
     expect(names.indexOf('Node.js, the pinned build')).toBe(1);
-    expect(names.indexOf('Node.js, the pinned build')).toBeLessThan(names.indexOf('pnpm (corepack, at package.json\'s packageManager)'));
-    expect(names.indexOf('pnpm (corepack, at package.json\'s packageManager)')).toBeLessThan(names.indexOf('Dependencies'));
+    expect(names.indexOf('Node.js, the pinned build')).toBeLessThan(names.indexOf("pnpm (corepack, at package.json's packageManager)"));
+    expect(names.indexOf("pnpm (corepack, at package.json's packageManager)")).toBeLessThan(names.indexOf('Dependencies'));
     expect(step('build', 'Chromium and the headless shell').run).toMatch(/cli\.js install chromium chromium-headless-shell\nnode apps\/desktop\/scripts\/bundle\.mjs check-pins\n/);
     const lay = step('build', 'Lay out the app (ad hoc)');
     expect(lay.run).toMatch(/pnpm desktop:bundle --app-only --ffmpeg "\$RUNNER_TEMP\/ffmpeg"/);
@@ -552,16 +652,18 @@ describe('release.yml: what it runs', () => {
     expect(ff.env!.HOMEBREW_NO_AUTO_UPDATE).toBe('1');
     expect(ff.run).toMatch(/brew install pkgconf\n\s*echo "pkg-config \$\(pkg-config --version\)/);
     // Built at every run: the fetch, the build and the check are the step's own lines, under no condition.
-    expect(ff.run).toMatch(/^node scripts\/build-ffmpeg\.mjs --fetch --sources "\$RUNNER_TEMP\/ffmpeg-sources" --out "\$RUNNER_TEMP\/ffmpeg"\nnode scripts\/build-ffmpeg\.mjs --check "\$RUNNER_TEMP\/ffmpeg"\n?$/m);
+    expect(ff.run).toMatch(
+      /^node scripts\/build-ffmpeg\.mjs --fetch --sources "\$RUNNER_TEMP\/ffmpeg-sources" --out "\$RUNNER_TEMP\/ffmpeg"\nnode scripts\/build-ffmpeg\.mjs --check "\$RUNNER_TEMP\/ffmpeg"\n?$/m,
+    );
     expect(ff.run).not.toMatch(/\bif\b|\bfi\b|&&/);
     expect(ff.if).toBeUndefined();
     expect(raw.match(/\bbrew\b/g)?.length).toBe(1);
   });
 
-  it('pnpm is corepack\'s, at package.json\'s packageManager, which carries the sha512 corepack checks the download against', () => {
+  it("pnpm is corepack's, at package.json's packageManager, which carries the sha512 corepack checks the download against", () => {
     const pm = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).packageManager;
     expect(pm).toMatch(/^pnpm@\d+\.\d+\.\d+\+sha512\.[0-9a-f]{128}$/);
-    const p = step('build', 'pnpm (corepack, at package.json\'s packageManager)');
+    const p = step('build', "pnpm (corepack, at package.json's packageManager)");
     expect(p.run).toMatch(/^set -eu\ncorepack enable\npnpm --version\n?$/);
     expect(p.env).toEqual({ COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' });
     expect(p.id).toBeUndefined();
@@ -572,7 +674,11 @@ describe('release.yml: what it runs', () => {
     expect(v.run).toMatch(/node scripts\/set-version\.mjs --check\n/);
     expect(v.run).toMatch(/node scripts\/release\.mjs tag "\$GITHUB_REF_NAME" >> "\$GITHUB_OUTPUT"/);
     const config = ['signed', 'updates', 'feed', 'pubkey', 'dmg', 'archive', 'signature'];
-    expect(jobs.release!.outputs).toEqual({ version: '${{ steps.version.outputs.version }}', prerelease: '${{ steps.version.outputs.prerelease }}', ...Object.fromEntries(config.map((k) => [k, `\${{ steps.config.outputs.${k} }}`])) });
+    expect(jobs.release!.outputs).toEqual({
+      version: '${{ steps.version.outputs.version }}',
+      prerelease: '${{ steps.version.outputs.prerelease }}',
+      ...Object.fromEntries(config.map((k) => [k, `\${{ steps.config.outputs.${k} }}`])),
+    });
     expect(step('release', 'The tagged commit is on main').run).toMatch(/git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
     expect((jobs.release!.steps[0]!.with as any)['fetch-depth']).toBe(0);
     const names = jobs.release!.steps.map((s) => s.name);
@@ -585,10 +691,14 @@ describe('release.yml: what it runs', () => {
     expect(JSON.stringify({ ...jobs, release: undefined })).not.toMatch(/set-version\.mjs/);
   });
 
-  it('what is configured: the step binds each name of the two sets as it must (a secret\'s presence, a variable\'s value, each in the other store\'s presence too) and runs the preflight', async () => {
+  it("what is configured: the step binds each name of the two sets as it must (a secret's presence, a variable's value, each in the other store's presence too) and runs the preflight", async () => {
     const { CONFIG_SETS } = await releaseModule();
     const s = step('release', 'What is configured');
-    const want: Record<string, string> = { VERSION: '${{ steps.version.outputs.version }}', REPO_PRIVATE: '${{ steps.repository.outputs.private }}', REPO_VISIBILITY: '${{ steps.repository.outputs.visibility }}' };
+    const want: Record<string, string> = {
+      VERSION: '${{ steps.version.outputs.version }}',
+      REPO_PRIVATE: '${{ steps.repository.outputs.private }}',
+      REPO_VISIBILITY: '${{ steps.repository.outputs.visibility }}',
+    };
     for (const { names } of Object.values(CONFIG_SETS) as Array<{ names: Record<string, string> }>) {
       for (const [name, kind] of Object.entries(names)) {
         if (kind === 'secret') {
@@ -604,12 +714,12 @@ describe('release.yml: what it runs', () => {
     expect(s.run).toBe('set -eu\nnode scripts/release.mjs preflight "$VERSION" --output "$GITHUB_OUTPUT"\nnode scripts/release.mjs files "$VERSION" >> "$GITHUB_OUTPUT"\n');
   });
 
-  it('the repository\'s visibility, run (review f A-L3): read with the job token through gh api, handed to the preflight as private= / visibility=', () => {
-    const s = step('release', 'The repository\'s visibility');
+  it("the repository's visibility, run (review f A-L3): read with the job token through gh api, handed to the preflight as private= / visibility=", () => {
+    const s = step('release', "The repository's visibility");
     expect(s.id).toBe('repository');
     expect(s.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
     const steps = jobs.release!.steps.map((x) => x.name);
-    expect(steps.indexOf('The repository\'s visibility')).toBe(steps.indexOf('What is configured') - 1);
+    expect(steps.indexOf("The repository's visibility")).toBe(steps.indexOf('What is configured') - 1);
     const gh = fakeGh();
     const r = runStep(s, { GH_REPO: 'example-owner/example-repo', FAKE_API: 'private=false\nvisibility=public\n' }, gh.bin);
     expect(r.status, r.stderr).toBe(0);
@@ -620,7 +730,11 @@ describe('release.yml: what it runs', () => {
   it('what is configured, run: nothing → an ad hoc build without updates (each said); a partial set fails naming what is missing, a variable entered as a secret said so', async () => {
     const { CONFIG_SETS } = await releaseModule();
     const s = step('release', 'What is configured');
-    const none = Object.fromEntries(Object.keys(s.env!).filter((k) => k.startsWith('HAS_')).map((k) => [k, 'false']));
+    const none = Object.fromEntries(
+      Object.keys(s.env!)
+        .filter((k) => k.startsWith('HAS_'))
+        .map((k) => [k, 'false']),
+    );
     const off = runStep(s, { ...none, VERSION: '0.2.0' });
     expect(off.status, off.stderr).toBe(0);
     expect(off.outputs).toEqual({ signed: 'false', updates: 'off', dmg: 'Retake_0.2.0_aarch64.dmg', archive: 'Retake.app.tar.gz', signature: 'Retake.app.tar.gz.sig' });
@@ -657,15 +771,20 @@ describe('release.yml: what it runs', () => {
 
 describe('release.yml: the files — made, attached to a draft only, fetched for the update', () => {
   const files = { DMG: 'Retake_0.2.0_aarch64.dmg', ARCHIVE: 'Retake.app.tar.gz', SIGNATURE: 'Retake.app.tar.gz.sig' };
-  it('the names come from the release job (scripts/release.mjs files: bundle.mjs\'s own names), in Collect and in the fetch', async () => {
+  it("the names come from the release job (scripts/release.mjs files: bundle.mjs's own names), in Collect and in the fetch", async () => {
     const { releaseFiles } = await releaseModule();
     const { PRODUCT, UPDATE_ARCHIVE } = await bundleModule();
     expect(releaseFiles('0.3.0-rc.1')).toEqual({ dmg: `${PRODUCT}_0.3.0-rc.1_aarch64.dmg`, archive: UPDATE_ARCHIVE, signature: `${UPDATE_ARCHIVE}.sig` });
     // finishApp names the DMG the same way.
     expect(readFileSync(join(REPO, 'apps', 'desktop', 'scripts', 'release.mjs'), 'utf8')).toContain('dmg = join(out, `${PRODUCT}_${manifest.app}_aarch64.dmg`);');
-    for (const [job, name] of [['sign', 'Collect the files'], ['publish', 'Fetch the signed update archive'], ['publish', 'Publish the update']] as const) {
+    for (const [job, name] of [
+      ['sign', 'Collect the files'],
+      ['publish', 'Fetch the signed update archive'],
+      ['publish', 'Publish the update'],
+    ] as const) {
       const env = step(job, name).env!;
-      for (const k of name === 'Collect the files' ? ['DMG', 'ARCHIVE', 'SIGNATURE'] : ['ARCHIVE', 'SIGNATURE']) expect(env[k], `${name} ${k}`).toBe(`\${{ needs.release.outputs.${k.toLowerCase()} }}`);
+      for (const k of name === 'Collect the files' ? ['DMG', 'ARCHIVE', 'SIGNATURE'] : ['ARCHIVE', 'SIGNATURE'])
+        expect(env[k], `${name} ${k}`).toBe(`\${{ needs.release.outputs.${k.toLowerCase()} }}`);
     }
   });
 
@@ -680,10 +799,16 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     const adhoc = runStep(s, { ...files, UPDATES: 'off', RUNNER_TEMP: make([files.DMG, files.ARCHIVE]) });
     expect(adhoc.status, adhoc.stderr).toBe(0);
     expect(readdirSync(join(adhoc.temp, 'release')).sort()).toEqual(['Retake_0.2.0_aarch64.dmg', 'SHA256SUMS-macos.txt']);
-    expect(adhoc.outputs.sums).toBe(createHash('sha256').update(readFileSync(join(adhoc.temp, 'release', 'SHA256SUMS-macos.txt'))).digest('hex'));
+    expect(adhoc.outputs.sums).toBe(
+      createHash('sha256')
+        .update(readFileSync(join(adhoc.temp, 'release', 'SHA256SUMS-macos.txt')))
+        .digest('hex'),
+    );
     const on = runStep(s, { ...files, UPDATES: 'on', RUNNER_TEMP: make([files.DMG, files.ARCHIVE, files.SIGNATURE]) });
     expect(readdirSync(join(on.temp, 'release')).sort()).toEqual(['Retake.app.tar.gz', 'Retake.app.tar.gz.sig', 'Retake_0.2.0_aarch64.dmg', 'SHA256SUMS-macos.txt']);
-    expect(readFileSync(join(on.temp, 'release', 'SHA256SUMS-macos.txt'), 'utf8')).toMatch(/^[0-9a-f]{64}  Retake\.app\.tar\.gz\n[0-9a-f]{64}  Retake\.app\.tar\.gz\.sig\n[0-9a-f]{64}  Retake_0\.2\.0_aarch64\.dmg\n$/);
+    expect(readFileSync(join(on.temp, 'release', 'SHA256SUMS-macos.txt'), 'utf8')).toMatch(
+      /^[0-9a-f]{64}  Retake\.app\.tar\.gz\n[0-9a-f]{64}  Retake\.app\.tar\.gz\.sig\n[0-9a-f]{64}  Retake_0\.2\.0_aarch64\.dmg\n$/,
+    );
     const unsigned = runStep(s, { ...files, UPDATES: 'on', RUNNER_TEMP: make([files.DMG, files.ARCHIVE]) });
     expect(unsigned.status).toBe(1);
     expect(unsigned.stdout).toMatch(/::error::Retake\.app\.tar\.gz\.sig was not made \(updates: on\)/);
@@ -693,7 +818,21 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
   it('the signing material, run: a partial Apple set fails before any keychain call, naming each missing name; the updater key into a 0600 file', () => {
     const s = step('sign', 'Signing material');
     const sec = fakeSecurity('x');
-    const r = runStep(s, { SIGNED: 'true', UPDATES: 'off', APPLE_CERTIFICATE: 'c', APPLE_CERTIFICATE_PASSWORD: 'p', APPLE_SIGNING_IDENTITY: 'i', APPLE_API_KEY_P8: '', HAS_APPLE_TEAM_ID: 'true', HAS_APPLE_API_KEY: 'false', HAS_APPLE_API_ISSUER: 'true' }, sec.bin);
+    const r = runStep(
+      s,
+      {
+        SIGNED: 'true',
+        UPDATES: 'off',
+        APPLE_CERTIFICATE: 'c',
+        APPLE_CERTIFICATE_PASSWORD: 'p',
+        APPLE_SIGNING_IDENTITY: 'i',
+        APPLE_API_KEY_P8: '',
+        HAS_APPLE_TEAM_ID: 'true',
+        HAS_APPLE_API_KEY: 'false',
+        HAS_APPLE_API_ISSUER: 'true',
+      },
+      sec.bin,
+    );
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/::error::The release environment lacks APPLE_API_KEY_P8 APPLE_API_KEY \(/);
     expect(sec.calls()).toEqual([]);
@@ -721,14 +860,17 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     expect(gh.calls()).toEqual([['release', 'view', 'v0.2.0', '--json', 'isDraft', '--jq', '.isDraft']]);
     const draft = runStep(s, { ...env, FAKE_DRAFT: 'true' }, gh.bin);
     expect(draft.status, draft.stderr).toBe(0);
-    const calls = gh.calls().slice(1).map((c) => c.slice(0, 2).join(' ') + (c[1] === 'delete-asset' ? ` ${c[3]}` : ''));
+    const calls = gh
+      .calls()
+      .slice(1)
+      .map((c) => c.slice(0, 2).join(' ') + (c[1] === 'delete-asset' ? ` ${c[3]}` : ''));
     expect(calls).toEqual(['release view', 'release view', 'release delete-asset Retake.app.tar.gz', 'release delete-asset Retake.app.tar.gz.sig', 'release upload', 'release edit']);
     const upload = gh.calls().find((c) => c[1] === 'upload')!;
     expect(upload.slice(2).sort()).toEqual(['--clobber', join(temp, 'release', 'Retake_0.2.0_aarch64.dmg'), join(temp, 'release', 'SHA256SUMS-macos.txt'), 'v0.2.0'].sort());
     expect(readFileSync(join(temp, 'notes.md'), 'utf8')).toMatch(/Not notarised[\s\S]*Updates are off/);
   });
 
-  it('the fetch, run (review e B-M3): with updates on, the archive and its .sig come from the release — a missing one fails the job; the publish step builds the feed of the version\'s channel on this repository and hands it to publish-update.mjs', () => {
+  it("the fetch, run (review e B-M3): with updates on, the archive and its .sig come from the release — a missing one fails the job; the publish step builds the feed of the version's channel on this repository and hands it to publish-update.mjs", () => {
     const s = step('publish', 'Fetch the signed update archive');
     expect(s.if).toBe("needs.release.outputs.updates == 'on'");
     const gh = fakeGh();
@@ -744,13 +886,30 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     expect(gh.calls().pop()).toEqual(['release', 'download', 'v0.2.0', '--dir', join(ok.temp, 'update'), '--pattern', files.ARCHIVE, '--pattern', files.SIGNATURE]);
     const publish = step('publish', 'Publish the update');
     expect(publish.if).toBe("needs.release.outputs.updates == 'on'");
-    expect(publish.env).toEqual({ VERSION: '${{ needs.release.outputs.version }}', ARCHIVE: '${{ needs.release.outputs.archive }}', SIGNATURE: '${{ needs.release.outputs.signature }}', RETAKE_UPDATE_PUBKEY: '${{ needs.release.outputs.pubkey }}', GITHUB_TOKEN: '${{ github.token }}' });
-    expect(publish.run).toMatch(/RETAKE_UPDATE_FEED=\$\(node scripts\/release\.mjs feed "\$VERSION"\)\n\s*export RETAKE_UPDATE_FEED\n[\s\S]*node scripts\/publish-update\.mjs "\$VERSION" --artifact "\$D\/\$ARCHIVE" --signature "\$D\/\$SIGNATURE"/);
+    expect(publish.env).toEqual({
+      VERSION: '${{ needs.release.outputs.version }}',
+      ARCHIVE: '${{ needs.release.outputs.archive }}',
+      SIGNATURE: '${{ needs.release.outputs.signature }}',
+      RETAKE_UPDATE_PUBKEY: '${{ needs.release.outputs.pubkey }}',
+      GITHUB_TOKEN: '${{ github.token }}',
+    });
+    expect(publish.run).toMatch(
+      /RETAKE_UPDATE_FEED=\$\(node scripts\/release\.mjs feed "\$VERSION"\)\n\s*export RETAKE_UPDATE_FEED\n[\s\S]*node scripts\/publish-update\.mjs "\$VERSION" --artifact "\$D\/\$ARCHIVE" --signature "\$D\/\$SIGNATURE"/,
+    );
     expect(() => step('publish', 'The update is not published')).toThrow(/no step/);
     // Run (no network: it stops before any request): the feed of the version's channel on the run's repository passes
     // publish-update's check, then the archive (no gzip here) is refused; without GITHUB_REPOSITORY, no feed.
     writeFileSync(join(ok.temp, 'update', files.ARCHIVE), 'not a gzip');
-    const ctx = { ...files, VERSION: '0.2.0', RUNNER_TEMP: ok.temp, RETAKE_UPDATE_PUBKEY: 'k', GITHUB_TOKEN: 't', GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test', GITHUB_API_URL: 'https://api.github.example.test' };
+    const ctx = {
+      ...files,
+      VERSION: '0.2.0',
+      RUNNER_TEMP: ok.temp,
+      RETAKE_UPDATE_PUBKEY: 'k',
+      GITHUB_TOKEN: 't',
+      GITHUB_REPOSITORY: 'example-owner/example-repo',
+      GITHUB_SERVER_URL: 'https://github.example.test',
+      GITHUB_API_URL: 'https://api.github.example.test',
+    };
     const pubRun = runStep(publish, ctx);
     expect(pubRun.status).toBe(1);
     expect(pubRun.stderr).toMatch(/^publish-update: .*Retake\.app\.tar\.gz is not a gzip archive/m);
@@ -762,7 +921,16 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
 
 /** sha256 of words that must never appear in the release files (a reference app, an account): only their hashes here. */
 const DENIED = new Set(['a1d648cffa6e2ba0f94c51f51e0cb8f2be4fa6c3d227176016291f9ce64e90e7', '73562ffe71a5ff592fad20a1ffbd06c0bee1cb5106de93e23643188f2fda0690']);
-const RELEASE_FILES = ['.github/workflows/release.yml', 'apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/ci-node.sh', 'apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'docs/RELEASING.md', 'apps/desktop/bundle/node.json', 'apps/desktop/bundle/browsers.json'];
+const RELEASE_FILES = [
+  '.github/workflows/release.yml',
+  'apps/desktop/scripts/ci-keychain.sh',
+  'apps/desktop/scripts/ci-node.sh',
+  'apps/desktop/scripts/release.mjs',
+  'scripts/release.mjs',
+  'docs/RELEASING.md',
+  'apps/desktop/bundle/node.json',
+  'apps/desktop/bundle/browsers.json',
+];
 /** The one host a release file may name besides example.*: the Node.js project's downloads, which ci-node.sh fetches. */
 const NODE_DOWNLOADS = { file: 'apps/desktop/scripts/ci-node.sh', host: 'nodejs.org', url: 'https://nodejs.org/dist/v$version/$file' };
 
@@ -771,8 +939,10 @@ describe('the release files stay generic', () => {
     for (const f of RELEASE_FILES) {
       const text = readFileSync(join(REPO, f), 'utf8');
       for (const word of text.toLowerCase().split(/[^a-z0-9]+/)) expect(DENIED.has(createHash('sha256').update(word).digest('hex')), `${f}: a denied word`).toBe(false);
-      for (const m of text.matchAll(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|co|me|cloud)\b/gi)) if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.host)) expect(m[0], f).toMatch(/(?:^|\.)example\.(?:com|net|org)$/i);
-      for (const m of text.matchAll(/https?:\/\/[^\s)`'"]+/g)) if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.url)) expect(m[0], f).toMatch(/^https:\/\/(?:[a-z0-9-]+\.)*example\.(?:com|net|org)(?:\/|$)/);
+      for (const m of text.matchAll(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|co|me|cloud)\b/gi))
+        if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.host)) expect(m[0], f).toMatch(/(?:^|\.)example\.(?:com|net|org)$/i);
+      for (const m of text.matchAll(/https?:\/\/[^\s)`'"]+/g))
+        if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.url)) expect(m[0], f).toMatch(/^https:\/\/(?:[a-z0-9-]+\.)*example\.(?:com|net|org)(?:\/|$)/);
     }
     // The workflow names its repository only through github.repository; its actions' owners are GitHub's and the toolchain's.
     expect(raw).not.toMatch(/github\.com|ghcr\.io|@users\.noreply/);
@@ -782,13 +952,19 @@ describe('the release files stay generic', () => {
   it('the deny list holds hashes only, and the word scan finds a listed word (a canary)', () => {
     for (const h of DENIED) expect(h).toMatch(/^[0-9a-f]{64}$/);
     const listed = new Set([...DENIED, createHash('sha256').update('canaryword').digest('hex')]);
-    const found = 'Built by CanaryWord, see notes.'.toLowerCase().split(/[^a-z0-9]+/).some((w) => listed.has(createHash('sha256').update(w).digest('hex')));
+    const found = 'Built by CanaryWord, see notes.'
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .some((w) => listed.has(createHash('sha256').update(w).digest('hex')));
     expect(found).toBe(true);
   });
 });
 
 describe('scripts/release.mjs', () => {
-  const versions = (v: string, other = v) => [{ path: 'package.json', version: v }, { path: 'apps/desktop/tauri.conf.json', version: other }];
+  const versions = (v: string, other = v) => [
+    { path: 'package.json', version: v },
+    { path: 'apps/desktop/tauri.conf.json', version: other },
+  ];
 
   it('tag: v<version> of a repository that agrees with itself; prerelease from the version; anything else refused, naming the fix', async () => {
     const { tagVersion } = await releaseModule();
@@ -841,7 +1017,12 @@ describe('scripts/release.mjs', () => {
     // A minisign public key as `tauri signer generate` writes it: base64 of its text file (algorithm Ed, key id, key).
     const raw32 = (generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }) as Buffer).subarray(12);
     const pub = Buffer.from(`untrusted comment: minisign public key\n${Buffer.concat([Buffer.from('Ed'), Buffer.alloc(8, 7), raw32]).toString('base64')}\n`).toString('base64');
-    const secrets = (set: string, v = 'true') => Object.fromEntries(Object.entries(CONFIG_SETS[set].names as Record<string, string>).filter(([, k]) => k === 'secret').map(([n]) => [`HAS_SECRET_${n}`, v]));
+    const secrets = (set: string, v = 'true') =>
+      Object.fromEntries(
+        Object.entries(CONFIG_SETS[set].names as Record<string, string>)
+          .filter(([, k]) => k === 'secret')
+          .map(([n]) => [`HAS_SECRET_${n}`, v]),
+      );
     const repo = { GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test', REPO_PRIVATE: 'false', REPO_VISIBILITY: 'public' };
     const updater = { ...secrets('updater'), RETAKE_UPDATE_PUBKEY: pub, ...repo };
     // L5.16f: two sets — the update host's upload set is gone, the feed needs no setting of its own.
@@ -850,13 +1031,26 @@ describe('scripts/release.mjs', () => {
     const none = preflight('0.2.0', {});
     expect(none).toEqual({ outputs: { signed: 'false', updates: 'off' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.updater.off], errors: [] });
     const all = preflight('0.3.0-rc.1', { ...secrets('apple'), ...updater });
-    expect(all).toEqual({ outputs: { signed: 'true', updates: 'on', feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/rc.json', pubkey: pub }, warnings: [], errors: [] });
-    expect(preflight('0.2.0', updater)).toMatchObject({ outputs: { feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json' }, warnings: [CONFIG_SETS.apple.off] });
+    expect(all).toEqual({
+      outputs: { signed: 'true', updates: 'on', feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/rc.json', pubkey: pub },
+      warnings: [],
+      errors: [],
+    });
+    expect(preflight('0.2.0', updater)).toMatchObject({
+      outputs: { feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json' },
+      warnings: [CONFIG_SETS.apple.off],
+    });
     const cases: Array<[Record<string, string>, RegExp]> = [
       [{ ...secrets('apple'), HAS_SECRET_APPLE_API_KEY_P8: 'false' }, /^A Developer ID build, notarised needs all of APPLE_CERTIFICATE, .* — or none: missing APPLE_API_KEY_P8 \(a secret, not set\)$/],
-      [{ HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: 'true' }, /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(a secret, not set\), RETAKE_UPDATE_PUBKEY \(a variable, not set\)$/],
+      [
+        { HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: 'true' },
+        /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(a secret, not set\), RETAKE_UPDATE_PUBKEY \(a variable, not set\)$/,
+      ],
       [{ ...secrets('updater'), ...repo, HAS_SECRET_RETAKE_UPDATE_PUBKEY: 'true' }, /missing RETAKE_UPDATE_PUBKEY \(set as a secret: it must be a variable\)$/],
-      [{ HAS_VAR_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'true' }, /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY \(a secret, not set\), TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(set as a variable: it must be a secret\), RETAKE_UPDATE_PUBKEY \(a variable, not set\)$/],
+      [
+        { HAS_VAR_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'true' },
+        /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY \(a secret, not set\), TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(set as a variable: it must be a secret\), RETAKE_UPDATE_PUBKEY \(a variable, not set\)$/,
+      ],
       [{ ...updater, RETAKE_UPDATE_PUBKEY: 'not a key' }, /^RETAKE_UPDATE_PUBKEY is not a public key .*one line of base64 expected/],
       [{ ...updater, RETAKE_UPDATE_PUBKEY: Buffer.from('untrusted comment: x\nRWQnotakey\n').toString('base64') }, /^RETAKE_UPDATE_PUBKEY is not a public key/],
       [{ ...updater, GITHUB_REPOSITORY: '' }, /^The update feed: GITHUB_REPOSITORY is not set/],
@@ -875,7 +1069,8 @@ describe('scripts/release.mjs', () => {
     }
     // The command line: outputs appended to --output only when there is no error; annotations on stdout.
     const out = join(dir('preflight'), 'out');
-    const cli = (env: Record<string, string>) => spawnSync(process.execPath, [join(REPO, 'scripts', 'release.mjs'), 'preflight', '0.2.0', '--output', out], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env } });
+    const cli = (env: Record<string, string>) =>
+      spawnSync(process.execPath, [join(REPO, 'scripts', 'release.mjs'), 'preflight', '0.2.0', '--output', out], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env } });
     const ok = cli({});
     expect(ok.status).toBe(0);
     expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\n');
@@ -885,7 +1080,7 @@ describe('scripts/release.mjs', () => {
     expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\n');
   });
 
-  it('feed: the very feed publish-update.mjs accepts for that version — the channel\'s file on the repository\'s update-feed release (GITHUB_SERVER_URL, else GitHub\'s), refused without GITHUB_REPOSITORY', async () => {
+  it("feed: the very feed publish-update.mjs accepts for that version — the channel's file on the repository's update-feed release (GITHUB_SERVER_URL, else GitHub's), refused without GITHUB_REPOSITORY", async () => {
     const { feedFor } = await releaseModule();
     const { publish } = await publishModule();
     const repo = { GITHUB_REPOSITORY: 'example-owner/example-repo' };
@@ -897,7 +1092,10 @@ describe('scripts/release.mjs', () => {
     expect(() => feedFor('0.2.1', { ...repo, GITHUB_SERVER_URL: 'http://github.example.test' })).toThrow(/must be https/);
     expect(() => feedFor('v0.2.1', repo)).toThrow(/not a version/);
     // The command: what the workflow's publish step runs.
-    const cli = spawnSync(process.execPath, [join(REPO, 'scripts', 'release.mjs'), 'feed', '0.2.1'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...repo, GITHUB_SERVER_URL: 'https://github.example.test' } });
+    const cli = spawnSync(process.execPath, [join(REPO, 'scripts', 'release.mjs'), 'feed', '0.2.1'], {
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '', ...repo, GITHUB_SERVER_URL: 'https://github.example.test' },
+    });
     expect(cli.stdout).toBe('https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json\n');
     // publish() gets past its feed check with feedFor's value (and stops at the archive, which is no gzip here);
     // with the other channel's feed it stops at the feed check.
@@ -931,7 +1129,9 @@ function fakeSecurity(identity: string, { fail = '' } = {}) {
   writeFileSync(state, '/Users/runner/Library/Keychains/login.keychain-db\n/Library/Keychains/System.keychain\n');
   const log = join(root, 'calls.log');
   const argvLog = join(root, 'argv.log');
-  writeFileSync(join(bin, 'security'), `#!${process.execPath}
+  writeFileSync(
+    join(bin, 'security'),
+    `#!${process.execPath}
 const fs = require('node:fs');
 const argv = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(argvLog)}, JSON.stringify(argv) + '\\n');
@@ -961,9 +1161,17 @@ if (argv[0] === '-i') {
   for (const line of fs.readFileSync(0, 'utf8').split('\\n').filter((l) => l.trim())) { process.stdout.write('security> '); run(['(stdin)', ...line.trim().split(/\\s+/)].slice(1)); }
   process.stdout.write('security> ');
 } else process.exit(run(argv));
-`);
+`,
+  );
   chmodSync(join(bin, 'security'), 0o755);
-  const lines = (f: string) => (existsSync(f) ? readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as unknown[]) : []);
+  const lines = (f: string) =>
+    existsSync(f)
+      ? readFileSync(f, 'utf8')
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => JSON.parse(l) as unknown[])
+      : [];
   const list = () => readFileSync(state, 'utf8').split('\n').filter(Boolean);
   return { bin, calls: () => lines(log), argvs: () => lines(argvLog) as string[][], list };
 }
@@ -988,7 +1196,7 @@ describe('ci-keychain.sh: a temporary keychain, the search list put back (a reco
   const runScript = (sec: ReturnType<typeof fakeSecurity>, args: string[], env: Record<string, string> = {}) =>
     spawnSync('/bin/bash', [KEYCHAIN_SCRIPT, ...args], { encoding: 'utf8', env: { PATH: `${sec.bin}:/usr/bin:/bin`, HOME: tmp, ...env } });
 
-  it('the script calls `security` through PATH only (so the tests\' stand-in is the one it runs) and never sets a default keychain', () => {
+  it("the script calls `security` through PATH only (so the tests' stand-in is the one it runs) and never sets a default keychain", () => {
     const text = readFileSync(KEYCHAIN_SCRIPT, 'utf8');
     expect(text).not.toMatch(/\/usr\/bin\/security|default-keychain|login\.keychain/);
     expect(statSync(KEYCHAIN_SCRIPT).mode & 0o111).not.toBe(0);
@@ -1016,59 +1224,77 @@ describe('ci-keychain.sh: a temporary keychain, the search list put back (a reco
     expect(sec.calls()).toEqual([]);
   });
 
-  it.runIf(OPENSSL)('import: the list saved first, a keychain of its own (random password, locked after 6 h), the identity re-wrapped and imported non-extractable for codesign, the keychain first on the list; no password on any command line (review e A-L1)', () => {
-    const sec = fakeSecurity(IDENTITY);
-    const d = join(dir('kc'), 'signing');
-    const kc = join(d, 'retake-signing.keychain-db');
-    const r = runScript(sec, ['import', d], { GITHUB_ACTIONS: 'true', APPLE_CERTIFICATE: testCertificate(PASSWORD), APPLE_CERTIFICATE_PASSWORD: PASSWORD, APPLE_SIGNING_IDENTITY: IDENTITY });
-    // stdout is the step's $GITHUB_OUTPUT: the keychain line only (what security says goes to stderr, its prompts and
-    // the partition list's key dump left out).
-    expect(r.stderr).toBe('(what security may say)\n1 identity imported.\n');
-    expect(r.status).toBe(0);
-    expect(r.stdout).toBe(`keychain=${kc}\n`);
-    const calls = sec.calls();
-    expect(calls.map((c) => c[0])).toEqual(['list-keychains', 'create-keychain', 'set-keychain-settings', 'unlock-keychain', 'import', '(the wrapped .p12 opens with -P)', 'set-key-partition-list', 'list-keychains', 'find-identity']);
-    expect(calls[0]).toEqual(['list-keychains', '-d', 'user']);
-    const kcPass = calls[1]![2] as string;
-    expect(calls[1]).toEqual(['create-keychain', '-p', kcPass, kc]);
-    expect(kcPass).toMatch(/^[0-9a-f]{48}$/);
-    expect(calls[2]).toEqual(['set-keychain-settings', '-lut', '21600', kc]);
-    expect(calls[3]).toEqual(['unlock-keychain', '-p', kcPass, kc]);
-    const wrapPass = calls[4]![8] as string;
-    expect(calls[4]).toEqual(['import', join(d, 'wrapped.p12'), '-k', kc, '-f', 'pkcs12', '-x', '-P', wrapPass, '-T', '/usr/bin/codesign']);
-    expect(wrapPass).toMatch(/^[0-9a-f]{48}$/);
-    expect(wrapPass).not.toBe(kcPass);
-    expect(calls[5]).toEqual(['(the wrapped .p12 opens with -P)', true]);
-    expect(calls[6]).toEqual(['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', kcPass, kc]);
-    expect(calls[7]).toEqual(['list-keychains', '-d', 'user', '-s', kc, '/Users/runner/Library/Keychains/login.keychain-db', '/Library/Keychains/System.keychain']);
-    expect(calls[8]).toEqual(['find-identity', '-v', '-p', 'codesigning', kc]);
-    expect(JSON.stringify(calls)).not.toContain(PASSWORD);
-    // The four commands that hold a password reached security on its standard input: no command line names one.
-    const argvs = sec.argvs();
-    expect(argvs.map((a) => a[0])).toEqual(['list-keychains', '-i', 'set-keychain-settings', '-i', '-i', '-i', 'list-keychains', 'find-identity']);
-    for (const a of argvs) for (const secret of [kcPass, wrapPass, PASSWORD]) expect(a.join(' '), a[0]).not.toContain(secret);
-    // Every call but the search list's targets the temporary keychain; no file of the certificate is left.
-    for (const c of calls.filter((x) => !['list-keychains', 'import'].includes(String(x[0])) && !String(x[0]).startsWith('('))) expect(c[c.length - 1], String(c[0])).toBe(kc);
-    expect(readdirSync(d).sort()).toEqual(['retake-signing.keychain-db', 'search-list.txt']);
-    expect(statSync(d).mode & 0o777).toBe(0o700);
-    expect(sec.list()[0]).toBe(kc);
+  it.runIf(OPENSSL)(
+    'import: the list saved first, a keychain of its own (random password, locked after 6 h), the identity re-wrapped and imported non-extractable for codesign, the keychain first on the list; no password on any command line (review e A-L1)',
+    () => {
+      const sec = fakeSecurity(IDENTITY);
+      const d = join(dir('kc'), 'signing');
+      const kc = join(d, 'retake-signing.keychain-db');
+      const r = runScript(sec, ['import', d], { GITHUB_ACTIONS: 'true', APPLE_CERTIFICATE: testCertificate(PASSWORD), APPLE_CERTIFICATE_PASSWORD: PASSWORD, APPLE_SIGNING_IDENTITY: IDENTITY });
+      // stdout is the step's $GITHUB_OUTPUT: the keychain line only (what security says goes to stderr, its prompts and
+      // the partition list's key dump left out).
+      expect(r.stderr).toBe('(what security may say)\n1 identity imported.\n');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toBe(`keychain=${kc}\n`);
+      const calls = sec.calls();
+      expect(calls.map((c) => c[0])).toEqual([
+        'list-keychains',
+        'create-keychain',
+        'set-keychain-settings',
+        'unlock-keychain',
+        'import',
+        '(the wrapped .p12 opens with -P)',
+        'set-key-partition-list',
+        'list-keychains',
+        'find-identity',
+      ]);
+      expect(calls[0]).toEqual(['list-keychains', '-d', 'user']);
+      const kcPass = calls[1]![2] as string;
+      expect(calls[1]).toEqual(['create-keychain', '-p', kcPass, kc]);
+      expect(kcPass).toMatch(/^[0-9a-f]{48}$/);
+      expect(calls[2]).toEqual(['set-keychain-settings', '-lut', '21600', kc]);
+      expect(calls[3]).toEqual(['unlock-keychain', '-p', kcPass, kc]);
+      const wrapPass = calls[4]![8] as string;
+      expect(calls[4]).toEqual(['import', join(d, 'wrapped.p12'), '-k', kc, '-f', 'pkcs12', '-x', '-P', wrapPass, '-T', '/usr/bin/codesign']);
+      expect(wrapPass).toMatch(/^[0-9a-f]{48}$/);
+      expect(wrapPass).not.toBe(kcPass);
+      expect(calls[5]).toEqual(['(the wrapped .p12 opens with -P)', true]);
+      expect(calls[6]).toEqual(['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', kcPass, kc]);
+      expect(calls[7]).toEqual(['list-keychains', '-d', 'user', '-s', kc, '/Users/runner/Library/Keychains/login.keychain-db', '/Library/Keychains/System.keychain']);
+      expect(calls[8]).toEqual(['find-identity', '-v', '-p', 'codesigning', kc]);
+      expect(JSON.stringify(calls)).not.toContain(PASSWORD);
+      // The four commands that hold a password reached security on its standard input: no command line names one.
+      const argvs = sec.argvs();
+      expect(argvs.map((a) => a[0])).toEqual(['list-keychains', '-i', 'set-keychain-settings', '-i', '-i', '-i', 'list-keychains', 'find-identity']);
+      for (const a of argvs) for (const secret of [kcPass, wrapPass, PASSWORD]) expect(a.join(' '), a[0]).not.toContain(secret);
+      // Every call but the search list's targets the temporary keychain; no file of the certificate is left.
+      for (const c of calls.filter((x) => !['list-keychains', 'import'].includes(String(x[0])) && !String(x[0]).startsWith('('))) expect(c[c.length - 1], String(c[0])).toBe(kc);
+      expect(readdirSync(d).sort()).toEqual(['retake-signing.keychain-db', 'search-list.txt']);
+      expect(statSync(d).mode & 0o777).toBe(0o700);
+      expect(sec.list()[0]).toBe(kc);
 
-    // delete: the list as it was, the keychain gone; a second delete does nothing.
-    const del = runScript(sec, ['delete', d], { GITHUB_ACTIONS: 'true' });
-    expect(del.status).toBe(0);
-    expect(sec.calls().slice(9)).toEqual([['list-keychains', '-d', 'user', '-s', '/Users/runner/Library/Keychains/login.keychain-db', '/Library/Keychains/System.keychain'], ['delete-keychain', kc]]);
-    expect(sec.list()).toEqual(['/Users/runner/Library/Keychains/login.keychain-db', '/Library/Keychains/System.keychain']);
-    expect(readdirSync(d)).toEqual([]);
-    expect(runScript(sec, ['delete', d], { GITHUB_ACTIONS: 'true' }).status).toBe(0);
-    expect(sec.calls().length).toBe(11);
-  });
+      // delete: the list as it was, the keychain gone; a second delete does nothing.
+      const del = runScript(sec, ['delete', d], { GITHUB_ACTIONS: 'true' });
+      expect(del.status).toBe(0);
+      expect(sec.calls().slice(9)).toEqual([
+        ['list-keychains', '-d', 'user', '-s', '/Users/runner/Library/Keychains/login.keychain-db', '/Library/Keychains/System.keychain'],
+        ['delete-keychain', kc],
+      ]);
+      expect(sec.list()).toEqual(['/Users/runner/Library/Keychains/login.keychain-db', '/Library/Keychains/System.keychain']);
+      expect(readdirSync(d)).toEqual([]);
+      expect(runScript(sec, ['delete', d], { GITHUB_ACTIONS: 'true' }).status).toBe(0);
+      expect(sec.calls().length).toBe(11);
+    },
+  );
 
   it.runIf(OPENSSL)('an error security says in its interactive mode (exit status 0) fails the import, its words printed with the passwords taken out; a folder with a space is refused first', () => {
     const sec = fakeSecurity(IDENTITY, { fail: 'unlock-keychain' });
     const d = join(dir('kc'), 'signing');
     const r = runScript(sec, ['import', d], { GITHUB_ACTIONS: 'true', APPLE_CERTIFICATE: testCertificate(PASSWORD), APPLE_CERTIFICATE_PASSWORD: PASSWORD });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/^security: unlock-keychain -p <redacted> .*retake-signing\.keychain-db: The specified item could not be found in the keychain\.\nci-keychain: security unlock-keychain failed\n$/m);
+    expect(r.stderr).toMatch(
+      /^security: unlock-keychain -p <redacted> .*retake-signing\.keychain-db: The specified item could not be found in the keychain\.\nci-keychain: security unlock-keychain failed\n$/m,
+    );
     const kcPass = sec.calls()[1]![2] as string;
     expect(r.stderr).not.toContain(kcPass);
     expect(sec.calls().map((c) => c[0])).not.toContain('import');
@@ -1101,7 +1327,12 @@ describe('ci-keychain.sh: a temporary keychain, the search list put back (a reco
     expect(wrong.stderr).toMatch(/could not be read with APPLE_CERTIFICATE_PASSWORD/);
     expect(sec.calls()).toEqual([]);
     expect(existsSync(join(d, 'certificate.p12'))).toBe(false);
-    const other = runScript(sec, ['import', d], { GITHUB_ACTIONS: 'true', APPLE_CERTIFICATE: cert, APPLE_CERTIFICATE_PASSWORD: PASSWORD, APPLE_SIGNING_IDENTITY: 'Developer ID Application: Someone Else (ZZZZZ99999)' });
+    const other = runScript(sec, ['import', d], {
+      GITHUB_ACTIONS: 'true',
+      APPLE_CERTIFICATE: cert,
+      APPLE_CERTIFICATE_PASSWORD: PASSWORD,
+      APPLE_SIGNING_IDENTITY: 'Developer ID Application: Someone Else (ZZZZZ99999)',
+    });
     expect(other.status).toBe(1);
     expect(other.stderr).toMatch(/no valid code-signing identity named as APPLE_SIGNING_IDENTITY/);
     expect(other.stderr).not.toMatch(/Someone Else/);
@@ -1116,21 +1347,29 @@ describe('ci-keychain.sh: a temporary keychain, the search list put back (a reco
   });
 });
 
-describe('the release signer in CI: the temporary keychain, the workflow\'s names (sign.mjs)', () => {
+describe("the release signer in CI: the temporary keychain, the workflow's names (sign.mjs)", () => {
   const ID = 'Developer ID Application: Example Maker (ABCDE12345)';
   const KEY = { APPLE_SIGNING_IDENTITY: ID, APPLE_TEAM_ID: 'ABCDE12345', APPLE_API_KEY: 'key-id', APPLE_API_ISSUER: 'issuer', APPLE_API_KEY_PATH: '/runner/temp/signing/AuthKey.p8' };
 
-  it('the sign step\'s APPLE_* names are exactly what releaseConfig reads on the API-key route, the keychain included', async () => {
+  it("the sign step's APPLE_* names are exactly what releaseConfig reads on the API-key route, the keychain included", async () => {
     const { releaseConfig } = await signModule();
     const build = step('sign', 'Sign, notarise, the update archive and the DMG');
-    const names = Object.keys(build.env!).filter((k) => k.startsWith('APPLE_')).sort();
+    const names = Object.keys(build.env!)
+      .filter((k) => k.startsWith('APPLE_'))
+      .sort();
     expect(names).toEqual(['APPLE_API_ISSUER', 'APPLE_API_KEY', 'APPLE_API_KEY_PATH', 'APPLE_KEYCHAIN', 'APPLE_SIGNING_IDENTITY', 'APPLE_TEAM_ID']);
     const s = releaseConfig({ ...KEY, APPLE_KEYCHAIN: '/runner/temp/signing/retake-signing.keychain-db' });
-    expect(s).toEqual({ identity: ID, team: 'ABCDE12345', notary: { key: 'key-id', issuer: 'issuer', keyPath: '/runner/temp/signing/AuthKey.p8' }, keychain: '/runner/temp/signing/retake-signing.keychain-db' });
+    expect(s).toEqual({
+      identity: ID,
+      team: 'ABCDE12345',
+      notary: { key: 'key-id', issuer: 'issuer', keyPath: '/runner/temp/signing/AuthKey.p8' },
+      keychain: '/runner/temp/signing/retake-signing.keychain-db',
+    });
     // Without it (a person's own run): no keychain named; an empty one counts as absent; a relative or odd one is refused.
     expect(releaseConfig(KEY)).not.toHaveProperty('keychain');
     expect(releaseConfig({ ...KEY, APPLE_KEYCHAIN: ' ' })).not.toHaveProperty('keychain');
-    for (const bad of ['signing.keychain-db', '/runner/temp/signing/AuthKey.p8']) expect(() => releaseConfig({ ...KEY, APPLE_KEYCHAIN: bad }), bad).toThrow(/APPLE_KEYCHAIN must be the absolute path of a keychain file .* nothing was signed/);
+    for (const bad of ['signing.keychain-db', '/runner/temp/signing/AuthKey.p8'])
+      expect(() => releaseConfig({ ...KEY, APPLE_KEYCHAIN: bad }), bad).toThrow(/APPLE_KEYCHAIN must be the absolute path of a keychain file .* nothing was signed/);
     // The keychain script prints the path the build step reads (keychain=…), into the step's outputs.
     expect(build.env!.APPLE_KEYCHAIN).toBe('${{ steps.material.outputs.keychain }}');
     expect(readFileSync(KEYCHAIN_SCRIPT, 'utf8')).toMatch(/keychain="\$dir\/retake-signing\.keychain-db"[\s\S]*echo "keychain=\$keychain"\n$/);

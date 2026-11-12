@@ -275,7 +275,15 @@ describe('story cards (highlights)', () => {
     // Frame-exact times (k / fps).
     expect(Math.abs(after.video!.time_s * 30 - Math.round(after.video!.time_s * 30))).toBeLessThan(0.01);
     const table = cardOf(p, 'chart').component.media?.data as TableMedia;
-    expect(table).toEqual({ kind: 'table', name: 'data/quotes-per-month.csv', columns: ['month', 'quote requests', 'accepted'], rows: [['Jun', '42', '19'], ['Jul', '51', '24']] });
+    expect(table).toEqual({
+      kind: 'table',
+      name: 'data/quotes-per-month.csv',
+      columns: ['month', 'quote requests', 'accepted'],
+      rows: [
+        ['Jun', '42', '19'],
+        ['Jul', '51', '24'],
+      ],
+    });
     expect(p.warnings).toEqual([]);
     for (const id of ['features', 'testimonial', 'cta']) expect(cardOf(p, id).component.missing).toBeUndefined();
   });
@@ -303,7 +311,14 @@ describe('story cards (highlights)', () => {
     const logo = cardOf(p, 'testimonial').component.slots.logo!;
     expect(logo).toBe(`${PLAN_ASSET_SCHEME}image-assets-partner-svg.svg`);
     expect(p.assets[logo]).toBe('/p/assets/partner.svg');
-    expect(cardOf(p, 'before-after').component.media?.before).toEqual({ kind: 'picture', name: 'before', url: `${PLAN_ASSET_SCHEME}image-assets-old-screen-png.png`, width: 1600, height: 1000, label: 'assets/old-screen.png' });
+    expect(cardOf(p, 'before-after').component.media?.before).toEqual({
+      kind: 'picture',
+      name: 'before',
+      url: `${PLAN_ASSET_SCHEME}image-assets-old-screen-png.png`,
+      width: 1600,
+      height: 1000,
+      label: 'assets/old-screen.png',
+    });
   });
 });
 

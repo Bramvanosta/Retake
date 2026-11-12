@@ -32,20 +32,24 @@ afterAll(async () => {
 });
 
 let n = 0;
-rendererContract('editor', async (name) => {
-  const out = join(ws.root, 'contract', `${name}-${n++}`);
-  await mkdir(out, { recursive: true });
-  return {
-    renderer: editorRenderer(),
-    plan: planned.plan,
-    workPolicy: PERSON_POLICY,
-    root: ws.root,
-    registry: planned.registry,
-    out,
-    cancelDuring: (abort) => ({
-      onProgress: (p) => {
-        if (p.stage === 'rendering') abort.abort();
-      },
-    }),
-  };
-}, { previews: false, timeout: LONG, skip: !canRender });
+rendererContract(
+  'editor',
+  async (name) => {
+    const out = join(ws.root, 'contract', `${name}-${n++}`);
+    await mkdir(out, { recursive: true });
+    return {
+      renderer: editorRenderer(),
+      plan: planned.plan,
+      workPolicy: PERSON_POLICY,
+      root: ws.root,
+      registry: planned.registry,
+      out,
+      cancelDuring: (abort) => ({
+        onProgress: (p) => {
+          if (p.stage === 'rendering') abort.abort();
+        },
+      }),
+    };
+  },
+  { previews: false, timeout: LONG, skip: !canRender },
+);

@@ -37,7 +37,10 @@ async function put(name: string, text: string): Promise<string> {
 }
 
 async function failure(p: Promise<unknown>): Promise<EngineError> {
-  const e = await p.then(() => undefined, (x: unknown) => x);
+  const e = await p.then(
+    () => undefined,
+    (x: unknown) => x,
+  );
   expect(e).toBeInstanceOf(EngineError);
   return e as EngineError;
 }
@@ -90,7 +93,11 @@ describe('move, delete, duplicate through scenarios.edit', () => {
     const steps = stepsOf(t0, 'proposal');
     const i = steps.findIndex((s) => typeof s === 'object' && s !== null && 'download' in s);
     const d = await ui.scenarios.edit(P, 'quote', { hash: sha(t0), edit: { kind: 'duplicate_step', at: at(t0, 'proposal', i) } });
-    expect(d).toMatchObject({ label: `Duplicated step ${i + 1} of proposal`, select: `proposal.${i + 1}`, notices: ['The copy saves its document as "quote-2": names of captures are unique (the original keeps "quote").'] });
+    expect(d).toMatchObject({
+      label: `Duplicated step ${i + 1} of proposal`,
+      select: `proposal.${i + 1}`,
+      notices: ['The copy saves its document as "quote-2": names of captures are unique (the original keeps "quote").'],
+    });
     const t1 = await readFile(file('quote'), 'utf8');
     expect(stepsOf(t1, 'proposal')[i + 1]).toEqual({ download: { click: { text: 'Download quote PDF' }, as: 'quote-2' } });
     const x = await ui.scenarios.edit(P, 'quote', { hash: d.hash, edit: { kind: 'delete_step', at: at(t1, 'proposal', i + 1) } });
@@ -146,7 +153,10 @@ describe('move, delete, duplicate through scenarios.edit', () => {
     const q = await readFile(file('quote'), 'utf8');
     const i = stepsOf(q, 'proposal').findIndex((s) => typeof s === 'object' && s !== null && 'download' in s);
     const before = await snapshot('quote');
-    const e3 = await ui.scenarios.edit(P, 'quote', { hash: sha(q), edit: { kind: 'delete_step', at: at(q, 'proposal', i) } }).then(() => undefined, (x: unknown) => x);
+    const e3 = await ui.scenarios.edit(P, 'quote', { hash: sha(q), edit: { kind: 'delete_step', at: at(q, 'proposal', i) } }).then(
+      () => undefined,
+      (x: unknown) => x,
+    );
     expect(e3).toBeInstanceOf(ScenarioError);
     expect((e3 as ScenarioError).issues.some((x) => x.severity === 'error' && /quote/.test(x.message))).toBe(true);
     expect(await snapshot('quote')).toEqual(before);

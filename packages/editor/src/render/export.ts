@@ -14,7 +14,20 @@ import { isThemeName } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
 import { insideFolder, isTemplatePath } from '@retake/core/scenario';
 import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
-import { STARTER_FOLDER_ID_PREFIX, STARTER_TEMPLATES_DIR, ffmpegBin, findNamedRender, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts, projectTemplateFolderId, runMediaTool, stderrLines, templateFolderId } from '@retake/core/io';
+import {
+  STARTER_FOLDER_ID_PREFIX,
+  STARTER_TEMPLATES_DIR,
+  ffmpegBin,
+  findNamedRender,
+  h264CodecArgs,
+  h264Encoder,
+  loadProject,
+  nodeFileFacts,
+  projectTemplateFolderId,
+  runMediaTool,
+  stderrLines,
+  templateFolderId,
+} from '@retake/core/io';
 import type { ErrorKind } from '@retake/core/base';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
@@ -164,13 +177,14 @@ export async function exportThemeRef(project: LoadedProject, record: Pick<NamedR
   }
   if (o.trust === 'mcp') {
     throw new PlanTrustError([
-      "the theme folder this render was made with is not one the project names today (its project.yaml template:, a theme of the workspace or a starter): through MCP a re-render uses only those — re-render it from a terminal, or render the scenario again",
+      'the theme folder this render was made with is not one the project names today (its project.yaml template:, a theme of the workspace or a starter): through MCP a re-render uses only those — re-render it from a terminal, or render the scenario again',
     ]);
   }
   const dir = starter !== undefined ? join(STARTER_TEMPLATES_DIR, starter) : resolve(realpathOf(project.root), ...folder.split('/'));
   // The folder rule both ways: the folder found is the one the record names (a starter's name that is no name, a path
   // of another spelling: refused, never another folder).
-  if (templateFolderId(dir, project.root) !== folder) throw new RenderError(`the theme folder this render was made with cannot be found from the workspace (${printableText(folder)}): re-render the scenario`);
+  if (templateFolderId(dir, project.root) !== folder)
+    throw new RenderError(`the theme folder this render was made with cannot be found from the workspace (${printableText(folder)}): re-render the scenario`);
   return dir;
 }
 
@@ -191,7 +205,12 @@ function realpathOf(p: string): string {
  * renamed by hand works, but when the video it names is now another render's.
  */
 export async function locateRenderRecord(project: LoadedProject, arg: string, scenario?: string, o: { trust?: PlanTrust } = {}): Promise<FoundRender> {
-  const found = await findNamedRender(rendersDir(project), arg, { verb: 'export', slug: project.slug, ...(scenario !== undefined ? { scenario } : {}), ...(o.trust === 'mcp' ? { trust: 'mcp' as const } : {}) });
+  const found = await findNamedRender(rendersDir(project), arg, {
+    verb: 'export',
+    slug: project.slug,
+    ...(scenario !== undefined ? { scenario } : {}),
+    ...(o.trust === 'mcp' ? { trust: 'mcp' as const } : {}),
+  });
   if (!found.ok) throw new ExportError(found.message);
   // (findNamedRender refuses a record without its plan: this is the editor's type for what it read.)
   return { ...found.render, record: withPlan(found.render.record).value };
@@ -300,7 +319,28 @@ const SUFFIX: Record<ExportFormat, string> = {
  */
 export function mp4TranscodeArgs(input: string, size: readonly [number, number], enc: H264Encoder, out: string): string[] {
   const codec = h264CodecArgs(enc, ['-c:v', 'libx264', '-crf', '18', '-preset', 'medium']);
-  return ['-i', input, '-vf', `scale=${size[0]}:${size[1]}:flags=lanczos`, ...codec, '-pix_fmt', 'yuv420p', '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-c:a', 'copy', '-movflags', '+faststart', out];
+  return [
+    '-i',
+    input,
+    '-vf',
+    `scale=${size[0]}:${size[1]}:flags=lanczos`,
+    ...codec,
+    '-pix_fmt',
+    'yuv420p',
+    '-color_range',
+    'tv',
+    '-colorspace',
+    'bt709',
+    '-color_primaries',
+    'bt709',
+    '-color_trc',
+    'bt709',
+    '-c:a',
+    'copy',
+    '-movflags',
+    '+faststart',
+    out,
+  ];
 }
 
 /** The 1080p MP4 transcode itself, with the H.264 encoder `bin` has (core h264Encoder). Returns it. Exported for tests. */
@@ -331,8 +371,12 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
     const problem = recordPathProblem(project.dir, record);
     if (problem) throw new ExportError(problem);
   }
-  if (record.status !== 'succeeded') throw new ExportError(`render ${label} ${trust === 'mcp' && record.status !== 'failed' && record.status !== 'cancelled' ? 'has a status Retake never writes' : printableText(record.status)}: nothing to export`);
-  if (!existsSync(record.file)) throw new ExportError(`the video of render ${label} is missing (${record.file ? (trust === 'mcp' ? 'the file its record names' : printableText(record.file)) : 'no "file" in its record'})`);
+  if (record.status !== 'succeeded')
+    throw new ExportError(
+      `render ${label} ${trust === 'mcp' && record.status !== 'failed' && record.status !== 'cancelled' ? 'has a status Retake never writes' : printableText(record.status)}: nothing to export`,
+    );
+  if (!existsSync(record.file))
+    throw new ExportError(`the video of render ${label} is missing (${record.file ? (trust === 'mcp' ? 'the file its record names' : printableText(record.file)) : 'no "file" in its record'})`);
   const variant = knownVariant(record, label, trust);
   const formats = [...new Set(opts.formats && opts.formats.length > 0 ? opts.formats : DEFAULT_EXPORT_FORMATS)];
   for (const f of formats) if (!(EXPORT_FORMATS as readonly string[]).includes(f)) throw new ExportError(`unknown export format "${f}": use ${EXPORT_FORMATS.join(', ')}`);
@@ -427,7 +471,34 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       } else if (format === 'webm') {
         // VP9 (constant quality) + Opus at the variant's base size: the web / embed format.
         const scale = isBase ? [] : ['-vf', `scale=${base[0]}:${base[1]}:flags=lanczos`];
-        await ffmpeg(bin, ['-i', record.file, ...scale, '-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', '-pix_fmt', 'yuv420p', '-c:a', 'libopus', '-b:a', '128k', tmp], opts.signal);
+        await ffmpeg(
+          bin,
+          [
+            '-i',
+            record.file,
+            ...scale,
+            '-c:v',
+            'libvpx-vp9',
+            '-crf',
+            '32',
+            '-b:v',
+            '0',
+            '-row-mt',
+            '1',
+            '-deadline',
+            'good',
+            '-cpu-used',
+            '4',
+            '-pix_fmt',
+            'yuv420p',
+            '-c:a',
+            'libopus',
+            '-b:a',
+            '128k',
+            tmp,
+          ],
+          opts.signal,
+        );
         await rename(tmp, file);
         out = await finish(format, file, 'transcode', t0);
       } else if (format === 'gif_preview') {
@@ -452,7 +523,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       const message = (e as Error).message;
       failures.push({ format, error: message });
       emit({ format, stage: 'failed', progress: 1, message });
-      if (opts.signal?.aborted || e instanceof RenderError && /cancel/i.test(message)) break;
+      if (opts.signal?.aborted || (e instanceof RenderError && /cancel/i.test(message))) break;
     }
   }
 

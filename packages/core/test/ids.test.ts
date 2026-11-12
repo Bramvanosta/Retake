@@ -105,7 +105,7 @@ describe('the patterns and caps, as written once', () => {
     expect(ULID_PREFIXES).toEqual({ job: 'j_', preview: 'p_', inspect: 'i_', site: 's_', record: 'rec_', comment: 'c_', entry: 'r_', marker: 'k_' });
   });
 
-  it('a listed theme takes a scenario name\'s grammar, a new theme a project slug\'s', () => {
+  it("a listed theme takes a scenario name's grammar, a new theme a project slug's", () => {
     expect(ANY_THEME_NAME_RE.source).toBe(SLUG_RE.source);
     expect(NEW_THEME_NAME_RE.source).toBe(PROJECT_SLUG_RE.source);
     expect(NEW_THEME_NAME_RE.source).not.toBe(ANY_THEME_NAME_RE.source);
@@ -152,7 +152,8 @@ describe('a run id', () => {
     expect(runIdStamp(STAMP)).toEqual({ date: '20261017', time: '142233', rest: '' });
     expect(runIdStamp(`${STAMP}a\n-quote`)).toEqual({ date: '20261017', time: '142233', rest: 'a\n-quote' });
     expect(runIdStamp(`${STAMP}Quote.bak`)?.rest).toBe('Quote.bak');
-    for (const id of ['2026101-142233-quote', '20261017-14223-quote', '20261017_142233-quote', 'x20261017-142233-quote', '20261017-142233', 'zz-quote', '', `\uff120261017-142233-quote`]) expect(runIdStamp(id), id).toBeNull();
+    for (const id of ['2026101-142233-quote', '20261017-14223-quote', '20261017_142233-quote', 'x20261017-142233-quote', '20261017-142233', 'zz-quote', '', `\uff120261017-142233-quote`])
+      expect(runIdStamp(id), id).toBeNull();
   });
 
   it('the stamp agrees with the prefix pattern it replaced, on generated strings', () => {
@@ -195,7 +196,7 @@ describe('a run id', () => {
     }
   });
 
-  it('a run of a scenario: after the stamp, the scenario\'s name lower-cased; an id without a stamp ends in -<scenario>', () => {
+  it("a run of a scenario: after the stamp, the scenario's name lower-cased; an id without a stamp ends in -<scenario>", () => {
     const rows: Array<[string, string, boolean]> = [
       [`${STAMP}quote`, 'quote', true],
       [`${STAMP}quote`, 'Quote', true],
@@ -227,7 +228,11 @@ describe('a run id', () => {
   it('a run of a scenario agrees with the rule it replaced, except where a stamp was answered by the "ends in" rule', () => {
     const before = (id: string, scenario: string) => {
       const m = /^\d{8}-\d{6}-(.+)$/.exec(id);
-      const slug = scenario.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'run';
+      const slug =
+        scenario
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'run';
       return m ? m[1] === slug : id.endsWith(`-${scenario}`);
     };
     const tails = generated('of', ['q', 'Q', '-', 'a', '\n', '\u2028', '_', '.', '2'], 8, 20_000);
@@ -413,7 +418,13 @@ describe('a render id', () => {
     expect(rows.map(([f]) => ofQuote(f))).toEqual(rows.map((r) => r[1]));
     expect(rows.map(([f]) => ofQuote(f))).toEqual(rows.map((r) => r[1]));
     // The name is read as it is written.
-    expect([renderFileVersion('aXb-v1.json', 'a.b'), renderFileVersion('a.b-v1.json', 'a.b'), renderFileVersion('quote-v2-v9.json', 'quote-v2'), renderFileVersion('a(-v1.mp4', 'a('), renderFileVersion('zz-v1.mp4', '.*')]).toEqual([null, 1, 9, 1, null]);
+    expect([
+      renderFileVersion('aXb-v1.json', 'a.b'),
+      renderFileVersion('a.b-v1.json', 'a.b'),
+      renderFileVersion('quote-v2-v9.json', 'quote-v2'),
+      renderFileVersion('a(-v1.mp4', 'a('),
+      renderFileVersion('zz-v1.mp4', '.*'),
+    ]).toEqual([null, 1, 9, 1, null]);
   });
 
   it('the version of a file agrees with the pattern it replaced, on generated names', () => {
@@ -423,7 +434,7 @@ describe('a render id', () => {
       return m ? Number(m[1]) : null;
     };
     const rnd = seededRandom('files');
-    const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)];
+    const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)];
     let counted = 0;
     for (let i = 0; i < 60_000; i++) {
       const name = pick(['quote', 'Quote', 'a.b', 'quote-v2', 'q']);
@@ -490,14 +501,45 @@ describe('the ULID ids', () => {
   it('the file name of an id: its prefix, a ULID, the extension', () => {
     const re = ulidFileRe('comment', 'json');
     expect(re.source).toBe('^c_[0-9A-HJKMNP-TV-Z]{26}\\.json$');
-    expect([`c_${BODY}.json`, `c_${BODY}xjson`, `c_${BODY}.json.tmp`, `r_${BODY}.json`, `c_${BODY.slice(1)}.json`, `.c_${BODY}.json`].map((f) => re.test(f))).toEqual([true, false, false, false, false, false]);
+    expect([`c_${BODY}.json`, `c_${BODY}xjson`, `c_${BODY}.json.tmp`, `r_${BODY}.json`, `c_${BODY.slice(1)}.json`, `.c_${BODY}.json`].map((f) => re.test(f))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
     expect(ulidFileRe('marker', 'json').test(`k_${BODY}.json`)).toBe(true);
     expect(ulidFileRe('marker', 'json').source).toBe('^k_[0-9A-HJKMNP-TV-Z]{26}\\.json$');
   });
 });
 
 describe('a theme name', () => {
-  const NAMES: unknown[] = ['editorial', 'my-theme', 'a', '0', a(60), a(61), a(100), 'My_Theme', 'x_', a(60, 'A'), a(100, 'A'), a(101), a(101, 'A'), 'a.b', '', '-x', '_x', 'my theme', 'x\n', 'a/b', '..', 7, null];
+  const NAMES: unknown[] = [
+    'editorial',
+    'my-theme',
+    'a',
+    '0',
+    a(60),
+    a(61),
+    a(100),
+    'My_Theme',
+    'x_',
+    a(60, 'A'),
+    a(100, 'A'),
+    a(101),
+    a(101, 'A'),
+    'a.b',
+    '',
+    '-x',
+    '_x',
+    'my theme',
+    'x\n',
+    'a/b',
+    '..',
+    7,
+    null,
+  ];
 
   it('a listed theme: the any-case grammar, at most 100 characters', () => {
     expect(NAMES.filter(isThemeName)).toEqual(['editorial', 'my-theme', 'a', '0', a(60), a(61), a(100), 'My_Theme', 'x_', a(60, 'A'), a(100, 'A')]);
@@ -512,12 +554,32 @@ describe('a theme name', () => {
 
 describe('a theme that exists is named by one rule', () => {
   it('a listed theme and the folder of a theme named by a path alike: no other cap, no other grammar', () => {
-    const rows: Array<[unknown, boolean]> = [['editorial', true], ['My_Theme', true], [a(100), true], [a(100, 'T'), true], [a(101), false], [a(255, 'T'), false], ['a.b', false], ['', false], ['-x', false], ['../x', false], ['x/y', false], ['x\n', false], [7, false], [undefined, false], [['a'], false]];
+    const rows: Array<[unknown, boolean]> = [
+      ['editorial', true],
+      ['My_Theme', true],
+      [a(100), true],
+      [a(100, 'T'), true],
+      [a(101), false],
+      [a(255, 'T'), false],
+      ['a.b', false],
+      ['', false],
+      ['-x', false],
+      ['../x', false],
+      ['x/y', false],
+      ['x\n', false],
+      [7, false],
+      [undefined, false],
+      [['a'], false],
+    ];
     expect(rows.map(([v]) => isThemeName(v))).toEqual(rows.map((r) => r[1]));
     // A new theme's name is a theme's name; the module holds these two rules for a theme and their two caps.
     for (const v of [a(60), 'my-theme']) expect([isNewThemeName(v), isThemeName(v)], v).toEqual([true, true]);
     expect([NEW_THEME_NAME_MAX, ANY_THEME_NAME_MAX]).toEqual([60, 100]);
-    expect(Object.keys(grammar).filter((k) => /theme/i.test(k)).sort()).toEqual(['ANY_THEME_NAME_MAX', 'ANY_THEME_NAME_RE', 'NEW_THEME_NAME_MAX', 'NEW_THEME_NAME_RE', 'isNewThemeName', 'isThemeName']);
+    expect(
+      Object.keys(grammar)
+        .filter((k) => /theme/i.test(k))
+        .sort(),
+    ).toEqual(['ANY_THEME_NAME_MAX', 'ANY_THEME_NAME_RE', 'NEW_THEME_NAME_MAX', 'NEW_THEME_NAME_RE', 'isNewThemeName', 'isThemeName']);
   });
 });
 
@@ -529,15 +591,33 @@ describe('the zod helpers', () => {
 
   it('each is a plain string schema: its cap first, then its grammar with the sentence given', () => {
     const big = (n: number) => `too_big: Too big: expected string to have <=${n} characters`;
-    expect([a(200), a(201), '../x', `${a(201)}/`, 7].map((v) => first(zRunId('a run'), v))).toEqual(['ok', big(200), 'invalid_format: a run', big(200), 'invalid_type: Invalid input: expected string, received number']);
-    expect([`${a(197)}-v1`, `${a(198)}-v1`, 'final', 'quote-v999999', 'quote-v1000000'].map((v) => first(zRenderId('a render'), v))).toEqual(['ok', big(200), 'invalid_format: a render', 'ok', 'custom: a render']);
+    expect([a(200), a(201), '../x', `${a(201)}/`, 7].map((v) => first(zRunId('a run'), v))).toEqual([
+      'ok',
+      big(200),
+      'invalid_format: a run',
+      big(200),
+      'invalid_type: Invalid input: expected string, received number',
+    ]);
+    expect([`${a(197)}-v1`, `${a(198)}-v1`, 'final', 'quote-v999999', 'quote-v1000000'].map((v) => first(zRenderId('a render'), v))).toEqual([
+      'ok',
+      big(200),
+      'invalid_format: a render',
+      'ok',
+      'custom: a render',
+    ]);
     // The version's bound speaks only for a string of the cap and the pattern: one issue each, never two.
-    const issues = (v: unknown) => { const r = zRenderId('a render').safeParse(v); return r.success ? [] : r.error.issues.map((i) => i.code); };
+    const issues = (v: unknown) => {
+      const r = zRenderId('a render').safeParse(v);
+      return r.success ? [] : r.error.issues.map((i) => i.code);
+    };
     expect([`${a(198)}-v1000000`, 'final', 'quote-v1000000', `${a(201)}/`, 7].map(issues)).toEqual([['too_big'], ['invalid_format'], ['custom'], ['too_big', 'invalid_format'], ['invalid_type']]);
     expect([a(100, 'A'), a(101), 'a.b'].map((v) => first(zThemeName('a theme'), v))).toEqual(['ok', big(100), 'invalid_format: a theme']);
     expect([a(60), a(61), 'My_Theme'].map((v) => first(zNewThemeName('a new theme'), v))).toEqual(['ok', big(60), 'invalid_format: a new theme']);
     // A site that asks for a non-empty name says the length first on an empty string; nothing else differs.
-    const all = (s: z.ZodType, v: unknown) => { const r = s.safeParse(v); return r.success ? [] : r.error.issues.map((i) => i.code); };
+    const all = (s: z.ZodType, v: unknown) => {
+      const r = s.safeParse(v);
+      return r.success ? [] : r.error.issues.map((i) => i.code);
+    };
     expect(['', 'a', a(101), 'a.b'].map((v) => all(zThemeName('a theme', { nonEmpty: true }), v))).toEqual([['too_small', 'invalid_format'], [], ['too_big'], ['invalid_format']]);
     expect(['', 'a', a(101), 'a.b'].map((v) => all(zThemeName('a theme'), v))).toEqual([['invalid_format'], [], ['too_big'], ['invalid_format']]);
     for (const s of [zRunId('x'), zRenderId('x'), zThemeName('x'), zNewThemeName('x')]) expect(s).toBeInstanceOf(z.ZodString);
@@ -547,12 +627,43 @@ describe('the zod helpers', () => {
 
   it('each refuses what its predicate refuses and takes what it takes', () => {
     const rnd = seededRandom('schemas');
-    const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)];
-    const strings: string[] = ['', 'final', 'quote-v1', 'quote-v999999', 'quote-v1000000', 'quote-v0999999', 'quote-v00000001000000', `${a(197)}-v1`, `${a(198)}-v1`, a(60), a(61), a(100), a(101), a(200), a(201), 'My_Theme', 'a.b', '../x', 'x\n'];
-    for (let i = 0; i < 4000; i++) strings.push(`${pick(['', 'quote', 'Quote_2', 'a.b', '-x', a(190), a(196), a(55), a(96)])}${pick(['', '-v', '-V', '.'])}${pick(['', '1', '007', '999999', '1000000', '0999999', '9007199254740993', 'x'])}${pick(['', '-vertical', '-square', '-tall', '\n'])}`);
-    const pairs: Array<[string, z.ZodType, (v: unknown) => boolean]> = [['run', zRunId('x'), isRunId], ['render', zRenderId('x'), isRenderId], ['theme', zThemeName('x'), isThemeName], ['new theme', zNewThemeName('x'), isNewThemeName]];
+    const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)];
+    const strings: string[] = [
+      '',
+      'final',
+      'quote-v1',
+      'quote-v999999',
+      'quote-v1000000',
+      'quote-v0999999',
+      'quote-v00000001000000',
+      `${a(197)}-v1`,
+      `${a(198)}-v1`,
+      a(60),
+      a(61),
+      a(100),
+      a(101),
+      a(200),
+      a(201),
+      'My_Theme',
+      'a.b',
+      '../x',
+      'x\n',
+    ];
+    for (let i = 0; i < 4000; i++)
+      strings.push(
+        `${pick(['', 'quote', 'Quote_2', 'a.b', '-x', a(190), a(196), a(55), a(96)])}${pick(['', '-v', '-V', '.'])}${pick(['', '1', '007', '999999', '1000000', '0999999', '9007199254740993', 'x'])}${pick(['', '-vertical', '-square', '-tall', '\n'])}`,
+      );
+    const pairs: Array<[string, z.ZodType, (v: unknown) => boolean]> = [
+      ['run', zRunId('x'), isRunId],
+      ['render', zRenderId('x'), isRenderId],
+      ['theme', zThemeName('x'), isThemeName],
+      ['new theme', zNewThemeName('x'), isNewThemeName],
+    ];
     for (const [name, schema, is] of pairs) {
-      expect(strings.filter((v) => schema.safeParse(v).success !== is(v)), name).toEqual([]);
+      expect(
+        strings.filter((v) => schema.safeParse(v).success !== is(v)),
+        name,
+      ).toEqual([]);
       expect(strings.filter((v) => is(v)).length, name).toBeGreaterThan(20);
       for (const v of [7, null, undefined, ['quote-v1'], {}]) expect([schema.safeParse(v).success, is(v)], name).toEqual([false, false]);
     }
