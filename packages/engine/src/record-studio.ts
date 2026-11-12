@@ -57,7 +57,8 @@ import type {
   WorkFileFacts,
 } from '@retake/core';
 import { stampOf } from './clock.js';
-import { callerOf, guardsStudioRecordings, submittedInStudio } from './caller.js';
+import { callerOf, drivesRecordScreen, guardsStudioRecordings, submittedInStudio } from './caller.js';
+import type { Caller } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { isAlive } from './jobs/proc.js';
 import type { JobQueueView } from './jobs/job-queue.js';
@@ -1022,6 +1023,16 @@ export interface RecordListItem {
   saved: { name: string; file: string } | null;
   /** The Record screen may arrange, save or discard it (a Studio recording, not saved, not being discarded). */
   studio: boolean;
+}
+
+/**
+ * The Record screen's operations (a recording's view, annotations, stop, discard, save and the recent list) are the
+ * Studio's and tests' (caller.ts drivesRecordScreen): any other caller's refusal, worded for its channel, else
+ * undefined. The operations' `callers` (operations/record.ts, L7.18) and the façade (record-api.ts) refuse with it.
+ */
+export function recordScreenRefused(caller: Caller, what: string): EngineError | undefined {
+  if (drivesRecordScreen(caller)) return undefined;
+  return new EngineError('refused', `${what} is the Studio's (its Record screen): ${caller.channel === 'cli' ? 'retake record records in a terminal' : 'scenario_record starts a recording and job_status reads its draft'}`);
 }
 
 /** Recordings listed, at most (the records folder keeps the newest 20, and unsaved Studio ones for 7 days). */

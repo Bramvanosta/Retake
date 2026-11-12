@@ -450,8 +450,10 @@ describe('the import-rules ratchet', () => {
       // run_pause, sign_in_cancel, scenario_render, render_cancel, review_export); L7.19: MCP −5 (hooks_run, env_reset,
       // sandbox_status, sandbox_up, sandbox_reset).
       // L7.16: MCP −3 (comments_list, comment_reply, comment_resolve), Studio −12 (comment-ops.ts: the twelve).
-      expect(total('packages/mcp/src/')).toBe(9 - 3);
-      expect(total('packages/ui/src/')).toBe(38 - 12);
+      // L7.18: −6 / −8 (MCP's scenario_save, scenario_from_script, scenario_record, project_create, project_prune,
+      // job_status; the Studio's scenario_edit and its seven record_* ops).
+      expect(total('packages/mcp/src/')).toBe(9 - 3 - 6);
+      expect(total('packages/ui/src/')).toBe(38 - 12 - 8);
       expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
     });
   });

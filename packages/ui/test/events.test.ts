@@ -290,7 +290,15 @@ describe('the index ops', () => {
     const items = a.json<{ data: { items: Array<{ source: string; state: string; kind: string }> } }>().data.items;
     expect(items[0]).toMatchObject({ source: 'queue', state: 'queued', kind: 'run' });
     expect(items.at(-1)).toMatchObject({ source: 'history', kind: 'run', state: 'succeeded' });
-    expect((await call(studio, 'activity_list', { project: 'other' })).json<{ data: { items: unknown[] } }>().data.items).toEqual([]);
+    // Its summary counts entries, in English (L7.18 fix pass: it said "entrys").
+    const open = items.filter((i) => i.source === 'queue').length;
+    expect(a.json<{ summary: string }>().summary).toBe(`${items.length} ${items.length === 1 ? 'entry' : 'entries'} (${open} unfinished)`);
+    expect(a.json<{ summary: string }>().summary).not.toMatch(/entrys/);
+    const none = await call(studio, 'activity_list', { project: 'other' });
+    expect(none.json<{ data: { items: unknown[] } }>().data.items).toEqual([]);
+    expect(none.json<{ summary: string }>().summary).toBe('0 entries (0 unfinished)');
+    const one = await call(studio, 'activity_list', { limit: 1 });
+    expect(one.json<{ summary: string }>().summary).toMatch(/^1 entry \(/);
   });
 
   it('a Node.js without node:sqlite: activity and search answer unavailable (503); the event stream still says what changed', async () => {

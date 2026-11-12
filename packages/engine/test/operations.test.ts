@@ -11,8 +11,11 @@
  * (MCP's elicitation) exactly when there is one.
  * L7.16: the comments of both shells join them; the comments façade's caller rules are their `callers` (the façade's
  * words), the Studio's thread writes run on their thread's key, thread_apply chains in its handler.
+ * L7.18: the authoring, recording and project writes join them, and job_status; scenario_edit and record_save run on
+ * their scenario's key (record_start declares none: the façade's chain orders starts), and the Record screen's ops
+ * refuse every caller but the Studio and tests (drivesRecordScreen as their callers).
  */
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -21,7 +24,7 @@ import { HOOK_JOB, OPERATIONS, OPERATIONS_BY_NAME, READ, SANDBOX_JOB, callTool, 
 import type { ToolDef } from '@retake/engine/contract';
 import { TOOLS } from '@retake/mcp';
 import { stubTools } from '../../ui/test/studio-tools.js';
-import { EngineError, callerOf, createEngine, toEngineError } from '../src/index.js';
+import { EngineError, ManualClock, callerOf, createEngine, toEngineError } from '../src/index.js';
 import type { Approver, Engine } from '../src/index.js';
 
 const signal = new AbortController().signal;
@@ -40,14 +43,17 @@ const HOOKS_MCP = ['hooks_run', 'env_reset', 'sandbox_status', 'sandbox_up', 'sa
 /** L7.16: the comments (MCP's three, the Studio's twelve). */
 const COMMENTS_MCP = ['comments_list', 'comment_reply', 'comment_resolve'];
 const COMMENTS_STUDIO = ['threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply'];
+/** L7.18: the authoring, recording and project writes (MCP's five and job_status; the Studio's scenario_edit and its seven record_* ops). */
+const AUTHORING_MCP = ['project_create', 'project_prune', 'scenario_save', 'scenario_record', 'scenario_from_script', 'job_status'];
+const AUTHORING_STUDIO = ['scenario_edit', 'record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save'];
 
 describe("the engine's operations: one definition, served by the shells as it is", () => {
   it('names operations of the catalogue, each served by MCP or the Studio, in catalogue order: the eleven both serve', () => {
     const names = OPERATIONS.map((o) => o.name);
     expect(names.filter((n) => ELEVEN.includes(n))).toEqual(ELEVEN);
-    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP, ...COMMENTS_MCP, ...COMMENTS_STUDIO].sort());
-    for (const n of [...THEMES_MCP, ...JOBS_MCP, ...COMMENTS_MCP]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
-    for (const n of [...THEMES_STUDIO, ...JOBS_STUDIO, ...COMMENTS_STUDIO]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
+    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP, ...COMMENTS_MCP, ...COMMENTS_STUDIO, ...AUTHORING_MCP, ...AUTHORING_STUDIO].sort());
+    for (const n of [...THEMES_MCP, ...JOBS_MCP, ...COMMENTS_MCP, ...AUTHORING_MCP]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
+    for (const n of [...THEMES_STUDIO, ...JOBS_STUDIO, ...COMMENTS_STUDIO, ...AUTHORING_STUDIO]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
     for (const n of names) {
       const op = catalogueOperation(n);
       expect(op, n).toBeDefined();
@@ -63,7 +69,7 @@ describe("the engine's operations: one definition, served by the shells as it is
   it('names the read-only queries too (L7.14): MCP\'s four, then the Studio\'s ten, each a read served by one shell only', () => {
     const names = OPERATIONS.map((o) => o.name);
     // In catalogue order among the others (L7.17's theme family, L7.15's jobs and L7.19's hooks left out: the test above holds them).
-    const later = [...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP, ...COMMENTS_MCP, ...COMMENTS_STUDIO];
+    const later = [...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP, ...COMMENTS_MCP, ...COMMENTS_STUDIO, ...AUTHORING_MCP, ...AUTHORING_STUDIO];
     expect(names.filter((n) => !ELEVEN.includes(n) && !later.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
     for (const n of [...QUERIES_MCP, ...QUERIES_STUDIO]) {
       const op = catalogueOperation(n)!;
@@ -72,8 +78,9 @@ describe("the engine's operations: one definition, served by the shells as it is
       expect(servedBy(op, 'studio'), n).toBe(QUERIES_STUDIO.includes(n));
       expect(OPERATIONS_BY_NAME[n as keyof typeof OPERATIONS_BY_NAME].annotations.readOnlyHint, n).toBe(true);
     }
-    // job_status is still the MCP server's (its recording answer is scenario_record's, still defined there).
-    expect(names).not.toContain('job_status');
+    // job_status joined them with scenario_record's recording answer (L7.18): a read of MCP's, among the authoring family.
+    expect(names).toContain('job_status');
+    expect(catalogueOperation('job_status')!.effect).toBe('read');
     // The Studio's table holds its ten as these very objects (no pin), and MCP's TOOLS none of them.
     const table = stubTools();
     for (const n of QUERIES_STUDIO) expect(table.get(n), n).toBe(OPERATIONS_BY_NAME[n as keyof typeof OPERATIONS_BY_NAME]);
@@ -251,7 +258,7 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
   it("MCP's operations declare none; the Studio's theme writes and library renders do, on their keys", () => {
     for (const o of OPERATIONS) if (servedBy(catalogueOperation(o.name)!, 'mcp')) expect(o.serialize, o.name).toBeUndefined();
     const keyed = OPERATIONS.filter((o) => o.serialize).map((o) => o.name);
-    expect(keyed.sort()).toEqual(['library_render', 'scenario_render', 'theme_copy', 'theme_create', 'theme_edit', 'thread_reopen', 'thread_reply', 'thread_resolve']);
+    expect(keyed.sort()).toEqual(['library_render', 'record_save', 'scenario_edit', 'scenario_render', 'theme_copy', 'theme_create', 'theme_edit', 'thread_reopen', 'thread_reply', 'thread_resolve']);
     const { theme_edit, theme_copy, theme_create, library_render, scenario_render } = OPERATIONS_BY_NAME;
     expect(theme_edit.serialize!({ theme: 'Mine', if_match: 'a'.repeat(64), edit: { kind: 'restore', text: '', text_hash: 'a'.repeat(64) } })).toBe('theme:mine');
     expect(theme_copy.serialize!({ from: 'editorial', name: 'mine' })).toBe('theme:mine');
@@ -260,6 +267,12 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
     // L7.15: the Studio's scenario chain key (scenario_edit, thread_apply and record_save use it on the same chain).
     expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe('p\0quote');
     expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe(scenarioKey('p', 'quote'));
+    // L7.18: the Studio's other scenario writes on the same key. record_start declares none: the façade orders the
+    // Studio's starts itself (chainsRecordings), so a second tab gets its 409 at once.
+    const { scenario_edit, record_save, record_start } = OPERATIONS_BY_NAME;
+    expect(scenario_edit.serialize!({ project: 'p', name: 'quote', hash: 'a'.repeat(64), edit: { kind: 'replace_text', text: '' } })).toBe(scenarioKey('p', 'quote'));
+    expect(record_save.serialize!({ project: 'p', rec_id: `rec_${'0'.repeat(26)}`, name: 'quote', rev: 0, draft: 'a'.repeat(64) })).toBe(scenarioKey('p', 'quote'));
+    expect(record_start.serialize).toBeUndefined();
   });
 
   it('runs the calls of one key in order, one at a time; another key or another engine does not wait', async () => {
@@ -524,6 +537,102 @@ describe('Engine.caller', () => {
       expect(e.caller, client).toBe(before);
       expect(e.caller, client).toEqual(callerOf(client));
       expect(Object.isFrozen(e.caller), client).toBe(true);
+    }
+  });
+});
+
+describe("the authoring, recording and project writes (L7.18: the Record screen's caller rule, the approver, the keys)", () => {
+  /** What each Record screen operation refuses, in the façade's words (facade/record-api.ts studioOnly). */
+  const SCREEN: Record<string, string> = {
+    record_options: 'the recent recordings list',
+    record_view: 'record_view',
+    record_annotate: 'record_annotate',
+    record_stop: 'record_stop',
+    record_discard: 'record_discard',
+    record_save: 'record_save',
+  };
+  const rec = `rec_${'0'.repeat(26)}`;
+  const ARGS: Record<string, Record<string, unknown>> = {
+    record_options: { project: 'p' },
+    record_view: { project: 'p', rec_id: rec },
+    record_annotate: { project: 'p', rec_id: rec, rev: 0, change: { op: 'insert', at: 'end', insert: { kind: 'mark' } } },
+    record_stop: { project: 'p', rec_id: rec },
+    record_discard: { project: 'p', rec_id: rec },
+    record_save: { project: 'p', rec_id: rec, name: 'x', rev: 0, draft: 'a'.repeat(64) },
+  };
+  const byName = OPERATIONS_BY_NAME as unknown as Record<string, ToolDef>;
+
+  it("the Record screen's ops refuse every caller but the Studio and tests, in each channel's words; record_start and scenario_edit have no caller rule", () => {
+    for (const [name, what] of Object.entries(SCREEN)) {
+      const op = byName[name]!;
+      expect(op.callers!(callerOf('mcp'), ARGS[name] as never), name).toEqual(new EngineError('refused', `${what} is the Studio's (its Record screen): scenario_record starts a recording and job_status reads its draft`));
+      expect(op.callers!(callerOf('cli'), ARGS[name] as never), name).toEqual(new EngineError('refused', `${what} is the Studio's (its Record screen): retake record records in a terminal`));
+      for (const client of ['ui', 'test'] as const) expect(op.callers!(callerOf(client), ARGS[name] as never), `${name} ${client}`).toBeUndefined();
+    }
+    // With theme_edit's (L7.17) and the comment ops' (L7.16, the comments façade's rules).
+    expect(OPERATIONS.filter((o) => o.callers).map((o) => o.name).sort()).toEqual([...Object.keys(SCREEN), 'theme_edit', 'comment_reply', 'comment_resolve', 'thread_add', 'thread_apply', 'thread_reopen', 'thread_resolve'].sort());
+    for (const n of [...AUTHORING_MCP, 'record_start', 'scenario_edit']) expect(byName[n]!.callers, n).toBeUndefined();
+  });
+
+  it('through invoke: the parse first, then the caller rule, before the engine is asked anything (an engine with nothing but its caller)', async () => {
+    for (const client of ['mcp', 'cli'] as const) {
+      const engine = { caller: callerOf(client) } as unknown as Engine;
+      for (const [name, what] of Object.entries(SCREEN)) {
+        const bad = await invoke(byName[name]!, engine, { ...ARGS[name], project: '../x' }, { shell: 'studio', signal });
+        expect(!bad.ok && bad.error.code, `${name} ${client}`).toBe('invalid');
+        const refused = await invoke(byName[name]!, engine, ARGS[name], { shell: 'studio', signal });
+        expect(!refused.ok && [refused.error.code, refused.error.message.startsWith(`${what} is the Studio's (its Record screen): `)], `${name} ${client}`).toEqual(['refused', true]);
+      }
+    }
+    // A Studio engine passes the rule and reaches the engine's record façade (here a probe).
+    const seen: string[] = [];
+    const ui = { caller: callerOf('ui'), workspace: { root: '/w' }, record: { view: async (p: string, id: string) => (seen.push(`view ${p} ${id}`), { rec_id: id, state: 'missing', counts: { actions: 0 }, untrusted: null }) } } as unknown as Engine;
+    const ok = await invoke(byName.record_view!, ui, ARGS.record_view, { shell: 'studio', signal });
+    expect(ok.ok).toBe(true);
+    expect(seen).toEqual([`view p ${rec}`]);
+  });
+
+  it('project_prune hands the engine the approver exactly when the shell gives one (the very object); scenario_save its if_match', async () => {
+    const calls: unknown[][] = [];
+    const engine = {
+      caller: callerOf('mcp'),
+      projects: { prune: async (...a: unknown[]) => (calls.push(a), { project: 'p', dry_run: true, items: [], bytes: 0, kept: { runs: 0, renders: 0, reviews: 0 }, problems: [] }) },
+      scenarios: { save: async (...a: unknown[]) => (calls.push(a), { created: true, path: 'scenarios/x.yaml', hash: 'a'.repeat(64), warnings: [] }) },
+    } as unknown as Engine;
+    const approver = { approve: async () => ({ approved: false }) } as unknown as Approver;
+    await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', dry_run: false }, { shell: 'mcp', signal, approver });
+    await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', keep_renders: 2 }, { shell: 'mcp', signal });
+    expect(calls[0]).toEqual(['p', { dry_run: false }, { approver }]);
+    expect((calls[0]![2] as { approver: Approver }).approver).toBe(approver);
+    expect(calls[1]).toStrictEqual(['p', { keep_renders: 2, dry_run: true }, {}]);
+    await invoke(OPERATIONS_BY_NAME.scenario_save, engine, { project: 'p', name: 'x', yaml: 'video: x\n', if_match: 'b'.repeat(64) }, { shell: 'mcp', signal });
+    expect(calls[2]).toEqual(['p', 'x', 'video: x\n', { ifMatch: 'b'.repeat(64) }]);
+    // The Studio serves none of MCP's: refused before the engine is asked.
+    const studio = await invoke(OPERATIONS_BY_NAME.project_prune, engine, { project: 'p', dry_run: false }, { shell: 'studio', signal, approver });
+    expect(!studio.ok && studio.error.code).toBe('not_found');
+    expect(calls).toHaveLength(3);
+  });
+
+  it("record_options suggests the draft name as of the engine's clock (a ManualClock engine): it follows the clock, the engine's clock read-only", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'retake-ops-clock-'));
+    try {
+      writeFileSync(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
+      const dir = join(root, 'projects', 'p');
+      mkdirSync(join(dir, 'scenarios'), { recursive: true });
+      writeFileSync(join(dir, 'project.yaml'), 'version: 1\nname: P\nenvironments:\n  local: {app: "http://app.test"}\n');
+      const clock = new ManualClock(new Date(2031, 4, 6, 7, 8).getTime());
+      const engine = await createEngine({ root, client: 'ui', autoStartWorker: false, ports: { clock } });
+      expect(engine.clock).toBe(clock);
+      expect(Object.getOwnPropertyDescriptor(engine, 'clock')).toMatchObject({ writable: false, configurable: false });
+      const name = async () => {
+        const r = await invoke(OPERATIONS_BY_NAME.record_options, engine, { project: 'p' }, { shell: 'studio', signal });
+        return r.ok ? r.output.data.default_name : r.error.message;
+      };
+      expect(await name()).toBe('recorded-20310506-0708');
+      clock.set(new Date(2032, 11, 24, 23, 59).getTime());
+      expect(await name()).toBe('recorded-20321224-2359');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });

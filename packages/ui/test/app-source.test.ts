@@ -2059,10 +2059,14 @@ describe('L5.11a: Shoot', () => {
     const files = await appSources();
     expect(files.flatMap(([f, text]) => dryRunWords(f, text))).toEqual([]);
     // The server's Studio-authored lines the page shows (op descriptions excepted: MCP-style metadata, never on screen).
-    const server = await readFile(join(REPO, 'packages/ui/src/server/record-ops.ts'), 'utf8');
-    expect(dryRunWords('record-ops.ts', server)).toEqual([]);
-    const ops = (await readFile(join(REPO, 'packages/ui/src/server/ops.ts'), 'utf8')).replace(/description: (["'`])(?:\\.|(?!\1).)*\1/g, '').replace(/\.describe\((["'`])(?:\\.|(?!\1).)*\1\)/g, '');
+    // L7.18: the Record screen's ops and scenario_edit are the engine's operations (operations/record.ts, scenario-edit.ts).
+    const server = await readFile(join(REPO, 'packages/engine/src/operations/record.ts'), 'utf8');
+    expect(dryRunWords('record.ts', server)).toEqual([]);
+    const described = (text: string) => text.replace(/description: (["'`])(?:\\.|(?!\1).)*\1/g, '').replace(/\.describe\((["'`])(?:\\.|(?!\1).)*\1\)/g, '');
+    const ops = described(await readFile(join(REPO, 'packages/ui/src/server/ops.ts'), 'utf8'));
     expect(dryRunWords('ops.ts', ops)).toEqual([]);
+    const edit = described(await readFile(join(REPO, 'packages/engine/src/operations/scenario-edit.ts'), 'utf8'));
+    expect(dryRunWords('scenario-edit.ts', edit)).toEqual([]);
     // The mutations: a label, a template, JSX text.
     expect(dryRunWords('X.tsx', "const a = <Button>Start dry run</Button>;")).toEqual(['X.tsx:1 Start dry run']);
     expect(dryRunWords('X.tsx', 'const a = `the ${m} dry-run`;')).toHaveLength(1);

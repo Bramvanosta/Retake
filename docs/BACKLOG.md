@@ -2722,3 +2722,10 @@ still imports the runner package itself (`packages/cli/src/commands/auth.ts`: `c
 `writeStatus`, `PreflightError`) — the CLI's one R4 entry of a session. Moving it means an engine operation for a
 live check of saved sessions that also writes each persona's status file, and a member of the CaptureRunner port's
 sessions for that write: sessions are security-sensitive, so it is a change of its own, with its tests. *From:* L7.12.
+
+### BL-173 — A queued Studio recording's annotate and save say "not started from the Studio"
+`record_annotate` and `record_save` on a recording the Studio started that is still queued (no folder, no meta.json
+yet) answer 403 "this recording was not started from the Studio: it is read-only here": the refusal reads who started
+it from the folder's meta.json, which does not exist yet, so the starter is unknown (`record-studio.ts` `studioWords(null)`).
+The refusal itself is right (there is no draft to arrange or save); its words should say the recording has not opened
+yet, from the job's `submitted_by`. Seen in the L7.18 characterization (fixtures/authoring-ops.json). *From:* L7.18.

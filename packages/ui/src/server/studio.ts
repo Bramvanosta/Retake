@@ -45,7 +45,7 @@ import {
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
 import { catalogueOperation, servedBy, servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
 import type { OperationName, StudioOpName, StudioPinsOf } from '@retake/engine/catalogue';
-import { OPERATIONS, capUntrusted, invoke, operationChain, pinArguments } from '@retake/engine/contract';
+import { OPERATIONS, capUntrusted, invoke, pinArguments } from '@retake/engine/contract';
 import type { OperationsByName, PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
 import type { z } from 'zod';
 import { buildUi } from '../bundle.js';
@@ -55,12 +55,10 @@ import { Live } from './live.js';
 import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
-import { editOps, indexOps, timelineOps } from './ops.js';
+import { indexOps, timelineOps } from './ops.js';
 import { PreviewLeases } from './preview-leases.js';
 import { themeOps } from './theme-ops.js';
-import { recordOps } from './record-ops.js';
 import { pathFree } from './comment-ops.js';
-import type { OpChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { UnsavedBoard, unsavedOps } from './unsaved.js';
@@ -221,7 +219,6 @@ export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
 /** What the Studio's own ops close over: the server's live state, built once per server. */
 export interface StudioToolDeps {
   live: Live;
-  chain: OpChain;
   player: () => PlayerServer;
   forbid: () => readonly string[];
   allow: PreviewAllowList;
@@ -242,13 +239,11 @@ export function studioTools(d: StudioToolDeps): Map<string, ToolDef> {
 
 /** The Studio's own ops (ops.ts and the other *-ops.ts modules), each with its types (OwnOps). */
 function ownOps(d: StudioToolDeps) {
-  const { chain, leases } = d;
+  const { leases } = d;
   return [
     ...indexOps(d.live),
-    ...editOps(chain),
     ...timelineOps({ player: d.player, forbid: d.forbid, allow: d.allow, registry: d.registry, leases }),
     ...themeOps({ player: d.player, forbid: d.forbid, allow: d.allow, leases }),
-    ...recordOps({ chain }),
     ...unsavedOps(d.unsaved),
     ...desktopOps(d.desktop),
     ...setupOps({ pipe: d.desktop, state: d.setupState, ctx: d.setupContext, workspace: d.workspace }),
@@ -301,11 +296,6 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!player) throw new Error('the preview server is not started');
     return player;
   };
-  // One chain for the writes of a scenario: scenario_edit, scenario_render, thread_apply and record_save — the engine's
-  // operation chain (L7.15), on which invoke runs scenario_render (the engine's operation: its `serialize` is the same
-  // scenarioKey) and thread_apply (L7.16: the engine's operation, on its thread's scenario key); this server holds one
-  // engine, so it is this server's chain.
-  const chain = operationChain(engine);
   // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));
   const forbid = () => [engine.workspace.root, homedir()];
@@ -314,7 +304,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const setupState = new SetupState();
   const updateState = new UpdateState();
   const setupContext = o.setup ?? (() => systemSetupContext());
-  const tools = studioTools({ live, chain, player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases, unsaved, desktop, setupState, updateState, setupContext, workspace: engine.workspace.root });
+  const tools = studioTools({ live, player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases, unsaved, desktop, setupState, updateState, setupContext, workspace: engine.workspace.root });
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();

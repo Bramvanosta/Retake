@@ -2,8 +2,8 @@
 import { EngineError } from '../errors.js';
 import { readInspection, submitInspectJob } from '../jobs/inspect-job.js';
 import { readRecording, submitRecordJob } from '../jobs/record-job.js';
-import { recordAnnotate, recordDiscard, recordList, recordSave, recordStop, recordView } from '../record-studio.js';
-import { chainsRecordings, drivesRecordScreen } from '../caller.js';
+import { recordAnnotate, recordDiscard, recordList, recordSave, recordScreenRefused, recordStop, recordView } from '../record-studio.js';
+import { chainsRecordings } from '../caller.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
@@ -26,13 +26,16 @@ export function recordApi(ctx: EngineContext): Engine['record'] {
   // L4.8: the Record screen's operations are the Studio's (and tests'): an agent starts a recording, never arranges one.
   const recordCtx = { queue, client: opts.client, scope, files: ctx.files };
   let recordChain: Promise<unknown> = Promise.resolve();
+  // The operations hold the same rule as their `callers` (L7.18, operations/record.ts); this copy stays for the
+  // façade's direct callers (the engine's tests; the CLI calls none of these).
   const studioOnly = (what: string) => {
-    if (!drivesRecordScreen(caller)) throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${caller.channel === 'cli' ? 'retake record records in a terminal' : 'scenario_record starts a recording and job_status reads its draft'}`);
+    const refused = recordScreenRefused(caller, what);
+    if (refused) throw refused;
   };
   return {
     submit: async (req) => {
       // The Studio opens one window at a time in the workspace: checked and queued in one chain, so two tabs cannot
-      // both pass the check.
+      // both pass the check (record_start, the engine's operation since L7.18, relies on this chain: it declares no key).
       const once = async () => {
         const busy = (await queue.list({ kinds: ['record'], states: ['queued', 'running'], limit: 1 }))[0];
         if (busy && busy.input.kind === 'record') {

@@ -1400,7 +1400,7 @@ call: the inspection hands Claude page facts and verified targets; Claude writes
   marked)`; a page with `--until` is a usage error that says so; a page's argument errors (an unknown persona, a bad
   path) are told by argument, never by a position in the scenario the command builds.
 
-### 3.10 Script → skeleton (L3.3 part 3; core `script-draft.ts`, engine `authoring.ts`, MCP `tools/authoring.ts`)
+### 3.10 Script → skeleton (L3.3 part 3; core `script-draft.ts`, engine `authoring.ts`, MCP `tools/authoring.ts` — since L7.18 the engine's `operations/authoring.ts`)
 
 An optional aid, never the start of the authoring loop: a timecoded Markdown table the user hands becomes an outline
 and a draft that validates. Pure and deterministic (no model, no network, nothing written).
@@ -1733,7 +1733,8 @@ panel — the same session, nothing forwarded to it.
   `list(project, {limit?})` (part 4) — the recent list: recordings whose job is queued or running before their folder
   exists, then the real folders of `.retake/records/`, newest first (≤ 50), each `{rec_id, state, job, started_by,
   started_at, name, env, persona, page, path, steps, actions, saved, studio}` without reading its events.
-- **The Studio server's Record ops (L4.8 part 4; ui `server/record-ops.ts`, `server/record-watch.ts`)**: seven own ops
+- **The Studio server's Record ops (L4.8 part 4; ui `server/record-ops.ts` — since L7.18 the engine's `operations/record.ts`, their Record
+  screen caller rule as `callers` and record_start / record_save on the engine's operation chain —, `server/record-watch.ts`)**: seven ops
   in `UI_OPS` (not MCP tools; `scenario_record` and `job_cancel` stay out). `record_options {project}` — environments
   (the access a Studio recording gets: never `--allow-writes`), page keys, personas with their stored session state
   (auth.status, no browser), `login_steps`, the path-free sign-in command, defaults per environment, warnings and notes
@@ -3101,7 +3102,7 @@ helper. TakeLock's liveness check answers for its own process without `ps`.
 (`lstat` of the target, through an inside link the target's) — never through writeFile's `mode` (masked by the umask:
 0664 became 0644). A new file takes the umask's default.
 
-**The op** — `scenario_edit {project, name, hash, edit}` (ui `editOps`, strict zod: `edit` is
+**The op** — `scenario_edit {project, name, hash, edit}` (ui `editOps`; since L7.18 the engine's `operations/scenario-edit.ts`, on the scenario's key of the engine's operation chain; strict zod: `edit` is
 `{kind: 'replace_text', text}` | `{kind: 'restore', text, text_hash}` | `{kind: 'move_step', from: StepAt, to: {scene,
 index}}` | `{kind: 'delete_step', at: StepAt}` | `{kind: 'duplicate_step', at: StepAt}` with `StepAt = {scene (a slug),
 index (0..100,000), guard (16 hex)}` | `{kind: 'set_step', at: StepAt, changes: [{path, from?, to?}] (1–40)}` |

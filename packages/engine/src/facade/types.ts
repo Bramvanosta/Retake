@@ -44,6 +44,7 @@ import type { RenderFrameRequest, RenderFrameView, RenderOutlineRequest, RenderO
 import type { Entitlements } from '../entitlements.js';
 import type { UsageCounts } from '../history.js';
 import type { Caller, EngineClient } from '../caller.js';
+import type { Clock } from '../clock.js';
 import type { Approver } from '../approvals.js';
 import type { RunBlocker, RunSubmitRequest } from '../jobs/run-job.js';
 import type { WorkerSpawnFn } from '../jobs/spawn.js';
@@ -193,6 +194,12 @@ export interface Engine {
    * agent policy is opened from it). Read-only: invoke hands it to an operation's caller rules (L7.13).
    */
   readonly caller: Caller;
+  /**
+   * The engine's clock (clock.ts, the Clock port its composition root chose: the system's, or a test's ManualClock):
+   * what an operation reads when it needs the time as the engine sees it (L7.18: record_options' suggested draft
+   * name). Read-only, like `caller`.
+   */
+  readonly clock: Clock;
   readonly workspace: OpenedWorkspace;
   /** `retake -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
   readonly cli: string;

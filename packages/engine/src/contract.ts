@@ -85,6 +85,10 @@ export { HOOK_JOB, SANDBOX_JOB } from './operations/annotations.js';
 export { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN, PROPOSAL_ROWS_UNTRUSTED_MAX } from './operations/comments.js';
 export { THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, proposalOffer, threadAnswer, threadItem, threadKey } from './operations/comment-screen.js';
 export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from './operations/comment-screen.js';
+// L7.18: the authoring, recording and project-write operations' pieces the shells still name (the Record screen's
+// answers and helpers the app and the Studio's tests read).
+export { recordPathFree, recordViewAnswer } from './operations/record.js';
+export type { RecordEnvironmentOption, RecordOptionsAnswer, RecordPersonaOption, RecordStartAnswer, RecordViewAnswer } from './operations/record.js';
 
 /** Longest untrusted string a result carries. */
 export const UNTRUSTED_MAX = 2000;
