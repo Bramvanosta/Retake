@@ -1,5 +1,5 @@
 /**
- * The ffprobe summary of a media file (core ffprobe-summary.ts), shared by the render's record (editor probeMedia) and
+ * The ffprobe summary of a media file (core ffprobe.ts, the reader of every ffprobe answer since L7.31), shared by the render's record (editor probeMedia) and
  * the review (probeVideo): the first video stream's size, frame rate to 3 decimals and frame count, the audio streams,
  * the codecs and the length; nothing for an answer that is not JSON of that shape.
  */

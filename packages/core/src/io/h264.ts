@@ -4,8 +4,8 @@
  * system's one when the app carries none. The sites that encode H.264 (the capture, the frames encode, the raw export's
  * MP4 clips, the 1080p export) ask here once per ffmpeg path.
  */
-import { execFile } from 'node:child_process';
 import type { ErrorKind } from '../error-kind.js';
+import { runMediaTool } from './media-run.js';
 
 export type H264Encoder = 'libx264' | 'h264_videotoolbox';
 
@@ -52,11 +52,7 @@ const encoderLists = new Map<string, Promise<Set<string> | null>>();
 export function ffmpegEncoders(ffmpeg: string): Promise<Set<string> | null> {
   let p = encoderLists.get(ffmpeg);
   if (!p) {
-    p = new Promise((resolve) => {
-      execFile(ffmpeg, ['-hide_banner', '-encoders'], { maxBuffer: 4 * 1024 * 1024, timeout: 15_000 }, (err, stdout) => {
-        resolve(err ? null : parseEncoders(String(stdout)));
-      });
-    });
+    p = runMediaTool(ffmpeg, ['-hide_banner', '-encoders'], { maxBuffer: 4 * 1024 * 1024, timeoutMs: 15_000 }).then((r) => (r.error ? null : parseEncoders(r.stdout)));
     encoderLists.set(ffmpeg, p);
   }
   return p;

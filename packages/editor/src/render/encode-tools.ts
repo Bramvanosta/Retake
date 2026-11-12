@@ -17,10 +17,10 @@
  * quote, a control character or a newline is refused. What this file says of a refusal (`reason`, an error's message)
  * is one of its own sentences; what a program or the system said is kept apart (`detail`) for the warnings.
  */
-import { execFile } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
+import { runMediaTool } from '@retake/core/io';
 
 /** The oldest ffmpeg that may encode a render's frames (the one `retake doctor` asks for the other tools). */
 export const MIN_ENCODE_FFMPEG = [5, 1] as const;
@@ -122,12 +122,7 @@ export function fileId(path: string): string {
 }
 
 function run(bin: string, args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  return new Promise((done) => {
-    execFile(bin, args, { timeout: 10_000, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (err, stdout, stderr) => {
-      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? ((err as { code: number }).code) : null) : 0;
-      done({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
-    });
-  });
+  return runMediaTool(bin, args, { timeoutMs: 10_000, maxBuffer: 4 * 1024 * 1024 });
 }
 
 /** Read only when it started and answered: a binary that did not (a timeout on a busy machine) is asked again next time. */
@@ -253,21 +248,10 @@ export function probeFramesArgs(s: { width: number; height: number; fps: number 
  * `error` is ffmpeg's own first line (untrusted words: for the warnings).
  */
 export async function probeFrameEncode(path: string, s: { width: number; height: number; fps: number }, codec: readonly string[]): Promise<{ ok: boolean; error?: string }> {
-  const frames = await new Promise<{ code: number | null; out: Buffer; stderr: string }>((done) => {
-    execFile(path, probeFramesArgs(s), { timeout: 15_000, maxBuffer: 64 * 1024 * 1024, encoding: 'buffer' }, (err, stdout, stderr) => {
-      done({ code: err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : null) : 0, out: stdout, stderr: String(stderr ?? '') });
-    });
-  });
-  if (frames.code !== 0 || frames.out.length === 0) return { ok: false, error: firstError(frames.stderr, frames.code) };
-  return new Promise((done) => {
-    const child = execFile(path, frameEncodeProbeArgs(s, codec), { timeout: 15_000, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (err, _stdout, stderr) => {
-      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : null) : 0;
-      done(code === 0 ? { ok: true } : { ok: false, error: firstError(String(stderr ?? ''), code) });
-    });
-    // A program that quits before reading closes the pipe: its exit says why, not this write.
-    child.stdin?.on('error', () => undefined);
-    child.stdin?.end(frames.out);
-  });
+  const frames = await runMediaTool(path, probeFramesArgs(s), { encoding: 'buffer', timeoutMs: 15_000, maxBuffer: 64 * 1024 * 1024 });
+  if (frames.code !== 0 || frames.stdout.length === 0) return { ok: false, error: firstError(frames.stderr, frames.code) };
+  const r = await runMediaTool(path, frameEncodeProbeArgs(s, codec), { input: frames.stdout, timeoutMs: 15_000, maxBuffer: 4 * 1024 * 1024 });
+  return r.code === 0 ? { ok: true } : { ok: false, error: firstError(r.stderr, r.code) };
 }
 
 // ── The folder ────────────────────────────────────────────────────────────────

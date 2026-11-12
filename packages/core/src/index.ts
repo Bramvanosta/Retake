@@ -21,7 +21,7 @@ export * from './video.js';
 export * from './tutorial.js';
 export * from './pages.js';
 export * from './media.js';
-export * from './ffprobe-summary.js';
+export * from './ffprobe.js';
 export * from './gpu.js';
 export * from './render-settings.js';
 export * from './destructive.js';

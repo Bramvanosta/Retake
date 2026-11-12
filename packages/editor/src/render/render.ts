@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, ffmpegBin, templateFolderId } from '@retake/core/io';
+import { findWorkspaceRoot, loadProject, ffmpegBin, runMediaTool, templateFolderId } from '@retake/core/io';
 import type { GpuInfo, LoadedProject, LoadedTemplate, RenderSettings, Timeline, WorkPolicy } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
@@ -45,7 +45,7 @@ import { themeContentHash } from './theme-hash.js';
 import { VIDEO_COMPOSITIONS, videoProps } from '../remotion/contract.js';
 import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
-import { probeMedia, run } from './probe.js';
+import { probeMedia } from './probe.js';
 import type { RenderAttempt, RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
 import { errorKindOf, finishedRender, formatRenderId, renderAttempt } from '@retake/core';
@@ -606,7 +606,7 @@ async function ensureAudioTrack(file: string, work: WorkPolicy): Promise<void> {
   const p = await probeMedia(file, work);
   if (!p || p.audio_streams > 0) return;
   const tmp = `${file}.audio-${randomBytes(3).toString('hex')}.mp4`;
-  const r = await run(ffmpegBin(work), ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp]);
+  const r = await runMediaTool(ffmpegBin(work), ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp], { maxBuffer: 16 * 1024 * 1024 });
   if (r.code !== 0) {
     await rm(tmp, { force: true });
     throw new RenderError(`the render has no audio track and ffmpeg could not add a silent one: ${r.stderr.split('\n')[0]}`);

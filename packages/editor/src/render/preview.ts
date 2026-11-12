@@ -18,13 +18,12 @@
  * registry and the scaffolds — one bundle per registry state, shared by every library job — instead of the components
  * shown. The Remotion part is a `PreviewBackend` (tests inject their own).
  */
-import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate } from '@retake/core/io';
+import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate, runMediaTool } from '@retake/core/io';
 import { pathInside } from '@retake/core';
 import type { GpuInfo, LoadedTemplate, RenderSettings, WorkPolicy, WorkFileFacts } from '@retake/core';
 import {
@@ -259,25 +258,16 @@ export interface RenderLoopsResult {
   warnings: string[];
 }
 
-function run(cmd: string, args: string[]): Promise<{ code: number; stderr: string }> {
-  return new Promise((ok) => {
-    execFile(cmd, args, { maxBuffer: 8 * 1024 * 1024 }, (err, _stdout, stderr) => {
-      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 127) : 0;
-      ok({ code, stderr: String(stderr) });
-    });
-  });
-}
-
 /**
  * A 256-colour PNG of `src` (ffmpeg palettegen + paletteuse, light ordered dithering: no banding on the theme
  * gradients). Returns false when ffmpeg is not available.
  */
 async function quantizePng(src: string, out: string, work: WorkPolicy): Promise<boolean> {
-  const r = await run(ffmpegBin(work), [
+  const r = await runMediaTool(ffmpegBin(work), [
     '-v', 'error', '-y', '-i', src,
     '-vf', 'split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4',
     '-frames:v', '1', out,
-  ]);
+  ], { maxBuffer: 8 * 1024 * 1024 });
   return r.code === 0;
 }
 

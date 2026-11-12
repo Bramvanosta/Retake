@@ -6,12 +6,11 @@
  * upscaled, with a warning, unless it was captured at scale 2). Outputs go to `<project>/exports/<render-id>/` with a
  * `manifest.json` describing each file (format, method, size, duration, codecs, the ffprobe of the file).
  */
-import { execFile } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, isTemplatePath, isThemeName, missingOrInvalid, printableText, projectPath } from '@retake/core';
-import { STARTER_FOLDER_ID_PREFIX, STARTER_TEMPLATES_DIR, ffmpegBin, findNamedRender, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts, projectTemplateFolderId, templateFolderId } from '@retake/core/io';
+import { STARTER_FOLDER_ID_PREFIX, STARTER_TEMPLATES_DIR, ffmpegBin, findNamedRender, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts, projectTemplateFolderId, runMediaTool, stderrLines, templateFolderId } from '@retake/core/io';
 import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
 import type { H264Encoder, NamedRenderFound } from '@retake/core/io';
 import type { ComponentRegistry } from '@retake/components';
@@ -200,16 +199,9 @@ export async function findRenderRecord(project: LoadedProject, arg: string, scen
   return (await locateRenderRecord(project, arg, scenario)).record;
 }
 
-function ffmpeg(bin: string, args: string[], signal?: AbortSignal): Promise<void> {
-  return new Promise((ok, fail) => {
-    const child = execFile(bin, ['-hide_banner', '-v', 'error', '-y', ...args], { maxBuffer: 16 * 1024 * 1024 }, (err, _o, stderr) => {
-      signal?.removeEventListener('abort', onAbort);
-      if (err) fail(new Error(signal?.aborted ? 'export cancelled' : `ffmpeg failed: ${String(stderr).trim().split('\n').slice(-3).join(' | ') || err.message}`));
-      else ok();
-    });
-    const onAbort = () => child.kill('SIGTERM');
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
+async function ffmpeg(bin: string, args: string[], signal?: AbortSignal): Promise<void> {
+  const r = await runMediaTool(bin, ['-hide_banner', '-v', 'error', '-y', ...args], { maxBuffer: 16 * 1024 * 1024, ...(signal ? { signal } : {}) });
+  if (r.error) throw new Error(signal?.aborted ? 'export cancelled' : `ffmpeg failed: ${stderrLines(r.stderr, 3) || r.error.message}`);
 }
 
 /** The GIF window: asked, else 15 s around the first marker (5 s before it), else the first 15 s. */

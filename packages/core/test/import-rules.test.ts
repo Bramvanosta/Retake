@@ -454,6 +454,47 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe('media-call: the media tools started in one module (L7.31, finding X3)', () => {
+    const at = (rel: string, text: string): string[] => (lib.mediaCallHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
+    const ed = 'packages/editor/src/render/a.ts';
+
+    it('counts the process starts of node:child_process in a file that names ffmpeg or ffprobe, outside core/io media-run.ts', () => {
+      expect(lib.MEDIA_RUN_HOME).toBe('packages/core/src/io/media-run.ts');
+      expect(at(ed, "import { execFile, spawn } from 'node:child_process';\nexecFile(ffmpegBin(p), args, cb);\nspawn(bin, ['-i', x]);")).toEqual([`${ed} → 2`]);
+      // An alias, the module imported whole (a namespace or a default import), a member read by name; a string or a
+      // template naming the tool is enough.
+      expect(at(ed, "import { spawnSync as run } from 'child_process';\nrun('ffprobe', ['-v', 'error']);")).toEqual([`${ed} → 1`]);
+      expect(at(ed, "import * as cp from 'node:child_process';\nconst t = `${dir}/ffmpeg`;\ncp.execFileSync(t, []);\ncp['fork'](t);")).toEqual([`${ed} → 2`]);
+      expect(at(ed, "import cp from 'node:child_process';\nconst ffprobe = which();\ncp.exec(ffprobe);")).toEqual([`${ed} → 1`]);
+      // Not a media tool, a type import, a comment, the home and anything outside packages/*/src are no use.
+      expect(at(ed, "import { execFile } from 'node:child_process';\nexecFile('ps', ['-o', 'pid=']);")).toEqual([]);
+      expect(at(ed, "import type { ChildProcess } from 'node:child_process';\nconst bin = ffmpegBin(p);\nlet c: ChildProcess;")).toEqual([]);
+      expect(at(ed, "import { spawn } from 'node:child_process';\n// ffmpeg is started in core/io\nspawn('sh', ['-c', cmd]);")).toEqual([]);
+      expect(at('packages/core/src/io/media-run.ts', "import { spawn } from 'node:child_process';\nspawn('ffmpeg', []);")).toEqual([]);
+      expect(at('packages/editor/test/a.test.ts', "import { spawn } from 'node:child_process';\nspawn('ffmpeg', []);")).toEqual([]);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'media-call')!.title;
+      for (const words of ['under another name made in the file', 'await import()', 'names no media tool']) expect(title, words).toContain(words);
+    });
+
+    it('reads through parentheses, a comma, a cast or `!`, a template key, and counts .call / .apply / .bind of a starter', () => {
+      // (A script's top-level `await (x)(…)` parses as a call of a function named await: the probes use `void`.)
+      expect(at(ed, "import { spawn, execFile } from 'node:child_process';\nconst b = ffmpegBin(p);\nvoid (spawn)(b, []);\nvoid (0, execFile)(b, []);\nvoid (spawn as F)(b, []);\nvoid spawn!(b, []);")).toEqual([`${ed} → 4`]);
+      expect(at(ed, "import { spawn } from 'node:child_process';\nimport * as cp from 'node:child_process';\nconst b = ffmpegBin(p);\nspawn.call(null, b, []);\nspawn.apply(null, [b, []]);\nconst s = spawn.bind(null, b);\nvoid (cp['execFile']).call(cp, b, []);\ncp[`fork`](b);\nvoid (0, spawn.call)(null, b, []);")).toEqual([`${ed} → 6`]);
+      // Not seen (the title says so): an import-equals alias, a template key with a substitution, a destructured member.
+      expect(at(ed, "import cp = require('node:child_process');\nconst b = ffmpegBin(p);\ncp.spawn(b, []);")).toEqual([]);
+      expect(at(ed, "import * as cp from 'node:child_process';\nconst b = ffmpegBin(p);\ncp[`exec${'File'}`](b, []);")).toEqual([]);
+      expect(at(ed, "import * as cp from 'node:child_process';\nconst { spawn } = cp;\nspawn(ffmpegBin(p), []);")).toEqual([]);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'media-call')!.title;
+      for (const words of ['import-equals alias', 'template key with a substitution', 'a destructured member', '`.call` / `.apply` / `.bind`']) expect(title, words).toContain(words);
+    });
+
+    it('holds today: one exception, the doctor\'s exec probe; the wrapper starts them', () => {
+      expect((lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('media-call '))).toEqual(['media-call packages/cli/src/commands/doctor.ts → 2 media tool starts']);
+      const home = readFileSync(join(ROOT, lib.MEDIA_RUN_HOME), 'utf8');
+      for (const f of ['export function runMediaTool(', 'export function runMediaToolSync(', 'export function startMediaTool(', 'export class MediaToolError ']) expect(home, f).toContain(f);
+    });
+  });
+
   describe('shell-op: operations defined in the engine, counted where a shell still defines one (L7.13)', () => {
     const at = (rel: string, text: string): string[] => (lib.shellOpHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
     const mcp = 'packages/mcp/src/tools/a.ts';
@@ -1566,17 +1607,21 @@ describe('the import-rules ratchet', () => {
       expect(index).toMatch(/const entry = await readListedRender\(projectPath\(dir, 'renders'\), name\)/);
       expect(index).toMatch(/renderOfFile\(entry\)/);
       expect(index).not.toMatch(/readSmall\(dir, projectRef\('renders'|readdir\(projectPath\(dir, 'renders'\)\)/);
-      // The timeline: its one parse is ffprobe's output; the record of a pin is read under a listing's rules (readListedRender:
-      // no link, the listing's cap) and judged by core's rules; renders/ is named in that one call only.
+      // The timeline: it parses nothing itself (ffprobe's output is core's reader's, L7.31); the record of a pin is read
+      // under a listing's rules (readListedRender: no link, the listing's cap) and judged by core's rules; renders/ is
+      // named in that one call only.
       const timeline = src('packages/engine/src/timeline-view.ts');
-      expect(parsesIn(timeline)).toEqual(['captureInfo']);
+      expect(parsesIn(timeline)).toEqual([]);
+      expect(timeline).toMatch(/ffprobePackets\(readFfprobeJson\(text\)\)/);
       expect(timeline).toMatch(/readListedRender\(projectPath\(projectDir, 'renders'\), a\.id\)/);
       expect(timeline.match(/'renders'/g)).toHaveLength(1);
       expect(timeline).toMatch(/renderOfFile\(await entry\)/);
       expect(timeline).toMatch(/sameRender\(record, a\)/);
-      // The frame service: its one parse is ffprobe's output (probeFd); its record comes from renderForWork; core's identity rule.
+      // The frame service: it parses nothing itself (probeFd's ffprobe output is core's reader's, L7.31); its record comes
+      // from renderForWork; core's identity rule.
       const frames = src('packages/engine/src/render-frames.ts');
-      expect(parsesIn(frames)).toEqual(['probeFd']);
+      expect(parsesIn(frames)).toEqual([]);
+      expect(frames).toMatch(/openVideoFromJson\(readFfprobeJson\(out\)\)/);
       expect(frames).not.toMatch(/readFile|readPlainFile|readJson|readRenders?Folder|readListedRender|readNamedRender|readRenderById/);
       expect(frames).toMatch(/await renderForWork\(project, renderId\)/);
       expect(frames.match(/sameRender\(record, \{/g)).toHaveLength(2);

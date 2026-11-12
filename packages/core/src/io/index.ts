@@ -25,6 +25,7 @@ export { describeListeners, listeners, parseLsof, probePort } from './listeners.
 export type { Listener } from './listeners.js';
 export * from './media.js';
 export * from './media-tools.js';
+export * from './media-run.js';
 export * from './plain-file.js';
 export {
   PS_TIMEOUT_MS,

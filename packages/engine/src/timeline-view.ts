@@ -23,11 +23,10 @@
  * - A trust refusal (a file outside the project, a remote slot) is the view's `blocked`, with the `retake render`
  *   command a person types — never an exception the screen cannot show.
  */
-import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, canonicalJson, isRenderId, isTemplatePath, locateAnchorStep, parseScenario, parseYaml, renderOfFile, sameRender, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
-import { listTemplates, readListedRender, readPlainFile, ffprobeBin, fileFacts } from '@retake/core/io';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, canonicalJson, ffprobePackets, isRenderId, isTemplatePath, locateAnchorStep, packetsArgs, parseScenario, parseYaml, readFfprobeJson, renderOfFile, sameRender, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
+import { listTemplates, readListedRender, readPlainFile, ffprobeBin, fileFacts, startMediaTool } from '@retake/core/io';
 import type { FieldAt, FieldValue, LoadedProject, RenderEntry, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
@@ -242,26 +241,15 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
   }
   try {
     if (!fstatSync(fd).isFile()) return {};
-    const out = await new Promise<string | null>((resolve) => {
-      const args = ['-v', 'error', '-protocol_whitelist', 'fd', '-f', 'mp4', '-fd', '3', '-i', 'fd:', '-select_streams', 'v:0', '-read_intervals', '%+30', '-show_entries', 'stream=codec_name,has_b_frames:packet=pts_time,flags', '-of', 'json'];
-      let text = '';
-      let p: ReturnType<typeof spawn>;
-      try {
-        p = spawn(ffprobeBin(o.policy, o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
-      } catch {
-        resolve(null);
-        return;
-      }
-      const timer = setTimeout(() => p.kill('SIGKILL'), o.timeoutMs ?? 10_000);
-      p.stdout!.on('data', (d: Buffer) => {
-        if (text.length < 8_000_000) text += d.toString('utf8');
-      });
-      p.on('error', () => (clearTimeout(timer), resolve(null)));
-      p.on('close', (code) => (clearTimeout(timer), resolve(code === 0 ? text : null)));
+    const tool = startMediaTool(ffprobeBin(o.policy, o.ffprobe), packetsArgs(30), { stdio: ['ignore', 'pipe', 'ignore', fd], timeoutMs: o.timeoutMs ?? 10_000, timeoutSignal: 'SIGKILL' });
+    let text = '';
+    tool.child.stdout!.on('data', (d: Buffer) => {
+      if (text.length < 8_000_000) text += d.toString('utf8');
     });
-    if (out === null) return {};
-    const j = JSON.parse(out) as { streams?: Array<{ codec_name?: string; has_b_frames?: number }>; packets?: Array<{ pts_time?: string; flags?: string }> };
-    const s = j.streams?.[0];
+    const end = await tool.exited;
+    if (end.error || end.code !== 0) return {};
+    const j = ffprobePackets(readFfprobeJson(text));
+    const s = j.stream;
     const info: TimelineCaptureInfo = {};
     if (typeof s?.codec_name === 'string' && /^[a-z0-9_]{1,20}$/.test(s.codec_name)) info.codec = s.codec_name;
     if (typeof s?.has_b_frames === 'number') info.b_frames = s.has_b_frames > 0;

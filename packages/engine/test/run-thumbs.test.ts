@@ -530,9 +530,9 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
   it('the thumbnail path imports the review package’s ./thumbs entry only (never its root: editor, Remotion)', async () => {
     const thumbs = await readFile(join(REPO, 'packages/review/src/thumbs.ts'), 'utf8');
     const imports = [...thumbs.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
-    // @retake/core/io only for ffmpegBin (the bundled ffmpeg, L5.16) and @retake/core for the policy's type: core never
-    // imports the editor or Remotion
-    expect(imports.sort()).toEqual(['@retake/core', '@retake/core/io', 'node:child_process', 'node:stream', 'sharp']);
+    // @retake/core/io only for ffmpegBin (the bundled ffmpeg, L5.16) and startMediaTool (L7.31: the media tools are
+    // started there), @retake/core for the policy's type: core never imports the editor or Remotion
+    expect(imports.sort()).toEqual(['@retake/core', '@retake/core/io', 'node:stream', 'sharp']);
     for (const f of ['run-thumbs.ts', 'run-data.ts', 'run-files.ts', 'scenario-view.ts']) {
       const src = await readFile(join(REPO, 'packages/engine/src', f), 'utf8');
       expect(src, f).not.toMatch(/['"]@retake\/(review|editor)['"]/);

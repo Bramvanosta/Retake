@@ -421,6 +421,18 @@ HookContext = {
 
 ## 3. @retake/runner-web
 
+**The capture, lifecycle and driver (L7.31, finding X2).** `runScenario` is `runCapture(opts, browserDriver)`
+(`src/capture/`): `lifecycle.ts` holds what any capture does — the options checked (`--until`, the run id, the hook
+runner), the run folder, record and log, the secrets, the cancel (signals: a second one runs the driver's
+`cleanupSync`), the refusals made before anything runs, the secrets fetched, the outline, the hook phases
+(`hooks.ts`: setup, `hook:` steps, teardown and rollbacks), the filming notices (`startCapture` / `stopFilming` /
+`filmingPause` of `CaptureRun`), the timeline built from the driver's take and the run's end; `browser-driver.ts`
+drives Chromium (pages probed, write and sign-in guards, sessions, the runtime and its scenes, prewarm, recorders and
+encoders, live picture, sampler, pause, inspection, encodes, step pictures, perf). The seam is `driver.ts`
+(`CaptureDriver`: prepare → identify → open → hooks / setHookSteps → film → failed? → stop → close → finish, and
+`CaptureRun`), internal to the package; runner-web test `capture-lifecycle.test.ts` runs the lifecycle on a driver of
+its own.
+
 ```ts
 runScenario(opts: RunOptions): Promise<RunRecord>
 RunOptions = {
@@ -1023,7 +1035,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   the context route (`frame()` throws for them: guarded). The sign-in tab bypasses service workers
   (`bypassServiceWorkers`: `Network.setBypassServiceWorker` on a CDP session of the tab, as hook tabs do), so a worker
   that forwards its sign-in POST does not turn it into a page-less, stopped request.
-- **Recording.** `onWrite` (run.ts `readOnlyGuard`) appends a `TimelineWrite` to `timeline.environment.writes` (`t`
+- **Recording.** `onWrite` (capture/browser-guards.ts `readOnlyGuard`) appends a `TimelineWrite` to `timeline.environment.writes` (`t`
   from capture time 0 on; `protected_by` for a protected host), warns once per stopped `METHOD page:/path`
   (`describeWriteRequest`, never the query; a protected host's names its environment) and once per unguarded host a
   write `passed` to, logs mocked / allowed writes (info) and the sign-in's exempt ones (debug); a WebSocket to a
@@ -5866,6 +5878,18 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
   Every spawn goes through `ffmpegBin(policy, explicit?)` / `ffprobeBin(policy, explicit?)` (core io
   `media-tools.ts`); a source lint (cli `app-bundle.test.ts`) fails on a command literal `'ffmpeg'` / `'ffprobe'`
   anywhere else.
+  **One media run (L7.31, finding X3).** The tools are started in core io `media-run.ts` only: `runMediaTool(program,
+  args, {encoding, input, timeoutMs, killSignal, signal, maxBuffer})` (to its end, its output collected, never rejects:
+  `{code, stdout, stderr, error}`), `runMediaToolSync` (throws), `startMediaTool(program, args, {stdio, signal,
+  cancelSignal, abortedAtStart, timeoutMs, timeoutSignal, stderr: {keep: head|tail, max}, settle: close|exit})` (a
+  process to stream through: `child`, `stderr`, `killed`, `exited`). One error type, `MediaToolError` (`program`,
+  `reason`: start / exit / killed / timeout / cancelled / output, `code`, `signal`, `errno`, `stderr`; errorKind
+  `internal`), and `stderrLines(stderr, n, first|last)`; each site keeps its own sentence (EncodeError, ReviewError, …)
+  built from those facts. Every ffprobe answer is JSON, read by core `ffprobe.ts` (`readFfprobeJson` and one reader per
+  question: `parseFfprobeSummary`, `videoProbeFromJson`, `clipProbeFromJson`, `openVideoFromJson`,
+  `pictureSizeFromJson`, `ffprobePackets`, each with its arguments). Ratchet rule `media-call`: a file of
+  packages/*/src that names a media tool and calls node:child_process to start a process is an entry (one: the
+  doctor's exec probe).
 - Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
   browsers (below) — source `bundled`, else `playwright` (the cache).
 - Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) → none:

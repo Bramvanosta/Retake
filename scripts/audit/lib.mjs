@@ -217,6 +217,8 @@ export const PORT_FILES = [
 export const RENDER_CALLS = ['renderVideo', 'renderStill', 'renderStills', 'renderPlan', 'renderComponentPreviews', 'renderComponentLoops', 'exportRender', 'createRenderer', 'planDriver', 'previewDriver', 'REMOTION_PREVIEW_BACKEND'];
 /** The one module that names playwright-core's private browser registry (browser-registry, L7.25). */
 export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
+/** The one module that starts the media tools, ffmpeg and ffprobe (media-call, L7.31). */
+export const MEDIA_RUN_HOME = 'packages/core/src/io/media-run.ts';
 export const PURE_BINDINGS = { 'node:net': ['isIP', 'isIPv4', 'isIPv6', 'BlockList'], net: ['isIP', 'isIPv4', 'isIPv6', 'BlockList'] };
 export const RULES = [
   { id: 'R1', title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`, files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR), bad: (s, f) => IO.test(s) || coreIoImport(s, f), loaders: true, pure: PURE_BINDINGS },
@@ -245,6 +247,7 @@ export const CHECKS = [
   { id: 'shell-op', title: 'an operation is defined in the engine (packages/engine/src/operations/, U7): in the shells\' sources (SHELL_OP_DIRS: packages/mcp/src, packages/ui/src) every call of `defineTool` or `defineOperation` — by its name, an import alias or a member of a namespace import — is counted per file (entries: each file and its count), so that an operation moved into the engine lowers the baseline and a new one in a shell fails it; and in packages/*/src outside DEFINER_HOMES (the engine\'s operations/, MCP\'s tools/define.ts) a definer re-exported under another name (`export { defineTool as op }`) is a hit. Not seen: a definer under another name made in a file (`const d = defineTool`), a wrapper of one, a parenthesised or computed callee (`(defineTool)(…)`, `c[name](…)`), a member of a namespace from `await import()`, and an operation written as a `ToolDef` object literal with no definer' },
   { id: 'hook-call', title: 'the hooks use cases outside a capture are orchestrated in the engine only (packages/engine/src/hooks-work.ts, U8b: shared by the CLI\'s `hooks run` / `hooks rollback` / `env reset` and the jobs): in packages/*/src outside packages/engine/src every call of `createHookContext` (by its name, an import alias or a member of a namespace import), of `hooks.run` (on something named `hooks`, also `x.hooks`) and of `journals.rollback|openPending|rollbackPending` (on something named `journals`, also `x.journals`), and in the shells (cli, mcp, ui) of `.rollbackAll` on anything, is counted per file (entries: each file and its count; the adapters replay their own journals). Read through parentheses, a comma (`(0, hooks.run)(…)`), a cast or `!`, and as `.call` / `.apply` / `.bind` of a counted function. Not seen: a destructured member (`const { run } = hooks`), a member or port held in a variable (`const r = hooks.run`, `const h = ports.hooks` then `h.run`), a dynamic import\'s destructuring (`const { createHookContext } = await import(…)`) or namespace, an import-equals alias (`import c = e.createHookContext`), a key computed at run time' },
   { id: 'browser-registry', title: `playwright-core's private modules (\`playwright-core/lib/…\`: its browser registry) are named in ${BROWSER_REGISTRY_HOME} only (U14, finding X9: one browser-discovery module; each caller hands it its own require): in packages/*/src elsewhere, every string or template that holds \`playwright-core/lib/\` is counted per file (entries: each file and its count). Not seen: the path put together from pieces (\`'playwright-core' + '/lib'\`), a specifier computed at run time, and everything outside packages/*/src` },
+  { id: 'media-call', title: `the media tools (ffmpeg, ffprobe) are started in ${MEDIA_RUN_HOME} only (U11, finding X3: one wrapper for their runs — arguments, time limits, cancels, stderr — and one error type): in packages/*/src elsewhere, a file that names a media tool (an identifier holding \`ffmpeg\` or \`ffprobe\`, such as ffmpegBin, or a string or template holding either word) and calls node:child_process to start a process (\`spawn\`, \`spawnSync\`, \`execFile\`, \`execFileSync\`, \`exec\`, \`execSync\`, \`fork\`: by its name, an import alias or a member of a namespace or default import, by a key spelt as a string or a template without substitution; read through parentheses, a comma, a cast or \`!\`, and as \`.call\` / \`.apply\` / \`.bind\` of a starter) is counted, its calls per file (entries: each file and its count); a type import of the module starts nothing. Not seen: a file that starts a program whose name it reads elsewhere and names no media tool, a call reached through another module or under another name made in the file (\`const run = execFile\`, a destructured member), an import-equals alias (\`import cp = require('node:child_process')\`), a key computed at run time or a template key with a substitution (\`cp[\`ex${'${'}k}\`]\`), \`require('node:child_process')\` and a namespace from \`await import()\`, and everything outside packages/*/src` },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append|exclusive(…)`, also `x.queue.…`): the engine\'s operations submit after their checks (under the queue\'s lock: `exclusive`), the worker writes' },
   { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
@@ -936,6 +939,68 @@ export function browserRegistryHits(root, files) {
   return hits;
 }
 
+/**
+ * The media tools started outside MEDIA_RUN_HOME (media-call), read from the syntax tree: in packages/*\/src, a file
+ * that names ffmpeg or ffprobe (an identifier, a string literal or a template's text) and calls a process starter of
+ * node:child_process (CHILD_STARTERS, by its imported name or alias, or as a member of the module imported whole),
+ * counted per file (`{count}`: its calls; an imported name counts as naming the tool). Comments and type imports of node:child_process are no use.
+ */
+const CHILD_STARTERS = new Set(['spawn', 'spawnSync', 'execFile', 'execFileSync', 'exec', 'execSync', 'fork']);
+export function mediaCallHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  const MEDIA_WORD = /ffmpeg|ffprobe/i;
+  for (const { rel, text } of files) {
+    if (!/^packages\/[^/]+\/src\//.test(rel) || rel === MEDIA_RUN_HOME || !text.includes('child_process') || !MEDIA_WORD.test(text)) continue;
+    const sf = parse(ts, rel, text);
+    const names = new Set();
+    const spaces = new Set();
+    let media = false;
+    for (const st of sf.statements) {
+      if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier) || !/^(node:)?child_process$/.test(st.moduleSpecifier.text)) continue;
+      const c = st.importClause;
+      if (!c || c.isTypeOnly) continue;
+      if (c.name) spaces.add(c.name.text);
+      const b = c.namedBindings;
+      if (b && ts.isNamespaceImport(b)) spaces.add(b.name.text);
+      else if (b) for (const el of b.elements) if (!el.isTypeOnly && CHILD_STARTERS.has((el.propertyName ?? el.name).text)) names.add(el.name.text);
+    }
+    const member = (e) => (ts.isPropertyAccessExpression(e) ? e.name.text : ts.isElementAccessExpression(e) ? literal(ts, e.argumentExpression) : undefined);
+    // `(f)`, `(0, f)`, `f as T`, `f!`, `<T>f`, `f satisfies T`: the expression that is called (as hook-call reads it).
+    const unwrap = (e) => {
+      for (;;) {
+        if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e) || (ts.isTypeAssertionExpression?.(e) ?? false) || (ts.isSatisfiesExpression?.(e) ?? false)) e = e.expression;
+        else if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.CommaToken) e = e.right;
+        else return e;
+      }
+    };
+    // A starter: its imported name or alias, or a starter member of the module imported whole (`cp.spawn`, `cp['spawn']`).
+    const starter = (e) => {
+      e = unwrap(e);
+      if (ts.isIdentifier(e)) return names.has(e.text);
+      if (!ts.isPropertyAccessExpression(e) && !ts.isElementAccessExpression(e)) return false;
+      const on = unwrap(e.expression);
+      return ts.isIdentifier(on) && spaces.has(on.text) && CHILD_STARTERS.has(member(e) ?? '');
+    };
+    const CALLERS = new Set(['call', 'apply', 'bind']);
+    let count = 0;
+    (function visit(n) {
+      if (ts.isIdentifier(n) && MEDIA_WORD.test(n.text)) media = true;
+      const t = ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) ? n.text : undefined;
+      if (t !== undefined && MEDIA_WORD.test(t)) media = true;
+      if (ts.isCallExpression(n)) {
+        const e = unwrap(n.expression);
+        if (starter(e)) count++;
+        // `f.call(…)`, `f.apply(…)`, `f.bind(…)` of a starter.
+        else if ((ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) && CALLERS.has(member(e) ?? '') && starter(e.expression)) count++;
+      }
+      n.forEachChild(visit);
+    })(sf);
+    if (count && media) hits.push({ rule: 'media-call', file: rel, count });
+  }
+  return hits;
+}
+
 export function portTypeHits(fileImports) {
   const hits = [];
   for (const f of PORT_FILES) {
@@ -1326,6 +1391,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
   for (const h of shellOpHits(root, scanned.files)) set.add(h.spec !== undefined ? `shell-op ${h.file} → ${h.spec}` : `shell-op ${h.file} → ${h.count} operation${h.count === 1 ? '' : 's'} defined`);
   for (const h of hookCallHits(root, scanned.files)) set.add(`hook-call ${h.file} → ${h.count} hooks orchestration call${h.count === 1 ? '' : 's'}`);
   for (const h of browserRegistryHits(root, scanned.files)) set.add(`browser-registry ${h.file} → ${h.count} private module${h.count === 1 ? '' : 's'} of playwright-core named`);
+  for (const h of mediaCallHits(root, scanned.files)) set.add(`media-call ${h.file} → ${h.count} media tool start${h.count === 1 ? '' : 's'}`);
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   for (const h of recordReadHits(root, scanned.files)) {
     const own = h.kinds.filter((k) => k === 10).length;

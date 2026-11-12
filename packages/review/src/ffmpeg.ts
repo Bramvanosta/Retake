@@ -3,9 +3,8 @@
  * numbers), streamed as raw RGB to a callback one frame at a time (back-pressure: the next frame is read once the
  * callback resolved). Frame numbers are exact for the CFR videos the renderer and the runner write.
  */
-import { execFile, spawn } from 'node:child_process';
 import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
-import { ffmpegBin, ffprobeBin } from '@retake/core/io';
+import { ffmpegBin, ffprobeBin, runMediaTool, startMediaTool } from '@retake/core/io';
 import type { WorkPolicy } from '@retake/core';
 import type { RgbImage } from './pixels.js';
 import { ReviewError } from './load.js';
@@ -22,17 +21,14 @@ export interface VideoInfo {
  * What ffprobe says of a video's first video stream and its length (core's ffprobe summary, as the render's own probe
  * reads it); undefined when ffprobe fails or does not answer in JSON.
  */
-function ffprobeVideo(file: string, policy: WorkPolicy): Promise<VideoInfo | undefined> {
-  return new Promise((ok) => {
-    execFile(ffprobeBin(policy), ffprobeSummaryArgs(file), { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
-      if (err) return ok(undefined);
-      const p = parseFfprobeSummary(String(stdout));
-      if (!p) return ok(undefined);
-      const out: VideoInfo = { duration_s: p.duration_s, width: p.width, height: p.height, fps: p.fps };
-      if (p.frames !== undefined) out.frames = p.frames;
-      ok(out);
-    });
-  });
+async function ffprobeVideo(file: string, policy: WorkPolicy): Promise<VideoInfo | undefined> {
+  const r = await runMediaTool(ffprobeBin(policy), ffprobeSummaryArgs(file), { maxBuffer: 16 * 1024 * 1024 });
+  if (r.error) return undefined;
+  const p = parseFfprobeSummary(r.stdout);
+  if (!p) return undefined;
+  const out: VideoInfo = { duration_s: p.duration_s, width: p.width, height: p.height, fps: p.fps };
+  if (p.frames !== undefined) out.frames = p.frames;
+  return out;
 }
 
 export async function probeVideo(file: string, policy: WorkPolicy): Promise<VideoInfo> {
@@ -83,23 +79,14 @@ export async function extractFrames(
   const filters = [`select='${selectExpr(wanted)}'`];
   if (opts.width !== opts.videoWidth || opts.height !== opts.videoHeight) filters.push(`scale=${opts.width}:${opts.height}:flags=area`);
   const args = ['-v', 'error', '-nostdin', '-i', file, '-vf', filters.join(','), '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'];
-  const proc = spawn(ffmpegBin(opts.policy), args, { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
-  let stderr = '';
-  proc.stderr.on('data', (c: Buffer) => {
-    if (stderr.length < 4000) stderr += c.toString();
-  });
-  const exited = new Promise<number | null>((resolve, reject) => {
-    proc.on('error', reject);
-    proc.on('close', (code) => resolve(code));
-  });
-  // Handled below once the output is read; a cancel (the signal) rejects it while frames are still being handled.
-  exited.catch(() => undefined);
+  const tool = startMediaTool(ffmpegBin(opts.policy), args, { stdio: ['ignore', 'pipe', 'pipe'], ...(opts.signal ? { signal: opts.signal } : {}), stderr: { keep: 'head', max: 4000 } });
+  const proc = tool.child;
   const size = opts.width * opts.height * 3;
   const delivered: number[] = [];
   let buf = Buffer.allocUnsafe(size);
   let filled = 0;
   try {
-    for await (const chunk of proc.stdout as AsyncIterable<Buffer>) {
+    for await (const chunk of proc.stdout! as AsyncIterable<Buffer>) {
       let off = 0;
       while (off < chunk.length) {
         const n = Math.min(size - filled, chunk.length - off);
@@ -121,10 +108,12 @@ export async function extractFrames(
     proc.kill('SIGKILL');
     throw e;
   }
-  const code = await exited.catch((e: Error) => {
+  const end = await tool.exited;
+  if (end.error || end.killed) {
     if (opts.signal?.aborted) throw new ReviewError('frame extraction cancelled');
-    throw new ReviewError(`ffmpeg could not be started (${e.message}): is ffmpeg on PATH?`);
-  });
-  if (code !== 0 && delivered.length === 0) throw new ReviewError(`ffmpeg failed on ${file}: ${stderr.trim().split('\n')[0] ?? `exit ${code}`}`);
+    throw new ReviewError(`ffmpeg could not be started (${end.error?.message ?? end.killed}): is ffmpeg on PATH?`);
+  }
+  const code = end.code;
+  if (code !== 0 && delivered.length === 0) throw new ReviewError(`ffmpeg failed on ${file}: ${tool.stderr.trim().split('\n')[0] ?? `exit ${code}`}`);
   return delivered;
 }

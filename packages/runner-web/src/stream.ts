@@ -7,10 +7,10 @@
  * the stream lags STREAM_LAG_S behind the capture clock — and a page load the recorder holds (R-ISS-08, frames released
  * later with their own paint time) stops the ticks at the hold's start until it ends.
  */
-import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { rm } from 'node:fs/promises';
-import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffmpegEncoders } from '@retake/core/io';
+import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffmpegEncoders, startMediaTool, stderrLines } from '@retake/core/io';
+import type { MediaProcess } from '@retake/core/io';
 import type { CaptureEncoder, WorkPolicy } from '@retake/core';
 import { EncodeError } from './errors.js';
 
@@ -163,18 +163,14 @@ const encoderChecks = new Map<string, Promise<boolean>>();
 export function videotoolboxWorks(ffmpeg: string): Promise<boolean> {
   let p = encoderChecks.get(ffmpeg);
   if (!p) {
-    p = new Promise<boolean>((resolve) => {
-      if (process.platform !== 'darwin') return resolve(false);
-      const child = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=256x144:r=30', '-frames:v', '2', '-c:v', 'h264_videotoolbox', '-f', 'null', '-'], {
-        stdio: 'ignore',
-      });
-      const timer = setTimeout(() => child.kill('SIGKILL'), 10_000);
-      child.on('error', () => resolve(false));
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        resolve(code === 0);
-      });
-    });
+    p =
+      process.platform !== 'darwin'
+        ? Promise.resolve(false)
+        : startMediaTool(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=256x144:r=30', '-frames:v', '2', '-c:v', 'h264_videotoolbox', '-f', 'null', '-'], {
+            stdio: 'ignore',
+            timeoutMs: 10_000,
+            timeoutSignal: 'SIGKILL',
+          }).exited.then((end) => end.error === null && end.code === 0);
     encoderChecks.set(ffmpeg, p);
   }
   return p;
@@ -205,7 +201,7 @@ export class StreamEncoder {
   private child: ChildProcess | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private exited: Promise<number | null> | null = null;
-  private stderr = '';
+  private tool: MediaProcess | null = null;
   private failed: string | null = null;
   private thumbBuf: Buffer = Buffer.alloc(0);
   private thumbs = 0;
@@ -236,21 +232,18 @@ export class StreamEncoder {
   start(): void {
     if (this.child) return;
     const args = streamArgs({ ...this.opts, thumbs: this.opts.onThumb !== undefined });
-    const child = spawn(ffmpegBin(this.opts.policy, this.opts.ffmpeg), args, { stdio: ['pipe', this.opts.onThumb ? 'pipe' : 'ignore', 'pipe'] });
+    const tool = startMediaTool(ffmpegBin(this.opts.policy, this.opts.ffmpeg), args, { stdio: ['pipe', this.opts.onThumb ? 'pipe' : 'ignore', 'pipe'], stderr: { keep: 'tail', max: 4000 } });
+    const child = tool.child;
+    this.tool = tool;
     this.child = child;
-    child.stderr?.on('data', (d: Buffer) => {
-      this.stderr = (this.stderr + d.toString()).slice(-4000);
-    });
     child.stdout?.on('data', (d: Buffer) => this.thumbData(d));
     child.stdin?.on('error', (e: NodeJS.ErrnoException) => {
       this.failed ??= e.code === 'EPIPE' ? 'ffmpeg stopped reading the frames' : e.message;
     });
-    this.exited = new Promise((resolve) => {
-      child.on('error', (e: NodeJS.ErrnoException) => {
-        this.failed ??= e.code === 'ENOENT' ? `${ffmpegBin(this.opts.policy, this.opts.ffmpeg)} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message;
-        resolve(null);
-      });
-      child.on('close', (code) => resolve(code));
+    this.exited = tool.exited.then((end) => {
+      if (!end.error) return end.code;
+      this.failed ??= end.error.code === 'ENOENT' ? `${ffmpegBin(this.opts.policy, this.opts.ffmpeg)} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : end.error.message;
+      return null;
     });
     this.timer = setInterval(() => {
       try {
@@ -309,7 +302,7 @@ export class StreamEncoder {
     if (this.failed || code !== 0) {
       const why = this.failed ?? `exited with code ${code}`;
       await rm(this.opts.out, { force: true }).catch(() => undefined);
-      throw new EncodeError(`${ffmpegBin(this.opts.policy, this.opts.ffmpeg)} ${why}: ${this.stderr.trim().split('\n').slice(-6).join(' | ')}`.trim());
+      throw new EncodeError(`${ffmpegBin(this.opts.policy, this.opts.ffmpeg)} ${why}: ${stderrLines(this.tool?.stderr ?? '', 6)}`.trim());
     }
     return { frames: count };
   }

@@ -137,6 +137,13 @@
    ]
   },
   {
+   "rule": "media-call",
+   "reason": "doctor's system probes run every program they check (ffmpeg and ffprobe -version, a VideoToolbox test encode, docker, git, ps) through one exec probe it hands its checks (their test seam): a shell's check of the machine, not a media run (S4 later).",
+   "entries": [
+    "packages/cli/src/commands/doctor.ts → 2 media tool starts"
+   ]
+  },
+  {
    "rule": "layout",
    "reason": "Paths spelt as text on purpose: the trust lists (agent-writable paths, a person's files), a new project's .gitignore lines, help texts and the Studio's browser code (no node:path there).",
    "entries": [

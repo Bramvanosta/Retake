@@ -6,13 +6,13 @@
  * BT.709 limited range, 1-second GOP, start timecode = the clip's place on the sequence. A run whose frames were not
  * kept falls back to its CFR video (frames decoded once, repeated — not interpolated — for a higher rate).
  */
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import type { RawFormat, WorkPolicy } from '@retake/core';
+import { clipProbeArgs, clipProbeFromJson, readFfprobeJson } from '@retake/core';
+import type { ClipProbe, RawFormat, WorkPolicy } from '@retake/core';
 import type { H264Encoder } from '@retake/core/io';
-import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffprobeBin, h264CodecArgs, h264Encoder } from '@retake/core/io';
+import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffprobeBin, h264CodecArgs, h264Encoder, runMediaTool } from '@retake/core/io';
 import { cfrSchedule, materialize, runFfmpeg } from '../encode.js';
 import { EncodeError } from '../errors.js';
 import type { FrameIndexEntry } from '../recorder.js';
@@ -161,52 +161,19 @@ export async function concatClips(files: readonly string[], out: string, tmp: st
   await runFfmpeg(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-map', '0:v:0', '-c', 'copy', ...faststart, '-timecode', '00:00:00:00', '-an', out], signal);
 }
 
-/** What ffprobe says about a video's picture stream. */
-export interface ProbedVideo {
-  codec: string;
-  profile?: string;
-  pix_fmt: string;
-  width: number;
-  height: number;
-  /** r_frame_rate as a number. */
-  fps: number;
-  /** Frames (the container's count; `count: true` decodes them all). */
-  frames: number;
-  duration_s: number;
-  timecode?: string;
-  /** An alpha channel: a yuva / rgba pixel format, or VP9's side-channel alpha (`alpha_mode` 1, decoded as yuv420p). */
-  alpha: boolean;
-  size_bytes: number;
-}
+/** What ffprobe says about a video's picture stream (core's reader: clipProbeFromJson). */
+export type ProbedVideo = ClipProbe;
 
 /** ffprobe a clip (`count`: decode and count every frame instead of trusting the container). */
-export function probeVideo(file: string, opts: { ffprobe?: string; count?: boolean; policy: WorkPolicy }): Promise<ProbedVideo> {
-  const args = ['-v', 'error', ...(opts.count ? ['-count_frames'] : []), '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,profile,pix_fmt,width,height,r_frame_rate,nb_frames,nb_read_frames,duration:stream_tags=timecode,alpha_mode:format=duration,size:format_tags=timecode', '-of', 'json', file];
-  return new Promise((ok, fail) => {
-    execFile(ffprobeBin(opts.policy, opts.ffprobe), args, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) return fail(new EncodeError(`ffprobe failed on ${file}: ${String(stderr).trim() || err.message}`));
-      try {
-        const j = JSON.parse(stdout) as { streams?: Array<Record<string, unknown> & { tags?: Record<string, string> }>; format?: { duration?: string; size?: string; tags?: Record<string, string> } };
-        const s = j.streams?.[0];
-        if (!s) return fail(new EncodeError(`${file} has no video stream`));
-        const [a, b] = String(s.r_frame_rate ?? '0/1').split('/').map(Number);
-        const frames = Number(opts.count ? s.nb_read_frames : s.nb_frames);
-        ok({
-          codec: String(s.codec_name),
-          ...(s.profile !== undefined ? { profile: String(s.profile) } : {}),
-          pix_fmt: String(s.pix_fmt),
-          width: Number(s.width),
-          height: Number(s.height),
-          fps: b ? a / b : a,
-          frames: Number.isFinite(frames) ? frames : 0,
-          duration_s: Number(s.duration ?? j.format?.duration ?? 0),
-          ...(s.tags?.timecode ?? j.format?.tags?.timecode ? { timecode: s.tags?.timecode ?? j.format?.tags?.timecode } : {}),
-          alpha: /^(yuva|rgba|argb|bgra|abgr|gbrap|ya)/.test(String(s.pix_fmt)) || s.tags?.alpha_mode === '1',
-          size_bytes: Number(j.format?.size ?? 0),
-        });
-      } catch (e) {
-        fail(new EncodeError(`ffprobe output of ${file} unreadable: ${(e as Error).message}`));
-      }
-    });
-  });
+export async function probeVideo(file: string, opts: { ffprobe?: string; count?: boolean; policy: WorkPolicy }): Promise<ProbedVideo> {
+  const r = await runMediaTool(ffprobeBin(opts.policy, opts.ffprobe), clipProbeArgs(file, opts.count === true), { maxBuffer: 4 * 1024 * 1024 });
+  if (r.error) throw new EncodeError(`ffprobe failed on ${file}: ${r.stderr.trim() || r.error.message}`);
+  let clip: ClipProbe | null;
+  try {
+    clip = clipProbeFromJson(readFfprobeJson(r.stdout), opts.count === true);
+  } catch (e) {
+    throw new EncodeError(`ffprobe output of ${file} unreadable: ${(e as Error).message}`);
+  }
+  if (!clip) throw new EncodeError(`${file} has no video stream`);
+  return clip;
 }

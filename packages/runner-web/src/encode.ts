@@ -1,7 +1,6 @@
-import { spawn } from 'node:child_process';
 import { copyFile, link, mkdir, rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { ffmpegBin, h264CodecArgs, h264Encoder } from '@retake/core/io';
+import { ffmpegBin, h264CodecArgs, h264Encoder, startMediaTool, stderrLines } from '@retake/core/io';
 import type { WorkPolicy } from '@retake/core';
 import { EncodeError } from './errors.js';
 import type { FrameIndexEntry } from './recorder.js';
@@ -71,25 +70,11 @@ export function runFfmpeg(bin: string, args: string[], signal?: AbortSignal): Pr
   return run(bin, args, signal);
 }
 
-function run(bin: string, args: string[], signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
-    let err = '';
-    child.stderr.on('data', (d: Buffer) => {
-      err = (err + d.toString()).slice(-4000);
-    });
-    const onAbort = () => child.kill('SIGTERM');
-    signal?.addEventListener('abort', onAbort, { once: true });
-    child.on('error', (e: NodeJS.ErrnoException) => {
-      signal?.removeEventListener('abort', onAbort);
-      reject(new EncodeError(e.code === 'ENOENT' ? `${bin} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message));
-    });
-    child.on('close', (code) => {
-      signal?.removeEventListener('abort', onAbort);
-      if (code === 0) resolve();
-      else reject(new EncodeError(`${bin} exited with code ${code}: ${err.trim().split('\n').slice(-6).join(' | ')}`));
-    });
-  });
+async function run(bin: string, args: string[], signal?: AbortSignal): Promise<void> {
+  const tool = startMediaTool(bin, args, { stdio: ['ignore', 'ignore', 'pipe'], ...(signal ? { signal, abortedAtStart: 'run' as const } : {}), stderr: { keep: 'tail', max: 4000 } });
+  const end = await tool.exited;
+  if (end.error) throw new EncodeError(end.error.code === 'ENOENT' ? `${bin} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : end.error.message);
+  if (end.code !== 0) throw new EncodeError(`${bin} exited with code ${end.code}: ${stderrLines(tool.stderr, 6)}`);
 }
 
 /**

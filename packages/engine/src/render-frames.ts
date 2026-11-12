@@ -21,14 +21,13 @@
  * supersedes nothing); each request ends within RENDER_FRAME_TIMEOUT_MS (else `unavailable`, reason `timeout`). A video
  * that does not start at 0 or has a variable frame rate is refused (frame times would not be frame numbers).
  */
-import { spawn } from 'node:child_process';
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { isRenderId, projectPath, PROJECT_DIRS, projectRef, sameRender } from '@retake/core';
-import { ffprobeBin } from '@retake/core/io';
-import type { LoadedProject, RenderVariant, WorkPolicy } from '@retake/core';
+import { isRenderId, openVideoArgs, openVideoFromJson, projectPath, PROJECT_DIRS, projectRef, readFfprobeJson, sameRender } from '@retake/core';
+import { ffprobeBin, startMediaTool } from '@retake/core/io';
+import type { LoadedProject, OpenVideoProbe, RenderVariant, WorkPolicy } from '@retake/core';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
 import { EngineError } from './errors.js';
 import { renderForWork } from './renders.js';
@@ -100,17 +99,8 @@ export interface RenderOutlineView {
   untrusted: { markers: string[] };
 }
 
-/** What ffprobe reads of the open video. */
-interface VideoProbe {
-  fps: number;
-  /** The average frame rate (frames over duration): ≠ fps for a variable frame rate. */
-  avg_fps?: number;
-  /** The first frame's time, in seconds (0 for every render the tool writes). */
-  start_s?: number;
-  frames?: number;
-  width: number;
-  height: number;
-}
+/** What ffprobe reads of the open video (core's reader: openVideoFromJson). */
+type VideoProbe = OpenVideoProbe;
 
 /**
  * An opened render video: its descriptor (closed by the caller; read by one child only — descriptors of one open share
@@ -141,51 +131,19 @@ export interface RenderFramesOptions {
 }
 
 /** ffprobe of an open descriptor (the fd protocol only); null when it cannot be read. */
-function probeFd(fd: number, o: { ffprobe?: string; policy: WorkPolicy; signal: AbortSignal; timeoutMs: number }): Promise<VideoProbe | null> {
-  return new Promise((resolve) => {
-    const args = ['-v', 'error', '-protocol_whitelist', 'fd', '-f', 'mp4', '-fd', '3', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate,avg_frame_rate,start_time,nb_frames,width,height', '-of', 'json', 'fd:'];
-    const proc = spawn(ffprobeBin(o.policy, o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
-    let out = '';
-    proc.stdout?.on('data', (c: Buffer) => {
-      if (out.length < 64 * 1024) out += c.toString();
-    });
-    const kill = () => proc.kill('SIGKILL');
-    const timer = setTimeout(kill, o.timeoutMs);
-    o.signal.addEventListener('abort', kill, { once: true });
-    const done = (v: VideoProbe | null) => {
-      clearTimeout(timer);
-      o.signal.removeEventListener('abort', kill);
-      resolve(v);
-    };
-    proc.on('error', () => done(null));
-    proc.on('exit', (code) => {
-      if (code !== 0) return done(null);
-      try {
-        const s = (JSON.parse(out) as { streams?: Array<Record<string, unknown>> }).streams?.[0];
-        const rate = (v: unknown) => {
-          const [num, den] = String(v ?? '0/1').split('/').map(Number);
-          return den ? Math.round((num / den) * 1000) / 1000 : 0;
-        };
-        const fps = rate(s?.r_frame_rate);
-        const avg = rate(s?.avg_frame_rate);
-        const start = s?.start_time !== undefined ? Number(s.start_time) : undefined;
-        const width = Number(s?.width ?? 0);
-        const height = Number(s?.height ?? 0);
-        const frames = s?.nb_frames !== undefined ? Number(s.nb_frames) : undefined;
-        if (!(fps > 0) || !(width > 0) || !(height > 0)) return done(null);
-        done({
-          fps,
-          width,
-          height,
-          ...(avg > 0 ? { avg_fps: avg } : {}),
-          ...(start !== undefined && Number.isFinite(start) ? { start_s: start } : {}),
-          ...(frames !== undefined && Number.isInteger(frames) && frames > 0 ? { frames } : {}),
-        });
-      } catch {
-        done(null);
-      }
-    });
+async function probeFd(fd: number, o: { ffprobe?: string; policy: WorkPolicy; signal: AbortSignal; timeoutMs: number }): Promise<VideoProbe | null> {
+  const tool = startMediaTool(ffprobeBin(o.policy, o.ffprobe), openVideoArgs(), { stdio: ['ignore', 'pipe', 'ignore', fd], signal: o.signal, cancelSignal: 'SIGKILL', abortedAtStart: 'run', timeoutMs: o.timeoutMs, timeoutSignal: 'SIGKILL', settle: 'exit' });
+  let out = '';
+  tool.child.stdout?.on('data', (c: Buffer) => {
+    if (out.length < 64 * 1024) out += c.toString();
   });
+  const end = await tool.exited;
+  if (end.error || end.code !== 0) return null;
+  try {
+    return openVideoFromJson(readFfprobeJson(out));
+  } catch {
+    return null;
+  }
 }
 
 /** A byte-bounded LRU (base64 length counted). */

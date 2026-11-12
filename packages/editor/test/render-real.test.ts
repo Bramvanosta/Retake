@@ -105,6 +105,8 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     expect(record.policy).toEqual({
       gl: { asked: 'software', source: 'env', resolved: 'software', used: 'software' },
       encoder: { asked: 'libx264', source: 'env', used: 'libx264' },
+      // L7.3: the frame encode's ffmpeg, pinned to the library's by the suite (RETAKE_RENDER_FFMPEG).
+      ffmpeg: { asked: 'library', source: 'env', used: 'library' },
       concurrency_source: 'option',
     });
     expect(record.frames).toBe(record.plan.durationInFrames);

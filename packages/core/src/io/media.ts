@@ -2,11 +2,12 @@
  * The media probes (core media.ts reads their answers): ffprobe of a video file, cached by path, size, modification
  * time and the ffprobe that read it, and the metadata of a Lottie file on the disk.
  */
-import { spawnSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import type { WorkPolicy } from '../agent-policy.js';
 import { ffprobeBin } from './media-tools.js';
-import { MediaProbeError, readLottieMeta, videoProbeFromJson } from '../media.js';
+import { readFfprobeJson, videoFileArgs, videoProbeFromJson } from '../ffprobe.js';
+import { MediaToolError, runMediaToolSync, stderrLines } from './media-run.js';
+import { MediaProbeError, readLottieMeta } from '../media.js';
 import type { LottieMeta, VideoProbe } from '../media.js';
 
 const probeCache = new Map<string, VideoProbe | MediaProbeError>();
@@ -34,18 +35,23 @@ export function probeVideoFile(file: string, policy: WorkPolicy): VideoProbe {
   const hit = probeCache.get(key);
   if (hit instanceof MediaProbeError) throw hit;
   if (hit) return hit;
-  const r = spawnSync(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-  if (r.error) {
+  let stdout: string | null = null;
+  let failed: MediaToolError | null = null;
+  try {
+    stdout = runMediaToolSync(ffprobe, videoFileArgs(file), { maxBuffer: 16 * 1024 * 1024 });
+  } catch (e) {
+    if (!(e instanceof MediaToolError)) throw e;
     // Not cached: installing ffmpeg fixes it.
-    throw new MediaProbeError(`ffprobe is not available (${(r.error as NodeJS.ErrnoException).code ?? r.error.message}): install ffmpeg`, 'no-ffprobe');
+    if (e.errno !== undefined) throw new MediaProbeError(`ffprobe is not available (${e.errno}): install ffmpeg`, 'no-ffprobe');
+    failed = e;
   }
   let result: VideoProbe | MediaProbeError;
-  if (r.status !== 0) {
-    const why = String(r.stderr || '').trim().split('\n')[0] || `exit ${r.status}`;
+  if (failed) {
+    const why = stderrLines(failed.stderr, 1, 'first') || `exit ${failed.code}`;
     result = new MediaProbeError(`ffprobe cannot read it (${why})`, 'unreadable');
   } else {
     try {
-      result = videoProbeFromJson(JSON.parse(r.stdout));
+      result = videoProbeFromJson(readFfprobeJson(stdout ?? ''));
     } catch (e) {
       result = e instanceof MediaProbeError ? e : new MediaProbeError(`ffprobe output not understood (${(e as Error).message})`, 'unreadable');
     }
