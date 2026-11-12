@@ -3,7 +3,7 @@ import type { HookContext, HookResult, RunAccess, WorkPolicy } from '@retake/cor
 import { HooksSourceError, agentWrittenShellHooks, callerOf, envResetWork, hooksRunWork, hooksTrustView, listingContext, rollbackActionLines, rollbackWork, trustScenarioHooks } from '@retake/engine';
 import type { HookJournal, HookJournalRollback, HookWorkOptions, HooksRunOutcome, PendingHookJournal } from '@retake/engine';
 import { fileFacts } from '@retake/core/io';
-import { agentHooksListing, askAgentHooks } from '../agent-hooks.js';
+import { agentHooksListing, askAgentHooks, hooksNoun } from '../agent-hooks.js';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -137,7 +137,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
         }
         return e;
       },
-      // L7.27: a scenario's setup or teardown whose bytes an agent wrote: its shell hooks are listed, and run only on a
+      // L7.27, L7.33: a scenario's setup or teardown whose bytes an agent wrote: its shell and sql hooks are listed, and run only on a
       // person's yes (a terminal's, or --yes); listed only with --dry (nothing executes).
       onSelected: async (sel, { runId }) => {
         if (!sel.scenario || sel.file === undefined || (sel.phase !== 'setup' && sel.phase !== 'teardown')) return;
@@ -300,7 +300,7 @@ export interface HooksTrustOptions {
 }
 
 /**
- * `retake hooks trust <project> <scenario>` (L7.27): a person marks the shell hooks of a scenario an agent wrote as
+ * `retake hooks trust <project> <scenario>` (L7.27): a person marks the shell and sql hooks of a scenario an agent wrote as
  * theirs — listed as a run lists them, then asked (y/N; `--yes`; without a terminal and without `--yes`, refused) —
  * and on yes one record line by the person settles them: a run no longer asks until they change. A terminal's command
  * only: no MCP tool or Studio route does this.
@@ -311,7 +311,7 @@ export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectAr
   const view = await hooksTrustView(ws.root, project, scenarioArg, { files: fileFacts(ws.policy), ...(opts.env !== undefined ? { env: opts.env } : {}) });
   const name = showHiddenCharsLine(view.name);
   if (!view.hooks.length) {
-    ui.ok(`scenario ${name} has no shell hooks: nothing to trust`);
+    ui.ok(`scenario ${name} has no shell or sql hooks: nothing to trust`);
     return EXIT.ok;
   }
   if (!view.author.agent) {
@@ -321,7 +321,7 @@ export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectAr
   const listing = agentHooksListing(view.name, { hooks: view.hooks, ...('unknown' in view.author ? { unknown: view.author.unknown } : { by: view.author.by, at: view.author.at }) });
   ui.warn(listing.header);
   for (const l of listing.lines) ui.line(l);
-  const n = view.hooks.length === 1 ? 'this shell hook' : `these ${view.hooks.length} shell hooks`;
+  const n = view.hooks.length === 1 ? `this ${hooksNoun(view.hooks)}` : `these ${view.hooks.length} ${hooksNoun(view.hooks)}`;
   if (!opts.yes) {
     if (!ui.io.canPrompt || !ui.io.confirm) {
       throw new CliError(`refused: marking the hooks of scenario ${name} as yours takes a person's yes — answer in a terminal, or pass --yes`);

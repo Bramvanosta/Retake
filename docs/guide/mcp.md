@@ -323,7 +323,11 @@ a terminal run in their own process and are not held to these rules.
 **Safety.**
 - **Hooks need a human.** The agent driving the server can write the scenarios it runs (`scenario_save`), so the trust
   flags of hook files do not count for work submitted through MCP: `confirm: true` is ignored, every destructive hook
-  and every **shell** hook (a local command) needs the user's approval, and a shell hook always counts as writing —
+  and every **shell** hook (a local command) needs the user's approval, and so does every **sql** hook the agent wrote
+  (the scenario's setup, teardown and named hooks, or a hook whose statement, file, rollback file or database URL is
+  rendered with its `vars`: treated like its shell hooks, its statements shown as they will run,
+  whatever the statement; a sandbox's seed and reset steps come from `sandbox.yaml`, which no agent path writes, and are
+  not concerned), and a shell hook always counts as writing —
   its `writes: false` is ignored, so it never runs on a production or read-only environment. When `run_capture`,
   `run_dry {hooks: "run"}`, `hooks_run {dry: false}` or `env_reset {dry: false}` needs such hooks, the server first
   checks them without running anything (templated, secrets as `***`; what a safety rule refuses fails the call at

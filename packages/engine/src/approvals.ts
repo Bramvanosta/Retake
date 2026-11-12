@@ -175,8 +175,8 @@ export interface Preflight {
 }
 
 /** Why a hook needs a human, from its file alone (the preflight's backstop when its dry run could not template it). */
-function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase): string | null {
-  return hookApprovalReason(hook, phase, { projectDir: project.dir, files: nodeFileFacts });
+function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase, agentWritten: boolean): string | null {
+  return hookApprovalReason(hook, phase, { projectDir: project.dir, files: nodeFileFacts, ...(agentWritten ? { agentWritten } : {}) });
 }
 
 /**
@@ -217,7 +217,7 @@ export async function preflightHooks(
         refused.push({ phase, index, ...(hook.name ? { name: hook.name } : {}), description: r.description, error: r.error ?? 'refused' });
         continue;
       }
-      const reason = r?.approval?.reason ?? (phase === 'seed' ? null : staticReason(hook, project, phase));
+      const reason = r?.approval?.reason ?? (phase === 'seed' ? null : staticReason(hook, project, phase, agentWritten === true));
       if (!reason) continue;
       const description = r?.status === 'dry' ? r.description : describeHook(hook);
       // Its rollback as the dry run templated it, else as its file declares it (a setup hook's only).

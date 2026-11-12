@@ -17,6 +17,21 @@ export function tokensIn(value: unknown, out: string[] = []): string[] {
 }
 
 /**
+ * Whether the templates of `value` (a hook, or the texts it renders: an sql file, its rollback's, its database URL) use a
+ * variable the agent wrote (HookContext.agentVars): `{{vars.x}}`, or a bare `{{x}}` that is not a page.
+ */
+export function usesAgentVars(value: unknown, ctx: HookContext): boolean {
+  const names = new Set(ctx.agentVars ?? []);
+  if (!names.size) return false;
+  return tokensIn(value).some((expr) => {
+    const path = expr.split('.').map((s) => s.trim());
+    if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
+    if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
+    return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
+  });
+}
+
+/**
  * `{{accounts.<persona>.username|password}}` of the sandbox of environment `env` (sandbox-refs.ts), as a template
  * root; its secret values are registered for redaction. Undefined: `value` reads none.
  */

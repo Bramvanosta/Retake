@@ -308,7 +308,7 @@ const ENTRIES = [
   { name: 'raw_export', ...W, cli: ['export-capture'], mcp: no('a raw package is for another editing tool: a person exports it in a terminal'), studio: TERMINAL_ONLY_STUDIO },
   { name: 'still', ...WORKSPACE, cli: ['still'], mcp: no('Claude sees frames through review_get and template_preview'), studio: no('the comment screen shows frames of a render (render_frame)') },
   { name: 'hooks_rollback', ...PROJECT_DESTRUCTIVE("what a capture's or a hook run's hooks did (their pending rollbacks)"), cli: ['hooks rollback'], mcp: no('env_reset replays pending rollbacks first'), studio: NO_HOOKS_IN_STUDIO },
-  { name: 'hooks_trust', ...W, cli: ['hooks trust'], mcp: no("a person marks an agent's shell hooks as theirs, after reading them, in a terminal: never Claude"), studio: NO_HOOKS_IN_STUDIO },
+  { name: 'hooks_trust', ...W, cli: ['hooks trust'], mcp: no("a person marks an agent's shell and sql hooks as theirs, after reading them, in a terminal: never Claude"), studio: NO_HOOKS_IN_STUDIO },
   { name: 'sandbox_init', ...W, cli: ['sandbox init'], mcp: no("sandbox.yaml is the person's file, never written through MCP"), studio: NO_SANDBOX_IN_STUDIO },
   { name: 'sandbox_down', ...PROJECT_DESTRUCTIVE("a sandbox's services, and with --volumes its data"), cli: ['sandbox down'], mcp: no('Claude starts and resets a sandbox; a person stops it'), studio: NO_SANDBOX_IN_STUDIO },
   { name: 'sandbox_logs', ...R, cli: ['sandbox logs'], mcp: no("sandbox_status says a sandbox's state; its logs are read in a terminal"), studio: NO_SANDBOX_IN_STUDIO },

@@ -48,6 +48,11 @@ export interface PreparedHook {
   shown: ShownAction;
   /** Why the content that will run is destructive, or null (declared `destructive: true` is handled by the caller). */
   destructive: string | null;
+  /**
+   * Trust `mcp`: a text the hook loads and renders — an sql file, its rollback's, its database URL — uses a variable the
+   * agent wrote (HookContext.agentVars): the hook then counts as the agent's, as one whose own templates do.
+   */
+  agentVars?: true;
   /** Why it writes (refused on a read-only run, L1.7), or null: its templated request / SQL, its rollback included. */
   writes: string | null;
   /**

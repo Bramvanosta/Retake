@@ -62,7 +62,16 @@ export interface DestructiveOptions {
   files?: FileFacts;
   /** Override file reading (tests); returns undefined when the file cannot be read. */
   readText?: (absPath: string) => string | undefined;
+  /** The hook was written by an agent (hookApprovalReason): its sql statements need a person, as its shell commands do. */
+  agentWritten?: boolean;
 }
+
+/**
+ * Why an sql hook an agent wrote needs a person under trust `mcp`: treated like an agent's shell hook, whatever its
+ * statement (its rollback is shown and approved with it). A person's own sql hooks keep the destructive rule only, and
+ * a sandbox's seed and reset steps (sandbox.yaml, which no agent path writes) are not concerned.
+ */
+export const AGENT_SQL_REASON = 'an sql hook the agent wrote (runs statements on the database)';
 
 function readWith(files: FileFacts, file: string): string | undefined {
   try {
@@ -226,8 +235,9 @@ export function rollbackApprovalReason(hook: HookStep, opts: DestructiveOptions 
 
 /**
  * Why a hook needs a human before work submitted by an agent (trust `mcp`: the MCP server, the Studio) runs it, from
- * its file alone, or null: declared or detected destructive, any shell command (local code) and, for a setup hook
- * (`phase`), a rollback that needs approval (rollbackApprovalReason). The submit's preflight (engine approvals.ts) also
+ * its file alone, or null: declared or detected destructive, any shell command (local code), an sql hook the agent
+ * wrote (`opts.agentWritten`: AGENT_SQL_REASON) and, for a setup hook (`phase`), a rollback that needs approval
+ * (rollbackApprovalReason). The submit's preflight (engine approvals.ts) also
  * templates each hook; this is its backstop and what the Studio's hooks strip shows. A malformed hook gives null
  * (validation reports it).
  */
@@ -239,7 +249,7 @@ export function hookApprovalReason(hook: HookStep, phase: string, opts: Destruct
     return null;
   }
   try {
-    const own = hook.destructive === true ? 'declared destructive' : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : null));
+    const own = hook.destructive === true ? 'declared destructive' : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && opts.agentWritten === true ? AGENT_SQL_REASON : null));
     // Setup and step hooks (L5.8) journal their rollback, run later without asking again.
     const rollback = phase === 'setup' || phase === 'step' ? rollbackApprovalReason(hook, opts) : null;
     const reasons = [own, rollback].filter((r): r is string => r !== null);

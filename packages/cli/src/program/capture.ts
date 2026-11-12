@@ -23,7 +23,7 @@ export function registerCaptureCommands({ program, action }: ProgramContext): vo
     .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
     .option('--headed', 'show the browser window (needs a display)')
     .option('--allow-writes', 'let a run on a production environment write (only where project.yaml sets access: read-write; without it such a run is read-only)')
-    .option('--yes', 'run the shell hooks of a scenario an agent wrote last without asking (they are listed; otherwise a terminal asks, and without one the run is refused)')
+    .option('--yes', 'run the shell and sql hooks of a scenario an agent wrote last without asking (they are listed; otherwise a terminal asks, and without one the run is refused)')
     .option('--sandbox', 'reset the sandbox to its seed before the take: up if needed, health, reset (environment: --env, the scenario env or default_env when a sandbox, else the first sandbox); it stays up after')
     .option('--json', 'stream progress events as JSON lines on stdout')
     .option('--raw', 'then export the raw package for editors (as retake export-capture: clips per scene, cursor data, markers)')

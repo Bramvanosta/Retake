@@ -27,7 +27,7 @@
  */
 import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
-import { canonicalJson, journalsRollback, projectPath, runPath, statePath } from '@retake/core';
+import { AGENT_SQL_REASON, canonicalJson, journalsRollback, listTemplateTokens, projectPath, runPath, statePath } from '@retake/core';
 import type { HookContext, HookKind, HookPhase, HookResult, HookStep, JournalEntry, RollbackAction } from '@retake/core';
 import { describeHook, describeRollback, hookKindOf } from '@retake/hooks/describe';
 import { EngineError } from '../errors.js';
@@ -192,10 +192,34 @@ export class MemoryHookRunner implements HookRunner {
     return j;
   }
 
-  #reason(hook: HookStep, kind: HookKind, place: MemoryHookPlace, ctx: HookContext): string | null {
+  /**
+   * As the hooks package (template.ts usesAgentVars, on the hook's own fields; this runner reads no file): a hook whose
+   * templates use a variable the agent wrote counts as the agent's.
+   */
+  #usesAgentVars(hook: HookStep, ctx: HookContext): boolean {
+    const names = new Set(ctx.agentVars ?? []);
+    if (!names.size) return false;
+    const strings: string[] = [];
+    const walk = (v: unknown): void => {
+      if (typeof v === 'string') strings.push(v);
+      else if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+    };
+    walk(hook);
+    return strings.flatMap((t) => listTemplateTokens(t)).some((expr) => {
+      const path = expr.split('.').map((x) => x.trim());
+      if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
+      if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
+      return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
+    });
+  }
+
+  #reason(hook: HookStep, kind: HookKind, place: MemoryHookPlace, ctx: HookContext, written: boolean): string | null {
+    const agentWritten = ctx.trust === 'mcp' && (written || this.#usesAgentVars(hook, ctx));
     const mcp = ctx.trust === 'mcp';
     const declared = hook.destructive === true && (mcp || hook.confirm !== true) ? 'declared destructive' : null;
-    const own = mcp ? (declared ?? this.#o.needsHuman?.(hook, place) ?? (kind === 'shell' ? SHELL_REASON : null)) : declared;
+    // As the hooks package: an sql hook the agent wrote is asked like a shell one (core AGENT_SQL_REASON).
+    const own = mcp ? (declared ?? this.#o.needsHuman?.(hook, place) ?? (kind === 'shell' ? SHELL_REASON : kind === 'sql' && agentWritten ? AGENT_SQL_REASON : null)) : declared;
     if (!own) return null;
     return place.phase !== 'seed' || (mcp && kind === 'shell') ? own : null;
   }
@@ -228,7 +252,7 @@ export class MemoryHookRunner implements HookRunner {
         await rollBack();
         break;
       }
-      const { result, entry } = await this.#one(hook, { phase: o.phase, index }, ctx, journal);
+      const { result, entry } = await this.#one(hook, { phase: o.phase, index }, ctx, journal, o.agentWritten === true);
       await record(ctx, result);
       results.push(result);
       if (entry?.rollback && entry.status === 'ok') completed.push(entry.seq);
@@ -246,7 +270,7 @@ export class MemoryHookRunner implements HookRunner {
     return { ok, results };
   }
 
-  async #one(hook: HookStep, place: MemoryHookPlace, ctx: HookContext, journal: MemoryHookJournal): Promise<{ result: HookResult; entry?: JournalEntry }> {
+  async #one(hook: HookStep, place: MemoryHookPlace, ctx: HookContext, journal: MemoryHookJournal, agentWritten: boolean): Promise<{ result: HookResult; entry?: JournalEntry }> {
     const description = describeHook(hook);
     const base = { index: place.index, ...(hook.name !== undefined ? { name: hook.name } : {}), phase: place.phase, description, ...(hook.optional ? { optional: true } : {}), ms: 0 };
     let kind: HookKind;
@@ -255,7 +279,7 @@ export class MemoryHookRunner implements HookRunner {
     } catch (e) {
       return { result: { ...base, ok: false, status: 'failed', error: e instanceof Error ? e.message : String(e) } };
     }
-    const reason = this.#reason(hook, kind, place, ctx);
+    const reason = this.#reason(hook, kind, place, ctx, agentWritten);
     const mcp = ctx.trust === 'mcp';
     let approval: HookResult['approval'];
     if (reason) {

@@ -161,10 +161,20 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   These rules decide how a command is written, not what a program does with its arguments: the form still shows the
   command in full, and approving it is approving what it does. A hook that needs more belongs in `hooks/<name>.yaml`
   (or project.yaml's `hooks:` without the scenario's vars), shown in full and asked about, or in a terminal.
-- **An agent's shell hooks are asked about in a terminal too.** When the hooks of a scenario were last written by an
-  agent — through MCP or the Studio — `retake run` and `retake hooks run <scenario>:setup|teardown` list its shell
-  hooks (setup, teardown, the named hooks its steps run) as they will run: the command rendered with the run's vars,
-  pages and run id, its working folder, each environment entry and its rollback, every hidden character written out;
+- **An agent's sql hooks are asked about like its shell hooks.** A statement can reach past its database (a database
+  server may run programs or read and write files on its host), so through MCP or the Studio every sql hook the agent
+  wrote — the scenario's setup, teardown and named hooks, or a hook whose statement, file, rollback file or database
+  URL is rendered with its `vars` — needs your approval, whatever the statement, bound to it (and to the bytes of the
+  file it reads) like a shell hook, its statements shown as they will run (a file's text rendered, the file named
+  beside it), its rollback shown and approved with it. Your own sql hooks (project.yaml, `hooks/<name>.yaml`) keep the destructive rule only, and a
+  sandbox's seed and reset steps come from `sandbox.yaml`, which no agent path writes: not concerned. What an approved
+  hook then does is what you approved: a statement or a command that reaches the machine can write any file Retake's
+  own files sit beside — the project's record of scenario writes too — so read it before you say yes.
+- **An agent's shell and sql hooks are asked about in a terminal too.** When the hooks of a scenario were last written
+  by an agent — through MCP or the Studio — `retake run` and `retake hooks run <scenario>:setup|teardown` list its shell
+  and sql hooks (setup, teardown, the named hooks its steps run) as they will run: the command rendered with the run's
+  vars, pages and run id, its working folder, each environment entry and its rollback; an sql hook's statements (a
+  file's text), its database and its rollback; every hidden character written out;
   a secret stays a token and a value filled from an earlier hook's response is said to be unknown until the run. They
   run only on your yes: asked in a terminal (no by default), `--yes` in a script, refused without a terminal.
   Who wrote them is read from the scenario's hook surface — its setup, teardown, named hooks, the names its `hook:`

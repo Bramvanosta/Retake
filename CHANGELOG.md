@@ -16,6 +16,9 @@ release — for the person about to click Install and Restart.
   scenario whose hooks an agent wrote last (through MCP or the Studio) and runs them only on your yes — asked in a
   terminal, `--yes` in a script, refused otherwise; hooks you wrote or changed yourself run as before, and
   `retake hooks trust` makes an agent's hooks yours once you have read them.
+- An sql hook an agent wrote is treated like its shell hooks: work submitted through MCP or the Studio asks your
+  approval for each one (whatever the statement, bound to it like a shell hook), and `retake run` / `retake hooks run`
+  list and ask about them with the shell hooks; your own sql hooks and sandbox seeds are unchanged.
 - `retake prune` and `project_prune` keep the capture you can still edit. Per scenario they now keep the newest take
   whose record says the capture succeeded **and** the newest take that can really be edited (its timeline reads, its
   film is there) **and** the newest such take that was not stopped by `--until`. Before, a newer capture whose film

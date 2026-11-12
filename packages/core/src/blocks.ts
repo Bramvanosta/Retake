@@ -786,7 +786,8 @@ function hookBlocks(phase: 'setup' | 'teardown' | 'step', list: unknown, seq: At
     if (h.confirm === true) flags.push({ kind: 'confirm', label: 'confirm' });
     if (h.optional === true) flags.push({ kind: 'optional', label: 'optional' });
     if (h.writes === false) flags.push({ kind: 'reads_only', label: 'reads only (writes: false)' });
-    const needs = kind ? hookApprovalReason(hook as HookStep, phase, o.hookFiles ?? {}) : null;
+    // Every hook of a scenario file counts as the agent's for work it submits (trust `mcp`).
+    const needs = kind ? hookApprovalReason(hook as HookStep, phase, { ...(o.hookFiles ?? {}), agentWritten: true }) : null;
     const comment = commentOf(seq, at, index);
     const range = rangeOf(at, src);
     return {

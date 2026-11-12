@@ -1,7 +1,8 @@
 /**
- * The shell hooks of a scenario an agent wrote, as a person's own command sees them (L7.27). The rule: when the hooks
- * `retake run` (or `retake hooks run <scenario>:setup|teardown`) is about to run were written by an agent, it lists
- * every shell hook as it will run and asks the person before any of them runs (work submitted through MCP or the
+ * The shell and sql hooks of a scenario an agent wrote, as a person's own command sees them (L7.27, L7.33: an agent's
+ * sql hook is treated like its shell hooks). The rule: when the hooks `retake run` (or `retake hooks run
+ * <scenario>:setup|teardown`) is about to run were written by an agent, it lists every shell and sql hook as it will
+ * run and asks the person before any of them runs (work submitted through MCP or the
  * Studio has its own approvals: trust `mcp`).
  *
  * **What decides — the hook surface.** A scenario's executable surface is what its hooks run and are rendered with:
@@ -25,11 +26,11 @@
  * parsed scenario, or — with no line to decide — a project outside the projects folder of every workspace looked at.
  */
 import { createHash } from 'node:crypto';
-import { constants, createReadStream, existsSync, statSync } from 'node:fs';
+import { constants, createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, open, realpath, rmdir } from 'node:fs/promises';
-import { basename, dirname, join, relative, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, canonicalJson, hookStepNames, interpolate, projectPath, resolveEnvironment, statePath, usedNamedHooks } from '@retake/core';
+import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, canonicalJson, hookStepNames, interpolate, projectPath, resolveEnvironment, sqlSource, statePath, usedNamedHooks } from '@retake/core';
 import type { HookStep, LoadedProject, Scenario, TemplateContext, WorkFileFacts } from '@retake/core';
 import { findWorkspaceUpward, loadScenario, loadWorkspaceConfig, reserveRunId } from '@retake/core/io';
 import type { Caller } from './caller.js';
@@ -252,7 +253,7 @@ export async function hooksWrittenBy(
   return { agent: false, why: 'unjournaled' };
 }
 
-// ── The shell hooks, as they will run ────────────────────────────────────────
+// ── The shell and sql hooks, as they will run ──────────────────────────────────────────────────────────────────────
 
 /** A text as it will run: rendered, with what is not known before the run said so. */
 export interface RenderedText {
@@ -264,8 +265,10 @@ export interface RenderedText {
   unknown: string[];
 }
 
-/** Where a shell hook of a scenario's run is declared and everything it runs with. */
+/** Where a shell or sql hook of a scenario's run is declared and everything it runs with. */
 export interface ScenarioShellHook {
+  /** A shell command, or sql statements (an agent's sql hook is asked about like its shell hooks, L7.33). */
+  kind: 'shell' | 'sql';
   /** `setup`, `teardown`, or `step` (a named hook a `hook:` step runs). */
   phase: 'setup' | 'teardown' | 'step';
   /** Its position in its list, from 1 (a step hook: in its named hook's entries). */
@@ -273,7 +276,13 @@ export interface ScenarioShellHook {
   name?: string;
   /** A step hook: the named hook the step runs, and where it is declared. */
   named?: { name: string; source: 'scenario' | 'project' };
+  /** A shell hook's command; an sql hook's statements (its file's text when it names one). */
   run: RenderedText;
+  /** An sql hook: the file its statements are read from, and its rollback's (as written). */
+  file?: string;
+  rollbackFile?: string;
+  /** An sql hook: the database key it names (`db`; absent: the environment's first database) — never its URL. */
+  db?: string;
   cwd?: RenderedText;
   /** Its own environment entries, in the file's order. */
   env: Array<{ name: string; value: RenderedText }>;
@@ -332,17 +341,67 @@ function shellSpec(h: HookStep): { run: string; cwd?: string; env?: Record<strin
   };
 }
 
+/** An sql source as written: a `.sql` file (core sqlSource) or an inline statement. */
+function sqlText(src: unknown, projectDir: string | undefined): { text: string; file?: string } | undefined {
+  if (typeof src === 'string') {
+    const { file, query } = sqlSource(src);
+    return file !== undefined ? { text: fileText(file, projectDir), file } : { text: query ?? '' };
+  }
+  if (!src || typeof src !== 'object') return undefined;
+  const o = src as { file?: unknown; query?: unknown };
+  if (typeof o.query === 'string') return { text: o.query };
+  if (typeof o.file === 'string') return { text: fileText(o.file, projectDir), file: o.file };
+  return undefined;
+}
+
+/** A project file's text for the listing, or what stands for it when it cannot be read now. */
+function fileText(file: string, projectDir: string | undefined): string {
+  if (projectDir === undefined) return `<the text of ${file}>`;
+  try {
+    return readFileSync(resolve(projectDir, file), 'utf8');
+  } catch (e) {
+    return `<${file} cannot be read now: ${(e as NodeJS.ErrnoException).code ?? 'error'}>`;
+  }
+}
+
+function sqlSpec(h: HookStep, projectDir: string | undefined): { run: { text: string; file?: string }; db?: string; rollback?: { text: string; file?: string } } | undefined {
+  if (!h || typeof h !== 'object' || !Object.hasOwn(h, 'sql')) return undefined;
+  const spec = (h as { sql: unknown }).sql;
+  const run = sqlText(spec, projectDir);
+  if (!run) return undefined;
+  const o = spec && typeof spec === 'object' ? (spec as { db?: unknown; rollback?: unknown }) : {};
+  const rollback = o.rollback !== undefined ? sqlText(o.rollback, projectDir) : undefined;
+  return { run, ...(typeof o.db === 'string' ? { db: o.db } : {}), ...(rollback ? { rollback } : {}) };
+}
+
 /**
- * Every shell hook a run of `sc` executes in `phases` — its setup, its teardown, the named hooks its `hook:` steps run
- * (the scenario's own, else project.yaml's: core usedNamedHooks, as the runner) — each with its working folder, its own
- * environment entries and its rollback, rendered with `tpl` (renderForListing).
+ * Every shell and sql hook a run of `sc` executes in `phases` — its setup, its teardown, the named hooks its `hook:`
+ * steps run (the scenario's own, else project.yaml's: core usedNamedHooks, as the runner) — rendered with `tpl`
+ * (renderForListing): a shell hook with its working folder, its own environment entries and its rollback; an sql hook
+ * with its statements (a file's text, read from `projectDir`: the folder a scenario's sql files are read from), its
+ * database key and its rollback.
  */
-export function scenarioShellHooks(sc: Pick<Scenario, 'setup' | 'teardown' | 'scenes' | 'hooks'>, project: Pick<LoadedProject, 'config'>, tpl: ListingContext, phases: ScenarioHookPhases = ALL_PHASES): ScenarioShellHook[] {
+export function scenarioShellHooks(sc: Pick<Scenario, 'setup' | 'teardown' | 'scenes' | 'hooks'>, project: Pick<LoadedProject, 'config'> & { dir?: string }, tpl: ListingContext, phases: ScenarioHookPhases = ALL_PHASES): ScenarioShellHook[] {
   const out: ScenarioShellHook[] = [];
   const add = (h: HookStep, base: Pick<ScenarioShellHook, 'phase' | 'position' | 'named'>) => {
+    const q = sqlSpec(h, project.dir);
+    if (q) {
+      out.push({
+        kind: 'sql',
+        ...base,
+        ...(typeof h.name === 'string' ? { name: h.name } : {}),
+        run: renderForListing(q.run.text, tpl),
+        ...(q.run.file !== undefined ? { file: q.run.file } : {}),
+        ...(q.db !== undefined ? { db: q.db } : {}),
+        env: [],
+        ...(q.rollback ? { rollback: renderForListing(q.rollback.text, tpl), ...(q.rollback.file !== undefined ? { rollbackFile: q.rollback.file } : {}) } : {}),
+      });
+      return;
+    }
     const s = shellSpec(h);
     if (!s) return;
     out.push({
+      kind: 'shell',
       ...base,
       ...(typeof h.name === 'string' ? { name: h.name } : {}),
       run: renderForListing(s.run, tpl),
@@ -364,12 +423,12 @@ export function listingContext(project: LoadedProject, sc: Pick<Scenario, 'vars'
   return { pages: resolveEnvironment(project, env).pages, vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) }, run };
 }
 
-/** The shell hooks a person is asked about before they run, and who wrote them. */
+/** The shell and sql hooks a person is asked about before they run, and who wrote them. */
 export type AgentWrittenShellHooks = { hooks: ScenarioShellHook[] } & ({ by: JournalBy; at: string } | { unknown: string });
 
 /**
- * The shell hooks (in `phases`) of a scenario whose hooks an agent wrote — or whose writer cannot be known — rendered
- * with the context `tpl` gives (asked for only then: a run reserves its id there), or null: no shell hook (nothing
+ * The shell and sql hooks (in `phases`) of a scenario whose hooks an agent wrote — or whose writer cannot be known — rendered
+ * with the context `tpl` gives (asked for only then: a run reserves its id there), or null: no shell or sql hook (nothing
  * else is read), or the person's.
  */
 export async function agentWrittenShellHooks(
@@ -397,13 +456,13 @@ export async function reserveListedRun(project: Pick<LoadedProject, 'dir'>, scen
 
 // ── A person's trust (`retake hooks trust`) ──────────────────────────────────
 
-/** What `retake hooks trust` shows and settles: the scenario read once, its shell hooks as a run lists them, who wrote them. */
+/** What `retake hooks trust` shows and settles: the scenario read once, its shell and sql hooks as a run lists them, who wrote them. */
 export interface HooksTrustView {
   name: string;
   file: string;
   sha256: string;
   scenario: Scenario;
-  /** Every shell hook a run executes, rendered as the run's listing renders them (the run's id and folder not known yet). */
+  /** Every shell and sql hook a run executes, rendered as the run's listing renders them (the run's id and folder not known yet). */
   hooks: ScenarioShellHook[];
   author: HooksAuthor;
 }
@@ -412,7 +471,7 @@ export interface HooksTrustView {
 const NO_RUN = { id: "<the run's id>", dir: "<the run's folder>" };
 
 /**
- * Read a scenario once (core loadScenario, validated against `env`) for `retake hooks trust`: its shell hooks as the run
+ * Read a scenario once (core loadScenario, validated against `env`) for `retake hooks trust`: its shell and sql hooks as the run
  * lists them, and who wrote them (hooksWrittenBy).
  */
 export async function hooksTrustView(wsRoot: string, project: LoadedProject, scenarioRef: string, o: { files: WorkFileFacts; env?: string }): Promise<HooksTrustView> {

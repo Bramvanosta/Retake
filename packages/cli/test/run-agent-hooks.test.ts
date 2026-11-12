@@ -276,7 +276,7 @@ describe('retake run: the shell hooks of a scenario an agent wrote', () => {
     const { lines } = agentHooksListing('x', {
       by: { client: 'mcp', channel: 'mcp', trust: 'mcp' },
       at: '2026-11-12T10:00:00.000Z',
-      hooks: [{ phase: 'setup', position: 1, run: t('echo a\u202e\nrm -rf b'), env: [{ name: 'A\u200b', value: t('v\u0007') }], rollback: t('true\u200b') }],
+      hooks: [{ kind: 'shell', phase: 'setup', position: 1, run: t('echo a\u202e\nrm -rf b'), env: [{ name: 'A\u200b', value: t('v\u0007') }], rollback: t('true\u200b') }],
     });
     expect(lines).toEqual(['  setup 1: echo a\\u{202e}\n      rm -rf b', '      env A\\u{200b}=v\\u{7}', '      rollback: true\\u{200b}']);
   });

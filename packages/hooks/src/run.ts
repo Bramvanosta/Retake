@@ -1,4 +1,4 @@
-import { channelWords, readOnlyHookMessage, shellAlwaysWrites } from '@retake/core';
+import { AGENT_SQL_REASON, channelWords, readOnlyHookMessage, shellAlwaysWrites } from '@retake/core';
 import type { HookKind, HookStep, HttpHookSpec } from '@retake/core';
 import { checkWriteHosts } from './allow-list.js';
 import { hookFiles, hookFingerprint } from './approval.js';
@@ -11,7 +11,7 @@ import { baseDirOf } from './kinds/common.js';
 import { JS_NEEDS_PAGE } from './kinds/js.js';
 import { logger, redactDeep, redactText } from './secrets.js';
 import { actionLines } from './shown.js';
-import { addDrySaved, tokensIn } from './template.js';
+import { addDrySaved, usesAgentVars } from './template.js';
 import { journalsRollback } from './types.js';
 import { recordHookRun } from './record.js';
 import type { HookApprovalRequest, HookContext, HookLogLevel, HookPhase, HookResult, JournalEntry } from './types.js';
@@ -26,18 +26,6 @@ export interface RunHooksOptions {
    * sandbox's seed) is only shown in full, unless its templates use the agent's variables (HookContext.agentVars).
    */
   agentWritten?: boolean;
-}
-
-/** Whether a hook's templates use a variable the agent wrote (`{{vars.x}}`, or a bare `{{x}}` that is not a page). */
-function usesAgentVars(hook: HookStep, ctx: HookContext): boolean {
-  const names = new Set(ctx.agentVars ?? []);
-  if (!names.size) return false;
-  return tokensIn(hook).some((expr) => {
-    const path = expr.split('.').map((s) => s.trim());
-    if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
-    if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
-    return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
-  });
 }
 
 /** What an approval shows of a prepared hook: its fields, then its rollback's, redacted (shown.ts). */
@@ -105,13 +93,15 @@ async function confirmDestructive(hook: HookStep, reason: string, description: s
 
 /**
  * Why a hook needs a human before it runs, or null: destructive (declared, or found in its templated content); with
- * trust `mcp` also any shell hook (arbitrary local code), and a setup hook whose rollback is destructive, a shell
- * command or JavaScript — the rollback runs later, without asking again.
+ * trust `mcp` also any shell hook (arbitrary local code), an sql hook the agent wrote (`agentWritten`, or a person's
+ * whose file, rollback file or database URL uses the agent's vars: PreparedHook.agentVars — treated like its shell
+ * hooks, core AGENT_SQL_REASON), and a setup hook whose rollback is destructive, a shell command or
+ * JavaScript — the rollback runs later, without asking again.
  */
-function approvalReason(hook: HookStep, kind: HookKind, prepared: PreparedHook, ctx: HookContext): string | null {
+function approvalReason(hook: HookStep, kind: HookKind, prepared: PreparedHook, ctx: HookContext, agentWritten: boolean): string | null {
   const own = hook.destructive === true ? 'declared destructive' : prepared.destructive;
   if (ctx.trust !== 'mcp') return own;
-  const reasons = [own ?? (kind === 'shell' ? 'a shell command (runs local code)' : null), prepared.rollback?.reason ? `its rollback: ${prepared.rollback.reason}` : null];
+  const reasons = [own ?? (kind === 'shell' ? 'a shell command (runs local code)' : kind === 'sql' && (agentWritten || prepared.agentVars === true) ? AGENT_SQL_REASON : null), prepared.rollback?.reason ? `its rollback: ${prepared.rollback.reason}` : null];
   const r = reasons.filter((x): x is string => x !== null);
   return r.length ? r.join('; ') : null;
 }
@@ -183,12 +173,13 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
   });
 
   let prepared: PreparedHook;
+  let agentWritten = false;
   try {
     if (kind === 'js' && opts.phase === 'seed') throw new HookError(SEED_NO_JS);
     // Through MCP (core agent-trust): the files a hook references stay in the project, never agent-writable when run as
     // code; their bytes are bound to its approval (fingerprint).
     let files: Record<string, string> | undefined;
-    const agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
+    agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
     if (ctx.trust === 'mcp') {
       // An agent-written shell hook's words are judged by core agentShellProblems instead (kinds/shell.ts).
       const found = hookFiles(hook, { projectDir: ctx.project.dir, baseDir: baseDirOf(ctx), ...(agentWritten ? { agentWritten } : {}) });
@@ -207,7 +198,7 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     }
     // Nor does any run write to the hosts of another, read-only environment (production): refused like the above.
     if (prepared.writes && prepared.hosts) checkWriteHosts(prepared.hosts, prepared.writes, ctx.access);
-    const reason = approvalReason(hook, kind, prepared, ctx);
+    const reason = approvalReason(hook, kind, prepared, ctx, agentWritten);
     // A seed rebuilds a local, disposable sandbox (L1.8): destructive steps are its job, never asked about. With trust
     // `mcp` a shell seed step still needs a human: it runs local code, whatever the sandbox is.
     const asks = reason !== null && (opts.phase !== 'seed' || (ctx.trust === 'mcp' && kind === 'shell'));

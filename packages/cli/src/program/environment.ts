@@ -13,7 +13,7 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .argument('<project>', 'project slug or directory')
     .argument('<source>', '<scenario>:setup | <scenario>:teardown | reset | hooks/<file>.yaml')
     .option('--env <name>', 'environment')
-    .option('--yes', 'approve destructive hooks that lack "confirm: true", and run the shell hooks of a scenario an agent wrote last without asking')
+    .option('--yes', 'approve destructive hooks that lack "confirm: true", and run the shell and sql hooks of a scenario an agent wrote last without asking')
     .option('--allow-writes', 'let hooks write to a production environment (only where project.yaml sets access: read-write)')
     .option('--dry', 'fill in the hooks\' {{…}} values and security-check them without executing them')
     .action(action((u, g, p: string, s: string, o: HookCommandOptions) => hooksRunCommand(u, g, p, s, o)));
@@ -29,7 +29,7 @@ export function registerEnvironmentCommands({ program, action }: ProgramContext)
     .action(action((u, g, p: string, r: string | undefined, o: HookCommandOptions) => hooksRollbackCommand(u, g, p, r, o)));
   hooks
     .command('trust')
-    .description('after reading them, mark the shell hooks of a scenario an agent wrote as yours: runs no longer ask about them until they change')
+    .description('after reading them, mark the shell and sql hooks of a scenario an agent wrote as yours: runs no longer ask about them until they change')
     .argument('<project>', 'project slug or directory')
     .argument('<scenario>', 'scenario name or YAML file')
     .option('--env <name>', 'environment whose pages fill the listing (default: scenario env, project default_env, first one)')

@@ -123,6 +123,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.20 | One name per use case (S2): the catalogue links each use case served under two shells' names (`useCase`, 18 groups, one name per shell), the Studio's three narrowings marked (`narrows`); nothing renamed (option C) | S | **done** (2026-11-12; 11 mutations red; no fixture changed; R-ARCH-40) |
 | L7.30 | U16 (second part): `buildProgram` → ten command families registering their commands (cli src/program/, `ProgramContext`); the Record screen → a folder of parts (ui src/app/record/: start form, draft, list, inserts, body, inspector, live view, the changes it sends as hooks); the rest of the front end by feature proposed as its own lot | M | **done** (2026-11-12; every `--help` and usage error byte-identical with 65d4243's build; pipeline-cli, operations-cli unchanged; Studio screenshots equal but for the workspace path; full suite not run) |
 | L7.32 | U16 (last part, S12): the Studio front end by feature — ui src/app/ in record/, script/, shoot/, edit/, review/, library/, themes/, project/, the shared words in words/, the foundations at the root; feature-boundaries checks each feature is reached only through its listed public modules and that the foundations and words import no feature | M | **done** (2026-11-12; moves and imports only; 14 Studio routes equal to c1b889b's build but for the workspace path and the recording name's minute; op table and fixtures unchanged; full suite not run) |
+| L7.33 | Security: an sql hook an agent wrote is treated like its shell hooks — under trust `mcp` every one needs a person's approval (same reason path, items and fingerprint, its file's bytes bound; also a person's hook whose file, rollback file or database URL renders the scenario's vars; the form shows each statement as it will run), and a person's `retake run` / `hooks run` / `hooks trust` list it with the shell hooks and ask; a person's sql hooks, the destructive rule and sandbox seeds unchanged | S | **done** (2026-11-12; security review fix pass H1, M1, L1, L2; 20 mutations red; operations-cli: 3 cases changed, pipeline-cli: `run --help`) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1186,6 +1187,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.32 — The Studio front end by feature (M; decided 2026-11-11)
 - **Goal:** the Studio's modules live in one folder per feature, shared words and foundations apart, and the feature-boundary test holds the new parts (U16, finding S12).
 - **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.32)". Requirement R-ARCH-45; 17 evidences repointed.
+
+### L7.33 — An agent's sql hooks are asked about (S; decided 2026-11-12)
+- **Goal:** an sql hook an agent wrote, or a person's sql hook whose statement, file or database the agent's vars steer, needs a person's approval like an agent's shell hook, in the jobs and at a person's terminal (security fix).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.33)". Requirement R-SEC-39.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

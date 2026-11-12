@@ -72,14 +72,25 @@ describe('the shell hooks a run executes, rendered as they will run', () => {
   const project = { config: { hooks: { shared: [{ shell: 'touch p1' }, { http: { url: 'http://y.example.test' } }], skipped: { shell: 'touch never' } } } } as never;
   const t = (written: string, shown = written, unknown: string[] = []) => ({ written, shown, unknown });
 
-  it('setup, teardown and the named hooks of its steps (the scenario’s, then project.yaml’s; a skipped scene’s left out), shell only, with cwd, env and rollback', () => {
+  it('setup, teardown and the named hooks of its steps (the scenario’s, then project.yaml’s; a skipped scene’s left out), shell and sql (L7.33), with cwd, env and rollback', () => {
     expect(scenarioShellHooks(sc, project, TPL)).toEqual([
-      { phase: 'setup', position: 2, name: 'seed', run: t('touch {{vars.who}}', 'touch world'), cwd: t('data'), env: [{ name: 'A', value: t('{{app}}/a', 'http://app.example.test/a') }, { name: 'B', value: t('{{env:TOKEN}}') }], rollback: t('rm {{who}}', 'rm world') },
-      { phase: 'teardown', position: 1, run: t('touch t'), env: [] },
-      { phase: 'step', position: 1, name: 'own', named: { name: 'own', source: 'scenario' }, run: t('echo {{hooks.tok.json.id}} {{run.id}}', 'echo <unknown until the run: {{hooks.tok.json.id}}> 20260101-120000-x', ['{{hooks.tok.json.id}}']), env: [] },
-      { phase: 'step', position: 1, name: 'shared', named: { name: 'shared', source: 'project' }, run: t('touch p1'), env: [] },
+      { kind: 'shell', phase: 'setup', position: 2, name: 'seed', run: t('touch {{vars.who}}', 'touch world'), cwd: t('data'), env: [{ name: 'A', value: t('{{app}}/a', 'http://app.example.test/a') }, { name: 'B', value: t('{{env:TOKEN}}') }], rollback: t('rm {{who}}', 'rm world') },
+      { kind: 'shell', phase: 'teardown', position: 1, run: t('touch t'), env: [] },
+      { kind: 'sql', phase: 'teardown', position: 2, run: t('delete from t'), env: [] },
+      { kind: 'shell', phase: 'step', position: 1, name: 'own', named: { name: 'own', source: 'scenario' }, run: t('echo {{hooks.tok.json.id}} {{run.id}}', 'echo <unknown until the run: {{hooks.tok.json.id}}> 20260101-120000-x', ['{{hooks.tok.json.id}}']), env: [] },
+      { kind: 'shell', phase: 'step', position: 1, name: 'shared', named: { name: 'shared', source: 'project' }, run: t('touch p1'), env: [] },
     ]);
-    expect(scenarioShellHooks(sc, project, TPL, ['teardown']).map((h) => h.run.written)).toEqual(['touch t']);
+    expect(scenarioShellHooks(sc, project, TPL, ['teardown']).map((h) => h.run.written)).toEqual(['touch t', 'delete from t']);
+  });
+
+  it('an sql hook (L7.33): its statements as they will run — a file read from the project folder —, its database key, its rollback', async () => {
+    await mkdir(join(projectDir, 'hooks'), { recursive: true });
+    await writeFile(join(projectDir, 'hooks', 'list.sql'), 'SELECT * FROM {{vars.who}};\n');
+    const withSql = { setup: [{ name: 'q', sql: { file: 'hooks/list.sql', db: 'main', rollback: { file: 'hooks/none.sql' } } }, { sql: 'hooks/list.sql' }] } as never;
+    const [one, two] = scenarioShellHooks(withSql, { config: {}, dir: projectDir } as never, TPL);
+    expect(one).toEqual({ kind: 'sql', phase: 'setup', position: 1, name: 'q', run: t('SELECT * FROM {{vars.who}};\n', 'SELECT * FROM world;\n'), file: 'hooks/list.sql', db: 'main', env: [], rollback: t('<hooks/none.sql cannot be read now: ENOENT>'), rollbackFile: 'hooks/none.sql' });
+    expect(two).toMatchObject({ kind: 'sql', run: { shown: 'SELECT * FROM world;\n' }, file: 'hooks/list.sql' });
+    expect(two!.db).toBeUndefined();
   });
 
   it('a path written with spaces is read as the run reads it: a spaced response is unknown until the run, a spaced account stays a token', () => {
