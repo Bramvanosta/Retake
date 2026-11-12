@@ -2,7 +2,7 @@
  * The engine's operations and `invoke` (L7.13, U7's first slice): one definition per operation, served by the shells
  * as these very objects — MCP's TOOLS entry is the engine's object, the Studio's table entry is that object or the
  * Studio's pinned arguments applied to it (pinArguments) — and one call for every shell (`invoke`): the shell must serve
- * the operation (before the parse, the engine never asked), the parse answers callTool's words, the operation's caller
+ * the operation (before the parse, the engine never asked), the parse names its problems per argument, the operation's caller
  * rules run after the parse with the engine's caller and before the handler, and nothing it meets is thrown.
  * L7.17: the theme, component and library family joins them; an operation that declares `serialize` runs one call of a
  * key at a time per engine (after its caller rules), MCP's declare none, and theme_edit's caller rule refuses MCP.
@@ -14,14 +14,17 @@
  * L7.18: the authoring, recording and project writes join them, and job_status; scenario_edit and record_save run on
  * their scenario's key (record_start declares none: the façade's chain orders starts), and the Record screen's ops
  * refuse every caller but the Studio and tests (drivesRecordScreen as their callers).
+ * L7.21: the deprecated `callTool` alias is gone; invoke is the one call (the contract and @retake/mcp export no other).
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { HOOK_JOB, OPERATIONS, OPERATIONS_BY_NAME, READ, SANDBOX_JOB, callTool, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, scenarioKey, servedBy, servedNames, studioPins } from '@retake/engine/contract';
+import * as contract from '@retake/engine/contract';
+import { HOOK_JOB, OPERATIONS, OPERATIONS_BY_NAME, READ, SANDBOX_JOB, argumentProblems, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, scenarioKey, servedBy, servedNames, studioPins } from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
+import * as mcp from '@retake/mcp';
 import { TOOLS } from '@retake/mcp';
 import { stubTools } from '../../ui/test/studio-tools.js';
 import { EngineError, ManualClock, callerOf, createEngine, toEngineError } from '../src/index.js';
@@ -146,7 +149,7 @@ describe('invoke', () => {
     expect(served.ok).toBe(true);
   });
 
-  it("answers callTool's words on arguments it refuses (code, message, details)", async () => {
+  it("answers the parse's words on arguments it refuses (code, message, details: each problem per argument)", async () => {
     for (const [op, args] of [
       [OPERATIONS_BY_NAME.run_list, { project: '../x', limit: 0, extra: 1 }],
       [OPERATIONS_BY_NAME.engine_info, { verbose: true }],
@@ -154,10 +157,12 @@ describe('invoke', () => {
       [OPERATIONS_BY_NAME.project_update_readme, {}],
     ] as Array<[ToolDef, unknown]>) {
       const a = await invoke(op, getter, args, { shell: 'mcp', signal });
-      const b = await callTool(op, getter, args, { signal });
-      expect(a.ok || b.ok, op.name).toBe(false);
-      if (a.ok || b.ok) continue;
-      expect({ code: a.error.code, message: a.error.message, details: a.error.details }, op.name).toEqual({ code: b.error.code, message: b.error.message, details: b.error.details });
+      const r = op.input.safeParse(args);
+      expect(a.ok || r.success, op.name).toBe(false);
+      if (a.ok || r.success) continue;
+      // The words the deprecated callTool gave too (L7.13–L7.20): the zod problems, one line per argument.
+      const problems = argumentProblems(r.error);
+      expect({ code: a.error.code, message: a.error.message, details: a.error.details }, op.name).toEqual({ code: 'invalid', message: `invalid arguments for ${op.name}:\n${problems.join('\n')}`, details: { arguments: problems } });
       expect(a.error.message, op.name).toMatch(new RegExp(`^invalid arguments for ${op.name}:\n`));
     }
   });
@@ -219,10 +224,16 @@ describe('invoke', () => {
     for (const [label, v] of [['no prototype', bare], ['throwing toString', loud], ['throwing message', sly]] as const) {
       const r = await invoke(thrower(() => { throw v; }), engine, {}, { shell: 'studio', signal });
       expect(!r.ok && r.error.code, label).toBe('internal');
-      const c2 = await callTool(thrower(() => { throw v; }), async () => engine, {}, { signal });
+      const c2 = await invoke(thrower(() => { throw v; }), async () => engine, {}, { shell: 'mcp', signal });
       expect(!c2.ok && c2.error.code, label).toBe('internal');
     }
     expect(toEngineError(bare).message).toBe('a value that cannot be shown as text was thrown');
+  });
+
+  it('callTool is gone (L7.21): the contract and @retake/mcp export invoke as the one call', () => {
+    expect(contract).not.toHaveProperty('callTool');
+    expect(mcp).not.toHaveProperty('callTool');
+    expect(mcp.invoke).toBe(contract.invoke);
   });
 });
 
@@ -296,7 +307,7 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
     expect(operationChain(engineA)).not.toBe(operationChain(engineB));
   });
 
-  it("callTool (the deprecated alias) runs a serialize operation through the same chain: two theme_edit calls of a theme serialise", async () => {
+  it("theme_edit as defined runs on its theme's key through invoke: two calls of a theme serialise, another theme does not wait (L7.21: callTool's test, on invoke)", async () => {
     const log: string[] = [];
     const gates = new Map<string, () => void>();
     // theme_edit as defined (its input and serialize), its handler a probe that waits until released.
@@ -316,12 +327,12 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
       gates.get(n)!();
     };
     const get = async () => engineA;
-    const first = callTool(edit, get, args('#111111'), { signal });
-    const second = callTool(edit, get, args('#222222'), { signal });
-    const other = callTool(edit, get, args('#333333', 'other'), { signal });
+    const first = invoke(edit, get, args('#111111'), { shell: 'studio', signal });
+    const second = invoke(edit, get, args('#222222'), { shell: 'studio', signal });
+    const other = invoke(edit, get, args('#333333', 'other'), { shell: 'studio', signal });
     await tick();
     expect(log.sort()).toEqual(['start #111111', 'start #333333']);
-    // The alias and invoke share the engine's chain: an invoke of the key waits behind them too.
+    // An engine given as itself (not a getter) shares the getter's chain: a third call of the key waits behind them.
     const third = invoke(edit, engineA, args('#444444'), { shell: 'studio', signal });
     await release('#111111');
     await tick();

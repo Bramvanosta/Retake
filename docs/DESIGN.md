@@ -2511,8 +2511,8 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 `project_update_readme` holds `README_MAX_CHARS` (200,000) for the file as written, its final line break included.
 
 **`invoke(op, engine, args, {shell, signal, progress?, approver?}) → {ok, output} | {ok: false, error: EngineError}`**
-(`@retake/engine/contract`, an `exports` sub-path of the engine; L7.13, after `callTool`, its deprecated alias for one
-lot) — SDK-free and never throwing: the catalogue serves `op` in `shell` (else `not_found`), the zod parse (problems per
+(`@retake/engine/contract`, an `exports` sub-path of the engine; L7.13; its deprecated alias `callTool` was
+removed in L7.21) — SDK-free and never throwing: the catalogue serves `op` in `shell` (else `not_found`), the zod parse (problems per
 argument), the operation's caller rules (`callers`, with the engine's read-only `Engine.caller`), the handler, every
 failure typed; `protocolTool` (shell `mcp`) and the Studio server (shell `studio`) both use it. Admission stays inside
 the submits. The engine's operations live in `packages/engine/src/operations/` (`OPERATIONS`, `OPERATIONS_BY_NAME`:

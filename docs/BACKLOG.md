@@ -2729,3 +2729,15 @@ yet) answer 403 "this recording was not started from the Studio: it is read-only
 it from the folder's meta.json, which does not exist yet, so the starter is unknown (`record-studio.ts` `studioWords(null)`).
 The refusal itself is right (there is no draft to arrange or save); its words should say the recording has not opened
 yet, from the job's `submitted_by`. Seen in the L7.18 characterization (fixtures/authoring-ops.json). *From:* L7.18.
+
+### BL-174 — The CLI's hooks and export: what the characterization pinned
+*From:* L7.21 (U8.0). Each is pinned as it is today in `packages/cli/test/operations-cli.test.ts`.
+
+- `retake hooks run --yes` and its destructive-hook prompt cannot be reached from a hooks file: core's check refuses a
+  destructive hook without `confirm: true` when the file loads. Either the flag's words or the check should change.
+- Run and journal ids are stamped to the second: two `hooks run` of one source, or two `env reset`, in the same second
+  share one id and one journal.
+- `retake export-capture --json` drops the template note: it reaches no stream and not the manifest.
+- `plan` and `export-capture` word the "no timeline" refusal differently.
+- A scaffolded `component.yaml` names its `$schema` by a path relative to the Retake checkout, which breaks when either
+  folder moves.

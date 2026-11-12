@@ -19,13 +19,13 @@ import {
   EFFECTS,
   SHELLS,
   annotationProblem,
-  callTool,
   capUntrusted,
   catalogueOperation,
   cliCommandsOf,
   defineTool,
   facetProblem,
   hintsOf,
+  invoke,
   pinArguments,
   servedBy,
   servedNames,
@@ -277,17 +277,20 @@ describe('the operation contract', () => {
     expect(pinArguments(tool, []).input.parse({ project: 'p', wait_s: 25 })).toMatchObject({ wait_s: 25 });
   });
 
-  it('callTool: arguments named per problem as an invalid EngineError; a handler error typed; never throws', async () => {
-    const bad = await callTool(tool, engine, { wait_s: 99, extra: 1 }, { signal: new AbortController().signal });
+  it('invoke: arguments named per problem as an invalid EngineError; a handler error typed; never throws (L7.21: was callTool)', async () => {
+    // The probe under a catalogue name the CLI serves (invoke refuses a name the catalogue does not hold).
+    const probe = { ...tool, name: 'job_list' as const };
+    const o = { shell: 'cli' as const, signal: new AbortController().signal };
+    const bad = await invoke(probe, engine, { wait_s: 99, extra: 1 }, o);
     expect(bad.ok).toBe(false);
     if (bad.ok) return;
     expect(bad.error).toBeInstanceOf(EngineError);
     expect(bad.error.code).toBe('invalid');
-    expect(bad.error.message).toMatch(/^invalid arguments for probe:\n/);
+    expect(bad.error.message).toMatch(/^invalid arguments for job_list:\n/);
     expect(bad.error.details?.arguments).toEqual(expect.arrayContaining(['project: Invalid input: expected string, received undefined', '(arguments): unknown argument extra']));
-    const thrown = await callTool({ ...tool, run: async () => { throw new EngineError('conflict', 'changed'); } }, engine, { project: 'p' }, { signal: new AbortController().signal });
+    const thrown = await invoke({ ...probe, run: async () => { throw new EngineError('conflict', 'changed'); } }, engine, { project: 'p' }, o);
     expect(!thrown.ok && thrown.error.code).toBe('conflict');
-    const ok = await callTool(tool, engine, { project: 'p' }, { signal: new AbortController().signal });
+    const ok = await invoke(probe, engine, { project: 'p' }, o);
     expect(ok.ok && ok.output.data.args).toEqual({ project: 'p', wait_s: 5, mode: 'auto' });
   });
 

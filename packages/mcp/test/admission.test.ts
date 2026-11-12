@@ -1,5 +1,5 @@
 /**
- * The engine's admission rules through the MCP tools (callTool, the path the protocol layer runs every call through,
+ * The engine's admission rules through the MCP tools (invoke with shell `mcp`, the path the protocol layer runs every call through,
  * with an engine of client `mcp`): the refusals and codes the Studio gives, worded for MCP (the glossary's words, the
  * tools that follow up) — one run of a scenario at a
  * time (run_dry, run_capture), the sessions acknowledgement of a capture (run_capture `sessions_ack`), one render of a
@@ -14,7 +14,7 @@ import { JOB_INPUT_VERSION } from '@retake/core';
 import { FileJobQueue, createEngine } from '@retake/engine';
 import type { Engine, EngineError } from '@retake/engine';
 import { catalogueOperation } from '@retake/engine/catalogue';
-import { TOOLS, callTool } from '../src/index.js';
+import { TOOLS, invoke } from '../src/index.js';
 import type { ToolDef } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
@@ -27,10 +27,10 @@ let queue: FileJobQueue;
 const project = () => join(ws, 'projects', P);
 const open = async () => (await queue.list({ states: ['queued', 'running'], limit: 200 })).map((j) => j.id).sort();
 
-/** One tool call as the MCP server makes it: the tool's own argument parse, then the handler on the engine. */
+/** One tool call as the MCP server makes it: served by MCP, the tool's own argument parse, its caller rules, then the handler on the engine. */
 async function call(name: string, args: Record<string, unknown>): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: EngineError }> {
   const tool: ToolDef = TOOLS.find((t) => t.name === name)!;
-  const r = await callTool(tool, async () => engine, args, { signal: new AbortController().signal });
+  const r = await invoke(tool, async () => engine, args, { shell: 'mcp', signal: new AbortController().signal });
   return r.ok ? { ok: true, data: r.output.data as Record<string, unknown> } : { ok: false, error: r.error };
 }
 const refusal = async (name: string, args: Record<string, unknown>) => {

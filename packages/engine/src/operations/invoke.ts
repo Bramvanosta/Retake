@@ -46,7 +46,7 @@ function failure(e: unknown): EngineError {
   }
 }
 
-/** The zod parse, its problems named per argument: callTool's and invoke's words. */
+/** The zod parse, its problems named per argument: invoke's words (the deprecated callTool alias's before L7.21). */
 function parsed<S extends z.ZodType>(t: ToolDef<S, object>, args: unknown): { ok: true; data: z.output<S> } | { ok: false; error: EngineError } {
   const r = t.input.safeParse(args);
   if (r.success) return { ok: true, data: r.data };
@@ -75,25 +75,6 @@ export async function invoke<D extends object>(op: ToolDef<z.ZodType, D>, engine
     const key = op.serialize?.(p.data);
     if (key === undefined) return { ok: true, output: await op.run(p.data, ctx) };
     return { ok: true, output: await operationChain(e)(key, () => op.run(p.data, ctx)) };
-  } catch (e) {
-    return { ok: false, error: failure(e) };
-  }
-}
-
-/**
- * One call, SDK-free: the zod parse (problems named per argument), then the handler with the engine; never throws —
- * every failure comes back as an EngineError. No shell check and no caller rules; a `serialize` operation runs through
- * the same chain as invoke's (operationChain), so the alias never lets two calls of a key interleave.
- * @deprecated L7.13: the shells call `invoke`; this alias goes after one lot.
- */
-export async function callTool<D extends object>(t: ToolDef<z.ZodType, D>, engine: () => Promise<Engine>, args: unknown, ctx: Omit<ToolContext, 'engine'>): Promise<ToolCallOutcome<D>> {
-  const p = parsed(t, args);
-  if (!p.ok) return p;
-  try {
-    const e = await engine();
-    const run = () => t.run(p.data, { ...ctx, engine: e });
-    const key = t.serialize?.(p.data);
-    return { ok: true, output: await (key === undefined ? run() : operationChain(e)(key, run)) };
   } catch (e) {
     return { ok: false, error: failure(e) };
   }

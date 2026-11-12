@@ -36,7 +36,7 @@ export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, N
 // waits, compacts, words, job lines, the run and sign-in summaries: L7.13).
 export { argumentProblems, defineOperation, defineTool } from './operations/define.js';
 export type { OperationDef, Progress, ToolAnnotations, ToolArgs, ToolCallOutcome, ToolContext, ToolData, ToolDef, ToolImage, ToolOutput, ToolsByName } from './operations/define.js';
-export { callTool, invoke } from './operations/invoke.js';
+export { invoke } from './operations/invoke.js';
 export type { InvokeOptions } from './operations/invoke.js';
 export { OPERATIONS, OPERATIONS_BY_NAME } from './operations/index.js';
 export type { OperationsByName } from './operations/index.js';
