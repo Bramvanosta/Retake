@@ -1,6 +1,6 @@
-import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment, WorkPolicy } from '@retake/core';
-// Types only (erased): the module itself is loaded on demand (loadHooksModule); its types check the mirrors below.
-import type { HookApprovalRequest, HookContext, HookResult, Journal } from '@retake/hooks';
+import type { AgentChannel, HookAccess, HookPhase, HookStep, HookTrust, JournalEntry, LoadedProject, ResolvedEnvironment, WorkPolicy } from '@retake/core';
+// Types only (erased): the runner never loads the hooks package; its types check the mirrors below.
+import type { HookApprovalRequest, HookContext, HookResult, Journal, runHooks } from '@retake/hooks';
 
 /** What a hook's approval is asked about (@retake/hooks HookApprovalRequest, structurally). */
 export interface HookApprovalRequestLike {
@@ -64,25 +64,38 @@ export interface HookResultLike {
   optional?: boolean;
 }
 
+/** A capture's hooks journal (the engine's HookJournal, structurally; the hooks package's Journal): opened by the hook runner. */
 export interface JournalLike {
-  pending(): unknown[];
+  pending(): JournalEntry[];
+  isSigned(entry: JournalEntry): boolean;
   rollbackAll(ctx: HookContextLike): Promise<HookResultLike[]>;
 }
 
-export interface HooksModule {
-  runHooks(
+/**
+ * What runs a capture's hooks (RunOptions.hookRunner; L7.12): the engine's HookRunner port, structurally — its
+ * composition root's (the hooks package in the product, an in-memory one in the engine's tests). `load()` is awaited
+ * when a run's hooks are opened, so that a hooks package that cannot be loaded is told apart from a hook that failed.
+ */
+export interface HookRunnerLike {
+  load(): Promise<void>;
+  // Method syntax on purpose: the journal `run` takes back is the handle this runner's `journals.open` gave out (the
+  // engine's runner narrows it back to its own), so `run` cannot be contravariant in it. The engine checks its
+  // HookRunner against this mirror strictly, the journal aside (capture/runner-web-capture.ts `HookRunnerChecks`).
+  run(
     hooks: HookStep[],
     ctx: HookContextLike,
-    opts: { phase: 'setup' | 'teardown' | 'reset' | 'step'; journal: JournalLike; agentWritten?: boolean },
+    opts: { phase: HookPhase; journal: JournalLike; agentWritten?: boolean },
   ): Promise<{ ok: boolean; results: HookResultLike[] }>;
-  Journal: { open(file: string): Promise<JournalLike> };
+  readonly journals: { open(file: string): Promise<JournalLike> };
 }
 
 /**
- * The mirrors above, checked against @retake/hooks by tsc: the module is loaded on demand and cast to HooksModule, so
- * nothing else compares them. A context the runner builds is one the hooks read (a HookContextLike without the
- * work's `policy` compiled, and every shell hook of a run failed reading it), a journal's rollbacks take it, and what
- * the hooks report and ask about reads as the mirrors say.
+ * The mirrors above, checked against @retake/hooks by tsc (types only: the runner never loads the hooks package — its
+ * caller hands the hook runner), so nothing else compares them. A context the runner builds is one the hooks read (a
+ * HookContextLike without the work's `policy` compiled, and every shell hook of a run failed reading it), a journal's
+ * rollbacks take it, what the hooks report and ask about reads as the mirrors say, and the package's runHooks and
+ * Journal are a HookRunnerLike's run and journal (the engine's HookRunner is checked against it where the engine hands
+ * it on: its capture runner's run).
  */
 type Assignable<A extends B, B> = [A, B];
 type HooksBridgeChecks = [
@@ -90,17 +103,17 @@ type HooksBridgeChecks = [
   Assignable<HookResult, HookResultLike>,
   Assignable<HookApprovalRequest, HookApprovalRequestLike>,
   Assignable<Journal['rollbackAll'], JournalLike['rollbackAll']>,
+  Assignable<Journal, JournalLike>,
+  Assignable<{ run: typeof runHooks }, Pick<HookRunnerLike, 'run'>>,
 ];
 
-/** Loaded on demand: scenarios without hooks never touch the hooks package (or its pg dependency). */
-export async function loadHooksModule(): Promise<HooksModule> {
-  const specifier = '@retake/hooks';
+/** Why the run's hooks cannot run: none was handed, or the one handed could not load what runs them. */
+export const NO_HOOK_RUNNER = 'this scenario has hooks (setup, teardown or hook steps) but no hook runner was handed to the runner (RunOptions.hookRunner)';
+
+/** Load the handed hook runner: a failure is the runner's error, worded as when the runner loaded @retake/hooks itself. */
+export async function loadHookRunner(runner: HookRunnerLike): Promise<void> {
   try {
-    const mod = (await import(specifier)) as Partial<HooksModule>;
-    if (typeof mod.runHooks !== 'function' || typeof mod.Journal?.open !== 'function') {
-      throw new Error('it does not export runHooks and Journal');
-    }
-    return mod as HooksModule;
+    await runner.load();
   } catch (e) {
     throw new RunnerError(`this scenario has hooks (setup, teardown or hook steps) but @retake/hooks could not be loaded: ${errorMessage(e)}`);
   }

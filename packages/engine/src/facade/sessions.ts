@@ -3,6 +3,7 @@ import type { LoadedProject, RunMode, Scenario } from '@retake/core';
 import { personaStateView, scenarioPersonaStates } from '../auth.js';
 import type { PersonaState } from '../auth.js';
 import type { Caller } from '../caller.js';
+import type { CaptureSessions } from '../capture/runner.js';
 import { workerEnvOf } from '../jobs/worker-env.js';
 import type { AuthStatusItem, EngineOptions, ScenarioSessions } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -13,6 +14,8 @@ export interface SessionsDeps {
   caller: Caller;
   ws: OpenedWorkspace;
   loginCommand: (p: { project: string; env: string; persona?: string }) => string;
+  /** What a persona's state is read through (its lock and its last status): the engine's capture runner. */
+  sessions: Pick<CaptureSessions, 'lock' | 'status'>;
 }
 
 /**
@@ -20,10 +23,10 @@ export interface SessionsDeps {
  * capture's sessions acknowledgement (the admission rules, on the scenario and environment the run submit settled).
  */
 export async function scenarioSessions(d: SessionsDeps, p: LoadedProject, name: string, scenario: Scenario, o: { env?: string; mode?: RunMode }): Promise<ScenarioSessions> {
-  const { opts, caller, ws, loginCommand } = d;
+  const { opts, caller, ws, loginCommand, sessions } = d;
   // The secrets of the login steps are looked for where the worker this client starts finds them.
   const workerEnv = workerEnvOf(opts, caller, ws) ?? process.env;
-  const r = await scenarioPersonaStates(p, scenario, loginCommand, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
+  const r = await scenarioPersonaStates(p, scenario, loginCommand, sessions, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
   return {
     project: p.slug,
     scenario: name,

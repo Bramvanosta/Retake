@@ -150,7 +150,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
   });
   // The sessions of a parsed scenario on an environment: the Run screen's panel (auth.forScenario) and the capture's
   // sessions_ack rule (on the scenario and environment the run submit settled).
-  const sessionsOf: EngineContext['sessionsOf'] = (p, name, scenario, o) => scenarioSessions({ opts, caller, ws, loginCommand }, p, name, scenario, o);
+  const sessionsOf: EngineContext['sessionsOf'] = (p, name, scenario, o) => scenarioSessions({ opts, caller, ws, loginCommand, sessions: ports.capture.sessions }, p, name, scenario, o);
   // The admission rules (admission.ts) of the runs, renders and exports this caller submits: the Studio's and MCP's,
   // worded for its channel.
   const admitted = admits(caller)

@@ -91,6 +91,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
         ...(sel.scenario ? { scenario: sel.scenario } : {}),
         journalFile: preflightJournal(project),
         hooks: ctx.hooks,
+        pages: ctx.capture.hookPages,
       });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
@@ -127,7 +128,7 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
-      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project), hooks: ctx.hooks });
+      const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { policy: ctx.ws.policy, ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project), hooks: ctx.hooks, pages: ctx.capture.hookPages });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
     }
@@ -208,6 +209,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
     recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
+    pages: ctx.capture.hookPages,
   });
   try {
     const journal = await ctx.hooks.journals.open(await ctx.hooks.journals.standaloneFile(project.dir, input.journal_id));
@@ -245,6 +247,7 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
     recordAs: { caller: callerOf(input.submitted_by), clock: ctx.clock },
+    pages: ctx.capture.hookPages,
   });
   try {
     const outcomes = await ctx.hooks.journals.rollbackPending(project.dir, hctx);

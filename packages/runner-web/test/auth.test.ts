@@ -29,7 +29,7 @@ import {
 import type { RunOptions } from '../src/index.js';
 import { ACCOUNTS, signInMaster, startAuthServer } from './auth-server.js';
 import type { AuthServer } from './auth-server.js';
-import { FAST, makeProject, makeScenario, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, tempDir, testHookRunner } from './helpers.js';
 
 let srv: AuthServer;
 let home = '';
@@ -82,6 +82,7 @@ async function run(p: LoadedProject, name: string, scenario: Omit<Scenario, 'vid
     env: ENV,
     runId: `${name}-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
     onProgress: (e) => events.push(e),
+    hookRunner: testHookRunner(),
     ...opts,
   });
   return { rec, events, dir: rec.dir };

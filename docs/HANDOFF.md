@@ -126,6 +126,28 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.12)
+- **L7.12 done (2026-11-12; branch `claude/arch-l7`)** — U6's last slice: the engine drives every browser through a `CaptureRunner` port chosen at the composition roots (`EnginePorts.capture`); no behaviour change for the product. With it U6 is done: nine ports of twelve (SandboxProvider, SecretStore, ProgressSink are U14's).
+  - **The port** (`packages/engine/src/capture/runner.ts`): `run` (capture, dry run, inspection: runner-web's own `RunOptions` with the engine's `hookRunner`), `record` (a recording's window), `sessions` (`check`, `signIn`, `lock`, `status`), `hookPages` (js-hook browsers behind an opaque handle: `open`, `evalIn`, `authReader`; a handle of another runner is refused), `site.extract`, and two synchronous members for signal handlers, `cancelled()` and `cleanupSync()`.
+    - `load()`: the jobs worker, the job process, the CLI's interrupt handler and the recording / site paths await it on the line where they imported the runner before; the sync members refuse (`internal`) until it ran, on the product's adapter and on the in-memory one alike.
+    - Vocabulary: the runner's type-only domain entry `@retake/runner-web/types` (its built file loads nothing; a walk test); `INSPECT_PACING` / `INSPECT_PAUSE_CAP_S` moved to core.
+    - Adapters: `runnerWebCapture()` (each member loads the package through lazy.ts `runnerWeb`, in capture/ only) and `MemoryCaptureRunner` (runs on core's writers with no browser; sessions, pages, recording and site in memory-sessions.ts). Two contract suites: capture-runner-contract.ts (10 cases) and capture-sessions-contract.ts (9), each on both adapters.
+  - **The capture's hooks.** runner-web no longer loads `@retake/hooks` (the computed `loadHooksModule` import is gone): a run is handed the engine's `HookRunner` (`RunOptions.hookRunner`; `HookRunner.load()` keeps the load moment and the old "could not be loaded" text). A direct runner-web caller whose hooks would run without one is refused before anything runs. The engine checks its runner against runner-web's mirror strictly (`HookRunnerChecks` in runner-web-capture.ts: the mirror's methods are bivariant for the journal handle).
+  - **Ratchet.** `loader-use` gains `runnerWeb` → capture/ and `runnerWebCapture` at the roots only; `port-types` reads capture/runner.ts (0 entries). R11 21 → **12** (sandbox 11, components 1), CLI R4 12 → 11 (interrupt.ts), baseline 110 → **100**.
+  - **Checked.**
+    - Real captures A/B against `81cfc35` on the fixture product (`quote`): capture ABAB×2, dry ABAB, a run job ABAB, a CLI SIGINT and a job cancel AB. run.json equal once normalised; the same 32 timeline events in order, worst time difference 0.026 s against a 0.228 s bound; the filming marker in the same place; 30 fps; durations within 0.033 s; history keys equal; the cancels' messages, states and exit codes equal. The compare script was itself mutation-checked (11 of 11).
+    - Sessions differential against `81cfc35`: `auth status`, `login --auto` twice, a hooks file with js hooks and an http hook acting as a persona, `theme from-site`, and the engine's hook context under trust mcp. Equal; noise only in the site report's network counters.
+    - CLI golden, MCP tool list and op table unchanged; schemas regenerated diff-clean; `tsc -b`, `pnpm typecheck`, `rules.mjs --check` (100), `test-guard` (exit 1 for one item only: the renamed site-job title below, no title or `expect` lost otherwise), `--check-cites`; the lot's test files one by one; about 45 mutations, all red.
+  - **Not done.**
+    - **The full suite was not run.**
+    - No second A/B round on the whole lot after Part 3: Part 2's A/B, with Part 3 in progress in the same tree, is the proof, plus the sessions differential.
+    - A real recording (`retake record`, a headed window) is not in either differential: the contract runs one headless with `drive`.
+    - The job process's signal ordering is not unit-tested; the worker's is (capture-runner.test), and worker-process.test drives a real one.
+    - `auth status --check` and `doctor` still call the runner themselves (R4 entries; BACKLOG BL-172).
+    - runner-web still lists `@retake/hooks` in `dependencies` (only its tests and type mirrors need it now).
+    - The exported free functions whose signature changed (`executeRun`, `runInspection`, `recordScenario`, `signInPersona`, `personaState`, `projectPersonaStates`, `scenarioPersonaStates`, `createHookContext`, `extractSiteForAuthor`, `preflightHooks`) are not versioned by `ENGINE_API_VERSION`, which describes the façade (unchanged, 1).
+    - Renamed for test-guard: site-job.test.ts "a page that busy-loops its renderer…" → "an extraction cancelled while it reads its page…" (it runs on the in-memory runner now; the busy-loop proof is runner-web's site-hostile.test.ts).
+
 ## State (after L7.11)
 - **L7.11 done (2026-11-11; branch `claude/arch-l7`)** — two more slices of U6: the engine runs hooks outside a capture through a `HookRunner` port and reviews and draws frames through a `Reviewer` port, both chosen at the composition roots through `EnginePorts`; no behaviour change for the product.
   - **Ports.**
@@ -1484,7 +1506,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: U6 (L7.12 CaptureRunner), then U7 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: U7 (L7.13 `invoke()` and the eleven shared operations, then the families), U8 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

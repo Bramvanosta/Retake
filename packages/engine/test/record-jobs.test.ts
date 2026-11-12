@@ -4,9 +4,9 @@
  * option `recordTest`, which a worker process cannot receive). Refusals at submit (another origin, a template, an
  * unknown page, a bad name, a protected host); a recording of the lab (a sentinel typed in its password field, a note):
  * the job succeeds with counts only in job.json, its events and the history (one line, the worker's), the draft read
- * back from the folder with a {{vars.password_1}} placeholder and the note, the sentinel nowhere; a worker signal stops
- * and KEEPS the recording (draft saved, check skipped); job_cancel while the window is open discards it (folder
- * removed); pruning never removes the folder of a queued or running record job; an interrupted record job says what
+ * back from the folder with a {{vars.password_1}} placeholder and the note, the sentinel nowhere. On the in-memory
+ * capture runner (the job's own logic; the window's is the runner package's): a worker signal stops and KEEPS the
+ * recording (draft saved, check skipped); job_cancel while the window is open discards it (folder removed); pruning never removes the folder of a queued or running record job; an interrupted record job says what
  * was lost and names `retake record`.
  */
 import { spawnSync } from 'node:child_process';
@@ -31,7 +31,11 @@ import {
 } from '../src/index.js';
 import type { Engine, EngineError, JobRecord, RecordJobResult, RecordJobTestHooks } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
+import { memoryRecord } from '../src/capture/memory-sessions.js';
+import type { MemoryRecordOptions } from '../src/capture/memory-sessions.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
+import { oneButtonPress } from './recorded-events.js';
 
 type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
 
@@ -67,6 +71,19 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
     },
   });
 }
+
+/**
+ * The in-process worker on the in-memory capture runner (the engine's logic of a record job): its window "presses"
+ * Request a quote on the shop's first page, then `during` runs while it is still open.
+ */
+function workInMemory(during: NonNullable<MemoryRecordOptions['during']>): Promise<number> {
+  const capture = new MemoryCaptureRunner({ record: memoryRecord({ events: oneButtonPress({ pageKey: 'shop', button: 'Request a quote' }), during }) });
+  return runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture }, recordTest: { headless: true, drive: async () => undefined } });
+}
+
+/** Resolves once `signal` is aborted. */
+const aborted = (signal: AbortSignal | undefined): Promise<void> =>
+  new Promise((done) => (!signal || signal.aborted ? done() : signal.addEventListener('abort', () => done(), { once: true })));
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
   const e = await p.then(
@@ -203,27 +220,22 @@ describe('record jobs: run by the worker', () => {
 
   it('a worker signal while the window is open stops it and KEEPS the recording (draft saved, no check replay)', async () => {
     const sub = await engine.record.submit({ project: PROJECT, page: 'shop', scenario: 'kept-on-signal' });
-    await work(async (page) => {
-      await page.getByText('Selowa Ridge').first().click();
-      await page.getByRole('button', { name: 'Request a quote' }).waitFor();
-      await page.waitForTimeout(300);
+    await workInMemory(async (o) => {
       process.emit('SIGTERM');
-      await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
+      await aborted(o.stop);
     });
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state).toBe('succeeded');
     const r = job.result as RecordJobResult;
     expect(r).toMatchObject({ stop: 'stopped', saved: { file: 'scenarios/kept-on-signal.yaml' }, check: { status: 'skipped', reason: 'stopped' } });
     expect(r.counts.actions).toBe(1);
-  }, 120_000);
+  });
 
   it('job_cancel while the window is open discards the recording: cancelled, its folder removed, nothing saved', async () => {
     const sub = await engine.record.submit({ project: PROJECT, page: 'shop', scenario: 'discarded' });
-    await work(async (page) => {
-      await page.getByText('Selowa Ridge').first().click();
-      await page.getByRole('button', { name: 'Request a quote' }).waitFor();
+    await workInMemory(async (o) => {
       await engine.jobs.cancel(sub.job.id);
-      await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
+      await aborted(o.signal);
     });
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state).toBe('cancelled');
@@ -232,7 +244,7 @@ describe('record jobs: run by the worker', () => {
     expect(existsSync(join(recordsRoot(p), sub.rec_id))).toBe(false);
     expect(existsSync(join(p.dir, 'scenarios', 'discarded.yaml'))).toBe(false);
     expect((await engine.record.get(PROJECT, sub.rec_id)).draft).toBeNull();
-  }, 120_000);
+  });
 });
 
 describe('record jobs: folders and interruptions', () => {

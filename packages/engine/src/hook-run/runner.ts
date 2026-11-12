@@ -56,6 +56,12 @@ export interface HookRunOptions {
 }
 
 export interface HookRunner {
+  /**
+   * Load what runs the hooks (the package adapter: the hooks package), so that a caller that must tell a load failure
+   * from a hook's — the capture's hooks (runner-web's run, L7.12) — can; resolves at once once loaded. Every other member
+   * loads on its own call too.
+   */
+  load(): Promise<void>;
   /** Run one list of hooks in `ctx`: one result per hook attempted, then (a setup that failed) one per rollback. */
   run(hooks: readonly HookStep[], ctx: HookContext, o: HookRunOptions): Promise<{ ok: boolean; results: HookResult[] }>;
   readonly journals: {

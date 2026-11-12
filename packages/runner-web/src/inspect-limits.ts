@@ -1,4 +1,5 @@
-/** The limits of an inspection's replay that the runtime, the scenes and the inspection share (a leaf: no imports). */
-
-/** `hold`, `wait`, a step's `hold:` and a scene's still last at most this long during an inspection's replay (s). */
-export const INSPECT_PAUSE_CAP_S = 0.2;
+/**
+ * The limits of an inspection's replay that the runtime, the scenes and the inspection share: core's (L7.12, moved
+ * there with the inspection's pacing), re-exported under the same name.
+ */
+export { INSPECT_PAUSE_CAP_S } from '@retake/core';

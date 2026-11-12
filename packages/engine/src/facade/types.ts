@@ -25,7 +25,7 @@ import type { ReviewImageView, ReviewImagesMode, ReviewView } from '../reviews.j
 import type { InspectSubmitRequest } from '../jobs/inspect-job.js';
 import type { RecordAnnotated, RecordDiscarded, RecordListItem, RecordSaved, RecordStopped, RecordView } from '../record-studio.js';
 import type { RecordSubmitRequest } from '../jobs/record-job.js';
-import type { InspectReport } from '@retake/runner-web';
+import type { InspectReport } from '@retake/runner-web/types';
 import type { LibraryStatesView } from '../library.js';
 import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from '../components.js';
 import type { ThemeEditRequest, ThemeEditResult, ThemeEditView } from '../theme-edit.js';

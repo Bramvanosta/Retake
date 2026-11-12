@@ -32,7 +32,7 @@ export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void
     stores: w.stores,
     hooks: w.hooks,
     reviewer: w.reviewer,
-    rw: w.rw,
+    capture: w.captureRunner,
     interrupts: interruptPort(w),
     slot: w.slot,
     done: w.done,

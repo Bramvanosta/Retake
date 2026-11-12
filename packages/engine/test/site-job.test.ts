@@ -11,8 +11,9 @@
  * On the brand-site fixture (self-signed https on invented `.test` names, through the unsafe test resolver; needs
  * openssl): refusals at submit (the URL rules, an environment page of a project, no way to ask, a decline); an approved
  * extraction (the human asked about the exact canonical URL, the approval signed, colours / candidates / draft in the
- * result, nothing under templates/, a history line without a project); a page that busy-loops its renderer, cancelled
- * through job_cancel within seconds — the worker free for the next job.
+ * result, nothing under templates/, a history line without a project); an extraction cancelled while it reads its page
+ * (on the in-memory capture runner), through job_cancel within seconds — the worker free for the next job. A page that
+ * busy-loops its renderer is the runner package's own test (runner-web site-hostile.test.ts).
  */
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -25,6 +26,8 @@ import type { SiteJobInput } from '@retake/core';
 import { FileJobQueue, MemoryJobQueue, SITE_KEEP, THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, executeSiteJob, historyFile, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readBrandFile, readSite, runWorker, signApprovals, siteDir, personScope, enginePorts } from '../src/index.js';
 import type { ApprovalOutcome, Approver, Engine, EngineError, JobRecord, OpenedWorkspace, SiteApprovalRequest, SiteJobResult } from '../src/index.js';
 import { ManualClock, systemClock } from '../src/clock.js';
+import { MemoryCancelledError, MemoryCaptureRunner } from '../src/capture/memory-capture.js';
+import { emptySiteReport, memorySite } from '../src/capture/memory-sessions.js';
 import { BRAND_SITE_COLORS, drawPng, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
 
@@ -58,7 +61,7 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-site-jobs-'));
   process.env.RETAKE_HOME = join(root, '.home');
   // Without openssl the names still parse (nothing connects to them: the tests of that part open no page).
-  process.env.RETAKE_UNSAFE_TEST_RESOLVE = can ? site.resolveEnv : 'brand.test=127.0.0.1:9,www.brand.test=127.0.0.1:9,cdn.test=127.0.0.1:9';
+  process.env.RETAKE_UNSAFE_TEST_RESOLVE = can ? site.resolveEnv : 'brand.test=127.0.0.1:9,www.brand.test=127.0.0.1:9,cdn.test=127.0.0.1:9,hostile.test=127.0.0.1:9';
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'templates'), { recursive: true });
   await mkdir(join(root, 'projects', 'demo', 'scenarios'), { recursive: true });
@@ -310,6 +313,45 @@ describe('site jobs without any network', () => {
   });
 });
 
+describe('site jobs on the in-memory capture runner', () => {
+  it('an extraction cancelled while it reads its page: job_cancel ends the job within seconds and the worker takes the next one', async () => {
+    // The renderer's busy loop itself is the runner package's (site-hostile.test.ts): here an extraction that reads its
+    // page until it is cancelled, on the in-memory capture runner — the job's cancel, the worker freed.
+    const capture = new MemoryCaptureRunner({
+      site: memorySite(async (o) => {
+        if (!o.url.endsWith('/hang')) return emptySiteReport(o.url);
+        o.onPhase?.('reading');
+        await new Promise<never>((_, fail) => o.signal?.addEventListener('abort', () => fail(new MemoryCancelledError('site extraction cancelled')), { once: true }));
+        throw new Error('unreachable');
+      }),
+    });
+    const workInMemory = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture } });
+    const sub = await engine.templates.fromSite({ url: 'https://hostile.test/hang' }, { approver: approver({ approved: true }) });
+    const worker = workInMemory();
+    // Wait until the page is being read.
+    const t0 = Date.now();
+    for (;;) {
+      const j = await engine.jobs.get(sub.job.id);
+      if (j.state === 'running' && j.progress?.phase === 'reading') break;
+      if (Date.now() - t0 > 60_000 || (j.state !== 'queued' && j.state !== 'running')) throw new Error(`the job never reached its reading phase: ${j.state}`);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    await new Promise((r) => setTimeout(r, 200));
+    const cancelledAt = Date.now();
+    await engine.jobs.cancel(sub.job.id);
+    await worker;
+    expect(Date.now() - cancelledAt).toBeLessThan(8000);
+    const done = await engine.jobs.get(sub.job.id);
+    expect(done.state, JSON.stringify(done.error)).toBe('cancelled');
+    // The worker is free: the next job runs to its end.
+    const next = await engine.templates.fromSite({ url: 'https://hostile.test/fonts' }, { approver: approver({ approved: true }) });
+    await workInMemory();
+    expect((await engine.jobs.get(next.job.id)).state).toBe('succeeded');
+    // The approvals this case asked for are its own.
+    asked.length = 0;
+  }, 60_000);
+});
+
 describe.skipIf(!can)('site jobs on the brand-site fixture', () => {
   it('refuses at submit: the URL rules, an environment page, no way to ask, a decline', async () => {
     const before = (await engine.jobs.list({})).length;
@@ -377,27 +419,4 @@ describe.skipIf(!can)('site jobs on the brand-site fixture', () => {
     expect((await readBrandFile(ws, result.candidates[0].ref, 'logo', { trust: 'mcp' })).ext).toBe('.png');
   }, 120_000);
 
-  it('a page that busy-loops its renderer: job_cancel ends the job within seconds and the worker takes the next one', async () => {
-    const sub = await engine.templates.fromSite({ url: 'https://hostile.test/hang' }, { approver: approver({ approved: true }) });
-    const worker = work();
-    // Wait until the page is being read (the busy loop starts at the first scroll).
-    const t0 = Date.now();
-    for (;;) {
-      const j = await engine.jobs.get(sub.job.id);
-      if (j.state === 'running' && j.progress?.phase === 'reading') break;
-      if (Date.now() - t0 > 60_000 || (j.state !== 'queued' && j.state !== 'running')) throw new Error(`the job never reached its reading phase: ${j.state}`);
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    await new Promise((r) => setTimeout(r, 2000));
-    const cancelledAt = Date.now();
-    await engine.jobs.cancel(sub.job.id);
-    await worker;
-    expect(Date.now() - cancelledAt).toBeLessThan(8000);
-    const done = await engine.jobs.get(sub.job.id);
-    expect(done.state, JSON.stringify(done.error)).toBe('cancelled');
-    // The worker is free: the next job runs to its end.
-    const next = await engine.templates.fromSite({ url: 'https://hostile.test/fonts' }, { approver: approver({ approved: true }) });
-    await work();
-    expect((await engine.jobs.get(next.job.id)).state).toBe('succeeded');
-  }, 120_000);
 });

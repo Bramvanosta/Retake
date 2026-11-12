@@ -5,10 +5,11 @@ import { mkdir, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Scenario, TimelineEvent } from '@retake/core';
-import { runScenario, scaleArgs } from '../src/index.js';
+import { RunnerError, runScenario, scaleArgs } from '../src/index.js';
+import { NO_HOOK_RUNNER } from '../src/hooks-bridge.js';
 import type { RunOptions } from '../src/index.js';
 import { DOC_PAGE, DROP_PAGE, DRY_PAGE, SCROLL_PAGE, STRATEGY_PAGE, TABS_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir, testHookRunner } from './helpers.js';
 import type { TestServer } from './helpers.js';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
@@ -45,6 +46,7 @@ function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunO
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
     runId: `${name}-${Date.now()}`,
+    hookRunner: testHookRunner(),
     ...opts,
   });
 }
@@ -539,5 +541,47 @@ describe('dry-run, --until, failures, cancellation', () => {
     expect(hooks()).toEqual(['POST /arm', 'POST /slow-arm', 'DELETE /slow-arm', 'DELETE /arm', 'POST /reset']);
     const journal = JSON.parse(await readFile(join(rec.dir, 'hooks-journal.json'), 'utf8')) as { entries: Array<{ status: string }> };
     expect(journal.entries.map((e) => e.status)).toEqual(['rolled_back', 'rolled_back', 'ok']);
+  });
+
+  it('the hooks run through the hook runner handed in (L7.12): none handed is refused before anything runs; one whose load fails fails the run as a hooks package that could not be loaded did', async () => {
+    const from = server.hits.length;
+    const sc = { pacing: FAST, setup: [{ name: 'arm', http: { method: 'POST' as const, url: '{{app}}/arm' } }], scenes: [{ id: 'one', open: '/dry.html', steps: [{ wait: 0.1 }] }] };
+    const project = makeProject(dir, { app: server.url });
+    const runId = `no-runner-${Date.now()}`;
+    const refused = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario('no-runner', sc), mode: 'capture', runId }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(refused).toBeInstanceOf(RunnerError);
+    expect((refused as Error).message).toBe(NO_HOOK_RUNNER);
+    expect(NO_HOOK_RUNNER).toBe('this scenario has hooks (setup, teardown or hook steps) but no hook runner was handed to the runner (RunOptions.hookRunner)');
+    expect(existsSync(join(dir, 'runs', runId))).toBe(false);
+    // --hooks skip: nothing to run them with is needed.
+    const skipped = await runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario('no-runner-skip', sc), mode: 'dry', runId: `no-runner-skip-${Date.now()}` });
+    expect(skipped.status).toBe('succeeded');
+    expect(skipped.hooks.setup).toBe('skipped');
+
+    const used: string[] = [];
+    const broken = {
+      load: async () => {
+        used.push('load');
+        throw new Error('Cannot find package');
+      },
+      run: async () => {
+        used.push('run');
+        return { ok: true, results: [] };
+      },
+      journals: {
+        open: async () => {
+          used.push('open');
+          throw new Error('not opened');
+        },
+      },
+    };
+    const rec = await run('broken-runner', sc, { mode: 'capture', hookRunner: broken });
+    expect(rec.status).toBe('failed');
+    expect(rec.error?.message).toBe('this scenario has hooks (setup, teardown or hook steps) but @retake/hooks could not be loaded: Cannot find package');
+    expect(used).toEqual(['load']);
+    expect(server.hits.slice(from).filter((h) => h.path === '/arm')).toEqual([]);
   });
 });

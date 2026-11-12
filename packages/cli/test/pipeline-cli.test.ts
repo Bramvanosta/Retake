@@ -29,6 +29,8 @@ const fakes = vi.hoisted(() => ({
   calls: [] as Array<{ call: string; options: Record<string, unknown> }>,
   /** Names made at run time (an inspection's id), replaced by a placeholder. */
   volatile: [] as string[],
+  /** The hook runner each run was handed (L7.12: the CLI's, cliPorts.hooks; kept out of the recorded options). */
+  hookRunners: [] as unknown[],
 }));
 
 vi.mock('@retake/editor', async (importOriginal) => {
@@ -47,12 +49,20 @@ vi.mock('@retake/review', async (importOriginal) => {
 });
 vi.mock('@retake/runner-web', async (importOriginal) => {
   const real = await importOriginal<typeof import('@retake/runner-web')>();
-  return { ...real, runScenario: (o: Record<string, unknown>) => fakes.runScenario(o) };
+  return {
+    ...real,
+    runScenario: (o: Record<string, unknown>) => {
+      fakes.hookRunners.push(o.hookRunner);
+      const { hookRunner: _handed, ...rest } = o;
+      return fakes.runScenario(rest);
+    },
+  };
 });
 
 import { ExportError, RenderCancelledError, RenderError } from '@retake/editor';
 import { INSPECT_KEEP } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { cliPorts } from '../src/workspace.js';
 
 const FILE = fileURLToPath(new URL('./fixtures/pipeline-cli.json', import.meta.url));
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
@@ -509,6 +519,11 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', () =>
 
   it('the help of each command', async () => {
     for (const cmd of ['render', 'still', 'export', 'review', 'run', 'inspect']) expect((await retake(`${cmd} --help`, cmd, '--help')).code).toBe(EXIT.ok);
+  });
+
+  it("every run and inspection was handed the CLI's hook runner (L7.12)", () => {
+    expect(fakes.hookRunners.length).toBeGreaterThan(0);
+    for (const h of fakes.hookRunners) expect(h).toBe(cliPorts.hooks);
   });
 
   it('every case matches the fixture', () => {

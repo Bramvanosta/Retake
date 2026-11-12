@@ -13,7 +13,7 @@ import type { Worker } from './worker-record.js';
 
 /** Listen to SIGINT, SIGTERM and unhandled rejections for `w`; returns what stops listening (once the worker is done). */
 export function handleSignals(w: Worker): () => void {
-  const { log, queue, rw, sb } = w;
+  const { log, queue, captureRunner, sb } = w;
   let signals = 0;
   const onSignal = (sig: NodeJS.Signals) => {
     signals++;
@@ -24,7 +24,7 @@ export function handleSignals(w: Worker): () => void {
         w.slot.currentStop.abort();
       } else {
         log(`${sig}: stopping${w.slot.current ? ' (cancelling the running job: its teardown still runs)' : ''}`);
-        w.slot.current?.abort(new rw.CancelledError(`run cancelled (${sig})`));
+        w.slot.current?.abort(captureRunner.cancelled(`run cancelled (${sig})`));
       }
       // The job process cancels its job on its first signal (teardown runs) — the SIGTERM first (review A L4: never behind
       // a pending walk of its tree), then normal priority again.
@@ -40,7 +40,7 @@ export function handleSignals(w: Worker): () => void {
       w.wake.fn?.();
       return;
     }
-    rw.removeSessionCopiesSync();
+    captureRunner.cleanupSync();
     for (const f of w.quitSync) {
       try {
         f();

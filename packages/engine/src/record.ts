@@ -34,6 +34,7 @@ import { createReadStream, existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  INSPECT_PACING,
   PERSONA_NONE,
   RECORD_ID_RE,
   draftFromRecording,
@@ -50,8 +51,10 @@ import {
   statePath,
 } from '@retake/core';
 import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkPolicy } from '@retake/core';
-import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web';
+import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web/types';
 import { retakeHome, fileFacts } from '@retake/core/io';
+import type { CaptureRunner } from './capture/runner.js';
+import type { HookRunner } from './hook-run/runner.js';
 import { callerOf, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
@@ -197,6 +200,10 @@ export interface RecordPorts {
   clock: Clock;
   /** What the draft scenario is saved through. */
   stores: ProjectStores;
+  /** What opens the window, checks and signs the persona in, and replays the draft (its composition root's). */
+  capture: CaptureRunner;
+  /** What the check replay's hooks would run through (a dry replay: none run). */
+  hooks: HookRunner;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
   /** What the recording does now. */
   onPhase?: (phase: 'preflight' | 'recording' | 'draft' | 'check') => void;
@@ -339,13 +346,15 @@ const isCancel = (e: unknown) => e instanceof Error && (e.name === 'CancelledErr
  * the command that signs it in.
  */
 async function preflight(project: LoadedProject, env: ResolvedEnvironment, persona: ResolvedPersona, ports: RecordPorts, policy: WorkPolicy): Promise<void> {
-  const { checkSavedSession, signIn } = await import('@retake/runner-web');
+  // The runner loaded before the check (a load that fails is not the session's state).
+  await ports.capture.load();
+  const { sessions } = ports.capture;
   const log = ports.log ?? (() => undefined);
   const command = (ports.loginCommand ?? ((p) => `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({ project: project.slug, env: env.name, persona: persona.name });
   let status: string;
   let detail = '';
   try {
-    const r = await checkSavedSession({ project, policy, env, persona, log, ...(ports.signal ? { signal: ports.signal } : {}) });
+    const r = await sessions.check({ project, policy, env, persona, log, ...(ports.signal ? { signal: ports.signal } : {}) });
     status = r.status;
     detail = r.detail;
   } catch (e) {
@@ -359,7 +368,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
   }
   log('info', `persona ${persona.name}: session ${status} — signing in with its login steps (headless)`);
   try {
-    const r = await signIn({ project, policy, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
+    const r = await sessions.signIn({ project, policy, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
     if (r.check.status !== 'valid' && r.check.status !== 'unchecked') {
       throw new EngineError('refused', `persona ${persona.name} could not be signed in by its login steps (${r.check.detail}): sign it in by hand — ${command}`, { fix: command });
     }
@@ -422,10 +431,10 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   const eventsFile = join(dir, 'events.jsonl');
 
   ports.onPhase?.('recording');
-  const { recordSession, INSPECT_PACING, runScenario } = await import('@retake/runner-web');
+  await ports.capture.load();
   let session: RecordSessionResult;
   try {
-    session = await recordSession({
+    session = await ports.capture.record({
       policy: ws.policy,
       project,
       env,
@@ -540,7 +549,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   else if (!valid) check = { status: 'skipped', scope: null, reason: 'invalid_draft', steps_passed: 0, steps_total: 0 };
   else {
     ports.onPhase?.('check');
-    check = await checkReplay({ project, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, runScenario, ports });
+    check = await checkReplay({ project, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, ports });
   }
   await recordJson({ saved: saved ? saved.file : null, not_saved: notSaved ?? null, check });
   await history(ws, ports.clock, project, req, 'succeeded', started, id, draft.stats.steps, saved !== null, ports.history !== false);
@@ -570,7 +579,6 @@ async function checkReplay(o: {
   yaml: string;
   firstWrite: { scene: string; step: number } | null;
   pacing: Record<string, unknown>;
-  runScenario: typeof import('@retake/runner-web').runScenario;
   ports: RecordPorts;
 }): Promise<RecordCheck> {
   const { project, ports } = o;
@@ -593,7 +601,7 @@ async function checkReplay(o: {
   const loaded: LoadedScenario = { name: 'record-check', file: o.draftFile, text, scenario, issues };
   let record: RunRecord;
   try {
-    record = await o.runScenario({
+    record = await ports.capture.run({
       policy: o.policy,
       project,
       scenario: loaded,
@@ -606,6 +614,7 @@ async function checkReplay(o: {
       ...(ports.loginCommand ? { loginCommand: ports.loginCommand } : {}),
       ...(ports.signal ? { signal: ports.signal } : {}),
       ...(ports.onCheckProgress ? { onProgress: ports.onCheckProgress } : {}),
+      hookRunner: ports.hooks,
     });
   } catch (e) {
     return { status: isCancel(e) ? 'cancelled' : 'failed', scope, ...(until ? { until } : {}), steps_passed: 0, steps_total: total, untrusted: { error: (e as Error).message } };

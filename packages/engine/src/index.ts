@@ -37,6 +37,8 @@ export type { EnginePorts } from './ports.js';
 export { packageHookRunner } from './hook-run/package-hooks.js';
 export type { HookJournal, HookJournalRollback, HookPlace, HookRunOptions, HookRunner, PendingHookJournal } from './hook-run/runner.js';
 export { packageReviewer } from './review/review-package.js';
+export { runnerWebCapture } from './capture/runner-web-capture.js';
+export type { CaptureRequest, CaptureRunner, CaptureSessions, HookAuthOptions, HookBrowser, HookBrowserOptions, HookPages, SessionCheckOptions } from './capture/runner.js';
 export type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './review/reviewer.js';
 export { rollbackActionLines } from '@retake/hooks/describe';
 export { environmentLine, findingLine, summaryLine } from '@retake/review/checks';
@@ -164,7 +166,7 @@ export { BEAT_MS, CAP_CARRY_MS, FilmingMarker, FilmingWatch, HELD_FILE, HOLD_MAX
 export type { FilmingState, FilmingWatchOptions, LiveTake, MarkerRecord, TakeBesideReport } from './jobs/captures.js';
 // What a take reports to its filming callback: the runner's types, re-exported so that the CLI's `retake run` names them
 // without importing the runner (a shell imports no adapter: the import rules' R4, scripts/audit/lib.mjs).
-export type { FilmingEvent, FilmingReport } from '@retake/runner-web';
+export type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
 export { heldWork, heldWorkWords, yieldWords } from './jobs/held.js';
 export type { HeldWork } from './jobs/held.js';
 export { QosYield, REWALK_MS, parseQosTable, qosTable, taskpolicy, treeOf } from './jobs/yield.js';

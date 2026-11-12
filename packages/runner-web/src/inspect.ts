@@ -13,12 +13,11 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { flowYaml, isPageOrigin, isPoint, normalizeTarget, roundTrips, targetValue } from '@retake/core';
-import type { BBox, Pacing, PointSpec, TargetObject, TargetSpec } from '@retake/core';
+import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core';
 import type { Route } from 'playwright-core';
 import { errorMessage, isCancelled } from './errors.js';
 import { DocumentChangedError } from './session.js';
 import type { FragileFlag, InventoryContext, InventoryElement, InventoryPopup, KitActionHint, KitInventory, ResolveResult } from './kit/types.js';
-import { INSPECT_PAUSE_CAP_S } from './inspect-limits.js';
 import type { Runtime } from './runtime.js';
 
 /** Elements listed by default, and at most. */
@@ -35,27 +34,8 @@ export const INSPECT_BUDGET_MS = 2500;
  */
 export const INSPECT_DEADLINES = { guard_ms: 5_000, call_ms: 15_000 } as const;
 export type InspectDeadlines = { guard_ms: number; call_ms: number };
-/**
- * The replay's pacing: the cursor travels and hovers fast and types fast; navigation, popup and settle waits are the
- * project's (the page must reach the state the scenario describes).
- */
-export const INSPECT_PACING: Partial<Pacing> = {
-  scene_start_still: INSPECT_PAUSE_CAP_S,
-  move_base_ms: 0,
-  move_ms_per_px: 0.1,
-  move_min_ms: 60,
-  move_max_ms: 200,
-  nudge_ms: 60,
-  nudge_hover_ms: 30,
-  hover_ms: 40,
-  press_ms: 40,
-  type_cps: 80,
-  scroll_duration: 0.3,
-  jitter: 0,
-  page_switch_ms: 60,
-  park_hold: INSPECT_PAUSE_CAP_S,
-  park_scroll_hold: INSPECT_PAUSE_CAP_S,
-};
+/** The replay's pacing (core inspect-pacing.ts, L7.12): re-exported under the same name. */
+export { INSPECT_PACING } from '@retake/core';
 
 /** What `runScenario` inspects (`RunOptions.inspect`): the run is a dry run, its hooks skipped. */
 export interface InspectRequest {

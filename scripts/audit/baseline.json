@@ -10,7 +10,7 @@
   },
   {
    "rule": "R4",
-   "reason": "CLI commands drive the adapters themselves (raw export, plan, components, sandboxes, doctor, sign-in checks, the session copies an interrupt removes) until they run on the engine operations.",
+   "reason": "CLI commands drive the adapters themselves (raw export, plan, components, sandboxes, doctor, sign-in checks) until they run on the engine operations.",
    "entries": [
     "packages/cli/src/commands/auth.ts → @retake/runner-web",
     "packages/cli/src/commands/components.ts → @retake/components",
@@ -22,8 +22,7 @@
     "packages/cli/src/commands/export-capture.ts → @retake/runner-web",
     "packages/cli/src/commands/plan.ts → @retake/components",
     "packages/cli/src/commands/plan.ts → @retake/editor",
-    "packages/cli/src/commands/sandbox.ts → @retake/sandbox",
-    "packages/cli/src/interrupt.ts → @retake/runner-web"
+    "packages/cli/src/commands/sandbox.ts → @retake/sandbox"
    ]
   },
   {
@@ -89,27 +88,18 @@
   },
   {
    "rule": "R11",
-   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 21 file → specifier pairs on 2026-11-11 (L7.11: hooks and review/thumbs went through their ports): sandbox 11, runner-web 9, components 1.",
+   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 12 file → specifier pairs on 2026-11-12 (L7.11: hooks and review/thumbs went through their ports; L7.12: the runner package through the capture runner's): sandbox 11, components 1.",
    "entries": [
-    "packages/engine/src/auth.ts → @retake/runner-web",
     "packages/engine/src/components.ts → @retake/components",
-    "packages/engine/src/execute-run.ts → @retake/runner-web",
     "packages/engine/src/execute-run.ts → @retake/sandbox",
-    "packages/engine/src/hooks.ts → @retake/runner-web",
     "packages/engine/src/jobs/captures.ts → @retake/sandbox",
-    "packages/engine/src/jobs/inspect-job.ts → @retake/runner-web",
-    "packages/engine/src/jobs/job-child.ts → @retake/runner-web",
     "packages/engine/src/jobs/lock.ts → @retake/sandbox",
     "packages/engine/src/jobs/proc.ts → @retake/sandbox",
     "packages/engine/src/jobs/sandbox-job.ts → @retake/sandbox",
     "packages/engine/src/jobs/signal.ts → @retake/sandbox",
-    "packages/engine/src/jobs/site-job.ts → @retake/runner-web",
-    "packages/engine/src/jobs/worker.ts → @retake/runner-web",
     "packages/engine/src/jobs/worker.ts → @retake/sandbox",
     "packages/engine/src/jobs/yield.ts → @retake/sandbox",
-    "packages/engine/src/login.ts → @retake/runner-web",
     "packages/engine/src/project-lock.ts → @retake/sandbox",
-    "packages/engine/src/record.ts → @retake/runner-web",
     "packages/engine/src/record.ts → @retake/sandbox",
     "packages/engine/src/sandbox.ts → @retake/sandbox"
    ]

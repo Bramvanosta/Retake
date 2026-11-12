@@ -12,6 +12,7 @@ import { ScenarioError, compileWritePolicy, guardsWrites, hasErrors, loginMatche
 import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
 import type { AgentChannel, HookContext, HookPhase, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
 import type { LoginCommandOf } from './auth.js';
+import type { HookBrowser, HookPages } from './capture/runner.js';
 import { EngineError } from './errors.js';
 import { hookRunRecorder } from './store/journal.js';
 import type { JournalAs } from './store/journal.js';
@@ -158,6 +159,8 @@ export interface HookContextOptions {
   replayUnsigned?: HookContext['replayUnsigned'];
   /** Who runs these hooks: each hook and rollback run is a line of the workspace journal, as this caller's (absent: none). */
   recordAs?: JournalAs;
+  /** The js hooks' browsers (the capture runner's hook pages: its composition root's). */
+  pages: HookPages;
 }
 
 /**
@@ -171,7 +174,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   const env = resolveEnvironment(project, o.env);
   const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
   const personas = resolvePersonas(project, env.name, { home: retakeHome() });
-  const sessions = new Map<string, Promise<import('@retake/runner-web').BrowserSession>>();
+  const sessions = new Map<string, Promise<HookBrowser>>();
   const readers = new Map<string, (url: string) => Promise<{ authorization?: string; cookie?: string }>>();
   const command = o.loginCommand;
   const runId = o.runId ?? newRunId('hooks');
@@ -191,23 +194,24 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     }
     return personas.find((p) => !p.legacy && p.pages.includes(key)) ?? personas.find((p) => p.legacy);
   };
-  const open = async (persona: ResolvedPersona | undefined) => {
-    const rw = await import('@retake/runner-web');
-    const capture = project.config.capture;
-    const prepared = persona
-      ? await rw.prepareSessions([persona], { runId, log: (level, msg) => ctx.log(level, msg), failure: `js hooks cannot use the saved session of persona ${persona.name}:` })
-      : [];
-    return rw.openSession({
+  // A headless browser signed in as `persona` (a copy of its saved session), or as nobody; the project's capture size.
+  const open = (persona: ResolvedPersona | undefined): Promise<HookBrowser> =>
+    o.pages.open({
       policy: o.policy,
-      width: capture.width,
-      height: capture.height,
-      scale: capture.scale,
-      kit: rw.kitConfigFor(undefined),
-      browser: rw.projectBrowser(project),
+      project,
+      ...(persona ? { persona, failure: `js hooks cannot use the saved session of persona ${persona.name}:` } : {}),
+      runId,
       log: (level, msg) => ctx.log(level, msg),
       ...(writes ? { writes: { policy: writes.policy } } : {}),
-      ...(persona ? { realms: prepared.map((p) => p.realm), hookRealmOf: () => persona.name } : {}),
     });
+  /** The browser of persona `key` ('' for nobody), opened on first use and shared by its js hooks and its http auth. */
+  const browserOf = (key: string, persona: ResolvedPersona | undefined): Promise<HookBrowser> => {
+    let session = sessions.get(key);
+    if (!session) {
+      session = open(persona);
+      sessions.set(key, session);
+    }
+    return session;
   };
   const ctx: HookContext = {
     project,
@@ -234,17 +238,9 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
       if (!persona) throw new EngineError('invalid', `persona "${name}" is not declared for environment "${env.name}" (personas: ${personas.map((p) => p.name).join(', ') || 'none'})`);
       let read = readers.get(name);
       if (!read) {
-        const rw = await import('@retake/runner-web');
-        read = rw.personaAuthReader({
+        read = await o.pages.authReader({
           persona,
-          context: async () => {
-            let session = sessions.get(name);
-            if (!session) {
-              session = open(persona);
-              sessions.set(name, session);
-            }
-            return (await session).contextOf(name);
-          },
+          browser: () => browserOf(name, persona),
           envPages: env.pages,
           relogin: command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) }),
           // Trust `mcp`: the session is read only for the persona's own pages' origins.
@@ -255,21 +251,16 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
       return read(url);
     },
     evalInPage: async (pageKey, code) => {
-      const rw = await import('@retake/runner-web');
       if (!Object.keys(env.pages).length) throw new EngineError('invalid', `environment "${env.name}" declares no pages for the js hook to run in`);
       const persona = personaOf(pageKey ?? Object.keys(env.pages)[0]);
-      let session = sessions.get(persona?.name ?? '');
-      if (!session) {
-        session = open(persona);
-        sessions.set(persona?.name ?? '', session);
-      }
+      const session = browserOf(persona?.name ?? '', persona);
       const matchers = persona ? loginMatchers(persona.loginPatterns, env.pages) : [];
       const loginLanding = (key: string, url: string): string | null =>
         persona && matchLoginUrl(url, matchers)
           ? `js hook page "${key}" (persona ${persona.name}) landed on the sign-in page (${urlOriginPath(url)}): its session expired — sign in again: ${command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) })}`
           : null;
       // The guarded hook tab of that page (hosts outside the allow-list are blocked), reused by later js hooks.
-      return rw.evalHookInPage(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code);
+      return o.pages.evalIn(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code);
     },
   };
   const closeSessions = async () => {

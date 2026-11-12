@@ -338,6 +338,10 @@ describe('the import-rules ratchet', () => {
       expect(loaders('packages/engine/src/review/review-package.ts', "import { review, thumbs } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/hook-run/package-hooks.ts', "import { hooks } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/review/x.ts', "import { hooks } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/x.ts → hooks']);
+      // The capture runner's loader (L7.12): free in capture/ only.
+      expect(loaders('packages/engine/src/capture/runner-web-capture.ts', "import { runnerWeb } from '../lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/jobs/worker.ts', "import { runnerWeb as rw } from '../lazy.js';\nawait rw();")).toEqual(['loader-use packages/engine/src/jobs/worker.ts → runnerWeb']);
+      expect(loaders('packages/engine/src/capture/x.ts', "export { runnerWeb } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/capture/x.ts → runnerWeb re-exported']);
       expect(loaders('packages/engine/src/lazy.ts', "export const review = () => import('@retake/review');")).toEqual([]);
       expect(loaders('packages/engine/src/a.ts', "import type { review } from './lazy.js';\nimport { editor } from './lazy.js';\nimport { type hooks } from './lazy.js';")).toEqual([]);
       // Another module of the same name is not the loader file.
@@ -372,6 +376,11 @@ describe('the import-rules ratchet', () => {
       for (const root of lib.PORT_ROOTS.packageHookRunner) expect(ports(root, 'f(packageHookRunner());'), root).toEqual([]);
       for (const root of lib.PORT_ROOTS.packageReviewer) expect(ports(root, 'f(packageReviewer());'), root).toEqual([]);
       expect(ports('packages/engine/src/index.ts', "export { packageHookRunner } from './hook-run/package-hooks.js';\nexport { packageReviewer } from './review/review-package.js';")).toEqual([]);
+      // The capture runner's adapter (L7.12): its file and the bag only; a CLI command names cliPorts.capture.
+      expect(ports('packages/cli/src/interrupt.ts', "import { runnerWebCapture } from '@retake/engine';\nrunnerWebCapture().cleanupSync();")).toEqual(['loader-use packages/cli/src/interrupt.ts → runnerWebCapture outside a root']);
+      expect(ports('packages/engine/src/jobs/worker.ts', "import { runnerWebCapture as c } from '../capture/runner-web-capture.js';\nconst x = c();")).toEqual(['loader-use packages/engine/src/jobs/worker.ts → runnerWebCapture outside a root']);
+      expect(lib.PORT_ROOTS.runnerWebCapture).toEqual(['packages/engine/src/capture/runner-web-capture.ts', 'packages/engine/src/ports.ts']);
+      for (const root of lib.PORT_ROOTS.runnerWebCapture) expect(ports(root, 'f(runnerWebCapture());'), root).toEqual([]);
     });
 
     it('flags a port file naming an adapter package, a type and typeof import() too, not a domain entry nor core', () => {
@@ -386,6 +395,11 @@ describe('the import-rules ratchet', () => {
       const specs = lib.specifiersOf(ts, port, "import type { HookResult } from '@retake/hooks';\nlet h: typeof import('@retake/review');") as string[];
       expect(at({ [port]: specs })).toEqual([`port-types ${port} → @retake/hooks`, `port-types ${port} → @retake/review`]);
       expect(lib.PORT_FILES).toContain('packages/engine/src/review/reviewer.ts');
+      // The capture runner's port (L7.12): the runner's type-only entry is free, its root is not, types included.
+      const capture = 'packages/engine/src/capture/runner.ts';
+      expect(lib.PORT_FILES).toContain(capture);
+      expect(at({ [capture]: ['@retake/core', '@retake/runner-web/types', '../hook-run/runner.js'] })).toEqual([]);
+      expect(at({ [capture]: lib.specifiersOf(ts, capture, "import type { RunOptions } from '@retake/runner-web';") as string[] })).toEqual([`port-types ${capture} → @retake/runner-web`]);
       for (const f of lib.PORT_FILES as string[]) expect(statSync(join(ROOT, f)).isFile(), f).toBe(true);
     });
 
@@ -595,7 +609,7 @@ describe('the import-rules ratchet', () => {
   });
 
   it('a shell may import a domain entry, not the package behind it', () => {
-    expect(lib.DOMAIN_ENTRIES).toEqual(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe']);
+    expect(lib.DOMAIN_ENTRIES).toEqual(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types']);
     const entries = lib.DOMAIN_ENTRIES as string[];
     for (const shell of ['packages/ui/src/server/a.ts', 'packages/mcp/src/tools/a.ts', 'packages/cli/src/commands/a.ts']) {
       const r4 = (text: string, specs: readonly string[]) => hitsOf({ [shell]: { text, specs } }).filter((h) => h.startsWith('R4 ')).map((h) => h.replace(`R4 ${shell} → `, ''));
@@ -627,7 +641,7 @@ describe('the import-rules ratchet', () => {
       for (const [form, text] of Object.entries(values)) expect(r4(`${text}\n`, ['@retake/editor/plan']), `${shell} ${form}`).toEqual(['@retake/editor/plan']);
       expect(r4("import { autoFit } from '@retake/components/geometry';\nimport { runChecks } from '@retake/review/checks';\n", ['@retake/components/geometry', '@retake/review/checks']), shell).toEqual(['@retake/components/geometry', '@retake/review/checks']);
       // The package behind an entry stays an adapter import, its types too; a path below an entry is no entry.
-      const behind = ['@retake/components', '@retake/review/thumbs', '@retake/components/kit', '@retake/editor', '@retake/review', '@retake/components/geometry/x'];
+      const behind = ['@retake/components', '@retake/review/thumbs', '@retake/components/kit', '@retake/editor', '@retake/review', '@retake/components/geometry/x', '@retake/runner-web', '@retake/runner-web/types/x'];
       expect(r4(behind.map((s, i) => `import type { T${i} } from '${s}';`).join('\n'), behind), shell).toEqual(behind);
       // A file that cannot be read counts as a value import (the check fails closed).
       expect(hits({ [shell]: [...entries] }, join(tmpdir(), 'retake-import-rules-none')).filter((h) => h.startsWith('R4 '))).toEqual(entries.map((s) => `R4 ${shell} → ${s}`));
@@ -636,7 +650,7 @@ describe('the import-rules ratchet', () => {
     const rule = (lib.RULES as { id: string; typeOnlyCheck?: unknown }[]).find((r) => r.id === 'R4')!;
     expect(typeof rule.typeOnlyCheck).toBe('function');
     const typesFree = rule.typeOnlyCheck as (s: string) => boolean;
-    expect(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/components', '@retake/review/thumbs', '@retake/editor', '@retake/sandbox', '@retake/hooks'].filter((s) => typesFree(s))).toEqual(entries);
+    expect(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types', '@retake/components', '@retake/review/thumbs', '@retake/editor', '@retake/sandbox', '@retake/hooks', '@retake/runner-web'].filter((s) => typesFree(s))).toEqual(entries);
     // Every domain entry is a real entry of its package (an exports key with a source), and none is a package root.
     for (const entry of lib.DOMAIN_ENTRIES as string[]) {
       const [, pkg, sub] = /^@retake\/([\w-]+)\/([\w-]+)$/.exec(entry)!;
@@ -752,7 +766,7 @@ describe('the import-rules ratchet', () => {
     // The file is exempt from R9 and R11 whole: a static `export * from '@retake/sandbox'` there would hand every engine
     // file the adapter's values through `./lazy.js`, unseen. What it loads, it loads inside a function.
     expect([...uses.statics]).toEqual([]);
-    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs']);
+    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs', '@retake/runner-web']);
     // What `statics` reads, on the forms: a declaration is static, a call is not, a type loads nothing.
     const staticsOf = (text: string): string[] => [...(lib.moduleUses(ts, loader, text) as { statics: Set<string> }).statics];
     for (const text of ["export * from '@retake/sandbox';", "export * as sb from '@retake/sandbox';", "export { pidAlive } from '@retake/sandbox';", "import { pidAlive } from '@retake/sandbox';", "import '@retake/sandbox';", "import sb = require('@retake/sandbox');", "import { type S, pidAlive } from '@retake/sandbox';"]) expect(staticsOf(text), text).toEqual(['@retake/sandbox']);

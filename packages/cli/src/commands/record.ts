@@ -71,6 +71,8 @@ export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: s
         queue: workspaceQueue(ws),
         clock: cliPorts.clock,
         stores: cliPorts.stores,
+        capture: cliPorts.capture,
+        hooks: cliPorts.hooks,
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onPhase: (phase) => {
           if (phase === 'preflight') ui.setStatus('checking the session…');

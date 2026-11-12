@@ -13,7 +13,7 @@ import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { checkedText, loginCommandFor, projectPersonaStates, retakeCommand, tildePath } from './auth.js';
 import type { PersonaState } from './auth.js';
@@ -716,7 +716,7 @@ async function projectChecks(p: DoctorProbes, ws: OpenedWorkspace, slug: string,
   const sandboxes = new Set(sandboxNames(project));
   // Personas (L1.6): their sessions live under the Retake home, never in the project.
   const home = retakeHome(p.env as NodeJS.ProcessEnv);
-  const personas = (await projectPersonaStates(project, loginCommand, undefined, home)).filter((x) => !x.state.legacy && !sandboxes.has(x.state.env));
+  const personas = (await projectPersonaStates(project, loginCommand, cliPorts.capture.sessions, undefined, home)).filter((x) => !x.state.legacy && !sandboxes.has(x.state.env));
   if (personas.length) {
     const where = `${tildePath(home)}${p.env.RETAKE_HOME ? ' (RETAKE_HOME)' : ''}`;
     out.push((await gitPlacement(p, home, true, 'Session home', where)) ?? { status: 'ok', name: 'Session home', detail: `${where} · outside any git work tree` });

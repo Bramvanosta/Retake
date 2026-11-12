@@ -178,6 +178,7 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
   const interrupts = input.mode === 'headed' ? withTimeLimit(ctx.interrupts, maxMs, () => (timedOut = true)) : ctx.interrupts;
   const outcome = await signInPersona(project, env, target.persona, { mode: input.mode, policy: ctx.ws.policy }, {
     interrupts,
+    sessions: ctx.capture.sessions,
     log: (level, message) => {
       if (level !== 'debug') ctx.event({ type: 'log', level, message });
     },

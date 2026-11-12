@@ -37,7 +37,7 @@ export function authApi(ctx: EngineContext): Engine['auth'] {
       }
       const personas: AuthStatusItem[] = [];
       for (const p of projects) {
-        for (const { state } of await projectPersonaStates(p, loginCommand, o.env)) personas.push(authStatusItem(state));
+        for (const { state } of await projectPersonaStates(p, loginCommand, ctx.ports.capture.sessions, o.env)) personas.push(authStatusItem(state));
       }
       return { personas, errors };
     },

@@ -17,7 +17,7 @@ import { WriteRefusedError, compileWritePolicy, PERSON_POLICY } from '@retake/co
 import type { LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
 import { closePage, evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, GuardedWrite } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, readTimeline, tempDir, testHookRunner } from './helpers.js';
 
 let server: Server;
 let A = ''; // the app: guarded
@@ -582,6 +582,7 @@ describe('a read-only run (R-ENV-03)', () => {
       hooks: 'run',
       env: 'test',
       runId: `ro-hook-${Date.now()}`,
+      hookRunner: testHookRunner(),
     });
     expect(rec.status).toBe('failed');
     expect(rec.hooks.setup).toBe('failed');
@@ -620,6 +621,7 @@ describe('a read-only run (R-ENV-03)', () => {
       hooks: 'run',
       env: 'test',
       runId: `rw-cross-${Date.now()}`,
+      hookRunner: testHookRunner(),
       onProgress: (e) => events.push(e),
     });
     expect(rec.status).toBe('failed');

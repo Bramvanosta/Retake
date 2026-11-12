@@ -225,6 +225,8 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         queue: ctx.queue,
         clock: ctx.clock,
         stores: ctx.stores,
+        capture: ctx.capture,
+        hooks: ctx.hooks,
         // Messages of the engine and the runner: counts and enums, never page text or a typed value.
         log: (level, message) => {
           if (level !== 'debug') ctx.event({ type: 'log', level, message });

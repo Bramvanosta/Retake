@@ -44,10 +44,10 @@ import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerErro
 import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopiesSync, signInMatchers, writeStatus } from './auth.js';
 import type { PreparedSession } from './auth.js';
 import { evalHookInPage } from './hook-page.js';
-import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
+import { NO_HOOK_RUNNER, hookResultFailed, hookResultName, loadHookRunner } from './hooks-bridge.js';
 import { personaAuthReader } from './persona-auth.js';
 import type { PersonaRequestAuth } from './persona-auth.js';
-import type { ConfirmHook, HookContextLike, HookResultLike, HooksModule, JournalLike } from './hooks-bridge.js';
+import type { ConfirmHook, HookContextLike, HookResultLike, HookRunnerLike, JournalLike } from './hooks-bridge.js';
 import { HOLD_MAX_MS } from './hold.js';
 import { INSPECT_PACING, inspectPage } from './inspect.js';
 import type { InspectContext, InspectRequest } from './inspect.js';
@@ -130,6 +130,12 @@ export interface RunOptions {
    * (`confirmHook`) and always counts as writing — a read-only run refuses it before anything runs.
    */
   hookTrust?: HookTrust;
+  /**
+   * What runs the scenario's setup, teardown and hook steps (L7.12: the engine's HookRunner, its composition root's;
+   * the runner never loads the hooks package itself). Loaded when the run's hooks are opened (a failed load fails the
+   * run, as before); a run whose hooks run without one is refused before anything runs.
+   */
+  hookRunner?: HookRunnerLike;
   /**
    * Reports each hook and rollback this run executes (hooks HookContext.recordRun) with the run's id: the engine journals
    * it in the workspace journal as its caller's (absent: not journaled).
@@ -225,7 +231,7 @@ function tell(f: (state: FilmingEvent) => void | FilmingReport, state: FilmingEv
 }
 
 interface HooksState {
-  mod: HooksModule;
+  runner: HookRunnerLike;
   journal: JournalLike;
   ctx: HookContextLike;
 }
@@ -355,6 +361,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const pacing = mergePacing(project.config.pacing, sc.pacing, opts.inspect ? INSPECT_PACING : undefined);
   const capture = mergeCapture(project.config.capture, sc.capture);
   const hooksMode = opts.inspect ? 'skip' : (opts.hooks ?? (mode === 'capture' ? 'run' : 'skip'));
+  const hookRunner = opts.hookRunner;
+  if (hooksMode === 'run' && !hookRunner && ((sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0 || hookStepNames(sc).length > 0)) throw new RunnerError(NO_HOOK_RUNNER);
   let until: { sceneIndex: number; stepIndex: number } | null = null;
   if (opts.until !== undefined) {
     until = resolveStepRef(sc, opts.until);
@@ -724,7 +732,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
         ...(opts.recordHookRun ? { recordHookRun: opts.recordHookRun } : {}),
       };
-      hooks = await openHooks(deps);
+      hooks = await openHooks(hookRunner!, deps);
       await setupHooks(hooks, sc.setup ?? [], deps);
       if (hookSteps) rt.runHook = stepHookRunner(hooks, sc, deps);
     }
@@ -1676,9 +1684,9 @@ async function discardCapture(dir: string, screenshotsDir: string): Promise<void
  * The hooks of a run: the journal and the context the setup, the teardown and the rollbacks share. Opened before the
  * setup runs, so the teardown runs even when the setup failed or was interrupted.
  */
-async function openHooks(d: SetupDeps): Promise<HooksState> {
-  const mod = await loadHooksModule();
-  const journal = await mod.Journal.open(join(d.dir, 'hooks-journal.json'));
+async function openHooks(runner: HookRunnerLike, d: SetupDeps): Promise<HooksState> {
+  await loadHookRunner(runner);
+  const journal = await runner.journals.open(join(d.dir, 'hooks-journal.json'));
   const saved: Record<string, unknown> = {};
   d.template.hooks = saved;
   const ctx: HookContextLike = {
@@ -1711,7 +1719,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     ...(d.recordHookRun ? { recordRun: (r: HookResultLike, run?: string) => d.recordHookRun!(r, run ?? d.runId) } : {}),
     ...(d.personaAuth ? { personaAuth: d.personaAuth } : {}),
   };
-  return { mod, journal, ctx };
+  return { runner, journal, ctx };
 }
 
 /**
@@ -1728,10 +1736,10 @@ async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps): Promi
   // Only the setup sees the run's cancel. The same context object as the teardown's and the rollbacks': the secrets
   // the hooks resolve are looked up once per run and stay registered for redaction.
   h.ctx.signal = d.signal;
-  let res: Awaited<ReturnType<HooksModule['runHooks']>>;
+  let res: Awaited<ReturnType<HookRunnerLike['run']>>;
   try {
     // The scenario's own hooks: the agent's with trust `mcp` (a shell one is plain words, core agentShellProblems).
-    res = await h.mod.runHooks(setup, h.ctx, { phase: 'setup', journal: h.journal, agentWritten: true });
+    res = await h.runner.run(setup, h.ctx, { phase: 'setup', journal: h.journal, agentWritten: true });
   } finally {
     delete h.ctx.signal;
   }
@@ -1758,10 +1766,10 @@ function stepHookRunner(h: HooksState, sc: Scenario, d: SetupDeps): (name: strin
     if (!named) throw new StepError(`unknown hook "${name}": declare it under \`hooks:\` in the scenario or in project.yaml`);
     d.emit({ type: 'hook', phase: 'step', name, status: 'start', message: `${named.hooks.length} hook(s)` });
     h.ctx.signal = d.signal;
-    let res: Awaited<ReturnType<HooksModule['runHooks']>>;
+    let res: Awaited<ReturnType<HookRunnerLike['run']>>;
     try {
       // A scenario's named hook is the agent's with trust `mcp`; project.yaml's is a person's (unless it uses the scenario's vars).
-      res = await h.mod.runHooks(named.hooks, h.ctx, { phase: 'step', journal: h.journal, agentWritten: named.source === 'scenario' });
+      res = await h.runner.run(named.hooks, h.ctx, { phase: 'step', journal: h.journal, agentWritten: named.source === 'scenario' });
     } finally {
       delete h.ctx.signal;
     }
@@ -1792,7 +1800,7 @@ async function teardownHooks(
   if (teardown.length) {
     ran = true;
     emit({ type: 'hook', phase: 'teardown', name: 'teardown', status: 'start', message: `${teardown.length} hook(s)` });
-    const res = await h.mod.runHooks(teardown, h.ctx, { phase: 'teardown', journal: h.journal, agentWritten: true });
+    const res = await h.runner.run(teardown, h.ctx, { phase: 'teardown', journal: h.journal, agentWritten: true });
     res.results.forEach((r, i) =>
       emit({ type: 'hook', phase: 'teardown', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
     );

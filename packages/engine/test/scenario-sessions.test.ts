@@ -5,16 +5,20 @@
  * the window (withTimeLimit, RETAKE_SIGNIN_MAX_MIN) and a stop that only ever cancels a sign-in job. Review fixes:
  * `auto` only when every `{{env:…}}` of the login steps is set for the worker (B M3: the missing names said, never a
  * value; keychain items counted, never looked up), `has_check` (A M2), and a stopped sign-in says truthfully what stays
- * (A L5: a persona's existing browser profile keeps what the window changed).
+ * (A L5: a persona's existing browser profile keeps what the window changed). L7.12: the stopped sign-in runs on the
+ * in-memory capture runner, and a persona's state is read through its sessions (its lock only for a profile persona
+ * whose master has files, its status only once a session is saved).
  */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION, personaPaths } from '@retake/core';
+import { JOB_INPUT_VERSION, personaPaths, resolvePersonas } from '@retake/core';
 import { writeStatus } from '@retake/runner-web';
-import { AUTH_HEADED_MAX_MS, FileJobQueue, createEngine, executeAuthLoginJob, headedSignInMaxMs, signInStoppedText, signalInterrupts, withTimeLimit, enginePorts } from '../src/index.js';
+import { AUTH_HEADED_MAX_MS, FileJobQueue, createEngine, executeAuthLoginJob, headedSignInMaxMs, openProject, personaState, signInStoppedText, signalInterrupts, withTimeLimit, enginePorts } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
+import { MemorySessions } from '../src/capture/memory-sessions.js';
 import { fixtureWorkspace } from './helpers.js';
 
 const PROJECT = 'northfield-fixture';
@@ -107,8 +111,10 @@ describe('the headed sign-in of a job', () => {
   it('a stopped sign-in says what stays: nothing for a first sign-in; what the window changed, on an existing browser profile', async () => {
     const stopped = new AbortController();
     stopped.abort();
+    // On the in-memory capture runner: its sign-in, cancelled before it starts, throws the runner's cancel.
+    const capture = new MemoryCaptureRunner({ sessions: new MemorySessions() });
     const job = () =>
-      executeAuthLoginJob({ ...enginePorts(),
+      executeAuthLoginJob({ ...enginePorts({ capture }),
         ws: engine.workspace,
         cli: 'retake',
         input: { version: JOB_INPUT_VERSION, kind: 'auth_login', project: PROJECT, env: 'signed-in', persona: 'supplier', mode: 'auto', submitted_by: 'ui' },
@@ -131,6 +137,10 @@ describe('the headed sign-in of a job', () => {
     expect(signInStoppedText(again)).not.toContain('nothing was saved');
     expect(signInStoppedText({ timed_out: true, profile_kept: true })).toMatch(/^the window stayed open longer than its time limit and was closed; the saved session and its status were not updated/);
     await rm(files.profileDir, { recursive: true, force: true });
+    expect((capture.sessions as MemorySessions).calls).toEqual([
+      { member: 'signIn', persona: 'supplier', mode: 'auto' },
+      { member: 'signIn', persona: 'supplier', mode: 'auto' },
+    ]);
   });
 
   it('a time limit ends its window\'s scope (onLimit first); a cancel still passes through; dispose clears the timer', async () => {
@@ -172,5 +182,59 @@ describe('the headed sign-in of a job', () => {
     expect(await queue.cancelOf(run.job.id)).toBeUndefined();
     expect((await queue.get(run.job.id))?.state).toBe('queued');
     expect((await refusal(engine.auth.cancelSignIn('j_00000000000000000000000000'))).code).toBe('not_found');
+  });
+});
+
+describe("a persona's state, read through the capture runner's sessions (no browser)", () => {
+  it('a profile persona: its lock read only when its master profile has files, its status only when a session is saved', async () => {
+    const project = await openProject(engine.workspace, PROJECT);
+    const command = () => 'retake login';
+    const files = personaPaths(home, PROJECT, 'signed-in', 'supplier');
+    await rm(files.profileDir, { recursive: true, force: true });
+    await rm(files.snapshot, { force: true });
+    const supplier = resolvePersonas(project, 'signed-in', { home }).find((p) => p.name === 'supplier')!;
+    expect(supplier.session).toBe('profile');
+    const sessions = new MemorySessions({
+      locks: { [files.profileDir]: { state: 'live', pid: 4242 } },
+      statuses: { [files.statusFile]: { version: 1, status: 'valid', checked_at: '2026-11-11T10:00:00.000Z', by: 'login', at: 'http://127.0.0.1/products', detail: 'console:/products shows "Maja Lindqvist"' } },
+    });
+    // Nothing saved: neither its lock nor its status is read.
+    expect(await personaState(project, supplier, command, sessions)).toMatchObject({ status: 'never' });
+    expect(sessions.calls).toEqual([]);
+    // A master profile with files: its lock (held: in use) and its status.
+    await mkdir(files.profileDir, { recursive: true });
+    await writeFile(join(files.profileDir, 'Local State'), '{}');
+    try {
+      const st = await personaState(project, supplier, command, sessions);
+      expect(st).toMatchObject({ status: 'valid', by: 'login', in_use: { pid: 4242 }, detail: 'console:/products shows "Maja Lindqvist"', at: 'http://127.0.0.1/products' });
+      expect(sessions.calls).toEqual([
+        { member: 'lock', profileDir: files.profileDir },
+        { member: 'status', file: files.statusFile },
+      ]);
+    } finally {
+      await rm(files.profileDir, { recursive: true, force: true });
+    }
+  });
+
+  it('a storage-state persona: no lock read (it has no master profile), its status once its snapshot is saved', async () => {
+    const project = await openProject(engine.workspace, PROJECT);
+    const supplier = resolvePersonas(project, 'signed-in', { home }).find((p) => p.name === 'supplier')!;
+    const files = personaPaths(home, PROJECT, 'signed-in', 'supplier');
+    // The same persona as a storage-state one (auth.personas.<name>.session: storage_state), its profile folder there.
+    const stored = { ...supplier, session: 'storage_state' as const, profileDir: files.profileDir };
+    await mkdir(files.profileDir, { recursive: true });
+    await writeFile(join(files.profileDir, 'Local State'), '{}');
+    await mkdir(join(files.snapshot, '..'), { recursive: true });
+    await writeFile(files.snapshot, '{"cookies":[],"origins":[]}', { mode: 0o600 });
+    const sessions = new MemorySessions({ locks: { [files.profileDir]: { state: 'live', pid: 4242 } } });
+    try {
+      const st = await personaState(project, stored, () => 'retake login', sessions);
+      expect(st).toMatchObject({ session: 'storage_state', status: 'unchecked' });
+      expect(st.in_use).toBeUndefined();
+      expect(sessions.calls).toEqual([{ member: 'status', file: files.statusFile }]);
+    } finally {
+      await rm(files.profileDir, { recursive: true, force: true });
+      await rm(files.snapshot, { force: true });
+    }
   });
 });

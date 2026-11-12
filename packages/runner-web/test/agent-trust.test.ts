@@ -12,7 +12,7 @@ import { runScenario } from '../src/index.js';
 import { dropFile } from '../src/actions/drag.js';
 import { evalStep } from '../src/actions/misc.js';
 import type { StepContext } from '../src/runtime.js';
-import { FAST, makeProject, makeScenario, startServer, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, startServer, tempDir, testHookRunner } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 let dir: string;
@@ -88,7 +88,7 @@ describe('runner, trust mcp', () => {
     try {
       const steps = [{ hook: 'warm' }, { hold: 0.1 }];
       const run = (name: string, sc: Omit<Scenario, 'video'>, project = makeProject(dir, { app: server.url })) =>
-        runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...sc }), mode: 'dry', hooks: 'run', env: 'test', runId: `${name}-${Date.now()}`, hookTrust: 'mcp', confirmHook: () => true });
+        runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...sc }), mode: 'dry', hooks: 'run', env: 'test', runId: `${name}-${Date.now()}`, hookTrust: 'mcp', confirmHook: () => true, hookRunner: testHookRunner() });
       const shared = (vars?: Record<string, string>) => {
         const p = makeProject(dir, { app: server.url });
         p.config.hooks = { warm: { shell: { run: '{{vars.prefix}} true' } } };

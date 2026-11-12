@@ -200,6 +200,11 @@ export class MemoryHookRunner implements HookRunner {
     return place.phase !== 'seed' || (mcp && kind === 'shell') ? own : null;
   }
 
+  /** Nothing to load: resolves at once. */
+  async load(): Promise<void> {
+    return undefined;
+  }
+
   async run(hooks: readonly HookStep[], ctx: HookContext, o: HookRunOptions): Promise<{ ok: boolean; results: HookResult[] }> {
     const journal = this.#own(o.journal);
     this.calls.push({ op: 'run', phase: o.phase, hooks, ...(o.agentWritten !== undefined ? { agentWritten: o.agentWritten } : {}), dry: ctx.dryRun === true, journal: journal.file });

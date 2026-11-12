@@ -9,7 +9,7 @@ import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 // Moved into @retake/engine (L3.1); re-exported for the commands that import them from here.
@@ -83,6 +83,7 @@ export async function signInPersona(
       { mode, policy: opts.policy, ...(opts.page !== undefined ? { page: opts.page } : {}), ...(opts.url !== undefined ? { url: opts.url } : {}) },
       {
         interrupts: { open: (o) => onInterrupt(ui, o) },
+        sessions: cliPorts.capture.sessions,
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onOpen: (url) =>
           ui.line(
@@ -187,7 +188,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
   }
   const rows: Array<{ persona: ResolvedPersona; state: PersonaState; project: LoadedProject }> = [];
   for (const project of projects) {
-    for (const r of await projectPersonaStates(project, command, opts.env)) rows.push({ ...r, project });
+    for (const r of await projectPersonaStates(project, command, cliPorts.capture.sessions, opts.env)) rows.push({ ...r, project });
   }
   if (opts.check) {
     const { checkSavedSession, profileLock, writeStatus, PreflightError } = await import('@retake/runner-web');

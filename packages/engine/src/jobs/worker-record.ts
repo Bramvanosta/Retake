@@ -23,6 +23,7 @@ import type { Workspace } from './run-job-record.js';
 import type { JobRecord, JobWorkerInfo } from './types.js';
 import type { KillFn } from './signal.js';
 import type { Clock } from '../clock.js';
+import type { CaptureRunner } from '../capture/runner.js';
 import type { EnginePorts } from '../ports.js';
 import type { HookRunner } from '../hook-run/runner.js';
 import type { Reviewer } from '../review/reviewer.js';
@@ -125,7 +126,8 @@ export interface Worker {
   lock: WorkerLock;
   readonly self: ProcessIdentity;
   readonly worker: JobWorkerInfo;
-  readonly rw: typeof import('@retake/runner-web');
+  /** The capture runner (ports.ts EnginePorts.capture; `capture` names the capture slot): loaded before the signals are listened to. */
+  readonly captureRunner: CaptureRunner;
   readonly sb: typeof import('@retake/sandbox');
   /** previewTest or ports (in-process tests): heavy jobs run in this process, one job at a time, as before L5.14. */
   readonly inlineHeavy: boolean;
@@ -174,7 +176,7 @@ export interface WorkerParts {
   build: string;
   lock: WorkerLock;
   self: ProcessIdentity;
-  rw: typeof import('@retake/runner-web');
+  captureRunner: CaptureRunner;
   sb: typeof import('@retake/sandbox');
 }
 
@@ -204,7 +206,7 @@ export function newWorker(p: WorkerParts): Worker {
     lock: p.lock,
     self: p.self,
     worker: { ...p.self, host: hostname() },
-    rw: p.rw,
+    captureRunner: p.captureRunner,
     sb: p.sb,
     inlineHeavy: o.previewTest !== undefined || o.ports !== undefined,
     slot: {},

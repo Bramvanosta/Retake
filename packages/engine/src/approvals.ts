@@ -17,6 +17,7 @@ import { ENGINE_TRUST, submitterChannel } from './caller.js';
 import { stampOf } from './clock.js';
 import type { Clock } from './clock.js';
 import { EngineError } from './errors.js';
+import type { HookPages } from './capture/runner.js';
 import type { HookRunner } from './hook-run/runner.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
@@ -180,12 +181,13 @@ function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase):
 
 /**
  * Dry-run `lists` with trust `mcp` and collect what needs a human and what is refused. Executes nothing, opens no
- * browser, reads no keychain item. `hooks`: the HookRunner port (the submitter's: SubmitContext).
+ * browser, reads no keychain item. `hooks`: the HookRunner port (the submitter's: SubmitContext); `pages`: the js hooks'
+ * pages of its capture runner (SubmitContext `capture.hookPages`), which the dry context is built with and never opens.
  */
 export async function preflightHooks(
   project: LoadedProject,
   lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean }>,
-  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel; hooks: HookRunner },
+  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel; hooks: HookRunner; pages: HookPages },
 ): Promise<Preflight> {
   const runner = o.hooks;
   const { ctx, access } = await createHookContext(project, {
@@ -198,6 +200,7 @@ export async function preflightHooks(
     ...(o.scenario ? { scenario: o.scenario } : {}),
     log: () => undefined,
     loginCommand: (p) => `retake login ${p.project}`,
+    pages: o.pages,
   });
   // A dry run journals nothing: the journal is never written.
   const journal = await runner.journals.open(o.journalFile);

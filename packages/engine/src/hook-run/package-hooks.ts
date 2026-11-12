@@ -23,6 +23,7 @@ const pendingOf = (h: Hooks, list: readonly PendingHookJournal[]) => list.map((p
 
 export function packageHookRunner(): HookRunner {
   return {
+    load: async () => void (await hooks()),
     run: async (list, ctx, o) => {
       const h = await hooks();
       const steps: HookStep[] = [...list];

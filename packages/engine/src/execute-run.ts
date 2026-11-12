@@ -1,14 +1,16 @@
 /**
  * A run of a scenario, as `retake run` and the jobs worker both start it (L3.1, moved from the CLI's run command):
  * prepare (project, sandbox pick, scenario validated against the environment it runs on, template), then execute (the
- * scenario's warnings and notes, the sandbox take or check, runScenario). Native options and native errors: the CLI keeps
+ * scenario's warnings and notes, the sandbox take or check, the capture runner's run). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
 import { parseScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
 import { loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
 import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
-import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
+import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
 import type { SandboxLog, Take } from '@retake/sandbox';
+import type { CaptureRunner } from './capture/runner.js';
+import type { HookRunner } from './hook-run/runner.js';
 import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
@@ -150,6 +152,10 @@ export interface RunPorts {
 export interface ExecuteRunOptions {
   /** What the work runs under (core WorkPolicy): its programs, browser and ffmpeg, under the agent policy. */
   policy: WorkPolicy;
+  /** What films the run (its composition root's capture runner, capture/runner.ts). */
+  capture: CaptureRunner;
+  /** What the run's setup, teardown and hook steps run through (its composition root's hook runner). */
+  hooks: HookRunner;
   /** A run id reserved ahead (core reserveRunId: a job's); default a new one. */
   runId?: string;
   /** `--allow-writes` (L1.7): checked by the caller first (checkAllowWrites). */
@@ -219,7 +225,7 @@ export async function checkSandboxEnv(project: LoadedProject, env: string, note:
 
 /**
  * Execute a prepared run: its warnings and notes, the sandbox take (or the check of a sandbox environment), then the
- * runner. Returns the run record (a failed or cancelled run is a record, not an error). Throws before the run:
+ * capture runner (`opts.capture`, its hooks through `opts.hooks`). Returns the run record (a failed or cancelled run is a record, not an error). Throws before the run:
  * SandboxTakeError (the take failed), the sandbox check's error, the runner's own early errors (access, --until, clock).
  * A sandbox failure creates no run folder (a reserved one stays as it was: the caller finalises it).
  */
@@ -240,9 +246,8 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   if (sandboxEnv) take = await prepareSandboxTake(project, sandboxEnv, scenario.name, ports, opts);
   else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy);
 
-  const { runScenario } = await import('@retake/runner-web');
   try {
-    return await runScenario({
+    return await opts.capture.run({
       policy: opts.policy,
       project,
       scenario,
@@ -270,6 +275,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
         if (take && e.type === 'run_start') take.note(e.run.id);
         ports.progress(e);
       },
+      hookRunner: opts.hooks,
     });
   } finally {
     await take?.release();

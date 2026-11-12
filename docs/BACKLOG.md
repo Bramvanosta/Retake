@@ -2715,3 +2715,10 @@ read `Date.now()` and are pinned file by file by the import-rules ratchet's `clo
 `performance.now()` (monotonic: a clock set back or forward moves none of them) most of these pins would go, about 8
 left (the file times and the app set-up). It touches the worker's scheduler and the tests that set `idleSince` by
 `Date.now()`, so it is a lot of its own. *From:* L7.10.
+
+### BL-172 — `retake auth status --check` through the engine
+`retake auth status` reads every persona's state through the engine and its capture runner (L7.12); its `--check`
+still imports the runner package itself (`packages/cli/src/commands/auth.ts`: `checkSavedSession`, `profileLock`,
+`writeStatus`, `PreflightError`) — the CLI's one R4 entry of a session. Moving it means an engine operation for a
+live check of saved sessions that also writes each persona's status file, and a member of the CaptureRunner port's
+sessions for that write: sessions are security-sensitive, so it is a change of its own, with its tests. *From:* L7.12.

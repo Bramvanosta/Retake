@@ -6,8 +6,9 @@
  */
 import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core';
 import type { LoadedProject, ResolvedEnvironment, ResolvedPersona, WorkPolicy } from '@retake/core';
-import type { SignInResult } from '@retake/runner-web';
+import type { SignInResult } from '@retake/runner-web/types';
 import { retakeHome } from '@retake/core/io';
+import type { CaptureSessions } from './capture/runner.js';
 import type { InterruptPort } from './interrupts.js';
 
 /** A sign-in that cannot be made as asked (`usage`: the CLI reports it as a usage error, exit 2; else exit 1). */
@@ -76,6 +77,8 @@ export interface SignInPorts {
   log(level: 'debug' | 'info' | 'warn' | 'error', message: string): void;
   /** The window (headed) or the headless browser (auto) shows its first page. */
   onOpen?(url: string): void;
+  /** What signs it in: the capture runner's sessions (its composition root's). */
+  sessions: Pick<CaptureSessions, 'signIn'>;
 }
 
 export type SignInOutcome = { interrupted: true } | { interrupted: false; result: SignInResult };
@@ -98,11 +101,10 @@ export async function signInPersona(
       false,
     );
   }
-  const { signIn } = await import('@retake/runner-web');
   const stop = await ports.interrupts.open();
   let result: SignInResult;
   try {
-    result = await signIn({
+    result = await ports.sessions.signIn({
       project,
       policy: opts.policy,
       env,

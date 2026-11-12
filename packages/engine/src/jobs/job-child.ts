@@ -61,7 +61,7 @@ export function passedBuildDirs(raw: string | undefined): string[] | undefined {
 /** Run the job; resolves with the exit code. */
 export async function runJobChild(o: JobChildOptions): Promise<number> {
   // A job process is a composition root: the product's ports (a test's cannot reach a process).
-  const { clock, stores, hooks, reviewer } = enginePorts();
+  const { clock, stores, hooks, reviewer, capture } = enginePorts();
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} job process ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   const stamp = buildStamp(o.dirs ?? buildDirs());
@@ -95,7 +95,8 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   }
   const self = await selfIdentity();
   const host = hostname();
-  const rw = await import('@retake/runner-web');
+  // Loaded now, before the signals are listened to: a signal's cancel and its removal of session copies are synchronous.
+  await capture.load();
   const slot: { current?: AbortController; currentStop?: AbortController } = {};
   const quitSync = new Set<() => void>();
   const done = new Set<string>();
@@ -105,10 +106,10 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     signals++;
     if (signals === 1) {
       log(`${sig}: cancelling job ${o.id} (its teardown still runs)`);
-      slot.current?.abort(new rw.CancelledError(`job cancelled (${sig})`));
+      slot.current?.abort(capture.cancelled(`job cancelled (${sig})`));
       return;
     }
-    rw.removeSessionCopiesSync();
+    capture.cleanupSync();
     for (const f of quitSync) {
       try {
         f();
@@ -138,7 +139,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
       orphan = `its jobs worker (pid ${o.supervisor}) stopped while the job ran (its job process ended the job and cleaned up after it)`;
       log(`job ${o.id}: the worker is gone: cancelling`);
     }
-    if (slot.current && !slot.current.signal.aborted) slot.current.abort(new rw.CancelledError('job cancelled (its worker stopped)'));
+    if (slot.current && !slot.current.signal.aborted) slot.current.abort(capture.cancelled('job cancelled (its worker stopped)'));
   }, o.watchMs ?? 1000);
 
   const interrupts = (signal: AbortSignal): InterruptPort => ({
@@ -179,7 +180,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     stores,
     hooks,
     reviewer,
-    rw,
+    capture,
     interrupts,
     slot,
     done,

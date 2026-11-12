@@ -30,7 +30,7 @@ import {
   projectRef,
 } from '@retake/core';
 import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkPolicy } from '@retake/core';
-import type { InspectReport } from '@retake/runner-web';
+import type { InspectReport } from '@retake/runner-web/types';
 import { fileFacts } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
@@ -47,6 +47,8 @@ import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './t
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
 import type { FrameTools } from '../review/reviewer.js';
+import type { CaptureRunner } from '../capture/runner.js';
+import type { HookRunner } from '../hook-run/runner.js';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -312,6 +314,10 @@ export interface InspectionOptions {
   images: 'marked' | 'none';
   /** What draws the marks on the screenshot (its composition root's reviewer, review/reviewer.ts). */
   frames: Pick<FrameTools, 'marks'>;
+  /** What replays the scenario (its composition root's capture runner, capture/runner.ts). */
+  capture: CaptureRunner;
+  /** Its hook runner, handed to every run (an inspection skips the scenario's hooks: nothing runs through it). */
+  hooks: HookRunner;
   /** Who stands behind the replayed scenario (`mcp`: agent trust in the runner). */
   hookTrust?: 'author' | 'mcp';
   signal?: AbortSignal;
@@ -325,10 +331,9 @@ export interface InspectionOptions {
  */
 export async function runInspection(o: InspectionOptions): Promise<InspectionRun> {
   const { prepared } = o;
-  const { runScenario } = await import('@retake/runner-web');
   let report: InspectReport | null = null;
   let signIn: InspectionRun['signIn'] = null;
-  const record = await runScenario({
+  const record = await o.capture.run({
     policy: o.policy,
     project: prepared.project,
     scenario: prepared.scenario,
@@ -351,6 +356,7 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
       onResult: (r) => void (report = r),
     },
     ...(o.onProgress ? { onProgress: o.onProgress } : {}),
+    hookRunner: o.hooks,
   });
   const r = report as InspectReport | null;
   let marked: string | null = null;
@@ -431,6 +437,8 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
     ...(input.limit !== undefined ? { limit: input.limit } : {}),
     images: input.images,
     frames: ctx.reviewer.frames,
+    capture: ctx.capture,
+    hooks: ctx.hooks,
     hookTrust: ENGINE_TRUST,
     signal: ctx.signal,
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,

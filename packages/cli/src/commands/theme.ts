@@ -124,7 +124,7 @@ export async function themeFromSiteCommand(ui: Ui, global: GlobalOptions, url: s
   const ws = await openWorkspace(global);
   let r: SiteJobResult;
   try {
-    r = await extractSiteForAuthor(ws, url, { queue: workspaceQueue(ws), clock: cliPorts.clock });
+    r = await extractSiteForAuthor(ws, url, { queue: workspaceQueue(ws), clock: cliPorts.clock, capture: cliPorts.capture });
   } catch (e) {
     if (e instanceof EngineError) throw new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`);
     throw e;

@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { collectSecretRefs, planPersonas, resolveEnvironment, resolvePersonas, sandboxOf } from '@retake/core';
 import type { LoadedProject, ResolvedPersona, Scenario } from '@retake/core';
 import { retakeHome } from '@retake/core/io';
+import type { CaptureSessions } from './capture/runner.js';
 
 /** The `retake login` command for a persona (messages print it). */
 export type LoginCommandOf = (p: { project: string; env: string; persona?: string }) => string;
@@ -58,9 +59,11 @@ async function nonEmptyDir(dir: string | undefined): Promise<boolean> {
   }
 }
 
+/** What a persona's state is read through: the capture runner's sessions (its lock and its last status; no browser). */
+export type PersonaStateReads = Pick<CaptureSessions, 'lock' | 'status'>;
+
 /** The state of one persona's saved session: its files, its lock and its last status (no browser). */
-export async function personaState(project: LoadedProject, persona: ResolvedPersona, command: LoginCommandOf): Promise<PersonaState> {
-  const { profileLock, readStatus } = await import('@retake/runner-web');
+export async function personaState(project: LoadedProject, persona: ResolvedPersona, command: LoginCommandOf, sessions: PersonaStateReads): Promise<PersonaState> {
   const hasMaster = persona.session === 'profile' && (await nonEmptyDir(persona.profileDir));
   const hasSnapshot = persona.snapshot !== undefined && existsSync(persona.snapshot);
   const out: PersonaState = {
@@ -79,11 +82,11 @@ export async function personaState(project: LoadedProject, persona: ResolvedPers
       : { command: command({ project: project.slug, env: persona.env, ...(persona.legacy ? {} : { persona: persona.name }) }) }),
   };
   if (hasMaster && persona.profileDir) {
-    const lock = await profileLock(persona.profileDir);
+    const lock = await sessions.lock(persona.profileDir);
     if (lock.state === 'live') out.in_use = lock.pid ? { pid: lock.pid } : {};
   }
   if (!hasMaster && !hasSnapshot) return out;
-  const st = await readStatus(persona.statusFile);
+  const st = await sessions.status(persona.statusFile);
   if (!st) {
     out.status = 'unchecked';
     return out;
@@ -101,13 +104,14 @@ export async function personaState(project: LoadedProject, persona: ResolvedPers
 export async function projectPersonaStates(
   project: LoadedProject,
   command: LoginCommandOf,
+  sessions: PersonaStateReads,
   env?: string,
   home?: string,
 ): Promise<Array<{ persona: ResolvedPersona; state: PersonaState }>> {
   const envs = env !== undefined ? [resolveEnvironment(project, env).name] : Object.keys(project.config.environments ?? {});
   const out: Array<{ persona: ResolvedPersona; state: PersonaState }> = [];
   for (const e of envs) {
-    for (const persona of resolvePersonas(project, e, { home: home ?? retakeHome() })) out.push({ persona, state: await personaState(project, persona, command) });
+    for (const persona of resolvePersonas(project, e, { home: home ?? retakeHome() })) out.push({ persona, state: await personaState(project, persona, command, sessions) });
   }
   return out;
 }
@@ -140,6 +144,7 @@ export async function scenarioPersonaStates(
   project: LoadedProject,
   sc: Scenario,
   command: LoginCommandOf,
+  sessions: PersonaStateReads,
   opts: { env?: string; hooks: boolean; workerEnv?: NodeJS.ProcessEnv },
 ): Promise<{ env: string; personas: ScenarioPersona[]; issues: string[] }> {
   const env = resolveEnvironment(project, opts.env ?? sc.env);
@@ -162,7 +167,7 @@ export async function scenarioPersonaStates(
     }
     out.push({
       persona,
-      state: await personaState(project, persona, command),
+      state: await personaState(project, persona, command, sessions),
       auto: hasLogin && missing.length === 0,
       has_check: persona.check !== undefined,
       ...(missing.length ? { login_env_missing: missing } : {}),

@@ -8,6 +8,8 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { LoadedProject, LoadedScenario, LoadedTemplate, Pacing, Scenario, Timeline } from '@retake/core';
 import { DEFAULT_CAPTURE } from '@retake/core';
+import { Journal, runHooks } from '@retake/hooks';
+import type { HookRunnerLike, JournalLike } from '../src/hooks-bridge.js';
 
 export const execFileP = promisify(execFile);
 
@@ -80,6 +82,22 @@ export const FAST: Partial<Pacing> = {
   jitter: 0,
   settle_ms: 300,
 };
+
+/**
+ * The hook runner a test's run hands the runner (RunOptions.hookRunner, L7.12): the hooks package's runHooks and Journal,
+ * as the engine's package hook runner calls them (the runner never loads the hooks package itself).
+ */
+export function testHookRunner(): HookRunnerLike {
+  const own = (journal: JournalLike): Journal => {
+    if (journal instanceof Journal) return journal;
+    throw new Error('a hooks journal the test hook runner did not open');
+  };
+  return {
+    load: async () => undefined,
+    run: (hooks, ctx, o) => runHooks(hooks, ctx, { phase: o.phase, journal: own(o.journal), ...(o.agentWritten !== undefined ? { agentWritten: o.agentWritten } : {}) }),
+    journals: { open: (file) => Journal.open(file) },
+  };
+}
 
 export async function tempDir(prefix = 'rw-test-'): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));

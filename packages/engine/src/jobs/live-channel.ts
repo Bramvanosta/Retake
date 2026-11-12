@@ -30,7 +30,7 @@ import { chmod, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { isRunId } from '@retake/core';
 import { readPlainRange } from '../run-files.js';
-import type { LiveFrame, LiveSink } from '@retake/runner-web';
+import type { LiveFrame, LiveSink } from '@retake/runner-web/types';
 import { checkRequest } from '../http/gate.js';
 import type { RouteSpec } from '../http/gate.js';
 import { LOOPBACK, listenLoopback } from '../http/listen.js';

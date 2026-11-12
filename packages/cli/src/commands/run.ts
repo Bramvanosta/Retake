@@ -128,6 +128,8 @@ export async function runCommand(
       opts,
       {
         policy: ws.policy,
+        capture: cliPorts.capture,
+        hooks: cliPorts.hooks,
         // The fix of an expired session names this workspace when the command line did (-C).
         loginCommand: loginCommandFor(global),
         ...(opts.allowWrites ? { allowWrites: true } : {}),

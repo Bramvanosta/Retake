@@ -29,7 +29,8 @@ import { basename, join, resolve } from 'node:path';
 import { BRAND_IMAGE_MAX_BYTES, JOB_INPUT_VERSION, SITE_ID_RE, TEMPLATE_FILE, insideFolder, newUlidId, normalizeHost, parseSiteUrl, parseYaml, realPathOf, resolveEnvironment, siteApprovalFingerprint, siteThemeName, unsafeTestResolve, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
 import { listProjects, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
 import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile } from '@retake/core';
-import type { SiteReport } from '@retake/runner-web';
+import type { SiteReport } from '@retake/runner-web/types';
+import type { CaptureRunner } from '../capture/runner.js';
 import { stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { takeSiteApproval } from '../approvals.js';
@@ -393,11 +394,12 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
   const test = unsafeTestResolve();
   if (test.map.size) ctx.event({ type: 'log', level: 'warn', message: `the unsafe test resolver is set: ${[...test.map.keys()].join(', ')} reach loopback ports` });
   if (test.ignored.length) ctx.event({ type: 'log', level: 'warn', message: `RETAKE_UNSAFE_TEST_RESOLVE entries ignored (not <name>.test=127.0.0.1:<port>): ${test.ignored.length}` });
-  const { extractSite } = await import('@retake/runner-web');
+  // The runner loaded before the extraction (a load that fails is not the extraction's error).
+  await ctx.capture.load();
   const steps = ['redirects', 'loading', 'reading', 'logos', 'writing'];
   let report: SiteReport;
   try {
-    report = await extractSite({
+    report = await ctx.capture.site.extract({
       policy: ctx.ws.policy,
       url: url.href,
       host: url.host,
@@ -419,16 +421,16 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
  * `retake theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
  * (the human typed the URL). The same network rules; an environment page or a protected host is a warning here.
  */
-export async function extractSiteForAuthor(ws: OpenedWorkspace, rawUrl: string, o: { queue: JobQueueView; clock: Clock; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
+export async function extractSiteForAuthor(ws: OpenedWorkspace, rawUrl: string, o: { queue: JobQueueView; clock: Clock; capture: CaptureRunner; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
   const url = checkSiteUrl(rawUrl);
   const conflicts = await siteHostConflicts(ws, url.host);
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
   const test = unsafeTestResolve();
-  const { extractSite } = await import('@retake/runner-web');
+  await o.capture.load();
   let report: SiteReport;
   try {
-    report = await extractSite({ policy: ws.policy, url: url.href, host: url.host, outDir: dir, testResolve: test.map, ...(o.signal ? { signal: o.signal } : {}), ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
+    report = await o.capture.site.extract({ policy: ws.policy, url: url.href, host: url.host, outDir: dir, testResolve: test.map, ...(o.signal ? { signal: o.signal } : {}), ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
   } catch (e) {
     throw toEngineError(e);
   }

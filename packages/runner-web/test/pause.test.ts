@@ -14,7 +14,7 @@ import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { DRY_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, startServer, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, startServer, tempDir, testHookRunner } from './helpers.js';
 import type { TestServer } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
@@ -37,7 +37,7 @@ afterAll(async () => {
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...scenario }), mode: 'dry', runId: `${name}-${Date.now()}`, ...opts });
+  return runScenario({ policy: PERSON_POLICY, project, scenario: makeScenario(name, { pacing: FAST, ...scenario }), mode: 'dry', runId: `${name}-${Date.now()}`, hookRunner: testHookRunner(), ...opts });
 }
 
 const HOOKS = {

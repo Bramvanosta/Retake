@@ -67,6 +67,7 @@ async function hookContext(
       loginCommand: loginCommandFor(global),
       // Each hook and rollback run is a line of the workspace journal, as the person's.
       recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
+      pages: cliPorts.capture.hookPages,
       replayUnsigned:
         opts.replayUnsigned === true
           ? async (entry, file) => {

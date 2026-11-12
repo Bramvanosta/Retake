@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { FORMAT_VERSIONS, JOB_INPUT_VERSION, closeReservedRun, listSteps, loginCommand as coreLoginCommand, resolveEnvironment, resolveStepRef, queuedRun, usedNamedHooks, projectPath, statePath, projectRef } from '@retake/core';
 import { reserveRunId, writeJson } from '@retake/core/io';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunStatus } from '@retake/core';
-import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
+import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
 import { stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
@@ -164,7 +164,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
             { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
             ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
-          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client), hooks: ctx.hooks },
+          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client), hooks: ctx.hooks, pages: ctx.capture.hookPages },
         ).catch((e: unknown) => {
           throw toEngineError(e);
         })
@@ -447,6 +447,8 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox },
       {
         policy: ctx.ws.policy,
+        capture: ctx.capture,
+        hooks: ctx.hooks,
         runId: input.run_id,
         signal: ctx.signal,
         loginCommand: (p) => coreLoginCommand(p).replace(/^retake /, `${ctx.cli} `),

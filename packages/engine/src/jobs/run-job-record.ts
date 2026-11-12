@@ -6,7 +6,7 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, projectPath } from '@retake/core';
 import type { RenderJobInput, RunJobInput } from '@retake/core';
-import type { FilmingEvent, FilmingReport } from '@retake/runner-web';
+import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
 import type { RecordJobTestHooks } from './record-job.js';
 import type { PreviewJobTestHooks } from './preview-job.js';
 import { stampOf } from '../clock.js';
@@ -51,7 +51,6 @@ export interface JobRunnerContext extends EnginePorts {
   /** The worker that claimed it, when a job process runs it (job.json `supervisor`). */
   supervisor?: JobWorkerInfo;
   log: (message: string) => void;
-  rw: typeof import('@retake/runner-web');
   interrupts: (signal: AbortSignal) => InterruptPort;
   /** The running job's cancel and a `record` job's stop, for the process's signal handler. */
   slot: { current?: AbortController; currentStop?: AbortController };
@@ -132,7 +131,7 @@ export function unknownInput(input: unknown): string | null {
 
 /** Running claimed jobs with `c` (a worker, or a job process). */
 export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobRecord) => Promise<void> } {
-  const { root, ws, queue, files, cli, build, worker, self, log, rw, interrupts, slot, done, writeOrExit, clock, stores, hooks, reviewer } = c;
+  const { root, ws, queue, files, cli, build, worker, self, log, interrupts, slot, done, writeOrExit, clock, stores, hooks, reviewer, capture } = c;
 
   /** The filming marker of a capture take (L5.14): written at capture time 0, paused with the take, removed at its end. */
   const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => void | FilmingReport; close: () => void } => {
@@ -252,7 +251,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       void queue.cancelOf(id).then((asked) => {
         if (asked !== undefined && !controller.signal.aborted) {
           log(`job ${id}: cancel requested`);
-          controller.abort(new rw.CancelledError('run cancelled (cancel requested)'));
+          controller.abort(capture.cancelled('run cancelled (cancel requested)'));
         }
       });
       if (stored.kind === 'record' && !stopAsked.signal.aborted) {
@@ -285,7 +284,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
       const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
       // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
-      const base = { ws, cli, queue, signal: controller.signal, event, clock, stores, hooks, reviewer };
+      const base = { ws, cli, queue, signal: controller.signal, event, clock, stores, hooks, reviewer, capture };
       const onProgress = (p: JobProgress) => {
         latest = p;
         if (!progressTimer) progressTimer = setTimeout(flushProgress, 500);

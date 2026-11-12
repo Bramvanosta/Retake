@@ -6,7 +6,9 @@
  * under `untrusted` in the job, a history line that counts nothing), a URL resolved to a page key and a path, a scenario
  * replayed up to the step that opens the quote dialog, a scenario changed between submit and execute (refused), a
  * persona that cannot sign in (no report: the error under `untrusted`, `sign_in` names the persona), a cancel before
- * start, and the pruning to the newest 20. No write reaches the fixture.
+ * start, and the pruning to the newest 20. No write reaches the fixture. L7.12: the three cases the engine decides
+ * before anything is replayed (a changed scenario, a cancel before start, the pruning) run the worker on the in-memory
+ * capture runner, which shows nothing reached it; the request an inspection hands the runner is capture-runner.test.ts's.
  */
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -17,6 +19,7 @@ import { FileJobQueue, INSPECT_KEEP, createEngine, historyFile, markBoxes, newIn
 import type { Engine, EngineError, InspectJobResult, JobRecord } from '../src/index.js';
 import type { LoadedProject } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
 interface Fixture {
@@ -32,6 +35,11 @@ let projectDir: string;
 const saved = { home: process.env.RETAKE_HOME, supplier: process.env.NORTHFIELD_SUPPLIER_PASSWORD, buyer: process.env.NORTHFIELD_BUYER_PASSWORD };
 
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
+/** The worker on the in-memory capture runner (L7.12): the engine's own logic, nothing replayed in a browser. */
+const workInMemory = async (capture = new MemoryCaptureRunner()) => {
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture } });
+  return capture.calls.filter((c) => c.member === 'run');
+};
 
 async function mutations(): Promise<number> {
   const r = await fetch(`${fixture.urls.console}/api/health`);
@@ -198,7 +206,8 @@ describe('inspect jobs: the worker inspects', () => {
     const text = await readFile(file, 'utf8');
     await writeFile(file, `${text}\n# changed\n`);
     try {
-      const job = await finished(sub.job.id);
+      expect(await workInMemory()).toEqual([]);
+      const job = await engine.jobs.get(sub.job.id);
       expect(job.state).toBe('failed');
       expect(job.error?.code).toBe('conflict');
     } finally {
@@ -227,7 +236,8 @@ describe('inspect jobs: the worker inspects', () => {
   it('a cancel before start never runs it', async () => {
     const sub = await engine.inspect.submit({ project: PROJECT, page: 'shop' });
     await engine.jobs.cancel(sub.job.id);
-    const job = await finished(sub.job.id);
+    expect(await workInMemory()).toEqual([]);
+    const job = await engine.jobs.get(sub.job.id);
     expect(job.state).toBe('cancelled');
     expect(existsSync(join(sub.dir, 'inspect.json'))).toBe(false);
   });
@@ -248,7 +258,7 @@ describe('inspect jobs: the worker inspects', () => {
     expect(newInspectId() > sub.inspect_id).toBe(true);
     await engine.jobs.cancel(queued.job.id);
     await engine.jobs.cancel(sub.job.id);
-    await work();
+    expect(await workInMemory()).toEqual([]);
     // Its job over, the old folder goes at the next prune.
     expect(await pruneInspections({ dir: projectDir, slug: PROJECT } as LoadedProject, INSPECT_KEEP, [], new FileJobQueue(root))).toContain(queued.inspect_id);
   });

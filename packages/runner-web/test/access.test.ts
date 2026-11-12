@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AccessError, RunRecordSchema, TimelineSchema, applyProjectDefaults, zodIssues, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir, testHookRunner } from './helpers.js';
 import type { TestServer } from './helpers.js';
 
 let server: TestServer;
@@ -63,6 +63,7 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
       mode: 'capture',
       env: 'production',
       runId: `refused-${Date.now()}`,
+      hookRunner: testHookRunner(),
       browser: { executable: '/nonexistent/chromium' },
       onProgress: (e) => events.push(e),
     });
@@ -88,6 +89,7 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
       mode: 'capture',
       env: 'live',
       runId: `live-refused-${Date.now()}`,
+      hookRunner: testHookRunner(),
       browser: { executable: '/nonexistent/chromium' },
       onProgress: (e) => events.push(e),
     });
@@ -113,7 +115,7 @@ describe('a read-only run refuses its writing hooks before anything runs (R-ENV-
   it('--allow-writes on a read-only environment throws before a run folder exists; on live it makes the run read-write', async () => {
     const runId = `flag-${Date.now()}`;
     await expect(
-      runScenario({ policy: PERSON_POLICY, project: project(), scenario: makeScenario('flag', WRITING), mode: 'capture', env: 'production', runId, allowWrites: true }),
+      runScenario({ policy: PERSON_POLICY, project: project(), scenario: makeScenario('flag', WRITING), mode: 'capture', env: 'production', runId, allowWrites: true, hookRunner: testHookRunner() }),
     ).rejects.toThrow(AccessError);
     expect(existsSync(join(dir, 'runs', runId))).toBe(false);
 
