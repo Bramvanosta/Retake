@@ -409,6 +409,45 @@ describe('the keyboard path and undo / redo', () => {
     await writeFile(file('keys'), KEYS);
   });
 
+  it("the file's event first: an edit's version read before its answer lands turns input back on, keeps the undo history, and undo / redo do the same", async () => {
+    await writeFile(file('keys'), KEYS);
+    await openBlocks('keys');
+    const k0 = await settled('keys');
+    // Each answer is held until the screen has read the edit's version on the file's event (the order a busy machine gives).
+    const late = await holdRoute('**/v1/call/scenario_edit', async (r) => {
+      const res = await r.fetch();
+      const want = (JSON.parse(await res.text()) as { data: { hash: string } }).data.hash;
+      const at = Date.now();
+      await expect.poll(() => ops('scenario_blocks', at).length > 0 && blocksInFlight.size === 0, POLL).toBe(true);
+      await expect.poll(() => readFile(file('keys')).then(sha), POLL).toBe(want);
+      await sleep(300);
+      await r.fulfill({ response: res });
+    });
+    await row('a.0').click();
+    await page.keyboard.press('Alt+ArrowDown');
+    await expect.poll(() => live(), POLL).toBe('Moved step 1 of a to position 2. Saved.');
+    const k1 = await settled('keys');
+    expect(value(k1)).toEqual(moved(k0, 'a', 0, 'a', 1));
+    // A second edit, with a history to keep: its version read first is this screen's own, not an outside change.
+    await page.keyboard.press('Alt+ArrowDown');
+    await expect.poll(() => live(), POLL).toBe('Moved step 2 of a to position 1 of b. Saved.');
+    const k2 = await settled('keys');
+    expect(value(k2)).toEqual(moved(k1, 'a', 1, 'b', 0));
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(() => live(), POLL).toBe('Undone: Moved step 2 of a to position 1 of b.');
+    expect(await settled('keys')).toBe(k1);
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(() => live(), POLL).toBe('Undone: Moved step 1 of a to position 2.');
+    expect(await settled('keys')).toBe(k0);
+    await page.keyboard.press('Shift+ControlOrMeta+z');
+    await expect.poll(() => live(), POLL).toBe('Redone: Moved step 1 of a to position 2.');
+    expect(await settled('keys')).toBe(k1);
+    expect(await page.getByTestId('undo').isDisabled()).toBe(false);
+    expect(await page.getByTestId('redo').isDisabled()).toBe(false);
+    await late.release();
+    await writeFile(file('keys'), KEYS);
+  });
+
   it('a CR LF file without a final line break: Delete then undo give the exact bytes; the edit keeps CR LF and no final break', async () => {
     await openBlocks('crlf');
     const c0 = await settled('crlf');

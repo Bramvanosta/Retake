@@ -142,6 +142,9 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
     const w = out();
     const s = sup(w.o);
     await s.nudge();
+    // The stock `pending` written first: a push still due during the next poll would write the new state before the
+    // job_end, and the push after it is then skipped as the same line.
+    await expect.poll(() => w.parsed().some((l) => l.type === 'pending')).toBe(true);
     await running('run', { ...capture, project: '../outside', scenario: 'a b' });
     await job({ kind: 'render', input: { project: P, scenario: 'Click Quit Anyway to keep your work', render_id: 'x' }, state: 'failed' });
     await s.nudge();

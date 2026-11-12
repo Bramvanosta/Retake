@@ -777,7 +777,8 @@ describe('the scenario screen in Chromium', () => {
       worker.kill('SIGKILL');
       await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
       expect(ops('run_status', t0).length).toBeGreaterThanOrEqual(1);
-      expect(ops('scenario_blocks', t0).length).toBeGreaterThanOrEqual(1);
+      // The re-read is asked with the answer that takes the banner away; its request event can reach the test a moment later.
+      await expect.poll(() => ops('scenario_blocks', t0).length, POLL).toBeGreaterThanOrEqual(1);
       await expect.poll(() => page.getByTestId('run-picker').locator('option').allInnerTexts(), POLL).toContain(`Rehearsal ${runId} · interrupted · no pictures`);
       expect(await page.getByTestId('run-dry').isDisabled()).toBe(false);
     } finally {

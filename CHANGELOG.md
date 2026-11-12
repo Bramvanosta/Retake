@@ -318,6 +318,9 @@ release — for the person about to click Install and Restart.
 - A dangling link in `runs/` no longer makes `latest` answer that there is no capture run.
 - The Studio's Set-up sheet: after Install or Uninstall of the `retake` command, the keyboard focus lands on the
   command's next action once the sheet shows the new status, instead of being lost when the status came back late.
+- The Studio's Blocks tab: after an edit, an undo or a redo, the editing controls come back once the new version shows.
+  Before, they could stay greyed out (and an edit could clear the undo history as an outside change) when the file's
+  change reached the screen before the edit's own answer.
 
 ## [0.2.6] — 2026-11-11
 

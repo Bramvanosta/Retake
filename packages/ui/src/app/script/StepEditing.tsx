@@ -83,16 +83,20 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
   const ownSaves = useRef(new Set<string>());
 
   const hash = v?.hash ?? null;
-  // Each view: the edit's own version lands (input back on), or a version this screen did not make (history cleared).
-  useEffect(() => {
-    if (hash === null) return;
+  /**
+   * The version shown, weighed against the edit loop: the edit's own version lands (input back on), or a version this
+   * screen did not make (history cleared). Run on each view and again when an edit's answer lands: the file's event can
+   * bring the edit's version before its answer (the view's hash then no longer changes, so the effect alone would leave
+   * the input off for good), and while the answer is on its way a version is not judged yet.
+   */
+  const reconcile = useCallback((hash: string) => {
     const h = history.current;
     if (waitHash.current !== null) {
       if (hash !== waitHash.current && h.knows(hash)) return; // an older read: the edit's view is still coming
       waitHash.current = null;
       busyRef.current = false;
       setBusy(false);
-    }
+    } else if (busyRef.current) return; // the edit's answer is on its way: it says whether this version is its own
     if (h.size === 0 && !h.knows(hash)) {
       h.know(hash);
       return;
@@ -104,7 +108,10 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
       ownSaves.current.clear();
       bump((n) => n + 1);
     }
-  }, [hash]);
+  }, []);
+  useEffect(() => {
+    if (hash !== null) reconcile(hash);
+  }, [hash, reconcile]);
 
   const enabled = !!v && v.edit.blocks.ok && !yamlDraft;
   const why = !v ? null : !v.edit.blocks.ok ? v.edit.blocks.why : yamlDraft ? 'Save or discard your changes in the YAML view first.' : null;
@@ -125,11 +132,15 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
           if (r.select) setSelect({ key: r.select, hash: r.hash });
           waitHash.current = r.hash;
           bump((n) => n + 1);
+          // The version shown may already be the edit's own (read on the file's event before this answer).
+          if (vRef.current) reconcile(vRef.current.hash);
           reload();
         },
         (e: unknown) => {
           busyRef.current = false;
           setBusy(false);
+          // A version that landed while the edit was on its way is judged now (another's: the history is cleared).
+          if (vRef.current) reconcile(vRef.current.hash);
           if (e instanceof SessionEnded) return;
           const op = 'kind' in edit && edit.kind !== 'restore' ? (edit as unknown as StepEditOp) : undefined;
           if (e instanceof CallError && e.error.code === 'conflict' && e.error.details?.stale !== true && op) {
@@ -146,7 +157,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
         },
       );
     },
-    [slug, name, reload],
+    [slug, name, reload, reconcile],
   );
 
   const send = useCallback(
