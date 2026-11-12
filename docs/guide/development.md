@@ -40,7 +40,8 @@ templates/            starter themes: default, editorial, motion
 scripts/              requirements.mjs (docs/REQUIREMENTS.md; `--check-cites`: quoted test titles exist), fixture media
                       and preview samples, validate-raw.py,
                       test-pg.mjs (`pnpm test:pg`), lint.mjs (`pnpm lint`) and its lint-baseline.json
-docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts), HANDOFF.md,
+docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts), HANDOFF.md (its
+                      history in archive/HANDOFF-history.md),
                       ROADMAP.md, BACKLOG.md, ACCEPTANCE-phase2.md, MACOS-CHECKLIST.md, RELEASING.md; guide/ (the
                       user guide: the reference the README links)
 CLAUDE.md             notes for Claude Code sessions (read order, working agreement, commands)

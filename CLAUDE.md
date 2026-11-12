@@ -6,7 +6,8 @@ sheets, checks) and exports it — or exports the raw capture for an editing too
 The current goal is **a local tool for our own use**; selling it is a later topic (`docs/BACKLOG.md`).
 
 ## Read first
-1. `docs/HANDOFF.md` — state, Mac setup, order of the next lots, decisions, notes per lot. **Always start here.**
+1. `docs/HANDOFF.md` — where things stand, next steps, Mac setup, decisions; the per-lot history is in
+   `docs/archive/HANDOFF-history.md`. **Always start here.**
 2. `docs/ROADMAP.md` — lots, status, working agreement; `node scripts/requirements.mjs --lot <id>` lists a lot's
    requirements (source of truth: `docs/requirements.json`).
 3. `docs/SPEC.md` (brief), `docs/DESIGN.md` + `docs/DESIGN-phase2.md` (contracts), `docs/reference/look.md`
@@ -41,6 +42,7 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
+pnpm lint                            # Biome's lint against scripts/lint-baseline.json (may only shrink); pnpm format / format:check
 pnpm typecheck                       # = tsc -b, then the files under packages/*/test type-checked (tsconfig.test.json, nothing emitted; the CI's guards run it; `pnpm build` and `pnpm test` do not)
 pnpm test                            # = vitest run, full suite (~20 min on the Mac; run `pnpm build` first; 104 skip by default: slow, captures first, installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed)
                                      # export RETAKE_HOME to a scratch folder outside the checkout for every command (vitest gives a test run a temp one; retake ui refuses a Retake home inside the workspace)

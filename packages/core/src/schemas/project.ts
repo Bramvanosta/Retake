@@ -189,7 +189,7 @@ const projectShape = {
   sandboxes: z
     .record(z.string(), nonEmpty())
     .describe(
-      'Sandbox environments (L1.8): environment name → its sandbox.yaml, relative to the project dir. Each one is an environment of its own (pages, display URLs, personas from its accounts, mailbox, databases), local, never production.',
+      'Sandbox environments: environment name → its sandbox.yaml, relative to the project dir. Each one is an environment of its own (pages, display URLs, personas from its accounts, mailbox, databases), local, never production.',
     )
     .optional(),
 };
@@ -214,7 +214,7 @@ export const RenderSettingsSchema = z
     gl: z
       .enum(RENDER_GL_SETTINGS)
       .describe(
-        "How the render browser draws: auto (the GPU on macOS, software elsewhere; software when no GPU is found), gpu (always the GPU: ANGLE), software (Chromium's software raster, the renders of before L5.15). Default: $RETAKE_RENDER_GL, else auto.",
+        "How the render browser draws: auto (the GPU on macOS, software elsewhere; software when no GPU is found), gpu (always the GPU: ANGLE), software (Chromium's software raster, the path every render took before the GPU one). Default: $RETAKE_RENDER_GL, else auto.",
       )
       .optional(),
     encoder: z
@@ -235,7 +235,7 @@ export const RenderSettingsSchema = z
     ffmpeg: z
       .enum(RENDER_FFMPEG_SETTINGS)
       .describe(
-        "Which ffmpeg encodes the frames of a render: auto (this machine's ffmpeg — retake.yaml ffmpeg:, $RETAKE_FFMPEG, PATH — for a render on the GPU path, when it is 5.1 or later and runs the frame encode; the rendering library's own otherwise, on the software path and inside the desktop app), own (this machine's ffmpeg on any path, in the desktop app too; the library's when it does not qualify, with a warning that says why), library (the rendering library's own: the renders of before L7.3). macOS only: elsewhere the library's. Audio and the final file are always the library's. Default: $RETAKE_RENDER_FFMPEG, else auto.",
+        "Which ffmpeg encodes the frames of a render: auto (this machine's ffmpeg — retake.yaml ffmpeg:, $RETAKE_FFMPEG, PATH — for a render on the GPU path, when it is 5.1 or later and runs the frame encode; the rendering library's own otherwise, on the software path and inside the desktop app), own (this machine's ffmpeg on any path, in the desktop app too; the library's when it does not qualify, with a warning that says why), library (the rendering library's own: how every frame encode ran before this setting). macOS only: elsewhere the library's. Audio and the final file are always the library's. Default: $RETAKE_RENDER_FFMPEG, else auto.",
       )
       .optional(),
   })

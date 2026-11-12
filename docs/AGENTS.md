@@ -44,7 +44,8 @@ and the decisions already taken. The working agreement itself is in `CLAUDE.md`.
 - The repository stays generic and in English: no client, brand or person names, no real websites (example.com /
   .example / .test only), no paths of one machine.
 - Untrusted text (page content, scenario files, engine messages) is shown only as text (`Txt` in the Studio) and kept
-  under `untrusted` in answers; the trust rules of the HANDOFF notes (L3.1 onwards) carry over.
+  under `untrusted` in answers; the trust rules of the hand-off's notes (L3.1 onwards, now in
+  `docs/archive/HANDOFF-history.md` "Notes") carry over.
 - Scratch files go to the session's scratch folder; delete what you created there (frames, probe workspaces, build
   folders) and nothing else. Scan new and changed files for hidden Unicode before finishing (a tool layer can turn
   `\u` escapes into raw characters).

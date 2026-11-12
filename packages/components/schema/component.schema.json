@@ -226,7 +226,7 @@
               "phone"
             ]
           },
-          "description": "Multi-page layouts (L2.11): the sample screen of each page (e.g. [desktop, phone] for picture in picture)."
+          "description": "Multi-page layouts: the sample screen of each page (e.g. [desktop, phone] for picture in picture)."
         },
         "target": {
           "type": "string",

@@ -100,7 +100,7 @@ const LoadingSchema = z
     held_frames: z.number().int().min(0),
   })
   .describe(
-    'A full-page load the capture did not show (R-ISS-08): the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).',
+    'A full-page load the capture did not show: the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).',
   );
 
 const StallSchema = z
@@ -120,7 +120,7 @@ const BusySchema = z
 
 const PauseSchema = z
   .strictObject({ t: t(), ms: z.number().int().min(0).describe('Wall ms the pause lasted, left out of capture time.'), scene: z.string(), step: z.number().int() })
-  .describe('A pause of the take between steps (L4.4): capture time did not run meanwhile; the video goes on at t from where it paused.');
+  .describe('A pause of the take between steps: capture time did not run meanwhile; the video goes on at t from where it paused.');
 
 const TimelineTrackSchema = z
   .strictObject({
@@ -171,7 +171,7 @@ const TimelineEventSchema = z.strictObject({
   t_click: t().optional(),
   target: z.strictObject({ desc: z.string(), bbox: BBoxSchema.optional() }).optional(),
   point: PointSchema.optional(),
-  end_point: PointSchema.describe('Cursor at the end of the step, before any park or hold (L5.5): anchors an overlay or a zoom added after the capture.').optional(),
+  end_point: PointSchema.describe('Cursor at the end of the step, before any park or hold: anchors an overlay or a zoom added after the capture.').optional(),
   mark: z.string().optional(),
   caption: CaptionObject.optional(),
   speed: z.number().gt(0).optional(),
@@ -274,7 +274,7 @@ const TimelineArtefactSchema = z
       pattern: z.string().optional(),
     }),
   ])
-  .describe('A captured email, document or web notification (L2.9), or a text read by capture_text (L2.10).');
+  .describe('A captured email, document or web notification, or a text read by capture_text.');
 
 const ResolvedClockSchema = z.strictObject({
   at: nonEmpty().describe('As written (ISO 8601).'),
@@ -306,7 +306,7 @@ const RunSandboxSchema = z
     seed_hash: z.string().describe("The seed's hash (12 characters).").optional(),
     at: z.string().describe('When the reset finished (ISO).').optional(),
   })
-  .describe('A sandbox environment (L1.8): its provider and the reset made before the take.');
+  .describe('A sandbox environment: its provider and the reset made before the take.');
 
 const TimelineEnvironmentSchema = z
   .strictObject({
@@ -322,7 +322,7 @@ const TimelineEnvironmentSchema = z
     writes: z.array(TimelineWriteSchema).describe('Writes the read-only guard stopped, answered or let through, and writes to hosts it does not guard.').optional(),
     sandbox: RunSandboxSchema.optional(),
   })
-  .describe('The environment of the run (L1.7): access, display URLs, clock, writes seen on a read-only run.');
+  .describe('The environment of the run: access, display URLs, clock, writes seen on a read-only run.');
 
 export const TimelineSchema = z
   .strictObject({
@@ -442,7 +442,7 @@ const runPerfSchema = <C extends z.ZodType>(object: ObjectOf, retake: C) =>
       .describe('Click → stable content: the clicks measured and the slow ones (over 800 ms), slowest first.')
       .optional(),
     live_preview: object({ seconds: z.number().min(0), frames_sent: z.number().int().min(0) })
-      .describe("The Studio's live picture watched during the take: the seconds its screencast ran, the frames it sent (L4.4).")
+      .describe("The Studio's live picture watched during the take: the seconds its screencast ran, the frames it sent.")
       .optional(),
     encode: object({ codec: nonEmpty(), quality: z.string(), finish_ms: z.number().min(0), late_frames: z.number().int().min(0) }).optional(),
     disk: object({ run_mb: z.number().min(0), frames_kept: z.boolean(), free_gb: z.number().min(0).optional() }).optional(),

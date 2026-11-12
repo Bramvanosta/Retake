@@ -240,7 +240,7 @@ export const ComponentManifestFileSchema = z
           .array(z.enum(['desktop', 'tablet', 'phone']))
           .min(2)
           .max(2)
-          .describe('Multi-page layouts (L2.11): the sample screen of each page (e.g. [desktop, phone] for picture in picture).')
+          .describe('Multi-page layouts: the sample screen of each page (e.g. [desktop, phone] for picture in picture).')
           .optional(),
         target: z
           .enum(['button', 'field'])

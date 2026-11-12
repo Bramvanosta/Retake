@@ -210,7 +210,7 @@ export const ScenarioSchema = z
         max_s: z.number().gt(0).max(7200).describe('Longest length the video aims at, seconds.'),
       })
       .refine((v) => v.min_s <= v.max_s, { message: 'min_s is at most max_s' })
-      .describe("The length this video aims at (L5.5): the review's video-length rule uses it instead of the reference 60–120 s.")
+      .describe("The length this video aims at: the review's video-length rule uses it instead of the reference 60–120 s.")
       .optional(),
     caption_component: componentIdSchema('caption component id')
       .describe("Caption component of the whole video (default: the theme's), e.g. studio/caption-overlay; a render's overrides.components.caption wins over it.")

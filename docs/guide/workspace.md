@@ -90,10 +90,10 @@ terminal (`retake run`, `retake render`…) does not:
 
 | Key | Values | Default |
 |---|---|---|
-| `gl` | `auto` (the GPU on macOS — ANGLE on Metal —, software elsewhere; software when the render browser finds no GPU), `gpu` (ANGLE always, even without a GPU: a warning), `software` (Chromium's software raster: the renders of before L5.15) | `$RETAKE_RENDER_GL`, else `auto` |
+| `gl` | `auto` (the GPU on macOS — ANGLE on Metal —, software elsewhere; software when the render browser finds no GPU), `gpu` (ANGLE always, even without a GPU: a warning), `software` (Chromium's software raster: the path every render took before the GPU one) | `$RETAKE_RENDER_GL`, else `auto` |
 | `encoder` | `auto` (VideoToolbox with the GPU path when it works at the render's size, else libx264), `videotoolbox` (macOS only: an error elsewhere, and when it cannot encode the render), `libx264` (CRF 16) | `$RETAKE_RENDER_ENCODER`, else `auto` |
 | `concurrency` | frames rendered at a time, 1–16 | `$RETAKE_RENDER_CONCURRENCY`, else 3 on the GPU path and ¾ of the CPUs (1–8) in software |
-| `ffmpeg` | which ffmpeg encodes the frames of a render (macOS): `auto` (this machine's — the one of `ffmpeg:` above — for a render on the GPU path, when it is 5.1 or later and runs the frame encode; the rendering library's own otherwise, on the software path and inside the desktop app), `own` (this machine's on any path, in the desktop app too; the library's with a warning when it does not qualify), `library` (the rendering library's own: the renders of before L7.3) | `$RETAKE_RENDER_FFMPEG`, else `auto` |
+| `ffmpeg` | which ffmpeg encodes the frames of a render (macOS): `auto` (this machine's — the one of `ffmpeg:` above — for a render on the GPU path, when it is 5.1 or later and runs the frame encode; the rendering library's own otherwise, on the software path and inside the desktop app), `own` (this machine's on any path, in the desktop app too; the library's with a warning when it does not qualify), `library` (the rendering library's own: how every frame encode ran before this setting) | `$RETAKE_RENDER_FFMPEG`, else `auto` |
 
 The order is the one of `ffmpeg:`: `retake render --concurrency` for its command, then `retake.yaml`, then the
 variable, then the default. So **a key set in `retake.yaml` wins over its variable**: to try another value for one
