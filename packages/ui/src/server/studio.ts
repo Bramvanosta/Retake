@@ -45,7 +45,7 @@ import {
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
 import { catalogueOperation, servedBy, servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
 import type { OperationName, StudioOpName, StudioPinsOf } from '@retake/engine/catalogue';
-import { OPERATIONS, capUntrusted, invoke, pinArguments } from '@retake/engine/contract';
+import { OPERATIONS, capUntrusted, invoke, operationChain, pinArguments } from '@retake/engine/contract';
 import type { OperationsByName, PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
 import type { z } from 'zod';
 import { buildUi } from '../bundle.js';
@@ -55,12 +55,11 @@ import { Live } from './live.js';
 import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
-import { editOps, indexOps, liveOps, renderOps, runOps, timelineOps } from './ops.js';
+import { editOps, indexOps, timelineOps } from './ops.js';
 import { PreviewLeases } from './preview-leases.js';
 import { themeOps } from './theme-ops.js';
 import { recordOps } from './record-ops.js';
 import { commentOps, pathFree } from './comment-ops.js';
-import { opChain } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
@@ -246,11 +245,8 @@ function ownOps(d: StudioToolDeps) {
   const { chain, leases } = d;
   return [
     ...indexOps(d.live),
-    ...runOps(),
     ...editOps(chain),
-    ...liveOps(),
     ...timelineOps({ player: d.player, forbid: d.forbid, allow: d.allow, registry: d.registry, leases }),
-    ...renderOps(chain),
     ...commentOps({ chain }),
     ...themeOps({ player: d.player, forbid: d.forbid, allow: d.allow, leases }),
     ...recordOps({ chain }),
@@ -306,8 +302,10 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!player) throw new Error('the preview server is not started');
     return player;
   };
-  // One chain for the writes of a scenario: scenario_edit, scenario_render and thread_apply.
-  const chain = opChain();
+  // One chain for the writes of a scenario: scenario_edit, scenario_render, thread_apply and record_save — the engine's
+  // operation chain (L7.15), on which invoke runs scenario_render (the engine's operation: its `serialize` is the same
+  // scenarioKey); this server holds one engine, so it is this server's chain.
+  const chain = operationChain(engine);
   // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));
   const forbid = () => [engine.workspace.root, homedir()];

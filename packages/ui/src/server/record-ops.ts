@@ -37,7 +37,7 @@ import { RECORD_LIST_MAX, defaultRecordName, openProjectBySlug, recordMaxMs, rec
 import type { AuthStatusItem, Engine, RecordListItem, RecordState, RecordView } from '@retake/engine';
 import { defineTool } from '@retake/engine/contract';
 import { pathFree } from './comment-ops.js';
-import { opChain, scenarioKey } from './op-chain.js';
+import { scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -314,8 +314,8 @@ export interface RecordStartAnswer {
 }
 
 /** The Record screen's ops (see the module comment). `chain`: the server's scenario chain (record_save writes a scenario). */
-export function recordOps(o: { chain?: OpChain } = {}) {
-  const chain = o.chain ?? opChain();
+export function recordOps(o: { chain: OpChain }) {
+  const { chain } = o;
   const root = (engine: Engine) => engine.workspace.root;
   // recordPathFree keeps an answer's shape (each string path-free, each other value as it was): the answer's own type.
   const out = <T>(engine: Engine, data: T) => recordPathFree(data, root(engine)) as T;

@@ -1380,7 +1380,7 @@ call: the inspection hands Claude page facts and verified targets; Claude writes
 - **Marks** (review `drawMarks(png, boxes, out, {scale})`, sharp): one outline and a numbered badge (20 CSS px × scale,
   above the box when there is room) per listed element in view and not `covered` (engine `markBoxes`: a background
   button under a modal would get a number drawn on the modal), boxes × `report.scale`, JPEG `marked.jpg`.
-- **MCP tool** `page_inspect` (`tools/inspect.ts`; RUN_JOB annotations; `wait_s` default 25). Exactly one of `page`
+- **MCP tool** `page_inspect` (`tools/inspect.ts`, since L7.15 the engine's `operations/inspect.ts`; RUN_JOB annotations; `wait_s` default 25). Exactly one of `page`
   (+ `path`), `url`, `scenario` (+ `until`); `persona` only with a page. The summary: job line, replay line (steps,
   irreversible steps skipped, hooks), the failure's step, counts, `within` / budget / truncation notes, the next step of
   the authoring loop; the page key and the scenario's own ids only. Data: status, at, page, persona, viewport, scale,
@@ -3011,7 +3011,7 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   video path; quote dry run): screen 120–165 ms, first pictures of catalogue 0.8 s from the video.
 
 **Run actions** (part 4; R-UI-15; critique B2, B5, B11).
-- Studio op `scenario_run {project, name, mode: dry | capture, env?, hash?}` (ops.ts `runOps`, strict zod: anything
+- Studio op `scenario_run {project, name, mode: dry | capture, env?, hash?}` (engine `operations/studio-jobs.ts` since L7.15, before it the Studio's ops.ts; strict zod: anything
   else — `sandbox`, `until`, `hooks`, `wait_s`, `scenario` — is 400 before a read) → `engine.runs.submit({project,
   scenario: name, mode, env?, expect_sha256: hash})` with no approver. `hash` = the view's: `submitRunJob` hashes the
   text it parsed and checked (no later read of the file) and refuses another one, 409 `conflict` "changed since it was
@@ -3917,7 +3917,7 @@ blocks no longer read; undo gave back the original bytes (`Buffer.compare` 0) an
 The caption component (studio/caption-below → studio/caption-overlay): the caption band changed (mean difference 10.9 /
 255) while the capture's blocks still read exactly.
 
-**Render, queue, review** (part E, R-UI-26; ui `server/ops.ts` `renderOps` — since L7.14 `scenario_renders`, `render_review` and `review_image` are engine operations, `packages/engine/src/operations/render-screen.ts` —, `app/Renders.tsx`, `render-words.ts`;
+**Render, queue, review** (part E, R-UI-26; engine operations: `scenario_render`, `render_cancel` and `review_export` in `packages/engine/src/operations/studio-jobs.ts` (L7.15), `scenario_renders`, `render_review` and `review_image` in `packages/engine/src/operations/render-screen.ts` (L7.14) — before them the Studio's `server/ops.ts` —; `app/Renders.tsx`, `render-words.ts`;
 engine `renders.ofScenario`, `reviews.image`). **`scenario_render {project, name, run, expect_edit_sha256}`** — strict,
 nothing else: no theme, override, variant, review setting or path (400); it calls `renders.submit` with `review: {fps:
 1}` (the review inline, critique B12) and the snapshot of B5, the theme and every option coming from the files.
@@ -5403,7 +5403,7 @@ one RowList listbox, each family a `role=group`, RowCard options; the selection 
 id is an empty state; nothing is read with it. Render on the report re-renders the scenario (its latest capture, the
 file on disk) through useRenders — the same refusals —, and a render queued there opens its report once reviewed.
 
-**`review_export`** (ops.ts renderOps; Studio-only, in the `ui` allow-list, never an MCP tool): strict input `{project,
+**`review_export`** (engine `operations/studio-jobs.ts` since L7.15; Studio-only, in the `ui` allow-list, never an MCP tool): strict input `{project,
 render_id}` (a render id's shape); queues the engine's existing `export` job with `formats: ['mp4_1080p']` into the
 fixed `exports/<render_id>/`; one at a time per render (a 409 naming the job while one is queued or running) and at most
 `REVIEW_EXPORTS_OPEN` = 2 exports of the workspace queued or running at once (a CLI's or Claude's count; a 409 "2

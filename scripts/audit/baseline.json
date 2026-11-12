@@ -151,14 +151,9 @@
     "packages/mcp/src/tools/authoring.ts → 2 operations defined",
     "packages/mcp/src/tools/comments.ts → 3 operations defined",
     "packages/mcp/src/tools/environment.ts → 3 operations defined",
-    "packages/mcp/src/tools/export.ts → 1 operation defined",
     "packages/mcp/src/tools/hooks.ts → 2 operations defined",
-    "packages/mcp/src/tools/inspect.ts → 1 operation defined",
-    "packages/mcp/src/tools/jobs.ts → 2 operations defined",
+    "packages/mcp/src/tools/jobs.ts → 1 operation defined",
     "packages/mcp/src/tools/project.ts → 2 operations defined",
-    "packages/mcp/src/tools/render.ts → 1 operation defined",
-    "packages/mcp/src/tools/review.ts → 1 operation defined",
-    "packages/mcp/src/tools/run.ts → 2 operations defined",
     "packages/mcp/src/tools/scenario.ts → 1 operation defined"
    ]
   },
@@ -168,7 +163,7 @@
    "entries": [
     "packages/ui/src/server/comment-ops.ts → 12 operations defined",
     "packages/ui/src/server/desktop.ts → 1 operation defined",
-    "packages/ui/src/server/ops.ts → 12 operations defined",
+    "packages/ui/src/server/ops.ts → 6 operations defined",
     "packages/ui/src/server/record-ops.ts → 7 operations defined",
     "packages/ui/src/server/setup-ops.ts → 8 operations defined",
     "packages/ui/src/server/theme-ops.ts → 1 operation defined",

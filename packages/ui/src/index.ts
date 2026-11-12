@@ -11,7 +11,7 @@ export { CALL_BODY_MAX, SMALL_BODY_MAX, UI_OPS, startStudioServer, uiTools } fro
 export type { StudioServer, StudioServerOptions, UiOp } from './server/studio.js';
 export { EVENT_KEEPALIVE_MS, EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, noIndexError, sseText } from './server/live.js';
 export type { LiveOptions } from './server/live.js';
-export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RENDER_OPS, REVIEW_IMAGES_MAX, RUN_OPS, SCENARIO_OPS, TIMELINE_OPS, confirmWhy, editOps, indexOps, liveOps, renderOps, reviewAnswer, runOps, sessionsToConfirm, timelineOps } from './server/ops.js';
+export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RENDER_OPS, REVIEW_IMAGES_MAX, RUN_OPS, SCENARIO_OPS, TIMELINE_OPS, confirmWhy, editOps, indexOps, reviewAnswer, sessionsToConfirm, timelineOps } from './server/ops.js';
 export type { ProjectOverview, RenderReviewAnswer, ScenarioRenderAnswer, ScenarioRunAnswer, SessionToConfirm, TimelineViewAnswer } from './server/ops.js';
 export { PreviewLeases, TIMELINE_LEASE_TTL_MS } from './server/preview-leases.js';
 export type { PreviewHeld } from './server/preview-leases.js';

@@ -2,7 +2,7 @@
  * Compact results (L5.8, R-FLD-34): the `detail` argument, the run status as run_status returns it by default — the
  * status, where it failed, the paths to read — and the review as review_get returns it, and, with `detail: "full"`,
  * everything as before (moved from the MCP server's compact.ts: the run's in L7.13 with run_status, the review's in
- * L7.14 with review_get; the inspection's stays there for now). Nothing the summary says is dropped: run.json and
+ * L7.14 with review_get, the inspection's in L7.15 with page_inspect). Nothing the summary says is dropped: run.json and
  * report.json keep the rest.
  *
  * Trust is unchanged: what the filmed site or the scenario wrote stays under `untrusted` (capUntrusted still applies).
@@ -123,4 +123,57 @@ export function compactReview(r: ReviewView): Record<string, unknown> {
       ...(r.untrusted.error !== undefined ? { error: r.untrusted.error } : {}),
     },
   };
+}
+
+/** One inspected element, compact: its mark, where it is, its action and the step hint to copy; flags only when set. */
+export interface CompactElement {
+  mark: number;
+  in: string;
+  action: string;
+  /** Visible matches of its target without `nth`, when not 1. */
+  matches?: number;
+  fragile?: string[];
+  /** Its state flags that are set: disabled, expanded, checked, selected, covered. */
+  state?: string[];
+  /** Out of view (listed because it is in a dialog, a menu or a popover). */
+  out_of_view?: true;
+  untrusted: { role: string | null; name: string; hint?: string; target?: string | null; href_path?: string };
+}
+
+const STATE_FLAGS = ['disabled', 'expanded', 'checked', 'selected', 'covered'] as const;
+
+/** Elements of an inspection, compact: those in view or in a dialog, menu, listbox or popover. */
+export function compactElements(elements: ReadonlyArray<Record<string, unknown>>): { elements: CompactElement[]; left_out: number } {
+  const out: CompactElement[] = [];
+  let left = 0;
+  for (const e of elements) {
+    const inView = e.in_view === true;
+    const floating = e.in !== 'page' && e.in !== 'row';
+    if (!inView && !floating) {
+      left++;
+      continue;
+    }
+    const u = (e.untrusted ?? {}) as Record<string, unknown>;
+    const st = (e.state ?? {}) as Record<string, unknown>;
+    const flags = STATE_FLAGS.filter((k) => st[k] === true);
+    const fragile = Array.isArray(e.fragile) ? (e.fragile as string[]) : [];
+    const hint = (u.hint as { yaml?: string } | null | undefined)?.yaml;
+    const name = typeof u.name === 'string' ? cutMessage(u.name, 120) : '';
+    out.push({
+      mark: e.mark as number,
+      in: String(e.in),
+      action: String(e.action),
+      ...(typeof e.matches === 'number' && e.matches !== 1 ? { matches: e.matches } : {}),
+      ...(fragile.length ? { fragile } : {}),
+      ...(flags.length ? { state: [...flags] } : {}),
+      ...(!inView ? { out_of_view: true as const } : {}),
+      untrusted: {
+        role: (u.role as string | null) ?? null,
+        name,
+        ...(hint ? { hint } : { target: (u.target_yaml as string | null) ?? null }),
+        ...(typeof u.href_path === 'string' && u.role === 'link' ? { href_path: u.href_path } : {}),
+      },
+    });
+  }
+  return { elements: out, left_out: left };
 }

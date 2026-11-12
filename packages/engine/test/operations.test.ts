@@ -6,13 +6,14 @@
  * rules run after the parse with the engine's caller and before the handler, and nothing it meets is thrown.
  * L7.17: the theme, component and library family joins them; an operation that declares `serialize` runs one call of a
  * key at a time per engine (after its caller rules), MCP's declare none, and theme_edit's caller rule refuses MCP.
+ * L7.15: the submits and job controls join them; scenario_render runs on its scenario's key (the Studio's scenario chain).
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { OPERATIONS, OPERATIONS_BY_NAME, callTool, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, servedBy, servedNames, studioPins } from '@retake/engine/contract';
+import { OPERATIONS, OPERATIONS_BY_NAME, callTool, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, scenarioKey, servedBy, servedNames, studioPins } from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
 import { TOOLS } from '@retake/mcp';
 import { stubTools } from '../../ui/test/studio-tools.js';
@@ -27,14 +28,17 @@ const QUERIES_STUDIO = ['projects_overview', 'project_board', 'scenario_blocks',
 /** L7.17: the theme, component and library family (MCP's nine, the Studio's eleven). */
 const THEMES_MCP = ['template_list', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_list', 'component_get', 'component_validate', 'component_preview', 'component_create'];
 const THEMES_STUDIO = ['library_view', 'library_images', 'library_render', 'library_component', 'theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list'];
+/** L7.15: the submits and job controls (MCP's seven — job_status still waits for its recording answer — and the Studio's six). */
+const JOBS_MCP = ['page_inspect', 'run_dry', 'run_capture', 'render', 'review', 'export', 'job_cancel'];
+const JOBS_STUDIO = ['scenario_run', 'run_pause', 'sign_in_cancel', 'scenario_render', 'render_cancel', 'review_export'];
 
 describe("the engine's operations: one definition, served by the shells as it is", () => {
   it('names operations of the catalogue, each served by MCP or the Studio, in catalogue order: the eleven both serve', () => {
     const names = OPERATIONS.map((o) => o.name);
     expect(names.filter((n) => ELEVEN.includes(n))).toEqual(ELEVEN);
-    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO].sort());
-    for (const n of THEMES_MCP) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
-    for (const n of THEMES_STUDIO) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
+    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO].sort());
+    for (const n of [...THEMES_MCP, ...JOBS_MCP]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
+    for (const n of [...THEMES_STUDIO, ...JOBS_STUDIO]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
     for (const n of names) {
       const op = catalogueOperation(n);
       expect(op, n).toBeDefined();
@@ -49,8 +53,9 @@ describe("the engine's operations: one definition, served by the shells as it is
 
   it('names the read-only queries too (L7.14): MCP\'s four, then the Studio\'s ten, each a read served by one shell only', () => {
     const names = OPERATIONS.map((o) => o.name);
-    // In catalogue order among the others (L7.17's theme family left out: the test above holds it).
-    expect(names.filter((n) => !ELEVEN.includes(n) && !THEMES_MCP.includes(n) && !THEMES_STUDIO.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
+    // In catalogue order among the others (L7.17's theme family and L7.15's jobs left out: the test above holds them).
+    const later = [...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO];
+    expect(names.filter((n) => !ELEVEN.includes(n) && !later.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
     for (const n of [...QUERIES_MCP, ...QUERIES_STUDIO]) {
       const op = catalogueOperation(n)!;
       expect(op.effect, n).toBe('read');
@@ -58,7 +63,7 @@ describe("the engine's operations: one definition, served by the shells as it is
       expect(servedBy(op, 'studio'), n).toBe(QUERIES_STUDIO.includes(n));
       expect(OPERATIONS_BY_NAME[n as keyof typeof OPERATIONS_BY_NAME].annotations.readOnlyHint, n).toBe(true);
     }
-    // job_status is still the MCP server's (its record, site and inspect answers are tools still defined there).
+    // job_status is still the MCP server's (its recording answer is scenario_record's, still defined there).
     expect(names).not.toContain('job_status');
     // The Studio's table holds its ten as these very objects (no pin), and MCP's TOOLS none of them.
     const table = stubTools();
@@ -237,12 +242,15 @@ describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
   it("MCP's operations declare none; the Studio's theme writes and library renders do, on their keys", () => {
     for (const o of OPERATIONS) if (servedBy(catalogueOperation(o.name)!, 'mcp')) expect(o.serialize, o.name).toBeUndefined();
     const keyed = OPERATIONS.filter((o) => o.serialize).map((o) => o.name);
-    expect(keyed.sort()).toEqual(['library_render', 'theme_copy', 'theme_create', 'theme_edit']);
-    const { theme_edit, theme_copy, theme_create, library_render } = OPERATIONS_BY_NAME;
+    expect(keyed.sort()).toEqual(['library_render', 'scenario_render', 'theme_copy', 'theme_create', 'theme_edit']);
+    const { theme_edit, theme_copy, theme_create, library_render, scenario_render } = OPERATIONS_BY_NAME;
     expect(theme_edit.serialize!({ theme: 'Mine', if_match: 'a'.repeat(64), edit: { kind: 'restore', text: '', text_hash: 'a'.repeat(64) } })).toBe('theme:mine');
     expect(theme_copy.serialize!({ from: 'editorial', name: 'mine' })).toBe('theme:mine');
     expect(theme_create.serialize!({ name: 'mine' } as never)).toBe('theme:mine');
     expect(library_render.serialize!({ project: 'p', items: [] } as never)).toBe('library:p');
+    // L7.15: the Studio's scenario chain key (scenario_edit, thread_apply and record_save use it on the same chain).
+    expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe('p\0quote');
+    expect(scenario_render.serialize!({ project: 'p', name: 'quote', run: '20261017-120000-quote', expect_edit_sha256: 'a'.repeat(64) })).toBe(scenarioKey('p', 'quote'));
   });
 
   it('runs the calls of one key in order, one at a time; another key or another engine does not wait', async () => {

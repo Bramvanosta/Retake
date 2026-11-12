@@ -1,13 +1,15 @@
+/**
+ * The MCP server's job tools: job_list (L7.13) and job_cancel (L7.15) are the engine's operations, served here as these
+ * very objects in tools/list order; job_status stays here until its recording answer (recordOutput, tools/authoring.ts)
+ * is the engine's too — its inspection and site answers are the contract's already.
+ */
 import { z } from 'zod';
-import { JOB_ID_RE } from '@retake/core';
-import { JOB_WAIT_MAX_S, OPERATIONS_BY_NAME, detail, jobData, jobErrorLine, jobLine, previewImages, waitJob, waitS } from '@retake/engine/contract';
+import { JOB_WAIT_MAX_S, OPERATIONS_BY_NAME, detail, inspectOutput, jobData, jobErrorLine, jobId, jobLine, previewImages, siteOutput, waitJob, waitS } from '@retake/engine/contract';
 import { plural } from '../result.js';
-import { JOB_CANCEL, READ, defineTool } from './define.js';
+import { READ, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 
-const { job_list: jobList } = OPERATIONS_BY_NAME;
-
-const jobId = z.string().regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)').describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, template_from_site, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
+const { job_list: jobList, job_cancel: jobCancel } = OPERATIONS_BY_NAME;
 
 /** Where a queued job stands, in words (L5.14: a heavy job a take holds waits for it whatever its place). */
 function queueWords(position: { ahead: number; running?: string; held_by?: 'take' }): string {
@@ -45,7 +47,6 @@ export const jobStatus = defineTool({
     }
     if (job.input.kind === 'site') {
       // A site extraction that outlived template_from_site's wait: the same result (site.json read back, images included).
-      const { siteOutput } = await import('./theme.js');
       const out = await siteOutput(engine, job);
       const ahead = position ? [queueWords(position)] : [];
       const { result: _result, ...rest } = jobData(job);
@@ -53,7 +54,6 @@ export const jobStatus = defineTool({
     }
     if (job.input.kind === 'inspect') {
       // An inspection that outlived page_inspect's wait: the same result (marked screenshot included), with the job.
-      const { inspectOutput } = await import('./inspect.js');
       const out = await inspectOutput(engine, job, [], level);
       const ahead = position ? [queueWords(position)] : [];
       return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...jobData(job), ...(position ? { queue: position } : {}) } }, ...(out.images ? { images: out.images } : {}) };
@@ -76,19 +76,6 @@ export const jobStatus = defineTool({
       // A finished preview's stills (component_preview / template_preview that outlived their wait).
       ...(previewImages(job).length ? { images: previewImages(job) } : {}),
     };
-  },
-});
-
-export const jobCancel = defineTool({
-  name: 'job_cancel',
-  title: 'Cancel a job',
-  description: 'Cancel a job: a queued one never starts; a running run stops at its next step, then its teardown and pending rollbacks still run; a recording whose window is open is discarded (after it, only its check replay stops). Finished jobs are left as they are.',
-  input: z.strictObject({ job_id: jobId }),
-  annotations: JOB_CANCEL,
-  async run({ job_id }, { engine }) {
-    const job = await engine.jobs.cancel(job_id);
-    const what = job.state === 'cancelled' ? 'cancelled' : job.state === 'running' || job.state === 'queued' ? 'cancel requested (teardown and rollbacks run first)' : `already ${job.state}`;
-    return { summary: `${jobLine(job)}\n${what}.`, data: jobData(job) };
   },
 });
 

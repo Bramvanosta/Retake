@@ -1541,7 +1541,8 @@ via, path, marker, time, scenario or proposal field anywhere (a `proposal` from 
   {…, note?, if_match}`; `thread_apply {project, comment_id, entry_id, if_match}` (engine `comments.apply`; answer
   `{thread, hash, entry?, scenario {name, file, hash, previous {text, hash}}, label, change, warnings, problems}`). The
   writes of one thread run one at a time in this server; `thread_apply` also runs on the scenario's key of the **one op
-  chain** the Studio shares between `scenario_edit`, `scenario_render` and `thread_apply` (`op-chain.ts`, critique B5):
+  chain** the Studio shares between `scenario_edit`, `scenario_render`, `thread_apply` and `record_save` (`op-chain.ts`, critique B5;
+  since L7.15 the engine's operation chain, `operationChain(engine)`, on which scenario_render runs by its `serialize`):
   an edit sent while an apply runs finds the applied file (409). **Undo apply** is `scenario_edit` `restore` of
   `previous` (a version the engine read); the proposal then reads `undone`, actionable again.
 - `offer` (`proposalOffer`, computed by the server, critique B2 / B3 / B4): `apply` — the newest proposal, pending or

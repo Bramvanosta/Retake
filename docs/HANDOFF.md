@@ -126,6 +126,61 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.15)
+- **L7.15 done (2026-11-12; branch `claude/arch-l7`)** — U7's job family: the operations that submit and control jobs are the engine's; no change a client sees.
+  - **The operations** (`packages/engine/src/operations/`, moved verbatim):
+    - submit.ts: run_dry, run_capture, render, review, export (+ `exportSummary`).
+    - inspect.ts: page_inspect, `inspectOutput`, `inspectImages`, `INSPECT_RESULT_MAX`.
+    - jobs.ts: job_cancel and the `jobId` argument (job_status keeps the same instance).
+    - studio-jobs.ts: the Studio's scenario_run (its pinned arguments and `hash` → `expect_sha256` with it), run_pause, sign_in_cancel, scenario_render, render_cancel, review_export, their answer types, `REVIEW_EXPORT_FORMATS`, `REVIEW_EXPORTS_OPEN`, and `scenarioKey`.
+    - compact.ts gains `compactElements`; annotations.ts gains RUN_JOB, RENDER_JOB, JOB_CANCEL (MCP's define.ts re-exports them).
+    - OPERATIONS: 45 → 58, in catalogue order.
+  - **The shells.**
+    - MCP: tools/run.ts, render.ts, review.ts, export.ts and inspect.ts hold the engine's objects in tools/list order (render.ts, review.ts and export.ts still name `render`, `reviewTool`, `exportTool` for tests). mcp compact.ts only re-exports.
+    - Studio: ops.ts keeps activity_list, search, scenario_edit, timeline_view, timeline_leave, preview_allow and re-exports the moved answer types. `runOps`, `liveOps` and `renderOps` are gone (only studio.ts used them; dropped from @retake/ui's index).
+  - **job_status not moved (MCP −7, not −8).** Its recording answer is `recordOutput` (tools/authoring.ts, L7.18's). Its site and inspection answers now come from the contract (`siteOutput`, `inspectOutput`); the dynamic imports are gone.
+  - **The scenario chain.** studio.ts's chain is `operationChain(engine)`: the engine's chain, with the same `<project>\0<name>` keys.
+    - scenario_render declares `serialize: scenarioKey`, so invoke runs it on that chain.
+    - scenario_edit, thread_apply and record_save are still the Studio's ops; they get the same object through `chain`.
+    - This is equivalent because the Studio holds one engine per server. op-chain.ts re-exports the engine's `scenarioKey`. Its own `opChain()` stays for the test stand-ins (stubTools).
+    - L7.16 and L7.18 can declare `serialize` on these same keys.
+  - **Admission** stays inside the engine's submits; nothing moved into invoke. MCP's approver still reaches run_dry's and run_capture's submits through `ctx.approver`, and the Studio passes none.
+    - stdio-approvals.test (fix pass): an accepting client is asked once, and the run is queued with the human's approval, for run_dry `{hooks: 'run'}` and for run_capture; a declining client is refused and nothing is queued.
+    - Mutations, both red: the approver spread deleted from run_dry, then from run_capture.
+    - The characterization covers the refusal without an approver: MCP's client declares no elicitation and the Studio has no approver, so both answer `needs_approval` with the command to type.
+  - **Ratchet.** shell-op MCP 21 → 14 (run.ts, render.ts, review.ts, export.ts and inspect.ts gone; jobs.ts 2 → 1), Studio 44 → 38 (ops.ts 12 → 6). Baseline 111 → **106**, edited by hand in the two shell-op groups only. The groups' reason counts were left as they were, for the merge with L7.19. R3/R4/R6 unchanged; no new engine entry.
+  - **Checked.**
+    - Characterization committed before the move: `packages/mcp/test/job-ops-characterization.test.ts` + `fixtures/job-ops.json`, recorded on `14731b9` in a scratch worktree (removed).
+      - 48 MCP stdio calls and 43 Studio /v1/call calls.
+      - The test process holds the worker lock, so submits find a live worker and every job stays queued (asserted: no worker.log). The Studio's `worker {pid, spawned: false}` is therefore in the answers.
+      - Covered (no approver in either shell: an approved run is stdio-approvals'): submits queued; second submits refused 409 naming the job and run; two submits at once (one 409, sorted by status); approval refusals; `sessions_ack` missing (409 `details.sessions`), then given; a changed file (scenario_run `hash`, scenario_render `expect_edit_sha256`, including the order of that check against a queued render); the export cap (`details.open: 2`, before an unknown render is looked up); invalid arguments; the cancels and their refusals; run_pause of a queued run (409); each queued kind through job_status; ops of the other shell; job_list at the end.
+      - The Studio's status and Retry-After are recorded. No op of this family answers 429 (only render_frame does), and the test asserts it.
+      - Normalised: paths, stamps, job / inspection / run ids by order, pids, the host as a whole word, Node binary and version, the repository address, Retake's version. No machine data is left (asserted).
+      - Stable over 3 runs, one of them a minute apart. Equal after the move.
+    - `packages/ui/test/scenario-chain.test.ts` runs through the real server, with the engine's methods replaced by held probes:
+      - an edit of X held makes a render of X, an apply of X and a record_save of X wait, in arrival order, while a render of Y does not wait;
+      - a render of X held makes an edit of X wait;
+      - a call whose arguments are refused never takes a place in the chain.
+      - It passed on 14731b9 and passes after. Mutations, all red: renderOps given its own chain (on 14731b9); scenario_render's `serialize` removed; studio.ts given a separate opChain.
+    - `packages/engine/test/operation-admission.test.ts` (new) instruments admission.ts through vi.mock:
+      - every catalogue op with `admission` (7) is an engine operation with a case;
+      - each, through invoke on an engine of its shell's client, enters admission once before its job is queued; a run's own checks run once each, in this order, before the job: `admit`, `prepared` (the parsed scenario; sessions_ack of a capture), `reserve`, then the submit;
+      - the same call again is a conflict that queues nothing.
+      - Mutations, all red: admission never built (`admits` off); review_export submitting a second export; the submit's `prepared` call removed (run-job.ts, fix pass).
+    - operations.test: L7.15's name lists, and scenario_render among the keyed ops with its key equal to `scenarioKey`.
+    - tool-list.json, op-table.json, shared-ops.json, query-ops.json and theme-ops.json show no diff, and their tests pass. CLI golden (pipeline-cli) green.
+    - Gates (after the fix pass too): `tsc -b` 0, `pnpm typecheck` 0, `rules.mjs --check` (106), test-guard exit 0 ("no decrease"; stdio-approvals 7 → 8 tests), and `--check-cites` 0 on a scratch copy with the requirement edits (0 on the tree as well).
+    - Test files, each run alone with a fresh `RETAKE_HOME` and `RETAKE_DISK_WARN=off`, all green (45 files; after the fix pass, again: stdio-approvals 8, operation-admission 8, scenario-chain, comment-ops, record-ops, scenario-edit-ops, server, render-ops, studio-ops, op-table-snapshot, the job-ops characterization, operations). captures-first-acceptance and scenario-run-acceptance are gated, so they were skipped:
+      - mcp: admission, captures-first, job-errors, stdio-runs / -render / -review / -inspect / -approvals, stdio, http, skills, compact, render-latest, render-latest-said, render-status-by-id, operation-catalogue, tool-list-snapshot, the four characterizations;
+      - engine: admission, operation-admission, operations, operation-catalogue, run-live-pause, inspect-jobs, review-export-jobs;
+      - ui: scenario-run, render-ops, run-ops, server, studio-ops, scenario-chain, op-table-snapshot, operation-catalogue, studio-tools-types, feature-boundaries, app-source;
+      - cli: glossary, pipeline-cli, operation-catalogue;
+      - core: import-rules.
+  - **Chain argument (fix pass).** `editOps(chain)`, `commentOps({chain})` and `recordOps({chain})` take the chain as a required argument; their `opChain()` defaults are gone. Only studio.ts builds them, with `operationChain(engine)`, so a scenario write can no longer get a chain of its own by mistake. This is a compile-time check (`tsc`), so there is no runtime mutation to run.
+  - **Docs.** DESIGN.md (page_inspect; scenario_run, the render ops and review_export now name operations/studio-jobs.ts, with no `runOps` / `renderOps` left) and DESIGN-phase2.md (the op chain, record_save among its members) name the new places. Requirement edits: R-ARCH-28's and R-ARCH-29's gaps (whole); R-MCP-23, -25, -29 and -36 evidence point to the engine files; new R-ARCH-30.
+  - **Merge note for L7.19.** Both lots edit operations/index.ts, contract.ts (own block), mcp tools/define.ts (the annotation re-exports sit next to HOOK_JOB / SANDBOX_JOB), the shell-op group's entries, and import-rules' holds-today numbers. Mine are 14 / 38; at merge, subtract L7.19's moves from 14.
+  - **Not done.** The full suite was not run. job_status (above). scenario_edit, thread_apply and record_save are still Studio ops on the chain (L7.16, L7.18). The contract exports the moved answer types and `inspectOutput` / `jobId` for what is still in the shells.
+
 ## State (after L7.17)
 - **L7.17 done (2026-11-12; branch `claude/arch-l7`)** — U7's theme, component and library family: the twenty operations are the engine's; no change a client sees.
   - **The operations** (`packages/engine/src/operations/`): themes.ts (template_list, template_preview, template_from_site, template_create_from_brand with `siteOutput`; the Studio's theme_list, theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list; `THEME_ARGS`, the schema pieces theme_preview shares), components.ts (the five component_*), library.ts (library_view, library_images, library_render, library_component, `componentAnswer`, the caps), preview.ts (`previewOutput`, `previewSummary`, from MCP's deleted tools/preview.ts); annotations.ts gains THEME_WRITE, PREVIEW_JOB, SITE_JOB (MCP's define.ts re-exports them). OPERATIONS: 25 → 45 on top of L7.14, catalogue order. Moved verbatim (schemas, words, annotations' values).

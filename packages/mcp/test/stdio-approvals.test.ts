@@ -87,6 +87,10 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     await writeFile(join(project, 'project.yaml'), yaml);
     await mkdir(join(project, 'hooks'), { recursive: true });
     await writeFile(join(project, 'hooks', 'post.yaml'), `- name: post\n  shell: {run: "curl -s -X POST ${fixture.urls.console}/api/reset"}\n  writes: false\n`);
+    // L7.15: a dry run whose setup hook runs a shell command (run_dry hooks: "run" needs a human for it), twice.
+    for (const n of ['say-accept', 'say-decline']) {
+      await writeFile(join(project, 'scenarios', `${n}.yaml`), `setup:\n  - name: say\n    shell: {run: "echo hello"}\nvideo: ${n}\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`);
+    }
   });
 
   afterAll(async () => {
@@ -207,5 +211,36 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(r.content[0].text).toMatch(/^2 items of northfield-fixture deleted \(\d+ kB freed\), as the user approved/);
     expect(await left()).toEqual(before.filter((n) => n !== '20261018-080000-quote' && n !== '20261017-120000-quote'));
     expect(protocolErrors).toEqual([]);
+  });
+
+  it("run_dry {hooks: 'run'} and run_capture: the client's user is asked once and the run is queued with the approval; a decline queues nothing (L7.15; last: its run folder would count for project_prune)", async () => {
+    const yes = await connect('accept');
+    const r = await call(yes.client, 'run_dry', { project: 'northfield-fixture', scenario: 'say-accept', hooks: 'run', wait_s: 0 });
+    expect(r.isError, JSON.stringify(r)).toBeFalsy();
+    expect(yes.asked).toHaveLength(1);
+    expect(yes.asked[0].message).toContain('setup hook 1 "say"');
+    const jobId = /\(job (j_[0-9A-Z]{26})\)/.exec(r.content[0].text)![1]!;
+    const job = (await call(yes.client, 'job_status', { job_id: jobId })).structuredContent as { input: { kind: string; approvals?: Array<{ by: string }> } };
+    expect(job.input.kind).toBe('run');
+    expect(job.input.approvals).toEqual([expect.objectContaining({ by: 'human-elicitation' })]);
+    await call(yes.client, 'job_cancel', { job_id: jobId });
+    const no = await connect('decline');
+    const before = ((await call(no.client, 'job_list', {})).structuredContent as { jobs: unknown[] }).jobs.length;
+    const e = errorOf(await call(no.client, 'run_dry', { project: 'northfield-fixture', scenario: 'say-decline', hooks: 'run', wait_s: 0 }));
+    expect(no.asked).toHaveLength(1);
+    expect(e.code).toBe('refused');
+    expect(e.message).toContain('the user declined');
+    expect(e.fix).toBe(`retake -C ${ws} run northfield-fixture say-decline --dry --hooks run`);
+    expect(((await call(no.client, 'job_list', {})).structuredContent as { jobs: unknown[] }).jobs.length).toBe(before);
+    // run_capture takes the same approver: asked once, queued with the approval.
+    const cap = await connect('accept');
+    const c = await call(cap.client, 'run_capture', { project: 'northfield-fixture', scenario: 'say-decline' });
+    expect(c.isError, JSON.stringify(c)).toBeFalsy();
+    expect(cap.asked).toHaveLength(1);
+    const capJob = /\(job (j_[0-9A-Z]{26})\)/.exec(c.content[0].text)![1]!;
+    const cj = (await call(cap.client, 'job_status', { job_id: capJob })).structuredContent as { input: { mode: string; approvals?: Array<{ by: string }> } };
+    expect(cj.input.mode).toBe('capture');
+    expect(cj.input.approvals).toEqual([expect.objectContaining({ by: 'human-elicitation' })]);
+    await call(cap.client, 'job_cancel', { job_id: capJob });
   });
 });

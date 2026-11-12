@@ -2,13 +2,14 @@
  * The engine's operations (U7, from L7.13): every operation a shell serves that is defined here, in catalogue order,
  * each with its input, answer and name types (`OperationsByName`). The MCP server serves those it serves as these very
  * objects (its TOOLS), the Studio those it serves as they are or with its pinned arguments (pinArguments); both run them
- * through invoke.ts. Later lots move the other families here (U7: L7.15–L7.19).
+ * through invoke.ts. Later lots move the other families here (U7: L7.16, L7.18, L7.19).
  */
 import { authLogin, authStatus } from './auth.js';
 import { projectBoard, projectsOverview } from './board.js';
 import { componentCreate, componentGet, componentList, componentPreview, componentValidate } from './components.js';
 import type { ToolsByName } from './define.js';
-import { jobList } from './jobs.js';
+import { pageInspect } from './inspect.js';
+import { jobCancel, jobList } from './jobs.js';
 import { libraryComponent, libraryImages, libraryRender, libraryView } from './library.js';
 import { engineInfo, projectGet, projectList, projectUpdateReadme } from './project.js';
 import { scenarioGet, scenarioValidate } from './reads.js';
@@ -17,11 +18,14 @@ import { planPreview, renderStatus } from './renders.js';
 import { reviewGet } from './reviews.js';
 import { runCancel, runList, runStatus } from './runs.js';
 import { runThumbs, scenarioActions, scenarioBlocks, scenarioForms, scenarioSessions } from './scenario-screen.js';
+import { renderCancel, reviewExport, runPause, scenarioRender, scenarioRun, signInCancel } from './studio-jobs.js';
+import { exportRender, render, review, runCapture, runDry } from './submit.js';
 import { brandFiles, siteList, templateCreateFromBrand, templateFromSite, templateList, templatePreview, themeCopy, themeCreate, themeEdit, themeList, themeView } from './themes.js';
 
 /**
  * Every engine operation, in catalogue order: the eleven MCP and the Studio share (L7.13); MCP's reads of scenarios,
- * plans, renders and reviews, and the Studio's screen reads (L7.14); the themes, components and the library (L7.17).
+ * plans, renders and reviews, and the Studio's screen reads (L7.14); the themes, components and the library (L7.17);
+ * the submits and job controls of both (L7.15).
  */
 export const OPERATIONS = [
   engineInfo,
@@ -30,12 +34,18 @@ export const OPERATIONS = [
   projectUpdateReadme,
   scenarioGet,
   scenarioValidate,
+  pageInspect,
   runList,
   runStatus,
+  runDry,
+  runCapture,
   runCancel,
   planPreview,
+  render,
   renderStatus,
+  review,
   reviewGet,
+  exportRender,
   templateList,
   templatePreview,
   templateFromSite,
@@ -46,6 +56,7 @@ export const OPERATIONS = [
   componentPreview,
   componentCreate,
   jobList,
+  jobCancel,
   authStatus,
   authLogin,
   projectsOverview,
@@ -54,10 +65,16 @@ export const OPERATIONS = [
   scenarioActions,
   runThumbs,
   scenarioForms,
+  scenarioRun,
+  runPause,
   scenarioSessions,
+  signInCancel,
+  scenarioRender,
   scenarioRenders,
+  renderCancel,
   renderReview,
   reviewImage,
+  reviewExport,
   libraryView,
   libraryImages,
   libraryRender,

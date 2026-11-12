@@ -31,7 +31,7 @@ import { loadProjectTemplate, fileFacts } from '@retake/core/io';
 import { EngineError, openProjectBySlug, pathFree, renderForWork } from '@retake/engine';
 import type { CommentEntryView, CommentProposalView, CommentView, Engine } from '@retake/engine';
 import { defineTool } from '@retake/engine/contract';
-import { opChain, scenarioKey } from './op-chain.js';
+import { scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -317,9 +317,9 @@ export interface ThreadsListAnswer {
   problems: number;
 }
 
-/** commentOps: the shared chain is the one scenario_edit and scenario_render use (critique B5). */
-export function commentOps(o: { chain?: OpChain } = {}) {
-  const chain = o.chain ?? opChain();
+/** commentOps: the shared chain is the one scenario_edit and scenario_render use (critique B5; required: the server's, L7.15). */
+export function commentOps(o: { chain: OpChain }) {
+  const { chain } = o;
   const threadKey = (slug: string, id: string) => `thread\0${slug}\0${id}`;
   const root = (engine: Engine) => engine.workspace.root;
 

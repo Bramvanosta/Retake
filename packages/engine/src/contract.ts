@@ -68,6 +68,16 @@ export { THEME_ARGS, siteOutput } from './operations/themes.js';
 export type { SiteListAnswer, ThemeListAnswer } from './operations/themes.js';
 export { LIBRARY_IMAGES_ANSWER_MAX, LIBRARY_VIEW_MEMO_MAX, LOOP_DATA_MAX, POSTER_DATA_MAX, componentAnswer } from './operations/library.js';
 export type { LibraryComponentAnswer, LibraryImage, LibraryImagesAnswer, LibraryItem, LibraryParam, LibraryRenderAnswer, LibrarySlot, LibraryViewAnswer } from './operations/library.js';
+// L7.15: the submit and job-control operations' pieces the shells still name (MCP's job_status answers an inspection as
+// page_inspect does and takes job_cancel's job id; its scenario_record keeps RUN_JOB; the Studio's scenario chain key
+// and the answer types the app reads).
+export { JOB_CANCEL, RENDER_JOB, RUN_JOB } from './operations/annotations.js';
+export { compactElements } from './operations/compact.js';
+export type { CompactElement } from './operations/compact.js';
+export { INSPECT_RESULT_MAX, inspectImages, inspectOutput } from './operations/inspect.js';
+export { jobId } from './operations/jobs.js';
+export { REVIEW_EXPORTS_OPEN, REVIEW_EXPORT_FORMATS, scenarioKey } from './operations/studio-jobs.js';
+export type { ReviewExportAnswer, ScenarioRenderAnswer, ScenarioRunAnswer } from './operations/studio-jobs.js';
 
 /** Longest untrusted string a result carries. */
 export const UNTRUSTED_MAX = 2000;

@@ -445,9 +445,11 @@ describe('the import-rules ratchet', () => {
       const total = (prefix: string) => entries.filter((e) => e.startsWith(`shell-op ${prefix}`)).reduce((n, e) => n + Number(/→ (\d+) operations? defined$/.exec(e)![1]), 0);
       // L7.13: 34 / 65 (the eleven both serve moved); L7.14: 30 / 55 (MCP's four read-only queries — scenario_get,
       // plan_preview, render_status, review_get — and the Studio's ten screen reads); L7.17: 21 / 44 (the theme,
-      // component and library family: MCP's nine, the Studio's eleven).
-      expect(total('packages/mcp/src/')).toBe(21);
-      expect(total('packages/ui/src/')).toBe(44);
+      // component and library family: MCP's nine, the Studio's eleven); L7.15: −7 / −6 (the submits and job controls:
+      // MCP's run_dry, run_capture, render, review, export, page_inspect, job_cancel; the Studio's scenario_run,
+      // run_pause, sign_in_cancel, scenario_render, render_cancel, review_export).
+      expect(total('packages/mcp/src/')).toBe(14);
+      expect(total('packages/ui/src/')).toBe(38);
       expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
     });
   });
