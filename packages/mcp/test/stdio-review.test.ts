@@ -13,10 +13,11 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { readWorkerLock } from '@retake/engine';
 import { imageResult } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Workspace } from '../../review/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Workspace } from '@retake/test-support/review';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasTool('ffmpeg') && hasTool('ffprobe');

@@ -15,11 +15,12 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RunJobInput } from '@retake/engine';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { writeTake } from '../../ui/test/timeline-take.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
+import { writeTake } from '@retake/test-support/take';
 import { FileJobQueue } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const SUBMITTER = join(REPO, 'packages', 'engine', 'test', 'fixtures', 'admission-submitter.mts');
@@ -29,7 +30,7 @@ const TAKE = '20260101-120000-tl';
 const TEXT = 'video: Timeline\nintro: false\noutro: false\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const ROUNDS = 4;
 
 type Answer = { ok: true; job: string } | { ok: false; code: string; message: string; details?: { job?: string; run_id?: string } };
@@ -88,7 +89,7 @@ async function expectOneQueued(answers: Answer[], before: string[], what: string
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'engine-admission-processes-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   for (let i = 0; i < ROUNDS; i++) {
     await writeFile(join(ws, 'projects', P, 'scenarios', `race-${i}.yaml`), `video: race-${i}\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 1\n`);
@@ -144,8 +145,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const s of [mcp, ui]) s?.child.kill();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

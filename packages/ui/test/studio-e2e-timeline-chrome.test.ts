@@ -20,16 +20,17 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, hasEncoder, readBits, takeWorkspace, writeTake } from './timeline-take.js';
-import type { TakeCodec } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { BITS_TEXT, bitsTimeline, hasEncoder, readBits, takeWorkspace, writeTake } from '@retake/test-support/take';
+import type { TakeCodec } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
 const gated = process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
 const REAL = process.env.RETAKE_TEST_REAL;
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 let ws: string;
 let browser: Browser;
@@ -98,15 +99,14 @@ async function playback(page: Page, ms: number, fps: number): Promise<{ fps: num
 beforeAll(async () => {
   if (!gated) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-chrome-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   browser = await chromium.launch({ channel: 'chrome', headless: true });
 }, 120_000);
 
 afterAll(async () => {
   await browser?.close();
   for (const s of servers) await s.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -1,5 +1,5 @@
 /**
- * Sessions & personas at run time (L1.6), in a real Chromium against a small cookie sign-in app (auth-server.ts): the
+ * Sessions & personas at run time (L1.6), in a real Chromium against a small cookie sign-in app (test-support auth.ts): the
  * preflight before anything runs (R-AUTH-03), the guard that fails a run landing on a sign-in page and keeps nothing of
  * it (R-AUTH-04), the automated login with injected secrets (R-AUTH-05), per-run copies of a persona's session —
  * concurrent runs, a held master (R-AUTH-07) — and one browser per persona (R-AUTH-01). Every test has its own Retake
@@ -27,9 +27,11 @@ import {
   sweepStaleSessionCopies,
 } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { ACCOUNTS, signInMaster, startAuthServer } from './auth-server.js';
-import type { AuthServer } from './auth-server.js';
-import { FAST, makeProject, makeScenario, tempDir, testHookRunner } from './helpers.js';
+import { ACCOUNTS, startAuthServer } from '@retake/test-support/auth';
+import { signInMaster } from './auth-server.js';
+import type { AuthServer } from '@retake/test-support/auth';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, tempDir, testHookRunner } from './helpers.js';
 
 let srv: AuthServer;
 let home = '';

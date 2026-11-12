@@ -29,15 +29,17 @@ import type { MemoryRendererOptions } from '../src/render/memory-renderer.js';
 import type { RenderVideoRequest } from '../src/render/renderer.js';
 import { bundleHash } from '@retake/editor';
 import type { PreviewBackend } from '@retake/editor';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { syntheticRunRecord } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const SCENARIO = 'steps';
 const RUN = '20260101-120000-steps';
 let root: string;
 let dir: string;
 let engine: Engine;
-const saved = { home: process.env.RETAKE_HOME, ffmpeg: process.env.RETAKE_FFMPEG, ffprobe: process.env.RETAKE_FFPROBE };
+const retakeHome = scratchHome('RETAKE_FFMPEG', 'RETAKE_FFPROBE');
 
 const historyLines = async (): Promise<Array<Record<string, unknown>>> =>
   (await readFile(historyFile(root), 'utf8').catch(() => ''))
@@ -48,7 +50,7 @@ const recordOf = async (id: string): Promise<RenderRecord> => JSON.parse(await r
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-render-port-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   process.env.RETAKE_FFMPEG = join(root, 'no-such-tool', 'ffmpeg');
   process.env.RETAKE_FFPROBE = join(root, 'no-such-tool', 'ffprobe');
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
@@ -72,14 +74,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const [name, value] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_FFMPEG', saved.ffmpeg],
-    ['RETAKE_FFPROBE', saved.ffprobe],
-  ] as const) {
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-  }
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 

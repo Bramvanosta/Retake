@@ -21,6 +21,7 @@ import { diffLines, textLines } from '@retake/core';
 import type { CommentThread } from '@retake/core';
 import { EngineError, commentLockFile, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const RUN = '20261027-090000-quote';
@@ -47,7 +48,7 @@ let mcp: Engine;
 let ui: Engine;
 let cli: Engine;
 let tester: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let n = 0;
 
 const scenarioFile = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
@@ -111,7 +112,7 @@ async function state(scenario: string, id: string): Promise<[Buffer, Buffer, num
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-comment-apply-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   dir = join(ws, 'projects', 'w');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
@@ -123,8 +124,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

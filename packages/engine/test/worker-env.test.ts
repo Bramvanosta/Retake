@@ -14,25 +14,25 @@ import { programProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { loadWorkspaceConfig, nodeFileFacts } from '@retake/core/io';
 import { cleanWorkerEnv, createEngine } from '../src/index.js';
 import type { WorkerSpawnFn } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import type { WorkPolicy } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
 
 let ws: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await realpath(await mkdtemp(join(tmpdir(), 'engine-worker-env-')));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await mkdir(join(ws, 'bin'), { recursive: true });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 

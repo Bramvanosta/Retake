@@ -18,8 +18,9 @@ import { kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { armFileGuard } from '../src/session.js';
 import { openProblem } from '../src/opens.js';
 import { prewarmTargets } from '../src/prewarm.js';
-import { FAST, makeProject, makeScenario, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const SECRET = 'local-file-marker-7731';
 let dir: string;

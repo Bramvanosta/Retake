@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEngine } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 let ws: string;
 let runs: string;

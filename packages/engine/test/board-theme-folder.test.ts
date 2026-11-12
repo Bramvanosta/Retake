@@ -18,8 +18,9 @@ import { exportThemeRef } from '@retake/editor';
 import type { RenderRecord } from '@retake/editor';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Case, Workspace } from '../../review/test/helpers.js';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Case, Workspace } from '@retake/test-support/review';
+import { scratchHome } from '@retake/test-support/home';
 
 const SCENARIO_YAML = 'video: quote\nscenes:\n  - id: one\n    open: /\n    steps:\n      - click: First\n';
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -31,7 +32,7 @@ let engine: Engine;
 let project: LoadedProject;
 let demo: Case;
 let yaml: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** renders/<id>.json and its (empty) video: the case's record under another id, theme folder and date. */
 async function record(id: string, created_at: string, folder: string | undefined): Promise<void> {
@@ -64,7 +65,7 @@ async function clearRenders(): Promise<void> {
 
 beforeAll(async () => {
   ws = await workspace();
-  process.env.RETAKE_HOME = join(ws.root, '.home');
+  retakeHome.use(join(ws.root, '.home'));
   const dir = ws.project.dir;
   // Two theme folders of one name: the project's own and one shared beside the projects.
   await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), join(dir, 'themes', 'brand'), { recursive: true });
@@ -103,8 +104,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await ws?.cleanup();
 });
 

@@ -19,10 +19,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import type { SiteTestTarget } from '@retake/core';
+import { REPO } from './repo.js';
 
-const HERE = new URL('.', import.meta.url).pathname;
-const REPO = join(HERE, '..', '..', '..');
-const SITE_DIR = join(HERE, 'fixtures', 'brand-site');
+/** The site's pages and data: runner-web's test fixtures, read by path. */
+const SITE_DIR = join(REPO, 'packages', 'runner-web', 'test', 'fixtures', 'brand-site');
 export const FIXTURE_FONTS = {
   display: join(REPO, 'templates', 'editorial', 'fonts', 'InstrumentSerif-Regular.ttf'),
   text: join(REPO, 'templates', 'editorial', 'fonts', 'Inter-Regular.ttf'),

@@ -15,7 +15,8 @@ import type { ComponentRegistry } from '@retake/components';
 import { brandmarkRect, planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor/plan';
 import { captionRegion, frameAnchor, segmentSpans, transitionSpans } from '../src/index.js';
-import { REPO, synthTimeline } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { synthTimeline } from '@retake/test-support/timeline';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;

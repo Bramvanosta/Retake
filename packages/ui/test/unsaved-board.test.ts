@@ -13,26 +13,26 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UNSAVED_TABS_MAX, UnsavedBoard, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const tab = (n: number) => `tab${String(n).padStart(19, '0')}`;
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-unsaved-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, startWorker: false });
 });
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

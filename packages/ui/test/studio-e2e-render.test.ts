@@ -26,9 +26,11 @@ import { FileJobQueue, runWorker } from '@retake/engine';
 import type { JobRecord } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { takeWorkspace, writeTake } from './timeline-take.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -51,7 +53,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 
 async function shot(name: string): Promise<void> {
@@ -63,7 +65,7 @@ async function shot(name: string): Promise<void> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-render-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   const dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 2,
@@ -94,8 +96,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

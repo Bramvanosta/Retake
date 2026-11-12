@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, TimelineSchema } from '@retake/core';
 import type { RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { EXIT, VERSION, main, memoryIo } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
 const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
@@ -554,14 +555,13 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
       expect(await armedNow()).toBe(true);
       await fetch(`${fixture.urls.console}/api/quotes/auto-proposal`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
       // L5.14: the run's journal is signed with its own Retake home's key: the replay uses that home.
-      const home = process.env.RETAKE_HOME;
-      process.env.RETAKE_HOME = join(r.tmp, 'home');
+      const retakeHome = scratchHome();
+      retakeHome.use(join(r.tmp, 'home'));
       let rb: Awaited<ReturnType<typeof retake>>;
       try {
         rb = await retake('hooks', 'rollback', 'e2e');
       } finally {
-        if (home === undefined) delete process.env.RETAKE_HOME;
-        else process.env.RETAKE_HOME = home;
+        retakeHome.restore();
       }
       expect(rb.code, rb.err).toBe(EXIT.ok);
       expect(await armedNow()).toBe(false);

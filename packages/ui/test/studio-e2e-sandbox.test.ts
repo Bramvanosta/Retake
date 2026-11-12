@@ -47,8 +47,9 @@ import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { STOP_FLOOD } from '../src/player/parent.js';
 import { workspaceComponents } from '../src/player/bundle-player.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { REPO, hasTool } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { REPO, hasTool } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg');
 const PROJECT = 'demo';
@@ -64,7 +65,7 @@ let udpPackets = 0;
 let parentJs = '';
 let netlog = '';
 let launches = 0;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const hostileSource = () => `import { useEffect } from 'react';
 import { AbsoluteFill } from 'remotion';
@@ -363,7 +364,7 @@ const previewFrame = (page: Page): Frame => page.frames().find((f) => f.url().st
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-sandbox-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   other = createServer((req, res) => {
     otherHits.push(`${req.method} ${req.url}`);
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
@@ -427,8 +428,7 @@ afterAll(async () => {
   await studio?.close();
   await new Promise<void>((ok) => (other ? other.close(() => ok()) : ok()));
   udp?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { exportRender, findRun, nextVersion, reserveVersion, takenVersions, versionLockFile } from '../src/index.js';
-import { syntheticRunRecord } from './render-helpers.js';
+import { syntheticRunRecord } from '@retake/test-support/render';
 
 let tmp: string;
 let n = 0;

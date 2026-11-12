@@ -31,7 +31,8 @@ import {
   versionLockFile,
 } from '@retake/editor';
 import type { DriverVideoRequest, DriverVideoResult, LoopItem, PreviewBackend, RenderAttempt, RenderDriver } from '@retake/editor';
-import { RUN_ID, TEMPLATES, syntheticTimeline } from './render-helpers.js';
+import { RUN_ID, syntheticTimeline } from '@retake/test-support/render';
+import { TEMPLATES } from '@retake/test-support/repo';
 
 let root: string;
 let project: LoadedProject;

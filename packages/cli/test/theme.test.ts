@@ -13,8 +13,8 @@ import { STARTER_TEMPLATES_DIR, loadTemplate, fileFacts } from '@retake/core/io'
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { unsafeTestResolveCheck } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
-import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
-import type { BrandSite } from '../../runner-web/test/site-fixture.js';
+import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
 import { PERSON_POLICY } from '@retake/core';
 
 let ws: string;

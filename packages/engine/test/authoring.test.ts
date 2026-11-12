@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseScenario, seededRandom } from '@retake/core';
 import { createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const PROJECT = 'northfield-fixture';
 let root: string;

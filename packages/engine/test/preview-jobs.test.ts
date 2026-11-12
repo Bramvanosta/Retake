@@ -5,7 +5,8 @@
  * built-in id); a component preview with slot values and params and a theme preview rendered by the worker (in this
  * process, `once`) into .retake/previews/<id>/ — the built-in component's folder is left byte for byte; a guarded
  * preview of a workspace component that reaches for a second local server (B gets nothing, the origin is a warning);
- * refusals at submit; a cancel before start; previews count nothing in the history. Needs ffmpeg and a headless shell.
+ * refusals at submit; a cancel before start (on the in-memory renderer, L7.37); previews count nothing in the history.
+ * Needs ffmpeg and a headless shell.
  */
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -19,10 +20,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LIBRARY_DIR, PREVIEW_FILE } from '@retake/components';
 import { renderComponentPreviews, loadPreviewTheme } from '@retake/editor';
 import { createEngine, historyFile, runWorker } from '../src/index.js';
+import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine, JobRecord, PreviewJobResult } from '../src/index.js';
-import { TEMPLATES, hasTool, linkSharedCache, pixelAt } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, pixelAt } from '@retake/test-support/render';
 import { fileFacts } from '@retake/core/io';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -32,7 +36,7 @@ let engine: Engine;
 let b: Server;
 let bPort = 0;
 let hits: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
 
@@ -79,7 +83,7 @@ export default function Reaching() {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-preview-jobs-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   // Workspace themes: editorial and motion copied, plus one whose logo lies outside its folder.
   const templates = join(root, 'templates');
   await mkdir(templates, { recursive: true });
@@ -105,8 +109,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((r) => (b ? b.close(() => r()) : r()));
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 
@@ -251,15 +254,25 @@ describe.skipIf(!canRender)('preview jobs', () => {
     },
     LONG,
   );
+});
 
+/**
+ * L7.37: a cancel before start is the engine's (the worker closes the job before any render): its worker runs on the
+ * in-memory renderer, which shows nothing reached it. renderComponentPreviews' own stop on an aborted signal is the
+ * editor's, called directly. The real renders (pixels, a theme's images, the guard) are the cases above.
+ */
+describe.skipIf(!canRender)('preview jobs on the in-memory renderer', () => {
   it(
     'a cancel before start closes the job without rendering; an aborted signal stops renderComponentPreviews before any image',
     async () => {
       const sub = await engine.templates.preview({ project: 'demo' });
       await engine.jobs.cancel(sub.job.id);
-      await work();
+      const renderer = new MemoryRenderer();
+      await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
       const job: JobRecord = await engine.jobs.get(sub.job.id);
       expect(job.state).toBe('cancelled');
+      // Closed by the worker without a render: nothing reached the renderer.
+      expect(renderer.calls).toEqual([]);
       expect(existsSync(join(root, '.retake', 'previews', sub.preview_id))).toBe(false);
       const ac = new AbortController();
       ac.abort();

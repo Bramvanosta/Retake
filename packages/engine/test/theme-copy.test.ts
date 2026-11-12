@@ -14,12 +14,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem, personScope, enginePorts } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 async function failure(p: Promise<unknown>): Promise<EngineError> {
   try {
     await p;
@@ -31,15 +32,14 @@ async function failure(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-theme-copy-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

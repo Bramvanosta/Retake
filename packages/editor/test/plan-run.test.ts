@@ -18,8 +18,9 @@ import { loadProject } from '@retake/core/io';
 import type { LoadedProject, Timeline } from '@retake/core';
 import { PlanTrustError, RenderError, planRun, preReadProblems } from '@retake/editor';
 import type { PlanRunOptions } from '@retake/editor';
-import { synthTimeline } from './helpers.js';
-import { TEMPLATES, hasTool, makeColourCapture, syntheticRunRecord } from './render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 const canPlan = hasTool('ffmpeg');

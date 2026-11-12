@@ -19,7 +19,8 @@ import { RunRecordSchema, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import { loadProject, loadScenario, fileFacts } from '@retake/core/io';
 import type { BBox, LoadedProject, RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
-import { debugTemplate, execFileP, ffprobeDuration, frameAt, magentaCentroid } from '../../runner-web/test/helpers.js';
+import { debugTemplate, execFileP, ffprobeDuration, frameAt, magentaCentroid } from '@retake/test-support/capture';
+import { scratchHome } from '@retake/test-support/home';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const W = 1920;
@@ -74,14 +75,14 @@ function clicksOf(tl: Timeline): Click[] {
 describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug cursor (R-ACC-05, RETAKE_TEST_SLOW=1)', () => {
   let fixture: Fixture;
   let tmp: string;
-  const savedHome = process.env.RETAKE_HOME;
+  const retakeHome = scratchHome();
   let rec: RunRecord;
   let tl: Timeline;
   const events: RunProgress[] = [];
 
   beforeAll(async () => {
     tmp = await mkdtemp(join(tmpdir(), 'studio-catalogue-'));
-    process.env.RETAKE_HOME = join(tmp, 'home'); // never the user's ~/.retake
+    retakeHome.use(join(tmp, 'home')); // never the user's ~/.retake
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;
     };
@@ -90,8 +91,7 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
 
   afterAll(async () => {
     await fixture?.close();
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     if (tmp) await rm(tmp, { recursive: true, force: true });
   });
 

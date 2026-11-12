@@ -3,18 +3,16 @@
  * synthetic timeline (and its run record) over a generated capture whose frames are colour-coded (frame n has a solid
  * colour that encodes n), so a rendered frame tells which source frame it shows.
  */
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { loadProject } from '@retake/core/io';
 import { RETAKE_VERSION } from '@retake/core';
 import type { LoadedProject, RunRecord, Timeline } from '@retake/core';
-import { synthTimeline } from './helpers.js';
+import { REPO, TEMPLATES } from './repo.js';
+import { synthTimeline } from './timeline.js';
 
-export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
-export const TEMPLATES = join(REPO, 'templates');
 /** Bundles shared by the render tests and real renders of the repo (git-ignored). */
 export const SHARED_CACHE = join(REPO, '.retake', 'cache');
 
@@ -32,10 +30,6 @@ export async function linkSharedCache(root: string): Promise<void> {
 export const RUN_ID = '20260101-120000-synthetic';
 export const CAPTURE_SECONDS = 4;
 export const CAPTURE_FPS = 30;
-
-export function hasTool(name: string): boolean {
-  return spawnSync(name, ['-version'], { stdio: 'ignore' }).status === 0;
-}
 
 /** Colour of capture frame n: three base-6 digits on 6 levels (16 + 40 k). */
 export function frameColour(n: number): [number, number, number] {

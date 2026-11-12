@@ -18,6 +18,7 @@ import type { Engine } from '../src/index.js';
 import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import { LAYOUTS, buildLayout } from '../../core/test/fixtures/records/prune-layouts.js';
 import type { BuiltLayout, Layout } from '../../core/test/fixtures/records/prune-layouts.js';
+import { scratchHome } from '@retake/test-support/home';
 
 // Every file read whole (node:fs/promises readFile) is noted, and read as ever: what a prune opens can be counted.
 const { opened } = vi.hoisted(() => ({ opened: [] as string[] }));
@@ -32,12 +33,12 @@ vi.mock('node:fs/promises', async (original) => {
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const built = new Map<string, BuiltLayout>();
 
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'retake-prune-keeps-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   writeWorkspace(root);
   for (const id of Object.keys(LAYOUTS)) built.set(id, buildLayout(root, id));
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
@@ -52,8 +53,7 @@ afterAll(() => {
       // Nobody reads it: nothing to let go.
     }
   }
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   rmSync(root, { recursive: true, force: true });
 });
 

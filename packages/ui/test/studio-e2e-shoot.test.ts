@@ -38,13 +38,14 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { writeRun } from '../../engine/test/synthetic-runs.js';
+import { writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'shoot';
 const POLL = { timeout: 20_000 };
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const LEAD_VAR = 'SHOOT_E2E_LEAD_PASSWORD';
 
 let ws: string;
@@ -81,7 +82,7 @@ async function stopAll(): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-shoot-e2e-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   await mkdir(join(project(), 'scenarios'), { recursive: true });
   await writeFile(
@@ -170,8 +171,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   delete process.env[LEAD_VAR];
   if (ws) await rm(ws, { recursive: true, force: true });
 });

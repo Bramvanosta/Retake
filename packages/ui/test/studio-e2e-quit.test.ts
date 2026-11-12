@@ -23,7 +23,8 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const POLL = { timeout: 15_000 };
 const ID = 'quitQuestion0000000_-a';
@@ -36,7 +37,7 @@ let context: BrowserContext;
 let page: Page;
 const errors: string[] = [];
 const bodies: Array<Record<string, unknown>> = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** The shell's words for unsaved text (words.rs), and for jobs only. */
 const UNSAVED = {
@@ -96,7 +97,7 @@ async function open(ctx: BrowserContext, app: boolean): Promise<Page> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-quit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
   const executablePath = process.env.RETAKE_CHROMIUM;
@@ -108,8 +109,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

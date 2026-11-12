@@ -25,7 +25,8 @@ import { startStudioServer } from '../src/index.js';
 import { frameCsp, startPlayerServer } from '../src/server/player.js';
 import type { PlayerServer } from '../src/server/player.js';
 import type { PlayerBundle } from '../src/player/bundle-player.js';
-import { raw } from './http.js';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const STUDIO_PORT = 4999;
 const BUNDLE: PlayerBundle = { hash: '0123456789abcdef', js: Buffer.from('/* the frame bundle */'), boot: Buffer.from('/* boot */'), components: [], excluded: [], held: [], ms: 0 };
@@ -304,8 +305,8 @@ describe('the player origin', () => {
 describe('the Studio and its player origin', () => {
   it('⚑ the Studio frames exactly its player origin, never sends Access-Control-*, and closes the player with it', async () => {
     const ws = await mkdtemp(join(tmpdir(), 'ds-player-studio-'));
-    const saved = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = join(ws, '.home');
+    const retakeHome = scratchHome();
+    retakeHome.use(join(ws, '.home'));
     await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
     const studio = await startStudioServer({ root: ws, startWorker: false });
     try {
@@ -330,8 +331,7 @@ describe('the Studio and its player origin', () => {
       expect(r.headers['content-security-policy']).toContain(`frame-ancestors http://127.0.0.1:${studio.port} http://localhost:${studio.port};`);
     } finally {
       await studio.close();
-      if (saved === undefined) delete process.env.RETAKE_HOME;
-      else process.env.RETAKE_HOME = saved;
+      retakeHome.restore();
     }
     await expect(raw(studio.player.port, 'GET', '/')).rejects.toThrow(/ECONNREFUSED/);
     await rm(ws, { recursive: true, force: true });

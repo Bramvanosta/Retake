@@ -11,8 +11,9 @@ import { join } from 'node:path';
 import type { RunRecord, Timeline } from '@retake/core';
 import { cfrSchedule, runScenario } from '../src/index.js';
 import type { FrameIndexEntry } from '../src/index.js';
-import { FAST, execFileP, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, execFileP, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 /** A list that loads after a click: a skeleton (no motion) for 1.2 s, then the rows; a counter button for motion. */

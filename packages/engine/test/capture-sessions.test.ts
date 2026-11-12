@@ -14,14 +14,15 @@ import { chromiumExecutable } from '@retake/runner-web';
 import { runnerWebCapture } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookPages, MemorySessions, memoryRecord, memorySite } from '../src/capture/memory-sessions.js';
-import { ACCOUNTS, startAuthServer } from '../../runner-web/test/auth-server.js';
-import type { AuthServer } from '../../runner-web/test/auth-server.js';
-import { startServer } from '../../runner-web/test/helpers.js';
-import type { TestServer } from '../../runner-web/test/helpers.js';
-import { BRAND_SITE_COLORS, BRAND_SITE_URL, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
-import type { BrandSite } from '../../runner-web/test/site-fixture.js';
+import { ACCOUNTS, startAuthServer } from '@retake/test-support/auth';
+import type { AuthServer } from '@retake/test-support/auth';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
+import { BRAND_SITE_COLORS, BRAND_SITE_URL, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
 import { captureSessionsContract } from './capture-sessions-contract.js';
 import type { ContractSessions } from './capture-sessions-contract.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const PASSWORD_ENV = 'RETAKE_CONTRACT_ADA_PASSWORD';
 const hasChromium = chromiumExecutable().path !== null;
@@ -30,10 +31,10 @@ const home = join(root, '.home');
 let auth: AuthServer;
 let rec: TestServer;
 let site: BrandSite | undefined;
-const saved = { home: process.env.RETAKE_HOME, pw: process.env[PASSWORD_ENV] };
+const retakeHome = scratchHome(PASSWORD_ENV);
 
 beforeAll(async () => {
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   process.env[PASSWORD_ENV] = ACCOUNTS.supplier.password;
   auth = await startAuthServer();
   rec = await startServer({
@@ -47,13 +48,7 @@ afterAll(async () => {
   await rec?.close();
   await site?.close();
   await rm(root, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    [PASSWORD_ENV, saved.pw],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 let n = 0;

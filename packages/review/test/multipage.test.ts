@@ -15,7 +15,7 @@ import { insetRectAt, mapPaneRect, planEdit } from '@retake/editor/plan';
 import type { ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
 import { DEFAULT_RULES, checkCursor, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, planFontFiles, segmentSpans, transitionSpans } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');

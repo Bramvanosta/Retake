@@ -28,6 +28,7 @@ import {
   ManualClock,
 } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (b: string | Buffer) => createHash('sha256').update(b).digest('hex');
 const T = STARTER_TEMPLATES_DIR;
@@ -55,11 +56,11 @@ const noSchemaLine = (rel: string, b: Buffer) => (/\.ya?ml$/.test(rel) ? b.toStr
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-authored-writes-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   await mkdir(join(root, 'brand'), { recursive: true });
@@ -68,8 +69,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

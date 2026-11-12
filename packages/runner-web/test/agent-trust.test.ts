@@ -12,9 +12,10 @@ import { runScenario } from '../src/index.js';
 import { dropFile } from '../src/actions/drag.js';
 import { evalStep } from '../src/actions/misc.js';
 import type { StepContext } from '../src/runtime.js';
-import { FAST, makeProject, makeScenario, startServer, tempDir, testHookRunner } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, tempDir, testHookRunner } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
-import { STUDIO_CONFINEMENT } from '../../core/test/helpers.js';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 
 let dir: string;
 let outside: string;

@@ -21,8 +21,9 @@ import type { Page } from 'playwright-core';
 import type { RunProgress, RunRecord, RunningRun, Timeline, TimelineLoading, TimelinePause } from '@retake/core';
 import { CaptureClock, PerfSampler, RunPauser, runScenario } from '../src/index.js';
 import type { FrameIndexEntry, RunOptions, ScreencastRecorder } from '../src/index.js';
-import { FAST, ffprobeDuration, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, ffprobeDuration, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).

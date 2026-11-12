@@ -14,23 +14,23 @@ import { loadWorkspaceConfig } from '@retake/core/io';
 import { JOB_RECORD_VERSION, createEngine, makeSiteDir, newSiteId } from '@retake/engine';
 import type { Engine, JobRecord, SiteJobResult } from '@retake/engine';
 import { siteOutput } from '../src/tools/theme.js';
-import { drawPng } from '../../runner-web/test/site-fixture.js';
+import { drawPng } from '@retake/test-support/site';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let engine: Engine;
-const saved = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-site-output-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 });
 
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
-  if (saved === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = saved;
+  retakeHome.restore();
 });
 
 async function finishedJob(warnings: unknown[]): Promise<{ job: JobRecord; dir: string }> {

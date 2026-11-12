@@ -17,9 +17,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
 import { clientPath } from '@retake/core/io';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { REPO as REPO_URL, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO as REPO_URL } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PLUGIN_ID, claudeCodeCommand, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const REPO = resolve(REPO_URL);
 const PLUGIN = join(REPO, 'skills');

@@ -19,6 +19,8 @@
  *   follow a link (A-L3); the zoom under the theme's max_zoom (B-M3); the check's failing step on screen (B-M4); Discard
  *   of an open window ends "discarded" (B-M5); a Discard during the check is settled by the job and the list (B-L2);
  *   Stop before the window is a clean cancel (B-L8).
+ * - L7.37: the recording Claude started, B16 / B5 / B9 and B-M5 run the worker on the in-memory capture runner (the
+ *   lab's recorded events replayed by its window, its check replay in memory); the lab itself stays a real window.
  */
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -48,8 +50,15 @@ import {
 } from '../src/index.js';
 import type { Engine, EngineError, RecordJobResult, RecordWindow, RecordView } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
+import type { MemoryCaptureRunnerOptions } from '../src/capture/memory-capture.js';
+import { memoryRecord } from '../src/capture/memory-sessions.js';
+import type { CaptureRequest } from '../src/capture/runner.js';
+import type { RecordedEvent, RunRecord } from '@retake/core/run';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { fileFacts } from '@retake/core/io';
+import { scratchHome } from '@retake/test-support/home';
 
 type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
@@ -66,7 +75,7 @@ let ui: Engine;
 let mcp: Engine;
 const logs: string[] = [];
 const answers: unknown[] = [];
-const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN, tmp: process.env.TMPDIR };
+const retakeHome = scratchHome('RETAKE_RECORD_MAX_MIN', 'TMPDIR');
 
 /** Keep every answer for the sentinel scan. */
 function keep<T>(x: T): T {
@@ -97,6 +106,40 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
     },
   });
 }
+
+/** The worker on the in-memory capture runner (L7.37): its window and check replay are `capture`'s; nothing opens. */
+function workInMemory(capture: MemoryCaptureRunner): Promise<number> {
+  return runWorker({
+    root,
+    once: true,
+    idleExitMs: 0,
+    pollMs: 50,
+    log: (m) => logs.push(m),
+    ports: { capture, recordWindow: { headless: true, windowSize: { width: 1400, height: 1000 }, drive: async () => undefined } },
+  });
+}
+
+/** An in-memory capture runner whose check replay waits for `gate` first. */
+class HeldCheck extends MemoryCaptureRunner {
+  constructor(
+    private readonly gate: () => Promise<void>,
+    o: MemoryCaptureRunnerOptions,
+  ) {
+    super(o);
+  }
+
+  override async run(req: CaptureRequest): Promise<RunRecord> {
+    await this.gate();
+    return super.run(req);
+  }
+}
+
+/** The events the lab's real window recorded (redacted as written), for the in-memory windows to replay. */
+const labEvents = async (): Promise<RecordedEvent[]> =>
+  (await readFile(join(await recDir(lab.rec), 'events.jsonl'), 'utf8'))
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as RecordedEvent);
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
   const e = await p.then(
@@ -202,7 +245,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 4551, shopPort: 4552, host: '127.0.0.1', auth: { consolePort: 4553, shopPort: 4554 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-studio-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   // The window's session copies land here: the sentinel scan reads them, and none may stay (review A-N4).
   await mkdir(join(root, '.tmp'), { recursive: true });
   process.env.TMPDIR = join(root, '.tmp');
@@ -223,14 +266,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_RECORD_MAX_MIN', saved.max],
-    ['TMPDIR', saved.tmp],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 let lab: { rec: string; job: string };
@@ -404,13 +440,18 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
   });
 });
 
-describe('a recording Claude started: unchanged, read-only from the Studio', () => {
+/**
+ * L7.37: what the engine does around a window — a recording Claude started, a Discard during the check, a Discard of an
+ * open window — on the in-memory capture runner: its window replays the lab's recorded events (as written by the real
+ * window above), its check replay is the in-memory run. The real window, typing and check are the lab's case.
+ */
+describe('a recording Claude started: unchanged, read-only from the Studio (in memory)', () => {
   it('auto-saved by its job; the view rebuilds the same draft; annotate / save / discard refused; the ops refused to MCP', async () => {
     const sub = await mcp.record.submit({ project: PROJECT, page: 'shop', scenario: 'by-claude', check: false });
-    await work(async (page) => {
-      await page.getByText('Selowa Ridge').first().click();
-      await page.getByRole('button', { name: 'Request a quote' }).waitFor();
-    });
+    const capture = new MemoryCaptureRunner({ record: memoryRecord({ events: await labEvents() }) });
+    await workInMemory(capture);
+    // The window was the in-memory one, never checked (check: false): one recording, no replay.
+    expect(capture.calls.filter((c) => c.member === 'run')).toEqual([]);
     const job = await mcp.jobs.get(sub.job.id);
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
     expect(job.result).toMatchObject({ saved: { file: 'scenarios/by-claude.yaml' } });
@@ -438,7 +479,7 @@ describe('a recording Claude started: unchanged, read-only from the Studio', () 
   }, 120_000);
 });
 
-describe('discard, cancel and one window at a time', () => {
+describe('discard, cancel and one window at a time (in memory): B16 / B5 / B9', () => {
   it('B16 / B5 while queued; Discard during the check removes the folder once the job is over (B9)', async () => {
     const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', scenario: 'to-discard' }));
     // B16: Claude's job_cancel never discards the person's open recording.
@@ -456,13 +497,11 @@ describe('discard, cancel and one window at a time', () => {
       await until(async () => (await ui.jobs.get(sub.job.id)).progress?.phase === 'check', 'the check phase', 60_000);
       discarded = keep(await ui.record.discard(PROJECT, sub.rec_id));
     })();
-    await work(async (page) => {
-      await page.getByText('Selowa Ridge').first().click();
-      await page.getByRole('button', { name: 'Request a quote' }).waitFor();
-      await page.getByRole('button', { name: 'Request a quote' }).click();
-      await page.waitForTimeout(500);
-    });
+    // The check replay (the in-memory runner's run) holds until the Discard is asked: the Discard lands during the check.
+    const capture = new HeldCheck(() => until(async () => discarded !== undefined, 'the discard', 60_000).then(() => undefined), { record: memoryRecord({ events: await labEvents() }) });
+    await workInMemory(capture);
     await watch;
+    expect(capture.calls.filter((c) => c.member === 'run')).toHaveLength(1);
     expect(discarded).toEqual({ rec_id: sub.rec_id, state: 'discarding' });
     const job = await ui.jobs.get(sub.job.id);
     expect(FINISHED.has(job.state)).toBe(true);
@@ -474,7 +513,9 @@ describe('discard, cancel and one window at a time', () => {
     expect(keep(await ui.record.view(PROJECT, sub.rec_id, { job: sub.job.id })).state).toBe('discarded');
     expect(existsSync(join((await project()).dir, 'scenarios', 'to-discard.yaml'))).toBe(false);
   }, 180_000);
+});
 
+describe('discard, cancel and one window at a time', () => {
   it('an interrupted Studio recording (B6): unchecked, annotated, saved from its events', async () => {
     const q = new FileJobQueue(root, 'retake');
     const id = newRecordId();
@@ -538,17 +579,29 @@ describe('discard, cancel and one window at a time', () => {
     expect(existsSync(await recDir(sub.rec_id))).toBe(false);
     expect(keep(await ui.record.view(PROJECT, sub.rec_id, { job: sub.job.id })).state).toBe('cancelled');
   }, 60_000);
+});
 
+describe('discard, cancel and one window at a time (in memory): B-M5', () => {
   it('B-M5: Discard while the window is open ends "discarded" (not "cancelled")', async () => {
     const sub = keep(await ui.record.submit({ project: PROJECT, page: 'shop', path: '/record-lab' }));
     let d: unknown;
-    await work(async (page) => {
-      await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
-      await page.locator('#lab-email').click();
-      await until(async () => (await ui.record.view(PROJECT, sub.rec_id)).state === 'recording', 'the window open');
-      d = keep(await ui.record.discard(PROJECT, sub.rec_id));
-      await page.waitForEvent('close', { timeout: 10_000 }).catch(() => undefined);
-    });
+    const events = (await labEvents()).slice(0, 3);
+    let wasOpen = false;
+    await workInMemory(
+      new MemoryCaptureRunner({
+        record: memoryRecord({
+          events,
+          during: async (o) => {
+            await until(async () => (await ui.record.view(PROJECT, sub.rec_id)).state === 'recording', 'the window open');
+            wasOpen = true;
+            d = keep(await ui.record.discard(PROJECT, sub.rec_id));
+            // The window closes once the job is cancelled.
+            await until(async () => o.signal?.aborted === true, 'the window cancelled', 10_000);
+          },
+        }),
+      }),
+    );
+    expect(wasOpen).toBe(true);
     expect(d).toEqual({ rec_id: sub.rec_id, state: 'discarding' });
     expect((await ui.jobs.get(sub.job.id)).state).toBe('cancelled');
     expect(existsSync(await recDir(sub.rec_id))).toBe(false);

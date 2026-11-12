@@ -36,8 +36,9 @@ import { FileJobQueue, readWorkerLock } from '@retake/engine';
 import type { JobRecord } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const ENABLED = process.env.RETAKE_TEST_CAPTURES_FIRST === '1';
 const P = 'northfield-fixture';
@@ -81,7 +82,7 @@ let project: string;
 let studio: StudioServer;
 let queue: FileJobQueue;
 let text: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const savedRender = { gl: process.env.RETAKE_RENDER_GL, encoder: process.env.RETAKE_RENDER_ENCODER };
 const workers = new Set<number>();
 
@@ -211,7 +212,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 4941, shopPort: 4942, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'retake-captures-first-acceptance-'));
-    process.env.RETAKE_HOME = join(root, '.home');
+    retakeHome.use(join(root, '.home'));
     // The shipped default (the suite pins the software path, vitest.setup.ts): the Studio's worker inherits it.
     process.env.RETAKE_RENDER_GL = 'auto';
     process.env.RETAKE_RENDER_ENCODER = 'auto';
@@ -257,8 +258,7 @@ describe.skipIf(!ENABLED)('captures first, measured from the Studio (RETAKE_TEST
       }
     }
     await fixture?.close();
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     for (const [k, v] of [
       ['RETAKE_RENDER_GL', savedRender.gl],
       ['RETAKE_RENDER_ENCODER', savedRender.encoder],

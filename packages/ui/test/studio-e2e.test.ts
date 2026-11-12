@@ -20,7 +20,8 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -44,7 +45,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const dialogs: string[] = [];
 const consoleErrors: string[] = [];
 const readmeFile = (slug = FIXTURE) => join(ws, 'projects', slug, 'README.md');
@@ -92,7 +93,7 @@ async function toWelcome(p: Page): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await mkdir(join(ws, '.retake'), { recursive: true });
   await writeFile(
@@ -141,8 +142,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

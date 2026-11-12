@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scenarioChangedMessage } from '@retake/core';
 import type { EditPlan } from '@retake/editor';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { syntheticRunRecord } from '@retake/test-support/render';
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('../../editor/test/fixtures', import.meta.url));

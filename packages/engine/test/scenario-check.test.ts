@@ -17,13 +17,14 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EngineError, READ_TEXT_MAX_BYTES, createEngine, sessionsToConfirm } from '../src/index.js';
 import type { Engine, RunBlocker } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let ui: Engine;
 let mcp: Engine;
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const PERSON = 'video: person\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - type: {into: {label: Token}, text: "{{env:API_KEY}}"}\n';
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
@@ -37,15 +38,14 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-check-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   ui = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
   mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

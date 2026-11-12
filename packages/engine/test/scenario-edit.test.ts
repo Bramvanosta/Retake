@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScenarioError } from '@retake/core';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const RLO = String.fromCodePoint(0x202e);
@@ -29,7 +30,7 @@ let dir: string;
 let ui: Engine;
 let mcp: Engine;
 let cli: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const PROJECT = 'name: W\nenvironments:\n  local:\n    console: http://127.0.0.1:4997\ncapture: {width: 1280, height: 720, scale: 1, fps: 30}\ntemplate: default\n';
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      # first a pause\n      - hold: 0.2\n';
@@ -58,7 +59,7 @@ async function snapshot(name: string): Promise<{ bytes: string; mtime: number }>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-scenario-edit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   dir = join(ws, 'projects', 'w');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
@@ -72,8 +73,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

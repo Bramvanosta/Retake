@@ -14,7 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_PACING, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 
 const SHOP = `<!doctype html><html><head><title>Shop</title><meta name="viewport" content="width=device-width"></head>
 <body style="font-family:sans-serif;margin:0;padding:40px;background:#f6f1ea">

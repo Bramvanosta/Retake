@@ -16,14 +16,15 @@ import { hookFiles, hookFingerprint } from '@retake/hooks';
 import { EngineError, createEngine, openProjectBySlug } from '../src/index.js';
 import type { ApprovalRequest, Approver, Engine } from '../src/index.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let project: string;
 let engine: Engine;
 let fake: Engine;
 const memory = new MemoryHookRunner();
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 function accept(): Approver & { asked: ApprovalRequest[] } {
   const asked: ApprovalRequest[] = [];
@@ -64,7 +65,7 @@ scenes:
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-agent-sql-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   project = join(ws, 'projects', 'northfield-fixture');
   const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
@@ -90,8 +91,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

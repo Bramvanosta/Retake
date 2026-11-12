@@ -1,12 +1,13 @@
 /**
- * `retake review` on synthetic renders (drawn with ffmpeg, see packages/review/test/helpers.ts): the summary (clean or
+ * `retake review` on synthetic renders (drawn with ffmpeg, see packages/test-support/src/review.ts): the summary (clean or
  * findings), the files, `--json`, `--strict`, `--no-previous` and the usage / lookup errors. Needs ffmpeg/ffprobe.
  */
 import { existsSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Workspace } from '../../review/test/helpers.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Workspace } from '@retake/test-support/review';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 240_000;

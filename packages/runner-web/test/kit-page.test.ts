@@ -14,8 +14,8 @@ import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { kitConfigFor, kitSource } from '../src/index.js';
 import type { KitConfig } from '../src/index.js';
-import { startServer } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
 
 const GOLDEN = fileURLToPath(new URL('./golden/kit-page.json', import.meta.url));
 

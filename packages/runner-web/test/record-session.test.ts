@@ -18,8 +18,9 @@ import { RecordedEventSchema, draftFromRecording, resolveEnvironment, resolvePer
 import type { LoadedProject, RecordedEvent } from '@retake/core';
 import { CancelledError, disableAutofill, looksLikeSecretSegment, looksLikeToken, maskPathSecrets, recordSession, secretHash, signIn } from '../src/index.js';
 import type { RecordSessionOptions, RecordSessionResult } from '../src/index.js';
-import { makeProject, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { makeProject, tempDir } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
 import { retakeHome } from '@retake/core/io';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).

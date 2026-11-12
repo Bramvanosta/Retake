@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createEngine, workerLockFile, workersDir } from '@retake/engine';
 import { TOOLS } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const roots: string[] = [];
 afterAll(async () => {

@@ -10,8 +10,8 @@ import type { Page } from 'playwright-core';
 import { kitConfigFor, openSession } from '../src/index.js';
 import type { BrowserSession } from '../src/index.js';
 import { UNREAD_BODY_MS, networkIdle } from '../src/network.js';
-import { startServer } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 const html = (body: string) => `<!doctype html><html><head><meta charset="utf-8"><title>Network</title></head><body>${body}</body></html>`;

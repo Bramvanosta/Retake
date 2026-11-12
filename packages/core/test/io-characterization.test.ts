@@ -36,7 +36,7 @@ import {
   seedHash,
 } from '@retake/core/io';
 import type { HookStep } from '@retake/core';
-import { STUDIO_CONFINEMENT } from './helpers.js';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 import { AGENT_CONFINEMENT } from '@retake/core';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');

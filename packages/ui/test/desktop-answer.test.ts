@@ -12,25 +12,25 @@ import { TOOLS } from '@retake/mcp';
 import { FileJobQueue } from '@retake/engine';
 import { DesktopPipe, OWN_OPS, SHOWN_PER_MIN, UI_OPS, UnsavedBoard, startStudioServer, startSupervisor } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const ID = 'quitQuestion0000000_-a';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-desktop-answer-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, startWorker: false });
 });
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

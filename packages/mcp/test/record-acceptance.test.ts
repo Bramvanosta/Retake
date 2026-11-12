@@ -20,8 +20,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@retake/engine';
 import type { RecordWindow } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome } from '@retake/test-support/home';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -45,7 +46,7 @@ let root: string;
 let client: Client;
 let stderr = '';
 const outputs: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function call(name: string, args: Record<string, unknown>): Promise<Result> {
   const r = (await client.callTool({ name, arguments: args }, undefined, { timeout: STEP })) as Result;
@@ -131,7 +132,7 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-mcp-record-acc-'));
-    process.env.RETAKE_HOME = join(root, '.home');
+    retakeHome.use(join(root, '.home'));
     await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', PROJECT);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -166,8 +167,7 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
     }
     await fixture?.close();
     if (root) await rm(root, { recursive: true, force: true });
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
   });
 
   it('the person records the quote flow; the draft validates and dry-runs; the typed password is nowhere', async () => {

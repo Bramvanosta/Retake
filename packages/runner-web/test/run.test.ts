@@ -9,8 +9,9 @@ import { RunnerError, runScenario, scaleArgs } from '../src/index.js';
 import { NO_HOOK_RUNNER } from '../src/hooks-bridge.js';
 import type { RunOptions } from '../src/index.js';
 import { DOC_PAGE, DROP_PAGE, DRY_PAGE, SCROLL_PAGE, STRATEGY_PAGE, TABS_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir, testHookRunner } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
 const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';

@@ -55,8 +55,8 @@ import {
   transitionSpans,
 } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { FIXTURES, realTimeline, synthTimeline } from '../../editor/test/helpers.js';
-import { REPO } from './helpers.js';
+import { FIXTURES, realTimeline, synthTimeline } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 let registry: ComponentRegistry;

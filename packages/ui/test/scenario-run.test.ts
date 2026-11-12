@@ -25,11 +25,12 @@ import { readWorkerLock, workerLockFile } from '@retake/engine';
 import type { WorkerSpawnFn } from '@retake/engine';
 import { UI_OPS, startStudioServer, studioWorkerEnv } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let ws: string;
 let studio: StudioServer;
 const project = () => join(ws, 'projects', P);
@@ -52,7 +53,7 @@ const READ_ONLY_SHELL = [
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-run-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'scenarios', 'ro-shell.yaml'), READ_ONLY_SHELL);
   studio = await startStudioServer({ root: ws, startWorker: false });
@@ -60,8 +61,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

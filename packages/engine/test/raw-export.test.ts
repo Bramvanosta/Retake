@@ -21,7 +21,7 @@ import { EngineError, openWorkspace, planOfRun, planWork, rawExportWork, runnerW
 import type { CaptureRaw, OpenedWorkspace, RunRef } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { openProjectBySlug } from '../src/projects.js';
-import { syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { syntheticRunRecord } from '@retake/test-support/render';
 
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 const FIXTURES = join(REPO, 'packages', 'editor', 'test', 'fixtures');

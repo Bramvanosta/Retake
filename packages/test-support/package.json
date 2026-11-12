@@ -1,0 +1,23 @@
+{
+  "name": "@retake/test-support",
+  "version": "0.2.6",
+  "private": true,
+  "description": "The helpers the tests of several packages share (no build: read from its sources by vitest's aliases and tsconfig.test.json's paths; never a dependency of a package, never in the app).",
+  "type": "module",
+  "exports": {
+    "./auth": "./src/auth.ts",
+    "./capture": "./src/capture.ts",
+    "./child-env": "./src/child-env.ts",
+    "./confinement": "./src/confinement.ts",
+    "./home": "./src/home.ts",
+    "./http": "./src/http.ts",
+    "./render": "./src/render.ts",
+    "./repo": "./src/repo.ts",
+    "./review": "./src/review.ts",
+    "./runs": "./src/runs.ts",
+    "./site": "./src/site.ts",
+    "./take": "./src/take.ts",
+    "./timeline": "./src/timeline.ts",
+    "./workspace": "./src/workspace.ts"
+  }
+}

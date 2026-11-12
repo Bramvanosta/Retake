@@ -18,7 +18,7 @@ import { FileJobQueue, openWorkspace, selfIdentity } from '@retake/engine';
 import type { JobQueueView, JobRecord } from '@retake/engine';
 import { JOB_END_PER_MIN, Live, PIPE_LINE_MAX, Supervisor, UnsavedBoard, jobOutcome, pendingLine, pipeKind } from '../src/index.js';
 import type { PipeOut } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const P = 'northfield-fixture';
 let ws: string;

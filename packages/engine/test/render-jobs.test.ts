@@ -12,9 +12,11 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, historyFile, jobsDir, runWorker } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -26,7 +28,7 @@ let renders: string;
 let timelineFile: string;
 let engine: Engine;
 let queue: FileJobQueue;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** The worker, in this process, for one job (or none). */
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
@@ -38,7 +40,7 @@ async function rendersFiles(): Promise<string[]> {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-render-jobs-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   // L5.15: the workspace's render settings reach the job's render (the job process opens the workspace).
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\nrender:\n  concurrency: 2\n`);
   const dir = join(root, 'projects', 'demo');
@@ -72,8 +74,7 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) {
     await chmod(jobsDir(root), 0o755).catch(() => undefined);
     await rm(root, { recursive: true, force: true });

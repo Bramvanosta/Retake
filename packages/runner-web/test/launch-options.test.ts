@@ -29,14 +29,16 @@ import {
   renderCursorAtlas,
   signIn,
 } from '../src/index.js';
-import { startAuthServer } from './auth-server.js';
-import type { AuthServer } from './auth-server.js';
-import { makeProject, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
-import { BRAND_SITE_URL, hasOpenssl, startBrandSite } from './site-fixture.js';
-import type { BrandSite } from './site-fixture.js';
+import { startAuthServer } from '@retake/test-support/auth';
+import type { AuthServer } from '@retake/test-support/auth';
+import { makeProject, tempDir } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
+import { BRAND_SITE_URL, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
 import { retakeHome } from '@retake/core/io';
 import type { WorkPolicy } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
@@ -375,8 +377,8 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
   it('the sign-in window (headless here)', async () => {
     site = 'login';
     const home = await tempDir('rw-launch-home-');
-    const saved = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    const testHome = scratchHome();
+    testHome.use(home);
     try {
       const project = makeProject(await tempDir('rw-launch-login-'), { app: auth.url });
       project.config.auth = { login_url: '/sign-in', personas: { supplier: { pages: ['app'] } } };
@@ -385,7 +387,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
         () => undefined,
       );
     } finally {
-      process.env.RETAKE_HOME = saved;
+      testHome.restore();
       await rm(home, { recursive: true, force: true });
     }
     expect(commandLineOf('login').off).toEqual([]);
@@ -476,8 +478,8 @@ describe('each launch site refuses a browser whose own command line turns the sa
 
   it('the sign-in window refuses it', async () => {
     const home = await tempDir('rw-launch-wrap-home-');
-    const savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    const testHome = scratchHome();
+    testHome.use(home);
     try {
       const project = makeProject(await tempDir('rw-launch-wrap-login-'), { app: auth.url });
       project.config.auth = { login_url: '/sign-in', personas: { supplier: { pages: ['app'] } } };
@@ -486,7 +488,7 @@ describe('each launch site refuses a browser whose own command line turns the sa
         signIn({ policy: policy, project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) }),
       ).rejects.toThrow(REFUSED);
     } finally {
-      process.env.RETAKE_HOME = savedHome;
+      testHome.restore();
       await rm(home, { recursive: true, force: true });
     }
   }, 60_000);

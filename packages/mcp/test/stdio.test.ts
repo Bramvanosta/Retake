@@ -11,12 +11,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { clientPath } from '@retake/core/io';
 import { stableNodePath } from '@retake/engine/integrations';
 import { TOOLS } from '../src/index.js';
 import { progressReporter } from '../src/server.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 /** `studio` from the sources (no build): the workspace packages' `source` export condition + tsx. */

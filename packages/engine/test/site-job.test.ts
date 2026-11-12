@@ -1,8 +1,7 @@
 /**
  * L3.5 `site` jobs (engine jobs/site-job.ts, R-MCP-12), the worker run in this process (`once`).
  *
- * Without any network (always run, openssl or not): forged jobs refused WHOLE by the worker before anything opens (no
- * approval, an unsigned one, one signed for URL A with the input edited to URL B); the job's own checks; site.json read
+ * Without any network (always run, openssl or not): the job's own checks; site.json read
  * back as a file of the workspace (values of another shape go; links, large or other files are no candidate or
  * screenshot); the job's warnings shown as the tool's text only when they are its sentences; the extraction's folder
  * made new by the worker (planted folder or linked parents refused); `site:` references in a create (resolved; a
@@ -14,6 +13,8 @@
  * result, nothing under templates/, a history line without a project); an extraction cancelled while it reads its page
  * (on the in-memory capture runner), through job_cancel within seconds — the worker free for the next job. A page that
  * busy-loops its renderer is the runner package's own test (runner-web site-hostile.test.ts).
+ * L7.37: forged jobs refused WHOLE by the worker before anything opens (no approval, an unsigned one, one signed for URL
+ * A with the input edited to URL B) run the worker on the in-memory capture runner too, which shows nothing reached it.
  */
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -49,15 +50,16 @@ import type { ApprovalOutcome, Approver, Engine, EngineError, JobRecord, OpenedW
 import { ManualClock, systemClock } from '../src/clock.js';
 import { MemoryCancelledError, MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { emptySiteReport, memorySite } from '../src/capture/memory-sessions.js';
-import { BRAND_SITE_COLORS, drawPng, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
-import type { BrandSite } from '../../runner-web/test/site-fixture.js';
+import { BRAND_SITE_COLORS, drawPng, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
+import { scratchHome } from '@retake/test-support/home';
 
 const can = hasOpenssl();
 let site: BrandSite;
 let root: string;
 let ws: OpenedWorkspace;
 let engine: Engine;
-const saved = { home: process.env.RETAKE_HOME, resolve: process.env.RETAKE_UNSAFE_TEST_RESOLVE };
+const retakeHome = scratchHome('RETAKE_UNSAFE_TEST_RESOLVE');
 const asked: SiteApprovalRequest[] = [];
 const approver = (outcome: ApprovalOutcome): Approver => ({
   approve: async () => ({ approved: false, reason: 'error', message: 'not a hook test' }),
@@ -80,7 +82,7 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 beforeAll(async () => {
   if (can) site = await startBrandSite();
   root = await mkdtemp(join(tmpdir(), 'studio-site-jobs-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   // Without openssl the names still parse (nothing connects to them: the tests of that part open no page).
   process.env.RETAKE_UNSAFE_TEST_RESOLVE = can ? site.resolveEnv : 'brand.test=127.0.0.1:9,www.brand.test=127.0.0.1:9,cdn.test=127.0.0.1:9,hostile.test=127.0.0.1:9';
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
@@ -95,13 +97,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await site?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_UNSAFE_TEST_RESOLVE', saved.resolve],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 /** The job a directly executed site job belongs to (its approval is signed for it). */
@@ -124,34 +120,6 @@ async function fakeExtraction(id: string, files: Record<string, Buffer | string>
 }
 
 describe('site jobs without any network', () => {
-  it('the worker refuses a forged job whole, before anything opens (no folder made)', async () => {
-    const queue = new FileJobQueue(root);
-    const base = (url: string): SiteJobInput => ({ version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url, submitted_by: 'cli' });
-    // 1. No approval at all (whatever submitted_by says).
-    const bare = await queue.enqueue(base('https://brand.test/'));
-    // 2. An approval written into job.json without a signature.
-    const unsigned = await queue.enqueue(base('https://brand.test/'));
-    const stored = (await queue.stored(unsigned.id))!;
-    await queue.write({ ...stored, input: { ...(stored.input as SiteJobInput), approvals: approval('https://brand.test/') } });
-    // 3. Signed for URL A, the input then edited to URL B (fingerprint left, then changed too).
-    const signedA = await queue.enqueue({ ...base('https://brand.test/'), submitted_by: 'mcp', approvals: approval('https://brand.test/') });
-    const a = (await queue.stored(signedA.id))!;
-    await queue.write({ ...a, input: { ...(a.input as SiteJobInput), url: 'https://www.brand.test/' } });
-    const signedB = await queue.enqueue({ ...base('https://brand.test/'), submitted_by: 'mcp', approvals: approval('https://brand.test/') });
-    const b = (await queue.stored(signedB.id))!;
-    const ai = b.input as SiteJobInput;
-    await queue.write({ ...b, input: { ...ai, url: 'https://www.brand.test/', approvals: ai.approvals!.map((x) => ({ ...x, fingerprint: siteApprovalFingerprint('https://www.brand.test/') })) } });
-    // 4. A valid signature over an input whose approval is for another URL (a submit that approved A and queued B).
-    const mismatched = await queue.enqueue({ ...base('https://www.brand.test/'), submitted_by: 'mcp', approvals: approval('https://brand.test/') });
-    for (const j of [bare, unsigned, signedA, signedB, mismatched]) {
-      await work();
-      const done = await engine.jobs.get(j.id);
-      expect(done.state, j.id).toBe('failed');
-      expect(done.error, j.id).toMatchObject({ code: 'refused', message: expect.stringMatching(/refused without running: a site job runs only with a human's approval/) });
-      expect(existsSync(siteDir(ws, (done.input as SiteJobInput).site_id)), j.id).toBe(false);
-    }
-  }, 60_000);
-
   it('the job checks for itself, whatever the worker in front of it does: verified approval, URL, environment host', async () => {
     const ctx = (input: SiteJobInput) => ({
       ...enginePorts(),
@@ -382,6 +350,39 @@ describe('site jobs without any network', () => {
 });
 
 describe('site jobs on the in-memory capture runner', () => {
+  it('the worker refuses a forged job whole, before anything opens (no folder made)', async () => {
+    const queue = new FileJobQueue(root);
+    const base = (url: string): SiteJobInput => ({ version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url, submitted_by: 'cli' });
+    // 1. No approval at all (whatever submitted_by says).
+    const bare = await queue.enqueue(base('https://brand.test/'));
+    // 2. An approval written into job.json without a signature.
+    const unsigned = await queue.enqueue(base('https://brand.test/'));
+    const stored = (await queue.stored(unsigned.id))!;
+    await queue.write({ ...stored, input: { ...(stored.input as SiteJobInput), approvals: approval('https://brand.test/') } });
+    // 3. Signed for URL A, the input then edited to URL B (fingerprint left, then changed too).
+    const signedA = await queue.enqueue({ ...base('https://brand.test/'), submitted_by: 'mcp', approvals: approval('https://brand.test/') });
+    const a = (await queue.stored(signedA.id))!;
+    await queue.write({ ...a, input: { ...(a.input as SiteJobInput), url: 'https://www.brand.test/' } });
+    const signedB = await queue.enqueue({ ...base('https://brand.test/'), submitted_by: 'mcp', approvals: approval('https://brand.test/') });
+    const b = (await queue.stored(signedB.id))!;
+    const ai = b.input as SiteJobInput;
+    await queue.write({ ...b, input: { ...ai, url: 'https://www.brand.test/', approvals: ai.approvals!.map((x) => ({ ...x, fingerprint: siteApprovalFingerprint('https://www.brand.test/') })) } });
+    // 4. A valid signature over an input whose approval is for another URL (a submit that approved A and queued B).
+    const mismatched = await queue.enqueue({ ...base('https://www.brand.test/'), submitted_by: 'mcp', approvals: approval('https://brand.test/') });
+    // The worker on the in-memory capture runner: an extraction it reached would be kept here.
+    const extracted: string[] = [];
+    const capture = new MemoryCaptureRunner({ site: memorySite((o) => (extracted.push(o.url), emptySiteReport(o.url))) });
+    for (const j of [bare, unsigned, signedA, signedB, mismatched]) {
+      await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture } });
+      const done = await engine.jobs.get(j.id);
+      expect(done.state, j.id).toBe('failed');
+      expect(done.error, j.id).toMatchObject({ code: 'refused', message: expect.stringMatching(/refused without running: a site job runs only with a human's approval/) });
+      expect(existsSync(siteDir(ws, (done.input as SiteJobInput).site_id)), j.id).toBe(false);
+    }
+    // Refused whole before anything opens: the runner was never asked to extract.
+    expect(extracted).toEqual([]);
+  }, 60_000);
+
   it('an extraction cancelled while it reads its page: job_cancel ends the job within seconds and the worker takes the next one', async () => {
     // The renderer's busy loop itself is the runner package's (site-hostile.test.ts): here an extraction that reads its
     // page until it is cancelled, on the in-memory capture runner — the job's cancel, the worker freed.

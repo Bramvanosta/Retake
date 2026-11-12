@@ -16,8 +16,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScenarioError, parseYaml, stepGuard } from '@retake/core';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine, StepBinding } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
-import { BLOCKS_YAML, capture, writeRun } from './synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, capture, writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const P = 'northfield-fixture';
@@ -26,7 +27,7 @@ const RLO = String.fromCodePoint(0x202e);
 let ws: string;
 let dir: string;
 let ui: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const file = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
 const stepsOf = (t: string, scene: string) => (parseYaml(t).value as { scenes: Array<{ id: string; steps: unknown[] }> }).scenes.find((s) => s.id === scene)!.steps;
 const at = (t: string, scene: string, index: number) => ({ scene, index, guard: stepGuard(stepsOf(t, scene)[index]) });
@@ -51,7 +52,7 @@ async function snapshot(name: string): Promise<{ bytes: string; mtime: number }>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-step-edit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   dir = join(ws, 'projects', P);
   await writeFile(file('blocks'), BLOCKS_YAML);
@@ -60,8 +61,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

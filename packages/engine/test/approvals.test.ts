@@ -35,8 +35,10 @@ import {
 } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 interface Fixture {
   urls: { console: string; shop: string };
@@ -50,7 +52,7 @@ let engine: Engine;
 let fake: Engine;
 const memory = new MemoryHookRunner({ needsHuman: (h) => (h.name === 'free-registry-ref' ? 'HTTP DELETE' : undefined) });
 let project: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** An approver that answers `outcome` and records what it was asked. */
 function approver(outcome: ApprovalOutcome | (() => Promise<ApprovalOutcome>)): Approver & { asked: ApprovalRequest[] } {
@@ -87,7 +89,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   ws = await mkdtemp(join(tmpdir(), 'studio-approvals-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   project = join(ws, 'projects', 'northfield-fixture');
   const yaml = (await readFile(join(project, 'project.yaml'), 'utf8')).replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop);
@@ -99,8 +101,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
 });

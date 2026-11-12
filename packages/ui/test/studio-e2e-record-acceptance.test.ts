@@ -29,8 +29,9 @@ import { timelineOf } from '@retake/editor';
 import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { RecordViewAnswer, StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 type Window = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
@@ -55,7 +56,7 @@ let root: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const workerLogs: string[] = [];
 const consoleErrors: string[] = [];
 const timings: Record<string, number> = {};
@@ -163,7 +164,7 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-ui-record-acceptance-'));
-    process.env.RETAKE_HOME = join(root, '.home');
+    retakeHome.use(join(root, '.home'));
     await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -193,8 +194,7 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     await studio?.close();
     await fixture?.close();
     if (root) await rm(root, { recursive: true, force: true });
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
   });
 
   it('record → inserts and a pick → Stop → the check → Save: the scenario holds them where they were placed', async () => {

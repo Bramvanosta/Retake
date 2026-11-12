@@ -17,6 +17,12 @@ import { ULID_PREFIXES } from '../src/id-grammar.js';
 import * as lib from '../../../scripts/audit/lib.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+/**
+ * The repository's ratchet entries, computed once for the file (L7.37): the tree does not change while it runs, and a
+ * dozen whole scans (~4 s each, synchronous) ran past vitest's 60 s RPC timeout on a loaded machine.
+ */
+let repoEntries: string[] | undefined;
+const ratchetOfRepo = (): string[] => [...(repoEntries ??= lib.ratchetEntries(ROOT) as string[])];
 
 type Hit = { rule: string; file: string; spec: string };
 const hits = (fileImports: Record<string, readonly string[]>, root = ROOT): string[] => lib.ruleHits(root, fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
@@ -24,7 +30,7 @@ const wiring = (rel: string, text: string): string[] => lib.wiringHits(ROOT, [{ 
 
 describe('the import-rules ratchet', () => {
   it('the repository holds its baseline: no new violation, no stale entry, every group with a reason', () => {
-    const entries = lib.ratchetEntries(ROOT);
+    const entries = ratchetOfRepo();
     const report = lib.ratchetReport(lib.compareBaseline(entries, lib.readBaseline(ROOT)));
     expect(report, report).toBe('');
     // The baseline is written the way --write-baseline writes it (so that command only ever changes what moved).
@@ -384,7 +390,7 @@ describe('the import-rules ratchet', () => {
     });
 
     it('holds today: no product adapter named outside its roots, and the files that read the clock or build a storage each pinned', () => {
-      const entries = lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('clock-read ') || e.startsWith('store-new '));
+      const entries = ratchetOfRepo().filter((e: string) => e.startsWith('clock-read ') || e.startsWith('store-new '));
       expect(entries.filter((e: string) => e.endsWith('outside a root'))).toEqual([]);
       for (const e of entries) expect(e).toMatch(/^(clock-read packages\/engine\/src\/\S+ → \d+ wall-clock reads?|store-new packages\/engine\/src\/\S+ → new LocalStorage)$/);
       // No authored write builds its own store: the project store's disk adapter is built in its own file only.
@@ -507,12 +513,12 @@ describe('the import-rules ratchet', () => {
       expect(at({ [port]: ['@retake/core', '@retake/core/io', '@retake/sandbox/types'] })).toEqual([]);
       expect(at({ [port]: ['@retake/sandbox'] })).toEqual([`port-types ${port} → @retake/sandbox`]);
       // The engine names the sandbox package nowhere but in its loader and through the types entry (R11 holds no sandbox pair).
-      const entries = lib.ratchetEntries(ROOT) as string[];
+      const entries = ratchetOfRepo();
       expect(entries.filter((e) => e.startsWith('R11 ') && e.includes('@retake/sandbox'))).toEqual([]);
     });
 
     it("holds today: the new ports name no adapter, and the loaders left outside their homes are the review loader's, pinned", () => {
-      const entries = lib.ratchetEntries(ROOT) as string[];
+      const entries = ratchetOfRepo();
       expect(entries.filter((e) => e.startsWith('port-types ')).filter((e) => !e.startsWith('port-types packages/engine/src/render/renderer.ts '))).toEqual([]);
       expect(entries.filter((e) => e.startsWith('loader-use ') && e.endsWith('outside a root'))).toEqual([]);
       for (const e of entries.filter((x) => x.startsWith('loader-use '))) expect(e).toMatch(/ → review( re-exported)?$/);
@@ -537,8 +543,101 @@ describe('the import-rules ratchet', () => {
     });
 
     it('holds today: the registry is named in its home only', () => {
-      expect((lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('browser-registry '))).toEqual([]);
+      expect(ratchetOfRepo().filter((e) => e.startsWith('browser-registry '))).toEqual([]);
       expect(readFileSync(join(ROOT, lib.BROWSER_REGISTRY_HOME), 'utf8')).toContain("'playwright-core/lib/server/registry/index'");
+    });
+  });
+
+  describe("test-reach and home-restore: the tests' shared helpers in one package (L7.37, finding C5)", () => {
+    const reach = (rel: string, text: string): string[] => (lib.testReachHits(ROOT, [{ rel, text }]) as Hit[]).map((h) => `${h.file} → ${h.spec}`);
+    const homes = (rel: string, text: string): string[] => (lib.homeRestoreHits(ROOT, [{ rel, text }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
+
+    it("test-reach: another package's test folder reached by a relative path, in every form a test names a module; its own folder and the shared helpers are free", () => {
+      const f = 'packages/mcp/test/a.test.ts';
+      expect(
+        reach(
+          f,
+          [
+            "import { fixtureWorkspace } from '../../engine/test/helpers.js';",
+            "import type { Case } from '../../review/test/helpers.js';",
+            "export { raw } from '../../ui/test/http.js';",
+            "const { makeScenario } = await import('../../runner-web/test/helpers.js');",
+            "vi.mock('../../editor/test/render-helpers.js');",
+            "const x = require('../../core/test/child-env.js');",
+            "type T = typeof import('../../ui/test/studio-tools.js');",
+            "import { buildState } from '../../core/test/fixtures/records/build.js';",
+          ].join('\n'),
+        ),
+      ).toEqual([
+        `${f} → packages/engine/test/helpers`,
+        `${f} → packages/review/test/helpers`,
+        `${f} → packages/ui/test/http`,
+        `${f} → packages/runner-web/test/helpers`,
+        `${f} → packages/editor/test/render-helpers`,
+        `${f} → packages/core/test/child-env`,
+        `${f} → packages/ui/test/studio-tools`,
+        `${f} → packages/core/test/fixtures/records/build`,
+      ]);
+      // Its own test folder, a package's sources, the shared helpers by name, a path built for a read: none is a reach.
+      expect(
+        reach(
+          f,
+          "import { a } from './helpers.js';\nimport { b } from '../src/index.js';\nimport { c } from '@retake/test-support/workspace';\nconst d = new URL('../../editor/test/fixtures/', import.meta.url);\nimport { e } from '../../engine/src/index.js';",
+        ),
+      ).toEqual([]);
+      // The shared helpers own no test folder: any package's is a reach from there.
+      expect(reach('packages/test-support/src/x.ts', "import { y } from '../../editor/test/helpers.js';")).toEqual(['packages/test-support/src/x.ts → packages/editor/test/helpers']);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'test-reach')!.title;
+      for (const words of ['Not seen', 'computed at run time', 'read by path']) expect(title, words).toContain(words);
+    });
+
+    it('home-restore: RETAKE_HOME kept for later or deleted is counted; read where it is used, set, or handed to a child is not; the helper is its home', () => {
+      const f = 'packages/ui/test/a.test.ts';
+      // The delete spelt in pieces: core retake-home.test.ts reads every test file for a bare one.
+      const DEL = 'delete process.env' + '.RETAKE_HOME;';
+      expect(homes(f, `const savedHome = process.env.RETAKE_HOME;\nif (savedHome === undefined) ${DEL}\nelse process.env.RETAKE_HOME = savedHome;`)).toEqual([`${f} → 2`]);
+      expect(
+        homes(
+          f,
+          "const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };\nlet h: string | undefined;\nh = process.env['RETAKE_HOME'];\nconst k = [process.env.RETAKE_HOME!];\nconst m = (process.env.RETAKE_HOME as string);",
+        ),
+      ).toEqual([`${f} → 4`]);
+      expect(
+        homes(
+          f,
+          "process.env.RETAKE_HOME = join(ws, '.home');\nconst tokens = join(process.env.RETAKE_HOME!, 'ui');\nspawn('x', [], { env: { RETAKE_HOME: home } });\nexpect(process.env.RETAKE_HOME?.trim()).toBeTruthy();",
+        ),
+      ).toEqual([]);
+      expect(homes(lib.HOME_HELPER, `const saved = process.env.RETAKE_HOME;\n${DEL}`)).toEqual([]);
+      expect(homes('packages/test-support/src/other.ts', 'const saved = process.env.RETAKE_HOME;')).toEqual(['packages/test-support/src/other.ts → 1']);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'home-restore')!.title;
+      for (const words of ['Not seen', 'scratchHome()', '{ ...process.env }']) expect(title, words).toContain(words);
+    });
+
+    it("holds today: no hand-written save or restore of RETAKE_HOME but the helper's own test; the reaches left are the record corpus and the Studio stand-ins, each with its reason", () => {
+      // The two checks alone (the whole ratchet is the first test's): their entries as the ratchet writes them.
+      const tests = lib.testSources(ROOT);
+      const entries = [
+        ...new Set((lib.testReachHits(ROOT, tests) as Hit[]).map((h) => `test-reach ${h.file} → ${h.spec}`)),
+        ...(lib.homeRestoreHits(ROOT, tests) as Array<{ file: string; count: number }>).map(
+          (h) => `home-restore ${h.file} → ${h.count} hand-written RETAKE_HOME save${h.count === 1 ? '' : 's'} or restore${h.count === 1 ? '' : 's'}`,
+        ),
+      ];
+      // Each of them pinned in the baseline with its group's reason, none more (the first test holds the whole ratchet).
+      const pinned = (lib.readBaseline(ROOT) as { groups: Array<{ rule: string; reason: string; entries: string[] }> }).groups.filter((g) => g.rule === 'test-reach' || g.rule === 'home-restore');
+      expect(pinned.every((g) => g.reason.trim().length > 40)).toBe(true);
+      expect([...entries].sort()).toEqual(pinned.flatMap((g) => g.entries.map((e) => `${g.rule} ${e}`)).sort());
+      // One kept by hand on purpose: the helper's own test (core retake-home.test.ts) keeps the run's home without it.
+      expect(entries.filter((e) => e.startsWith('home-restore '))).toEqual(['home-restore packages/core/test/retake-home.test.ts → 1 hand-written RETAKE_HOME save or restore']);
+      const left = entries.filter((e) => e.startsWith('test-reach ')).map((e) => e.split(' → ')[1]);
+      expect([...new Set(left)].sort()).toEqual([
+        'packages/core/test/fixtures/records/build',
+        'packages/core/test/fixtures/records/build-renders',
+        'packages/core/test/fixtures/records/prune-layouts',
+        'packages/ui/test/studio-tools',
+      ]);
+      // The helper saves and restores every variable it was given, deleting one that was unset.
+      expect(readFileSync(join(ROOT, lib.HOME_HELPER), 'utf8')).toContain('delete process.env[name]');
     });
   });
 
@@ -647,7 +746,7 @@ describe('the import-rules ratchet', () => {
     });
 
     it('holds today: two imports of a later context, none of the root', () => {
-      const today = lib.ratchetEntries(ROOT) as string[];
+      const today = ratchetOfRepo();
       expect(today.filter((e) => e.startsWith('core-context '))).toEqual([
         'core-context packages/core/src/checks/scenario.ts → packages/core/src/template-defaults.ts',
         'core-context packages/core/src/script-draft.ts → packages/core/src/inspect.ts',
@@ -699,7 +798,7 @@ describe('the import-rules ratchet', () => {
     });
 
     it("holds today: one exception, the doctor's exec probe; the wrapper starts them", () => {
-      expect((lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('media-call '))).toEqual(['media-call packages/cli/src/commands/doctor.ts → 2 media tool starts']);
+      expect(ratchetOfRepo().filter((e) => e.startsWith('media-call '))).toEqual(['media-call packages/cli/src/commands/doctor.ts → 2 media tool starts']);
       const home = readFileSync(join(ROOT, lib.MEDIA_RUN_HOME), 'utf8');
       for (const f of ['export function runMediaTool(', 'export function runMediaToolSync(', 'export function startMediaTool(', 'export class MediaToolError ']) expect(home, f).toContain(f);
     });
@@ -739,7 +838,7 @@ describe('the import-rules ratchet', () => {
     });
 
     it('holds today: the operations each shell still defines, none in the engine (the counts move as families move)', () => {
-      const entries = (lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('shell-op '));
+      const entries = ratchetOfRepo().filter((e) => e.startsWith('shell-op '));
       const total = (prefix: string) => entries.filter((e) => e.startsWith(`shell-op ${prefix}`)).reduce((n, e) => n + Number(/→ (\d+) operations? defined$/.exec(e)![1]), 0);
       // L7.13: 34 / 65 (the eleven both serve moved); L7.14: 30 / 55 (MCP's four read-only queries — scenario_get,
       // plan_preview, render_status, review_get — and the Studio's ten screen reads); L7.17: 21 / 44 (the theme,
@@ -807,7 +906,7 @@ describe('the import-rules ratchet', () => {
     });
 
     it("holds today: no file outside the engine orchestrates hooks (L7.23: the CLI's hooks.ts had 6 — 5 of the plan's list and one rollbackAll)", () => {
-      expect((lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('hook-call '))).toEqual([]);
+      expect(ratchetOfRepo().filter((e) => e.startsWith('hook-call '))).toEqual([]);
       expect(at('packages/cli/src/commands/hooks.ts', readFileSync(join(ROOT, 'packages/cli/src/commands/hooks.ts'), 'utf8'))).toEqual([]);
     });
   });
@@ -1282,10 +1381,15 @@ describe('the import-rules ratchet', () => {
   });
 
   it('every package is in exactly one layer; a relative import never leaves its package; a .cts source is read like the others', () => {
-    // A new folder of packages/ belongs to no list until someone decides its layer: the rules would not read it.
+    // A new folder of packages/ belongs to no list until someone decides its layer: the rules would not read it. The
+    // tests' shared helpers are test code, in no layer and left out of the scan (L7.37): their rules are test-reach and
+    // home-restore.
+    expect(lib.TEST_SUPPORT).toBe('test-support');
     const dirs = readdirSync(join(ROOT, 'packages'))
-      .filter((d) => statSync(join(ROOT, 'packages', d)).isDirectory())
+      .filter((d) => statSync(join(ROOT, 'packages', d)).isDirectory() && d !== lib.TEST_SUPPORT)
       .sort();
+    expect(Object.values(lib.LAYERS as Record<string, string[]>).flat()).not.toContain(lib.TEST_SUPPORT);
+    expect((lib.scan(ROOT) as { pkgs: string[] }).pkgs).not.toContain(lib.TEST_SUPPORT);
     const layers = lib.LAYERS as Record<string, string[]>;
     expect(Object.keys(layers)).toEqual(['domain', 'adapters', 'application', 'shells']);
     expect(Object.values(layers).flat().sort()).toEqual(dirs);
@@ -1498,7 +1602,7 @@ describe('the import-rules ratchet', () => {
       expect(lib.LIBRARY_FREE_DIRS).toEqual(['packages/components/library', 'packages/components/scaffolds']);
       // Every seam exists, and the repository has no R10 entry: the baseline starts empty for this rule.
       for (const f of Object.keys(lib.LIBRARY_SEAMS)) expect(readFileSync(join(ROOT, f), 'utf8').length, f).toBeGreaterThan(0);
-      expect(lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('R10 '))).toEqual([]);
+      expect(ratchetOfRepo().filter((e: string) => e.startsWith('R10 '))).toEqual([]);
       expect((lib.readBaseline(ROOT).groups as { rule: string }[]).filter((g) => g.rule === 'R10')).toEqual([]);
       expect(lib.CHECKS.map((c: { id: string }) => c.id)).toContain('R10');
     });
@@ -1642,7 +1746,7 @@ describe('the import-rules ratchet', () => {
     expect([...lib.LAYOUT_NAMES].sort()).toEqual([...Object.values(PROJECT_DIRS), STATE_DIR].sort());
     expect([...lib.LAYOUT_FILES].sort()).toEqual([HISTORY_FILE, WORKSPACE_JOURNAL_FILE, PROJECT_SCENARIO_WRITES_FILE].sort());
     // A ratchet entry per file, with its count: one more path in a file is a new entry (and its old count a stale one).
-    const entries = lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('layout '));
+    const entries = ratchetOfRepo().filter((e: string) => e.startsWith('layout '));
     expect(entries.length).toBeGreaterThan(0);
     for (const e of entries) expect(e).toMatch(/^layout packages\/[\w-]+\/src\/\S+ → \d+ hand-written layout paths?$/);
     // The engine, the hooks and the sandbox spell no layout path by hand any more (only messages of the catalogue).

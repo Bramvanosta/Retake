@@ -19,7 +19,7 @@ import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { RenderCancelledError, RenderDiskFullError, bundleHash, isDiskFullError, renderComponentLoops, renderComponentPreviews } from '@retake/editor';
 import type { BundleComponent, ComponentPreviewSpec, LoopItem, PreviewBackend, PreviewComponentTarget } from '@retake/editor';
-import { REPO } from './render-helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 let root: string;

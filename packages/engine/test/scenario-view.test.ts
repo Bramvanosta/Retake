@@ -17,16 +17,17 @@ import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { EngineError, RunDataCache, ScenarioViews, VIEW_STEPS_MAX, WorkspaceIndex, createEngine, openProjectBySlug, runChanges, workspaceChanges } from '../src/index.js';
 import type { Engine, ScenarioView, StepBinding } from '../src/index.js';
-import { BLOCKS_YAML, BLUE, GREEN, RED, capture, writeRun } from './synthetic-runs.js';
+import { BLOCKS_YAML, BLUE, GREEN, RED, capture, writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let projectDir: string;
 let engine: Engine;
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const CAP = '20261020-100000-blocks';
 const DRY_UNTIL = '20261021-090000-blocks';
 const RUNNING = '20261021-100000-blocks';
@@ -35,7 +36,7 @@ const bound = (b: StepBinding | undefined) => (b && 'picture' in b ? b : undefin
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-view-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   projectDir = join(ws, 'projects', P);
   await writeFile(join(projectDir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -60,8 +61,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

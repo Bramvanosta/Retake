@@ -20,8 +20,9 @@ import type { RunOptions } from '../src/index.js';
 import { STATES, buildState, stateIds, writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import type { BuiltState } from '../../core/test/fixtures/records/build.js';
 import { DRY_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, startServer } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 let root: string;
 let server: TestServer;

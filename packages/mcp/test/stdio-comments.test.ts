@@ -23,10 +23,12 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { CommentThread } from '@retake/core';
 import { createEngine } from '@retake/engine';
 import type { CommentListView, CommentProposalView, CommentView, Engine } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Workspace } from '../../review/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Workspace } from '@retake/test-support/review';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome } from '@retake/test-support/home';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const SOURCE_ARGS = ['--conditions=source', '--import', 'tsx', BIN];
@@ -296,7 +298,7 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
   let ui: Engine;
   let studioId: string;
   const scenarioFile = () => join(ws.project.dir, 'scenarios', 'quote.yaml');
-  const savedHome = process.env.RETAKE_HOME;
+  const retakeHome = scratchHome();
   /** The thread's and the scenario's bytes: unchanged after a refusal. */
   const bytes = async () => [await readFile(threadPath(studioId), 'utf8'), await readFile(scenarioFile(), 'utf8')];
   const reply = (proposal: Record<string, unknown>, id = studioId) => call('comment_reply', { project: 'demo', comment_id: id, text: 'Proposed a shorter caption.', proposal });
@@ -305,15 +307,14 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
     await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });
     await writeFile(scenarioFile(), TOUR);
     // The person at the Studio: the Studio's own engine client writes the thread as `studio`.
-    process.env.RETAKE_HOME = join(ws.root, '.home');
+    retakeHome.use(join(ws.root, '.home'));
     ui = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false });
     const record = JSON.parse(await readFile(join(ws.project.dir, 'renders', 'quote-v1.json'), 'utf8')) as { created_at: string };
     studioId = (await ui.comments.add('demo', { render: 'quote-v1', render_created_at: record.created_at, frame: 20, text: 'The intro caption says too much.' })).thread.id;
   }, LONG);
 
   afterAll(() => {
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
   });
 
   it("the INSTRUCTIONS: the proposal loop for an edit-only change on a Studio thread, the direct loop otherwise, the Studio never Claude's (Q1 as amended, critique B6)", () => {

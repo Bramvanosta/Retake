@@ -18,8 +18,9 @@ import { scaffoldDir } from '@retake/components';
 import { usedComponentIds } from '@retake/editor';
 import { EngineError, clearTimelineViewMemo, createEngine, knownScenarioVersion } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const canEncode = hasTool('ffmpeg');
 const SCENARIO = 'tl';
@@ -49,7 +50,7 @@ let root: string;
 let dir: string;
 let ui: Engine;
 let mcp: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let n = 0;
 const scenarioFile = (name = SCENARIO) => join(dir, 'scenarios', `${name}.yaml`);
 
@@ -98,7 +99,7 @@ async function propose(id: string, yaml: string, base = TEXT): Promise<{ entry: 
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-timeline-proposal-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -171,8 +172,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

@@ -20,10 +20,11 @@ import { FileJobQueue, indexFile, newJobId } from '@retake/engine';
 import { scaffoldDir } from '@retake/components';
 import { EVENT_STREAMS_MAX, startStudioServer } from '../src/index.js';
 import type { LibraryViewAnswer, StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 import { commentsEventAction } from '../src/app/events.js';
 import type { StudioEvent } from '../src/app/events.js';
+import { scratchHome } from '@retake/test-support/home';
 
 interface Stream {
   status: number;
@@ -90,7 +91,7 @@ function stream(port: number, headers: Record<string, string>): Promise<Stream> 
 
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const P = 'northfield-fixture';
 const auth = () => ({ authorization: `Bearer ${studio.token}` });
 const json = { 'content-type': 'application/json' };
@@ -103,7 +104,7 @@ const until = async (f: () => boolean, ms = 3000) => {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-events-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'projects', P, 'README.md'), '# Northfield\n\nGreen coffee for roasters.\n');
   await mkdir(join(ws, '.retake'), { recursive: true });
@@ -116,8 +117,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

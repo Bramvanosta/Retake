@@ -169,7 +169,10 @@ describe('the configure lines', () => {
 const EXTENSION_MUXERS: Record<string, string> = { m4a: 'ipod', mp4: 'mp4', m4v: 'mp4', mov: 'mov', webm: 'webm', mkv: 'matroska', gif: 'gif' };
 
 function engineArguments(): { codecs: Map<string, string>; formats: Map<string, string>; filters: Map<string, string>; muxers: Map<string, string> } {
-  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '--', 'packages/*/src/*.ts', 'packages/*/src/**/*.ts'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+  // The tests' shared helpers (packages/test-support) are test code: their ffmpeg arguments are no engine's.
+  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '--', 'packages/*/src/*.ts', 'packages/*/src/**/*.ts'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter((f) => f && !f.startsWith('packages/test-support/'));
   const codecs = new Map<string, string>();
   const formats = new Map<string, string>();
   const filters = new Map<string, string>();

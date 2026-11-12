@@ -13,7 +13,7 @@ import type { HookApprovalRequest } from '@retake/hooks';
 import { writingHooks } from '@retake/core';
 import type { HookAccess, HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject } from './helpers.js';
-import { STUDIO_CONFINEMENT } from '../../core/test/helpers.js';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 import { AGENT_CONFINEMENT } from '@retake/core';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;

@@ -15,7 +15,8 @@ import type { ComponentRegistry } from '@retake/components';
 import { PLAN_ASSET_SCHEME, PreviewPlanError, planEdit, previewPlan } from '@retake/editor';
 import type { ClipSegment, EditPlan } from '@retake/editor';
 import type { Timeline } from '@retake/core';
-import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 
 const RUN = '/virtual/runs/r';
 let registry: ComponentRegistry;

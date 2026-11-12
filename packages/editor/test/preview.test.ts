@@ -16,7 +16,8 @@ import { PREVIEW_MAX_BYTES, PREVIEW_SIZE, README_BEGIN, createComponent, loadCom
 import type { ComponentRegistry } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples, loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
 import type { PreviewSamples } from '@retake/editor';
-import { REPO, SHARED_CACHE, hasTool } from './render-helpers.js';
+import { REPO, hasTool } from '@retake/test-support/repo';
+import { SHARED_CACHE } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */

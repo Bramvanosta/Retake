@@ -9,8 +9,10 @@ import { CAMERA_EASINGS, cubicBezier } from '@retake/components';
 import type { LoadedTemplate, TimelineEvent } from '@retake/core';
 import { PlanError, loadsBesideOtherPages, mapSourceRect, planEdit, planRunTiming, viewOf } from '@retake/editor';
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
-import { clip, clips, fixtureProject, plan, seg, studioWorkspace, synthTimeline, template } from './helpers.js';
-import type { EntrySpec, PlanContext, Workspace } from './helpers.js';
+import { clip, clips, plan, seg, studioWorkspace } from './helpers.js';
+import { fixtureProject, synthTimeline, template } from '@retake/test-support/timeline';
+import type { EntrySpec } from '@retake/test-support/timeline';
+import type { PlanContext, Workspace } from './helpers.js';
 
 const FPS = 30;
 let ctx: PlanContext;

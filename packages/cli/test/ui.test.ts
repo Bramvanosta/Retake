@@ -33,8 +33,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine';
 import { openBrowser, openLocationScript, shellLineReader, weblocText } from '../src/commands/ui.js';
 import type { Spawner } from '../src/commands/ui.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, capture, writeRun } from '@retake/test-support/runs';
 
 const BIN = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'bin.js');
 const built = existsSync(BIN) && existsSync(join(dirname(BIN), '..', '..', 'ui', 'dist', 'index.js'));

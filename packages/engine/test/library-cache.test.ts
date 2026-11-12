@@ -35,7 +35,7 @@ import {
   stageLibraryEntry,
 } from '../src/index.js';
 import type { LibraryEntryMeta, LibraryKeyContext } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { cleanWorkerEnv, openWorkspace } from '../src/index.js';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */

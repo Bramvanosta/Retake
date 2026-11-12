@@ -5,28 +5,21 @@
  * during clips, a dark bar in the caption area while a cue is on, a box on intro/outro/cards — plus its
  * RenderRecord in renders/. Defects are drawn on purpose (blank screen) or written into the plan (overlapping cues).
  */
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor/plan';
 import type { EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
-import { segmentSpans } from '../src/spans.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import type { SceneSpec } from '../../editor/test/helpers.js';
+import { segmentSpans } from '@retake/review/checks';
 import { PERSON_POLICY } from '@retake/core';
-
-export { synthTimeline };
-export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
-
-export function hasTool(name: string): boolean {
-  return spawnSync(name, ['-version'], { stdio: 'ignore' }).status === 0;
-}
+import { REPO } from './repo.js';
+import { synthTimeline } from './timeline.js';
+import type { SceneSpec } from './timeline.js';
 
 export interface Workspace {
   root: string;

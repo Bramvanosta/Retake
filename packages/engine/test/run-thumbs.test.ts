@@ -19,7 +19,8 @@ import { chmod, link, mkdir, mkdtemp, readFile, rename, rm, symlink, truncate, u
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import {
   EngineError,
   RUN_THUMBS_MAX_KEYS,
@@ -36,9 +37,10 @@ import {
   packageReviewer,
 } from '../src/index.js';
 import type { Engine, RunThumbsView } from '../src/index.js';
-import { BLOCKS_YAML, BLUE, CYAN, GREEN, MAGENTA, ORANGE, RED, YELLOW, capture, centre, colourName, near, noisePng, png, pngBits, writeRun } from './synthetic-runs.js';
-import type { Rgb, SynthRun } from './synthetic-runs.js';
+import { BLOCKS_YAML, BLUE, CYAN, GREEN, MAGENTA, ORANGE, RED, YELLOW, capture, centre, colourName, near, noisePng, png, pngBits, writeRun } from '@retake/test-support/runs';
+import type { Rgb, SynthRun } from '@retake/test-support/runs';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The product's frames (the review package's light entry): the thumbnails these tests check are real. */
 const FRAMES = packageReviewer().frames;
@@ -48,7 +50,7 @@ let tools: string;
 let projectDir: string;
 let engine: Engine;
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const EXPECTED: Record<string, Rgb> = { 'one.0': RED, 'one.1': GREEN, 'one.2': GREEN, 'two.0': YELLOW, 'two.1': MAGENTA };
 const KEYS = Object.keys(EXPECTED);
@@ -70,7 +72,7 @@ beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-run-thumbs-'));
   // The ffmpeg stand-ins live outside the workspace: the Studio's engine runs no program from inside it.
   tools = await mkdtemp(join(tmpdir(), 'studio-run-thumbs-tools-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   projectDir = join(ws, 'projects', P);
   await writeFile(join(projectDir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -78,8 +80,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
   if (tools) await rm(tools, { recursive: true, force: true });
 });

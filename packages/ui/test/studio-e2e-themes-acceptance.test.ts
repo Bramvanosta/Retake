@@ -20,7 +20,8 @@ import { parseYaml } from '@retake/core';
 import { readWorkerLock } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -44,7 +45,7 @@ let root: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const workers = new Set<number>();
 const consoleErrors: string[] = [];
 const timings: Record<string, number> = {};
@@ -89,7 +90,7 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-ui-themes-acceptance-'));
-    process.env.RETAKE_HOME = join(root, '.home');
+    retakeHome.use(join(root, '.home'));
     // The workspace's own themes folder (copies go there); the starters are listed as starters, read-only.
     await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
     await mkdir(join(root, 'templates'));
@@ -135,8 +136,7 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     }
     await fixture?.close();
     console.log(`themes acceptance timings: ${JSON.stringify(timings)}`);
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     if (root) await rm(root, { recursive: true, force: true });
   });
 

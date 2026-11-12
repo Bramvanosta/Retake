@@ -22,12 +22,14 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { mcpHttpTokenFile, readPrivateToken, readWorkerLock, stableToken } from '@retake/engine';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from '../../ui/test/http.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 import { claudeCodeHttpCommand, mcpHttpConfigJson, mcpHttpTokenExport } from '@retake/engine/integrations';
 import { MCP_HTTP_BODY_MAX, TOOLS, listenersAreOurs, lsofPortListeners, startMcpHttpServer } from '../src/index.js';
 import type { McpHttpServer, PortListenerLookup } from '../src/index.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome } from '@retake/test-support/home';
 
 type Result = { content: Array<{ type: string; text: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
 
@@ -45,7 +47,7 @@ async function closeAll(): Promise<void> {
 }
 /** End a session opened by a raw initialize. */
 const endRaw = (id: unknown) => raw(server.port, 'DELETE', '/mcp', { authorization: `Bearer ${token}`, 'mcp-session-id': String(id) });
-const saved = { home: process.env.RETAKE_HOME, idle: process.env.RETAKE_WORKER_IDLE_MS };
+const retakeHome = scratchHome('RETAKE_WORKER_IDLE_MS');
 const P = 'northfield-fixture';
 
 const INIT = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'raw', version: '0' } } });
@@ -71,7 +73,7 @@ const call = async (c: Client, name: string, args: Record<string, unknown> = {})
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-mcp-http-'));
   home = join(ws, '.home');
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   process.env.RETAKE_WORKER_IDLE_MS = '1500';
   await fixtureWorkspace(ws);
   await mkdir(join(ws, 'projects', P, 'hooks'), { recursive: true });
@@ -91,10 +93,7 @@ afterAll(async () => {
       // gone
     }
   }
-  if (saved.home === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = saved.home;
-  if (saved.idle === undefined) delete process.env.RETAKE_WORKER_IDLE_MS;
-  else process.env.RETAKE_WORKER_IDLE_MS = saved.idle;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

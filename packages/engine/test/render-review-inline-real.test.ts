@@ -1,7 +1,7 @@
 /**
  * L7.11 fix pass: one real inline review through the worker in the default suite (render-review-inline.test.ts runs
  * the same job on the in-memory renderer and reviewer). The renderer is the in-memory one with its video drawn by
- * ffmpeg from the plan (review/test/helpers.ts drawRender: no bundle, no browser); the reviewer is the product's
+ * ffmpeg from the plan (test-support review.ts drawRender: no bundle, no browser); the reviewer is the product's
  * (`packageReviewer`): its sheets, key frames and report are the review package's, written next to the render. Then a
  * cancel through the job: the job is cancelled while its review is about to run (the reviewer waits for the job's
  * signal, then the real review starts on it): the render stays the job's result, its review `cancelled`, the earlier
@@ -17,9 +17,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEngine, packageReviewer, runWorker } from '../src/index.js';
 import type { Engine, RenderJobResult, Renderer, Reviewer } from '../src/index.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
-import { drawCapture, drawRender, hasTool } from '../../review/test/helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { syntheticRunRecord } from '@retake/test-support/render';
+import { drawCapture, drawRender } from '@retake/test-support/review';
+import { hasTool } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const SCENARIO = 'tiny';
@@ -41,7 +44,7 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 let root: string;
 let dir: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** The in-memory renderer, its video drawn by ffmpeg from the plan: a real file for the real review to read. */
 function drawingRenderer(): Renderer {
@@ -62,7 +65,7 @@ const worker = (reviewer: Reviewer) => runWorker({ root, once: true, idleExitMs:
 beforeAll(async () => {
   if (!can) return;
   root = await mkdtemp(join(tmpdir(), 'retake-render-review-real-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -84,8 +87,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 

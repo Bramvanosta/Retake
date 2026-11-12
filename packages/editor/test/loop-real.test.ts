@@ -19,7 +19,7 @@ import { loadTemplate, fileFacts } from '@retake/core/io';
 import { PREVIEW_SIZE, createComponent, loadComponentRegistry, pngSize } from '@retake/components';
 import { ensureBundle, renderComponentLoops, scaffoldComponents } from '@retake/editor';
 import type { LoopItem, PreviewComponentTarget } from '@retake/editor';
-import { REPO, hasTool } from './render-helpers.js';
+import { REPO, hasTool } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */

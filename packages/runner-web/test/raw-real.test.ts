@@ -16,8 +16,9 @@ import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Timeline } from '@retake/core';
 import { exportCapture, probeVideo, runScenario } from '../src/index.js';
 import type { RawExportResult } from '../src/index.js';
-import { FAST, debugTemplate, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, debugTemplate, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const HOME = `<!doctype html><html><body style="margin:0;background:#dde3ea;font-family:sans-serif">
 <button id="go" style="position:absolute;left:100px;top:100px;width:200px;height:80px;font-size:24px;cursor:pointer" onclick="this.textContent='Done'">Go</button>

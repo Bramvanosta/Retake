@@ -21,27 +21,27 @@ import type { CaptureRequest } from '../src/capture/runner.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { MemorySandboxes } from '../src/sandboxes/memory-sandboxes.js';
 import { openProjectBySlug } from '../src/projects.js';
-import { startServer } from '../../runner-web/test/helpers.js';
-import type { TestServer } from '../../runner-web/test/helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { TestServer } from '@retake/test-support/capture';
 import { captureRunnerContract } from './capture-runner-contract.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { CONFINEMENTS } from '../src/caller.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const hasChromium = chromiumExecutable().path !== null;
 const root = await mkdtemp(join(tmpdir(), 'retake-capture-runner-'));
 let server: TestServer;
-const saved = { home: process.env.RETAKE_HOME };
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   server = await startServer({ '/': '<!doctype html><html><body><h1>Home</h1><p>A page to run on.</p></body></html>' });
 });
 
 afterAll(async () => {
   await server?.close();
   await rm(root, { recursive: true, force: true });
-  if (saved.home === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = saved.home;
+  retakeHome.restore();
 });
 
 let n = 0;
@@ -67,7 +67,7 @@ describe('the in-memory capture runner', () => {
   it('keeps every call, and fails the step its options script, the record saying where', async () => {
     const runner = new MemoryCaptureRunner({ fail: (ref) => (ref === 'one.1' ? 'no such button' : undefined) });
     const project = await projectOf('fail');
-    const { makeScenario } = await import('../../runner-web/test/helpers.js');
+    const { makeScenario } = await import('@retake/test-support/capture');
     const rec = await runner.run({
       policy: PERSON_POLICY,
       project,

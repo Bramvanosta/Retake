@@ -14,9 +14,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FileJobQueue, JOB_EXIT, buildStamp, createEngine, runJobChild, runWorker } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import type { OpenedWorkspace } from '../src/index.js';
 import * as workspaceModule from '../src/workspace.js';
+import { scratchHome } from '@retake/test-support/home';
 
 // Every workspace this file's engines and job processes open, with the policy it carries (core WorkPolicy).
 vi.mock('../src/workspace.js', async (original) => {
@@ -35,11 +36,11 @@ const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\
 let ws: string;
 let marker: string;
 let server: Server;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await realpath(await mkdtemp(join(tmpdir(), 'retake-job-programs-')));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   marker = join(ws, 'started');
   await mkdir(join(ws, 'bin'), { recursive: true });
   const chrome = join(ws, 'bin', 'chrome');
@@ -69,8 +70,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise((ok) => server?.close(ok));
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

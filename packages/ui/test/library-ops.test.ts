@@ -26,15 +26,16 @@ import type { FreeBytes } from '@retake/engine';
 import type { PreviewBackend } from '@retake/editor';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, UI_OPS, startStudioServer } from '../src/index.js';
 import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryRenderAnswer, LibraryViewAnswer, StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const MARK = 'MARKED-LIBRARY-3c9d';
 const HOSTILE = '<img src=x onerror=alert(1)>';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function ok<T>(op: string, args: unknown): Promise<{ data: T; body: string }> {
   const r = await call(op, args);
@@ -56,7 +57,7 @@ async function seed(key: string, kind: 'poster' | 'loop', component: string, ima
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-library-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   // A workspace card with its own preview.png (never trusted as the library's poster) and an agent's name.
   const comp = join(ws, 'components', 'acme', 'marked');
@@ -71,8 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

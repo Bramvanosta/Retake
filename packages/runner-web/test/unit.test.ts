@@ -29,7 +29,8 @@ import { normalizeStep } from '@retake/core';
 import { CaptureClock, TimelineBuilder, TrackBuilder } from '../src/timeline.js';
 import { MAX_TICK_ADVANCE_MS, Pointer, TICK_MS } from '../src/pointer.js';
 import type { PointerHost } from '../src/pointer.js';
-import { execFileP, ffprobeDuration, frameAt, makeProject, tempDir } from './helpers.js';
+import { execFileP, ffprobeDuration, frameAt } from '@retake/test-support/capture';
+import { makeProject, tempDir } from './helpers.js';
 
 let dir: string;
 beforeAll(async () => {

@@ -31,11 +31,12 @@ import type { JobRecord, LiveChannel } from '@retake/engine';
 import { LIVE_SNAPSHOT_LOG_LINES, LIVE_TEXT_MAX, RUN_LIVE_STREAMS_MAX, maskUrls, mergeByTime, startStudioServer } from '../src/index.js';
 import { parseSseBlock, readSse } from '../src/app/sse.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let ws: string;
 let studio: StudioServer;
 let queue: FileJobQueue;
@@ -46,7 +47,7 @@ const scenario = (video: string) => [`video: ${video}`, 'scenes:', '  - id: a', 
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-live-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   for (const n of ['live-a', 'live-b', 'live-c', 'live-d', 'live-e', 'live-f', 'live-g', 'live-h', 'live-i']) await writeFile(join(project(), 'scenarios', `${n}.yaml`), scenario(n));
   studio = await startStudioServer({ root: ws, startWorker: false, runPollMs: 40 });
@@ -55,8 +56,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

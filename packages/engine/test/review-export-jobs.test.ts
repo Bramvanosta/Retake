@@ -9,7 +9,11 @@
  * L7.11: what is the engine's own around a review — the job's cancel, the cleanups after a worker died — runs on the
  * in-memory reviewer (WorkerOptions.ports, the renders' files left empty: no tool runs); the review package's own
  * cancel and recovery are its contract's (reviewer.test.ts).
+ * L7.37: the cancel mid re-render and the refusals of a render outside the project run the worker on the in-memory
+ * renderer and reviewer, and review_get's reading of a tampered report.json a report of the in-memory reviewer; the
+ * real review, transcode and re-render stay above.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rename, symlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -18,10 +22,13 @@ import { JOB_INPUT_VERSION } from '@retake/engine';
 import type { RenderRecord } from '@retake/editor';
 import { FileJobQueue, JobFiles, cleanupInterruptedRender, cleanupInterruptedReview, createEngine, historyFile, openWorkspace, runWorker } from '../src/index.js';
 import type { Engine, ExportJobResult, JobRecord, ReviewJobResult } from '../src/index.js';
-import { MemoryReviewer } from '../src/review/memory-reviewer.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Workspace } from '../../review/test/helpers.js';
-import { linkSharedCache } from '../../editor/test/render-helpers.js';
+import { MEMORY_JPEG, MemoryReviewer } from '../src/review/memory-reviewer.js';
+import { MEMORY_PNG, MemoryRenderer } from '../src/render/memory-renderer.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Workspace } from '@retake/test-support/review';
+import { linkSharedCache } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -31,7 +38,7 @@ let ws: Workspace;
 let engine: Engine;
 let queue: FileJobQueue;
 let outside: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const work = () => runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
 const historyLines = async () =>
@@ -53,7 +60,7 @@ async function waitFor<T>(what: string, fn: () => Promise<T | undefined | false>
 beforeAll(async () => {
   if (!can) return;
   ws = await workspace();
-  process.env.RETAKE_HOME = join(ws.root, '.home');
+  retakeHome.use(join(ws.root, '.home'));
   // A short case (exports, its re-render; the reviews).
   await makeCase(ws, 'quote', scenesTimeline([5, 5], { captions: [`${INJECTION}. `.repeat(6), 'A short caption.'] }));
   outside = join(ws.root, 'outside');
@@ -64,8 +71,7 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await ws?.cleanup();
 });
 
@@ -126,53 +132,6 @@ describe.skipIf(!can)('review jobs', () => {
     },
     LONG,
   );
-
-  it(
-    'review_get: keys, ids and codes of a tampered report.json never leave `untrusted` (only known codes, safe ids, names of files)',
-    async () => {
-      const dir = join(ws.project.dir, 'review', 'quote-v1');
-      await engine.reviews.submit({ project: 'demo', render_id: 'quote-v1' });
-      await work();
-      const report = JSON.parse(await readFile(join(dir, 'report.json'), 'utf8')) as Record<string, any>;
-      const sheet = report.files.scene_sheets[Object.keys(report.files.scene_sheets)[0]];
-      const kf = Object.values(report.files.keyframes)[0];
-      report.files.scene_sheets = { [`${INJECTION} (scene)`]: sheet };
-      report.files.keyframes = { [`${INJECTION} (key frame)`]: kf };
-      report.findings = [
-        { severity: 'warning', code: `${INJECTION} (code)`, message: 'm1', at: { time: 1.5, segment: `${INJECTION} (segment)`, scene: 's1' } },
-        { severity: 'warning', code: 'long-wait', message: 'm2', at: { frame: 3, scene: `${INJECTION} (scene id)`, step: { x: 1 } } },
-      ];
-      report.counts = { error: 0, warning: 2, info: 0 };
-      report.clean = false;
-      report.durations.segments[0] = { ...report.durations.segments[0], id: `${INJECTION} (id)` };
-      report.durations.segments[1] = { ...report.durations.segments[1], kind: `${INJECTION} (kind)`, component: `${INJECTION} (component)`, scene: `${INJECTION} (seg scene)` };
-      report.diff = { previous: `${INJECTION} (previous)`, compared: 2, changed_frames: [1] };
-      await writeFile(join(dir, 'report.json'), JSON.stringify(report));
-      const v = await engine.reviews.get('demo', 'quote-v1', { images: 'all' });
-      const { untrusted, ...rest } = v;
-      expect(JSON.stringify(rest)).not.toContain(INJECTION);
-      expect(JSON.stringify(untrusted)).toContain(INJECTION);
-      expect(Object.keys(v.files!.scene_sheets)).toEqual([basename(sheet[0]).replace(/^sheet_scene_|(?:_p\d+)?\.jpg$/g, '')]);
-      expect(Object.keys(v.files!.keyframes)).toEqual([basename(kf as string, '.png')]);
-      expect(v.findings).toEqual([
-        { severity: 'warning', code: 'unknown', at: { time: 1.5, scene: 's1' } },
-        { severity: 'warning', code: 'long-wait', at: { frame: 3 } },
-      ]);
-      expect(untrusted.findings).toEqual({ 0: { code: `${INJECTION} (code)`, segment: `${INJECTION} (segment)` }, 1: { scene: `${INJECTION} (scene id)` } });
-      expect(v.durations!.segments[0].id).not.toContain('IGNORE');
-      expect(v.durations!.segments[0]).toMatchObject({ kind: 'unknown', component: 'unknown' });
-      expect(v.durations!.segments[0]).not.toHaveProperty('scene');
-      expect(v.diff!.previous).toBe('unknown');
-      expect(untrusted.diff_previous).toBe(`${INJECTION} (previous)`);
-      for (const img of v.images) expect(img.label).not.toContain('IGNORE');
-      // The MCP summary (review_get's, the engine's operation since L7.14) only prints what passed.
-      const { reviewSummary } = await import('../src/operations/reviews.js');
-      expect(reviewSummary(v)).not.toContain('IGNORE');
-      await engine.reviews.submit({ project: 'demo', render_id: 'quote-v1' });
-      await work();
-    },
-    LONG,
-  );
 });
 
 describe.skipIf(!can)('export jobs', () => {
@@ -201,20 +160,31 @@ describe.skipIf(!can)('export jobs', () => {
     },
     LONG,
   );
+});
 
+/**
+ * L7.37: the engine's own around an export — the job's cancel mid re-render, the refusals of a render whose files lie
+ * outside the project — on the in-memory renderer and reviewer (WorkerOptions.ports), over the real render of the case
+ * above (its master transcoded by ffmpeg only where a format asks it). The real transcode and re-render are the case above.
+ */
+describe.skipIf(!can)('export jobs on the in-memory renderer: the engine around them', () => {
   it(
     'a cancel mid re-render: cancelled, no partial file, the formats after it not written',
     async () => {
+      // The re-render holds until its signal aborts; its "browser" is a process already gone (recorded, never killed).
+      const gone = spawnSync(process.execPath, ['-e', '0']).pid!;
+      const renderer = new MemoryRenderer({
+        process: { pid: gone },
+        duringVideo: (req) => new Promise<void>((done) => (req.signal?.aborted ? done() : req.signal?.addEventListener('abort', () => done(), { once: true }))),
+      });
       const sub = await engine.exports.submit({ project: 'demo', render_id: 'quote-v1', formats: ['square_1x1', 'webm'] });
-      const worker = work();
-      await waitFor(
-        'the re-render rendering',
-        async () => {
-          const j = await queue.get(sub.job.id);
-          return j?.state === 'running' && j.progress?.phase === 'square_1x1' && (j.progress.fraction ?? 0) > 0.1;
-        },
-        300_000,
-      );
+      const worker = runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
+      await waitFor('the re-render rendering', async () => {
+        const j = await queue.get(sub.job.id);
+        return j?.state === 'running' && j.progress?.phase === 'square_1x1' && renderer.calls.some((c) => c.op === 'video') && existsSync(queue.files.browser(sub.job.id));
+      });
+      // The re-render's browser is recorded while it runs (the worker's browser.json).
+      expect(JSON.parse(await readFile(queue.files.browser(sub.job.id), 'utf8'))).toMatchObject({ pid: gone });
       await engine.jobs.cancel(sub.job.id);
       await worker;
       const job = await engine.jobs.get(sub.job.id);
@@ -224,6 +194,10 @@ describe.skipIf(!can)('export jobs', () => {
       expect(files.filter((f) => f.startsWith('.'))).toEqual([]);
       expect(files.filter((f) => f.includes('square') || f.endsWith('.webm'))).toEqual([]);
       expect(existsSync(queue.files.browser(sub.job.id))).toBe(false);
+      // One re-render asked (square_1x1), cancelled through its signal; webm after it never started.
+      const videos = renderer.calls.filter((c) => c.op === 'video');
+      expect(videos).toHaveLength(1);
+      expect(videos[0]?.op === 'video' && videos[0].req.signal?.aborted).toBe(true);
     },
     LONG,
   );
@@ -231,6 +205,9 @@ describe.skipIf(!can)('export jobs', () => {
   it(
     'a render record whose files lie outside the project is refused at submit, and by the worker for a job written by hand',
     async () => {
+      const reviewer = new MemoryReviewer();
+      const renderer = new MemoryRenderer();
+      const mwork = () => runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { reviewer, renderer } });
       const renders = join(ws.project.dir, 'renders');
       const good = JSON.parse(await readFile(join(renders, 'quote-v1.json'), 'utf8')) as RenderRecord;
       await copyFile(good.file, join(outside, 'master.mp4'));
@@ -253,9 +230,12 @@ describe.skipIf(!can)('export jobs', () => {
         { version: JOB_INPUT_VERSION, kind: 'review', project: 'demo', render_id: 'evil-v1', fps: 1, submitted_by: 'test' },
       ] as const) {
         const job = await queue.enqueue(input as never);
-        await work();
+        await mwork();
         expect(await engine.jobs.get(job.id)).toMatchObject({ state: 'failed', error: { code: 'refused' } });
       }
+      // Refused before any tool: nothing reached the reviewer or the renderer.
+      expect(reviewer.calls).toEqual([]);
+      expect(renderer.calls).toEqual([]);
       expect(existsSync(join(ws.project.dir, 'exports', 'evil-v1'))).toBe(false);
       expect(existsSync(join(ws.project.dir, 'review', 'evil-v1'))).toBe(false);
       await expect(engine.reviews.get('demo', 'evil-v1')).rejects.toMatchObject({ code: 'refused' });
@@ -346,6 +326,64 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
       expect(await readFile(join(dir, 'report.json'), 'utf8')).toBe(report);
       expect((await readdir(join(mws.project.dir, 'review'))).filter((n) => n.startsWith('long-v1.'))).toEqual([]);
       expect(logs).toEqual([]);
+    },
+    LONG,
+  );
+
+  // L7.37: review_get reads a report.json the engine did not write — here the in-memory reviewer's, with the scene
+  // sheet, the key frame and the segments it leaves empty filled in as the review package writes them.
+  it(
+    'review_get: keys, ids and codes of a tampered report.json never leave `untrusted` (only known codes, safe ids, names of files)',
+    async () => {
+      const dir = join(mws.project.dir, 'review', 'long-v1');
+      await mengine.reviews.submit({ project: 'demo', render_id: 'long-v1' });
+      await mwork();
+      const report = JSON.parse(await readFile(join(dir, 'report.json'), 'utf8')) as Record<string, any>;
+      await mkdir(join(dir, 'keyframes'), { recursive: true });
+      await writeFile(join(dir, 'sheet_scene_s1.jpg'), MEMORY_JPEG);
+      await writeFile(join(dir, 'keyframes', 's1-first.png'), MEMORY_PNG);
+      report.files.scene_sheets = { s1: [join(dir, 'sheet_scene_s1.jpg')] };
+      report.files.keyframes = { 's1-first': join(dir, 'keyframes', 's1-first.png') };
+      report.durations.segments = [
+        { id: 'intro', kind: 'intro', from_s: 0, to_s: 2, duration_s: 2, component: 'studio/intro-title' },
+        { id: 's1', kind: 'scene', scene: 's1', from_s: 2, to_s: 21, duration_s: 19, component: 'studio/layout-browser' },
+      ];
+      const sheet = report.files.scene_sheets[Object.keys(report.files.scene_sheets)[0]];
+      const kf = Object.values(report.files.keyframes)[0];
+      report.files.scene_sheets = { [`${INJECTION} (scene)`]: sheet };
+      report.files.keyframes = { [`${INJECTION} (key frame)`]: kf };
+      report.findings = [
+        { severity: 'warning', code: `${INJECTION} (code)`, message: 'm1', at: { time: 1.5, segment: `${INJECTION} (segment)`, scene: 's1' } },
+        { severity: 'warning', code: 'long-wait', message: 'm2', at: { frame: 3, scene: `${INJECTION} (scene id)`, step: { x: 1 } } },
+      ];
+      report.counts = { error: 0, warning: 2, info: 0 };
+      report.clean = false;
+      report.durations.segments[0] = { ...report.durations.segments[0], id: `${INJECTION} (id)` };
+      report.durations.segments[1] = { ...report.durations.segments[1], kind: `${INJECTION} (kind)`, component: `${INJECTION} (component)`, scene: `${INJECTION} (seg scene)` };
+      report.diff = { previous: `${INJECTION} (previous)`, compared: 2, changed_frames: [1] };
+      await writeFile(join(dir, 'report.json'), JSON.stringify(report));
+      const v = await mengine.reviews.get('demo', 'long-v1', { images: 'all' });
+      const { untrusted, ...rest } = v;
+      expect(JSON.stringify(rest)).not.toContain(INJECTION);
+      expect(JSON.stringify(untrusted)).toContain(INJECTION);
+      expect(Object.keys(v.files!.scene_sheets)).toEqual([basename(sheet[0]).replace(/^sheet_scene_|(?:_p\d+)?\.jpg$/g, '')]);
+      expect(Object.keys(v.files!.keyframes)).toEqual([basename(kf as string, '.png')]);
+      expect(v.findings).toEqual([
+        { severity: 'warning', code: 'unknown', at: { time: 1.5, scene: 's1' } },
+        { severity: 'warning', code: 'long-wait', at: { frame: 3 } },
+      ]);
+      expect(untrusted.findings).toEqual({ 0: { code: `${INJECTION} (code)`, segment: `${INJECTION} (segment)` }, 1: { scene: `${INJECTION} (scene id)` } });
+      expect(v.durations!.segments[0].id).not.toContain('IGNORE');
+      expect(v.durations!.segments[0]).toMatchObject({ kind: 'unknown', component: 'unknown' });
+      expect(v.durations!.segments[0]).not.toHaveProperty('scene');
+      expect(v.diff!.previous).toBe('unknown');
+      expect(untrusted.diff_previous).toBe(`${INJECTION} (previous)`);
+      for (const img of v.images) expect(img.label).not.toContain('IGNORE');
+      // The MCP summary (review_get's, the engine's operation since L7.14) only prints what passed.
+      const { reviewSummary } = await import('../src/operations/reviews.js');
+      expect(reviewSummary(v)).not.toContain('IGNORE');
+      await mengine.reviews.submit({ project: 'demo', render_id: 'long-v1' });
+      await mwork();
     },
     LONG,
   );

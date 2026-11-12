@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import type { ResolvedPersona, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { RunSecrets, autoLogin, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { DOC_PAGE, DRY_PAGE, OPTIONS_PAGE, SHOP_PAGE, STRATEGY_PAGE, WIDGETS_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;

@@ -28,7 +28,9 @@ import {
   waitingSpans,
 } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile } from '@retake/editor';
-import { REPO, fixtureProject, seg, synthTimeline } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureProject, synthTimeline } from '@retake/test-support/timeline';
+import { seg } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 let registry: ComponentRegistry;

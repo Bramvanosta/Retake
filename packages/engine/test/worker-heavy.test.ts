@@ -44,7 +44,8 @@ import {
   workspaceCaptureId,
 } from '../src/index.js';
 import type { JobRecord } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The stand-in job process: `--mode` says what it does (the rest of its command line is a job process's). */
 const FAKE = `const fs = require('node:fs'); const path = require('node:path'); const os = require('node:os');
@@ -73,7 +74,7 @@ switch (mode) {
 
 let base: string;
 let fakeBin: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const children: ChildProcess[] = [];
 /** Every signal a worker sent: [target, signal]. */
 let sent: Array<[number, NodeJS.Signals]> = [];
@@ -165,7 +166,7 @@ const alive = (pid: number) => {
 
 beforeAll(async () => {
   base = await mkdtemp(join(tmpdir(), 'retake-worker-heavy-'));
-  process.env.RETAKE_HOME = join(base, '.home');
+  retakeHome.use(join(base, '.home'));
   // Named as a job process's entry: the recovery's command-line proof looks for `/worker-main.js `.
   fakeBin = join(base, 'bin', 'worker-main.js');
   await mkdir(join(base, 'bin'), { recursive: true });
@@ -192,8 +193,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
   if (base) await rm(base, { recursive: true, force: true });
 });

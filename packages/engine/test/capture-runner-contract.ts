@@ -21,7 +21,7 @@ import type { LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/co
 import type { InspectReport, LiveFrame } from '@retake/runner-web/types';
 import type { CaptureRequest, CaptureRunner } from '../src/capture/runner.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
-import { FAST, makeScenario } from '../../runner-web/test/helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
 
 export interface ContractCapture {
   runner: CaptureRunner;

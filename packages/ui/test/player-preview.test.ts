@@ -23,9 +23,10 @@ import { scaffoldDir } from '@retake/components';
 import { memoRegistry } from '@retake/engine';
 import { COMPONENT_PREVIEW_FORMAT, checkPreviewSpec, startStudioServer } from '../src/index.js';
 import type { StudioServer, ThemePreviewAnswer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { hasTool } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 /** A folder to keep the framed previews' screenshots in (looked at by hand), or none. */
@@ -37,7 +38,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser | undefined;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function preview(args: Record<string, unknown>): Promise<Extract<ThemePreviewAnswer, { frame_url: string }>> {
   const r = await call('theme_preview', { project: P, lease: 'player-preview-lease-01', ...args });
@@ -62,7 +63,7 @@ const spec = (extra: Record<string, unknown> = {}) => ({
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-player-preview-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   const comp = join(ws, 'components', 'acme', 'held');
   await mkdir(comp, { recursive: true });
@@ -84,8 +85,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -8,24 +8,24 @@ import { CancelledError } from '@retake/runner-web';
 import { SandboxError } from '@retake/sandbox';
 import { EngineError, LocalStorage, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let home: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-engine-'));
   home = join(ws, '.home');
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   await fixtureWorkspace(ws);
   engine = await createEngine({ root: ws, client: 'test' });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 

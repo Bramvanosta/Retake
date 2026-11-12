@@ -464,7 +464,7 @@
    "packages/core/test/theme-edits.test.ts": 1,
    "packages/runner-web/src/kit/record-script.ts": 1,
    "packages/runner-web/src/product-clock.ts": 1,
-   "packages/runner-web/test/site-fixture.ts": 1,
+   "packages/test-support/src/site.ts": 1,
    "packages/ui/src/app/themes/ThemeFields.tsx": 1
   },
   "lint/suspicious/noUselessEscapeInString": {

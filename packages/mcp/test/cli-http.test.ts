@@ -16,7 +16,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const BIN = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const built = existsSync(BIN) && existsSync(join(REPO, 'packages', 'mcp', 'dist', 'http.js'));

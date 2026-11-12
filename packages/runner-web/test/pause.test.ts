@@ -14,8 +14,9 @@ import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { DRY_PAGE } from './pages.js';
-import { FAST, makeProject, makeScenario, startServer, tempDir, testHookRunner } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, tempDir, testHookRunner } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;

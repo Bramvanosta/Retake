@@ -13,15 +13,16 @@ import { createEngine } from '@retake/engine';
 import type { CommentListView, CommentView, Engine } from '@retake/engine';
 import { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN, TOOLS, okResult } from '../src/index.js';
 import type { ToolContext, ToolDef } from '../src/index.js';
-import { workspace } from '../../review/test/helpers.js';
-import type { Workspace } from '../../review/test/helpers.js';
+import { workspace } from '@retake/test-support/review';
+import type { Workspace } from '@retake/test-support/review';
+import { scratchHome } from '@retake/test-support/home';
 
 const LONG = 120_000;
 let ws: Workspace;
 let engine: Engine;
 const ids: string[] = [];
 const lastEntry: Record<string, string> = {};
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const tool = (name: string): ToolDef => TOOLS.find((t) => t.name === name)!;
 const ctx = (): ToolContext => ({ engine, signal: new AbortController().signal });
@@ -56,7 +57,7 @@ function thread(id: string, i: number) {
 
 beforeAll(async () => {
   ws = await workspace();
-  process.env.RETAKE_HOME = join(ws.root, '.home');
+  retakeHome.use(join(ws.root, '.home'));
   const dir = join(ws.project.dir, 'comments', 'quote');
   await mkdir(dir, { recursive: true });
   for (let i = 0; i < 10; i++) {
@@ -68,8 +69,7 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await ws?.cleanup();
 });
 

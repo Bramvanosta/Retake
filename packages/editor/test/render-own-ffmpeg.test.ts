@@ -23,8 +23,9 @@ import { renderVideo } from '@retake/editor';
 import type { RenderProgress } from '@retake/editor';
 import { OWN_FRAME_FILTER, ownEncodeFailedEarlier, ownFfmpeg, readsImagePipe, resetOwnFfmpeg } from '../src/render/encode-tools.js';
 import type { OwnFfmpeg } from '../src/render/encode-tools.js';
-import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 
 const canRender = process.platform === 'darwin' && hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;

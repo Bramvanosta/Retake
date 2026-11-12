@@ -31,7 +31,7 @@ import {
   rewritePreStitcher,
 } from '../src/render/encode-tools.js';
 import { compositorDir } from '../src/render/library.js';
-import { hasTool } from './render-helpers.js';
+import { hasTool } from '@retake/test-support/repo';
 
 const posix = process.platform !== 'win32';
 const scratch = mkdtempSync(join(tmpdir(), 'retake-encode-tools-'));

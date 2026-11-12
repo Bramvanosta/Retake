@@ -12,8 +12,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEngine } from '@retake/engine';
 import type { CommentListView, CommentView, CommentWritten } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Workspace } from '../../review/test/helpers.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Workspace } from '@retake/test-support/review';
+import { scratchHome } from '@retake/test-support/home';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 240_000;
@@ -143,11 +145,10 @@ describe('retake comment', () => {
     'prints the studio channel of a thread and an entry written from the Studio (L4.6)',
     async () => {
       process.env.RETAKE_AUTHOR = 'Studio Person';
-      const home = process.env.RETAKE_HOME;
-      process.env.RETAKE_HOME = join(ws.root, '.home');
+      const retakeHome = scratchHome();
+      retakeHome.use(join(ws.root, '.home'));
       const ui = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false }).finally(() => {
-        if (home === undefined) delete process.env.RETAKE_HOME;
-        else process.env.RETAKE_HOME = home;
+        retakeHome.restore();
       });
       const record = JSON.parse(await readFile(join(ws.project.dir, 'renders', 'quote-v1.json'), 'utf8')) as { created_at: string };
       const { thread } = await ui.comments.add('demo', { render: 'quote-v1', render_created_at: record.created_at, frame: 120, text: 'Made in the Studio' });

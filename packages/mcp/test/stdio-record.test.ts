@@ -22,8 +22,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { WorkerLock, buildStamp, historyFile, jobsDir, readWorkerLock, runWorker, workersDir, systemClock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { scratchHome } from '@retake/test-support/home';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -43,7 +44,7 @@ let root: string;
 let client: Client;
 let stderr = '';
 const outputs: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function call(name: string, args: Record<string, unknown>): Promise<Result> {
   const r = (await client.callTool({ name, arguments: args }, undefined, { timeout: 180_000 })) as Result;
@@ -83,7 +84,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-record-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const project = join(root, 'projects', PROJECT);
   await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -121,8 +122,7 @@ afterAll(async () => {
   }
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
 });
 
 describe('retake mcp: scenario_record', () => {

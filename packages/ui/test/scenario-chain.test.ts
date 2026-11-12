@@ -14,17 +14,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EngineError } from '@retake/engine';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { raw } from './http.js';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const ULID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const HEX = 'a'.repeat(64);
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** The probes' log and their gates: each call of a probe waits for `release(label)`. */
 const log: string[] = [];
@@ -58,7 +59,7 @@ const save = (name: string, label: string) => call('record_save', { project: P, 
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-scenario-chain-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, startWorker: false });
   // The probes, on the server's own engine (the object its ops call): the label comes from each call's arguments.
@@ -75,8 +76,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

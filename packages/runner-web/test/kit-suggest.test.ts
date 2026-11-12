@@ -9,9 +9,9 @@ import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { kitConfigFor, kitSource, openSession } from '../src/index.js';
 import type { BrowserSession, InventoryElement, KitInventory } from '../src/index.js';
-import { startServer } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
-import type { TestServer } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const LAB = `<!doctype html><html><body>
 <h1>Suggest lab</h1>

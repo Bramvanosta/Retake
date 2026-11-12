@@ -17,8 +17,9 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, takeWorkspace, writeTake } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { BITS_TEXT, bitsTimeline, takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -32,12 +33,12 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-budget-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   const dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 2 });
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
@@ -99,8 +100,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

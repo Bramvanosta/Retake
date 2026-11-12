@@ -23,7 +23,8 @@ import type { Sandbox } from '@retake/sandbox';
 import { approvalChecker } from '../src/approvals.js';
 import { createEngine, packageHookRunner, seedApprovalItems } from '../src/index.js';
 import type { ApprovalItem, ApprovalRequest, Engine } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const posix = process.platform !== 'win32';
 
@@ -53,7 +54,7 @@ let dir: string;
 let port: number;
 let engine: Engine;
 let sb: Sandbox | undefined;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const manifest = (resetRun: string) =>
   [
@@ -102,7 +103,7 @@ async function agentReset(approvals: readonly JobApproval[]): Promise<string> {
 describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust mcp (L7.8)', () => {
   beforeAll(async () => {
     ws = await mkdtemp(join(tmpdir(), 'retake-reset-hook-approvals-'));
-    process.env.RETAKE_HOME = join(ws, '.home');
+    retakeHome.use(join(ws, '.home'));
     port = await freePort();
     await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     dir = join(ws, 'projects', 's');
@@ -122,8 +123,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
     } catch {
       /* never started */
     }
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 

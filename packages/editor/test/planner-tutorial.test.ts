@@ -29,7 +29,8 @@ import {
 } from '@retake/editor';
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan, OverlayUse, PlanInputFile } from '@retake/editor';
 import type { Timeline } from '@retake/core';
-import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 const RUN = '/virtual/runs/r';

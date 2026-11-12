@@ -11,7 +11,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { TextArtefact, Timeline } from '@retake/core';
 import { captureValue, runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 
 const APP = `<!doctype html><html><head><title>Form</title></head><body style="font-family:sans-serif;padding:40px">
 <label>Name <input id="name"></label><br><br>

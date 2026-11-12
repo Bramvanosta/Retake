@@ -23,7 +23,8 @@ import { bundleHash } from '@retake/editor';
 import type { ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
 import { LIBRARY_FILES, createEngine, editorRenderer, libraryCacheDir, runWorker, withPreviewBackend } from '../src/index.js';
 import type { Engine, FreeBytes, JobRecord, LibraryStatesView, PreviewJobResult, WorkerPortsGiven } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
 const plainWrite = async (file: string, text: string): Promise<void> => {
@@ -36,11 +37,11 @@ const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-library-job-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await mkdir(join(root, 'templates'), { recursive: true });
   for (const t of ['editorial', 'motion', 'default']) await cp(join(REPO, 'templates', t), join(root, 'templates', t), { recursive: true });
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
@@ -54,8 +55,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 

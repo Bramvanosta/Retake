@@ -11,8 +11,9 @@ import { afterAll, beforeAll } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
 import { editorRenderer, planWork } from '../src/index.js';
 import type { PlannedRun } from '../src/index.js';
-import { hasTool, linkSharedCache, renderWorkspace } from '../../editor/test/render-helpers.js';
-import type { RenderWorkspace } from '../../editor/test/render-helpers.js';
+import { hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, renderWorkspace } from '@retake/test-support/render';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { rendererContract } from './renderer-contract.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');

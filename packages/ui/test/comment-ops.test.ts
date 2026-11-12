@@ -34,11 +34,13 @@ import type { Engine } from '@retake/engine';
 import { scaffoldDir } from '@retake/components';
 import { COMMENT_OPS, UI_OPS, pathFree, startStudioServer } from '../src/index.js';
 import type { StudioServer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadsListAnswer, TimelineViewAnswer } from '../src/index.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Case, Workspace } from '../../review/test/helpers.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { raw } from './http.js';
-import { writeTake } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Case, Workspace } from '@retake/test-support/review';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { raw } from '@retake/test-support/http';
+import { writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 240_000;
@@ -67,7 +69,7 @@ let v1: Case;
 let studio: StudioServer;
 let mcp: Engine;
 let savedRecord: string;
-const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
+const retakeHome = scratchHome('RETAKE_AUTHOR');
 const bodies: string[] = [];
 
 const call = async (op: string, args: unknown = {}) => {
@@ -105,7 +107,7 @@ beforeAll(async () => {
   if (!canRun) return;
   ws = await workspace();
   dir = ws.project.dir;
-  process.env.RETAKE_HOME = join(ws.root, '.home');
+  retakeHome.use(join(ws.root, '.home'));
   process.env.RETAKE_AUTHOR = 'Studio Person';
   const tl = scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } });
   v1 = await makeCase(ws, 'quote', tl);
@@ -119,13 +121,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_AUTHOR', saved.author],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
   await ws?.cleanup();
 });
 

@@ -28,11 +28,12 @@ import { STATES, buildState, recordFixture, stateIds, writeRunFolder, writeWorks
 import type { BuiltState } from '../../core/test/fixtures/records/build.js';
 import { RENDER_STATES, buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
 import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let engine: Engine;
 let film: Buffer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const built = new Map<string, BuiltState>();
 const state = (id: string, old: 'good' | 'no-film' | 'none' = 'good'): BuiltState => {
   const key = `${id}/${old}`;
@@ -54,7 +55,7 @@ async function answer(b: BuiltState, fn: () => Promise<string>): Promise<string>
 
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'retake-records-engine-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   writeWorkspace(root);
   // A real (tiny) film: the timeline view measures the capture it plans.
   const file = join(root, 'film.mp4');
@@ -64,8 +65,7 @@ beforeAll(async () => {
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
 }, 120_000);
 afterAll(() => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   rmSync(root, { recursive: true, force: true });
 });
 

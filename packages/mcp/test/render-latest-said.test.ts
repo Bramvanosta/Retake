@@ -17,24 +17,24 @@ import { reviewTool } from '../src/tools/review.js';
 import { writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import { buildRenderState } from '../../core/test/fixtures/records/build-renders.js';
 import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const { render_status: renderStatus } = OPERATIONS_BY_NAME;
 
 let root: string;
 let engine: Engine;
 let b: BuiltRenders;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'retake-render-latest-mcp-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   writeWorkspace(root);
   b = buildRenderState(root, 'renamed-newest');
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 }, 120_000);
 afterAll(() => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   rmSync(root, { recursive: true, force: true });
 });
 

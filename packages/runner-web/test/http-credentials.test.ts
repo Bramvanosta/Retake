@@ -13,8 +13,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { resolveEnvironment, resolvePersonas, PERSON_POLICY } from '@retake/core';
 import { recordSession, runScenario, signIn } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { retakeHome } from '@retake/core/io';
+import { scratchHome } from '@retake/test-support/home';
 
 const USER = 'demo-viewer';
 const PASSWORD = 'staging-pass-8317';
@@ -120,8 +122,8 @@ describe('an environment page URL with sign-in details', () => {
     await writeFile(eventsFile, '');
     await recordSession({ policy: PERSON_POLICY, project, env, url: `${app.url}/`, eventsFile, headless: true, windowSize: { width: 800, height: 600 }, drive: read });
     const home = await tempDir('rw-credentials-home-');
-    const saved = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    const testHome = scratchHome();
+    testHome.use(home);
     try {
       project.config.auth = { login_url: '/', personas: { viewer: { pages: ['app'] } } };
       const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'viewer')!;
@@ -131,7 +133,7 @@ describe('an environment page URL with sign-in details', () => {
       const checked = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'viewer')!;
       expect((await signIn({ policy: PERSON_POLICY, project, env, persona: checked, mode: 'auto' })).check.status).toBe('valid');
     } finally {
-      process.env.RETAKE_HOME = saved;
+      testHome.restore();
       await rm(home, { recursive: true, force: true });
     }
     expect(seen).toEqual(['Signed in to staging', 'Signed in to staging']);

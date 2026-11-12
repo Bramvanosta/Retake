@@ -37,9 +37,10 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { flowYaml, parseYaml, scenarioChangedMessage } from '@retake/core';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const TSX = pathToFileURL(join(REPO, 'node_modules', 'tsx', 'dist', 'loader.mjs')).href;

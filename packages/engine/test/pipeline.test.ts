@@ -69,9 +69,11 @@ import { diskFullWork, loopsWork, previewsWork, stillWork } from '../src/render/
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { syntheticRunRecord } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 const SCENARIO = 'steps';
 const RUN = '20260101-120000-steps';
@@ -79,7 +81,7 @@ const SRC = fileURLToPath(new URL('../../', import.meta.url));
 let root: string;
 let dir: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const historyLines = async (): Promise<string[]> => (await readFile(historyFile(root), 'utf8').catch(() => '')).split('\n').filter(Boolean);
 /** The renderer every caller here hands: the editor's use cases are replaced above, so nothing is asked of it. */
@@ -125,7 +127,7 @@ function recordOf(id: string) {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-pipeline-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -150,8 +152,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

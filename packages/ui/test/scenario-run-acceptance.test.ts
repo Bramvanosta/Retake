@@ -16,7 +16,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readWorkerLock } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -35,7 +36,7 @@ let root: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const workers = new Set<number>();
 const consoleErrors: string[] = [];
 
@@ -55,7 +56,7 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-ui-run-acceptance-'));
-    process.env.RETAKE_HOME = join(root, '.home');
+    retakeHome.use(join(root, '.home'));
     await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -89,8 +90,7 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
       }
     }
     await fixture?.close();
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     if (root) await rm(root, { recursive: true, force: true });
   });
 

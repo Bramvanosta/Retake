@@ -16,7 +16,8 @@ import type { RunOptions } from '../src/capture/options.js';
 import { LoginPageError, StepError } from '../src/errors.js';
 import type { HookStepOutcome } from '../src/runtime.js';
 import { StepFailure } from '../src/scenes.js';
-import { makeProject, makeScenario, tempDir, testHookRunner } from './helpers.js';
+import { makeProject, tempDir, testHookRunner } from './helpers.js';
+import { makeScenario } from '@retake/test-support/capture';
 
 let dir: string;
 beforeAll(async () => {

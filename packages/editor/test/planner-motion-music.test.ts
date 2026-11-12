@@ -7,8 +7,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedTemplate } from '@retake/core';
 import { DEFAULT_ZOOM, MUSIC_DEFAULTS, musicPlayGain, musicPlays, musicVolumeAt, planEdit } from '@retake/editor';
 import type { EditOverrides, EditPlan } from '@retake/editor';
-import { clip, clips, fixtureProject, realTimeline, studioWorkspace, synthTimeline, template } from './helpers.js';
-import type { EntrySpec, Workspace } from './helpers.js';
+import { clip, clips, studioWorkspace } from './helpers.js';
+import { fixtureProject, realTimeline, synthTimeline, template } from '@retake/test-support/timeline';
+import type { EntrySpec } from '@retake/test-support/timeline';
+import type { Workspace } from './helpers.js';
 
 const FPS = 30;
 let ws: Workspace;

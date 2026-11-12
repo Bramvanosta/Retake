@@ -16,8 +16,8 @@ import { CancelledError, DEFAULT_BROWSER_ARGS, UNROUTED_APIS_BLOCK, extractSite,
 import { readFacts } from '../src/site/page-script.js';
 import type { PageFacts } from '../src/site/page-script.js';
 import type { SiteReport } from '../src/index.js';
-import { hasOpenssl, startBrandSite } from './site-fixture.js';
-import type { BrandSite } from './site-fixture.js';
+import { hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
 import { PERSON_POLICY } from '@retake/core';
 
 const can = hasOpenssl();

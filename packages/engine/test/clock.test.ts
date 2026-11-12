@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { ManualClock, createEngine, dateOf, diskProjectStores, enginePorts, readJournal, stampOf, systemClock } from '../src/index.js';
 import type { JobQueue } from '../src/index.js';
 import { RUN_INPUT } from './job-queue-contract.js';
+import { scratchHome } from '@retake/test-support/home';
 
 describe('the engine clock', () => {
   it('the system clock reads the time now; stampOf and dateOf give it as a stamp and a Date', () => {
@@ -57,8 +58,8 @@ describe('the engine clock', () => {
 describe('createEngine({ ports })', () => {
   it('stamps what the façade writes with the clock it is handed: its queue, its authored writes and their journal', async () => {
     const root = await mkdtemp(join(tmpdir(), 'retake-engine-clock-'));
-    const savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = join(root, '.home');
+    const retakeHome = scratchHome();
+    retakeHome.use(join(root, '.home'));
     try {
       await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
       await mkdir(join(root, 'projects'), { recursive: true });
@@ -76,8 +77,7 @@ describe('createEngine({ ports })', () => {
       expect(new Set(lines.filter((l) => l.op === 'folder' || (l.op === 'write' && l.what === 'project')).map((l) => l.at))).toEqual(new Set(['2026-05-06T07:09:09.010Z']));
       expect(lines.filter((l) => l.op === 'write' && l.what === 'readme').map((l) => l.at)).toEqual(['2026-05-06T07:10:09.010Z']);
     } finally {
-      if (savedHome === undefined) delete process.env.RETAKE_HOME;
-      else process.env.RETAKE_HOME = savedHome;
+      retakeHome.restore();
       await rm(root, { recursive: true, force: true });
     }
   });

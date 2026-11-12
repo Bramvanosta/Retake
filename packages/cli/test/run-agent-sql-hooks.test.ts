@@ -44,12 +44,13 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
 import { createEngine } from '@retake/engine';
 import type { Engine } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let projectDir: string;
 let mcp: Engine;
 let person: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const SCENES = 'scenes:\n  - id: home\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
 /** An sql setup hook (inline, rendered with the vars and the page, with its rollback) and an sql teardown from a file. */
@@ -75,7 +76,7 @@ async function retake(args: string[], answers?: string[]) {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-run-agent-sql-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   projectDir = join(ws, 'projects', 'demo');
   await mkdir(join(projectDir, 'scenarios'), { recursive: true });
@@ -93,8 +94,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 

@@ -16,14 +16,16 @@ import { findPrevious, findRender } from '@retake/review';
 import { previousOfRender } from '../src/render-records.js';
 import { MEMORY_JPEG, MemoryReviewer } from '../src/review/memory-reviewer.js';
 import type { MemoryReviewerCall } from '../src/review/memory-reviewer.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Case, Workspace } from '../../review/test/helpers.js';
-import { fixtureWorkspace } from './helpers.js';
-import { BLOCKS_YAML, RED, writeRun } from './synthetic-runs.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Case, Workspace } from '@retake/test-support/review';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, RED, writeRun } from '@retake/test-support/runs';
 import { reviewerContract } from './reviewer-contract.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const spaces: Workspace[] = [];
 const dirs: string[] = [];
 
@@ -45,12 +47,11 @@ const memory = caseOnce(true);
 beforeAll(async () => {
   const home = await mkdtemp(join(tmpdir(), 'retake-reviewer-home-'));
   dirs.push(home);
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   for (const ws of spaces) await ws.cleanup();
   for (const d of dirs) await rm(d, { recursive: true, force: true });
 });

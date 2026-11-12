@@ -32,10 +32,11 @@ import type { JobRecord, ScenarioRendersView } from '@retake/engine';
 import { RENDER_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import { TOOLS } from '@retake/mcp';
 import type { RenderReviewAnswer, ScenarioRenderAnswer, StudioServer } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { raw } from './http.js';
-import { takeWorkspace, writeTake } from './timeline-take.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const RUN = '20260101-120000-tl';
@@ -56,7 +57,7 @@ let ws: string;
 let dir: string;
 let studio: StudioServer;
 let queue: FileJobQueue;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 const renderArgs = (o: Record<string, unknown> = {}) => ({ project: 'demo', name: 'tl', run: RUN, expect_edit_sha256: sha(TEXT), ...o });
@@ -103,7 +104,7 @@ async function writeRecord(id: string, created: string): Promise<void> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-render-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 3,
@@ -160,8 +161,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -14,8 +14,8 @@ import type { StudioServer } from '../src/index.js';
 import { otherCopyOf, otherCopyWords, submitNotice } from '../src/app/other-copy.js';
 import { setToken } from '../src/app/api.js';
 import { startRender, startRun } from '../src/app/shoot/shoot-data.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 
 let root: string;
 let studio: StudioServer | undefined;

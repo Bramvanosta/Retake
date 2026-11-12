@@ -21,8 +21,9 @@ import type { ProcessIdentity } from '@retake/engine';
 import { heavyGate } from '../src/heavy-gate.js';
 import { memoryIo } from '../src/index.js';
 import { Ui } from '../src/ui.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const BIN = join(REPO, 'packages/cli/dist/bin.js');

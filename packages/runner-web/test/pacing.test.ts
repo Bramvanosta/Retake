@@ -4,8 +4,9 @@ import type { LoadedProject, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { LATE_DIALOG_PAGE, NAV2_PAGE, NAV_PAGE, STRATEGY_PAGE, localePage } from './pages.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;

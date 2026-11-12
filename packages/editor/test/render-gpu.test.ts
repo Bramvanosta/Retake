@@ -47,8 +47,9 @@ import {
   videotoolboxRenderWorks,
 } from '@retake/editor';
 import type { BrowserProcessInfo, EditPlan, PreviewBackend, RenderProgress } from '@retake/editor';
-import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 
 const canRender = process.platform === 'darwin' && hasTool('ffmpeg') && hasTool('ffprobe');
 const HERE = fileURLToPath(new URL('.', import.meta.url));

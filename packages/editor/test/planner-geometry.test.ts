@@ -12,7 +12,9 @@ import type { ComponentRegistry } from '@retake/components';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { mapSourceRect, planEdit, urlAt } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
-import { REPO, clip, clips, fixtureProject, realTimeline, template } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { clip, clips } from './helpers.js';
+import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
 
 let registry: ComponentRegistry;
 let project: LoadedProject;

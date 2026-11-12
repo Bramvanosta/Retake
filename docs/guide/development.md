@@ -24,6 +24,9 @@ packages/engine       the engine API the CLI and the MCP server share: workspace
                       the operation catalogue (catalogue.ts: every operation, its kind and the shells that serve it)
 packages/mcp          the MCP server (`retake mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
                       results, --print-config
+packages/test-support the helpers the tests of several packages share (`@retake/test-support/<module>`: the fixture
+                      workspace, synthetic runs and timelines, renders, reviews, the capture and brand-site servers,
+                      a test's own RETAKE_HOME): test code only — no build, no package depends on it, never in the app
 apps/desktop          the macOS app (L5.2): a Tauri shell (Rust, Cargo; not a pnpm package) running `retake ui
                       --supervised` and showing it; core/ holds its rules (no dependency); scripts/desktop.mjs
 packages/ui           the Studio web app (`retake ui`): a React app bundled in memory by esbuild and its server — the
@@ -50,7 +53,11 @@ CLAUDE.md             notes for Claude Code sessions (read order, working agreem
 Development: `pnpm build` (TypeScript project references), `pnpm typecheck` (the build, then the files under
 `packages/*/test` type-checked with `tsconfig.test.json`: the build does not read them, the CI does), `pnpm test` (vitest; the end-to-end tests start the
 fixture on free ports and skip themselves when Chromium or ffmpeg is missing; some CLI tests run `packages/cli/dist`,
-so build first). `pnpm lint` runs Biome's linter (`biome.json`: the recommended rules, a few turned off with their
+so build first). A helper the tests of two packages use lives in `packages/test-support` (read from its sources by
+vitest's aliases and `tsconfig.test.json`'s paths), never in one package's test folder; a test that needs a Retake home
+of its own takes it with `scratchHome()` (`@retake/test-support/home`: `use(dir)`, then `restore()` puts back the run's
+scratch home that `vitest.config.ts` set) — the import-rules ratchet counts a reach into another package's test folder
+(`test-reach`) and a hand-written save or restore of `RETAKE_HOME` (`home-restore`). `pnpm lint` runs Biome's linter (`biome.json`: the recommended rules, a few turned off with their
 reason in `scripts/lint-baseline.json`) and holds the code to that baseline: a new violation fails, and a count that
 went down asks for the baseline to be lowered (`node scripts/lint.mjs --write-baseline`), so it only shrinks; the CI
 runs it. `pnpm format` formats the code with Biome (`pnpm format:check` only reports). The linter reads the TypeScript
@@ -86,7 +93,7 @@ VideoToolbox are not frame-identical run to run (`packages/editor/test/render-gp
 ffmpeg whatever ffmpeg the machine has (the pinned bytes do not depend on it); a test of this machine's ffmpeg at the
 encode passes `settings: {ffmpeg: 'own'}` (`packages/editor/test/render-own-ffmpeg.test.ts`, darwin only). Exactly
 these three variables are pinned (`RETAKE_RENDER_CONCURRENCY` is not). A process a test starts with an environment of its own
-(an MCP server, a CLI command) gets them through `testChildEnv()` (`packages/core/test/child-env.ts`, with the scratch
+(an MCP server, a CLI command) gets them through `testChildEnv()` (`packages/test-support/src/child-env.ts`, with the scratch
 `CFFIXED_USER_HOME` and the file's `RETAKE_CAPTURES_DIR`), so the worker and job processes behind it render on the
 software path too; `packages/core/test/retake-home.test.ts` fails on such an environment that lacks them. The app's own
 acceptances (`app-bundle-acceptance`, `app-update-e2e`) run the shipped default on purpose.

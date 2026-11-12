@@ -9,10 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let project: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function retake(...args: Array<string | { answers: string[] }>) {
   const opts = typeof args[args.length - 1] === 'object' ? (args.pop() as { answers: string[] }) : undefined;
@@ -45,7 +46,7 @@ function placed(rollback: string): string {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-rollback-trust-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   project = join(ws, 'projects', 'demo');
   await mkdir(join(project, 'hooks'), { recursive: true });
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
@@ -54,8 +55,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

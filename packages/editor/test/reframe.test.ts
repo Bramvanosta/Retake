@@ -8,7 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Timeline } from '@retake/core';
 import { REFRAME, corridorSmooth, dampedSmooth, leadingPart, planEdit, reframeTargets, reframeTrack, viewOf } from '@retake/editor';
 import type { CameraFrame, ClipSegment, EditPlan, ReframeTarget } from '@retake/editor';
-import { clips, fixtureProject, realTimeline, studioWorkspace, template } from './helpers.js';
+import { clips, studioWorkspace } from './helpers.js';
+import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
 import type { Workspace } from './helpers.js';
 
 const FPS = 30;

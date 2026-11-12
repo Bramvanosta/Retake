@@ -1,6 +1,6 @@
 /**
  * L5.12a: the Review report and Edit's Render, end to end in headless Chromium against a real Studio server (no worker:
- * nothing renders) — on the self-numbering bits take (timeline-take.ts) with bits-v1, a render of the version the
+ * nothing renders) — on the self-numbering bits take (test-support take.ts) with bits-v1, a render of the version the
  * timeline shows (a11y-tour's writeRender: its plan, an x264 video for its frames), and its review written by hand
  * (two sheets, three findings — one message carries markup), a render whose review is queued (v2), one whose review
  * failed (v3, its message hostile), one made with other theme files (v4, the newest: its finding's frame is not the
@@ -38,9 +38,10 @@ import type { JobRecord } from '@retake/engine';
 import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import { hasTool } from '@retake/test-support/repo';
 import { writeRender } from './a11y-tour.js';
-import { BITS_TEXT, bitsTimeline, takeWorkspace, writeTake, writeThread } from './timeline-take.js';
+import { BITS_TEXT, bitsTimeline, takeWorkspace, writeTake, writeThread } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -59,7 +60,7 @@ let entry: string;
 /** The bits take's frames per second and the first frame of step a.1 (where v4's finding sends Edit). */
 let fps = 30;
 let stepA1 = 0;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 /** The ops the page called (name and body), in order. */
 const calls: Array<{ op: string; body: string }> = [];
@@ -87,7 +88,7 @@ async function copyRender(id: string, n: number, created: string): Promise<void>
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-review-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   await writeTake(dir, 'other', { run: '20260101-110000-other', text: BITS_TEXT.replace('video: Bits', 'video: Other'), timeline: bitsTimeline(), codec: 'vp9', seconds: 2 });
@@ -196,8 +197,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

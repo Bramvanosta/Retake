@@ -66,7 +66,7 @@ function walk(dir, out = [], keep = isScanned) {
 export function scan(root) {
   const ts = loadTs(root);
   const pkgsDir = path.join(root, 'packages');
-  const pkgs = fs.readdirSync(pkgsDir).filter((d) => fs.existsSync(path.join(pkgsDir, d, 'package.json')));
+  const pkgs = fs.readdirSync(pkgsDir).filter((d) => d !== TEST_SUPPORT && fs.existsSync(path.join(pkgsDir, d, 'package.json')));
   const nameToDir = {};
   const declared = {};
   for (const d of pkgs) {
@@ -178,6 +178,15 @@ const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'compone
  * none, or in two, fails packages/core/test/import-rules.test.ts — a new package is given its rules on purpose.
  */
 export const LAYERS = { domain: ['core'], adapters: ADAPTERS, application: ['engine'], shells: SHELLS };
+/**
+ * The tests' shared helpers (L7.37, finding C5): a workspace package of test code only — no build, never a dependency of
+ * a package, never in the app — and so in no layer: the source rules read the product's packages and the scan leaves it
+ * out. What holds it is test-reach (the helpers of another package's tests are reached here, never in its test folder)
+ * and home-restore (RETAKE_HOME saved and put back by its home helper only).
+ */
+export const TEST_SUPPORT = 'test-support';
+/** The one place that saves and puts back RETAKE_HOME for a test (home-restore). */
+export const HOME_HELPER = 'packages/test-support/src/home.ts';
 /**
  * The domain entries of the adapter packages (docs/audit/target-architecture.md, the domain line): pure modules — no
  * I/O, no renderer, no adapter code. A shell may import their types only (R4: a value would be the shell doing the
@@ -524,6 +533,16 @@ export const CHECKS = [
     id: 'id-grammar',
     title:
       "the grammars of the run id, the render id, the ULID ids and the theme names are written in their two homes only (ID_HOMES; the Studio front end has one mirror, ID_MIRRORS), in packages/*/src (entries: each file and how many id patterns it writes by hand — (1) a regular expression, string or template holding the date stamp `\\d{8}-\\d{6}`, the version suffix `-v\\d` / `-v(\\d` (whatever follows the digit: `+`, `{1,6}`; a named or a non-capturing group) or the ULID character class; (2) a string holding the ULID alphabet; (3) a regular expression, or a string (what `new RegExp` is given), that is the run-folder grammar or a theme-name grammar, a final `{0,N}` read as `*`; (4) a template with a text part ending in `-v`, or starting with a ULID prefix before a substitution; (5) a string or template part starting with `-vertical` or `-square`; (6) a capped grammar used without its cap: `.test()` / `.exec()` on RUN_ID_RE, RENDER_ID_RE, ANY_THEME_NAME_RE or NEW_THEME_NAME_RE, or one of them handed to `.match()` / `.matchAll()` / `.search()` / `.replace()` / `.split()`, or to the `.regex()` of a schema — with or without a `.max()` beside it: the `z…` helpers of ids.ts hold the cap). Not seen: a grammar spelt another way (`[0-9]{8}`, a character class in another order), a pattern put together from pieces or by `+` (`s + '-v' + n`), a capped grammar reached under another name or handed to a helper, a parser made of `.startsWith('j_')` / `.slice(2)` / `.split('-')`, the mirror's patterns used without their caps, and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell, docs)",
+  },
+  {
+    id: 'test-reach',
+    title:
+      "a test reaches another package's tests through the shared helpers only (TEST_SUPPORT, `@retake/test-support/<module>`; L7.37, finding C5): in packages/*/test (fixture and golden folders included) and the helpers' own sources, a relative specifier that resolves into another package's test folder — an import or re-export (type-only too), `import()`, `require()`, `vi.mock()` / `vi.doMock()` / `vi.importActual()` of a string — is a hit (entries: the file and the module it reaches). A package's own test folder is its own. Not seen: a path to another package's test data built for a read (`new URL('../../editor/test/fixtures/', import.meta.url)`, `join(REPO, …)`: data read by path, as the record fixtures are), a specifier computed at run time, a package name that maps into a test folder",
+  },
+  {
+    id: 'home-restore',
+    title:
+      "a test points RETAKE_HOME at a folder of its own through the shared helper (HOME_HELPER: `scratchHome()` saves the value found, `use(dir)` sets it, `restore()` puts it back, deleted when it was unset; `withHome(dir, fn)` around one call), never by hand: in packages/*/test and the helpers' sources outside HOME_HELPER, `process.env.RETAKE_HOME` (or `process.env['RETAKE_HOME']`) read into a variable, an assignment's right side, an object member or an array element — through parentheses, `!` and `as` — and `delete process.env.RETAKE_HOME` are counted per file (entries: each file and its count). A read used where it is read (`join(process.env.RETAKE_HOME!, 'ui')`), a test's own setting of it and an environment handed to a child (`{ RETAKE_HOME: home }`) are no save. Not seen: the whole environment copied (`{ ...process.env }`) and put back, a name held in a variable (`process.env[name]`), `Reflect`",
   },
   {
     id: 'record-read',
@@ -1944,6 +1963,91 @@ export function seamHits(root, files) {
  * One ratchet entry per (rule, file, import): the strings the baseline holds, sorted. A cycle gives one entry per file
  * and one with the number of imports inside it, so a new import between files already in a cycle fails too.
  */
+/** Every TypeScript file of the tests: packages/*\/test (fixture and golden folders too: a builder there is test code) and the shared helpers' sources (TEST_SUPPORT). `[{ rel, text }]`. */
+export function testSources(root) {
+  const pkgsDir = path.join(root, 'packages');
+  if (!fs.existsSync(pkgsDir)) return [];
+  return fs
+    .readdirSync(pkgsDir)
+    .flatMap((d) => [...walk(path.join(pkgsDir, d, 'test')), ...(d === TEST_SUPPORT ? walk(path.join(pkgsDir, d, 'src')) : [])])
+    .map((f) => ({ rel: path.relative(root, f).split(path.sep).join('/'), text: fs.readFileSync(f, 'utf8') }));
+}
+
+/** The module specifiers a test file names as strings: import / export declarations, `import x = require()`, `import()`, `require()`, `vi.mock()`, `vi.doMock()`, `vi.importActual()`. */
+function testSpecifiers(ts, sf) {
+  const out = [];
+  const callee = (e) => (ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) && ts.isIdentifier(e.expression) ? `${e.expression.text}.${e.name.text}` : undefined);
+  (function visit(n) {
+    if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) out.push(n.moduleSpecifier.text);
+    else if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference) && ts.isStringLiteral(n.moduleReference.expression)) out.push(n.moduleReference.expression.text);
+    else if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument) && ts.isStringLiteral(n.argument.literal)) out.push(n.argument.literal.text);
+    else if (ts.isCallExpression(n) && n.arguments[0] && (ts.isStringLiteral(n.arguments[0]) || ts.isNoSubstitutionTemplateLiteral(n.arguments[0]))) {
+      const c = n.expression.kind === ts.SyntaxKind.ImportKeyword ? 'import' : callee(n.expression);
+      if (c === 'import' || c === 'require' || c === 'vi.mock' || c === 'vi.doMock' || c === 'vi.importActual') out.push(n.arguments[0].text);
+    }
+    n.forEachChild(visit);
+  })(sf);
+  return out;
+}
+
+/**
+ * test-reach, read from the syntax tree of each test file (`[{ rel, text }]`, testSources): a relative specifier that
+ * resolves into the test folder of another package than the file's own (any package's, for the shared helpers).
+ * `{ rule, file, spec }`, spec: the module reached, repository-relative, without its extension.
+ */
+export function testReachHits(root, files = testSources(root)) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    // A relative specifier into a test folder climbs out of its own (`../`) and names `/test/`: a file without such a
+    // string is not parsed.
+    if (!/\.\.\/[^'"`\n]*\/test\//.test(text)) continue;
+    const own = rel.startsWith(`packages/${TEST_SUPPORT}/`) ? null : pkgOf(rel);
+    for (const spec of testSpecifiers(ts, parse(ts, rel, text))) {
+      if (!spec.startsWith('.')) continue;
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
+      const m = /^packages\/([^/]+)\/test\//.exec(target);
+      if (m && m[1] !== own) hits.push({ rule: 'test-reach', file: rel, spec: target.replace(/\.[cm]?[jt]sx?$/, '') });
+    }
+  }
+  return hits;
+}
+
+/**
+ * home-restore, read from the syntax tree of each test file outside HOME_HELPER: `process.env.RETAKE_HOME` kept for later
+ * — the initializer of a variable, the right side of an assignment, an object member's value, an array element (through
+ * parentheses, `!`, `as`, `satisfies`) — and `delete process.env.RETAKE_HOME`. `{ rule, file, count }`.
+ */
+export function homeRestoreHits(root, files = testSources(root)) {
+  const ts = loadTs(root);
+  const hits = [];
+  const isHome = (n) =>
+    (ts.isPropertyAccessExpression(n) && n.name.text === 'RETAKE_HOME' && n.expression.getText() === 'process.env') ||
+    (ts.isElementAccessExpression(n) && ts.isStringLiteralLike(n.argumentExpression) && n.argumentExpression.text === 'RETAKE_HOME' && n.expression.getText() === 'process.env');
+  const wrapped = (n) => ts.isParenthesizedExpression(n) || ts.isNonNullExpression(n) || ts.isAsExpression(n) || (ts.isSatisfiesExpression?.(n) ?? false);
+  for (const { rel, text } of files) {
+    if (rel === HOME_HELPER || !text.includes('RETAKE_HOME')) continue;
+    const sf = parse(ts, rel, text);
+    let count = 0;
+    (function visit(n) {
+      if (isHome(n)) {
+        let up = n;
+        while (up.parent && wrapped(up.parent)) up = up.parent;
+        const p = up.parent;
+        const kept =
+          (ts.isVariableDeclaration(p) && p.initializer === up) ||
+          (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.EqualsToken && p.right === up) ||
+          (ts.isPropertyAssignment(p) && p.initializer === up) ||
+          ts.isArrayLiteralExpression(p);
+        if (kept || ts.isDeleteExpression(p)) count++;
+      }
+      n.forEachChild(visit);
+    })(sf);
+    if (count) hits.push({ rule: 'home-restore', file: rel, count });
+  }
+  return hits;
+}
+
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
   for (const h of [
@@ -1970,6 +2074,9 @@ export function ratchetEntries(root, scanned = scan(root)) {
     if (own) set.add(`record-read ${h.file} → ${own} own read${own === 1 ? '' : 's'} of a run folder's or renders/'s file`);
     if (h.count > own) set.add(`record-read ${h.file} → ${h.count - own} record${h.count - own === 1 ? '' : 's'} typed without the reader`);
   }
+  const tests = testSources(root);
+  for (const h of testReachHits(root, tests)) set.add(`test-reach ${h.file} → ${h.spec}`);
+  for (const h of homeRestoreHits(root, tests)) set.add(`home-restore ${h.file} → ${h.count} hand-written RETAKE_HOME save${h.count === 1 ? '' : 's'} or restore${h.count === 1 ? '' : 's'}`);
   const graph = fileGraph(scanned.fileImports);
   for (const c of cycles(graph).map((x) => x.sort())) {
     for (const f of c) set.add(`cycle ${f} → cycle of ${c[0]}`);

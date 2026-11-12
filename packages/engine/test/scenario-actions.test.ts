@@ -18,11 +18,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EngineError, RunDataCache, ScenarioViews, createEngine, openProjectBySlug, openWorkspace } from '../src/index.js';
 import type { Engine, RunBlocker } from '../src/index.js';
 import { blockerKind } from '../src/jobs/run-job.js';
-import { writeRun } from './synthetic-runs.js';
+import { writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let ui: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const project = (name: string, envs: string[]) => ['name: ' + name, 'environments:', ...envs, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n');
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n      - hold: 0.3\n';
@@ -35,7 +36,7 @@ const BROKEN = 'video: broken\nscenes:\n  - id: a\n    page: console\n    open: 
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-actions-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   const files: Record<string, string> = {
     'prod/project.yaml': project('Prod', [
@@ -66,8 +67,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

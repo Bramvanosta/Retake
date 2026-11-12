@@ -20,8 +20,10 @@ import type { RenderJobInput } from '@retake/engine';
 import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, reviewInline, enginePorts } from '../src/index.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine, JobRecord } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { syntheticRunRecord } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const SCENARIO = 'snap';
 const RUN = '20260101-120000-snap';
@@ -45,12 +47,12 @@ let root: string;
 let dir: string;
 let engine: Engine;
 let queue: FileJobQueue;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const scenarioFile = () => join(dir, 'scenarios', `${SCENARIO}.yaml`);
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-render-snapshot-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -79,8 +81,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

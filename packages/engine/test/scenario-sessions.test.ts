@@ -32,26 +32,26 @@ import {
 import type { Engine, EngineError } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemorySessions } from '../src/capture/memory-sessions.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const PROJECT = 'northfield-fixture';
 let root: string;
 let home: string;
 let engine: Engine;
-const saved = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const savedPw = process.env.NORTHFIELD_SUPPLIER_PASSWORD;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-sessions-'));
   home = join(root, '.home');
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   await fixtureWorkspace(root);
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (saved === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = saved;
+  retakeHome.restore();
   if (savedPw === undefined) delete process.env.NORTHFIELD_SUPPLIER_PASSWORD;
   else process.env.NORTHFIELD_SUPPLIER_PASSWORD = savedPw;
   if (root) await rm(root, { recursive: true, force: true });

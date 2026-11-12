@@ -16,25 +16,26 @@ import { DISCOVERY_VERSION, discoveryFile, newSecret, readDiscovery, readStudioT
 import { TOOLS } from '@retake/mcp';
 import { CALL_BODY_MAX, INDEX_HTML, INDEX_OPS, OWN_OPS, UI_OPS, buildUi, launchStudio, startStudioServer, uiTools } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const README = () => join(ws, 'projects', 'northfield-fixture', 'README.md');
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-server-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws });
 });
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -367,11 +368,11 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
 
   it('a Retake home inside the workspace is refused before anything starts: the token would lie where an agent reads files', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-home-'));
-    const before = process.env.RETAKE_HOME;
+    const inside = scratchHome();
     try {
       await fixtureWorkspace(dir);
       for (const home of [join(dir, '.home'), join(dir, 'projects', 'h')]) {
-        process.env.RETAKE_HOME = home;
+        inside.use(home);
         const e = await launchStudio({ root: dir }).then(
           () => null,
           (x: unknown) => x as { code: string; message: string; fix?: string },
@@ -383,7 +384,7 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
         await expect(stat(join(home, 'ui'))).rejects.toThrow();
       }
     } finally {
-      process.env.RETAKE_HOME = before;
+      inside.restore();
       await rm(dir, { recursive: true, force: true });
     }
   });
@@ -443,20 +444,20 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
   it('a live server of another Retake home, or an older record (version 1, with its token): told what to do, nothing sent to its port', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
     const other = await decoy();
-    const home = process.env.RETAKE_HOME;
+    const otherHome = scratchHome();
     try {
       await fixtureWorkspace(dir);
       const first = await launchStudio({ root: dir });
       if (first.reused) throw new Error('expected a new server');
-      process.env.RETAKE_HOME = join(dir, '..', `${basename(dir)}-other-home`);
+      const elsewhere = otherHome.use(join(dir, '..', `${basename(dir)}-other-home`));
       const e = await launchStudio({ root: dir }).then(
         () => undefined,
         (x: unknown) => x,
       );
       expect(e).toMatchObject({ code: 'busy', message: expect.stringContaining(`a Studio server (pid ${process.pid}) serves this workspace, but its token is not in this Retake home`) });
       expect((e as { fix: string }).fix).toContain('run retake ui with the RETAKE_HOME that server was started with');
-      await rm(process.env.RETAKE_HOME, { recursive: true, force: true });
-      process.env.RETAKE_HOME = home;
+      await rm(elsewhere, { recursive: true, force: true });
+      otherHome.restore();
       await first.server.close();
       // An older Retake's record, its holder alive (this process), its port the decoy.
       const me = await selfIdentity();
@@ -482,7 +483,7 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
       expect(old).toMatchObject({ code: 'busy', message: expect.stringContaining('a Studio server of an older Retake'), fix: expect.stringContaining(`kill ${me.pid}`) });
       expect(other.seen).toEqual([]);
     } finally {
-      process.env.RETAKE_HOME = home;
+      otherHome.restore();
       await other.close();
       await rm(dir, { recursive: true, force: true });
     }

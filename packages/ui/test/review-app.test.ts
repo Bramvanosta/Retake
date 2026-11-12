@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { RENDER_ID_RE } from '@retake/core';
 import { FINDING_CODES } from '../../review/src/types.js';
-import { REPO } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import {
   CHECK_FAMILIES,
   NOTHING_ELSE,

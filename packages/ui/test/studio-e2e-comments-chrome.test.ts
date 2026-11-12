@@ -31,8 +31,10 @@ import type { Engine } from '@retake/engine';
 import type { RenderRecord } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
-import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
 const gated = process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
@@ -59,7 +61,7 @@ let studio: StudioServer;
 let mcp: Engine;
 let browser: Browser;
 let page: Page;
-const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
+const retakeHome = scratchHome('RETAKE_AUTHOR');
 const consoleErrors: string[] = [];
 /** The capture, the thread and its frame (each test goes on from the one before). */
 const ids = { run: '', thread: '', frame: 0, entry: '' };
@@ -160,7 +162,7 @@ beforeAll(async () => {
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   for (const u of Object.values(fixture.urls)) expect([4401, 4402, 4403, 4404]).not.toContain(Number(new URL(u).port));
   root = await mkdtemp(join(tmpdir(), 'ds-e2e-comments-chrome-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   process.env.RETAKE_AUTHOR = AUTHOR;
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   dir = join(root, 'projects', P);
@@ -192,13 +194,7 @@ afterAll(async () => {
   await browser?.close();
   await studio?.close();
   await fixture?.close();
-  for (const [k, val] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_AUTHOR', saved.author],
-  ] as const) {
-    if (val === undefined) delete process.env[k];
-    else process.env[k] = val;
-  }
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 

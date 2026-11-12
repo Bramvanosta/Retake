@@ -19,6 +19,7 @@ import type { RunRecord } from '@retake/core';
 import { TakeLock, openSandbox, probePort, sandboxPaths } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const FIXTURE_PROJECT = join(REPO, 'projects/northfield-fixture');
@@ -53,7 +54,7 @@ async function freePorts(n: number): Promise<number[]> {
 
 let ws = '';
 let home = '';
-let savedHome: string | undefined;
+const retakeHome = scratchHome();
 let dir = '';
 let ports: number[] = [];
 
@@ -84,8 +85,7 @@ const api = (path: string) => `http://localhost:${ports[0]}${path}`;
 describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fixture, process provider)', () => {
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'studio-sandbox-home-'));
-    savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     const build = (await import(join(REPO, 'fixtures/wholesale/build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
     if (!(await build.bundleState()).fresh) await build.build();
     ports = await freePorts(4);
@@ -129,8 +129,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
       /* not started */
     }
     // Back to the run's scratch home (vitest.config.ts), never none: a later test's main() would look at the real one.
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     await rm(ws, { recursive: true, force: true });
     await rm(home, { recursive: true, force: true });
   });

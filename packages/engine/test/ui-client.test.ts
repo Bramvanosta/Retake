@@ -12,11 +12,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_CLIENTS } from '@retake/engine';
 import { EngineError, agentTrust, createEngine } from '../src/index.js';
 import type { Engine, EngineClient } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let ui: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const LEAK = 'video: leak\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - eval: {js: "throw new Error(btoa(\'{{env:HOME}}\'))"}\n';
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
@@ -30,14 +31,13 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-client-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   ui = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

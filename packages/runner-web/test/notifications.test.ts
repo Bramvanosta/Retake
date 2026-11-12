@@ -16,7 +16,8 @@ import { runScenario } from '../src/index.js';
 import { iconRefusal, NOTIFICATION_ICON_MAX_BYTES, NOTIFICATION_ICON_RUN_MAX, NOTIFICATION_RUN_MAX } from '../src/notifications.js';
 import { NOTIFICATION_TEXT_MAX, readNotificationPayload } from '../src/session.js';
 import { CURSOR_EFFECTS_PER_SECOND } from '../src/runtime.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 const ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1f4e6e"/></svg>';

@@ -19,7 +19,8 @@ import type { RunRecord } from '@retake/core';
 import type { RunJobInput } from '@retake/engine';
 import { FileJobQueue, createEngine, sha256Hex } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 function chromiumAvailable(): boolean {
   if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
@@ -75,7 +76,7 @@ scenes:
 let fixture: Fixture;
 let ws: string;
 let home: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 /** A human who approves (LONG's setup has a rollback DELETE: it needs an approval through MCP). */
 const YES = { approve: async () => ({ approved: true as const }) };
 let engine: Engine;
@@ -143,7 +144,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     ws = await mkdtemp(join(tmpdir(), 'studio-worker-'));
     home = join(ws, '.home');
     // Approvals are signed at enqueue with the key of the Retake home: the worker (same home) verifies them.
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
@@ -168,8 +169,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
 
   afterAll(async () => {
     for (const w of workers) if (w.exitCode === null && w.signalCode === null) w.kill('SIGKILL');
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     await fixture?.close();
     if (ws) await rm(ws, { recursive: true, force: true });
   });

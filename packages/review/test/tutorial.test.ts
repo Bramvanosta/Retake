@@ -31,7 +31,8 @@ import {
   viewMoves,
 } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { REPO, synthTimeline } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { synthTimeline } from '@retake/test-support/timeline';
 import { PERSON_POLICY } from '@retake/core';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');

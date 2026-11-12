@@ -26,6 +26,7 @@ import {
   scenarioWritesFile,
 } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 let ws: string;
@@ -33,7 +34,7 @@ let projectDir: string;
 let studio: Engine;
 let mcp: Engine;
 let person: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const PROJECT = {
   slug: 'demo',
   get dir() {
@@ -63,7 +64,7 @@ async function journalLine(root: string, o: { path: string; sha256: string; trus
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-agent-written-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   projectDir = join(ws, 'projects', 'demo');
   await mkdir(join(projectDir, 'scenarios'), { recursive: true });
@@ -74,8 +75,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 

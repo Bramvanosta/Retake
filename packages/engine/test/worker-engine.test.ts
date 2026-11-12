@@ -14,9 +14,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
 import { engineLocation } from '@retake/core/io';
 import { WorkerLock, createEngine, otherCopy, otherCopyWarning, readWorkerLock, workerLockFile, workersDir, systemClock } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES } from '../../editor/test/render-helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const roots: string[] = [];
 afterAll(async () => {
@@ -107,8 +108,8 @@ describe('the worker lock records which copy of Retake runs it', () => {
 
   it("review c B-L1: a render submitted while another copy's worker holds the lock says so in its warnings", async () => {
     const root = await scratch();
-    const savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = join(root, '.home');
+    const retakeHome = scratchHome();
+    retakeHome.use(join(root, '.home'));
     try {
       const RUN = '20260101-120000-snap';
       const TEXT = 'video: Snap\ntitle: {text: Snap}\nintro: false\noutro: false\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
@@ -145,8 +146,7 @@ describe('the worker lock records which copy of Retake runs it', () => {
       expect(r.worker).toMatchObject({ spawned: false, other: { version: '0.1.0', engine: '/Applications/Old Retake.app' } });
       expect(r.warnings.join('\n')).toContain("this workspace's jobs worker runs another copy of Retake (0.1.0;");
     } finally {
-      if (savedHome === undefined) delete process.env.RETAKE_HOME;
-      else process.env.RETAKE_HOME = savedHome;
+      retakeHome.restore();
     }
   });
 });

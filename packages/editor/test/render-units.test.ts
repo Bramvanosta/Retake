@@ -49,8 +49,8 @@ import {
   urlAt,
 } from '@retake/editor';
 import type { BundleComponent, ClipSegment, EditPlan } from '@retake/editor';
-import { fixtureProject, realTimeline, template } from './helpers.js';
-import { syntheticRunRecord } from './render-helpers.js';
+import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
+import { syntheticRunRecord } from '@retake/test-support/render';
 import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
 

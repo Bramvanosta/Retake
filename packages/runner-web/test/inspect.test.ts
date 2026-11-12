@@ -18,8 +18,9 @@ import { normalizeTarget, parseScenario, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, LoadedScenario, Scenario, Scene, TargetSpec } from '@retake/core';
 import { INSPECT_BUDGET_MS, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { InspectReport, InspectRequest, RunOptions } from '../src/index.js';
-import { FAST, makeProject, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, startServer } from '@retake/test-support/capture';
+import { makeProject, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const W = 1280;

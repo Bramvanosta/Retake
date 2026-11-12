@@ -10,8 +10,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AccessError, RunRecordSchema, TimelineSchema, applyProjectDefaults, zodIssues, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir, testHookRunner } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 let server: TestServer;
 let dir: string;

@@ -14,7 +14,8 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { themeContentHash } from '@retake/editor';
 import { clearTimelineViewMemo, createEngine } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { scratchHome } from '@retake/test-support/home';
 
 const SCENARIO = 'tl';
 const RUN = '20260101-120000-tl';
@@ -31,7 +32,7 @@ scenes:
 `;
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const view = async (r: Promise<TimelineViewResult>) => {
   const v = await r;
   if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
@@ -40,7 +41,7 @@ const view = async (r: Promise<TimelineViewResult>) => {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-scenario-theme-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), join(root, 'templates', 'brand'), { recursive: true });
   // Its own name (a byte-identical copy would have the starter's content hash).
@@ -88,8 +89,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

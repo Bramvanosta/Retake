@@ -10,8 +10,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cp, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Timeline } from '@retake/core';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { REPO } from '../../editor/test/render-helpers.js';
+import { REPO } from './repo.js';
+import { synthTimeline } from './timeline.js';
 
 export const BITS = 10;
 /** The blocks' band, as fractions of the frame: block k spans x ∈ [X0 + k·STEP, X0 + k·STEP + W), y ∈ [Y0, Y1). */

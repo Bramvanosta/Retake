@@ -24,6 +24,7 @@ import { dockerEnv, findDocker, openSandbox, probePort } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;
@@ -89,7 +90,7 @@ async function freePorts(n: number): Promise<number[]> {
 
 let ws = '';
 let home = '';
-let savedHome: string | undefined;
+const retakeHome = scratchHome();
 let dir = '';
 let ports: number[] = [];
 const name = `${PREFIX}${randomBytes(3).toString('hex')}`;
@@ -103,8 +104,7 @@ async function retake(args: string[]) {
 describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DOCKER=1)", () => {
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'studio-docker-home-'));
-    savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     // The image copies the UI bundle built on this machine.
     const build = (await import(join(FIXTURE, 'build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
     if (!(await build.bundleState()).fresh) await build.build();
@@ -138,8 +138,7 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
     }
     sweep();
     // Back to the run's scratch home (vitest.config.ts), never none: a later test's main() would look at the real one.
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     await rm(ws, { recursive: true, force: true });
     await rm(home, { recursive: true, force: true });
   });

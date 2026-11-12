@@ -25,7 +25,7 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyShellLine, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { station } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';
 

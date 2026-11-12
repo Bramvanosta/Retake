@@ -200,6 +200,55 @@
    ]
   },
   {
+   "rule": "test-reach",
+   "reason": "The record corpus (core/test/fixtures/records: run and render records as data, their README, and the three builders that write them into a workspace) stays one folder of core's test data: the builders read their data beside them, and the characterization tests of every package build their states from it unchanged; moving the builders to the shared helpers would split the corpus from its data, moving the corpus would move the fixtures.",
+   "entries": [
+    "packages/cli/test/prune-keeps.test.ts → packages/core/test/fixtures/records/build",
+    "packages/cli/test/prune-keeps.test.ts → packages/core/test/fixtures/records/prune-layouts",
+    "packages/cli/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
+    "packages/cli/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/editor/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
+    "packages/editor/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/editor/test/render-record.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/engine/test/prune-keeps.test.ts → packages/core/test/fixtures/records/build",
+    "packages/engine/test/prune-keeps.test.ts → packages/core/test/fixtures/records/prune-layouts",
+    "packages/engine/test/prune-only-keeps-more.test.ts → packages/core/test/fixtures/records/build",
+    "packages/engine/test/prune-only-keeps-more.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/engine/test/prune-only-keeps-more.test.ts → packages/core/test/fixtures/records/prune-layouts",
+    "packages/engine/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
+    "packages/engine/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/mcp/test/authoring-ops-characterization.test.ts → packages/core/test/fixtures/records/prune-layouts",
+    "packages/mcp/test/prune-keeps.test.ts → packages/core/test/fixtures/records/build",
+    "packages/mcp/test/prune-keeps.test.ts → packages/core/test/fixtures/records/prune-layouts",
+    "packages/mcp/test/render-latest-said.test.ts → packages/core/test/fixtures/records/build",
+    "packages/mcp/test/render-latest-said.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/mcp/test/render-status-by-id.test.ts → packages/core/test/fixtures/records/build",
+    "packages/mcp/test/render-status-by-id.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/review/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
+    "packages/review/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders",
+    "packages/runner-web/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
+    "packages/ui/test/records-characterization.test.ts → packages/core/test/fixtures/records/build",
+    "packages/ui/test/records-characterization.test.ts → packages/core/test/fixtures/records/build-renders"
+   ]
+  },
+  {
+   "rule": "test-reach",
+   "reason": "The Studio's operations built with stand-ins (ui/test/studio-tools.ts) call the Studio server's own studioTools, which @retake/ui does not export: the shared helpers would reach into ui's sources instead; the engine's and MCP's tests read the op definitions through it.",
+   "entries": [
+    "packages/engine/test/operations.test.ts → packages/ui/test/studio-tools",
+    "packages/mcp/test/authoring-ops-characterization.test.ts → packages/ui/test/studio-tools",
+    "packages/mcp/test/comment-ops-characterization.test.ts → packages/ui/test/studio-tools",
+    "packages/mcp/test/theme-ops-characterization.test.ts → packages/ui/test/studio-tools"
+   ]
+  },
+  {
+   "rule": "home-restore",
+   "reason": "The shared home helper's own test (the canary of the test environment): it keeps the run's home by hand, so that a broken helper cannot leave its own test's home behind.",
+   "entries": [
+    "packages/core/test/retake-home.test.ts → 1 hand-written RETAKE_HOME save or restore"
+   ]
+  },
+  {
    "rule": "record-read",
    "reason": "Prune reads the run folders through the reader (L7.7) and keeps its lenient read for one case: a run.json the reader does not take as a record (a finished run without its end, a failed one without its error, a linked file) is still read as any object with a text id and status, so that a take prune could delete before the lot can still be deleted — leaving such a take alone is a change nobody decided. Where this read is stricter than before it only keeps: a file of a newer format is left alone, one that is no regular file or is over the reader's cap is not read. Its second read (L7.6b) is of renders/: a record file that is a link is not opened by the one reader of renders/, and is read through the link for the id, the take, the scenario and the creation time it says — never taken as a record — so that a linked record keeps the render and the take it kept before the lot.",
    "entries": [

@@ -39,9 +39,11 @@ import type { Engine } from '@retake/engine';
 import type { RenderRecord } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
-import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
 import { auditPage, formatFindings, settle } from './a11y.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
 const gated = process.env.RETAKE_TEST_SLOW === '1' && process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
@@ -72,7 +74,7 @@ let studio: StudioServer;
 let mcp: Engine;
 let browser: Browser;
 let page: Page;
-const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR, disk: process.env.RETAKE_DISK_WARN };
+const retakeHome = scratchHome('RETAKE_AUTHOR', 'RETAKE_DISK_WARN');
 const consoleErrors: string[] = [];
 const timings: string[] = [];
 const audits: string[] = [];
@@ -133,7 +135,7 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-ui-acceptance-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   process.env.RETAKE_AUTHOR = AUTHOR;
   process.env.RETAKE_DISK_WARN = 'off';
   await writeFile(join(root, 'retake.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
@@ -182,14 +184,7 @@ afterAll(async () => {
     }
   }
   await fixture?.close();
-  for (const [k, val] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_AUTHOR', saved.author],
-    ['RETAKE_DISK_WARN', saved.disk],
-  ] as const) {
-    if (val === undefined) delete process.env[k];
-    else process.env[k] = val;
-  }
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 

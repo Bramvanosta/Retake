@@ -13,13 +13,14 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CATALOGUE, OPERATIONS_BY_NAME, invoke } from '@retake/engine/contract';
 import type { Shell, ToolDef } from '@retake/engine/contract';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { writeTake } from '../../ui/test/timeline-take.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
+import { writeTake } from '@retake/test-support/take';
 import { FileJobQueue, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import type { Admission, AdmissionDeps } from '../src/admission.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 /** What the instrumented admission saw, in order: a check entered (with the open jobs then), a run's reserve, a submit. */
 const seen = vi.hoisted(() => [] as Array<{ step: 'admit' | 'prepared' | 'reserve' | 'submit'; kind: string; open: number }>);
@@ -70,7 +71,7 @@ const TEXT = 'video: Timeline\nintro: false\noutro: false\nscenes:\n  - id: a\n 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const signal = new AbortController().signal;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** One call per admitted operation: its shell, and arguments that queue a job on a quiet queue. */
 const CASES: Record<string, { shell: Shell; args: Record<string, unknown>; kind: 'run' | 'render' | 'export' }> = {
@@ -90,7 +91,7 @@ const engines = {} as Record<'mcp' | 'ui', Engine>;
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'engine-op-admission-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'projects', P, 'scenarios', 'one-a.yaml'), 'video: one-a\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 1\n');
   const dir = join(ws, 'projects', D);
@@ -144,8 +145,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -12,7 +12,8 @@ import { HostRefusedError, PERSON_POLICY } from '@retake/core';
 import type { NotificationArtefact } from '@retake/core';
 import { evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, HookPageOptions } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir, testHookRunner } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 
 const RESOLVE = '--host-resolver-rules=MAP elsewhere.test 127.0.0.1';
 

@@ -29,9 +29,11 @@ import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@retake/engi
 import type { JobRecord, RecordWindow } from '@retake/engine';
 import { OWN_OPS, RECORD_OPS, UI_OPS, recordPathFree, startStudioServer } from '../src/index.js';
 import type { RecordOptionsAnswer, RecordStartAnswer, RecordViewAnswer, StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 import { recordsWatchScan } from '../src/server/record-watch.js';
+import { scratchHome } from '@retake/test-support/home';
 
 type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
@@ -42,7 +44,7 @@ interface Fixture {
 
 const P = 'northfield-fixture';
 const SENTINEL = `Sentinel-${randomBytes(6).toString('hex')}`;
-const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN };
+const retakeHome = scratchHome('RETAKE_RECORD_MAX_MIN');
 let fixture: Fixture;
 let ws: string;
 let studio: StudioServer;
@@ -156,7 +158,7 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-record-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(ws);
   const project = join(ws, 'projects', P);
@@ -187,13 +189,7 @@ afterAll(async () => {
   await studio?.close();
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_RECORD_MAX_MIN', saved.max],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 describe('the allow-list and the pinned inputs', () => {

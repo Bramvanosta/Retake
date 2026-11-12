@@ -20,13 +20,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { THEME_USES_STATS, createEngine, openWorkspace, templateView } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;
 let engine: Engine;
 let mcp: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const themeDir = () => join(root, 'templates', 'brand');
 const themeFile = () => join(themeDir(), 'template.yaml');
 const ORIGINAL = readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8').replace('name: editorial', 'name: brand');
@@ -55,7 +56,7 @@ async function reset(): Promise<string> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-theme-edit-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), themeDir(), { recursive: true });
   await writeFile(themeFile(), ORIGINAL);
@@ -69,8 +70,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

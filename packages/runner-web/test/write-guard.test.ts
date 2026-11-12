@@ -17,7 +17,8 @@ import { WriteRefusedError, compileWritePolicy, PERSON_POLICY } from '@retake/co
 import type { LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
 import { closePage, evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, GuardedWrite } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir, testHookRunner } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir, testHookRunner } from './helpers.js';
 
 let server: Server;
 let A = ''; // the app: guarded

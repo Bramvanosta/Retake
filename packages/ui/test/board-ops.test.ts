@@ -21,16 +21,17 @@ import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/e
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { productionState } from '../src/app/words/board-words.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, capture, writeRun } from '@retake/test-support/runs';
+import { raw } from '@retake/test-support/http';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let studio: StudioServer;
 const P = 'northfield-fixture';
 const BIG = 'big';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const project = (slug = P) => join(ws, 'projects', slug);
 const A = '20261020-100000-blocks';
 const B = '20261021-100000-blocks';
@@ -38,7 +39,7 @@ const C = '20261022-100000-blocks';
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-board-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'scenarios', 'blocks.yaml'), `title: {kicker: K, text: "<img src=x onerror=alert(1)> ‮gnp.exe ${'t'.repeat(400)}"}\n${BLOCKS_YAML}`);
   await writeRun(project(), { ...capture(A), snapshot: await readFile(join(project(), 'scenarios', 'blocks.yaml'), 'utf8') });
@@ -64,8 +65,7 @@ beforeAll(async () => {
 afterAll(async () => {
   vi.restoreAllMocks();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

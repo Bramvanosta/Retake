@@ -17,7 +17,8 @@ import { chromium } from 'playwright-core';
 import type { EmailArtefact, LoadedProject, RunProgress, RunRecord, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { FAST, makeScenario } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).

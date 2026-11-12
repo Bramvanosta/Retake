@@ -25,12 +25,14 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const POLL = { timeout: 20_000 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const STEPS = 24;
 
 interface Fixture {
@@ -89,7 +91,7 @@ async function plantJob(project: string, n: number): Promise<string> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-reads-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
@@ -123,8 +125,7 @@ afterAll(async () => {
   await browser?.close();
   await studio?.close();
   await fixture?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

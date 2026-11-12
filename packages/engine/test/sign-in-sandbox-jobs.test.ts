@@ -19,8 +19,9 @@ import { hookFingerprint } from '@retake/hooks';
 import { openSandbox } from '@retake/sandbox';
 import { EngineError, FileJobQueue, createEngine, historyFile, packageHookRunner, seedApprovalItems } from '../src/index.js';
 import type { ApprovalRequest, Approver, Engine, JobRecord } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 function chromiumAvailable(): boolean {
   if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
@@ -57,7 +58,7 @@ createServer((req, res) => { res.writeHead(req.url === '/health' ? 200 : 404); r
 
 let ws: string;
 let home: string;
-let savedHome: string | undefined;
+const retakeHome = scratchHome();
 let port: number;
 let fixture: Fixture | undefined;
 let accounts: Record<'supplier' | 'buyer', { email: string; password: string; name: string }>;
@@ -99,8 +100,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     ws = await mkdtemp(join(tmpdir(), 'studio-jobs-d-'));
     home = join(ws, '.home');
     // The worker saves sessions in its RETAKE_HOME; this process reads them from the same one.
-    savedHome = process.env.RETAKE_HOME;
-    process.env.RETAKE_HOME = home;
+    retakeHome.use(home);
     port = await freePort();
     await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const dir = join(ws, 'projects', 's');
@@ -177,8 +177,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
       /* never started */
     }
     await fixture?.close();
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 

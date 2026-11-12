@@ -23,10 +23,11 @@ import { TOOLS } from '@retake/mcp';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer, TimelineViewAnswer } from '../src/index.js';
 import { FRAME_URL_RE, previewUrls } from '../src/app/words/timeline-words.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { raw } from './http.js';
-import { takeWorkspace, writeTake } from './timeline-take.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
+import { raw } from '@retake/test-support/http';
+import { takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const RUN = '20260101-120000-tl';
@@ -47,7 +48,7 @@ scenes:
 let ws: string;
 let dir: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const MARK = 'MARKED-COMPONENT-5e2b';
 const LEASE_A = 'leaseAAAAAAAAAAAAAAAAA';
@@ -66,7 +67,7 @@ async function viewOf(args: Record<string, unknown>): Promise<Ok> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-timeline-ops-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 3,
@@ -100,8 +101,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

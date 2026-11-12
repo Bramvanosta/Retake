@@ -14,18 +14,18 @@ import { FileJobQueue, INSPECT_KEEP, MemoryJobQueue, RECORD_KEEP, inspectRoot, n
 import type { JobQueueView, TakeHold } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
 import { RUN_INPUT, jobQueueContract } from './job-queue-contract.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'retake-queue-contract-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 

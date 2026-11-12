@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import type { RunRecord, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { SIZES_PAGE } from './pages.js';
-import { FAST, debugTemplate, execFileP, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, debugTemplate, execFileP, frameAt, magentaCentroid, makeScenario, startServer } from '@retake/test-support/capture';
+import { jpegSize, makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI

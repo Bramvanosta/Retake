@@ -38,7 +38,8 @@ import {
   slowTransitions,
   streamArgs,
 } from '../src/index.js';
-import { execFileP, tempDir } from './helpers.js';
+import { execFileP } from '@retake/test-support/capture';
+import { tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 let dir: string;

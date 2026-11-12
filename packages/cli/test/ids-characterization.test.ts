@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedProject } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { findRunOf } from '@retake/engine';
-import { syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { syntheticRunRecord } from '@retake/test-support/render';
 
 let tmp: string;
 let n = 0;

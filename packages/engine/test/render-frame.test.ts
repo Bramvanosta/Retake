@@ -17,11 +17,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { EngineError, RenderFrames, Semaphore, addComment, createEngine, packageReviewer } from '../src/index.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Case, Workspace } from '../../review/test/helpers.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Case, Workspace } from '@retake/test-support/review';
 import { authorScope } from './helpers.js';
-import { bitsVideo, readBits } from '../../ui/test/timeline-take.js';
+import { bitsVideo, readBits } from '@retake/test-support/take';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The product's frames (the review package's): the stills and frames these tests check are real. */
 const FRAMES = packageReviewer().frames;
@@ -34,7 +36,7 @@ let ws: Workspace;
 let project: LoadedProject;
 let v1: Case;
 let savedRecord: Buffer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function engineError(p: Promise<unknown>): Promise<EngineError> {
   const e = await p.then(
@@ -111,7 +113,7 @@ beforeAll(async () => {
   if (!can) return;
   ws = await workspace();
   project = ws.project;
-  process.env.RETAKE_HOME = join(ws.root, '.home');
+  retakeHome.use(join(ws.root, '.home'));
   v1 = await makeCase(ws, 'quote', scenesTimeline([3, 3]), { noVideo: true });
   await writeFile(join(v1.run.dir, 'scenario.yaml'), 'scenes:\n  - id: s1\n    steps: [{click: Go}, {hold: 1}]\n  - id: s2\n    steps: [{click: Go}, {hold: 1}]\n');
   bitsRender(v1.record.file, v1.record.frames, v1.record.width, v1.record.height, v1.record.fps);
@@ -124,8 +126,7 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await ws?.cleanup();
 });
 

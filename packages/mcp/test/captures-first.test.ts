@@ -11,13 +11,14 @@ import { FileJobQueue, FilmingMarker, createEngine, selfIdentity } from '@retake
 import type { Engine, JobRecord } from '@retake/engine';
 import { TOOLS } from '../src/index.js';
 import type { ToolDef, ToolOutput } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let other: string;
 let engine: Engine;
 let queue: FileJobQueue;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** One tool by its name, called with loose arguments: its answer's data as a plain record (each test reads the keys it expects). */
 const tool = (name: string, args: Record<string, unknown>) => {
@@ -28,15 +29,14 @@ const tool = (name: string, args: Record<string, unknown>) => {
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-mcp-captures-'));
   other = await mkdtemp(join(tmpdir(), 'retake-mcp-captures-secret-ws-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await fixtureWorkspace(root);
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
   queue = new FileJobQueue(root);
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   for (const d of [root, other]) if (d) await rm(d, { recursive: true, force: true });
 });
 

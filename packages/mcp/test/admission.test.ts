@@ -16,11 +16,12 @@ import type { Engine, EngineError } from '@retake/engine';
 import { catalogueOperation } from '@retake/engine/catalogue';
 import { TOOLS, invoke } from '../src/index.js';
 import type { ToolDef } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const UNSET = 'RETAKE_TEST_MCP_ADMISSION_UNSET_PW';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let ws: string;
 let engine: Engine;
 let queue: FileJobQueue;
@@ -44,7 +45,7 @@ const plain = (video: string, env?: string) =>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'mcp-admission-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   const yaml = await readFile(join(project(), 'project.yaml'), 'utf8');
   delete process.env[UNSET];
@@ -60,8 +61,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

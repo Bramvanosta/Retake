@@ -43,10 +43,11 @@ import { recordShapeOk } from '../src/comments/views.js';
 import { checkJobId } from '../src/jobs/queue-core.js';
 import { checkRenderRequest, renderVersionOf } from '../src/jobs/render-job.js';
 import { readListedRecord, renderView } from '../src/renders.js';
-import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Case, Workspace } from '../../review/test/helpers.js';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Case, Workspace } from '@retake/test-support/review';
 import { authorScope } from './helpers.js';
-import { capture, writeRun } from './synthetic-runs.js';
+import { capture, writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The product's frames (the review package's): the stills and frames these tests check are real. */
 const FRAMES = packageReviewer().frames;
@@ -62,7 +63,7 @@ let themes: string;
 let engine: Engine;
 let themeEngine: Engine;
 let demo: Case;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 /** What a call answered: `ok`, or the error's code and message. */
 async function outcome(p: Promise<unknown> | (() => unknown)): Promise<string> {
@@ -135,7 +136,7 @@ async function record(dir: string, id: string, o: Partial<RenderRecord> & { file
 
 beforeAll(async () => {
   ws = await workspace();
-  process.env.RETAKE_HOME = join(ws.root, '.home');
+  retakeHome.use(join(ws.root, '.home'));
   demo = await makeCase(ws, 'quote', scenesTimeline([5, 5]), { noVideo: true });
   engine = await createEngine({ root: ws.root, client: 'test', autoStartWorker: false });
   themes = await mkdtemp(join(tmpdir(), 'retake-ids-themes-'));
@@ -145,8 +146,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await ws?.cleanup();
   if (themes) await rm(themes, { recursive: true, force: true });
 });

@@ -31,7 +31,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readWorkerLock } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -47,7 +48,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const workers = new Set<number>();
 const consoleErrors: string[] = [];
 /** Bodies of the page's POST /v1/live and /v1/call/<op> requests, in order. */
@@ -121,7 +122,7 @@ const holds = (n: number, s: number) => Array.from({ length: n }, () => `      -
 
 async function workspace(): Promise<void> {
   root = await mkdtemp(join(tmpdir(), 'studio-ui-run-e2e-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const dir = join(root, 'projects', P);
   await mkdir(join(dir, 'scenarios'), { recursive: true });
@@ -199,8 +200,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW
       }
     }
     await new Promise<void>((r) => (product ? product.close(() => r()) : r()));
-    if (savedHome === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = savedHome;
+    retakeHome.restore();
     if (root) await rm(root, { recursive: true, force: true });
   });
 

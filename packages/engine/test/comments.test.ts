@@ -36,10 +36,13 @@ import {
   packageReviewer,
 } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Case, Workspace } from '../../review/test/helpers.js';
-import { REPO, authorScope } from './helpers.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Case, Workspace } from '@retake/test-support/review';
+import { REPO } from '@retake/test-support/repo';
+import { authorScope } from './helpers.js';
 import { fileFacts } from '@retake/core/io';
+import { scratchHome } from '@retake/test-support/home';
 
 /** The product's frames (the review package's): the stills and frames these tests check are real. */
 const FRAMES = packageReviewer().frames;
@@ -70,7 +73,7 @@ let v2: Case;
 let mcp: Engine;
 let tester: Engine;
 let cliEngine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const threadFile = (scenario: string, id: string) => join(project.dir, 'comments', scenario, `${id}.json`);
@@ -92,7 +95,7 @@ const add = (o: Partial<Parameters<typeof addComment>[1]> = {}) =>
 beforeAll(async () => {
   ws = await workspace();
   project = ws.project;
-  process.env.RETAKE_HOME = join(ws.root, '.home');
+  retakeHome.use(join(ws.root, '.home'));
   // s2 holds a click, a 2 ms marked wait_for (it owns no capture frame) and a hold.
   const tl = scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } });
   v1 = await makeCase(ws, 'quote', tl, { noVideo: !can });
@@ -113,8 +116,7 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await ws?.cleanup();
 });
 

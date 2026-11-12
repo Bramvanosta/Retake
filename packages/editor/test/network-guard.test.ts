@@ -22,8 +22,9 @@ import { loadTemplate, fileFacts } from '@retake/core/io';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import { BUNDLE_CSP, allowedDownload, allowedRequest, guardedPageFailure, originOf, planRun, renderComponentLoops, renderPlan, withCspMeta } from '@retake/editor';
 import type { BrowserProcessInfo, EditPlan, RenderNetwork } from '@retake/editor';
-import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 const ALLOW = { assetPrefix: 'http://127.0.0.1:4100/tok3n/', bundlePort: 3007 };

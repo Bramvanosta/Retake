@@ -32,12 +32,14 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import { createEngine } from '@retake/engine';
 import { invoke } from '@retake/engine/contract';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { testChildEnv } from '@retake/test-support/child-env';
 import { startStudioServer } from '../../ui/src/index.js';
 import type { StudioServer } from '../../ui/src/index.js';
-import { raw } from '../../ui/test/http.js';
+import { raw } from '@retake/test-support/http';
 import { stubTools } from '../../ui/test/studio-tools.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const FILE = fileURLToPath(new URL('./fixtures/theme-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -313,11 +315,10 @@ async function viaMcp(): Promise<Answers> {
 async function viaStudio(): Promise<{ studio: Answers; callers: Answers }> {
   const { ws, home } = await workspace('studio');
   cleanup.push(() => rm(ws, { recursive: true, force: true }));
-  const saved = process.env.RETAKE_HOME;
-  process.env.RETAKE_HOME = home;
+  const retakeHome = scratchHome();
+  retakeHome.use(home);
   cleanup.push(async () => {
-    if (saved === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = saved;
+    retakeHome.restore();
   });
   const studio: StudioServer = await startStudioServer({ root: ws, startWorker: false });
   cleanup.unshift(() => studio.close());

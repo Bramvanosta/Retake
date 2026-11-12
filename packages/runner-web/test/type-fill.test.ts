@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import type { TimelineEvent } from '@retake/core';
 import { PERSON_POLICY } from '@retake/core';
 import { runScenario } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const PAGE = `<!doctype html><html><head><title>Sign up</title></head><body>
 <label>Email <input id="email"></label> <label>Company <input id="co"></label>

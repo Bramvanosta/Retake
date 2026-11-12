@@ -12,19 +12,20 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RUN_THUMBS_MAX_KEYS } from '@retake/engine';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, GREEN, RED, capture, centre, near, writeRun } from '../../engine/test/synthetic-runs.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, GREEN, RED, capture, centre, near, writeRun } from '@retake/test-support/runs';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let studio: StudioServer;
 const P = 'northfield-fixture';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const project = () => join(ws, 'projects', P);
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-scenario-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
   const run = capture('20261020-100000-blocks', { video: false });
@@ -35,8 +36,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

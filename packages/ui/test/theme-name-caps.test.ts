@@ -18,9 +18,10 @@ import { LIBRARY_DIR } from '@retake/components';
 import type { ThemeEditView } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer, ThemePreviewAnswer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 import { stubTools } from './studio-tools.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const LEASE = 'themeCapsAAAAAAAAAAAA';
@@ -34,7 +35,7 @@ const TOO_LONG = `long-${a(96)}`;
 
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function ok<T>(op: string, args: unknown): Promise<T> {
   const r = await call(op, args);
@@ -53,7 +54,7 @@ async function oldTheme(name: string): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-theme-caps-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
@@ -69,8 +70,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

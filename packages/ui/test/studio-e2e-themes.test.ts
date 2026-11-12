@@ -35,8 +35,9 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { hasTool } from '@retake/test-support/repo';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const P = 'northfield-fixture';
@@ -51,7 +52,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const savedResolve = process.env.RETAKE_UNSAFE_TEST_RESOLVE;
 const consoleErrors: string[] = [];
 const foreign: string[] = [];
@@ -111,7 +112,7 @@ const release = (testid: string) => page.getByTestId(testid).evaluate((el) => el
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-themes-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   // The extraction's host (a reserved name, as every test host) is taken as a site name here only.
   process.env.RETAKE_UNSAFE_TEST_RESOLVE = 'brand.test=127.0.0.1:9';
   await fixtureWorkspace(ws);
@@ -181,8 +182,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (savedResolve === undefined) delete process.env.RETAKE_UNSAFE_TEST_RESOLVE;
   else process.env.RETAKE_UNSAFE_TEST_RESOLVE = savedResolve;
   if (ws) await rm(ws, { recursive: true, force: true });

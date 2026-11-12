@@ -15,10 +15,11 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { editReplannedMessage, scenarioChangedMessage } from '@retake/core';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');

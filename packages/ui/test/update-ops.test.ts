@@ -13,8 +13,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { TOOLS } from '@retake/mcp';
 import { OWN_OPS, SHELL_LINE_MAX, UI_OPS, UPDATE_CLICKS_PER_MIN, UPDATE_NOTES_MAX, UPDATE_OPS, applyShellLine, installable, parseShellLine, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'update-ops-')));
 const ws = join(base, 'ws');

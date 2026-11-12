@@ -8,8 +8,9 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { frameOfColour, hasTool, pixelAt, renderWorkspace, RUN_ID } from '../../editor/test/render-helpers.js';
-import type { RenderWorkspace } from '../../editor/test/render-helpers.js';
+import { frameOfColour, pixelAt, renderWorkspace, RUN_ID } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 300_000;

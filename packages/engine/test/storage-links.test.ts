@@ -13,12 +13,13 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EngineError, LocalStorage, createEngine, sha256Hex } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let base: string;
 let ws: string;
 let outside: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const SECRET = 'outside the project: never read through a link\n';
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
 
@@ -38,7 +39,7 @@ beforeAll(async () => {
   await mkdir(outside, { recursive: true });
   await writeFile(join(outside, 'secret.md'), SECRET);
   await writeFile(join(outside, 'leak.yaml'), SHORT.replace('video: short', 'video: leak'));
-  process.env.RETAKE_HOME = join(base, 'home');
+  retakeHome.use(join(base, 'home'));
   await mkdir(join(ws, 'projects'), { recursive: true });
   await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   const project = (name: string) => `name: ${name}\nenvironments:\n  local:\n    console: http://127.0.0.1:4997\ntemplate: default\n`;
@@ -67,8 +68,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (base) await rm(base, { recursive: true, force: true });
 });
 

@@ -21,11 +21,12 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { parseYaml } from '@retake/core';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
-import type { BrandSite } from '../../runner-web/test/site-fixture.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { TEMPLATES } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '@retake/test-support/site';
+import type { BrandSite } from '@retake/test-support/site';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');

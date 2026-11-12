@@ -15,7 +15,7 @@ import { createInterface } from 'node:readline';
 import type { Interface } from 'node:readline';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EngineError, LocalStorage, sha256Hex } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 
 const LONG = 60_000;
 let dir: string;

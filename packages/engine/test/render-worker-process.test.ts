@@ -19,10 +19,12 @@ import { loadProject } from '@retake/core/io';
 import { renderVideo } from '@retake/editor';
 import { FileJobQueue, createEngine, historyFile } from '../src/index.js';
 import type { Engine, RecordedBrowser } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
-import { REPO } from './helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -31,7 +33,7 @@ let root: string;
 let engine: Engine;
 let queue: FileJobQueue;
 const children: ChildProcess[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 function startWorker(...args: string[]): { child: ChildProcess; exited: Promise<number | null>; err(): string } {
   const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', root, ...args], {
@@ -88,7 +90,7 @@ function shellsOf(profile: string): string[] {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-render-kill-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const runDir = join(root, 'projects', 'demo', 'runs', '20260101-120000-synthetic');
   await mkdir(runDir, { recursive: true });
@@ -116,8 +118,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 

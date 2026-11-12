@@ -1,6 +1,6 @@
 /**
  * L4.5 part D: the timeline inspector end to end in headless Chromium, against a real Studio server, its player origin
- * and the real preview bundle, on the self-numbering VP9 take of part C (timeline-take.ts):
+ * and the real preview bundle, on the self-numbering VP9 take of part C (test-support take.ts):
  * - a segment selected by a click and by ] (the inspector shows its switches); the radios sit in `role="radiogroup"`:
  *   arrows move the focus only — no seek, no write;
  * - one click switches scene a's layout to Laptop: the file gains exactly one line, the preview changes (the capture's
@@ -28,8 +28,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -41,7 +42,7 @@ let studio: StudioServer;
 let browser: Browser;
 let page: Page;
 let plan: Extract<TimelineViewResult, { view: unknown }>;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 const switchMs: Array<[string, number]> = [];
 const file = () => join(dir, 'scenarios', 'bits.yaml');
@@ -160,7 +161,7 @@ async function undoKey(label: string): Promise<void> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-switch-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
@@ -192,8 +193,7 @@ afterAll(async () => {
   if (switchMs.length) console.log(`timeline switch → preview settled (ms): ${switchMs.map(([w, ms]) => `${w} ${ms}`).join(', ')}`);
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

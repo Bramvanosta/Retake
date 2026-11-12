@@ -40,7 +40,7 @@ import { RecordingBody } from '../src/app/record/RecordingBody.js';
 import { StartForm } from '../src/app/record/StartScreen.js';
 import { SlotContext } from '../src/app/shell/slots.js';
 import type { RecordingUi } from '../src/app/record/draft.js';
-import { REPO } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { bytesOf, decodeJpeg } from '../src/app/shoot/LiveView.js';
 import { PreviewFrame } from '../src/app/edit/PreviewFrame.js';
 import { Jpeg, Picture } from '../src/app/Thumb.js';

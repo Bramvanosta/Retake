@@ -3,8 +3,9 @@ import { rm } from 'node:fs/promises';
 import type { Timeline, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FRAME_PAGE, deepPage } from './pages.js';
-import { FAST, debugTemplate, frameAt, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, debugTemplate, frameAt, magentaCentroid, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 
 /**

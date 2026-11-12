@@ -35,17 +35,19 @@ import { ERROR_STATUS, createEngine } from '@retake/engine';
 import type { Engine, EngineErrorCode } from '@retake/engine';
 import { invoke } from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
-import { REPO } from '../../engine/test/helpers.js';
-import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
-import type { Case, Workspace } from '../../review/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Case, Workspace } from '@retake/test-support/review';
+import { testChildEnv } from '@retake/test-support/child-env';
 import { startStudioServer } from '../../ui/src/index.js';
 import type { StudioServer } from '../../ui/src/index.js';
 import { OP_STATUS } from '../../ui/src/server/studio.js';
 import type { UiOp } from '../../ui/src/server/studio.js';
-import { raw } from '../../ui/test/http.js';
+import { raw } from '@retake/test-support/http';
 import { stubTools } from '../../ui/test/studio-tools.js';
 import { TOOLS } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const FILE = fileURLToPath(new URL('./fixtures/comment-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -279,7 +281,7 @@ async function setup(): Promise<{ ws: Workspace; s: State; ui: Engine }> {
   cleanup.push(() => ws.cleanup());
   const dir = ws.project.dir;
   const home = join(ws.root, '.home');
-  process.env.RETAKE_HOME = home;
+  retakeHome.use(home);
   const tl = scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } });
   const v1 = await makeCase(ws, 'quote', tl);
   const v2 = await makeCase(ws, 'quote', v1.timeline, { version: 2, run: v1.run, overrides: { scale: 0.3 } });
@@ -304,7 +306,7 @@ let studioAnswers: Answers = [];
 let callerAnswers: Answers = [];
 let busyAnswer: unknown;
 const cleanup: Array<() => Promise<void>> = [];
-const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
+const retakeHome = scratchHome('RETAKE_AUTHOR');
 
 async function viaMcp(): Promise<Answers> {
   const { ws, s } = await setup();
@@ -418,13 +420,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const f of cleanup) await f().catch(() => undefined);
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_AUTHOR', saved.author],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 describe.skipIf(!canRun)('the comment operations through their shells (characterization)', () => {

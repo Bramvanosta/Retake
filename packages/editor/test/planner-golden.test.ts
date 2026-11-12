@@ -16,7 +16,8 @@ import type { ComponentRegistry } from '@retake/components';
 import type { LoadedProject, LoadedTemplate, Scenario, Timeline } from '@retake/core';
 import { planEdit } from '@retake/editor/plan';
 import type { EditOverrides, PlanEditInput, PlanInputFile } from '@retake/editor/plan';
-import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 
 const FILE = join(FIXTURES, 'planner-golden.json');
 const TIMELINES = ['catalogue', 'highlights', 'live-quote', 'phone-and-desktop', 'quote-artefacts', 'quote', 'signup-tutorial', 'signup'] as const;

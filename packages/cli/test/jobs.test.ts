@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, liveWorker, workersDir } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 let ws: string;
 let idle: string | undefined;

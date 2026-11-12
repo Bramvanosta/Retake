@@ -22,8 +22,10 @@ import { systemClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { memoryRecord } from '../src/capture/memory-sessions.js';
 import type { MemoryRecordOptions } from '../src/capture/memory-sessions.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { oneButtonPress } from './recorded-events.js';
+import { scratchHome } from '@retake/test-support/home';
 
 type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
@@ -36,7 +38,7 @@ const PROJECT = 'northfield-fixture';
 let fixture: Fixture;
 let root: string;
 let engine: Engine;
-const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN };
+const retakeHome = scratchHome('RETAKE_RECORD_MAX_MIN');
 
 /** The in-process worker, Playwright playing the person; the window closes after `drive`. */
 function work(drive: (page: Page) => Promise<void>): Promise<number> {
@@ -101,7 +103,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-jobs-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(root);
   const projectDir = join(root, 'projects', PROJECT);
@@ -118,13 +120,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_RECORD_MAX_MIN', saved.max],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 describe('record jobs: refusals at submit', () => {

@@ -9,8 +9,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scenarioChangedMessage } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { encodingWords, glWords } from '../src/commands/render.js';
-import { hasTool, renderWorkspace } from '../../editor/test/render-helpers.js';
-import type { RenderWorkspace } from '../../editor/test/render-helpers.js';
+import { hasTool } from '@retake/test-support/repo';
+import { renderWorkspace } from '@retake/test-support/render';
+import type { RenderWorkspace } from '@retake/test-support/render';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;

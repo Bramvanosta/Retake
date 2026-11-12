@@ -23,21 +23,21 @@ import type { BuiltState } from '../../core/test/fixtures/records/build.js';
 import { buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { raw } from './http.js';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'retake-records-ui-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   writeWorkspace(root);
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 });
 afterAll(() => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   rmSync(root, { recursive: true, force: true });
 });
 

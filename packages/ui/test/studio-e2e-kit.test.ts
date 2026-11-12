@@ -31,7 +31,9 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const POLL = { timeout: 15_000 };
 const P = 'northfield-fixture';
@@ -43,7 +45,7 @@ let browser: Browser;
 let context: BrowserContext;
 let page: Page;
 const errors: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function open(ctx: BrowserContext): Promise<Page> {
   const p = await ctx.newPage();
@@ -56,7 +58,7 @@ async function open(ctx: BrowserContext): Promise<Page> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-kit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'projects', P, 'scenarios', `${LONG}.yaml`), 'video: Long\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 1\n');
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
@@ -69,8 +71,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

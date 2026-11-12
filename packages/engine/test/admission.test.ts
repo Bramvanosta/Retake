@@ -24,12 +24,13 @@ import { JOB_INPUT_VERSION } from '@retake/engine';
 import * as engineIndex from '../src/index.js';
 import { EXPORTS_OPEN_MAX, EngineError, FileJobQueue, confirmWhy, createEngine, sessionsToConfirm } from '../src/index.js';
 import type { ApprovalOutcome, Engine, EngineClient, JobRecord } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const UNSET = 'RETAKE_TEST_ADMISSION_UNSET_PW';
 const SUPPLIER_VAR = 'NORTHFIELD_SUPPLIER_PASSWORD';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let ws: string;
 let queue: FileJobQueue;
 const engines = {} as Record<EngineClient, Engine>;
@@ -70,7 +71,7 @@ async function plantExport(renderId: string): Promise<JobRecord> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'engine-admission-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   // The supplier's login steps use a variable no worker has: no run signs it in by itself (never signed in either).
   const yaml = await readFile(join(project(), 'project.yaml'), 'utf8');
@@ -92,8 +93,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

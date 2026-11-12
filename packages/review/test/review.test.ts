@@ -14,8 +14,9 @@ import { ReviewCancelledError, recoverReviewDir, reviewImages, reviewRender } fr
 import type { Finding, ReviewResult } from '../src/index.js';
 import type { OutputTimeline } from '../src/timeline.js';
 import type { ClipSegment, EditPlan } from '@retake/editor/plan';
-import { hasTool, makeCase, scenesTimeline, workspace } from './helpers.js';
-import type { Workspace } from './helpers.js';
+import { hasTool } from '@retake/test-support/repo';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
+import type { Workspace } from '@retake/test-support/review';
 import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');

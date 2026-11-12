@@ -36,11 +36,12 @@ import {
   enginePorts,
 } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const INPUT: RunJobInput = {
   version: 1,
@@ -61,14 +62,13 @@ function deadPid(): number {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-jobs-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 

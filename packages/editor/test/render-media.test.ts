@@ -14,8 +14,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Timeline } from '@retake/core';
 import { overlayBoxAt, renderVideo } from '@retake/editor';
 import type { ClipSegment, RenderRecord } from '@retake/editor';
-import { SHARED_CACHE, frameColour, hasTool, pixelAt, renderWorkspace, syntheticTimeline } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { SHARED_CACHE, frameColour, pixelAt, renderWorkspace, syntheticTimeline } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');

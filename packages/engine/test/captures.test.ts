@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import { CAP_CARRY_MS, FilmingMarker, FilmingWatch, MARKER_MAX_BYTES, capturesDir, capturesLocation, selfIdentity, workspaceCaptureId } from '../src/index.js';
 import type { ProcessIdentity } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 
 let base: string;
 let dir: string;

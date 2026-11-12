@@ -271,7 +271,8 @@ import { RETAKE_VERSION } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { MemoryRenderer } from '../../engine/src/render/memory-renderer.js';
 import type { MemoryRendererCall } from '../../engine/src/render/memory-renderer.js';
-import { syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { syntheticRunRecord } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const FILE = fileURLToPath(new URL('./fixtures/operations-cli.json', import.meta.url));
 const REPO = fileURLToPath(new URL('../../..', import.meta.url)).replace(/\/$/, '');
@@ -285,7 +286,7 @@ const GHOST = '20260101-100000-signup';
 const PLACED = '20260101-090000-placed';
 /** A capture whose edit names a file of the project (a card's image): the raw package lists it among its edit files. */
 const CARDED = '20260101-115000-signup';
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 let ws = '';
 let paths: Array<[string, string]> = [];
@@ -505,7 +506,7 @@ beforeAll(async () => {
   // A path under the current folder prints relative to it (the built-in library's): the suite runs from the repository root.
   expect(process.cwd(), 'run this file from the repository root').toBe(REPO);
   ws = await mkdtemp(join(tmpdir(), 'retake-operations-cli-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   paths = [
     [await realpath(ws), '<ws>'],
     [ws, '<ws>'],
@@ -606,8 +607,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

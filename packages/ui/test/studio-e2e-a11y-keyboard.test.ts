@@ -25,11 +25,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CommentThread } from '@retake/core';
 import { runWorker } from '@retake/engine';
 import type { RecordWindow } from '@retake/engine';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import { hasTool } from '@retake/test-support/repo';
 import { dialogCheck } from './a11y.js';
 import { N, POLL, REPO, THREAD, TOUR_THEME, go, settle, startTour, station, tabTo } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';
-import { BITS_TEXT } from './timeline-take.js';
+import { BITS_TEXT } from '@retake/test-support/take';
 
 type RecordPage = Parameters<NonNullable<RecordWindow['drive']>>[0];
 

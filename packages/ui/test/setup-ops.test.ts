@@ -22,13 +22,14 @@ import type { BundleInfo } from '@retake/core/io';
 import { TOOLS } from '@retake/mcp';
 import { OWN_OPS, PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SHELL_LINE_MAX, UI_OPS, applyShellLine, parseShellLine, startStudioServer } from '../src/index.js';
 import type { SetupContext, StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
 import { shellLineReader } from '../../cli/src/commands/ui.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'setup-ops-')));
 const ws = join(base, 'ws');
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let studio: StudioServer;
 let ctx: SetupContext;
 const lines: string[] = [];
@@ -75,7 +76,7 @@ const machine = (o: Partial<SetupContext> = {}): SetupContext => ({
 beforeAll(async () => {
   mkdirSync(ws);
   mkdirSync(home);
-  process.env.RETAKE_HOME = join(base, 'retake-home');
+  retakeHome.use(join(base, 'retake-home'));
   await fixtureWorkspace(ws);
   ctx = machine();
   await startServer();
@@ -83,8 +84,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   rmSync(base, { recursive: true, force: true });
 });
 

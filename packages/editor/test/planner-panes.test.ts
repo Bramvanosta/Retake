@@ -30,7 +30,8 @@ import {
 } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
 import type { Timeline, TimelineEvent } from '@retake/core';
-import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 
 const RUN = '/virtual/runs/r';
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;

@@ -18,9 +18,11 @@ import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { planEdit, renderStills } from '@retake/editor';
 import type { EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
-import { REPO, fixtureProject, realTimeline, template } from './helpers.js';
-import { SHARED_CACHE, hasTool, makeColourCapture, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
+import { SHARED_CACHE, makeColourCapture, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');

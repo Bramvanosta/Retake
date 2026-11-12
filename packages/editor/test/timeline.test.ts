@@ -14,7 +14,8 @@ import type { ComponentRegistry } from '@retake/components';
 import { placePins, planEdit, reasonOf, timelineOf } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
 import type { Timeline } from '@retake/core';
-import { FIXTURES, REPO, fixtureProject, synthTimeline, template } from './helpers.js';
+import { FIXTURES, fixtureProject, synthTimeline, template } from '@retake/test-support/timeline';
+import { REPO } from '@retake/test-support/repo';
 
 let registry: ComponentRegistry;
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;

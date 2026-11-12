@@ -29,16 +29,17 @@ import type { BundleInfo } from '@retake/core/io';
 import { readAppSettings } from '@retake/engine/integrations';
 import { applyShellLine, startStudioServer } from '../src/index.js';
 import type { SetupContext, StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { station } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const POLL = { timeout: 15_000 };
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'studio-e2e-setup-')));
 const ws = join(base, 'ws');
 const home = join(base, 'home');
 const retakeHome = join(base, 'retake-home');
-const savedHome = process.env.RETAKE_HOME;
+const testHome = scratchHome();
 let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
@@ -110,7 +111,7 @@ const SCHEMES = [
 
 beforeAll(async () => {
   for (const d of [ws, home, join(desktopConfig, '..')]) mkdirSync(d, { recursive: true });
-  process.env.RETAKE_HOME = retakeHome;
+  testHome.use(retakeHome);
   await fixtureWorkspace(ws);
   // Claude Desktop's config with another server and a retake entry whose words are markup (shown as text).
   writeFileSync(desktopConfig, JSON.stringify({ theme: 'dark', mcpServers: { files: { command: 'x' }, retake: { command: 'node', args: ['<b>old</b>\u202ebin.js'] } } }));
@@ -126,8 +127,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  testHome.restore();
   rmSync(base, { recursive: true, force: true });
 });
 

@@ -15,7 +15,7 @@ import { ffmpegBin, loadProject, mediaTools, nodeFileFacts, resolveMediaTools } 
 import { exportCapture } from '@retake/runner-web';
 import { openWorkspace } from '../src/workspace.js';
 import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
-import { capture, writeRun } from './synthetic-runs.js';
+import { capture, writeRun } from '@retake/test-support/runs';
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-ws-ffmpeg-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));

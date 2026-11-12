@@ -23,8 +23,9 @@ import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openRenderBrowser, planRun, playwrightHeadlessShell, renderPlan } from '@retake/editor';
 import type { EditPlan } from '@retake/editor';
-import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 type Renderer = typeof import('@remotion/renderer');

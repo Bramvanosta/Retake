@@ -31,11 +31,12 @@ import {
 } from '../src/index.js';
 import * as journalModule from '../src/store/journal.js';
 import type { Engine, EngineError, JournalEntry } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { projectStoreContract } from './project-store-contract.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const lines = (): JournalEntry[] =>
   readFileSync(journalFile(root), 'utf8')
     .trim()
@@ -54,14 +55,13 @@ async function failure(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-project-store-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
   await mkdir(join(root, 'projects', 'acme'), { recursive: true });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -528,7 +528,8 @@ function sourceFiles(): string[] {
       } else if (/\.(ts|tsx|mts)$/.test(e.name) && !e.name.endsWith('.d.ts')) out.push(p);
     }
   };
-  for (const pkg of readdirSync(join(REPO, 'packages'))) if (existsSync(join(REPO, 'packages', pkg, 'src'))) walk(join(REPO, 'packages', pkg, 'src'));
+  // packages/test-support's sources are the tests' shared helpers: test code, as the test folders.
+  for (const pkg of readdirSync(join(REPO, 'packages'))) if (pkg !== 'test-support' && existsSync(join(REPO, 'packages', pkg, 'src'))) walk(join(REPO, 'packages', pkg, 'src'));
   return out;
 }
 

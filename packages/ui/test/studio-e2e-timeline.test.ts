@@ -1,7 +1,7 @@
 /**
  * L4.5 part C: the timeline screen end to end in headless Chromium (playwright-core's build: it plays VP9, not H.264),
  * against a real Studio server, its player origin and the real preview bundle, on a synthetic take whose every
- * capture frame shows its own index in binary (timeline-take.ts):
+ * capture frame shows its own index in binary (test-support take.ts):
  * - the scenario screen's "Open timeline" (R-UI-15: disabled with why without a capture) → the timeline route; the
  *   tracks from the view (segments, captions, steps, camera, speed and cuts, markers, comment pins at their frames, a
  *   comment of another take beside the track); one iframe, with PREVIEW_FRAME_ATTRS and a frame URL of the player origin;
@@ -27,8 +27,9 @@ import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { FRAME_URL_RE, landingOf } from '../src/app/words/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake, writeThread } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake, writeThread } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -42,7 +43,7 @@ let browser: Browser;
 let context: BrowserContext;
 let page: Page;
 let plan: Extract<TimelineViewResult, { view: unknown }>;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -82,7 +83,7 @@ const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | 
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-timeline-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   await writeTake(dir, 'h264', { run: H264_RUN, text: BITS_TEXT.replace('video: Bits', 'video: H264'), timeline: bitsTimeline(), codec: 'h264-x264', seconds: 8 });
@@ -127,8 +128,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

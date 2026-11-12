@@ -1,6 +1,6 @@
 /**
  * L4.6 part D1 (T14a): the Comments screen end to end in headless Chromium against a real Studio server, on the bits
- * take (timeline-take.ts: every frame shows its own index in white blocks) and two renders of it whose videos do the
+ * take (test-support take.ts: every frame shows its own index in white blocks) and two renders of it whose videos do the
  * same — a landscape render of the version the timeline shows (its plan and theme files: its frame f is the preview's
  * frame f) encoded as a real render is (libx264 with B-frames, an AAC track), and a vertical one:
  * - the scenario screen's "Comments (N open)" tab; the timeline's Comment (and key C) lands on the Comments screen at the
@@ -45,9 +45,11 @@ import type { Engine } from '@retake/engine';
 import type { EditPlan, RenderRecord } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { BITS_TEXT, bitsTimeline, bitsVideo, readBits, takeWorkspace, writeTake } from './timeline-take.js';
+import { hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { BITS_TEXT, bitsTimeline, bitsVideo, readBits, takeWorkspace, writeTake } from '@retake/test-support/take';
 import { parseTimecode, timeExample } from '../src/app/words/comment-words.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -64,7 +66,7 @@ let browser: Browser;
 let page: Page;
 let land: RenderRecord;
 let vert: RenderRecord;
-const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
+const retakeHome = scratchHome('RETAKE_AUTHOR');
 const consoleErrors: string[] = [];
 /** render_frame requests: their session ids and how many were in flight at once (at most). */
 const frames = { sessions: new Set<string>(), inFlight: 0, maxInFlight: 0, count: 0 };
@@ -207,7 +209,7 @@ const chipTexts = async (scope: string) => {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-comments-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   process.env.RETAKE_AUTHOR = AUTHOR;
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
@@ -252,13 +254,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  for (const [k, val] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_AUTHOR', saved.author],
-  ] as const) {
-    if (val === undefined) delete process.env[k];
-    else process.env[k] = val;
-  }
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

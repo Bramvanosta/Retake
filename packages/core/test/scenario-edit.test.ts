@@ -24,7 +24,7 @@ import {
 } from '../src/index.js';
 import type { Scenario } from '../src/index.js';
 import { nodeFileFacts } from '@retake/core/io';
-import { STUDIO_CONFINEMENT } from './helpers.js';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 
 const cp = (h: number) => String.fromCodePoint(h);
 

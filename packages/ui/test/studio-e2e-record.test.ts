@@ -47,8 +47,10 @@ import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@retake/engi
 import type { JobRecord, RecordWindow } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { RecordViewAnswer, StudioServer } from '../src/index.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { raw } from './http.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { raw } from '@retake/test-support/http';
+import { scratchHome } from '@retake/test-support/home';
 
 type Window = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
@@ -61,7 +63,7 @@ const P = 'northfield-fixture';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const SENTINEL = `Sentinel-${randomBytes(6).toString('hex')}`;
 const POLL = { timeout: 20_000, interval: 150 };
-const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN };
+const retakeHome = scratchHome('RETAKE_RECORD_MAX_MIN');
 let fixture: Fixture;
 let ws: string;
 let studio: StudioServer;
@@ -177,7 +179,7 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 4551, shopPort: 4552, host: '127.0.0.1', auth: { consolePort: 4553, shopPort: 4554 } });
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-record-e2e-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(ws);
   const project = join(ws, 'projects', P);
@@ -233,13 +235,7 @@ afterAll(async () => {
   await studio?.close();
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['RETAKE_RECORD_MAX_MIN', saved.max],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 let lab = '';

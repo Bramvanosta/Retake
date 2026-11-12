@@ -16,7 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { STUDIO_CSP } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { INDEX_HTML } from '../src/index.js';
 import { FAVICON_URL } from '../src/bundle.js';
 import { ICON_GRID, MARK, MARK_ICONSET, MARK_VARIANTS, markSvg, markVariantFor } from '../src/mark.js';

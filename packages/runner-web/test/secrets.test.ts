@@ -5,8 +5,9 @@ import { normalizeStep, PERSON_POLICY } from '@retake/core';
 import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { RunSecrets, TIMELINE_POLICY, describeStep, runScenario, trimSnippet } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
-import type { TestServer } from './helpers.js';
+import { FAST, makeScenario, startServer } from '@retake/test-support/capture';
+import { makeProject, readTimeline, tempDir } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 
 const EMAIL = 'agent@northfield.example';
 const PASSWORD = 'S3cret-pw-42';

@@ -17,9 +17,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { LIBRARY_DIR } from '@retake/components';
 import { readWorkerLock } from '@retake/engine';
-import { REPO } from '../../engine/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
+import { REPO } from '@retake/test-support/repo';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache } from '@retake/test-support/render';
+import { testChildEnv } from '@retake/test-support/child-env';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasTool('ffmpeg') && hasTool('ffprobe');

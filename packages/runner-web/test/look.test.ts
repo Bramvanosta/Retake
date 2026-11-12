@@ -7,8 +7,10 @@ import type { Page } from 'playwright-core';
 import { kitConfigFor, openSession } from '../src/index.js';
 import type { BrowserSession } from '../src/index.js';
 import { LOOK_PAGE } from './pages.js';
-import { decodePng, startServer } from './helpers.js';
-import type { RgbImage, TestServer } from './helpers.js';
+import { decodePng } from './helpers.js';
+import { startServer } from '@retake/test-support/capture';
+import type { RgbImage } from './helpers.js';
+import type { TestServer } from '@retake/test-support/capture';
 import { PERSON_POLICY } from '@retake/core';
 // Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
 // runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).

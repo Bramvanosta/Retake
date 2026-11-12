@@ -67,7 +67,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');

@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { AGENT_CONFINEMENT } from '@retake/core';
-import { STUDIO_CONFINEMENT } from '../../core/test/helpers.js';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 import { JOB_CLIENTS } from '@retake/engine';
 import {
   CONFINEMENTS,

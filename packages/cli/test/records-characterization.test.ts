@@ -22,7 +22,7 @@ import { STATES, buildState, stateIds, writeRunFolder, writeWorkspace } from '..
 import type { BuiltState } from '../../core/test/fixtures/records/build.js';
 import { buildRenderState, renderStateIds } from '../../core/test/fixtures/records/build-renders.js';
 import type { BuiltRenders } from '../../core/test/fixtures/records/build-renders.js';
-import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
+import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 
 let root: string;
 const built = new Map<string, BuiltState>();

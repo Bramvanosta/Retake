@@ -9,10 +9,11 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 async function put(rel: string, body = 'x'): Promise<void> {
   const p = join(root, ...rel.split('/'));
@@ -22,7 +23,7 @@ async function put(rel: string, body = 'x'): Promise<void> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-brand-list-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await put('projects/demo/project.yaml', 'version: 1\nname: Demo\nenvironments:\n  local: {app: "http://app.test"}\n');
   await put('brand/logo.svg', '<svg/>');
@@ -48,8 +49,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

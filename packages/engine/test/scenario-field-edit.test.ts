@@ -14,14 +14,15 @@ import { parseYaml, stepGuard } from '@retake/core';
 import type { FieldAt } from '@retake/core';
 import { EngineError, createEngine, fieldFitProblem, fieldOptions, memoRegistry, videoPages } from '../src/index.js';
 import type { Engine, ScenarioEdit } from '../src/index.js';
-import { fixtureWorkspace } from './helpers.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const P = 'northfield-fixture';
 let ws: string;
 let dir: string;
 let ui: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const file = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
 const read = (name: string) => readFile(file(name), 'utf8');
 type Obj = Record<string, unknown>;
@@ -51,7 +52,7 @@ async function failure(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-field-edit-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   dir = join(ws, 'projects', P);
   // A workspace card written for another kit API (the guard-rail), and one that fits.
@@ -71,8 +72,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(ws, { recursive: true, force: true });
 });
 

@@ -25,9 +25,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml, stepGuard, PERSON_POLICY } from '@retake/core';
 import { captureInfo, clearTimelineViewMemo, createEngine, planSignature } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
-import { FIXTURES, synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool } from '../../editor/test/render-helpers.js';
-import { fixtureWorkspace } from './helpers.js';
+import { FIXTURES, synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const canProbe = hasTool('ffmpeg') && hasTool('ffprobe');
 const SCENARIO = 'tl';
@@ -53,7 +54,7 @@ scenes:
 let root: string;
 let dir: string;
 let engine: Engine;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const scenarioFile = () => join(dir, 'scenarios', `${SCENARIO}.yaml`);
 const view = async (r: Promise<TimelineViewResult>) => {
   const v = await r;
@@ -131,7 +132,7 @@ async function runJson(runDir: string, id: string, scenario: string): Promise<vo
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-timeline-view-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -160,8 +161,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

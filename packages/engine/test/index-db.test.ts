@@ -18,20 +18,22 @@ import { loadWorkspaceConfig } from '@retake/core/io';
 import type { OpenedWorkspace } from '../src/index.js';
 import { readRenders } from '../src/index-db/index-db.js';
 import { FileJobQueue, JobsWatch, WorkspaceIndex, ftsQuery, historyFile, indexFile, isCorruptionError, newJobId, processStart, scanSources, diffSources, workspaceChanges } from '../src/index.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { PERSON_POLICY } from '@retake/core';
+import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let cfg: OpenedWorkspace;
 const P = 'northfield-fixture';
 const project = () => join(ws, 'projects', P);
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 
 const line = (o: Record<string, unknown>) => `${JSON.stringify({ v: 1, submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 0 }, ...o })}\n`;
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-index-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'README.md'), '# Northfield\n\nA wholesale console for coffee importers and their roasters.\n');
   await mkdir(join(project(), 'renders'), { recursive: true });
@@ -58,8 +60,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

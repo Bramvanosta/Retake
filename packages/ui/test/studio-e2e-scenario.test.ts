@@ -22,11 +22,12 @@ import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page, Request } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
-import { raw } from './http.js';
+import { raw } from '@retake/test-support/http';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, BLUE, CYAN, GREEN, GREY, MAGENTA, ORANGE, RED, YELLOW, capture, colourName, near, writeRun } from '../../engine/test/synthetic-runs.js';
-import type { Rgb, SynthRun } from '../../engine/test/synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, BLUE, CYAN, GREEN, GREY, MAGENTA, ORANGE, RED, YELLOW, capture, colourName, near, writeRun } from '@retake/test-support/runs';
+import type { Rgb, SynthRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 15_000 };
@@ -57,7 +58,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const dialogs: string[] = [];
 const consoleErrors: string[] = [];
 /** Every call the page made: [op, time, body]. */
@@ -122,7 +123,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-scenario-e2e-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   const dir = project();
   await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -223,8 +224,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

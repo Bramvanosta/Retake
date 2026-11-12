@@ -15,8 +15,9 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
-import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { BLOCKS_YAML, capture, writeRun } from '@retake/test-support/runs';
+import { scratchHome } from '@retake/test-support/home';
 
 const POLL = { timeout: 15_000 };
 const P = 'northfield-fixture';
@@ -36,12 +37,12 @@ let studio: StudioServer;
 let browser: Browser;
 let page: Page;
 const bodies: string[] = [];
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const board = () => studio.unsaved.items();
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-unsaved-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   // Its own templates folder (the starters stay starters): the theme editor's case copies one.
   await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
@@ -65,8 +66,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

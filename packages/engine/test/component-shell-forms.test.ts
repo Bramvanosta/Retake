@@ -24,23 +24,23 @@ import {
   personScope,
 } from '../src/index.js';
 import type { OpenedWorkspace } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 let root: string;
 let ws: OpenedWorkspace;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const scope = () => personScope(root, enginePorts());
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-component-shell-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   ws = await openWorkspace({ root, agent: false });
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(root, { recursive: true, force: true });
 });
 

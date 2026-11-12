@@ -14,7 +14,8 @@ import { loadTemplate, fileFacts } from '@retake/core/io';
 import { PERSON_POLICY } from '@retake/core';
 import { createComponent, loadComponentRegistry, validateComponentDir } from '@retake/components';
 import { renderComponentPreviews } from '@retake/editor';
-import { REPO, SHARED_CACHE, hasTool, pixelAt } from './render-helpers.js';
+import { REPO, hasTool } from '@retake/test-support/repo';
+import { SHARED_CACHE, pixelAt } from '@retake/test-support/render';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;

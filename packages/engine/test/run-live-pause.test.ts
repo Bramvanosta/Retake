@@ -18,9 +18,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RunRecord } from '@retake/core';
 import { FileJobQueue, createEngine, openLiveFeed, readLiveChannel, runWorker } from '../src/index.js';
 import type { Engine, EngineError, JobRecord, LiveFeedFrame } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
+import { scratchHome } from '@retake/test-support/home';
 
 function chromiumAvailable(): boolean {
   if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
@@ -68,7 +69,9 @@ scenes:
 `;
 
 const YES = { approve: async () => ({ approved: true as const }) };
-const saved = { home: process.env.RETAKE_HOME, tmp: process.env.TMPDIR, max: process.env.RETAKE_PAUSE_MAX_MIN };
+// The real runs' home, TMPDIR and pause cap, put back after their describe; the in-memory runs put back their home only.
+const retakeHome = scratchHome('TMPDIR', 'RETAKE_PAUSE_MAX_MIN');
+const memoryHome = scratchHome();
 let fixture: Fixture;
 let ws: string;
 let scratch: string;
@@ -125,7 +128,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'ds-live-pause-'));
-    process.env.RETAKE_HOME = join(ws, '.home');
+    retakeHome.use(join(ws, '.home'));
     // The worker's temporary folder (Chromium's profiles, the runner's copies): scanned for frames afterwards.
     scratch = join(ws, '.tmp');
     await mkdir(scratch, { recursive: true });
@@ -153,14 +156,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
   });
 
   afterAll(async () => {
-    for (const [k, v] of [
-      ['RETAKE_HOME', saved.home],
-      ['TMPDIR', saved.tmp],
-      ['RETAKE_PAUSE_MAX_MIN', saved.max],
-    ] as const) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+    retakeHome.restore();
     await fixture?.close();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
@@ -256,7 +252,7 @@ describe('a run job paused through the worker, on the in-memory runner', () => {
 
   beforeAll(async () => {
     ws = await mkdtemp(join(tmpdir(), 'ds-live-pause-memory-'));
-    process.env.RETAKE_HOME = join(ws, '.home');
+    memoryHome.use(join(ws, '.home'));
     await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
@@ -280,8 +276,7 @@ describe('a run job paused through the worker, on the in-memory runner', () => {
   });
 
   afterAll(async () => {
-    if (saved.home === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = saved.home;
+    memoryHome.restore();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 

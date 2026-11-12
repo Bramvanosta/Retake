@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import type { Route } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import { hasTool } from '@retake/test-support/repo';
 import { dialogCheck } from './a11y.js';
 import { N, POLL, RUN, THREAD, WIDTHS, go, startTour, station } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';

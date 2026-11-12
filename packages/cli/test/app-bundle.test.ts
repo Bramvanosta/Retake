@@ -17,7 +17,7 @@ import { BUNDLE_GUARD, BundleError, bundleNodeArgs, overrideBundleInfo, readBund
 import type { BundleInfo } from '@retake/core/io';
 import { HEADLESS_SHELL_ENV, assertRenderBrowser, ensureBundle, planEdit, renderBrowser, renderBundleRestriction, renderComponentPreviews, renderStills } from '@retake/editor';
 import { loadComponentRegistry } from '@retake/components';
-import { fixtureProject, realTimeline, template } from '../../editor/test/helpers.js';
+import { fixtureProject, realTimeline, template } from '@retake/test-support/timeline';
 import type { RenderPreviewsOptions } from '@retake/editor';
 import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { main, memoryIo } from '../src/index.js';
@@ -59,6 +59,8 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
   it('no source names ffmpeg / ffprobe as a command outside core/src/io/bundle.ts', () => {
     const offenders: string[] = [];
     for (const pkg of readdirSync(join(REPO, 'packages'))) {
+      // The tests' shared helpers are test code (they draw captures with ffmpeg, as the test folders do): not a product source.
+      if (pkg === 'test-support') continue;
       let files: string[];
       try {
         files = sources(join(REPO, 'packages', pkg, 'src'));
@@ -160,6 +162,31 @@ describe('one version number (L3)', () => {
     expect(/name = "retake-desktop"\nversion = "([^"]+)"/.exec(readFileSync(join(REPO, 'apps/desktop/Cargo.lock'), 'utf8'))?.[1]).toBe(v);
     // Not checked: apps/desktop/core (the `desktop-core` crate, internal to the shell, never shipped or named alone) keeps
     // its own version; fixtures/wholesale is a fixture; component manifests carry component versions.
+  });
+});
+
+describe("the tests' shared helpers never ship (L7.37)", () => {
+  it('packages/test-support is private, builds nothing, is no reference of the build and no dependency of any package, so pnpm deploy of the CLI leaves it out', () => {
+    const pkg = JSON.parse(readFileSync(join(REPO, 'packages/test-support/package.json'), 'utf8')) as Record<string, unknown>;
+    expect(pkg.name).toBe('@retake/test-support');
+    expect(pkg.private).toBe(true);
+    // No build: no script, no dist, no `main` / `types`; its modules are sources read by vitest's aliases.
+    expect(pkg.scripts).toBeUndefined();
+    expect(pkg.main ?? pkg.types ?? pkg.files).toBeUndefined();
+    expect(existsSync(join(REPO, 'packages/test-support/dist'))).toBe(false);
+    for (const k of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) expect(pkg[k], k).toBeUndefined();
+    const root = JSON.parse(readFileSync(join(REPO, 'tsconfig.json'), 'utf8')) as { references: { path: string }[] };
+    expect(root.references.map((r) => r.path)).not.toContain('packages/test-support');
+    // No package names it as a dependency of any kind: the deploy (`--filter @retake/cli --prod`) cannot reach it.
+    for (const dir of readdirSync(join(REPO, 'packages'))) {
+      const file = join(REPO, 'packages', dir, 'package.json');
+      if (!existsSync(file) || dir === 'test-support') continue;
+      expect(readFileSync(file, 'utf8'), dir).not.toContain('@retake/test-support');
+    }
+    // And no source of a package imports it (tests only).
+    const grep = spawnSync('git', ['grep', '-l', '--untracked', '-e', '@retake/test-support', '--', 'packages/*/src', 'apps/desktop/scripts', 'apps/desktop/bundle'], { cwd: REPO, encoding: 'utf8' });
+    expect(grep.stdout.split('\n').filter((f) => f && !f.startsWith('packages/test-support/'))).toEqual([]);
+    expect(grep.status === 0 || grep.status === 1, grep.stderr).toBe(true);
   });
 });
 

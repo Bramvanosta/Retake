@@ -19,7 +19,7 @@ import { STARTER_TEMPLATES_DIR, listTemplates, loadTemplate, loadWorkspaceConfig
 import { fontFileFace } from '@retake/components';
 import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace, personScope, enginePorts } from '../src/index.js';
 import type { Engine, EngineError, ThemeCreated } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 const T = STARTER_TEMPLATES_DIR;

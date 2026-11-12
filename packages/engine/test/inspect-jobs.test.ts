@@ -20,7 +20,9 @@ import type { Engine, EngineError, InspectJobResult, JobRecord } from '../src/in
 import type { LoadedProject } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
-import { REPO, fixtureWorkspace } from './helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 interface Fixture {
   urls: { console: string; shop: string; signedIn?: { console: string; shop: string } };
@@ -32,7 +34,7 @@ let fixture: Fixture;
 let root: string;
 let engine: Engine;
 let projectDir: string;
-const saved = { home: process.env.RETAKE_HOME, supplier: process.env.NORTHFIELD_SUPPLIER_PASSWORD, buyer: process.env.NORTHFIELD_BUYER_PASSWORD };
+const retakeHome = scratchHome('NORTHFIELD_SUPPLIER_PASSWORD', 'NORTHFIELD_BUYER_PASSWORD');
 
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
 /** The worker on the in-memory capture runner (L7.12): the engine's own logic, nothing replayed in a browser. */
@@ -80,7 +82,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-inspect-jobs-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   process.env.NORTHFIELD_SUPPLIER_PASSWORD = 'roast-lot-2026';
   delete process.env.NORTHFIELD_BUYER_PASSWORD;
   await fixtureWorkspace(root);
@@ -99,14 +101,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  for (const [k, v] of [
-    ['RETAKE_HOME', saved.home],
-    ['NORTHFIELD_SUPPLIER_PASSWORD', saved.supplier],
-    ['NORTHFIELD_BUYER_PASSWORD', saved.buyer],
-  ] as const) {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  }
+  retakeHome.restore();
 });
 
 describe('inspect jobs: refusals at submit', () => {

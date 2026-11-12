@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ReviewError, extractStill } from '../src/index.js';
-import { hasTool } from './helpers.js';
+import { hasTool } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');

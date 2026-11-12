@@ -34,14 +34,16 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { RETAKE_REPOSITORY, RETAKE_VERSION } from '@retake/core';
 import { WorkerLock, systemClock, workersDir } from '@retake/engine';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { testChildEnv } from '../../core/test/child-env.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { hasTool } from '../../editor/test/render-helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { testChildEnv } from '@retake/test-support/child-env';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { hasTool } from '@retake/test-support/repo';
 import { startStudioServer } from '../../ui/src/index.js';
 import type { StudioServer } from '../../ui/src/index.js';
-import { raw } from '../../ui/test/http.js';
-import { writeTake } from '../../ui/test/timeline-take.js';
+import { raw } from '@retake/test-support/http';
+import { writeTake } from '@retake/test-support/take';
+import { scratchHome } from '@retake/test-support/home';
 
 const FILE = fileURLToPath(new URL('./fixtures/job-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -363,11 +365,10 @@ async function viaStudio(): Promise<Answers> {
     lock.release();
     await rm(ws, { recursive: true, force: true });
   });
-  const saved = process.env.RETAKE_HOME;
-  process.env.RETAKE_HOME = home;
+  const retakeHome = scratchHome();
+  retakeHome.use(home);
   cleanup.push(async () => {
-    if (saved === undefined) delete process.env.RETAKE_HOME;
-    else process.env.RETAKE_HOME = saved;
+    retakeHome.restore();
   });
   // The worker starts on a submit, as in the app: the lock this process holds makes it find a live one.
   const studio: StudioServer = await startStudioServer({ root: ws });

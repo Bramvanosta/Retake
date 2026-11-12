@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentTrustProblems, agentWritable, insideFolder, isTemplatePath, projectFileProblem, renderFileProblems, rollbackApprovalReason, scenarioFileRefs, templateRefProblem } from '../src/index.js';
 import type { HookStep, Scenario } from '../src/index.js';
 import { nodeFileFacts } from '@retake/core/io';
-import { STUDIO_CONFINEMENT } from './helpers.js';
+import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 
 let root: string;
 let project: string;

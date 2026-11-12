@@ -35,7 +35,9 @@ import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistry
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { createPrompt } from '../src/app/words/library-words.js';
-import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { scratchHome } from '@retake/test-support/home';
 
 const P = 'northfield-fixture';
 const SHOTS = process.env.RETAKE_UI_SHOTS;
@@ -51,7 +53,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const consoleErrors: string[] = [];
 const foreign: string[] = [];
 const dialogs: string[] = [];
@@ -92,7 +94,7 @@ const libraryJobs = async () =>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-library-'));
-  process.env.RETAKE_HOME = join(ws, '.home');
+  retakeHome.use(join(ws, '.home'));
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
@@ -141,8 +143,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -17,8 +17,10 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, FilmingMarker, JOB_EXIT, createEngine, recordDigest, runJobChild, runWorker, selfIdentity, treeOf, workersDir } from '../src/index.js';
 import type { Engine, JobRecord, ProcessIdentity, RecordedBrowser } from '../src/index.js';
-import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
+import { synthTimeline } from '@retake/test-support/timeline';
+import { TEMPLATES, hasTool } from '@retake/test-support/repo';
+import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
+import { scratchHome } from '@retake/test-support/home';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -28,7 +30,7 @@ let root: string;
 let engine: Engine;
 let queue: FileJobQueue;
 let me: ProcessIdentity;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 const logs: string[] = [];
 
 /** Pending in-process workers, and the SIGTERM listeners present before any (a worker's own is told apart). */
@@ -98,7 +100,7 @@ function framemd5(file: string): string[] {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'retake-worker-captures-'));
-  process.env.RETAKE_HOME = join(root, '.home');
+  retakeHome.use(join(root, '.home'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
@@ -126,8 +128,7 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   if (root) await rm(root, { recursive: true, force: true });
 });
 

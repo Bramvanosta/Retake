@@ -14,11 +14,12 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { HISTORY_VERSION, ManualClock, appendHistory, appendJournal, historyFile, journalFile, journalLine, readJournal, stampOf, usageCounts } from '../src/index.js';
+import { scratchHome } from '@retake/test-support/home';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const WRITER = join(REPO, 'packages', 'engine', 'test', 'fixtures', 'log-writer.mts');
 const by = { client: 'test', channel: 'cli', trust: 'author' } as const;
-const savedHome = process.env.RETAKE_HOME;
+const retakeHome = scratchHome();
 let base: string;
 let n = 0;
 
@@ -48,12 +49,11 @@ const LOGS = [
 
 beforeAll(async () => {
   base = await mkdtemp(join(tmpdir(), 'engine-append-log-'));
-  process.env.RETAKE_HOME = join(base, '.home');
+  retakeHome.use(join(base, '.home'));
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.RETAKE_HOME;
-  else process.env.RETAKE_HOME = savedHome;
+  retakeHome.restore();
   await rm(base, { recursive: true, force: true });
 });
 

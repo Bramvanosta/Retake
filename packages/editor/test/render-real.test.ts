@@ -15,8 +15,9 @@ import type { Timeline } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import { RenderCancelledError, bundleComponentsFor, ensureBundle, listRenders, planEdit, renderStill, renderVideo } from '@retake/editor';
 import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
-import { SHARED_CACHE, frameColour, frameOfColour, hasTool, pixelAt, renderWorkspace } from './render-helpers.js';
-import type { RenderWorkspace } from './render-helpers.js';
+import { SHARED_CACHE, frameColour, frameOfColour, pixelAt, renderWorkspace } from '@retake/test-support/render';
+import { hasTool } from '@retake/test-support/repo';
+import type { RenderWorkspace } from '@retake/test-support/render';
 import { PERSON_POLICY } from '@retake/core';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
