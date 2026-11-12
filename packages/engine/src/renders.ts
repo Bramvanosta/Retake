@@ -626,6 +626,15 @@ export function withoutPaths(text: string): string {
     .replace(/\b[A-Za-z]:\\(?:[^\s\\'"`()<>]+\\)*[^\s\\'"`()<>]*/g, (m) => `…\\${m.split('\\').pop()}`);
 }
 
+/**
+ * A text of the tool (a warning, a problem) without any absolute path: the workspace's cut off, any other shortened
+ * (L7.17: moved from the Studio's comment-ops.ts with the theme and library operations that use it).
+ */
+export function pathFree(text: string, root: string): string {
+  const cut = text.split(`${root}/`).join('').split(root).join('.');
+  return /(?:^|[\s'"`(<=:])(?:file:\/\/)?\/[^\s/]|\b[A-Za-z]:\\/.test(cut) ? withoutPaths(cut) : cut;
+}
+
 /** A failure's words for the Studio (review B M6): its first line, no path, no stack, at most 500 characters. */
 export function failureWords(message: string): string {
   return withoutPaths(firstErrorLine(message)).slice(0, 500);

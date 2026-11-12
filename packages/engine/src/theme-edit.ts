@@ -29,7 +29,7 @@ import type { PaletteCheck } from '@retake/components';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { components, workspaceRegistry } from './components.js';
 import { callerOf, editsThemes } from './caller.js';
-import type { EngineClient } from './caller.js';
+import type { Caller, EngineClient } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { listProjectSummaries, openProjectBySlug } from './projects.js';
 import { sha256Hex } from './storage.js';
@@ -459,12 +459,22 @@ export interface ThemeEditResult {
 }
 
 /**
+ * The theme-edit caller rule (editsThemes): MCP is refused — themes are never edited through it. theme_edit's `callers`
+ * (operations/themes.ts: checked after the parse, before the theme is read) and editTemplate's own first check, in the
+ * same words.
+ */
+export function themeEditRefused(c: Caller): EngineError | undefined {
+  return editsThemes(c) ? undefined : new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
+}
+
+/**
  * One write of a theme from the Studio (see the header). `client` is the engine's: MCP is refused (themes are never
  * edited through it). Errors: conflict (if_match; a value changed since the page read it: `details.stale`), refused
  * (not editable, a file the theme may not serve, not a known version), invalid (the edit or its value).
  */
 export async function editTemplate(ws: OpenedWorkspace, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope }): Promise<ThemeEditResult> {
-  if (!editsThemes(callerOf(o.client))) throw new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
+  const refused = themeEditRefused(callerOf(o.client));
+  if (refused) throw refused;
   const loc = await locateTheme(ws, name);
   if (loc.editable !== true) throw new EngineError('refused', `not saved: ${loc.editable.why}`);
   const base = readThemeText(loc);

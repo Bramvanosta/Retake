@@ -226,7 +226,7 @@ export {
   reviewInline,
 } from './jobs/render-job.js';
 export type { InlineReview, LatestRunNotice, PassedOverRuns, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
-export { SCENARIO_RENDERS_MAX, failureWords, latestRenderMembers, planPreview, planSignature, renderForWork, renderRecordReads, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
+export { SCENARIO_RENDERS_MAX, failureWords, latestRenderMembers, pathFree, planPreview, planSignature, renderForWork, renderRecordReads, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
 export type { LatestRenderNotice, PassedOverRenders, RenderForWork } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
@@ -287,7 +287,7 @@ export { checkComponentId, componentCreate, componentWriter, componentGet, compo
 export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
 export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';
-export { THEME_USES_STATS, editTemplate, knownThemeVersion, templateView, themeEditList, themeFileProblem } from './theme-edit.js';
+export { THEME_USES_STATS, editTemplate, knownThemeVersion, templateView, themeEditList, themeEditRefused, themeFileProblem } from './theme-edit.js';
 export type { ThemeComponentView, ThemeEditList, ThemeEditRequest, ThemeEditResult, ThemeEditView, ThemeEditable, ThemeListItem } from './theme-edit.js';
 export { THEME_COPY_MAX_BYTES, THEME_COPY_MAX_FILES, copyTheme } from './brand/copy.js';
 export type { ThemeCopied } from './brand/copy.js';
@@ -405,3 +405,9 @@ export {
   standardWeight,
 } from './brand/files.js';
 export type { BrandFileKind, BrandTrust, FontFormat, FontInfo, ImageInfo, ResolvedBrandFile, SvgScan } from './brand/files.js';
+// The library / theme screens' stat walks (L7.17: from the Studio's server, with library_view's memo that reads them).
+export { WATCH_DEPTH_MAX, WATCH_ENTRIES_MAX, WATCH_FOLDERS_MAX, WATCH_SCAN_BUDGET, componentNamespaceSignatures, libraryChanges, libraryWatchScan, siteSignature, themeSignatures, treeSignature, watchBudget } from './library-watch.js';
+export type { WatchBudget } from './library-watch.js';
+// theme_preview's spec (L7.17: built by the engine; the Studio serves it on its player origin).
+export { buildThemePreview } from './theme-preview.js';
+export type { ThemePreviewBase, ThemePreviewBuild, ThemePreviewBuilt, ThemePreviewDraft, ThemePreviewRequest, ThemePreviewServe } from './theme-preview.js';

@@ -28,7 +28,7 @@
 import { z } from 'zod';
 import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, isThemeName, parseYaml, zRenderId } from '@retake/core';
 import { loadProjectTemplate, fileFacts } from '@retake/core/io';
-import { EngineError, openProjectBySlug, renderForWork, withoutPaths } from '@retake/engine';
+import { EngineError, openProjectBySlug, pathFree, renderForWork } from '@retake/engine';
 import type { CommentEntryView, CommentProposalView, CommentView, Engine } from '@retake/engine';
 import { defineTool } from '@retake/engine/contract';
 import { opChain, scenarioKey } from './op-chain.js';
@@ -89,11 +89,8 @@ const ApplyInput = z.strictObject({ project, comment_id: commentId, entry_id: en
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
-/** A text of the tool (a warning, a problem) without any absolute path: the workspace's cut off, any other shortened. */
-export function pathFree(text: string, root: string): string {
-  const cut = text.split(`${root}/`).join('').split(root).join('.');
-  return /(?:^|[\s'"`(<=:])(?:file:\/\/)?\/[^\s/]|\b[A-Za-z]:\\/.test(cut) ? withoutPaths(cut) : cut;
-}
+/** A text of the tool (a warning, a problem) without any absolute path: the engine's (L7.17), named here for the Studio's ops. */
+export { pathFree } from '@retake/engine';
 
 /** A thread as a list shows it (threads_list): trusted fields, the newest proposal's state, the first words of the comment. */
 export interface ThreadItem {

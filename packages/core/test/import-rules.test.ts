@@ -440,13 +440,14 @@ describe('the import-rules ratchet', () => {
       expect(spec('packages/engine/src/operations/x.ts', "export { defineOperation as op } from './define.js';")).toEqual([]);
     });
 
-    it('holds today: the MCP server defines 30 of its 45 tools, the Studio its 55 own ops; the eleven it shares and the fourteen read-only queries are the engine\'s', () => {
+    it('holds today: the operations each shell still defines, none in the engine (the counts move as families move)', () => {
       const entries = (lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('shell-op '));
       const total = (prefix: string) => entries.filter((e) => e.startsWith(`shell-op ${prefix}`)).reduce((n, e) => n + Number(/→ (\d+) operations? defined$/.exec(e)![1]), 0);
-      // L7.13: 34 / 65; L7.14 moved MCP's four read-only queries (scenario_get, plan_preview, render_status, review_get)
-      // and the Studio's ten (its screens' reads).
-      expect(total('packages/mcp/src/')).toBe(30);
-      expect(total('packages/ui/src/')).toBe(55);
+      // L7.13: 34 / 65 (the eleven both serve moved); L7.14: 30 / 55 (MCP's four read-only queries — scenario_get,
+      // plan_preview, render_status, review_get — and the Studio's ten screen reads); L7.17: 21 / 44 (the theme,
+      // component and library family: MCP's nine, the Studio's eleven).
+      expect(total('packages/mcp/src/')).toBe(21);
+      expect(total('packages/ui/src/')).toBe(44);
       expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
     });
   });

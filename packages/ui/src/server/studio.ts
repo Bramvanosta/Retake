@@ -57,7 +57,6 @@ import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
 import { editOps, indexOps, liveOps, renderOps, runOps, timelineOps } from './ops.js';
 import { PreviewLeases } from './preview-leases.js';
-import { libraryOps } from './library-ops.js';
 import { themeOps } from './theme-ops.js';
 import { recordOps } from './record-ops.js';
 import { commentOps, pathFree } from './comment-ops.js';
@@ -253,8 +252,7 @@ function ownOps(d: StudioToolDeps) {
     ...timelineOps({ player: d.player, forbid: d.forbid, allow: d.allow, registry: d.registry, leases }),
     ...renderOps(chain),
     ...commentOps({ chain }),
-    ...libraryOps({ chain }),
-    ...themeOps({ chain, player: d.player, forbid: d.forbid, allow: d.allow, leases }),
+    ...themeOps({ player: d.player, forbid: d.forbid, allow: d.allow, leases }),
     ...recordOps({ chain }),
     ...unsavedOps(d.unsaved),
     ...desktopOps(d.desktop),

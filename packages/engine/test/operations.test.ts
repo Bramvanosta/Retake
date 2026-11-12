@@ -4,13 +4,15 @@
  * Studio's pinned arguments applied to it (pinArguments) — and one call for every shell (`invoke`): the shell must serve
  * the operation (before the parse, the engine never asked), the parse answers callTool's words, the operation's caller
  * rules run after the parse with the engine's caller and before the handler, and nothing it meets is thrown.
+ * L7.17: the theme, component and library family joins them; an operation that declares `serialize` runs one call of a
+ * key at a time per engine (after its caller rules), MCP's declare none, and theme_edit's caller rule refuses MCP.
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { OPERATIONS, OPERATIONS_BY_NAME, callTool, catalogueOperation, defineOperation, invoke, pinArguments, servedBy, servedNames, studioPins } from '@retake/engine/contract';
+import { OPERATIONS, OPERATIONS_BY_NAME, callTool, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, servedBy, servedNames, studioPins } from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
 import { TOOLS } from '@retake/mcp';
 import { stubTools } from '../../ui/test/studio-tools.js';
@@ -22,11 +24,17 @@ const ELEVEN = ['engine_info', 'project_list', 'project_get', 'project_update_re
 /** L7.14: the read-only queries of runs, renders, reviews and scenarios — MCP's (job_status waits: its answer is three tools' outputs still in MCP) and the Studio's. */
 const QUERIES_MCP = ['scenario_get', 'plan_preview', 'render_status', 'review_get'];
 const QUERIES_STUDIO = ['projects_overview', 'project_board', 'scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms', 'scenario_sessions', 'scenario_renders', 'render_review', 'review_image'];
+/** L7.17: the theme, component and library family (MCP's nine, the Studio's eleven). */
+const THEMES_MCP = ['template_list', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_list', 'component_get', 'component_validate', 'component_preview', 'component_create'];
+const THEMES_STUDIO = ['library_view', 'library_images', 'library_render', 'library_component', 'theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list'];
 
 describe("the engine's operations: one definition, served by the shells as it is", () => {
   it('names operations of the catalogue, each served by MCP or the Studio, in catalogue order: the eleven both serve', () => {
     const names = OPERATIONS.map((o) => o.name);
     expect(names.filter((n) => ELEVEN.includes(n))).toEqual(ELEVEN);
+    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO].sort());
+    for (const n of THEMES_MCP) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
+    for (const n of THEMES_STUDIO) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
     for (const n of names) {
       const op = catalogueOperation(n);
       expect(op, n).toBeDefined();
@@ -41,7 +49,8 @@ describe("the engine's operations: one definition, served by the shells as it is
 
   it('names the read-only queries too (L7.14): MCP\'s four, then the Studio\'s ten, each a read served by one shell only', () => {
     const names = OPERATIONS.map((o) => o.name);
-    expect(names.filter((n) => !ELEVEN.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
+    // In catalogue order among the others (L7.17's theme family left out: the test above holds it).
+    expect(names.filter((n) => !ELEVEN.includes(n) && !THEMES_MCP.includes(n) && !THEMES_STUDIO.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
     for (const n of [...QUERIES_MCP, ...QUERIES_STUDIO]) {
       const op = catalogueOperation(n)!;
       expect(op.effect, n).toBe('read');
@@ -193,6 +202,139 @@ describe('invoke', () => {
       expect(!c2.ok && c2.error.code, label).toBe('internal');
     }
     expect(toEngineError(bare).message).toBe('a value that cannot be shown as text was thrown');
+  });
+});
+
+describe('serialize: one call of a key at a time, per engine (L7.17)', () => {
+  const engineA = { caller: callerOf('ui') } as unknown as Engine;
+  const engineB = { caller: callerOf('ui') } as unknown as Engine;
+  /** A probe on library_render's name (served by the Studio) whose run waits until released. */
+  const gated = (log: string[], refuse?: (n: string) => boolean) => {
+    const gates = new Map<string, () => void>();
+    const op = defineOperation({
+      name: 'library_render',
+      title: 'probe',
+      description: 'probe',
+      input: z.strictObject({ key: z.string(), n: z.string() }),
+      annotations: {},
+      callers: (_c, a) => (refuse?.(a.n) ? new EngineError('refused', `no ${a.n}`) : undefined),
+      serialize: (a) => a.key,
+      async run(a) {
+        log.push(`start ${a.n}`);
+        await new Promise<void>((r) => gates.set(a.n, r));
+        log.push(`end ${a.n}`);
+        return { summary: a.n, data: {} };
+      },
+    });
+    const release = async (n: string) => {
+      for (let i = 0; i < 50 && !gates.has(n); i++) await new Promise((r) => setTimeout(r, 2));
+      gates.get(n)!();
+    };
+    return { op, release };
+  };
+  const tick = () => new Promise((r) => setTimeout(r, 10));
+
+  it("MCP's operations declare none; the Studio's theme writes and library renders do, on their keys", () => {
+    for (const o of OPERATIONS) if (servedBy(catalogueOperation(o.name)!, 'mcp')) expect(o.serialize, o.name).toBeUndefined();
+    const keyed = OPERATIONS.filter((o) => o.serialize).map((o) => o.name);
+    expect(keyed.sort()).toEqual(['library_render', 'theme_copy', 'theme_create', 'theme_edit']);
+    const { theme_edit, theme_copy, theme_create, library_render } = OPERATIONS_BY_NAME;
+    expect(theme_edit.serialize!({ theme: 'Mine', if_match: 'a'.repeat(64), edit: { kind: 'restore', text: '', text_hash: 'a'.repeat(64) } })).toBe('theme:mine');
+    expect(theme_copy.serialize!({ from: 'editorial', name: 'mine' })).toBe('theme:mine');
+    expect(theme_create.serialize!({ name: 'mine' } as never)).toBe('theme:mine');
+    expect(library_render.serialize!({ project: 'p', items: [] } as never)).toBe('library:p');
+  });
+
+  it('runs the calls of one key in order, one at a time; another key or another engine does not wait', async () => {
+    const log: string[] = [];
+    const { op, release } = gated(log);
+    const call = (e: Engine, key: string, n: string) => invoke(op, e, { key, n }, { shell: 'studio', signal });
+    const first = call(engineA, 'k', '1');
+    const second = call(engineA, 'k', '2');
+    const other = call(engineA, 'j', '3');
+    const elsewhere = call(engineB, 'k', '4');
+    await tick();
+    expect(log.sort()).toEqual(['start 1', 'start 3', 'start 4']);
+    await release('1');
+    await tick();
+    expect(log).toContain('start 2');
+    for (const n of ['2', '3', '4']) await release(n);
+    expect((await Promise.all([first, second, other, elsewhere])).map((r) => r.ok && r.output.summary)).toEqual(['1', '2', '3', '4']);
+    expect(log.indexOf('end 1')).toBeLessThan(log.indexOf('start 2'));
+    // The chain is the engine's (one per engine, the same object each time).
+    expect(operationChain(engineA)).toBe(operationChain(engineA));
+    expect(operationChain(engineA)).not.toBe(operationChain(engineB));
+  });
+
+  it("callTool (the deprecated alias) runs a serialize operation through the same chain: two theme_edit calls of a theme serialise", async () => {
+    const log: string[] = [];
+    const gates = new Map<string, () => void>();
+    // theme_edit as defined (its input and serialize), its handler a probe that waits until released.
+    const edit = {
+      ...OPERATIONS_BY_NAME.theme_edit,
+      async run(a: { edit: { to?: unknown } }) {
+        const n = String(a.edit.to);
+        log.push(`start ${n}`);
+        await new Promise<void>((r) => gates.set(n, r));
+        log.push(`end ${n}`);
+        return { summary: n, data: {} };
+      },
+    } as unknown as ToolDef;
+    const args = (to: string, theme = 'mine') => ({ theme, if_match: 'a'.repeat(64), edit: { kind: 'set_field', field: 'colors.accent', to } });
+    const release = async (n: string) => {
+      for (let i = 0; i < 50 && !gates.has(n); i++) await new Promise((r) => setTimeout(r, 2));
+      gates.get(n)!();
+    };
+    const get = async () => engineA;
+    const first = callTool(edit, get, args('#111111'), { signal });
+    const second = callTool(edit, get, args('#222222'), { signal });
+    const other = callTool(edit, get, args('#333333', 'other'), { signal });
+    await tick();
+    expect(log.sort()).toEqual(['start #111111', 'start #333333']);
+    // The alias and invoke share the engine's chain: an invoke of the key waits behind them too.
+    const third = invoke(edit, engineA, args('#444444'), { shell: 'studio', signal });
+    await release('#111111');
+    await tick();
+    expect(log).toContain('start #222222');
+    expect(log).not.toContain('start #444444');
+    for (const n of ['#222222', '#333333', '#444444']) await release(n);
+    expect((await Promise.all([first, second, other, third])).map((r) => r.ok && r.output.summary)).toEqual(['#111111', '#222222', '#333333', '#444444']);
+    expect(log.indexOf('end #111111')).toBeLessThan(log.indexOf('start #222222'));
+    expect(log.indexOf('end #222222')).toBeLessThan(log.indexOf('start #444444'));
+  });
+
+  it('checks the caller rules before the chain: a refused call never waits for the key', async () => {
+    const log: string[] = [];
+    const { op, release } = gated(log, (n) => n === 'no');
+    const engine = { caller: callerOf('ui') } as unknown as Engine;
+    const held = invoke(op, engine, { key: 'k', n: '1' }, { shell: 'studio', signal });
+    await tick();
+    const refused = await invoke(op, engine, { key: 'k', n: 'no' }, { shell: 'studio', signal });
+    expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual(['refused', 'no no']);
+    expect(log).toEqual(['start 1']);
+    await release('1');
+    expect((await held).ok).toBe(true);
+    // A failed call does not stop the next of its key.
+    const failing = defineOperation({ name: 'library_render', title: 'x', description: 'x', input: z.strictObject({}), annotations: {}, serialize: () => 'k', run: async () => { throw new EngineError('conflict', 'changed'); } });
+    expect((await invoke(failing, engine, {}, { shell: 'studio', signal })).ok).toBe(false);
+    const after = invoke(op, engine, { key: 'k', n: '2' }, { shell: 'studio', signal });
+    await release('2');
+    expect((await after).ok).toBe(true);
+  });
+});
+
+describe("theme_edit's caller rule (L7.17: editsThemes as the operation's callers)", () => {
+  it('refuses the MCP client, after the parse and before the theme is read; every other caller passes', async () => {
+    const op = OPERATIONS_BY_NAME.theme_edit;
+    expect(op.callers!(callerOf('mcp'), {} as never)).toEqual(new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)'));
+    for (const client of ['ui', 'cli', 'test'] as const) expect(op.callers!(callerOf(client), {} as never), client).toBeUndefined();
+    // Through invoke on an engine that has no workspace: the parse first, then the refusal, nothing read.
+    const engine = { caller: callerOf('mcp') } as unknown as Engine;
+    const bad = await invoke(op, engine, { theme: '../x' }, { shell: 'studio', signal });
+    expect(!bad.ok && bad.error.code).toBe('invalid');
+    const valid = { theme: 'mine', if_match: 'a'.repeat(64), edit: { kind: 'set_field', field: 'colors.accent', to: '#123456' } };
+    const refused = await invoke(op, engine, valid, { shell: 'studio', signal });
+    expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual(['refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)']);
   });
 });
 

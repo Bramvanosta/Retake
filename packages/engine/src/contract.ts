@@ -59,6 +59,15 @@ export { studioEnv, studioProject, studioRenderId, studioRun, studioScenario } f
 export { REVIEW_IMAGES_MAX, reviewAnswer } from './operations/render-screen.js';
 export type { RenderReviewAnswer } from './operations/render-screen.js';
 export type { ProjectOverview } from './operations/board.js';
+// L7.17: the theme, component and library operations' pieces the shells still name (MCP's job_status reads a site
+// job as template_from_site does; the Studio's theme_preview shares the theme schemas; the app reads the answer types).
+export { PREVIEW_JOB, SITE_JOB, THEME_WRITE } from './operations/annotations.js';
+export { operationChain } from './operations/invoke.js';
+export { previewOutput, previewSummary } from './operations/preview.js';
+export { THEME_ARGS, siteOutput } from './operations/themes.js';
+export type { SiteListAnswer, ThemeListAnswer } from './operations/themes.js';
+export { LIBRARY_IMAGES_ANSWER_MAX, LIBRARY_VIEW_MEMO_MAX, LOOP_DATA_MAX, POSTER_DATA_MAX, componentAnswer } from './operations/library.js';
+export type { LibraryComponentAnswer, LibraryImage, LibraryImagesAnswer, LibraryItem, LibraryParam, LibraryRenderAnswer, LibrarySlot, LibraryViewAnswer } from './operations/library.js';
 
 /** Longest untrusted string a result carries. */
 export const UNTRUSTED_MAX = 2000;

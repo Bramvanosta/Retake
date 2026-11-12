@@ -2614,8 +2614,8 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     const scenario = opCalls(files.find(([f]) => f === 'ThemeEditor.tsx')![1], new Set(['scenario_edit']));
     expect(scenario.length).toBe(2);
     for (const c of scenario) expect(c.keys).toContain('hash');
-    // The engine's own input requires it.
-    const ops = await readFile(join(REPO, 'packages', 'ui', 'src', 'server', 'theme-ops.ts'), 'utf8');
+    // The engine's own input requires it (L7.17: theme_edit is the engine's operation).
+    const ops = await readFile(join(REPO, 'packages', 'engine', 'src', 'operations', 'themes.ts'), 'utf8');
     expect(ops.slice(ops.indexOf('const EditInput ='), ops.indexOf('const CopyInput ='))).toMatch(/if_match: sha256/);
     // The mutation: a theme_edit without its version.
     expect(opCalls("call('theme_edit', { theme: target, edit: plan.edit })", new Set(['theme_edit']))[0].keys).not.toContain('if_match');

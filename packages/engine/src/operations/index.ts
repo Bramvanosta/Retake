@@ -6,8 +6,10 @@
  */
 import { authLogin, authStatus } from './auth.js';
 import { projectBoard, projectsOverview } from './board.js';
+import { componentCreate, componentGet, componentList, componentPreview, componentValidate } from './components.js';
 import type { ToolsByName } from './define.js';
 import { jobList } from './jobs.js';
+import { libraryComponent, libraryImages, libraryRender, libraryView } from './library.js';
 import { engineInfo, projectGet, projectList, projectUpdateReadme } from './project.js';
 import { scenarioGet, scenarioValidate } from './reads.js';
 import { renderReview, reviewImage, scenarioRenders } from './render-screen.js';
@@ -15,10 +17,11 @@ import { planPreview, renderStatus } from './renders.js';
 import { reviewGet } from './reviews.js';
 import { runCancel, runList, runStatus } from './runs.js';
 import { runThumbs, scenarioActions, scenarioBlocks, scenarioForms, scenarioSessions } from './scenario-screen.js';
+import { brandFiles, siteList, templateCreateFromBrand, templateFromSite, templateList, templatePreview, themeCopy, themeCreate, themeEdit, themeList, themeView } from './themes.js';
 
 /**
  * Every engine operation, in catalogue order: the eleven MCP and the Studio share (L7.13); MCP's reads of scenarios,
- * plans, renders and reviews, and the Studio's screen reads (L7.14).
+ * plans, renders and reviews, and the Studio's screen reads (L7.14); the themes, components and the library (L7.17).
  */
 export const OPERATIONS = [
   engineInfo,
@@ -33,6 +36,15 @@ export const OPERATIONS = [
   planPreview,
   renderStatus,
   reviewGet,
+  templateList,
+  templatePreview,
+  templateFromSite,
+  templateCreateFromBrand,
+  componentList,
+  componentGet,
+  componentValidate,
+  componentPreview,
+  componentCreate,
   jobList,
   authStatus,
   authLogin,
@@ -46,6 +58,17 @@ export const OPERATIONS = [
   scenarioRenders,
   renderReview,
   reviewImage,
+  libraryView,
+  libraryImages,
+  libraryRender,
+  libraryComponent,
+  themeList,
+  themeView,
+  themeEdit,
+  themeCopy,
+  themeCreate,
+  brandFiles,
+  siteList,
 ] as const;
 
 /** The engine's operations by name, as types (an operation's arguments and answer: ToolArgs / ToolData of its entry). */

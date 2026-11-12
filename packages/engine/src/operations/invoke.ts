@@ -4,6 +4,8 @@
  * it, the parse, the caller rules and the errors stay one. Never throws: every failure comes back as an EngineError.
  */
 import type { z } from 'zod';
+import { opChain } from '../admission.js';
+import type { OpChain } from '../admission.js';
 import type { Approver } from '../approvals.js';
 import { catalogueOperation, servedBy } from '../catalogue.js';
 import type { Shell } from '../catalogue.js';
@@ -19,6 +21,20 @@ export interface InvokeOptions {
   signal: AbortSignal;
   progress?: (p: Progress) => void;
   approver?: Approver;
+}
+
+/** The chains of the operations that declare `serialize`, one per engine (the Studio holds one engine per server). */
+const chains = new WeakMap<Engine, OpChain>();
+
+/**
+ * The engine's chain of operation calls (L7.17): the calls of one key run one at a time on this engine, in order (a
+ * double click, two tabs: the second finds the first's result — a new hash, its 409). invoke runs a `serialize`
+ * operation through it.
+ */
+export function operationChain(engine: Engine): OpChain {
+  let c = chains.get(engine);
+  if (!c) chains.set(engine, (c = opChain()));
+  return c;
 }
 
 /** Any thrown value as an EngineError, and never a throw of its own (a getter of an error's members may throw too). */
@@ -41,8 +57,9 @@ function parsed<S extends z.ZodType>(t: ToolDef<S, object>, args: unknown): { ok
 /**
  * One call of `op` by `shell`, in order: (1) the catalogue serves it in that shell, else `not_found` — a second line
  * behind each shell's own list (MCP's TOOLS, the Studio's 404), which keep their words; (2) the parse (problems named
- * per argument); (3) the operation's caller rules (`callers`) with the engine's caller; (4) the handler; (5) any error
- * typed (toEngineError). `engine` is the engine or a getter of it (a getter that fails is an error, not a throw).
+ * per argument); (3) the operation's caller rules (`callers`) with the engine's caller; (4) the handler — after the
+ * earlier calls of its key when it declares `serialize` (operationChain); (5) any error typed (toEngineError).
+ * `engine` is the engine or a getter of it (a getter that fails is an error, not a throw).
  * Admission is not checked here: it stays inside the submits (the run rule is checked again at reserve).
  */
 export async function invoke<D extends object>(op: ToolDef<z.ZodType, D>, engine: Engine | (() => Promise<Engine>), args: unknown, o: InvokeOptions): Promise<ToolCallOutcome<D>> {
@@ -55,7 +72,9 @@ export async function invoke<D extends object>(op: ToolDef<z.ZodType, D>, engine
     const refused = op.callers?.(e.caller, p.data);
     if (refused) return { ok: false, error: refused };
     const ctx: ToolContext = { engine: e, signal: o.signal, ...(o.progress ? { progress: o.progress } : {}), ...(o.approver ? { approver: o.approver } : {}) };
-    return { ok: true, output: await op.run(p.data, ctx) };
+    const key = op.serialize?.(p.data);
+    if (key === undefined) return { ok: true, output: await op.run(p.data, ctx) };
+    return { ok: true, output: await operationChain(e)(key, () => op.run(p.data, ctx)) };
   } catch (e) {
     return { ok: false, error: failure(e) };
   }
@@ -63,14 +82,18 @@ export async function invoke<D extends object>(op: ToolDef<z.ZodType, D>, engine
 
 /**
  * One call, SDK-free: the zod parse (problems named per argument), then the handler with the engine; never throws —
- * every failure comes back as an EngineError. No shell check and no caller rules.
+ * every failure comes back as an EngineError. No shell check and no caller rules; a `serialize` operation runs through
+ * the same chain as invoke's (operationChain), so the alias never lets two calls of a key interleave.
  * @deprecated L7.13: the shells call `invoke`; this alias goes after one lot.
  */
 export async function callTool<D extends object>(t: ToolDef<z.ZodType, D>, engine: () => Promise<Engine>, args: unknown, ctx: Omit<ToolContext, 'engine'>): Promise<ToolCallOutcome<D>> {
   const p = parsed(t, args);
   if (!p.ok) return p;
   try {
-    return { ok: true, output: await t.run(p.data, { ...ctx, engine: await engine() }) };
+    const e = await engine();
+    const run = () => t.run(p.data, { ...ctx, engine: e });
+    const key = t.serialize?.(p.data);
+    return { ok: true, output: await (key === undefined ? run() : operationChain(e)(key, run)) };
   } catch (e) {
     return { ok: false, error: failure(e) };
   }

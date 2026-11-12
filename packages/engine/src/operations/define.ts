@@ -72,6 +72,12 @@ export interface ToolDef<S extends z.ZodType = z.ZodType, D extends object = obj
    * an error to answer, or undefined. Its facets (effect, job, admission…) are the catalogue's, never repeated here.
    */
   callers?(caller: Caller, args: z.output<S>): EngineError | undefined;
+  /**
+   * The key of the calls that run one at a time (L7.17: a theme's writes, a project's library renders): invoke runs
+   * the handler after every earlier call of the same key on the same engine has settled (operationChain). MCP's
+   * operations declare none.
+   */
+  serialize?(args: z.output<S>): string;
 }
 
 /** An operation of the engine (operations/): a definition whose name is an operation of the catalogue. */

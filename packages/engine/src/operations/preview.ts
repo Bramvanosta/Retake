@@ -1,8 +1,13 @@
-import type { Engine, JobRecord, PreviewSubmitted } from '@retake/engine';
-import { plural } from '../result.js';
+/**
+ * How a preview job is shown (moved from the MCP server's tools/preview.ts in L7.17, with template_preview and
+ * component_preview, its only users): its summary, and the wait on it with its stills as images once it succeeded.
+ */
+import type { Engine, PreviewSubmitted } from '../engine.js';
+import type { JobRecord } from '../jobs/types.js';
 import type { ToolContext } from './define.js';
-import { jobLine, previewImages } from '@retake/engine/contract';
-import { WAIT_MAX_S, waitJob } from '@retake/engine/contract';
+import { jobLine, previewImages } from './job-lines.js';
+import { WAIT_MAX_S, waitJob } from './wait.js';
+import { plural } from './words.js';
 
 /** The summary of a preview job: state, the images written, what to do next (the guard's warnings stay under untrusted). */
 export function previewSummary(job: JobRecord): string {
