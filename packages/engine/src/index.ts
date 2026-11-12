@@ -294,6 +294,19 @@ export { RECORD_DRAFT_MAX, executeRecordJob, readRecording, recordCommandLine, r
 export type { RecordJobContext, RecordJobTestHooks, RecordSubmitRequest } from './jobs/record-job.js';
 export { checkComponentId, componentCreate, componentWriter, componentGet, componentList, componentValidate } from './components.js';
 export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
+// The shell forms (L7.24: the CLI's `retake components`): by id or folder, the registry's notices whole, previews into the component's folder.
+export { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell } from './components.js';
+export type {
+  ComponentCatalogView,
+  ComponentCreatedByShell,
+  ComponentEntry,
+  ComponentFileIssue,
+  ComponentRef,
+  ComponentValidationsView,
+  PreviewSelection,
+  PreviewTargetsView,
+  RegistryNoticeView,
+} from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
 export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';
 export { THEME_USES_STATS, editTemplate, knownThemeVersion, templateView, themeEditList, themeEditRefused, themeFileProblem } from './theme-edit.js';

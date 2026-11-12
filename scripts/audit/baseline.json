@@ -3,11 +3,9 @@
  "groups": [
   {
    "rule": "R4",
-   "reason": "CLI commands drive the adapters themselves (components, sandboxes, doctor, sign-in checks) until they run on the engine operations.",
+   "reason": "CLI commands drive the adapters themselves (sandboxes, doctor, sign-in checks) until they run on the engine operations.",
    "entries": [
     "packages/cli/src/commands/auth.ts → @retake/runner-web",
-    "packages/cli/src/commands/components.ts → @retake/components",
-    "packages/cli/src/commands/components.ts → @retake/editor",
     "packages/cli/src/commands/doctor.ts → @retake/editor",
     "packages/cli/src/commands/doctor.ts → @retake/runner-web",
     "packages/cli/src/commands/doctor.ts → @retake/sandbox",
@@ -34,7 +32,6 @@
    "rule": "R6",
    "reason": "CLI commands read and write files or start processes themselves (init, validate, ui, doctor) until they go through the engine.",
    "entries": [
-    "packages/cli/src/commands/components.ts → node:fs",
     "packages/cli/src/commands/doctor.ts → node:child_process",
     "packages/cli/src/commands/doctor.ts → node:fs",
     "packages/cli/src/commands/init.ts → node:fs",
