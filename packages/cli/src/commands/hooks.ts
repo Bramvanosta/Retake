@@ -1,8 +1,7 @@
 import { ScenarioError, isAccessError, newRunId } from '@retake/core';
-import type { HookContext, HookResult, LoadedProject, RunAccess, Scenario, WorkPolicy } from '@retake/core';
-import { HooksSourceError, callerOf, createHookContext, rollbackActionLines, selectHooks } from '@retake/engine';
-import type { HookJournal, HookSelection } from '@retake/engine';
-import { fileFacts } from '@retake/core/io';
+import type { HookContext, HookResult, RunAccess, WorkPolicy } from '@retake/core';
+import { HooksSourceError, callerOf, envResetWork, hooksRunWork, rollbackActionLines, rollbackWork } from '@retake/engine';
+import type { HookJournal, HookJournalRollback, HookWorkOptions, HooksRunOutcome, PendingHookJournal } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -39,70 +38,63 @@ function printAccess(ui: Ui, access: RunAccess): void {
 }
 
 /**
- * The hook context of a CLI command (engine createHookContext): destructive hooks approved by --yes or the prompt;
- * `--allow-writes` on a read-only environment is a usage error. Until `close`, Ctrl-C / SIGTERM close the js hooks'
- * browsers (their copies hold a persona's cookies) and exit 130 (the journal keeps what ran: `retake hooks rollback`).
+ * What a CLI command's hooks run with (engine hooks-work.ts): trust `author`; destructive hooks approved by --yes or the
+ * prompt; `--allow-writes` on a read-only environment is a usage error. While the hooks' sessions are open, Ctrl-C /
+ * SIGTERM close the js hooks' browsers (their copies hold a persona's cookies) and exit 130 (the journal keeps what
+ * ran: `retake hooks rollback`). No job protection (project files only, approved bytes, agent checks): a person's.
  */
-async function hookContext(
-  ui: Ui,
-  project: LoadedProject,
-  opts: HookCommandOptions & { vars?: Record<string, string>; runId?: string; scenario?: Scenario },
-  global: GlobalOptions,
-  policy: WorkPolicy,
-): Promise<{ ctx: HookContext; access: RunAccess; close: () => Promise<void>; interrupted: () => boolean }> {
-  // An unsigned entry is replayed only on a person's yes, typed at the question about it: never without a terminal.
+function workOptions(ui: Ui, opts: HookCommandOptions, global: GlobalOptions, policy: WorkPolicy): HookWorkOptions & { trust: 'author' } {
+  return {
+    policy,
+    hooks: cliPorts.hooks,
+    pages: cliPorts.capture.hookPages,
+    ...(opts.env !== undefined ? { env: opts.env } : {}),
+    allowWrites: opts.allowWrites === true,
+    dry: opts.dry === true,
+    trust: 'author',
+    loginCommand: loginCommandFor(global),
+    // Each hook and rollback run is a line of the workspace journal, as the person's.
+    recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
+    replayUnsigned:
+      opts.replayUnsigned === true
+        ? async (entry, file) => {
+            const c = ui.c;
+            ui.line(`${c.yellow('not signed by this Retake home')} ${c.dim('journal')} ${ui.path(file)} ${c.dim(`#${entry.seq}${entry.env !== undefined ? ` · env ${entry.env}` : ''}`)}`);
+            if (entry.rollback) for (const l of rollbackActionLines(entry.rollback)) ui.line(`      ${l}`);
+            return ui.io.confirm ? ui.io.confirm(`Replay this rollback (#${entry.seq}), exactly as shown?`) : false;
+          }
+        : false,
+    log: (level, msg) => {
+      // A failing hook is listed with its error by printResults: its error log would print it a second time.
+      if (level === 'error') ui.debug(msg);
+      else if (level === 'warn') ui.warn(msg);
+      else ui.debug(msg);
+    },
+    confirm: async (description, reason) => {
+      if (opts.yes) return true;
+      if (!ui.io.canPrompt || !ui.io.confirm) {
+        ui.warn(`destructive hook (${reason}) needs approval: add "confirm: true" to it, or pass --yes`);
+        return false;
+      }
+      return ui.io.confirm(`Run destructive hook (${reason}): ${description}?`);
+    },
+    onInterrupt: (closeSessions) => onInterrupt(ui, { exit: closeSessions }),
+    contextError: (e) => (isAccessError(e) ? new UsageError(e.message) : e),
+  };
+}
+
+/** An unsigned entry is replayed only on a person's yes, typed at the question about it: never without a terminal. */
+function checkReplayUnsigned(ui: Ui, opts: HookCommandOptions): void {
   if (opts.replayUnsigned && !opts.dry && !(ui.io.canPrompt && ui.io.confirm)) {
     throw new UsageError('--replay-unsigned asks about each rollback Retake did not sign, in a terminal: run it in an interactive terminal (its input is not one)');
   }
-  let made: Awaited<ReturnType<typeof createHookContext>>;
-  try {
-    made = await createHookContext(project, {
-      policy,
-      env: opts.env,
-      allowWrites: opts.allowWrites === true,
-      dry: opts.dry === true,
-      ...(opts.vars ? { vars: opts.vars } : {}),
-      ...(opts.runId !== undefined ? { runId: opts.runId } : {}),
-      ...(opts.scenario ? { scenario: opts.scenario } : {}),
-      loginCommand: loginCommandFor(global),
-      // Each hook and rollback run is a line of the workspace journal, as the person's.
-      recordAs: { caller: callerOf('cli'), clock: cliPorts.clock },
-      pages: cliPorts.capture.hookPages,
-      replayUnsigned:
-        opts.replayUnsigned === true
-          ? async (entry, file) => {
-              const c = ui.c;
-              ui.line(`${c.yellow('not signed by this Retake home')} ${c.dim('journal')} ${ui.path(file)} ${c.dim(`#${entry.seq}${entry.env !== undefined ? ` · env ${entry.env}` : ''}`)}`);
-              if (entry.rollback) for (const l of rollbackActionLines(entry.rollback)) ui.line(`      ${l}`);
-              return ui.io.confirm ? ui.io.confirm(`Replay this rollback (#${entry.seq}), exactly as shown?`) : false;
-            }
-          : false,
-      log: (level, msg) => {
-        // A failing hook is listed with its error by printResults: its error log would print it a second time.
-        if (level === 'error') ui.debug(msg);
-        else if (level === 'warn') ui.warn(msg);
-        else ui.debug(msg);
-      },
-      confirm: async (description, reason) => {
-        if (opts.yes) return true;
-        if (!ui.io.canPrompt || !ui.io.confirm) {
-          ui.warn(`destructive hook (${reason}) needs approval: add "confirm: true" to it, or pass --yes`);
-          return false;
-        }
-        return ui.io.confirm(`Run destructive hook (${reason}): ${description}?`);
-      },
-    });
-  } catch (e) {
-    if (isAccessError(e)) throw new UsageError(e.message);
-    throw e;
+}
+
+/** A failure the command printed itself: it ends with this exit code and nothing more. */
+class Printed extends Error {
+  constructor(readonly exitCode: ExitCode) {
+    super('printed');
   }
-  const { ctx, access, closeSessions } = made;
-  const stop = await onInterrupt(ui, { exit: closeSessions });
-  const close = async () => {
-    await closeSessions();
-    stop.dispose();
-  };
-  return { ctx, access, close, interrupted: () => stop.interrupted };
 }
 
 function printResults(ui: Ui, results: readonly HookResult[]): void {
@@ -126,40 +118,43 @@ function printResults(ui: Ui, results: readonly HookResult[]): void {
 export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg: string, spec: string, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  let sel: HookSelection;
+  // Not reached through `retake` (hooks run declares no --replay-unsigned: commander refuses it, exit 2).
+  checkReplayUnsigned(ui, opts);
+  const c = ui.c;
+  let out: HooksRunOutcome;
   try {
-    sel = await selectHooks(project, spec, opts.env, { files: fileFacts(ws.policy) });
+    out = await hooksRunWork(project, spec, {
+      ...workOptions(ui, opts, global, ws.policy),
+      runId: (sel) => newRunId(`hooks-${sel.label}`),
+      selectError: (e) => {
+        if (e instanceof HooksSourceError) return e.usage ? new UsageError(e.message) : new CliError(e.message);
+        if (e instanceof ScenarioError && e.issues.length) {
+          ui.error(e.message.split('\n')[0]);
+          for (const i of e.issues) ui.line(`  ${ui.issue(i, e.file)}`);
+          return new Printed(EXIT.failure);
+        }
+        return e;
+      },
+      onStart: ({ sel, ctx, access }) => {
+        ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
+        printAccess(ui, access);
+      },
+      onResults: (r) => {
+        printResults(ui, r.results);
+        if (r.pending && !opts.dry) {
+          ui.line(c.dim(`  journal ${ui.path(r.journalFile)} (${plural(r.pending, 'pending rollback')}: retake hooks rollback ${project.slug} ${r.runId})`));
+        }
+        if (r.interrupted) return;
+        if (r.ok) ui.ok(`${r.sel.label}: ${opts.dry ? 'checked (nothing executed)' : 'done'}`);
+        else ui.error(`${r.sel.label}: failed`);
+      },
+    });
   } catch (e) {
-    if (e instanceof HooksSourceError) throw e.usage ? new UsageError(e.message) : new CliError(e.message);
-    if (e instanceof ScenarioError && e.issues.length) {
-      ui.error(e.message.split('\n')[0]);
-      for (const i of e.issues) ui.line(`  ${ui.issue(i, e.file)}`);
-      return EXIT.failure;
-    }
+    if (e instanceof Printed) return e.exitCode;
     throw e;
   }
-  const hooks = cliPorts.hooks;
-  const runId = newRunId(`hooks-${sel.label}`);
-  const journalFile = await hooks.journals.standaloneFile(project.dir, runId);
-  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global, ws.policy);
-  const c = ui.c;
-  ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
-  printAccess(ui, access);
-  try {
-    const journal = await hooks.journals.open(journalFile);
-    const res = await hooks.run(sel.hooks, ctx, { phase: sel.phase, journal });
-    printResults(ui, res.results);
-    const pending = journal.pending().length;
-    if (pending && !opts.dry) {
-      ui.line(c.dim(`  journal ${ui.path(journalFile)} (${plural(pending, 'pending rollback')}: retake hooks rollback ${project.slug} ${runId})`));
-    }
-    if (interrupted()) return EXIT.interrupted;
-    if (res.ok) ui.ok(`${sel.label}: ${opts.dry ? 'checked (nothing executed)' : 'done'}`);
-    else ui.error(`${sel.label}: failed`);
-    return res.ok ? EXIT.ok : EXIT.failure;
-  } finally {
-    await close();
-  }
+  if (out.interrupted) return EXIT.interrupted;
+  return out.ok ? EXIT.ok : EXIT.failure;
 }
 
 /** `retake hooks rollback <project> [id]`: replay pending rollbacks (one run or hooks journal, or every pending one). */
@@ -172,35 +167,32 @@ export async function hooksRollbackCommand(
 ): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const { ctx, access, close, interrupted } = await hookContext(ui, project, opts, global, ws.policy);
-  printAccess(ui, access);
-  try {
-    const ok = runId === undefined ? await rollbackAllPending(ui, project, ctx) : await rollbackRun(ui, project, ctx, runId);
-    if (interrupted()) return EXIT.interrupted;
-    return ok ? EXIT.ok : EXIT.failure;
-  } finally {
-    await close();
-  }
+  checkReplayUnsigned(ui, opts);
+  const out = await rollbackWork(project, {
+    ...workOptions(ui, opts, global, ws.policy),
+    ...(runId !== undefined ? { id: runId } : {}),
+    onStart: ({ access }) => printAccess(ui, access),
+    listed: (list, ctx) => (runId === undefined ? listAllPending(ui, list, ctx) : listRun(ui, runId, list, ctx)),
+    onResults: (r) => {
+      if (r.kind === 'run') printResults(ui, r.results);
+      else if (r.kind === 'pending') printRollbacks(ui, r.outcomes);
+    },
+  });
+  if (out.kind === 'missing') throw new CliError(`"${out.id}" has no hooks journal (looked for ${out.looked[0]} and ${out.looked[1]})`);
+  if (out.interrupted) return EXIT.interrupted;
+  return out.ok ? EXIT.ok : EXIT.failure;
 }
 
-async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, runId: string): Promise<boolean> {
-  const hooks = cliPorts.hooks;
-  const { file, looked } = await hooks.journals.find(project.dir, runId);
-  if (!file) {
-    throw new CliError(`"${runId}" has no hooks journal (looked for ${looked[0]} and ${looked[1]})`);
-  }
-  const journal = await hooks.journals.open(file);
-  const pending = journal.pending().length;
-  if (!pending) {
+/** One run's journal about to be replayed (`[]`: nothing pending in it). */
+function listRun(ui: Ui, runId: string, list: readonly PendingHookJournal[], ctx: HookContext): void {
+  const p = list[0];
+  if (!p?.journal) {
     ui.ok(`run ${runId}: nothing to roll back`);
-    return true;
+    return;
   }
-  ui.line(`${ui.c.bold('rollback')} ${runId} ${ui.c.dim(`(${plural(pending, 'entry', 'entries')})`)}`);
-  ui.line(`${ui.c.dim('journal')} ${ui.path(file)}`);
-  listPending(ui, journal, ctx);
-  const results = await journal.rollbackAll(ctx);
-  printResults(ui, results);
-  return results.every((r) => r.ok);
+  ui.line(`${ui.c.bold('rollback')} ${runId} ${ui.c.dim(`(${plural(p.journal.pending().length, 'entry', 'entries')})`)}`);
+  ui.line(`${ui.c.dim('journal')} ${ui.path(p.file)}`);
+  listPending(ui, p.journal, ctx);
 }
 
 /**
@@ -223,31 +215,26 @@ function listPending(ui: Ui, journal: HookJournal, ctx: HookContext): void {
   }
 }
 
-/** Roll back every pending journal of a project, most recent run first: listed, then replayed. True when all succeeded. */
-async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookContext): Promise<boolean> {
-  const hooks = cliPorts.hooks;
-  const list = await hooks.journals.openPending(project.dir);
+/** Every pending journal of a project, most recent run first, as the replay is about to run them. */
+function listAllPending(ui: Ui, list: readonly PendingHookJournal[], ctx: HookContext): void {
   if (!list.length) {
     ui.ok('no pending rollbacks');
-    return true;
+    return;
   }
   ui.line(`${ui.c.bold('pending rollbacks')} ${ui.c.dim(`(${plural(list.length, 'journal')})`)}`);
   for (const p of list) {
     ui.line(`${ui.c.dim('journal')} ${ui.path(p.file)}`);
     if (p.journal) listPending(ui, p.journal, ctx);
   }
-  const outcomes = await hooks.journals.rollback(list, ctx);
-  let ok = true;
+}
+
+/** What replaying each pending journal gave. */
+function printRollbacks(ui: Ui, outcomes: readonly HookJournalRollback[]): void {
   for (const o of outcomes) {
     ui.line(`${ui.c.bold('rollback')} ${ui.path(o.file)}`);
-    if (o.error) {
-      ui.error(o.error);
-      ok = false;
-    }
+    if (o.error) ui.error(o.error);
     printResults(ui, o.results);
-    if (o.results.some((r) => !r.ok)) ok = false;
   }
-  return ok;
 }
 
 /**
@@ -257,30 +244,27 @@ async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookConte
 export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const hooks = cliPorts.hooks;
   const runId = newRunId('env-reset');
-  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global, ws.policy);
+  checkReplayUnsigned(ui, opts);
   const c = ui.c;
-  ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''}`)}`);
-  printAccess(ui, access);
-  if (ctx.env.sandbox) ui.line(c.dim(`${ctx.env.name} is a sandbox: \`retake sandbox reset ${project.slug} --env ${ctx.env.name}\` restores its seed`));
-  try {
-    let ok = await rollbackAllPending(ui, project, ctx);
-    const reset = project.config.reset ?? [];
-    if (reset.length) {
-      ui.line(`${c.bold('reset')} ${c.dim(plural(reset.length, 'hook'))}`);
-      const journal = await hooks.journals.open(await hooks.journals.standaloneFile(project.dir, runId));
-      const res = await hooks.run(reset, ctx, { phase: 'reset', journal });
-      printResults(ui, res.results);
-      ok &&= res.ok;
-    } else {
-      ui.line(c.dim('no reset hooks in project.yaml'));
-    }
-    if (interrupted()) return EXIT.interrupted;
-    if (ok) ui.ok(opts.dry ? 'environment reset checked (nothing executed)' : 'environment reset');
-    else ui.error('environment reset finished with failures');
-    return ok ? EXIT.ok : EXIT.failure;
-  } finally {
-    await close();
-  }
+  const out = await envResetWork(project, {
+    ...workOptions(ui, opts, global, ws.policy),
+    runId,
+    onStart: ({ ctx, access }) => {
+      ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''}`)}`);
+      printAccess(ui, access);
+      if (ctx.env.sandbox) ui.line(c.dim(`${ctx.env.name} is a sandbox: \`retake sandbox reset ${project.slug} --env ${ctx.env.name}\` restores its seed`));
+    },
+    listed: (list, ctx) => listAllPending(ui, list, ctx),
+    onRollbacks: (outcomes) => printRollbacks(ui, outcomes),
+    onReset: (hooks) => ui.line(hooks.length ? `${c.bold('reset')} ${c.dim(plural(hooks.length, 'hook'))}` : c.dim('no reset hooks in project.yaml')),
+    onResults: (r) => {
+      if (r.reset) printResults(ui, r.reset.results);
+      if (r.interrupted) return;
+      if (r.ok) ui.ok(opts.dry ? 'environment reset checked (nothing executed)' : 'environment reset');
+      else ui.error('environment reset finished with failures');
+    },
+  });
+  if (out.interrupted) return EXIT.interrupted;
+  return out.ok ? EXIT.ok : EXIT.failure;
 }

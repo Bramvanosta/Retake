@@ -1840,6 +1840,11 @@ renderInProcess / stillInProcess / exportInProcess / runInProcess / inspectInPro
 selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(project, {env?, allowWrites?, dry?, vars?,
   runId?, scenario?, trust?, log, confirm?, loginCommand, signal?}) → {ctx, access, closeSessions} / hooksAccess
                                                        // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
+hooksRunWork(project, source, o) / rollbackWork(project, o) / envResetWork(project, o) → outcome   // hooks-work.ts (L7.23):
+  the one orchestration of `hooks run` / `hooks rollback` / `env reset` and the hooks / env_reset jobs — o: policy, the
+  ports, env, dry, trust ('author' | ENGINE_TRUST), confirm, replayUnsigned, log, loginCommand, recordAs, signal?,
+  onInterrupt?, contextError?, protection? (jobs only), and callbacks the CLI prints in (onStart, listed, onRollbacks,
+  onReset, onResults); the ratchet's `hook-call` keeps createHookContext, hooks.run and the journals' replays in the engine
 preflightHooks(project, [{phase, hooks}], {env?, vars?, scenario?, journalFile}) → {env, items, refused}
 takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(approvals) → confirmDestructive
 pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(PruneApprovalRequest, approver?, client?)
@@ -2177,8 +2182,9 @@ workers/worker.log      what workers print (stderr), appended
   scenario_sha256? (for `<scenario>:setup|teardown`: the scenario file's bytes at submit, set before the approvals are
   signed and covered by their signature; the worker refuses such a job without it or with another hash — `conflict`,
   submit again), env?, dry, journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
-  journal_id (`<stamp>-env-reset`)}`. The executors are `retake hooks run` / `retake env reset` on the engine's
-  `createHookContext` with trust `mcp` and the job's approvals; results (`HooksJobResult`, `EnvResetJobResult`) list
+  journal_id (`<stamp>-env-reset`)}`. The executors run `retake hooks run` / `retake env reset`'s own orchestration
+  (`hooks-work.ts`, L7.23) with trust `mcp`, the job's approvals and the jobs' protection (project files only, the
+  approved scenario bytes, agent trust, protected hosts); results (`HooksJobResult`, `EnvResetJobResult`) list
   each hook with its trusted fields (index, name, kind, status, the hook as declared, the approval reason) and keep
   its templated description, message and error under `untrusted`. A cancel stops the hooks (a setup's completed ones
   are rolled back): the job ends `cancelled`.

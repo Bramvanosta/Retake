@@ -458,6 +458,54 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe('hook-call: the hooks use cases orchestrated in the engine only (L7.23, U8b)', () => {
+    const at = (rel: string, text: string): string[] => (lib.hookCallHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
+    const cli = 'packages/cli/src/commands/a.ts';
+
+    it('counts createHookContext (its name, an import alias, a namespace member), hooks.run and the replays of the journals, outside the engine', () => {
+      expect(at(cli, "import { createHookContext } from '@retake/engine';\nconst m = await createHookContext(project, o);")).toEqual([`${cli} → 1`]);
+      expect(at(cli, "import { createHookContext as hc } from '@retake/engine';\nawait hc(p, o);\nawait hc(p, o);")).toEqual([`${cli} → 2`]);
+      expect(at(cli, "import * as e from '@retake/engine';\nawait e.createHookContext(p, o);\nawait e['createHookContext'](p, o);")).toEqual([`${cli} → 2`]);
+      expect(at(cli, 'await cliPorts.hooks.run(list, ctx, o);\nawait hooks.run(list, ctx, o);\nawait ports.hooks[\'run\'](list, ctx, o);')).toEqual([`${cli} → 3`]);
+      expect(at(cli, 'await hooks.journals.openPending(dir);\nawait hooks.journals.rollback(list, ctx);\nawait journals.rollbackPending(dir, ctx);')).toEqual([`${cli} → 3`]);
+      // A shell replays no journal itself; an adapter does (runner-web's capture, the hooks package).
+      expect(at('packages/mcp/src/tools/b.ts', 'await journal.rollbackAll(ctx);')).toEqual(['packages/mcp/src/tools/b.ts → 1']);
+      expect(at('packages/runner-web/src/run.ts', 'await h.journal.rollbackAll(h.ctx);')).toEqual([]);
+      expect(at('packages/hooks/src/journal.ts', 'await p.journal.rollbackAll(ctx);')).toEqual([]);
+    });
+
+    it('reads the callee through parentheses, a comma, a cast or `!`, and counts .call / .apply / .bind of a counted function', () => {
+      // (A script's top-level `await (x)(…)` parses as a call of a function named await: the probes use `void`.)
+      expect(at(cli, 'void (hooks.run)(l, c, o);\nvoid (0, cliPorts.hooks.run)(l, c, o);\nvoid (hooks.journals as J).rollback(l, c);\nawait hooks!.run(l, c, o);')).toEqual([`${cli} → 4`]);
+      expect(at(cli, "import { createHookContext } from '@retake/engine';\nvoid (0, createHookContext)(p, o);\nvoid (createHookContext as F)(p, o);")).toEqual([`${cli} → 2`]);
+      expect(at(cli, "import { createHookContext as hc } from '@retake/engine';\nawait hc.call(null, p, o);\nawait hooks.run.apply(h, [l, c, o]);\nconst r = cliPorts.hooks.journals.openPending.bind(j);\nvoid (hooks.journals['rollbackPending']).call(j, d, c);")).toEqual([`${cli} → 4`]);
+      expect(at('packages/ui/src/server/c.ts', 'void (0, journal.rollbackAll)(ctx);\nawait journal.rollbackAll.call(journal, ctx);')).toEqual(['packages/ui/src/server/c.ts → 2']);
+      // .call of something not counted, and a counted function's other members, are no hit.
+      expect(at(cli, 'await other.run.call(x);\nhooks.run.length;\nconst n = hooks.run.name;')).toEqual([]);
+    });
+
+    it('does not see (listed in the check\'s title): a destructured member, a member held in a variable, a dynamic import\'s destructuring, an import-equals alias, a computed key', () => {
+      expect(at(cli, 'const { run } = cliPorts.hooks;\nawait run(l, c, o);')).toEqual([]);
+      expect(at(cli, 'const r = hooks.run;\nawait r(l, c, o);\nconst h = ports.hooks;\nawait h.run(l, c, o);')).toEqual([]);
+      expect(at(cli, "const { createHookContext: hc } = await import('@retake/engine');\nawait hc(p, o);")).toEqual([]);
+      expect(at(cli, "import * as e from '@retake/engine';\nimport hc = e.createHookContext;\nawait hc(p, o);")).toEqual([]);
+      expect(at(cli, "const k = 'run';\nawait hooks[k](l, c, o);")).toEqual([]);
+    });
+
+    it('a read, a mention, another member or the engine itself is no hit', () => {
+      expect(at(cli, "import type { createHookContext } from '@retake/engine';\n// createHookContext(p, o)\nconst s = 'hooks.run(x)';\ntype T = typeof createHookContext;")).toEqual([]);
+      expect(at(cli, 'await hooks.journals.find(dir, id);\nawait hooks.journals.standaloneFile(dir, id);\nawait hooks.journals.open(f);\njournal.pending();\nawait other.run(x);\nawait hooks.load();')).toEqual([]);
+      expect(at(cli, 'await hooksRunWork(project, spec, o);\nawait rollbackWork(project, o);\nawait envResetWork(project, o);')).toEqual([]);
+      expect(at('packages/engine/src/hooks-work.ts', 'await createHookContext(p, o);\nawait o.hooks.run(l, c, x);\nawait o.hooks.journals.rollback(l, c);\nawait journal.rollbackAll(c);')).toEqual([]);
+      expect(at('packages/cli/test/a.test.ts', 'await createHookContext(p, o);')).toEqual([]);
+    });
+
+    it('holds today: no file outside the engine orchestrates hooks (L7.23: the CLI\'s hooks.ts had 6 — 5 of the plan\'s list and one rollbackAll)', () => {
+      expect((lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('hook-call '))).toEqual([]);
+      expect(at('packages/cli/src/commands/hooks.ts', readFileSync(join(ROOT, 'packages/cli/src/commands/hooks.ts'), 'utf8'))).toEqual([]);
+    });
+  });
+
   it('flags a submit or a worker\'s write on the job queue outside packages/engine/src, not a read nor a client\'s request', () => {
     const at = (rel: string, text: string) => wiring(rel, text);
     expect(at('packages/ui/src/server/a.ts', 'await engine.queue.enqueue(input);')).toEqual(['queue-call packages/ui/src/server/a.ts → queue.enqueue']);

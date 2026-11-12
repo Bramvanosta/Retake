@@ -239,6 +239,7 @@ export const CHECKS = [
   { id: 'loader-use', title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\`, \`packageReviewer\` and \`runnerWebCapture\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it` },
   { id: 'port-types', title: `the engine's port files (PORT_FILES) name no adapter package — a type import, \`typeof import()\` and a value alike (entries: the file and the specifier) — but through a domain entry (DOMAIN_ENTRIES): an adapter satisfies a port structurally, so the vocabulary they share lives in core or a domain entry. Not seen: what a port file names through a relative engine module (not followed)` },
   { id: 'shell-op', title: 'an operation is defined in the engine (packages/engine/src/operations/, U7): in the shells\' sources (SHELL_OP_DIRS: packages/mcp/src, packages/ui/src) every call of `defineTool` or `defineOperation` — by its name, an import alias or a member of a namespace import — is counted per file (entries: each file and its count), so that an operation moved into the engine lowers the baseline and a new one in a shell fails it; and in packages/*/src outside DEFINER_HOMES (the engine\'s operations/, MCP\'s tools/define.ts) a definer re-exported under another name (`export { defineTool as op }`) is a hit. Not seen: a definer under another name made in a file (`const d = defineTool`), a wrapper of one, a parenthesised or computed callee (`(defineTool)(…)`, `c[name](…)`), a member of a namespace from `await import()`, and an operation written as a `ToolDef` object literal with no definer' },
+  { id: 'hook-call', title: 'the hooks use cases outside a capture are orchestrated in the engine only (packages/engine/src/hooks-work.ts, U8b: shared by the CLI\'s `hooks run` / `hooks rollback` / `env reset` and the jobs): in packages/*/src outside packages/engine/src every call of `createHookContext` (by its name, an import alias or a member of a namespace import), of `hooks.run` (on something named `hooks`, also `x.hooks`) and of `journals.rollback|openPending|rollbackPending` (on something named `journals`, also `x.journals`), and in the shells (cli, mcp, ui) of `.rollbackAll` on anything, is counted per file (entries: each file and its count; the adapters replay their own journals). Read through parentheses, a comma (`(0, hooks.run)(…)`), a cast or `!`, and as `.call` / `.apply` / `.bind` of a counted function. Not seen: a destructured member (`const { run } = hooks`), a member or port held in a variable (`const r = hooks.run`, `const h = ports.hooks` then `h.run`), a dynamic import\'s destructuring (`const { createHookContext } = await import(…)`) or namespace, an import-equals alias (`import c = e.createHookContext`), a key computed at run time' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
   { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
@@ -837,6 +838,76 @@ export function shellOpHits(root, files) {
   return hits;
 }
 
+/** The HookRunner members of the hooks use cases (hook-call): `<hooks>.run`, `<journals>.…`. */
+const HOOK_RUN_MEMBERS = new Map([['hooks', new Set(['run'])], ['journals', new Set(['rollback', 'openPending', 'rollbackPending'])]]);
+const HOOK_CONTEXT = 'createHookContext';
+
+/**
+ * The hooks orchestration calls outside the engine (hook-call), read from the syntax tree: in packages/*\/src outside
+ * packages/engine/src, each call of `createHookContext` — by its name, under an import alias, or as a member of a
+ * namespace import (`e.createHookContext(…)`, `e['createHookContext'](…)`) — and of a HookRunner member of
+ * HOOK_RUN_MEMBERS on something named after its owner (`hooks.run(…)`, `cliPorts.hooks.run(…)`, `x.journals['rollback'](…)`),
+ * and in the shells' sources of `.rollbackAll(…)` on anything; counted per file (`{count}`). The callee is read through
+ * parentheses, a comma, a cast or `!`, and `.call` / `.apply` / `.bind` of a counted function counts too. A mention in a
+ * string, a comment, a type or an import is no call. Not seen (the check's title lists them): a destructured member, a
+ * member held in a variable, a dynamic import's destructuring, an import-equals alias, a computed key.
+ */
+export function hookCallHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!rel.startsWith('packages/') || !rel.includes('/src/') || rel.startsWith('packages/engine/src/')) continue;
+    const shell = SHELLS.includes(pkgOf(rel));
+    if (!text.includes(HOOK_CONTEXT) && !/\b(?:hooks|journals)\b/.test(text) && !(shell && text.includes('rollbackAll'))) continue;
+    const sf = parse(ts, rel, text);
+    const names = new Set([HOOK_CONTEXT]);
+    const spaces = new Set();
+    sf.forEachChild((n) => {
+      const c = ts.isImportDeclaration(n) ? n.importClause : undefined;
+      if (!c || c.isTypeOnly) return;
+      const b = c.namedBindings;
+      if (b && ts.isNamespaceImport(b)) spaces.add(b.name.text);
+      if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly && (e.propertyName ?? e.name).text === HOOK_CONTEXT) names.add(e.name.text);
+    });
+    const member = (e) => (ts.isPropertyAccessExpression(e) ? e.name.text : ts.isElementAccessExpression(e) ? literal(ts, e.argumentExpression) : undefined);
+    // `hooks` / `journals` themselves, or a property of that name (`cliPorts.hooks`, `this['journals']`).
+    const owner = (e) => (ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e) ? member(e) : undefined);
+    // `(f)`, `(0, f)`, `f as T`, `f!`, `<T>f`, `f satisfies T`: the expression that is called.
+    const unwrap = (e) => {
+      for (;;) {
+        if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e) || (ts.isTypeAssertionExpression?.(e) ?? false) || (ts.isSatisfiesExpression?.(e) ?? false)) e = e.expression;
+        else if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.CommaToken) e = e.right;
+        else return e;
+      }
+    };
+    // A counted function: createHookContext (its name, an alias, a namespace member), a HookRunner member on its owner,
+    // a shell's rollbackAll.
+    const counted = (e) => {
+      e = unwrap(e);
+      if (ts.isIdentifier(e)) return names.has(e.text);
+      if (!ts.isPropertyAccessExpression(e) && !ts.isElementAccessExpression(e)) return false;
+      const m = member(e);
+      const on = unwrap(e.expression);
+      if (ts.isIdentifier(on) && spaces.has(on.text) && m === HOOK_CONTEXT) return true;
+      if (m !== undefined && HOOK_RUN_MEMBERS.get(owner(on) ?? '')?.has(m)) return true;
+      return shell && m === 'rollbackAll';
+    };
+    const CALLERS = new Set(['call', 'apply', 'bind']);
+    let count = 0;
+    (function visit(n) {
+      if (ts.isCallExpression(n)) {
+        const e = unwrap(n.expression);
+        if (counted(e)) count++;
+        // `f.call(…)`, `f.apply(…)`, `f.bind(…)` of a counted function.
+        else if ((ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) && CALLERS.has(member(e) ?? '') && counted(e.expression)) count++;
+      }
+      n.forEachChild(visit);
+    })(sf);
+    if (count) hits.push({ rule: 'hook-call', file: rel, count });
+  }
+  return hits;
+}
+
 /** The port files' adapter imports (port-types): every specifier the scan lists (types and `typeof import()` included). */
 export function portTypeHits(fileImports) {
   const hits = [];
@@ -1226,6 +1297,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
   for (const h of ports.clock) set.add(`clock-read ${h.file} → ${h.count} wall-clock read${h.count === 1 ? '' : 's'}`);
   for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
   for (const h of shellOpHits(root, scanned.files)) set.add(h.spec !== undefined ? `shell-op ${h.file} → ${h.spec}` : `shell-op ${h.file} → ${h.count} operation${h.count === 1 ? '' : 's'} defined`);
+  for (const h of hookCallHits(root, scanned.files)) set.add(`hook-call ${h.file} → ${h.count} hooks orchestration call${h.count === 1 ? '' : 's'}`);
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   for (const h of recordReadHits(root, scanned.files)) {
     const own = h.kinds.filter((k) => k === 10).length;
