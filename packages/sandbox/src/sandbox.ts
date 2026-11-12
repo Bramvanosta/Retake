@@ -17,9 +17,10 @@
  */
 import { copyFileSync, existsSync, statSync, truncateSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { sandboxNames } from '@retake/core';
+import { sandboxNames } from '@retake/core/sandbox';
 import { seedHash } from '@retake/core/io';
-import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy, WorkPolicy } from '@retake/core';
+import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import { SandboxError, interrupted } from './errors.js';
 import { TakeLock, lockAlive, readLock } from './lock.js';
 import type { LockRecord } from './lock.js';

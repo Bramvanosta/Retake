@@ -14,7 +14,8 @@
  * shows after the resume — a jump at that point when it changed.
  */
 import type { Page } from 'playwright-core';
-import type { RunProgress, RunningRun, TimelinePause } from '@retake/core';
+import type { TimelinePause } from '@retake/core/model';
+import type { RunProgress, RunningRun } from '@retake/core/run';
 import { CancelledError } from './errors.js';
 import type { ScreencastRecorder } from './recorder.js';
 import type { LogLevel } from './runtime.js';

@@ -8,7 +8,7 @@
 import { spawnSync } from 'node:child_process';
 import { hostname } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import type { RunJobInput } from '@retake/core';
+import type { RunJobInput } from '@retake/engine';
 import { EngineError, ManualClock, newJobId, selfIdentity, stampOf, verifiedApprovals } from '../src/index.js';
 import type { Clock, JobQueue, JobRecord, YieldMark } from '../src/index.js';
 

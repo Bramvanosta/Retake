@@ -49,10 +49,16 @@
  */
 import { lstat, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LoadedProject, PruneAlone, PruneKeep, PruneNewer, PruneRenderFile, PruneSaid, RenderNot, RenderSaid } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { PruneAlone, PruneKeep, PruneNewer, PruneRenderFile, PruneSaid } from '@retake/core/run';
+import type { RenderNot, RenderSaid } from '@retake/core/render';
 import { RENDER_RECORD_MAX, RUN_RECORD_MAX, readRendersFolder, readRunFolder } from '@retake/core/io';
 import { listCommentsAndUnread } from './comments/views.js';
-import { FORMAT_VERSIONS, completeRender, isMadeRunId, newerFormatMessage, orderRuns, parseRenderId, projectPath, projectRef, pruneKeeper, pruneKeptWords, renderKeeper, renderNotWords, renderOfFile, renderSaidOf, runIdOfScenario } from '@retake/core';
+import { FORMAT_VERSIONS, newerFormatMessage } from '@retake/core/base';
+import { isMadeRunId, parseRenderId, runIdOfScenario } from '@retake/core/ids';
+import { projectPath, projectRef } from '@retake/core/project';
+import { orderRuns, pruneKeeper, pruneKeptWords } from '@retake/core/run';
+import { completeRender, renderKeeper, renderNotWords, renderOfFile, renderSaidOf } from '@retake/core/render';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;

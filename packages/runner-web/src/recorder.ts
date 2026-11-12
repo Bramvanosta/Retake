@@ -3,7 +3,7 @@ import type { WriteStream } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CDPSession, Page } from 'playwright-core';
-import type { TimelineLoading } from '@retake/core';
+import type { TimelineLoading } from '@retake/core/model';
 import { LoadHold } from './hold.js';
 import { STREAM_LAG_S } from './stream.js';
 import type { StreamFrame } from './stream.js';

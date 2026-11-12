@@ -23,9 +23,26 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, filmedChanges, isRunId, orderRuns, parseRunRecord, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo, projectPath } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { isRunId } from '@retake/core/ids';
+import { environmentAccess, resolveEnvironment } from '@retake/core/environment';
+import { projectPath } from '@retake/core/project';
+import {
+  filmedChanges,
+  parseScenario,
+  matchRunSteps,
+  movedSteps,
+  sceneStepFingerprints,
+  scenarioBlocks,
+  scenarioTextChanged,
+  stripUrlUserinfo,
+} from '@retake/core/scenario';
+import { orderRuns, parseRunRecord } from '@retake/core/run';
 import { loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
-import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, StoredRunRecord, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core';
+import type { LoadedProject, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { ScenarioBlocks, ScenarioIdentity, SceneBlock } from '@retake/core/scenario';
+import type { RunRecord, StoredRunRecord } from '@retake/core/run';
+import type { AgentChannel } from './caller.js';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';

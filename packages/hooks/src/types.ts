@@ -1,8 +1,8 @@
-import type { JournalEntry } from '@retake/core';
+import type { JournalEntry } from '@retake/core/hooks';
 
 // L7.11: the vocabulary of a hook run lives in core (core hook-run.ts: the engine's HookRunner port names it there);
 // this package's API keeps every name.
-export { journalsRollback } from '@retake/core';
+export { journalsRollback } from '@retake/core/hooks';
 export type {
   HookApprovalRequest,
   HookContext,
@@ -16,7 +16,7 @@ export type {
   PersonaRequestAuth,
   RollbackAction,
   TemplateSnapshot,
-} from '@retake/core';
+} from '@retake/core/hooks';
 
 /** What `save_as` stores in `ctx.saved[name]`, and `{{response…}}` in an http rollback. */
 export interface SavedHttpResponse {

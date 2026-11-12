@@ -1,6 +1,6 @@
 /** The resolver: rows, scopes and the matching of a target to elements (`find`). */
 import type { FindOptions, ResolveResult } from '../types.js';
-import type { ScopeSpec, TargetObject } from '@retake/core';
+import type { ScopeSpec, TargetObject } from '@retake/core/model';
 import { host } from './host.js';
 import { memo } from './memo.js';
 import { deref, ref } from './refs.js';

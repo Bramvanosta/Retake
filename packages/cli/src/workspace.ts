@@ -1,7 +1,7 @@
 /** Workspace and project loading: moved into @retake/engine (L3.1), shared with the MCP server. */
 import { FileJobQueue, enginePorts, openWorkspace as openEngineWorkspace } from '@retake/engine';
 import type { EnginePorts, JobQueueView, OpenedWorkspace } from '@retake/engine';
-import type { WorkspaceConfig } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core/model';
 
 export { openProject } from '@retake/engine';
 

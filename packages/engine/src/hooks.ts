@@ -8,14 +8,35 @@
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
-import { ScenarioError, compileWritePolicy, guardsWrites, hasErrors, loginMatchers, matchLoginUrl, newRunId, personaPageOrigins, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, resolveRunAccess, runAccess, urlOriginPath, pathInside, GUIDE } from '@retake/core';
+import { hasErrors, pathInside, GUIDE } from '@retake/core/base';
+import { newRunId } from '@retake/core/ids';
+import {
+  compileWritePolicy,
+  guardsWrites,
+  loginMatchers,
+  matchLoginUrl,
+  planPersonas,
+  resolveEnvironment,
+  resolvePersonas,
+  resolveRunAccess,
+  runAccess,
+  urlOriginPath,
+} from '@retake/core/environment';
+import { parseHookFile } from '@retake/core/hooks';
+import { ScenarioError, personaPageOrigins } from '@retake/core/scenario';
 import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
-import type { AgentChannel, HookContext, HookPhase, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
+import type { ErrorKind } from '@retake/core/base';
+import type { HookStep, LoadedProject, Scenario, WorkFileFacts } from '@retake/core/model';
+import type { ResolvedPersona, RunAccess } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { HookContext, HookPhase, HookTrust } from '@retake/core/hooks';
+import type { AgentChannel } from './caller.js';
 import type { LoginCommandOf } from './auth.js';
 import type { HookBrowser, HookPages } from './capture/runner.js';
 import { EngineError } from './errors.js';
 import { hookRunRecorder } from './store/journal.js';
 import type { JournalAs } from './store/journal.js';
+import { confinementOf } from './caller.js';
 
 /**
  * A hooks source that cannot be used: `usage` — not a hooks source at all (the CLI: a usage error, exit 2); otherwise
@@ -231,7 +252,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     ...(o.trust ? { trust: o.trust } : {}),
     // Trust `mcp`: a scenario's vars are the agent's — a project hook rendered with them counts as the agent's too.
     ...(o.trust === 'mcp' && o.vars && Object.keys(o.vars).length ? { agentVars: Object.keys(o.vars) } : {}),
-    ...(o.via ? { via: o.via } : {}),
+    ...(o.via ? { via: confinementOf(o.via) } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),
     ...(o.recordAs ? { recordRun: hookRunRecorder(project.root, o.recordAs, { project: project.slug, run: runId }) } : {}),

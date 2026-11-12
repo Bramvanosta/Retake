@@ -10,7 +10,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION } from '@retake/core';
+import { JOB_INPUT_VERSION } from '@retake/engine';
 import { FileJobQueue, createEngine } from '@retake/engine';
 import type { Engine, EngineError } from '@retake/engine';
 import { catalogueOperation } from '@retake/engine/catalogue';

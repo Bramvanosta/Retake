@@ -9,8 +9,10 @@
  * and an inspection have theirs already (executeRun in execute-run.ts, runInspection in jobs/inspect-job.ts). None
  * writes the history: the worker writes a job's line, in-process.ts the CLI's.
  */
-import { RENDER_VARIANT_SUFFIX, projectPath } from '@retake/core';
-import type { LoadedProject, WorkPolicy } from '@retake/core';
+import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type {
   EditOverrides,
   ExportFormat,

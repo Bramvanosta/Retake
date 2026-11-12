@@ -11,7 +11,10 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { COMPONENT_ID_RE, insideFolder, isRenderId, projectPath } from '@retake/core';
+import { COMPONENT_ID_RE } from '@retake/core/model';
+import { isRenderId } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import { insideFolder } from '@retake/core/scenario';
 import { readPlainFile, nodeFileFacts } from '@retake/core/io';
 import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';

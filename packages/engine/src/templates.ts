@@ -10,9 +10,13 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { COMPONENT_KINDS, TEMPLATE_FILE, insideFolder, isNewThemeName, isTemplatePath, isThemeName } from '@retake/core';
+import { COMPONENT_KINDS } from '@retake/core/model';
+import { isNewThemeName, isThemeName } from '@retake/core/ids';
+import { insideFolder, isTemplatePath } from '@retake/core/scenario';
+import { TEMPLATE_FILE } from '@retake/core/theme';
 import { listTemplates, loadProjectTemplate, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { ComponentKind, LoadedProject, LoadedTemplate, NewThemeName, ThemeName, WorkFileFacts } from '@retake/core';
+import type { ComponentKind, LoadedProject, LoadedTemplate, WorkFileFacts } from '@retake/core/model';
+import type { NewThemeName, ThemeName } from '@retake/core/ids';
 import type { ComponentRegistry } from '@retake/components';
 import { workspaceRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';

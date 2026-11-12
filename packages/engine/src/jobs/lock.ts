@@ -8,7 +8,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 import { breakStale, createExclusive, engineLocation } from '@retake/core/io';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';

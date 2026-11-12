@@ -6,8 +6,10 @@
  * without an approval, as a terminal runs them) and their own usage errors.
  */
 import { join } from 'node:path';
-import { SandboxError, resolveEnvironment, sandboxNames } from '@retake/core';
-import type { LoadedProject, RunRecord } from '@retake/core';
+import { resolveEnvironment } from '@retake/core/environment';
+import { SandboxError, sandboxNames } from '@retake/core/sandbox';
+import type { LoadedProject } from '@retake/core/model';
+import type { RunRecord } from '@retake/core/run';
 import { describeLock } from '@retake/core/io';
 import type { ProviderCapabilities, ResetResult, SandboxLog, ServiceStatus } from '@retake/sandbox/types';
 import { callerOf, fileWriter, personScope, sandboxUpText, sandboxWork, storeOf } from '@retake/engine';

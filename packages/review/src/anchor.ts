@@ -10,8 +10,9 @@
  * frame (a satisfied wait) owns none. A marker window — from the marked step's start to its `done` frame — names its
  * marked step, which may own no frame at all (a `mark:` on a `wait_for` that was already satisfied: the fixture's).
  */
-import { scenarioStepFingerprint } from '@retake/core';
-import type { CommentRegion, FrameCommentAnchor, Timeline } from '@retake/core';
+import { scenarioStepFingerprint } from '@retake/core/comments';
+import type { FrameCommentAnchor, Timeline } from '@retake/core/model';
+import type { CommentRegion } from '@retake/core/comments';
 import { brandmarkRect } from '@retake/editor/plan';
 import type { ClipSegment, EditPlan, Rect } from '@retake/editor/plan';
 import { captionRegion } from './checks.js';

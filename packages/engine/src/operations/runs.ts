@@ -3,7 +3,7 @@
  * run_cancel, and the summary of a run with its job (also the MCP server's run_dry / run_capture's).
  */
 import { z } from 'zod';
-import { perfSummary } from '@retake/core';
+import { perfSummary } from '@retake/core/run';
 import type { Engine } from '../engine.js';
 import type { RunStatusWithJob } from '../facade/types.js';
 import { CANCEL, READ } from './annotations.js';

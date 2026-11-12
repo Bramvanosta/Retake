@@ -14,7 +14,10 @@
  *   (the CLI) prints what it did before its browsers close: `onStart`, `listed` (what a replay is about to run, before
  *   it runs), `onRollbacks`, `onReset`, `onResults`. The jobs pass none and map the outcome returned.
  */
-import type { HookContext, HookResult, HookStep, HookTrust, LoadedProject, ResolvedEnvironment, RunAccess, WorkPolicy } from '@retake/core';
+import type { HookStep, LoadedProject, ResolvedEnvironment } from '@retake/core/model';
+import type { RunAccess } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { HookContext, HookResult, HookTrust } from '@retake/core/hooks';
 import { fileFacts } from '@retake/core/io';
 import type { LoginCommandOf } from './auth.js';
 import type { ENGINE_TRUST } from './caller.js';

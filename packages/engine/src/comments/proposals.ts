@@ -1,18 +1,14 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
 import { open } from 'node:fs/promises';
 import { relative } from 'node:path';
-import { COMMENT_AUTHOR_MAX, COMMENT_ENTRY_ID_RE, deriveStatus, PROPOSAL_CHANGED_LINES_MAX, applyHunks, diffLines, hunkStats, invertHunks, joinLines, proposalStates, sameHunks, textEol, textLines, projectPath } from '@retake/core';
+import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines } from '@retake/core/base';
+import { COMMENT_ENTRY_ID_RE } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import { textEol } from '@retake/core/scenario';
+import { COMMENT_AUTHOR_MAX, deriveStatus, PROPOSAL_CHANGED_LINES_MAX, proposalStates } from '@retake/core/comments';
 import { scenarioSinceRun } from '@retake/core/io';
-import type {
-  CommentAuthor,
-  CommentEntry,
-  CommentProposal,
-  CommentThread,
-  LoadedProject,
-  ProposalState,
-  ValidationIssue,
-  WorkFileFacts,
-} from '@retake/core';
+import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { CommentAuthor, CommentEntry, CommentProposal, CommentThread, ProposalState } from '@retake/core/comments';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from '../errors.js';
 import type { StoreScope } from '../store/store.js';

@@ -4,8 +4,10 @@
  * the persona's login steps, headless. Native errors with the CLI's messages (LoginOptionError says which ones are
  * usage errors); what it tells its client goes through `SignInPorts`. Nothing here ever receives a credential.
  */
-import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core';
-import type { LoadedProject, ResolvedEnvironment, ResolvedPersona, WorkPolicy } from '@retake/core';
+import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
+import type { LoadedProject, ResolvedEnvironment } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { SignInResult } from '@retake/runner-web/types';
 import { retakeHome } from '@retake/core/io';
 import type { CaptureSessions } from './capture/runner.js';

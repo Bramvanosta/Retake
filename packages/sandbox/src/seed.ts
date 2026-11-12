@@ -11,9 +11,11 @@
  */
 import { rmSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { interpolateDeep, isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@retake/core';
+import { interpolateDeep, redact, secretForms } from '@retake/core/base';
+import { isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, resolveEnvironment, runAccess } from '@retake/core/environment';
+import { shellHostRefs } from '@retake/core/hooks';
 import { prefetchSecrets } from '@retake/core/io';
-import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core';
+import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core/model';
 import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@retake/hooks';
 import type { HookContext, HookResult } from '@retake/hooks';
 import { SandboxError, errorMessage, interrupted } from './errors.js';

@@ -1,7 +1,8 @@
 import { resolve } from 'node:path';
-import { workPolicy } from '@retake/core';
+import { workPolicy } from '@retake/core/policy';
 import { findWorkspaceRoot, loadProject, loadWorkspaceConfig } from '@retake/core/io';
-import type { BrowserConfig, LoadedProject, WorkPolicy, WorkspaceConfig } from '@retake/core';
+import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 
 /** Where a workspace is: `root` (the CLI's `--root`), else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
 export interface WorkspaceOptions {

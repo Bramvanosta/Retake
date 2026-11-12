@@ -18,7 +18,8 @@
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { historyFile } from '../history.js';
-import { SLUG_RE, projectPath } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { projectPath } from '@retake/core/project';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';

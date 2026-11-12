@@ -8,9 +8,11 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { missingOrInvalid, namedRunProblem, projectPath, takeWords, timelineProblem } from '@retake/core';
+import { missingOrInvalid } from '@retake/core/base';
+import { projectPath } from '@retake/core/project';
+import { namedRunProblem, takeWords, timelineProblem } from '@retake/core/run';
 import { readNamedRun } from '@retake/core/io';
-import type { Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
 import type { ExportCaptureOptions, RawExportResult, RawManifest } from '@retake/runner-web/types';
 import { EngineError } from '../errors.js';
 import type { CaptureRaw } from './runner.js';

@@ -4,7 +4,8 @@
  * patches `{path, from, to}`, critique B2), the issue of a refused save placed at its field, and where an edit goes
  * again after the file changed ("Apply it to the new version"). Nothing here builds YAML: the server writes the file.
  */
-import type { ActionForm, ActionName, FormField, FormValue, StepBlock, StepForms } from '@retake/core';
+import type { ActionName } from '@retake/core/model';
+import type { ActionForm, FormField, FormValue, StepBlock, StepForms } from '@retake/core/scenario';
 import type { StepEditOp } from './step-edit.js';
 import type { View } from '../words/scenario-words.js';
 

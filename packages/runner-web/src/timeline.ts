@@ -7,7 +7,8 @@ import type {
   RunMode,
   Timeline,
   TimelineEvent,
-  TimelineBusy, TimelineLoadingUi,
+  TimelineBusy,
+  TimelineLoadingUi,
   TimelineLoading,
   TimelinePause,
   TimelineStall,
@@ -17,7 +18,7 @@ import type {
   TimelineEnvironment,
   TimelineScene,
   TimelineVideo,
-} from '@retake/core';
+} from '@retake/core/model';
 import { round3, wallNow } from './util.js';
 
 /**

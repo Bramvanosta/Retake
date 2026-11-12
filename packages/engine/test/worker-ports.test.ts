@@ -1,12 +1,12 @@
 /**
  * L7.29 (audit 2026-11-10 P6, P7): the jobs worker's ports and its job handlers. The handler table holds one handler
- * per job kind (core JOB_KINDS), typed by the kind; the worker's ports are the engine's plus the renderer, the record
+ * per job kind (job-input.ts JOB_KINDS), typed by the kind; the worker's ports are the engine's plus the renderer, the record
  * window, the free space and the job processes, their defaults the product's; heavy jobs run in the worker's own process
  * exactly when a port a heavy job reads was handed (an object cannot reach a job process).
  */
 import { describe, expect, it } from 'vitest';
-import { JOB_KINDS } from '@retake/core';
-import type { JobKind } from '@retake/core';
+import { JOB_KINDS } from '@retake/engine';
+import type { JobKind } from '@retake/engine';
 import { JOB_HANDLERS } from '../src/jobs/job-handlers.js';
 import type { JobHandler } from '../src/jobs/job-handlers.js';
 import { buildDirs, buildStamp } from '../src/jobs/build.js';

@@ -5,7 +5,9 @@
  * seed and the reset, and keeps the state file; a provider reads and updates `ctx.state` and calls `ctx.save()` as soon
  * as something it started exists.
  */
-import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider, WorkPolicy } from '@retake/core';
+import type { ExecStepSpec, LoadedProject, LoadedSandbox, SandboxProvider } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { HookTrust } from '@retake/core/hooks';
 import type { HookApprovalRequest } from '@retake/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';

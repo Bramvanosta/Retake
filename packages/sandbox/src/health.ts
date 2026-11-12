@@ -8,8 +8,8 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { LookupFunction } from 'node:net';
 import { connect, isIP } from 'node:net';
-import { isLoopbackHost } from '@retake/core';
-import type { SandboxService } from '@retake/core';
+import { isLoopbackHost } from '@retake/core/environment';
+import type { SandboxService } from '@retake/core/model';
 import { SandboxError, interrupted } from './errors.js';
 
 /** Default seconds before a process service counts as not healthy. */

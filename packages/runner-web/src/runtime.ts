@@ -1,9 +1,10 @@
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { LOADING_CUT_MIN_S, displayPages, isDesktopViewport, resolvePageUrl } from '@retake/core';
+import { resolvePageUrl } from '@retake/core/base';
+import { LOADING_CUT_MIN_S } from '@retake/core/model';
+import { isDesktopViewport } from '@retake/core/language';
+import { displayPages } from '@retake/core/environment';
 import type {
-  ResolvedScenePage,
-  ResolvedViewport,
   BBox,
   CaptureSettings,
   CursorEffect,
@@ -14,8 +15,9 @@ import type {
   ResolvedEnvironment,
   RunMode,
   TimelineEvent,
-} from '@retake/core';
-import type { TemplateContext } from '@retake/core';
+} from '@retake/core/model';
+import type { ResolvedScenePage, ResolvedViewport } from '@retake/core/language';
+import type { TemplateContext } from '@retake/core/base';
 import type { BrowserSession, KitClient } from './session.js';
 import type { CursorEffectPayload } from './kit/types.js';
 import { HOLD_MAX_MS } from './hold.js';

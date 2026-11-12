@@ -12,7 +12,8 @@
  * older running server's bootstrap answer has none.
  */
 import { resolve } from 'node:path';
-import { isUnder, realPathOf, workspaceFolders } from '@retake/core';
+import { isUnder } from '@retake/core/base';
+import { realPathOf, workspaceFolders } from '@retake/core/policy';
 import { loadWorkspaceConfig, retakeHome, nodeFileFacts } from '@retake/core/io';
 import {
   DISCOVERY_VERSION,

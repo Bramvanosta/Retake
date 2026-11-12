@@ -1,6 +1,6 @@
 /** What a recording's screen sends: its changes, one in flight at a time, and the Scenario menu's commands while it goes. */
 import { useRef, useState } from 'react';
-import type { DraftIssue } from '@retake/core';
+import type { DraftIssue } from '@retake/core/run';
 import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { CallError, errorText } from '../api.js';
 import { recordAnnotate, recordDiscard, recordSave, recordStop } from '../data/record.js';

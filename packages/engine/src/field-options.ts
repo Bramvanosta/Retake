@@ -4,8 +4,9 @@
  * registry's components of that kind — each `usable` or disabled with why (components package `componentFit`: kind,
  * slots, params, pages, files); and the same check refusing a `set_field` the inspector would have shown disabled.
  */
-import { fieldComponentKind, fieldKindOf } from '@retake/core';
-import type { ComponentKind, FieldAt, FieldEdit, FieldValue } from '@retake/core';
+import { fieldComponentKind, fieldKindOf } from '@retake/core/scenario';
+import type { ComponentKind } from '@retake/core/model';
+import type { FieldAt, FieldEdit, FieldValue } from '@retake/core/scenario';
 import type { ComponentRegistry, ComponentUse } from '@retake/components';
 import { components } from './components.js';
 

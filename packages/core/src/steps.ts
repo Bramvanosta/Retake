@@ -11,6 +11,8 @@ import type {
   TargetSpec,
 } from './types.js';
 import { isPoint, normalizeTarget } from './targets.js';
+import { createHash } from 'node:crypto';
+import { canonicalJson } from './canonical-json.js';
 import { GUIDE } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
 
@@ -244,4 +246,26 @@ export function resolveStepRef(s: Scenario, ref: string): { sceneIndex: number; 
     return { sceneIndex: si, stepIndex: Math.max(0, n - 1) };
   }
   return null;
+}
+
+// ── Step fingerprints (comments.ts's until L7.35: a step's identity, read by the comments, the filmed part and the step match) ──
+
+/**
+ * The fingerprint of a raw scenario step: the first 12 hex characters of the sha256 of its action and normalised
+ * arguments (a shorthand and its object form agree), modifiers left out (caption, hold next to an action, speed, camera,
+ * mark, overlay, id…) — a `hold:` that is the action stays. Undefined for a step without exactly one action.
+ */
+export function stepFingerprint(step: unknown): string | undefined {
+  return stepFingerprintOf(step)?.fp;
+}
+
+/** stepFingerprint and the step's action (undefined: the step has no single action). */
+export function stepFingerprintOf(step: unknown): { fp: string; action: string } | undefined {
+  let n: ReturnType<typeof normalizeStep>;
+  try {
+    n = normalizeStep(step as Parameters<typeof normalizeStep>[0], 0);
+  } catch {
+    return undefined;
+  }
+  return { fp: createHash('sha256').update(canonicalJson({ action: n.action, args: n.args })).digest('hex').slice(0, 12), action: n.action };
 }

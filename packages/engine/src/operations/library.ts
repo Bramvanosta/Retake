@@ -34,7 +34,10 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, zThemeName } from '@retake/core';
+import { COMPONENT_ID_RE } from '@retake/core/model';
+import { zThemeName } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE } from '../jobs/job-input.js';
 import { readPlainFile, fileFacts } from '@retake/core/io';
 import { components } from '../components.js';
 import type { Engine } from '../engine.js';

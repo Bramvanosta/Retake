@@ -4,15 +4,16 @@
  * opened no page) and the prewarm visits — is checked on its final URL, once templated and resolved, before any page is
  * created or loaded. The browser's last resort against `file:` (armFileGuard) is in session.ts.
  */
-import { canonicalOrigin, navigationProblem, showHiddenChars } from '@retake/core';
-import type { AgentChannel } from '@retake/core';
+import { showHiddenChars } from '@retake/core/base';
+import { canonicalOrigin, navigationProblem } from '@retake/core/policy';
+import type { Confinement } from '@retake/core/model';
 
 /** The rule of one run: the scheme rule always; under agent trust, the environment's origins for URLs the scenario wrote. */
 export interface NavigationRule {
   /** The origins of the environment's pages (core pageOrigins): set for work submitted through MCP or the Studio. */
   origins?: readonly string[];
   envName?: string;
-  via?: AgentChannel;
+  via?: Confinement;
 }
 
 /** Where a URL comes from: the scenario (its text, templated), or a page (a link's href, with the page that holds it). */

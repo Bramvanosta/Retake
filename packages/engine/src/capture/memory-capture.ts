@@ -14,7 +14,8 @@
  * sessions, the js-hook pages and the site come from memory-sessions.ts, the raw export from memory-raw.ts (its calls
  * kept in `calls` too), or from the options.
  */
-import type { ErrorKind, RunRecord } from '@retake/core';
+import type { ErrorKind } from '@retake/core/base';
+import type { RunRecord } from '@retake/core/run';
 import { ManualClock } from '../clock.js';
 import { EngineError } from '../errors.js';
 import type { Clock } from '../clock.js';

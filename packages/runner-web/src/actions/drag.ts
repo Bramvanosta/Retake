@@ -1,8 +1,9 @@
 import { readFile, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join } from 'node:path';
 import type { ElementHandle } from 'playwright-core';
-import { isPoint, projectFileProblem } from '@retake/core';
-import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@retake/core';
+import { isPoint } from '@retake/core/language';
+import { projectFileProblem } from '@retake/core/scenario';
+import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@retake/core/model';
 import { nodeFileFacts } from '@retake/core/io';
 import { StepError } from '../errors.js';
 import { distance, moveDuration } from '../motion.js';

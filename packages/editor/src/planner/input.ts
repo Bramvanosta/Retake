@@ -1,6 +1,7 @@
 /** What `planEdit` is given (DESIGN-phase2 §2) and the error it throws when the input cannot be planned. */
-import { GUIDE } from '@retake/core';
-import type { ErrorKind, LoadedProject, LoadedTemplate, LottieMeta, Scenario, Timeline, VideoProbe } from '@retake/core';
+import { GUIDE } from '@retake/core/base';
+import type { ErrorKind } from '@retake/core/base';
+import type { LoadedProject, LoadedTemplate, LottieMeta, Scenario, Timeline, VideoProbe } from '@retake/core/model';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { EditOverrides } from '../plan-types.js';
 

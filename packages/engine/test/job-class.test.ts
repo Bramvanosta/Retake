@@ -4,7 +4,7 @@
  * a capture take films (what holds heavy work).
  */
 import { describe, expect, it } from 'vitest';
-import { JOB_CLASS, JOB_KINDS, isFilming, jobClass } from '../src/index.js';
+import { JOB_CLASS, JOB_KINDS, isFilming, jobClass } from '@retake/engine';
 
 describe('job classes (L5.14)', () => {
   it('every kind has a class: the captures and the heavy jobs of BL-116, nothing else', () => {

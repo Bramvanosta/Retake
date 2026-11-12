@@ -4,7 +4,7 @@
  * its ports must be one of its processes. A second program on the same port would answer part of the traffic (and the
  * health checks) without anyone noticing: OrbStack, for one, lets a container publish a port another program holds.
  */
-import type { SandboxManifest } from '@retake/core';
+import type { SandboxManifest } from '@retake/core/model';
 import { listeners, probePort } from '@retake/core/io';
 import type { Listener } from '@retake/core/io';
 

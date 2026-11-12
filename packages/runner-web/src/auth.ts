@@ -13,24 +13,33 @@ import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath
 import { hostname, tmpdir, homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
-import { PERSONA_CHECK_TIMEOUT_S, describeTarget, environmentLoginPatterns, interpolateAt, isAbsoluteUrl, loginCommand, loginMatchers, matchLoginUrl, normalizeStep, normalizeTarget, resolveCheckUrl, resolvePageUrl, splitPageOpen, urlOriginPath } from '@retake/core';
+import { interpolateAt, resolvePageUrl } from '@retake/core/base';
+import { describeTarget, isAbsoluteUrl, normalizeStep, normalizeTarget, splitPageOpen } from '@retake/core/language';
+import {
+  PERSONA_CHECK_TIMEOUT_S,
+  environmentLoginPatterns,
+  loginCommand,
+  loginMatchers,
+  matchLoginUrl,
+  resolveCheckUrl,
+  urlOriginPath,
+} from '@retake/core/environment';
 import { writeTextAtomic, nodeFileFacts } from '@retake/core/io';
+import type { TemplateContext } from '@retake/core/base';
 import type {
   LoadedProject,
-  LoginMatcher,
   LoginStep,
   NormalizedStep,
   OpenArgs,
   PressArgs,
-  ResolvedPersona,
   RunSessionStatus,
   Step,
   TargetObject,
   TargetSpec,
-  TemplateContext,
   TypeArgs,
   WaitForArgs,
-} from '@retake/core';
+} from '@retake/core/model';
+import type { LoginMatcher, ResolvedPersona } from '@retake/core/environment';
 import { LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import type { RunSecrets } from './secrets.js';
 import { KitClient } from './session.js';

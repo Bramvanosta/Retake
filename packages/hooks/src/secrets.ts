@@ -1,6 +1,6 @@
-import { collectSecretRefs, redact, secretForms } from '@retake/core';
+import { collectSecretRefs, redact, secretForms } from '@retake/core/base';
 import { resolveSecretRef } from '@retake/core/io';
-import type { SecretResolver } from '@retake/core';
+import type { SecretResolver } from '@retake/core/base';
 import type { HookContext, HookLogLevel } from './types.js';
 import { composeEnvValues } from './sandbox-refs.js';
 import { isRecord } from './util.js';

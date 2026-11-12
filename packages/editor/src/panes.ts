@@ -3,7 +3,7 @@
  * track of a picture-in-picture inset, the acting page over time, and the mapping of a page's source CSS px to output
  * px at one frame. Pure — shared by the planner, the composition and the review.
  */
-import type { BBox, TimelineEvent } from '@retake/core';
+import type { BBox, TimelineEvent } from '@retake/core/model';
 import type { LayoutPaneRects } from '@retake/components/geometry';
 import type { ClipSegment, EditPlan, InsetCorner, PlanInset, PlanPane, PlanPaneLayout, PlanSource, PlanVariant, Rect } from './plan-types.js';
 import { REFRAME_MIN_SCALE } from './layout.js';

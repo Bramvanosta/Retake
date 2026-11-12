@@ -1,9 +1,12 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
 import { realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { PROJECT_FILE, README_FILE, environmentAccess, readmeEnvironmentsDrift, resolveEnvironment, resolvePersonas, pathInside } from '@retake/core';
+import { pathInside } from '@retake/core/base';
+import { environmentAccess, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
+import { PROJECT_FILE, README_FILE, readmeEnvironmentsDrift } from '@retake/core/project';
 import { loadProject, planNewProject, listProjects, retakeHome } from '@retake/core/io';
-import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
+import type { LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core/model';
+import type { CreateProjectInput } from '@retake/core/project';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
 import { READ_TEXT_MAX_BYTES } from './storage.js';

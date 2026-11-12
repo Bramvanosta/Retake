@@ -31,7 +31,7 @@ import { createRequire } from 'node:module';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Message, Plugin } from 'esbuild';
-import { pathInside } from '@retake/core';
+import { pathInside } from '@retake/core/base';
 import { readPlainFile } from '@retake/core/io';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { BundleComponent } from '@retake/editor';

@@ -454,6 +454,91 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe("core-context and core-root: core's entries per context, and the packages on them (L7.35, finding D1)", () => {
+    type Found = { rule: string; file: string; spec: string };
+    const ctx = (rel: string, text: string): string[] => (lib.coreContextHits(ROOT, [{ rel, pkg: 'core', text, specs: [] }]) as Found[]).map((h) => `${h.file} → ${h.spec}`);
+    const rootHits = (rel: string, text: string): string[] => (lib.coreRootHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Found[]).map((h) => `${h.file} → ${h.spec}`);
+    const contexts = lib.CORE_CONTEXTS as Array<{ name: string; files: string[] }>;
+
+    it('a file imports its own context and the ones before it; a later one is a hit, a type-only import of model is free', () => {
+      const f = 'packages/core/src/hook-writes.ts';
+      expect(lib.coreContextOf(f)).toBe('hooks');
+      // Before it (base, model, environment, policy) and its own (destructive): free.
+      expect(ctx(f, "import { formatPath } from './issues.js';\nimport { needFiles } from './file-facts.js';\nimport { hostMatches } from './hosts.js';\nimport { confinementWords } from './confinement.js';\nimport { destructiveReason } from './destructive.js';\n")).toEqual([]);
+      // After it: a value, a type, a re-export and an import() alike.
+      expect(ctx(f, "import { parseScenario } from './scenario.js';\nimport type { RunRecord } from './run-record.js';\nexport { renderIdOf } from './render-record.js';\nconst t = await import('./template.js');\n")).toEqual([
+        `${f} → packages/core/src/scenario.ts`,
+        `${f} → packages/core/src/run-record.ts`,
+        `${f} → packages/core/src/render-record.ts`,
+        `${f} → packages/core/src/template.ts`,
+      ]);
+      // base sits before model: a type of model is free there, a value is not.
+      const b = 'packages/core/src/issues.ts';
+      expect(ctx(b, "import type { ValidationIssue } from './types.js';\n")).toEqual([]);
+      expect(ctx(b, "import { ACTION_NAMES } from './types.js';\n")).toEqual([`${b} → packages/core/src/types.ts`]);
+      // Folders resolve: checks/ and schemas/ files are named by their path.
+      expect(ctx('packages/core/src/checks/hooks.ts', "import { parseScenario } from '../scenario.js';\nimport { issue } from '../validation/located.js';\n")).toEqual(['packages/core/src/checks/hooks.ts → packages/core/src/scenario.ts']);
+      // The io side, other packages and node modules are not this check's (R1 holds io).
+      expect(ctx(f, "import { readFileSync } from 'node:fs';\nimport { x } from '@retake/core/io';\nimport { y } from './io/files.js';\n")).toEqual([]);
+    });
+
+    it('a file of no context, an entry outside its context, an entry or the root imported by a context file: each a hit', () => {
+      expect(ctx('packages/core/src/new-thing.ts', "export const A = 1;\n")).toEqual(['packages/core/src/new-thing.ts → unassigned']);
+      expect(ctx('packages/core/src/entries/hooks.ts', "export * from '../destructive.js';\nexport * from '../scenario.js';\n")).toEqual(['packages/core/src/entries/hooks.ts → packages/core/src/scenario.ts (outside its context)']);
+      expect(ctx('packages/core/src/entries/nope.ts', "export * from '../destructive.js';\n")).toEqual(['packages/core/src/entries/nope.ts → an entry of no context']);
+      expect(ctx('packages/core/src/steps.ts', "import { x } from './entries/base.js';\nimport { y } from './index.js';\n")).toEqual(['packages/core/src/steps.ts → packages/core/src/entries/base.ts (an entry)', 'packages/core/src/steps.ts → packages/core/src/index.ts (an entry)']);
+      // Core's own package name is an entry too, the root or a sub-path, from a context file or an entry; io is R1's.
+      expect(ctx('packages/core/src/steps.ts', "import { x } from '@retake/core';\nimport type { Step } from '@retake/core/model';\nimport { y } from '@retake/core/io';\n")).toEqual(['packages/core/src/steps.ts → @retake/core (an entry)', 'packages/core/src/steps.ts → @retake/core/model (an entry)']);
+      expect(ctx('packages/core/src/entries/hooks.ts', "export * from '@retake/core/base';\n")).toEqual(['packages/core/src/entries/hooks.ts → @retake/core/base (an entry)']);
+      // The io side and the root itself are no context's.
+      expect(ctx('packages/core/src/io/files.ts', "import { x } from '../scenario.js';\nimport { y } from '@retake/core';\n")).toEqual([]);
+      expect(ctx('packages/core/src/index.ts', "export * from './entries/base.js';\n")).toEqual([]);
+    });
+
+    it('the contexts are the entries: one file each, every core file in one, every entry an export of the package, and the lists that name them agree', () => {
+      const names = contexts.map((c) => c.name);
+      expect(names).toEqual(['base', 'model', 'ids', 'language', 'environment', 'policy', 'hooks', 'project', 'sandbox', 'scenario', 'comments', 'run', 'render', 'theme', 'schema']);
+      expect(lib.CORE_SHARED_CONTEXT).toBe('model');
+      const listed = contexts.flatMap((c) => c.files);
+      expect(new Set(listed).size).toBe(listed.length);
+      const src = join(ROOT, 'packages', 'core', 'src');
+      const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (['io', 'entries'].includes(e.name) ? [] : walk(join(d, e.name))) : e.name.endsWith('.ts') ? [join(d, e.name).slice(src.length + 1, -3)] : []));
+      expect(walk(src).filter((f) => f !== 'index').sort()).toEqual([...listed].sort());
+      const pj = JSON.parse(readFileSync(join(ROOT, 'packages', 'core', 'package.json'), 'utf8')) as { exports: Record<string, { source?: string } | string> };
+      expect(Object.keys(pj.exports)).toEqual(['.', ...names.map((n) => `./${n}`), './io', './schema/*.json']);
+      for (const n of names) expect(pj.exports[`./${n}`], n).toEqual({ source: `./src/entries/${n}.ts`, types: `./dist/entries/${n}.d.ts`, default: `./dist/entries/${n}.js` });
+      expect(readdirSync(join(src, 'entries')).sort()).toEqual(names.map((n) => `${n}.ts`).sort());
+      // The root is every entry, in order, and nothing else.
+      const index = readFileSync(join(src, 'index.ts'), 'utf8').split('\n').filter((l) => l && !/^\s*(\/\*\*|\*)/.test(l));
+      expect(index).toEqual(names.map((n) => `export * from './entries/${n}.js';`));
+      // vitest's aliases and the test type check's paths name each entry (test-typecheck compares the two).
+      const vitest = readFileSync(join(ROOT, 'vitest.config.ts'), 'utf8');
+      for (const n of names) expect(vitest, n).toContain(`'@retake/core/${n}': fileURLToPath(new URL('./packages/core/src/entries/${n}.ts', import.meta.url)),`);
+    });
+
+    it("core-root: the root, an `import('…')` type of it and an unknown sub-path are hits in a package's sources; an entry, core itself and a test are not", () => {
+      const f = 'packages/engine/src/a.ts';
+      expect(rootHits(f, "import { parseScenario } from '@retake/core';\n")).toEqual([`${f} → @retake/core`]);
+      expect(rootHits(f, "export { parseScenario } from '@retake/core';\n")).toEqual([`${f} → @retake/core`]);
+      expect(rootHits(f, "const c = await import('@retake/core');\n")).toEqual([`${f} → @retake/core`]);
+      expect(rootHits(f, "let s: import('@retake/core').Step;\n")).toEqual([`${f} → @retake/core`]);
+      expect(rootHits(f, "import { x } from '@retake/core/nope';\n")).toEqual([`${f} → @retake/core/nope (no entry)`]);
+      expect(rootHits(f, "import { parseScenario } from '@retake/core/scenario';\nimport type { Step } from '@retake/core/model';\nimport { nodeFileFacts } from '@retake/core/io';\nimport s from '@retake/core/schema/scenario.schema.json';\nimport t from '@retake/core/schema/a/b.json';\n")).toEqual([`${f} → @retake/core/schema/a/b.json (no entry)`]);
+      expect(rootHits('packages/core/src/a.ts', "import { x } from '@retake/core';\n")).toEqual([]);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'core-root')!.title;
+      expect(title).toContain('computed at run time');
+    });
+
+    it('holds today: two imports of a later context, none of the root', () => {
+      const today = lib.ratchetEntries(ROOT) as string[];
+      expect(today.filter((e) => e.startsWith('core-context '))).toEqual([
+        'core-context packages/core/src/checks/scenario.ts → packages/core/src/template-defaults.ts',
+        'core-context packages/core/src/script-draft.ts → packages/core/src/inspect.ts',
+      ]);
+      expect(today.filter((e) => e.startsWith('core-root '))).toEqual([]);
+    });
+  });
+
   describe('media-call: the media tools started in one module (L7.31, finding X3)', () => {
     const at = (rel: string, text: string): string[] => (lib.mediaCallHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
     const ed = 'packages/editor/src/render/a.ts';
@@ -1391,7 +1476,7 @@ describe('the import-rules ratchet', () => {
       expect(lib.ID_HOMES).toEqual(['packages/core/src/id-grammar.ts', 'packages/core/src/ids.ts']);
       expect(lib.ID_MIRRORS).toEqual(['packages/ui/src/app/id-words.ts']);
       for (const rel of [...lib.ID_HOMES, ...lib.ID_MIRRORS]) expect(found(rel, all), rel).toEqual([]);
-      expect(found('packages/core/src/jobs.ts', all).map((h) => [h.count, h.kinds])).toEqual([[4, [1, 4, 2, 6]]]);
+      expect(found('packages/engine/src/jobs/job-input.ts', all).map((h) => [h.count, h.kinds])).toEqual([[4, [1, 4, 2, 6]]]);
       expect(found('packages/ui/src/app/route.ts', all)[0].count).toBe(4);
       // The homes and the mirror exist, and the module's grammars are where the check says.
       for (const rel of [...lib.ID_HOMES, ...lib.ID_MIRRORS]) expect(statSync(join(ROOT, rel)).isFile(), rel).toBe(true);
@@ -1425,7 +1510,7 @@ describe('the import-rules ratchet', () => {
       expect(hits.flatMap((h) => h.kinds.map((k, i) => (k === 3 || k === 5 || k === 6 ? '' : `${h.file}:${h.lines[i]} kind ${k}`))).filter(Boolean)).toEqual([]);
       expect(hits.filter((h) => h.kinds.includes(5)).map((h) => h.file)).toEqual(['packages/editor/src/render/export.ts']);
       expect(hits.filter((h) => h.kinds.includes(6)).map((h) => h.file)).toEqual(['packages/engine/src/brand/create.ts']);
-      expect(hits.filter((h) => h.kinds.includes(3)).map((h) => h.file)).toEqual(['packages/core/src/jobs.ts', 'packages/core/src/project.ts', 'packages/core/src/schemas/primitives.ts', 'packages/engine/src/reviews.ts', 'packages/engine/src/run-files.ts', 'packages/ui/src/app/review/review-words.ts', 'packages/ui/src/app/unsaved-report.ts', 'packages/ui/src/app/words/record-words.ts']);
+      expect(hits.filter((h) => h.kinds.includes(3)).map((h) => h.file)).toEqual(['packages/core/src/project.ts', 'packages/core/src/schemas/primitives.ts', 'packages/engine/src/jobs/job-input.ts', 'packages/engine/src/reviews.ts', 'packages/engine/src/run-files.ts', 'packages/ui/src/app/review/review-words.ts', 'packages/ui/src/app/unsaved-report.ts', 'packages/ui/src/app/words/record-words.ts']);
       const entries = today.filter((e: string) => e.startsWith('id-grammar '));
       expect(entries).toEqual(hits.map((h) => `id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`).sort());
       // One more pattern in a file is a new entry (and its old count a stale one).
@@ -1670,13 +1755,15 @@ describe('the import-rules ratchet', () => {
     });
 
     it('the shared lenient read and the file seam of the readers are in no index: imported by path by the parse boundaries and the reader of renders/ only (L7.6b)', () => {
-      const index = readFileSync(join(ROOT, 'packages/core/src/index.ts'), 'utf8');
+      // The root, core's entries (L7.35: the render record is the render context's) and the io side.
+      const entries = readdirSync(join(ROOT, 'packages/core/src/entries')).map((f) => [`entries/${f}`, readFileSync(join(ROOT, 'packages/core/src/entries', f), 'utf8')] as const);
+      const index = readFileSync(join(ROOT, 'packages/core/src/entries/render.ts'), 'utf8');
       const io = readFileSync(join(ROOT, 'packages/core/src/io/index.ts'), 'utf8');
-      for (const [name, text] of [['index.ts', index], ['io/index.ts', io]] as const) {
+      for (const [name, text] of [['index.ts', readFileSync(join(ROOT, 'packages/core/src/index.ts'), 'utf8')], ...entries, ['io/index.ts', io]] as const) {
         expect(text, name).not.toMatch(/record-read\.js/);
         expect(text, name).not.toMatch(/record-file\.js/);
       }
-      expect(index).toMatch(/export \* from '\.\/render-record\.js';/);
+      expect(index).toMatch(/export \* from '\.\.\/render-record\.js';/);
       expect(io).toMatch(/export \* from '\.\/render-folder\.js';/);
       const users = lib.scan(ROOT).files.filter((f: { rel: string; text: string }) => /from '\.{1,2}\/(io\/)?record-(read|file)\.js'/.test(f.text)).map((f: { rel: string }) => f.rel).sort();
       expect(users).toEqual(['packages/core/src/io/render-folder.ts', 'packages/core/src/render-record.ts', 'packages/core/src/run-record.ts']);

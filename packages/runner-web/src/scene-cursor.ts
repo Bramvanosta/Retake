@@ -1,5 +1,5 @@
-import { describeTarget, isPoint, normalizeStep, normalizeTarget } from '@retake/core';
-import type { BBox, MenuArgs, NormalizedStep, PointSpec, Scene, SceneCursor, ScrollArgs, TargetSpec } from '@retake/core';
+import { describeTarget, isPoint, normalizeStep, normalizeTarget } from '@retake/core/language';
+import type { BBox, MenuArgs, NormalizedStep, PointSpec, Scene, SceneCursor, ScrollArgs, TargetSpec } from '@retake/core/model';
 import { primaryTarget } from './actions/index.js';
 import { errorMessage } from './errors.js';
 import { distance } from './motion.js';

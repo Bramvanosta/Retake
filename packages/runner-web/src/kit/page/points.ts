@@ -1,6 +1,6 @@
 /** Points and hit testing: where an element is pressed. */
 import type { PointInfo } from '../types.js';
-import type { PointSpec } from '@retake/core';
+import type { PointSpec } from '@retake/core/model';
 import { deref } from './refs.js';
 import { deepContains, deepHit, isA } from './trees.js';
 import { bboxOf, visibleRect } from './visibility.js';

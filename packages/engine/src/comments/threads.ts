@@ -2,37 +2,26 @@
 import { randomBytes } from 'node:crypto';
 import { open, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
+import { renderIdOf } from '@retake/core/ids';
+import { projectPath, projectRef } from '@retake/core/project';
 import {
-  COMMENTS_DIR,
   COMMENT_ENTRIES_MAX,
   COMMENT_THREAD_VERSION,
   CommentThreadSchema,
-  SLUG_RE,
   deriveStatus,
   isIsoUtcDate,
-  latestProjectRender,
   locateAnchorStep,
   newCommentEntryId,
   newCommentId,
   regionProblem,
   trustedAnchor,
-  projectPath,
-  projectRef,
-  renderIdOf,
-} from '@retake/core';
-import type {
-  CommentAuthor,
-  CommentEntry,
-  CommentRegion,
-  CommentThread,
-  FrameCommentAnchor,
-  LoadedProject,
-  ProjectRender,
-  RenderLatestPick,
-  RenderVariant,
-  Timeline,
-  ValidationIssue,
-} from '@retake/core';
+} from '@retake/core/comments';
+import { latestProjectRender } from '@retake/core/render';
+import type { FrameCommentAnchor, LoadedProject, Timeline, ValidationIssue } from '@retake/core/model';
+import type { RenderVariant } from '@retake/core/ids';
+import type { CommentAuthor, CommentEntry, CommentRegion, CommentThread } from '@retake/core/comments';
+import type { ProjectRender, RenderLatestPick } from '@retake/core/render';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from '../errors.js';
 import { toolDir } from '../project-lock.js';
@@ -52,8 +41,9 @@ import type { FrameTools } from '../review/reviewer.js';
 import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
 import type { CommentView } from './views.js';
-import type { WorkPolicy, WorkFileFacts } from '@retake/core';
-import { parseTimeline } from '@retake/core';
+import type { WorkFileFacts } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import { parseTimeline } from '@retake/core/run';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 

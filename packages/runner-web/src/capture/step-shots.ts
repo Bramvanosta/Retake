@@ -4,8 +4,8 @@
  */
 import { copyFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { ARTEFACTS_DIR } from '@retake/core';
-import type { TimelineEvent } from '@retake/core';
+import { ARTEFACTS_DIR } from '@retake/core/model';
+import type { TimelineEvent } from '@retake/core/model';
 import { runFfmpeg } from '../encode.js';
 import { errorMessage } from '../errors.js';
 import type { FrameIndexEntry } from '../recorder.js';

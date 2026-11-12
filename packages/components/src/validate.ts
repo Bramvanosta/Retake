@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
-import { hasErrors } from '@retake/core';
+import { hasErrors } from '@retake/core/base';
 import { checkComponentEntry } from './compile.js';
 import { DEFAULT_ENTRY, MANIFEST_FILE, parseManifest } from './manifest.js';
 import type { ComponentIssue, ComponentManifest } from './types.js';

@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import { ConfigError, SandboxConfigError, ScenarioError, errorsOf, parseScenario, warningsOf } from '@retake/core';
+import { ConfigError, errorsOf, warningsOf } from '@retake/core/base';
+import { SandboxConfigError } from '@retake/core/sandbox';
+import { ScenarioError, parseScenario } from '@retake/core/scenario';
 import { fileFacts, loadProjectTemplate, loadScenario } from '@retake/core/io';
-import type { LoadedProject, Template, ValidationIssue, WorkFileFacts } from '@retake/core';
+import type { LoadedProject, Template, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';

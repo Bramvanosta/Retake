@@ -1,5 +1,6 @@
 /** The Record screen's draft as rows, the cursor, and what a recording's body is handed (pure: a test reads them). */
-import type { DraftIssue, DraftSource, RecordAnnotationChange, RecordInsert, RecordInsertAt, StepBlock } from '@retake/core';
+import type { StepBlock } from '@retake/core/scenario';
+import type { DraftIssue, DraftSource, RecordAnnotationChange, RecordInsert, RecordInsertAt } from '@retake/core/run';
 import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { stepWords } from '../words/scenario-words.js';
 import type { MarkState } from '../ui-kit/index.js';

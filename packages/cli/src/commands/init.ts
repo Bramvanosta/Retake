@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome } from '@retake/core';
+import { expandHome } from '@retake/core/base';
+import { WORKSPACE_FILE, WORKSPACE_GITIGNORE } from '@retake/core/project';
 import { assertOutsideBundle } from '@retake/core/io';
 import { personScope } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';

@@ -9,8 +9,13 @@
  * (`<scenario>:setup|teardown`) carry the sha256 of the scenario bytes submit read (`scenario_sha256`, covered by the
  * approvals' signatures): the worker reads the file once and runs those bytes only, else the job fails as `conflict`.
  */
-import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment, projectRef } from '@retake/core';
-import type { EnvResetJobInput, HookResult, HookStep, HooksJobInput, JobApproval } from '@retake/core';
+import { newRunId } from '@retake/core/ids';
+import { resolveEnvironment } from '@retake/core/environment';
+import { projectRef } from '@retake/core/project';
+import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION } from './job-input.js';
+import type { HookStep } from '@retake/core/model';
+import type { HookResult } from '@retake/core/hooks';
+import type { EnvResetJobInput, HooksJobInput, JobApproval } from './job-input.js';
 import { fileFacts } from '@retake/core/io';
 import { describeHook } from '@retake/hooks/describe';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';

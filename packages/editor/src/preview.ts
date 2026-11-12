@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LoadedTemplate } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core/model';
 import {
   PREVIEW_SAMPLES_DIR,
   applyParamDefaults,

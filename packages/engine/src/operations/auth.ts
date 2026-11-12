@@ -3,7 +3,7 @@
  * auth_login, and the summary of an auth_login or sandbox job (also the MCP server's sandbox_up / sandbox_reset's).
  */
 import { z } from 'zod';
-import { SLUG_RE } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
 import type { Engine } from '../engine.js';
 import { signInStoppedText } from '../jobs/auth-job.js';
 import type { JobRecord } from '../jobs/types.js';

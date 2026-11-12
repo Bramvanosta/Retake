@@ -19,8 +19,9 @@
 import { lookup } from 'node:dns/promises';
 import { createServer, connect, isIP } from 'node:net';
 import type { Server, Socket } from 'node:net';
-import { classifyAddress } from '@retake/core';
-import type { AddressClass, SiteTestTarget } from '@retake/core';
+import { classifyAddress } from '@retake/core/policy';
+import type { AddressClass } from '@retake/core/policy';
+import type { SiteTestTarget } from '@retake/core/theme';
 
 export interface SiteProxyCaps {
   /** Bytes one tunnel carries (both ways). */

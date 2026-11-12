@@ -2,7 +2,7 @@
  * The shared rules for work an agent can shape (trust `mcp`, core HookTrust): one home for the lists every package
  * applies, so the engine, the hooks and the runner never keep their own copy.
  *
- * The agent's channel and the paths it writes: the wording of a refusal per channel (channelWords), the project paths
+ * The paths agent work writes (its refusals' words are its confinement's: confinement.ts), the project paths
  * an agent or the tools write (AGENT_WRITABLE_PATHS, agentWritable — never run as code: agent-trust.ts), and the real
  * path every such comparison is made on (realPathOf).
  *
@@ -46,19 +46,10 @@ import { scenePageEntries, splitPageOpen } from './pages.js';
 import { normalizeStep, stepActionKeys } from './steps.js';
 import { suggestion } from './validation/suggest.js';
 import { relativeInside } from './path-inside.js';
+import { confinementWords } from './confinement.js';
+import type { Confinement } from './confinement.js';
 
-// ── The agent's channel and the paths it writes ─────────────────────────────────────────────────────────────────
-
-/**
- * The channel agent work comes through, for the wording of a refusal: `mcp` (the MCP server: "through MCP"), `studio`
- * (the Studio web app, L4.2: "from the Studio"). The rules are the same.
- */
-export type AgentChannel = 'mcp' | 'studio';
-
-/** "through MCP" / "from the Studio". */
-export function channelWords(via: AgentChannel | undefined): string {
-  return via === 'studio' ? 'from the Studio' : 'through MCP';
-}
+// ── The paths an agent writes ──────────────────────────────────────────────────────────────────────────────────
 
 /**
  * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`).
@@ -1126,8 +1117,8 @@ export interface NavigationOptions {
   origins?: readonly string[];
   /** The environment's name, for the message. */
   envName?: string;
-  /** The wording's channel (agent work: "through MCP" / "from the Studio"). */
-  via?: AgentChannel;
+  /** The words of the work's confinement (agent work: "through MCP"; AGENT_CONFINEMENT when absent). */
+  via?: Confinement;
 }
 
 /**
@@ -1171,7 +1162,7 @@ export function navigationProblem(url: string, o: NavigationOptions = {}): strin
   if (o.origins && !o.origins.includes(u.origin)) {
     const env = o.envName !== undefined ? `environment ${o.envName}` : 'the environment';
     return (
-      `${shown} is on ${u.origin}, not an origin of ${env}'s pages (${o.origins.join(', ') || 'none'}): ${channelWords(o.via)} a scenario opens ` +
+      `${shown} is on ${u.origin}, not an origin of ${env}'s pages (${o.origins.join(', ') || 'none'}): ${confinementWords(o.via)} a scenario opens ` +
       `only its environment's own origins (another port of localhost is another app) — to film this site, add its origin as a page of ${env} in project.yaml (a person edits it)`
     );
   }

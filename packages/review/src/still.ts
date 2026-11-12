@@ -5,8 +5,9 @@
  */
 import { stat, writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
-import type { CommentRegion, WorkPolicy } from '@retake/core';
-import { regionProblem } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { CommentRegion } from '@retake/core/comments';
+import { regionProblem } from '@retake/core/comments';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { ReviewError } from './load.js';
 import type { RgbImage } from './pixels.js';

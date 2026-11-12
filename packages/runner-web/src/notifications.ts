@@ -6,7 +6,8 @@
  * A run keeps at most NOTIFICATION_RUN_MAX notifications and reads at most NOTIFICATION_ICON_RUN_MAX icons.
  */
 import type { Page } from 'playwright-core';
-import { canonicalOrigin, pageOrigins } from '@retake/core';
+import { canonicalOrigin } from '@retake/core/policy';
+import { pageOrigins } from '@retake/core/run';
 import { errorMessage } from './errors.js';
 import type { Runtime } from './runtime.js';
 import type { NotificationPayload } from './session.js';

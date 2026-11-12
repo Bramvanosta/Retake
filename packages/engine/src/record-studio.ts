@@ -37,25 +37,40 @@
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DEFAULT_TEMPLATE, JOB_ID_RE, PERSONA_NONE, RECORD_ID_RE, RecordAnnotationChangeSchema, RecordedEventSchema, applyRecordChange, draftFromRecording, draftInvalidIssue, emptyRecordAnnotations, firstHiddenChar, hiddenCharName, isEmptyRecordAnnotations, parseScenario, plainTarget, recordZoomOptions, recordedAlternatives, scenarioBlocks, shownStep, pathInside, statePath, PROJECT_DIRS } from '@retake/core';
+import { pathInside } from '@retake/core/base';
+import { JOB_ID_RE, RECORD_ID_RE } from '@retake/core/ids';
+import { plainTarget } from '@retake/core/language';
+import { PERSONA_NONE } from '@retake/core/environment';
+import { statePath, PROJECT_DIRS } from '@retake/core/project';
+import { firstHiddenChar, hiddenCharName, parseScenario, scenarioBlocks } from '@retake/core/scenario';
+import {
+  RecordAnnotationChangeSchema,
+  RecordedEventSchema,
+  applyRecordChange,
+  draftFromRecording,
+  draftInvalidIssue,
+  emptyRecordAnnotations,
+  isEmptyRecordAnnotations,
+  recordZoomOptions,
+  recordedAlternatives,
+  shownStep,
+} from '@retake/core/run';
+import { DEFAULT_TEMPLATE } from '@retake/core/theme';
 import { loadProjectTemplate, readPlainFile } from '@retake/core/io';
+import type { LoadedProject, TargetSpec, WorkFileFacts } from '@retake/core/model';
+import type { ScenarioBlocks } from '@retake/core/scenario';
 import type {
   DraftIssue,
   DraftPlaceholder,
   DraftSource,
   DraftWrite,
-  JobClient,
-  JobState,
-  LoadedProject,
   RecordAnnotationChange,
   RecordAnnotations,
   RecordInsert,
   RecordedEvent,
   RecordingDraft,
-  ScenarioBlocks,
-  TargetSpec,
-  WorkFileFacts,
-} from '@retake/core';
+} from '@retake/core/run';
+import type { JobClient, JobState } from './jobs/job-input.js';
 import { stampOf } from './clock.js';
 import { callerOf, drivesRecordScreen, guardsStudioRecordings, submittedInStudio } from './caller.js';
 import type { Caller } from './caller.js';

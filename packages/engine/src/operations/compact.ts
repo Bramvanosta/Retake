@@ -8,7 +8,7 @@
  * Trust is unchanged: what the filmed site or the scenario wrote stays under `untrusted` (capUntrusted still applies).
  */
 import { z } from 'zod';
-import { perfSummary } from '@retake/core';
+import { perfSummary } from '@retake/core/run';
 import type { CompactRunStatus, RunStatusWithJob } from '../facade/types.js';
 import type { ReviewView } from '../reviews.js';
 

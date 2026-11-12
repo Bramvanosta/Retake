@@ -3,9 +3,9 @@
  * numbers), streamed as raw RGB to a callback one frame at a time (back-pressure: the next frame is read once the
  * callback resolved). Frame numbers are exact for the CFR videos the renderer and the runner write.
  */
-import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
+import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core/render';
 import { ffmpegBin, ffprobeBin, runMediaTool, startMediaTool } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { RgbImage } from './pixels.js';
 import { ReviewError } from './load.js';
 

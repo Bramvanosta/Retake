@@ -5,9 +5,22 @@
  */
 import { readdir } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
-import { latestTake, orderRuns, relativeInside, projectPath, projectRef, takeNeedsTimeline, takeOf } from '@retake/core';
+import { relativeInside } from '@retake/core/base';
+import { projectPath, projectRef } from '@retake/core/project';
+import { latestTake, orderRuns, takeNeedsTimeline, takeOf } from '@retake/core/run';
 import { readRunFolder, readRunRecord } from '@retake/core/io';
-import type { LatestPick, LoadedProject, MissingTarget, RunId, RunMode, RunRead, RunRecord, RunStatus, StoredRunPerf, StoredRunRecord, TakeVerdict, UnknownRunStatus, UnknownStatusRun } from '@retake/core';
+import type { LoadedProject, MissingTarget, RunMode, RunStatus } from '@retake/core/model';
+import type { RunId } from '@retake/core/ids';
+import type {
+  LatestPick,
+  RunRead,
+  RunRecord,
+  StoredRunPerf,
+  StoredRunRecord,
+  TakeVerdict,
+  UnknownRunStatus,
+  UnknownStatusRun,
+} from '@retake/core/run';
 import { EngineError } from './errors.js';
 import { checkRunId } from './refs.js';
 import { RunFolder } from './run-files.js';

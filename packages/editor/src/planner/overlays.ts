@@ -3,8 +3,8 @@
  * shows, the box a box-filling overlay fills (L2.12), what the reframe of a vertical / square clip keeps in view for
  * it, and where a file placed at a position of the screen goes so it keeps clear of the steps' targets.
  */
-import { MEDIA_COMPONENTS } from '@retake/core';
-import type { OverlayAnchor, TimelineEvent } from '@retake/core';
+import { MEDIA_COMPONENTS } from '@retake/core/model';
+import type { OverlayAnchor, TimelineEvent } from '@retake/core/model';
 import type { ClipSegment, OverlayUse, PlanSource, ResolvedComponent } from '../plan-types.js';
 import type { Candidate } from '../resolve.js';
 import { mapUseRect, overlayBoxAt } from '../remotion/frames.js';

@@ -219,6 +219,35 @@ export const RENDER_CALLS = ['renderVideo', 'renderStill', 'renderStills', 'rend
 export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
 /** The one module that starts the media tools, ffmpeg and ffprobe (media-call, L7.31). */
 export const MEDIA_RUN_HOME = 'packages/core/src/io/media-run.ts';
+/**
+ * Core's contexts (L7.35, audit 2026-11-10 D1), in order: the files of a context may import those of the contexts
+ * before it, never after (core-context); a type-only import of `model` (the shared contracts: types.ts, the ports, the
+ * checks' shared context) is free for every context. Each context is the entry `@retake/core/<name>`
+ * (packages/core/src/entries/<name>.ts, an `exports` key of core's package.json); core's io side (`@retake/core/io`,
+ * R1) and the root `index.ts` (every entry at once) are in none. Files are named without `.ts`, relative to
+ * packages/core/src.
+ */
+export const CORE_CONTEXTS = [
+  { name: 'base', files: ['util', 'issues', 'error-kind', 'formats', 'canonical-json', 'printable', 'dates', 'line-diff', 'path-inside', 'client-path', 'templating', 'sql-text', 'shell-words', 'validation/document', 'validation/located', 'validation/suggest', 'validation/yaml-source', 'validation/zod-issues', 'schemas/keyed'] },
+  { name: 'model', files: ['types', 'schemas/primitives', 'media', 'file-facts', 'render-settings', 'confinement', 'checks/context', 'checks/tokens', 'checks/media'] },
+  { name: 'ids', files: ['id-grammar', 'ids'] },
+  { name: 'language', files: ['steps', 'targets', 'pages', 'tutorial', 'video', 'scenario-template', 'schemas/steps', 'schemas/settings'] },
+  { name: 'environment', files: ['env', 'hosts', 'access', 'display', 'clock', 'writes', 'auth', 'checks/auth'] },
+  { name: 'policy', files: ['agent-policy', 'ip-class'] },
+  { name: 'hooks', files: ['hookfile', 'hook-run', 'hook-writes', 'named-hooks', 'destructive', 'shell-hosts', 'checks/hooks', 'schemas/hooks'] },
+  { name: 'project', files: ['workspace', 'project', 'layout', 'checks/project', 'schemas/project'] },
+  { name: 'sandbox', files: ['sandbox', 'sandbox-error', 'checks/sandbox', 'schemas/sandbox'] },
+  { name: 'scenario', files: ['scenario', 'schemas/scenario', 'checks/scenario', 'checks/actions', 'blocks', 'edit-replan', 'scenario-edit', 'step-edits', 'field-edits', 'map-edits', 'step-forms', 'script-draft', 'step-match', 'filmed', 'agent-trust'] },
+  { name: 'comments', files: ['comments'] },
+  { name: 'run', files: ['run-record', 'take', 'perf', 'record-read', 'schemas/timeline', 'recording', 'record-annotations', 'record-change', 'inspect', 'inspect-pacing'] },
+  { name: 'render', files: ['render-record', 'schemas/render', 'ffprobe', 'gpu', 'export-formats'] },
+  { name: 'theme', files: ['template', 'template-defaults', 'components', 'theme-edits', 'brand', 'site', 'schemas/template'] },
+  { name: 'schema', files: ['schemas/json', 'schemas/type-checks'] },
+];
+/** The context whose type-only imports are free for every context (CORE_CONTEXTS). */
+export const CORE_SHARED_CONTEXT = 'model';
+const CORE_SRC = 'packages/core/src/';
+const CORE_ENTRIES_DIR = `${CORE_SRC}entries/`;
 export const PURE_BINDINGS = { 'node:net': ['isIP', 'isIPv4', 'isIPv6', 'BlockList'], net: ['isIP', 'isIPv4', 'isIPv6', 'BlockList'] };
 export const RULES = [
   { id: 'R1', title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`, files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR), bad: (s, f) => IO.test(s) || coreIoImport(s, f), loaders: true, pure: PURE_BINDINGS },
@@ -237,6 +266,8 @@ export const RULES = [
 
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
+  { id: 'core-context', title: "core's contexts (CORE_CONTEXTS, L7.35) import only the contexts before them: in packages/core/src outside io/ and the root index.ts, an import, re-export or import() of a core file of a later context is a hit (entries: the file and the file it imports), a type-only import of `model` excepted; and so are a file of no context (`unassigned`: a new file gets its context on purpose), an entry (entries/<name>.ts) that re-exports a file outside its context, and a context file or an entry that imports an entry or the root — by a relative path or by core's own package name (`@retake/core`, `@retake/core/<x>`; `@retake/core/io` is R1's). Read: relative specifiers, resolved to their file, and core's package name. Not seen: a name a file re-exports from a file of its own context that took it from another (the entry then exports it under the wrong context: the generator's rule, a name exported by the entry of the file that declares it, is not checked)" },
+  { id: 'core-root', title: "the packages' sources import core's entries, never its root (L7.35): in packages/*/src outside core, an import, re-export, import() or `import('…')` type of `@retake/core` is a hit, and so is a sub-path that is no `exports` key of core's package.json (`@retake/core/<x> (no entry)`; `./schema/*.json` read as a pattern). Not seen: a specifier computed at run time, tests, scripts and apps (the root stays for them)" },
   { id: 'R10', title: 'the rendering library (`remotion`, `@remotion/*`) is named in its seam files only (LIBRARY_SEAMS: each with the packages it may load or resolve; the built-in components and the scaffolds name it nowhere): a static, type or dynamic import, a re-export, a require, a `resolve()` of its path, a seam file re-exported wholesale by another file, or a seam file that hands the library on imported from outside its folder (LIBRARY_SEAM_IMPORTERS). Not seen: a specifier computed at run time (LIBRARY_COMPUTED_READS), a require reached under another name, the library\'s name inside a data string, what a seam file itself exports, and tests, scripts, fixtures and apps' },
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter\'s own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)' },
@@ -1001,6 +1032,65 @@ export function mediaCallHits(root, files) {
   return hits;
 }
 
+/** The context of a core source file (CORE_CONTEXTS; `packages/core/src/<x>.ts`), else undefined. */
+export function coreContextOf(rel) {
+  if (!rel.startsWith(CORE_SRC) || !rel.endsWith('.ts')) return undefined;
+  const f = rel.slice(CORE_SRC.length, -3);
+  return CORE_CONTEXTS.find((c) => c.files.includes(f))?.name;
+}
+
+/** core-context hits (CORE_CONTEXTS): `[{ rule, file, spec }]`. */
+export function coreContextHits(root, files) {
+  const ts = loadTs(root);
+  const rank = new Map(CORE_CONTEXTS.map((c, i) => [c.name, i]));
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!rel.startsWith(CORE_SRC) || rel.startsWith(CORE_IO_DIR) || rel === `${CORE_SRC}index.ts`) continue;
+    const entry = rel.startsWith(CORE_ENTRIES_DIR) ? rel.slice(CORE_ENTRIES_DIR.length, -3) : undefined;
+    const own = entry ?? coreContextOf(rel);
+    if (entry !== undefined && !rank.has(entry)) { hits.push({ rule: 'core-context', file: rel, spec: 'an entry of no context' }); continue; }
+    if (own === undefined) { hits.push({ rule: 'core-context', file: rel, spec: 'unassigned' }); continue; }
+    const values = moduleUses(ts, rel, text).values;
+    for (const s of new Set(specifiersOf(ts, rel, text))) {
+      // Core's own package name: the root or an entry, never a context's file (the io side is R1's).
+      if (s === '@retake/core' || (s.startsWith('@retake/core/') && s !== '@retake/core/io' && !s.startsWith('@retake/core/io/'))) { hits.push({ rule: 'core-context', file: rel, spec: `${s} (an entry)` }); continue; }
+      if (!s.startsWith('.')) continue;
+      const to = path.posix.normalize(path.posix.join(path.posix.dirname(rel), s)).replace(/\.js$/, '.ts');
+      if (!to.startsWith(CORE_SRC) || to.startsWith(CORE_IO_DIR)) continue;
+      if (to.startsWith(CORE_ENTRIES_DIR) || to === `${CORE_SRC}index.ts`) { hits.push({ rule: 'core-context', file: rel, spec: `${to} (an entry)` }); continue; }
+      const theirs = coreContextOf(to);
+      if (theirs === undefined) continue;
+      if (entry !== undefined) { if (theirs !== entry) hits.push({ rule: 'core-context', file: rel, spec: `${to} (outside its context)` }); continue; }
+      if (rank.get(theirs) <= rank.get(own)) continue;
+      if (theirs === CORE_SHARED_CONTEXT && !values.has(s)) continue;
+      hits.push({ rule: 'core-context', file: rel, spec: to });
+    }
+  }
+  return hits;
+}
+
+/** core-root hits: the root of core, or a sub-path that is no entry, named by a package's sources outside core. */
+export function coreRootHits(root, files) {
+  const ts = loadTs(root);
+  const pj = path.join(root, 'packages', 'core', 'package.json');
+  // A tree without core's package.json (a test's scratch tree): its root is still a hit, its sub-paths are not read.
+  const exportsOf = fs.existsSync(pj) ? JSON.parse(fs.readFileSync(pj, 'utf8')).exports ?? {} : { './*': {} };
+  const keys = Object.keys(exportsOf).filter((k) => k !== '.').map((k) => `@retake/core/${k.slice(2)}`);
+  const patterns = keys.map((k) => new RegExp(`^${k.split('*').map((x) => x.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('[^/]+')}$`));
+  const isEntry = (s) => patterns.some((p) => p.test(s));
+  const hits = [];
+  for (const { rel, pkg, text } of files) {
+    if (pkg === 'core' || !text.includes('@retake/core')) continue;
+    // specifiersOf lists `import('…')` types too (the compiler's pre-processor reads them).
+    const specs = new Set(specifiersOf(ts, rel, text));
+    for (const s of specs) {
+      if (s === '@retake/core') hits.push({ rule: 'core-root', file: rel, spec: s });
+      else if (s.startsWith('@retake/core/') && !isEntry(s)) hits.push({ rule: 'core-root', file: rel, spec: `${s} (no entry)` });
+    }
+  }
+  return hits;
+}
+
 export function portTypeHits(fileImports) {
   const hits = [];
   for (const f of PORT_FILES) {
@@ -1383,7 +1473,7 @@ export function seamHits(root, files) {
  */
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
-  for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)]), ...loaderHits(root, scanned.files), ...portTypeHits(scanned.fileImports)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
+  for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)]), ...loaderHits(root, scanned.files), ...portTypeHits(scanned.fileImports), ...coreContextHits(root, scanned.files), ...coreRootHits(root, scanned.files)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   const ports = portHits(root, scanned.files);
   for (const h of ports.hits) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   for (const h of ports.clock) set.add(`clock-read ${h.file} → ${h.count} wall-clock read${h.count === 1 ? '' : 's'}`);

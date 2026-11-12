@@ -24,8 +24,10 @@ import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate, runMediaTool } from '@retake/core/io';
-import { pathInside } from '@retake/core';
-import type { GpuInfo, LoadedTemplate, RenderSettings, WorkPolicy, WorkFileFacts } from '@retake/core';
+import { pathInside } from '@retake/core/base';
+import type { LoadedTemplate, RenderSettings, WorkFileFacts } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { GpuInfo } from '@retake/core/render';
 import {
   PREVIEW_FILE,
   PREVIEW_FORMAT,
@@ -55,7 +57,7 @@ import { guardEncoderPipe } from './render.js';
 import type { RenderNetwork } from './render.js';
 import { openRenderBrowser, renderPolicy } from './policy.js';
 import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
-import { errorKindOf } from '@retake/core';
+import { errorKindOf } from '@retake/core/base';
 import { handedDriver } from './driver-guard.js';
 import { rendererLibrary } from './library.js';
 import type { RenderBrowserHandle } from './library.js';

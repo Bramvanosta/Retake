@@ -3,7 +3,7 @@
  * of the capture, joined to the previous one when contiguous on the same page), then the runs of contiguous clips and
  * their time maps (idle trimmed, waits sped up, page loads, hooks and freezes cut).
  */
-import { COMPONENT_KINDS, TUTORIAL_FEATURES } from '@retake/core';
+import { COMPONENT_KINDS, TUTORIAL_FEATURES } from '@retake/core/model';
 import { DEFAULT_IDLE_THRESHOLD_S, QUICK_RUN_SPEED, WAIT_SPEED, hookSpans, loadsBesideOtherPages, planRunTiming, quickRunSpans, waitingSpans } from '../timing.js';
 import type { RunTiming } from '../timing.js';
 import { secs } from '../util.js';

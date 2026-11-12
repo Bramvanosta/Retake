@@ -25,7 +25,7 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { constants, accessSync, chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
-import { isUnder } from '@retake/core';
+import { isUnder } from '@retake/core/base';
 import { nodeFileFacts } from '@retake/core/io';
 
 /** A refusal of a setup step: `reason` is a stable word the Studio keys its words by. */

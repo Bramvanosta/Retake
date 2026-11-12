@@ -45,7 +45,7 @@ import type { RouteSpec } from '@retake/engine';
 import type { ComponentPreviewSpec, EditPlan } from '@retake/editor';
 import type { PlayerBundle } from '../player/bundle-player.js';
 import { isPreviewDisplayText } from '../player/protocol.js';
-import { pathInside } from '@retake/core';
+import { pathInside } from '@retake/core/base';
 
 /** Files registered per scope (a plan has a few dozen). */
 export const PLAYER_FILES_MAX = 4096;

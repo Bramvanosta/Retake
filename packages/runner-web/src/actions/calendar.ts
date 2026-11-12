@@ -1,5 +1,6 @@
-import type { DateArgs, TargetSpec } from '@retake/core';
-import { isoDay, normalizeTarget, parseDay } from '@retake/core';
+import type { DateArgs, TargetSpec } from '@retake/core/model';
+import { isoDay, parseDay } from '@retake/core/base';
+import { normalizeTarget } from '@retake/core/language';
 import { StepError } from '../errors.js';
 import type { CalendarDay, CalendarInfo } from '../kit/types.js';
 import { distance } from '../motion.js';

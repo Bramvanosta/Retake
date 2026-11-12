@@ -8,9 +8,15 @@
  */
 import { writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_CLIENTS, JOB_ID_RE, RECORD_ID_RE, SLUG_RE, isIsoUtcDate, parseRecordAnnotations, statePath } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { JOB_ID_RE, RECORD_ID_RE } from '@retake/core/ids';
+import { statePath } from '@retake/core/project';
+import { isIsoUtcDate } from '@retake/core/comments';
+import { parseRecordAnnotations } from '@retake/core/run';
+import { JOB_CLIENTS } from './jobs/job-input.js';
 import { readPlainFile } from '@retake/core/io';
-import type { JobClient, RecordAnnotations } from '@retake/core';
+import type { RecordAnnotations } from '@retake/core/run';
+import type { JobClient } from './jobs/job-input.js';
 import type { ProcessIdentity } from './jobs/proc.js';
 
 export const RECORD_META_FILE = 'meta.json';

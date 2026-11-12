@@ -9,9 +9,13 @@
 import { copyFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { compileWritePolicy, guardsWrites, isCaptureScene, loginCommand as defaultLoginCommand, pageOrigins, planPersonas, resolvePersonas, templateSceneEntry } from '@retake/core';
+import { AGENT_CONFINEMENT, isCaptureScene } from '@retake/core/model';
+import { templateSceneEntry } from '@retake/core/language';
+import { compileWritePolicy, guardsWrites, loginCommand as defaultLoginCommand, planPersonas, resolvePersonas } from '@retake/core/environment';
+import { pageOrigins } from '@retake/core/run';
 import { ffmpegBin, retakeHome } from '@retake/core/io';
-import type { PersonaPlan, ResolvedPersona, RunPerf, RunPerfCpu, TimelineEvent } from '@retake/core';
+import type { RunPerf, RunPerfCpu, TimelineEvent } from '@retake/core/model';
+import type { PersonaPlan, ResolvedPersona } from '@retake/core/environment';
 import { snapshotMailbox } from '../actions/artefacts.js';
 import { settleEffectChecks } from '../actions/effects.js';
 import { projectBrowser } from '../config.js';
@@ -288,7 +292,7 @@ class BrowserDriver implements CaptureDriver {
       cursorHidden: opts.hideCursor === true,
       ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
       // What its navigations open (opens.ts): http(s) or about:blank; work an agent wrote, the environment's origins only.
-      navigation: opts.hookTrust === 'mcp' ? { origins: pageOrigins(env.pages), envName: env.name, via: opts.hookVia ?? 'mcp' } : {},
+      navigation: opts.hookTrust === 'mcp' ? { origins: pageOrigins(env.pages), envName: env.name, via: opts.hookVia ?? AGENT_CONFINEMENT } : {},
       ...(opts.inspect ? { inspecting: true } : {}),
       // Step defaults (L5.6): the scenario's win over the project's.
       ...((sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s) !== undefined ? { defaultTimeoutS: sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s } : {}),

@@ -4,7 +4,7 @@
  * EDL with locators, OpenTimelineIO JSON and CSV / JSON. Every clip carries a start timecode equal to its place on the
  * sequence (00:00:00:00 = the sequence start), so source and record timecodes agree in every tool. Pure.
  */
-import type { TimelineEvent } from '@retake/core';
+import type { TimelineEvent } from '@retake/core/model';
 import { clipFrameAt, type RawClipPlan, type RawPlan, sequenceStartOf } from './plan.js';
 import { csvLine } from './cursor.js';
 

@@ -10,8 +10,10 @@
  * jobFile. Readers never write: what a dead worker cannot write is derived when reading (queue.ts says how the next
  * worker persists it).
  */
-import { JobInputSchema, isFilming, jobClass, parseJobId } from '@retake/core';
-import type { JobId, JobInput } from '@retake/core';
+import { parseJobId } from '@retake/core/ids';
+import { JobInputSchema, isFilming, jobClass } from './job-input.js';
+import type { JobId } from '@retake/core/ids';
+import type { JobInput } from './job-input.js';
 import { stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';

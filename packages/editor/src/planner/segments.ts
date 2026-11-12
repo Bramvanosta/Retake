@@ -3,8 +3,9 @@
  * caption, camera, panes and reframe), the outro — as drafts: content frames first, transitions applied afterwards
  * (transitions.ts).
  */
-import { READING_PACE, mediaSegmentUse, readingSeconds, wordCount } from '@retake/core';
-import type { FrameSpec, MediaFileFields, TimelineScenePage } from '@retake/core';
+import { mediaSegmentUse } from '@retake/core/model';
+import { READING_PACE, readingSeconds, wordCount } from '@retake/core/language';
+import type { FrameSpec, MediaFileFields, TimelineScenePage } from '@retake/core/model';
 import { GEOMETRY_KEYS, autoFit, isMultiPaneGeometry } from '@retake/components/geometry';
 import type { SlotContext } from '@retake/components/geometry';
 import { reframeTrack } from '../camera.js';

@@ -1,5 +1,5 @@
 import { Option } from 'commander';
-import { COMPONENT_KINDS } from '@retake/core';
+import { COMPONENT_KINDS } from '@retake/core/model';
 import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from '../commands/components.js';
 import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsPreviewOptions, ComponentsValidateOptions } from '../commands/components.js';
 import { themeCreateCommand, themeFromSiteCommand } from '../commands/theme.js';

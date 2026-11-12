@@ -9,9 +9,15 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
-import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, isTemplatePath, isThemeName, missingOrInvalid, printableText, projectPath } from '@retake/core';
+import { GUIDE, missingOrInvalid, printableText } from '@retake/core/base';
+import { isThemeName } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import { insideFolder, isTemplatePath } from '@retake/core/scenario';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import { STARTER_FOLDER_ID_PREFIX, STARTER_TEMPLATES_DIR, ffmpegBin, findNamedRender, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts, projectTemplateFolderId, runMediaTool, stderrLines, templateFolderId } from '@retake/core/io';
-import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
+import type { ErrorKind } from '@retake/core/base';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { H264Encoder, NamedRenderFound } from '@retake/core/io';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';

@@ -1,7 +1,7 @@
 /** The Insert toolbar at the draft's cursor and its forms (Hold, Wait for…, Caption…, Mark, Zoom…). */
 import { useEffect, useRef } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
-import type { RecordAnnotationChange, RecordInsertAt } from '@retake/core';
+import type { RecordAnnotationChange, RecordInsertAt } from '@retake/core/run';
 import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { Txt, shown, visibleControls } from '../bits.js';
 import { Button, RadioGroup, TextField, Toolbar } from '../ui-kit/index.js';

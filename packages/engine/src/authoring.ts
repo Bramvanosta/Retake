@@ -4,8 +4,10 @@
  * model call, nothing written: saving stays scenario_save (if_match). The main path is Claude writing the scenario from
  * page inspections; this is a skeleton for when the user hands a table.
  */
-import { draftScenarioFromScript, resolveEnvironment } from '@retake/core';
-import type { LoadedProject, ScriptIssue, ScriptOutline, WorkFileFacts } from '@retake/core';
+import { resolveEnvironment } from '@retake/core/environment';
+import { draftScenarioFromScript } from '@retake/core/scenario';
+import type { LoadedProject, WorkFileFacts } from '@retake/core/model';
+import type { ScriptIssue, ScriptOutline } from '@retake/core/scenario';
 import { checkScenarioName } from './refs.js';
 import { validateScenarioText } from './scenarios.js';
 import type { ValidateResult } from './scenarios.js';

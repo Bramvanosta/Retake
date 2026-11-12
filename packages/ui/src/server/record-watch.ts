@@ -9,7 +9,8 @@
  */
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROJECT_SLUG_RE, RECORD_ID_RE, statePath } from '@retake/core';
+import { RECORD_ID_RE } from '@retake/core/ids';
+import { PROJECT_SLUG_RE, statePath } from '@retake/core/project';
 
 /** Recording folders looked at per project, at most (the newest; the records folder keeps about 20). */
 export const RECORD_WATCH_PER_PROJECT = 40;

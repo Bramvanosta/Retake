@@ -1,20 +1,8 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  TemplateError,
-  describeTarget,
-  isCaptureScene,
-  isCard,
-  isInterstitial,
-  isPoint,
-  normalizeStep,
-  normalizeTarget,
-  overlayUseOf,
-  resolvePageUrl,
-  resolveScenePages,
-  sceneId,
-  templateSceneEntry,
-} from '@retake/core';
+import { TemplateError, resolvePageUrl } from '@retake/core/base';
+import { isCaptureScene, isCard, isInterstitial, overlayUseOf } from '@retake/core/model';
+import { describeTarget, isPoint, normalizeStep, normalizeTarget, resolveScenePages, sceneId, templateSceneEntry } from '@retake/core/language';
 import type {
   CameraHint,
   CaptionSpec,
@@ -22,15 +10,14 @@ import type {
   MissingTarget,
   NormalizedStep,
   OverlaySpec,
-  RunProgress,
-  RunningRun,
   Scenario,
   Scene,
   SceneEntry,
   TargetSpec,
   TimelineEvent,
   TimelineScene,
-} from '@retake/core';
+} from '@retake/core/model';
+import type { RunProgress, RunningRun } from '@retake/core/run';
 import { ACTIONS, primaryTarget } from './actions/index.js';
 import type { ActionResult } from './actions/types.js';
 import { approach, settleLatePopup } from './actions/click.js';

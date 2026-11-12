@@ -29,8 +29,8 @@ const ts = createRequire(import.meta.url)('typescript') as typeof import('typesc
 const PURE = (rules.REVIEW_PURE as string[]).map((n) => `${n}.ts`).sort();
 /** The review's side that reads files, runs ffmpeg or draws images: never reached. */
 const IO_SIDE = ['index.ts', 'pixels.ts', 'ffmpeg.ts', 'fonts.ts', 'report.ts', 'review.ts', 'load.ts', 'sheets.ts', 'still.ts', 'thumbs.ts'];
-/** The packages the entry's modules import (each is a domain entry: pure). */
-const PACKAGES = ['@retake/components/geometry', '@retake/core', '@retake/editor/plan'];
+/** The packages the entry's modules import (each is a domain entry: pure; core by its entries since L7.35). */
+const PACKAGES = ['@retake/components/geometry', '@retake/core/base', '@retake/core/comments', '@retake/core/environment', '@retake/core/model', '@retake/core/policy', '@retake/core/run', '@retake/editor/plan'];
 
 /** The value imports and re-exports of a module (type-only ones load nothing at run time). */
 function valueSpecifiers(file: string): string[] {

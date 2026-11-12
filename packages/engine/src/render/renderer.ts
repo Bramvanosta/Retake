@@ -12,7 +12,8 @@
  * `cancelled` when the request's signal aborted (nothing is left at `out`), `invalid` for a request it refuses. A
  * failure may carry the fields of RendererFailure, which the use cases read by name, never by class.
  */
-import type { RenderSettings, WorkPolicy } from '@retake/core';
+import type { RenderSettings } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, RenderRecord } from '@retake/editor/plan';
 import type { BundleComponent, ComponentPreviewSpec, RenderProgress } from '@retake/editor';

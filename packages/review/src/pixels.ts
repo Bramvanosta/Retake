@@ -2,8 +2,8 @@
  * Reading an image or a video frame as RGB, through ffmpeg (the side of the pixel helpers that runs a process). The
  * statistics themselves are pixel-maths.ts (pure), re-exported here so that every importer keeps its names.
  */
-import { pictureSizeArgs, pictureSizeFromJson, readFfprobeJson } from '@retake/core';
-import type { WorkPolicy } from '@retake/core';
+import { pictureSizeArgs, pictureSizeFromJson, readFfprobeJson } from '@retake/core/render';
+import type { WorkPolicy } from '@retake/core/policy';
 import { ffmpegBin, ffprobeBin, runMediaToolSync } from '@retake/core/io';
 import type { RgbImage } from './pixel-maths.js';
 

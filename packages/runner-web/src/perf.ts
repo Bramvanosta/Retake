@@ -9,7 +9,7 @@
  */
 import { execFile } from 'node:child_process';
 import { cpus, loadavg } from 'node:os';
-import type { RunPerfCpu } from '@retake/core';
+import type { RunPerfCpu } from '@retake/core/model';
 
 export const PERF_SAMPLE_MS = 2000;
 

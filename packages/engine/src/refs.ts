@@ -2,8 +2,10 @@
  * The names a client outside the CLI may use (the MCP server): slugs and ids, never a path. They are checked here,
  * before anything reaches core — core's loaders also accept absolute and cwd-relative paths, which only the CLI may use.
  */
-import { PROJECT_SLUG_RE, SLUG_RE, parseRunId, renderIdOf } from '@retake/core';
-import type { RunId } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { parseRunId, renderIdOf } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import type { RunId } from '@retake/core/ids';
 import { EngineError } from './errors.js';
 
 export { PROJECT_SLUG_RE, SLUG_RE };

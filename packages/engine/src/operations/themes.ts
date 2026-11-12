@@ -32,8 +32,11 @@
  */
 import { lstatSync } from 'node:fs';
 import { z } from 'zod';
-import { BrandInputSchema, COMPONENT_ID_RE, COMPONENT_KINDS, HEX_COLOR_RE, PROJECT_SLUG_RE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, zNewThemeName, zThemeName } from '@retake/core';
-import type { ComponentKind } from '@retake/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core/model';
+import { zNewThemeName, zThemeName } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { BrandInputSchema, HEX_COLOR_RE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS } from '@retake/core/theme';
+import type { ComponentKind } from '@retake/core/model';
 import type { ThemeCreated } from '../brand/create.js';
 import type { Engine } from '../engine.js';
 import { checkSiteUrl, isSiteWarning, siteCommandLine, siteHostConflicts } from '../jobs/site-job.js';

@@ -1,5 +1,5 @@
 /** The façade's `comments` (createEngine): threads on renders — read, add and reopen (a person's), reply (a proposal: Claude's), resolve, anchor, apply a proposal, counts. */
-import type { CommentAuthor } from '@retake/core';
+import type { CommentAuthor } from '@retake/core/comments';
 import { EngineError } from '../errors.js';
 import { memoRegistry } from '../timeline-view.js';
 import { MCP_AUTHOR_NAME, addComment, anchorAt, applyProposal, defaultAuthorName, getComment, getProposal, listComments, reopenComment, replyComment, resolveComment } from '../comments.js';

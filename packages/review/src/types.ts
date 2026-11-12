@@ -2,7 +2,9 @@
  * Review contract (docs/DESIGN-phase2.md §3): what `reviewRender` writes and returns, the findings and the rules
  * (thresholds) of the checks.
  */
-import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
+import type { ErrorKind } from '@retake/core/base';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { NamedRender, PlanSegment } from '@retake/editor/plan';
 

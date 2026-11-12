@@ -506,7 +506,7 @@ the proxy and are refused (absolute-form GET, unannounced CONNECTs).
   invalid, example, onion, alt), no all-numeric last label. Canonical href = `https://<punycode host><percent-encoded path>`.
   Engine `siteHostConflicts`: the host equal to an environment page's host of any workspace project, or a protected
   host (`protectedHostOf`, patterns included) — refused through MCP, a warning in the CLI. Subresources are not checked
-  against environments. `SiteJobInputSchema` (core `jobs.ts`): `{version, kind: 'site', site_id: s_<ULID>, url (refined
+  against environments. `SiteJobInputSchema` (engine `jobs/job-input.ts`; core `jobs.ts` until L7.35): `{version, kind: 'site', site_id: s_<ULID>, url (refined
   by siteUrlProblem), submitted_by, approvals}`.
 - **Approval** (engine `approvals.ts`): `SiteApprovalRequest {href, host, unicode_host, fingerprint, fix}`,
   `Approver.approveSite?`; `takeSiteApproval` → `[{fingerprint: sha256("site\n" + href), by: human-elicitation}]`,

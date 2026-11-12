@@ -1,9 +1,11 @@
 import { resolve } from 'node:path';
-import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core';
+import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core/environment';
 import { listProjects } from '@retake/core/io';
 import { LoginOptionError, loginTarget, projectPersonaStates, signInPersona as signInCore, tildePath } from '@retake/engine';
 import type { LoginCommandOf, PersonaState } from '@retake/engine';
-import type { LoadedProject, ResolvedPersona, WorkPolicy } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { PersonaCheckResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';

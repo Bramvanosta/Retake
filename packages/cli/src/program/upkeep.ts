@@ -1,5 +1,5 @@
 import { Argument } from 'commander';
-import type { JsonSchemaName } from '@retake/core';
+import type { JsonSchemaName } from '@retake/core/schema';
 import { doctorCommand } from '../commands/doctor.js';
 import { journalCommand } from '../commands/journal.js';
 import type { JournalOptions } from '../commands/journal.js';

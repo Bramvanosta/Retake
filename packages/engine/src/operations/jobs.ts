@@ -4,7 +4,8 @@
  * scenario_record's `recordOutput`, its site and inspection answers template_from_site's and page_inspect's).
  */
 import { z } from 'zod';
-import { JOB_ID_RE, JOB_STATES } from '@retake/core';
+import { JOB_ID_RE } from '@retake/core/ids';
+import { JOB_STATES } from '../jobs/job-input.js';
 import { JOB_CANCEL, READ } from './annotations.js';
 import { recordOutput } from './authoring.js';
 import { detail } from './compact.js';

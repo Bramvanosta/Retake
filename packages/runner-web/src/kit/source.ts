@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { buildSync } from 'esbuild';
 import type { BuildResult } from 'esbuild';
-import type { LoadedTemplate } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core/model';
 import { RunnerError } from '../errors.js';
 import type { CursorStyle, KitConfig } from './types.js';
 

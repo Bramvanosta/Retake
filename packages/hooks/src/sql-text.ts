@@ -1,4 +1,4 @@
-import { maskSql } from '@retake/core';
+import { maskSql } from '@retake/core/base';
 
 /** The SQL masking lives in core (the read-only classifier uses it too). */
 export { maskSql };

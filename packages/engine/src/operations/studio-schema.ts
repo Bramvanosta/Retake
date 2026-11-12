@@ -5,7 +5,9 @@
  * of schema.ts; the Studio's other ops (ui/src/server/ops.ts) take them from here too.
  */
 import { z } from 'zod';
-import { PROJECT_SLUG_RE, SLUG_RE, zRenderId, zRunId } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { zRenderId, zRunId } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
 
 export const studioProject = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug (project_list names them), never a path');
 export const studioScenario = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/<name>.yaml), never a path');

@@ -4,9 +4,17 @@
  * scenario's warnings and notes, the sandbox take or check, the capture runner's run). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
-import { parseScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
+import { GUIDE, sandboxErrorKind } from '@retake/core/base';
+import { resolveEnvironment, resolveRunAccess } from '@retake/core/environment';
+import { sandboxNames, sandboxOf } from '@retake/core/sandbox';
+import { parseScenarioSource, scenarioSourceEnv } from '@retake/core/scenario';
 import { describeLock, loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
-import type { AgentChannel, ConfirmHook, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
+import type { ErrorKind } from '@retake/core/base';
+import type { LoadedProject, LoadedScenario, LoadedTemplate, Timeline, ValidationIssue } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { ConfirmHook, HookTrust } from '@retake/core/hooks';
+import type { RunProgress, RunRecord } from '@retake/core/run';
+import type { AgentChannel } from './caller.js';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
 import type { SandboxLog, Take } from '@retake/sandbox/types';
 import type { CaptureRunner } from './capture/runner.js';
@@ -17,6 +25,7 @@ import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
 import type { OpenedWorkspace } from './workspace.js';
 import type { JournalAs } from './store/journal.js';
+import { confinementOf } from './caller.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
@@ -267,7 +276,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.hideCursor ? { hideCursor: true } : {}),
       ...(opts.hookTrust ? { hookTrust: opts.hookTrust } : {}),
       ...(opts.recordAs ? { recordHookRun: hookRunRecorder(project.root, opts.recordAs, { project: project.slug }) } : {}),
-      ...(opts.hookVia ? { hookVia: opts.hookVia } : {}),
+      ...(opts.hookVia ? { hookVia: confinementOf(opts.hookVia) } : {}),
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       ...(opts.live ? { live: opts.live } : {}),
       ...(opts.pause ? { pause: opts.pause } : {}),

@@ -29,7 +29,7 @@ import { execFile } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 import { bundleInfoOrNull, bundleNodeArgs, retakeHome } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import type { UpdateState } from './update-ops.js';

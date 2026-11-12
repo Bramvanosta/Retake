@@ -19,25 +19,11 @@
  *   must have the stored result hash, and the hunks must be the canonical diff of those bytes — else nothing is shown as
  *   exact, previewed or applied.
  */
-import {
-  CommentProposalSchema,
-  canonicalJson,
-  PROPOSAL_CHANGED_LINES_MAX,
-  SCENARIO_EDIT_MAX_CHARS,
-  ScenarioError,
-  applyHunks,
-  diffLines,
-  filmedChangesOf,
-  joinLines,
-  lineBreaks,
-  parseYaml,
-  proposalHunksProblem,
-  proposalLineProblem,
-  sameHunks,
-  textEol,
-  textLines,
-} from '@retake/core';
-import type { CommentProposal, LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core';
+import { canonicalJson, applyHunks, diffLines, joinLines, lineBreaks, parseYaml, sameHunks, textLines } from '@retake/core/base';
+import { SCENARIO_EDIT_MAX_CHARS, ScenarioError, filmedChangesOf, textEol } from '@retake/core/scenario';
+import { CommentProposalSchema, PROPOSAL_CHANGED_LINES_MAX, proposalHunksProblem, proposalLineProblem } from '@retake/core/comments';
+import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
+import type { CommentProposal } from '@retake/core/comments';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from './errors.js';
 import { getScenario, prepareScenarioEdit } from './scenarios.js';

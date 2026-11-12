@@ -4,8 +4,9 @@
  * that session is gone. `retake run` and the other commands run inline and are not jobs.
  */
 import { resolve } from 'node:path';
-import { JOB_STATES, isJobId } from '@retake/core';
-import type { JobState } from '@retake/core';
+import { isJobId } from '@retake/core/ids';
+import { JOB_STATES } from '@retake/engine';
+import type { JobState } from '@retake/engine';
 import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject, yieldWords } from '@retake/engine';
 import type { Engine, JobRecord } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';

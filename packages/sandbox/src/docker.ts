@@ -11,9 +11,9 @@ import type { ChildProcess } from 'node:child_process';
 import { accessSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { policyChildEnv } from '@retake/core';
+import { policyChildEnv } from '@retake/core/policy';
 import { nodeFileFacts } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
 import { SandboxError } from './errors.js';
 
 /** Oldest Compose this provider runs (`up --wait-timeout`). */

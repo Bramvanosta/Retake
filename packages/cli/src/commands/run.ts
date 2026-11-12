@@ -1,7 +1,10 @@
 import { join } from 'node:path';
-import { formatIssues, isAccessError, perfSummary } from '@retake/core';
+import { formatIssues } from '@retake/core/base';
+import { isAccessError } from '@retake/core/environment';
+import { perfSummary } from '@retake/core/run';
 import { readTimeline } from '@retake/core/io';
-import type { RunProgress, RunRecord, Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
+import type { RunProgress, RunRecord } from '@retake/core/run';
 import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, agentWrittenShellHooks, callerOf, listingContext, reserveListedRun, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
 import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
 import { askAgentHooks } from '../agent-hooks.js';

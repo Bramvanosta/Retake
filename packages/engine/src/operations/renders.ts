@@ -4,7 +4,8 @@
  * what the edit re-planned).
  */
 import { z } from 'zod';
-import { SLUG_RE, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { editReplannedMessage, scenarioChangedMessage } from '@retake/core/scenario';
 import type { Engine } from '../engine.js';
 import { yieldWords } from '../jobs/held.js';
 import type { RenderStatusView } from '../renders.js';

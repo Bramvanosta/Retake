@@ -1,16 +1,25 @@
 /**
- * The job input contract (L3.1, ADR-1 amendment): what a client hands the jobs worker. Serialisable and validated here:
- * a project is a slug, a scenario a name with the sha256 of its bytes at submit (what was checked is what runs), a run a
- * pre-reserved id. Never a secret value, a session or an absolute path: the worker resolves `{{env:…}}` /
+ * The job input contract (L3.1, ADR-1 amendment; in core until L7.35 — audit 2026-11-10 D7: application vocabulary):
+ * what a client hands the jobs worker. Serialisable and validated here: a project is a slug, a scenario a name with the
+ * sha256 of its bytes at submit (what was checked is what runs), a run a pre-reserved id. Never a secret value, a session or an absolute path: the worker resolves `{{env:…}}` /
  * `{{keychain:…}}` references and persona sessions itself, from its own environment and ~/.retake.
  */
 import { z } from 'zod';
-import { PROJECT_SLUG_RE } from './project.js';
-import { inspectPathProblem, INSPECT_PATH_MAX } from './inspect.js';
-import { INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, SITE_ID_RE } from './id-grammar.js';
-import { zRenderId, zRunId, zThemeName } from './ids.js';
-import { siteUrlProblem } from './site.js';
-import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from './schemas/primitives.js';
+import {
+  COMPONENT_ID_RE,
+  ComponentRefSchema,
+  FrameSpecSchema,
+  KEY_RE,
+  SLUG_RE,
+  TargetSpecSchema,
+  TransitionSchema,
+  TutorialSwitchSchema,
+} from '@retake/core/model';
+import { INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, SITE_ID_RE, zRenderId, zRunId, zThemeName } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { INSPECT_PATH_MAX, inspectPathProblem } from '@retake/core/run';
+import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
+import { siteUrlProblem } from '@retake/core/theme';
 
 export const JOB_INPUT_VERSION = 1;
 
@@ -293,12 +302,6 @@ export const ReviewJobInputSchema = z.strictObject({
   submitted_by: z.enum(JOB_CLIENTS),
 });
 
-/** Delivery formats of an export (the editor's EXPORT_FORMATS). */
-export const EXPORT_FORMAT_NAMES = ['mp4_1080p', 'mp4_4k', 'webm', 'vertical_9x16', 'square_1x1', 'gif_preview'] as const;
-
-/** The formats of an export that names none: the ones derived from the master (no re-render) — the editor's and the jobs'. */
-export const DEFAULT_EXPORT_FORMAT_NAMES: readonly ExportFormatName[] = ['mp4_1080p', 'webm', 'gif_preview'];
-
 /**
  * An export (L3.2): delivery files of a render in exports/<render_id>/ (+ manifest.json), transcoded from the master or
  * re-rendered (vertical, square, 4K) by the worker under the trust rules of a render job. No output location: the
@@ -526,5 +529,4 @@ export type PreviewJobInput = z.output<typeof PreviewJobInputSchema>;
 export type InspectJobInput = z.output<typeof InspectJobInputSchema>;
 export type RecordJobInput = z.output<typeof RecordJobInputSchema>;
 export type SiteJobInput = z.output<typeof SiteJobInputSchema>;
-export type ExportFormatName = (typeof EXPORT_FORMAT_NAMES)[number];
 export type JobInput = z.output<typeof JobInputSchema>;

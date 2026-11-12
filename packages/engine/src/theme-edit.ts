@@ -22,9 +22,15 @@
 import { readdirSync, statSync } from 'node:fs';
 import { lstat, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { COMPONENT_KINDS, StepEditError, TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit, insideFolder, isTemplateMediaRef, isTemplatePath, newHiddenCharProblem, parseTemplateYaml, parseYaml, realPathOf, verifyEditText, pathInside, projectPath } from '@retake/core';
+import { parseYaml, pathInside } from '@retake/core/base';
+import { COMPONENT_KINDS } from '@retake/core/model';
+import { realPathOf } from '@retake/core/policy';
+import { projectPath } from '@retake/core/project';
+import { StepEditError, insideFolder, isTemplatePath, newHiddenCharProblem, verifyEditText } from '@retake/core/scenario';
+import { TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit, isTemplateMediaRef, parseTemplateYaml } from '@retake/core/theme';
 import { STARTER_TEMPLATES_DIR, listTemplates, loadProjectTemplate, loadTemplate, readPlainFile, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField } from '@retake/core';
+import type { ComponentKind, Template } from '@retake/core/model';
+import type { TemplateEntry, ThemeEdit, ThemeField } from '@retake/core/theme';
 import type { PaletteCheck } from '@retake/components';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { components, workspaceRegistry } from './components.js';

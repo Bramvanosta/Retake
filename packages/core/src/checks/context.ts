@@ -1,6 +1,7 @@
 import { isAbsolute, relative, resolve } from 'node:path';
 import { needFiles } from '../file-facts.js';
 import type { CheckFiles } from '../file-facts.js';
+import type { Confinement } from '../confinement.js';
 import type { IssuePath } from '../issues.js';
 import { brokenUnder } from '../validation/document.js';
 import type { LocatedIssue } from '../validation/located.js';
@@ -11,11 +12,11 @@ import { pathInside } from '../path-inside.js';
 export class CheckContext {
   readonly out: LocatedIssue[] = [];
   /**
-   * Work an agent submits, by its channel (MCP, the Studio: review A L4): a file reference outside the directory is
-   * reported as such without looking at it, and one that leads out through a link as not found — whether a file exists
-   * outside the project is never told.
+   * Work an agent submits, with the words of its confinement (review A L4; L7.35: a value, core Confinement): a file
+   * reference outside the directory is reported as such without looking at it, and one that leads out through a link as
+   * not found — whether a file exists outside the project is never told.
    */
-  confined: 'mcp' | 'studio' | undefined = undefined;
+  confined: Confinement | undefined = undefined;
   /**
    * L5.10a fixes (review A-M1): when set, every file a check looks for is added (absolute path) — a caller memoising the
    * result (the Studio's project board) re-checks them before it trusts its memo.
@@ -77,7 +78,7 @@ export class CheckContext {
     const where = dir === this.projectDir ? this.dirLabel : dir;
     if (this.confined && (isAbsolute(rel) || !pathInside(abs, dir, { dotDotPrefix: true }))) {
       // agent-trust projectFileProblem's words (that check needs a scenario that parses: this one runs first).
-      this.out.push(issue('error', path, `${what} "${rel}" resolves outside ${where} folder: ${this.confined === 'studio' ? 'from the Studio' : 'through MCP'} only files of the project folder are read`));
+      this.out.push(issue('error', path, `${what} "${rel}" resolves outside ${where} folder: ${this.confined.words} only files of the project folder are read`));
       return;
     }
     this.filesRead?.add(abs);

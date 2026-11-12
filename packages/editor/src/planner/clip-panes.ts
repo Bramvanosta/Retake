@@ -4,7 +4,7 @@
  * `screen`, the other in `inset`), its camera (its own steps' zooms; none in an inset), its reframe in vertical /
  * square, its URLs.
  */
-import type { TimelineScenePage } from '@retake/core';
+import type { TimelineScenePage } from '@retake/core/model';
 import { GEOMETRY_KEYS, evalLayoutGeometry, isMultiPaneGeometry } from '@retake/components/geometry';
 import type { LayoutGeometry } from '@retake/components/geometry';
 import { cameraTrack, clampView, reframeTrack } from '../camera.js';

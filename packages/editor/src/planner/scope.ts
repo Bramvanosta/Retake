@@ -3,7 +3,20 @@
  * assets, the display addresses, the component resolution and the tutorial switches — one flat scope built in that
  * order — and the working records of the later steps (entries in scenario order, segments being built).
  */
-import type { ComponentKind, DisplayEntry, LoadedProject, LoadedTemplate, ResolvedTutorial, Timeline, TimelineArtefact, TimelineEvent, TimelineScene, TimelineScenePage, TimelineTrack, TimelineVideo } from '@retake/core';
+import type {
+  ComponentKind,
+  LoadedProject,
+  LoadedTemplate,
+  Timeline,
+  TimelineArtefact,
+  TimelineEvent,
+  TimelineScene,
+  TimelineScenePage,
+  TimelineTrack,
+  TimelineVideo,
+} from '@retake/core/model';
+import type { ResolvedTutorial } from '@retake/core/language';
+import type { DisplayEntry } from '@retake/core/environment';
 import type { ArtefactSlotType, ComponentManifest, ComponentRegistry, MediaValue, SlotContext, ThemeTokens } from '@retake/components/geometry';
 import type { ZoomMove } from '../camera.js';
 import type { CameraFrame, EditOverrides, PlanSegment, PlanSource, PlanTutorial, PlanVariant } from '../plan-types.js';

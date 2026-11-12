@@ -1,5 +1,5 @@
-import type { ErrorKind } from '@retake/core';
-import { GUIDE } from '@retake/core';
+import type { ErrorKind } from '@retake/core/base';
+import { GUIDE } from '@retake/core/base';
 
 /** Base class of every error raised by the web runner. */
 export class RunnerError extends Error {

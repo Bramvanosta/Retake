@@ -5,7 +5,7 @@
  * caller validates the text against the template schema (core parseTemplateYaml) before writing it.
  */
 import { Document, isMap, isPair, isScalar, isSeq } from 'yaml';
-import type { TemplateFile } from '@retake/core';
+import type { TemplateFile } from '@retake/core/theme';
 import type { Palette } from './palette.js';
 
 export interface ThemeFileInput {

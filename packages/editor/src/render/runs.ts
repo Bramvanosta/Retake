@@ -5,9 +5,14 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { open, readFile, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RENDER_VERSION_MAX, insideFolder, latestTake, orderRuns, parseScenario, projectPath, projectRef, renderFileVersionOf, renderLockName, renderRecordsOf, renderSuffix, takeNeedsTimeline, takeOf, takeWords } from '@retake/core';
+import { RENDER_VERSION_MAX, renderFileVersionOf, renderLockName, renderSuffix } from '@retake/core/ids';
+import { projectPath, projectRef } from '@retake/core/project';
+import { insideFolder, parseScenario } from '@retake/core/scenario';
+import { latestTake, orderRuns, takeNeedsTimeline, takeOf, takeWords } from '@retake/core/run';
+import { renderRecordsOf } from '@retake/core/render';
 import { nodeFileFacts, readRendersFolder, readRunFolder, readRunRecord } from '@retake/core/io';
-import type { LatestPick, LoadedProject, RunRead, Scenario } from '@retake/core';
+import type { LoadedProject, Scenario } from '@retake/core/model';
+import type { LatestPick, RunRead } from '@retake/core/run';
 import { withPlan } from '../render-record.js';
 import type { StoredRender } from '../render-record.js';
 import { RenderError } from './types.js';

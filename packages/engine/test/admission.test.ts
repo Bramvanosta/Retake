@@ -20,7 +20,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION } from '@retake/core';
+import { JOB_INPUT_VERSION } from '@retake/engine';
 import * as engineIndex from '../src/index.js';
 import { EXPORTS_OPEN_MAX, EngineError, FileJobQueue, confirmWhy, createEngine, sessionsToConfirm } from '../src/index.js';
 import type { ApprovalOutcome, Engine, EngineClient, JobRecord } from '../src/index.js';

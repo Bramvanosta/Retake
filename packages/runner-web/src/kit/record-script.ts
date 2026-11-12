@@ -25,7 +25,7 @@
  * - nothing on an origin that is not one of the environment's (the recorder does not even install there); in a
  *   sub-frame only a content-free notice; on a page the runner says is a sign-in page, nothing (held until it answers).
  */
-import type { SecretFieldKind } from '@retake/core';
+import type { SecretFieldKind } from '@retake/core/run';
 import type { InventoryElement, KitApi } from './types.js';
 
 export interface RecorderConfig {

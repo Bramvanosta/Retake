@@ -5,9 +5,10 @@
  * Anywhere else than a sandbox environment both are refused with what to write instead.
  */
 import { readFile } from 'node:fs/promises';
-import { composeEnvRef, envFileValues, listTemplateTokens } from '@retake/core';
+import { listTemplateTokens } from '@retake/core/base';
+import { composeEnvRef, envFileValues } from '@retake/core/sandbox';
 import { composeEnvFile, resolveSecretRef } from '@retake/core/io';
-import type { LoadedSandbox } from '@retake/core';
+import type { LoadedSandbox } from '@retake/core/model';
 import { HookError, errorMessage } from './errors.js';
 import type { HookContext } from './types.js';
 

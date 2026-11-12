@@ -1,41 +1,16 @@
 /** The views of comment threads clients read (see ../comments.ts): a thread, a listing, counts and pins. */
 import { open, readdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  COMMENTS_DIR,
-  SLUG_RE,
-  deriveStatus,
-  isRenderId,
-  latestProjectRender,
-  locateAnchorStep,
-  hunkStats,
-  orderRenders,
-  projectRef,
-  projectRenderOf,
-  proposalStates,
-  quotableRender,
-  renderIdOf,
-  renderNot,
-  renderNotWords,
-  trustedAnchor,
-  statePath,
-  scenarioRef,
-} from '@retake/core';
-import type {
-  CommentAuthor,
-  CommentEntry,
-  CommentProposal,
-  CommentRegion,
-  CommentThread,
-  FrameCommentAnchor,
-  LoadedProject,
-  ProposalState,
-  ProjectRender,
-  RenderEntry,
-  RenderLatestPick,
-  RenderVariant,
-  StoredRenderRecord,
-} from '@retake/core';
+import { hunkStats } from '@retake/core/base';
+import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
+import { isRenderId, renderIdOf } from '@retake/core/ids';
+import { projectRef, statePath, scenarioRef } from '@retake/core/project';
+import { deriveStatus, locateAnchorStep, proposalStates, trustedAnchor } from '@retake/core/comments';
+import { latestProjectRender, orderRenders, projectRenderOf, quotableRender, renderNot, renderNotWords } from '@retake/core/render';
+import type { FrameCommentAnchor, LoadedProject } from '@retake/core/model';
+import type { RenderVariant } from '@retake/core/ids';
+import type { CommentAuthor, CommentEntry, CommentProposal, CommentRegion, CommentThread, ProposalState } from '@retake/core/comments';
+import type { ProjectRender, RenderEntry, RenderLatestPick, StoredRenderRecord } from '@retake/core/render';
 import { EngineError } from '../errors.js';
 import { checkScenarioName } from '../refs.js';
 import { latestRenderMembers, readById, renderEntries, renderFileProblem } from '../render-records.js';

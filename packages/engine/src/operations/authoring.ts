@@ -14,8 +14,9 @@
  * scenario_save. Never the start of the main authoring path (page_inspect → write the YAML → validate → save → run_dry).
  */
 import { z } from 'zod';
-import { SCRIPT_MARKDOWN_MAX } from '@retake/core';
-import type { ScriptIssue, ValidationIssue } from '@retake/core';
+import { SCRIPT_MARKDOWN_MAX } from '@retake/core/scenario';
+import type { ValidationIssue } from '@retake/core/model';
+import type { ScriptIssue } from '@retake/core/scenario';
 import type { Engine } from '../engine.js';
 import type { JobRecord, RecordJobResult } from '../jobs/types.js';
 import { READ, RUN_JOB, WRITE_FILES } from './annotations.js';

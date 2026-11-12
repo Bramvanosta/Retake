@@ -13,8 +13,8 @@
  * is reported. The accent itself is never changed: a failing accent gives a warning and a suggested value, the caller
  * decides (brand accents are often light).
  */
-import { normalizeHex } from '@retake/core';
-import type { BrandBackground } from '@retake/core';
+import { normalizeHex } from '@retake/core/theme';
+import type { BrandBackground } from '@retake/core/theme';
 import { backgroundSample, contrastRatio, liftToContrast, luminance, mixColors, withAlpha } from '../kit/style.js';
 
 export type PaletteTone = 'light' | 'dark';

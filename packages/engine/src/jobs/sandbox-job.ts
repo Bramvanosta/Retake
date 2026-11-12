@@ -6,8 +6,11 @@
  * sandbox before it changes anything). Its seed steps run with trust `mcp`: a shell seed step needs a human approval,
  * taken at submit and bound to its fingerprint, like a hook.
  */
-import { JOB_INPUT_VERSION, resolveEnvironment } from '@retake/core';
-import type { JobApproval, LoadedProject, SandboxResetJobInput, SandboxUpJobInput, WorkPolicy } from '@retake/core';
+import { resolveEnvironment } from '@retake/core/environment';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { JobApproval, SandboxResetJobInput, SandboxUpJobInput } from './job-input.js';
 import type { ResetResult, SandboxLog } from '@retake/sandbox/types';
 import { approvalChecker, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';

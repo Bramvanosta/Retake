@@ -2,7 +2,7 @@ import { createWriteStream } from 'node:fs';
 import type { WriteStream } from 'node:fs';
 import { join } from 'node:path';
 import { writeJson } from '@retake/core/io';
-import type { FinishedRun, RunProgress, RunRecord, RunningRun } from '@retake/core';
+import type { FinishedRun, RunProgress, RunRecord, RunningRun } from '@retake/core/run';
 
 /**
  * runs/<id>/run.json (RunRecord, rewritten atomically as the run progresses) and log.jsonl (every progress

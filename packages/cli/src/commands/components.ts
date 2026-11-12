@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path';
-import { errorsOf, warningsOf } from '@retake/core';
+import { errorsOf, warningsOf } from '@retake/core/base';
 import { bundleInfo } from '@retake/core/io';
-import type { ComponentKind } from '@retake/core';
+import type { ComponentKind } from '@retake/core/model';
 import {
   componentCreateShell,
   componentListEntries,

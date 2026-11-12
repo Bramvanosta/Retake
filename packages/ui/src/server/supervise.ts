@@ -33,8 +33,10 @@ import { JobsWatch, liveWorker, submittedInStudio } from '@retake/engine';
 import type { JobQueueView, JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';
-import { PROJECT_SLUG_RE, SLUG_RE, projectPath, renderSuffix } from '@retake/core';
-import type { JobClient } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { renderSuffix } from '@retake/core/ids';
+import { PROJECT_SLUG_RE, projectPath } from '@retake/core/project';
+import type { JobClient } from '@retake/engine';
 
 /** The kinds on the pipe: the shell's words are keyed by them. */
 export const PIPE_KINDS = ['capture', 'dry_run', 'render', 'review', 'export', 'recording', 'studio_recording', 'hooks', 'env_reset', 'sandbox_start', 'sandbox_reset'] as const;

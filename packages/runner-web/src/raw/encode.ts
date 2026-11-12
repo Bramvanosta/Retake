@@ -9,8 +9,10 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { clipProbeArgs, clipProbeFromJson, readFfprobeJson } from '@retake/core';
-import type { ClipProbe, RawFormat, WorkPolicy } from '@retake/core';
+import { clipProbeArgs, clipProbeFromJson, readFfprobeJson } from '@retake/core/render';
+import type { RawFormat } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { ClipProbe } from '@retake/core/render';
 import type { H264Encoder } from '@retake/core/io';
 import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffprobeBin, h264CodecArgs, h264Encoder, runMediaTool } from '@retake/core/io';
 import { cfrSchedule, materialize, runFfmpeg } from '../encode.js';

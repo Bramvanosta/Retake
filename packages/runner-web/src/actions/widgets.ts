@@ -1,5 +1,5 @@
-import { describeTarget } from '@retake/core';
-import type { MenuArgs, PickArgs, SelectArgs, TargetObject, TargetSpec } from '@retake/core';
+import { describeTarget } from '@retake/core/language';
+import type { MenuArgs, PickArgs, SelectArgs, TargetObject, TargetSpec } from '@retake/core/model';
 import { StepError, formatNear } from '../errors.js';
 import type { ResolveMissing } from '../kit/types.js';
 import { ensureInView, poll, resolveRef, resolveTarget } from '../resolve.js';

@@ -34,7 +34,7 @@ import { join } from 'node:path';
 import { ENGINE_HTTP_API, EngineError, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@retake/engine';
 import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
-import type { LoadedProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
 import { libraryChanges, libraryWatchScan } from './library-watch.js';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 

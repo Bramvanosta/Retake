@@ -9,7 +9,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 
 /** The package.json of the folder of a module (its package's root: the first folder up that has one). */
 function packageRoot(from: string): string | undefined {

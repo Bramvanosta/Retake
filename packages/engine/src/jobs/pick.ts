@@ -4,15 +4,15 @@
  * else in job.json orders the queue. Hooks, environment resets and sandboxes are captures: they stay one at a time with
  * each other and with the takes (the hooks journal is not written for concurrent use).
  *
- * - `capture` slot: the oldest queued capture-class job (core JOB_CLASS; an unknown kind counts as a capture so the
+ * - `capture` slot: the oldest queued capture-class job (job-input.ts JOB_CLASS; an unknown kind counts as a capture so the
  *   worker refuses it as before). Captures go before any heavy job whatever their age.
  * - `heavy` slot: nothing while a filming take (core isFilming) of this workspace waits in the queue — a take queued
  *   behind a recording or a sign-in holds heavy claims too; a cancelled one holds nothing (review B L7) —, nor while
  *   something films now (`filmingLive`: a filming marker of this user, or the worker's own take while it films — not
  *   during its setup or teardown hooks, not while it is paused: review B M3); else the oldest queued heavy job.
  */
-import { isFilming, jobClass } from '@retake/core';
-import type { JobClass, JobState } from '@retake/core';
+import { isFilming, jobClass } from './job-input.js';
+import type { JobClass, JobState } from './job-input.js';
 
 export interface PickRecord {
   id: string;

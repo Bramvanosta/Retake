@@ -1,5 +1,5 @@
-import { JSON_SCHEMAS } from '@retake/core';
-import type { JsonSchemaName } from '@retake/core';
+import { JSON_SCHEMAS } from '@retake/core/schema';
+import type { JsonSchemaName } from '@retake/core/schema';
 import { EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';

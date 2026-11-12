@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
-import type { HooksJobInput, RunJobInput } from '@retake/core';
+import type { HooksJobInput, RunJobInput } from '@retake/engine';
 import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, setProtectedHostResolver, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals, enginePorts } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 

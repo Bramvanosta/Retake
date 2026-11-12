@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { collectSandboxRefs, collectSecretRefs, projectFileProblem, secretRefsProblem } from '@retake/core';
+import { collectSandboxRefs, collectSecretRefs } from '@retake/core/base';
+import { projectFileProblem, secretRefsProblem } from '@retake/core/scenario';
 import { nodeFileFacts } from '@retake/core/io';
 import { HookError, HookSecurityError } from '../errors.js';
 import { journalsRollback } from '../types.js';

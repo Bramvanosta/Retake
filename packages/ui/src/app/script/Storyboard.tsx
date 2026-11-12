@@ -22,7 +22,7 @@
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent, MutableRefObject } from 'react';
-import type { EntryBlock, SceneBlock, StepBlock } from '@retake/core';
+import type { EntryBlock, SceneBlock, StepBlock } from '@retake/core/scenario';
 import type { StepBinding } from '@retake/engine';
 import { Txt, plural, shown } from '../bits.js';
 import { IssueLines } from './StepEditing.js';

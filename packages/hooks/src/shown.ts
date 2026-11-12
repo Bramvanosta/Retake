@@ -2,7 +2,7 @@
  * A hook as a person reads it before saying yes to it — an approval through MCP or the Studio, a replay of a journal
  * entry Retake did not sign: every field in full on a line of its own, every hidden character written out.
  */
-import { collectSandboxRefs, collectSecretRefs, interpolateDeep, showHiddenChars, showHiddenCharsLine } from '@retake/core';
+import { collectSandboxRefs, collectSecretRefs, interpolateDeep, showHiddenChars, showHiddenCharsLine } from '@retake/core/base';
 import type { RollbackAction } from './types.js';
 
 /** Text shown to a person: every control, bidirectional or invisible character written out (`\u{1b}`), newlines kept (core). */

@@ -25,6 +25,7 @@ import { startServer } from '../../runner-web/test/helpers.js';
 import type { TestServer } from '../../runner-web/test/helpers.js';
 import { captureRunnerContract } from './capture-runner-contract.js';
 import { fixtureWorkspace } from './helpers.js';
+import { CONFINEMENTS } from '../src/caller.js';
 
 const hasChromium = chromiumExecutable().path !== null;
 const root = await mkdtemp(join(tmpdir(), 'retake-capture-runner-'));
@@ -117,7 +118,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
     expect(capture.calls.map((c) => c.member)).toEqual(['load', 'run']);
     const [req] = requests(capture);
     expect(req!.hookRunner).toBe(hooks);
-    expect(req).toMatchObject({ mode: 'dry', runId: sub.run_id, until: 'discover.1', hookTrust: 'mcp', hookVia: 'mcp' });
+    expect(req).toMatchObject({ mode: 'dry', runId: sub.run_id, until: 'discover.1', hookTrust: 'mcp', hookVia: CONFINEMENTS.mcp });
     expect(req!.policy.agentFolders).not.toBeNull();
     for (const k of ['signal', 'confirmHook', 'recordHookRun', 'loginCommand', 'onProgress'] as const) expect(req![k], k).toBeTypeOf(k === 'signal' ? 'object' : 'function');
     expect(req!.loginCommand!({ project: 'p', env: 'e', persona: 'x' })).toMatch(/ login p --env e --persona x$/);

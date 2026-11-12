@@ -6,7 +6,7 @@
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { SandboxProvider, SandboxResetStrategy } from '@retake/core';
+import type { SandboxProvider, SandboxResetStrategy } from '@retake/core/model';
 import type { Member } from './proc.js';
 
 export const STATE_VERSION = 1;

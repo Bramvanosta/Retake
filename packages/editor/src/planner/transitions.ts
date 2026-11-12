@@ -2,7 +2,7 @@
  * A step of `planEdit`: the transitions between segments and the timing they give the video — each segment's start,
  * the frames a crossfade or a fade through black overlaps or holds — and the video's length.
  */
-import type { TimelineScene, TransitionKind } from '@retake/core';
+import type { TimelineScene, TransitionKind } from '@retake/core/model';
 import type { ClipSegment, PlanTransition } from '../plan-types.js';
 import { transitionKindOf } from '../resolve.js';
 import type { Candidate } from '../resolve.js';

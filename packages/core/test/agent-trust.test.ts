@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentTrustProblems, agentWritable, insideFolder, isTemplatePath, projectFileProblem, renderFileProblems, rollbackApprovalReason, scenarioFileRefs, templateRefProblem } from '../src/index.js';
 import type { HookStep, Scenario } from '../src/index.js';
 import { nodeFileFacts } from '@retake/core/io';
+import { STUDIO_CONFINEMENT } from './helpers.js';
 
 let root: string;
 let project: string;
@@ -96,7 +97,7 @@ describe('agentTrustProblems', () => {
       vars: { k: '{{env:TOKEN}}' },
       scenes: [{ id: 'a', page: 'console', steps: [{ drop_file: { zone: { css: 'body' }, path: '../outside.txt' } }, { eval: { file: 'scenarios/x.js' } }, { eval: { file: '/etc/hosts' } }] }] as Scenario['scenes'],
     });
-    const studio = agentTrustProblems({ dir: project, config: {} }, sc, { files: nodeFileFacts, via: 'studio' });
+    const studio = agentTrustProblems({ dir: project, config: {} }, sc, { files: nodeFileFacts, via: STUDIO_CONFINEMENT });
     const mcp = agentTrustProblems({ dir: project, config: {} }, sc, { files: nodeFileFacts });
     expect(studio).toHaveLength(5);
     expect(mcp).toHaveLength(5);

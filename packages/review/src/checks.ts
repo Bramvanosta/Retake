@@ -3,8 +3,10 @@
  * area, brand mark), text slots, cursor at clicks, long scenes at ~1×, camera zooms, transitions over clicks, and the
  * render itself (status, probe, missing components, plan warnings). Pixel checks live in ./pixel-checks.ts.
  */
-import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@retake/core';
-import type { DisplayEntry, StoredRunRecord, Timeline, TimelineLoadingUi, TimelineWrite, UnknownStatusRun } from '@retake/core';
+import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@retake/core/environment';
+import type { Timeline, TimelineLoadingUi, TimelineWrite } from '@retake/core/model';
+import type { DisplayEntry } from '@retake/core/environment';
+import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
 import { BUTTON_LABEL_MIN, CAPTION_BAND_PAD_X, buttonColors, captionBandBox, captionMaxLines, fitText, insetPhoneEdge } from '@retake/components/geometry';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@retake/components/geometry';
 import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@retake/editor/plan';

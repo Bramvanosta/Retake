@@ -22,9 +22,9 @@
  * port explicitly, never the URL (whose query parameters would win over them).
  */
 import pg from 'pg';
-import { interpolateDeep } from '@retake/core';
+import { interpolateDeep } from '@retake/core/base';
 import { prefetchSecrets } from '@retake/core/io';
-import type { LoadedProject, LoadedSandbox } from '@retake/core';
+import type { LoadedProject, LoadedSandbox } from '@retake/core/model';
 import { databaseTarget, sandboxDatabaseProblem } from '@retake/hooks';
 import { SandboxError, errorMessage } from './errors.js';
 

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { FileFactsMissingError, MediaProbeError, PERSON_POLICY, destructiveReason, memoryFileFacts, parseScenario, parseTemplateYaml } from '@retake/core';
 import type { HookStep, LoadedProject } from '@retake/core';
 import { fileFacts, nodeFileFacts } from '@retake/core/io';
+import { AGENT_CONFINEMENT } from '@retake/core';
 
 const DIR = '/p';
 const project = { slug: 'p', dir: DIR, root: '/', file: `${DIR}/project.yaml`, issues: [], readme: null, scenarios: [], config: { name: 'P', environments: { local: { app: 'http://localhost:4990' } }, capture: {}, frame: 'card', template: 'default' } } as unknown as LoadedProject;
@@ -35,7 +36,7 @@ describe('FileFacts: the disk a pure rule looks at', () => {
     expect(errors(parseScenario(scenario('data/none.csv'), { project, files }))).toEqual(['file "data/none.csv" not found in the project']);
     expect(errors(parseScenario(scenario('data/dir'), { project, files }))).toEqual(['file "data/dir" not found in the project']);
     expect(errors(parseScenario(scenario('data/link.csv'), { project, files }))).toEqual([]);
-    expect(errors(parseScenario(scenario('data/link.csv'), { project, files, confined: 'mcp' }))).toEqual(['file "data/link.csv" not found in the project']);
+    expect(errors(parseScenario(scenario('data/link.csv'), { project, files, confined: AGENT_CONFINEMENT }))).toEqual(['file "data/link.csv" not found in the project']);
   });
 
   it('memoryFileFacts: kinds, real paths through links (a folder link too), texts, first bytes, executables', () => {

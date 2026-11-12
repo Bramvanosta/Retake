@@ -25,9 +25,14 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } f
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { isRenderId, openVideoArgs, openVideoFromJson, projectPath, PROJECT_DIRS, projectRef, readFfprobeJson, sameRender } from '@retake/core';
+import { isRenderId } from '@retake/core/ids';
+import { projectPath, PROJECT_DIRS, projectRef } from '@retake/core/project';
+import { openVideoArgs, openVideoFromJson, readFfprobeJson, sameRender } from '@retake/core/render';
 import { ffprobeBin, startMediaTool } from '@retake/core/io';
-import type { LoadedProject, OpenVideoProbe, RenderVariant, WorkPolicy } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { RenderVariant } from '@retake/core/ids';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { OpenVideoProbe } from '@retake/core/render';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
 import { EngineError } from './errors.js';
 import { renderForWork } from './renders.js';

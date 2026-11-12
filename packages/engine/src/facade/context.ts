@@ -3,8 +3,9 @@
  * workspace, the project store's scope, the job queue, the worker starter, the run overlays, the admission rules and the
  * caches the screens share — made once per engine, then handed to the builder of each sub-API (src/facade/*-api.ts).
  */
-import { loginCommand as coreLoginCommand } from '@retake/core';
-import type { AgentChannel, LoadedProject, RunMode, Scenario, WorkFileFacts } from '@retake/core';
+import { loginCommand as coreLoginCommand } from '@retake/core/environment';
+import type { LoadedProject, RunMode, Scenario, WorkFileFacts } from '@retake/core/model';
+import type { AgentChannel } from '../caller.js';
 import { fileFacts } from '@retake/core/io';
 import { admission } from '../admission.js';
 import type { Admission } from '../admission.js';

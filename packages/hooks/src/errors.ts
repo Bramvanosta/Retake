@@ -1,5 +1,5 @@
-import { GUIDE } from '@retake/core';
-import type { ErrorKind } from '@retake/core';
+import { GUIDE } from '@retake/core/base';
+import type { ErrorKind } from '@retake/core/base';
 
 /** A hook could not be prepared or failed while running. */
 export class HookError extends Error {

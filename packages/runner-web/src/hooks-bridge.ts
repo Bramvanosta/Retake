@@ -7,11 +7,11 @@
  * port extends the same CaptureHookRunner, and the hooks package's runHooks and Journal satisfy it where the engine
  * wraps them (engine hook-run/package-hooks.ts).
  */
-import type { CaptureHookRunner, HookResult } from '@retake/core';
+import type { CaptureHookRunner, HookResult } from '@retake/core/hooks';
 import { RunnerError, errorMessage } from './errors.js';
 
 // The names this package exported for them (its root and its types entry): core's types.
-export type { ConfirmHook } from '@retake/core';
+export type { ConfirmHook } from '@retake/core/hooks';
 
 /** Why the run's hooks cannot run: none was handed, or the one handed could not load what runs them. */
 export const NO_HOOK_RUNNER = 'this scenario has hooks (setup, teardown or hook steps) but no hook runner was handed to the runner (RunOptions.hookRunner)';

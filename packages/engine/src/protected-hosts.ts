@@ -14,12 +14,15 @@
  * pattern, are not compared.
  */
 import { lookup } from 'node:dns/promises';
-import { canonicalAddress, canonicalIp, channelWords, environmentAccess, hostMatches, normalizeAllowEntry, resolveEnvironment } from '@retake/core';
+import { environmentAccess, hostMatches, normalizeAllowEntry, resolveEnvironment } from '@retake/core/environment';
+import { canonicalAddress, canonicalIp } from '@retake/core/policy';
 import { listProjects } from '@retake/core/io';
-import type { AgentChannel, LoadedProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { AgentChannel } from './caller.js';
 import { EngineError } from './errors.js';
 import { openProject } from './workspace.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { confinementOf } from './caller.js';
 
 /** A host of a production or read-only environment of a project of the workspace. */
 export interface WorkspaceProtectedHost {
@@ -202,7 +205,7 @@ export async function checkWorkspaceProtection(ws: OpenedWorkspace, project: Loa
   if (found) {
     throw new EngineError(
       'refused',
-      `environment ${env.name} of project ${project.slug} is read-write and its page ${found.page} (${found.url}) points at a host of ${describe(found.hit)}: ${channelWords(via)} nothing runs read-write on another project's production or read-only hosts — mark the environment production / read-only in project.yaml, or a human runs it in a terminal`,
+      `environment ${env.name} of project ${project.slug} is read-write and its page ${found.page} (${found.url}) points at a host of ${describe(found.hit)}: ${confinementOf(via ?? 'mcp').words} nothing runs read-write on another project's production or read-only hosts — mark the environment production / read-only in project.yaml, or a human runs it in a terminal`,
       fix ? { fix } : undefined,
     );
   }

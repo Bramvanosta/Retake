@@ -19,8 +19,8 @@
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core';
-import type { ComponentKind, LoadedTemplate, ValidationIssue } from '@retake/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core/model';
+import type { ComponentKind, LoadedTemplate, ValidationIssue } from '@retake/core/model';
 import { fileFacts } from '@retake/core/io';
 import type { ComponentInfo, ComponentManifest, ComponentRegistry, ComponentSource } from '@retake/components';
 import type { PreviewComponentTarget, PreviewReadmeWriter } from '@retake/editor';

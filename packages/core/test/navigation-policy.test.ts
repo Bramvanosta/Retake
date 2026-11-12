@@ -9,6 +9,7 @@ import { agentTrustProblems, agentTrustProblemsAt, canonicalAddress, canonicalIp
 import { loadProject, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
 import { memoryFileFacts } from '@retake/core';
+import { STUDIO_CONFINEMENT } from './helpers.js';
 
 /** No disk: these checks are handed a project but look at no file (L7.34: a FileFacts is required beside a project). */
 const NO_DISK = memoryFileFacts({});
@@ -109,7 +110,7 @@ describe('navigationProblem: the environment origins (agent work)', () => {
     expect(navigationProblem('about:blank', { origins })).toBeNull();
     expect(navigationProblem('/x', { origins })).toBeNull();
     for (const u of ['http://localhost:4403/x', 'https://localhost:4402/x', 'http://127.0.0.1:4402/x', 'https://elsewhere.example.test/']) {
-      const p = navigationProblem(u, { origins, envName: 'local', via: 'studio' });
+      const p = navigationProblem(u, { origins, envName: 'local', via: STUDIO_CONFINEMENT });
       expect(p, u).toContain("not an origin of environment local's pages (http://localhost:4401, http://localhost:4402)");
       expect(p, u).toContain('from the Studio a scenario opens only its environment');
       expect(p, u).toContain('add its origin as a page of environment local in project.yaml');
@@ -256,9 +257,9 @@ describe('agent trust: the environment origins', () => {
 
   it('agentTrustProblemsAt places each refused URL at its line, worded for the channel', async () => {
     const text = ['video: x', 'scenes:', '  - id: a', '    page: shop', '    open: /', '    steps:', '      - click: Go', '      - open: "http://localhost:4499/admin"', ''].join('\n');
-    const at = agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: 'studio', env });
+    const at = agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: STUDIO_CONFINEMENT, env });
     expect(at.map((p) => [p.line, p.path.join('.')])).toEqual([[8, 'scenes.0.steps.1.open']]);
     expect(at[0].message).toContain('from the Studio a scenario opens only');
-    expect(agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: 'studio' })).toEqual([]);
+    expect(agentTrustProblemsAt(await project(), sc(text), text, { files: nodeFileFacts, via: STUDIO_CONFINEMENT })).toEqual([]);
   });
 });

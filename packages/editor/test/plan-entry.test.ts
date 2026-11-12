@@ -26,8 +26,8 @@ const ts = createRequire(import.meta.url)('typescript') as typeof import('typesc
 
 /** A specifier no module of the planner may import: the renderer's, Remotion's, React's, the file system's, processes'. */
 const FORBIDDEN = /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|os|worker_threads|module|stream|zlib)$|^(react|react-dom|remotion|@remotion\/|playwright|playwright-core|esbuild|sharp)(\/|$)/;
-/** The packages the planner's modules import (each is the planner's own decision). */
-const PACKAGES = ['@retake/components/geometry', '@retake/core', 'node:path'];
+/** The packages the planner's modules import (each is the planner's own decision; core by its entries since L7.35). */
+const PACKAGES = ['@retake/components/geometry', '@retake/core/base', '@retake/core/environment', '@retake/core/language', '@retake/core/model', '@retake/core/render', '@retake/core/theme', 'node:path'];
 
 /** The editor modules reachable from `start` and the specifiers they import, read with the compiler's pre-processor. */
 function walk(start: string): { files: string[]; specs: Map<string, string[]> } {

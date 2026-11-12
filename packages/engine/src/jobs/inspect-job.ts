@@ -17,19 +17,15 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  INSPECT_ID_RE,
-  JOB_INPUT_VERSION,
-  inspectPathProblem,
-  inspectScenario,
-  isPageOrigin,
-  newUlidId,
-  pageOrigins,
-  resolveEnvironment,
-  statePath,
-  projectRef,
-} from '@retake/core';
-import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkPolicy } from '@retake/core';
+import { INSPECT_ID_RE, newUlidId } from '@retake/core/ids';
+import { resolveEnvironment } from '@retake/core/environment';
+import { statePath, projectRef } from '@retake/core/project';
+import { inspectPathProblem, inspectScenario, isPageOrigin, pageOrigins } from '@retake/core/run';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { LoadedProject, LoadedScenario, TargetSpec } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { RunProgress, RunRecord } from '@retake/core/run';
+import type { InspectJobInput } from './job-input.js';
 import type { InspectReport } from '@retake/runner-web/types';
 import { fileFacts } from '@retake/core/io';
 import { stampOf } from '../clock.js';

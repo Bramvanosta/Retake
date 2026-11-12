@@ -1,4 +1,4 @@
-import { errorKindOf } from '@retake/core';
+import { errorKindOf } from '@retake/core/base';
 
 /** Process exit codes of `retake`. */
 export const EXIT = {

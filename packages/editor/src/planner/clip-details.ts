@@ -4,7 +4,7 @@
  * placed at a position of the screen, speeds / trims / zooms / time map, markers. An interstitial gets the last frame
  * of the clip before it as its backdrop.
  */
-import { MEDIA_COMPONENTS } from '@retake/core';
+import { MEDIA_COMPONENTS } from '@retake/core/model';
 import type { CaptionCue } from '@retake/components/geometry';
 import { clampView, isStatic } from '../camera.js';
 import { drawsUrl, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, stepBoxes } from '../panes.js';

@@ -9,7 +9,8 @@
  * jobs/run-job-record.ts), these functions the line of a CLI command, record.ts the line of `retake record`. Each
  * option bag carries the caller's `clock` (the CLI's `cliPorts`): what a line without its own `at` is stamped with.
  */
-import type { LoadedProject, RunRecord } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { RunRecord } from '@retake/core/run';
 import { executeRun } from './execute-run.js';
 import type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
 import type { Clock } from './clock.js';

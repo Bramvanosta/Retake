@@ -4,7 +4,7 @@
  */
 import { readdir, stat, statfs } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { RunPerf, RunPerfCpu } from '@retake/core';
+import type { RunPerf, RunPerfCpu } from '@retake/core/model';
 import { HOLD_MAX_MS } from '../hold.js';
 import type { ScreencastRecorder } from '../recorder.js';
 import type { LogLevel } from '../runtime.js';

@@ -1,7 +1,8 @@
 /** ffprobe of media files (optional: a render record says what its file holds when ffprobe is on PATH). */
-import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
+import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core/render';
 import { ffprobeBin, runMediaTool } from '@retake/core/io';
-import type { FfprobeSummary, WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { FfprobeSummary } from '@retake/core/render';
 
 /** What ffprobe says of a media file (core's summary: size, frame rate, frames, audio streams, codecs, length). */
 export type Probe = FfprobeSummary;

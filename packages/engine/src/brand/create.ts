@@ -17,9 +17,13 @@
  */
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, sep } from 'node:path';
-import { AuthorBrandInputSchema, BrandInputSchema, NEW_THEME_NAME_RE, RETAKE_VERSION, TEMPLATE_FILE, fontRefFile, insideFolder, parseTemplateYaml, parseYaml, printableText, siteRef } from '@retake/core';
+import { RETAKE_VERSION, parseYaml, printableText } from '@retake/core/base';
+import { NEW_THEME_NAME_RE } from '@retake/core/ids';
+import { insideFolder } from '@retake/core/scenario';
+import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, fontRefFile, parseTemplateYaml, siteRef } from '@retake/core/theme';
 import { STARTER_TEMPLATES_DIR, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { BrandFontRef, BrandInput, NewThemeName, TemplateFile } from '@retake/core';
+import type { NewThemeName } from '@retake/core/ids';
+import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core/theme';
 import type { Palette } from '@retake/components';
 import { components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';

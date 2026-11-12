@@ -10,7 +10,8 @@
  * steps maps them in order.
  */
 import { createHash } from 'node:crypto';
-import { canonicalJson, stepFingerprintOf } from './comments.js';
+import { canonicalJson } from './canonical-json.js';
+import { stepFingerprintOf } from './steps.js';
 import { parseYaml } from './validation/yaml-source.js';
 
 /** One step's identity in its scene. */

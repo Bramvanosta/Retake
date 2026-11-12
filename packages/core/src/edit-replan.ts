@@ -16,7 +16,7 @@
  * same target as the take measured reuses that box; none (the default) uses the step's target box, else the cursor at
  * the end of the step (`end_point`, L5.5); a target the take never measured falls back to the step's with a warning.
  */
-import { canonicalJson } from './comments.js';
+import { canonicalJson } from './canonical-json.js';
 import { overlayUseOf } from './media.js';
 import { scenePageEntries } from './pages.js';
 import { sceneId } from './steps.js';

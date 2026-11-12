@@ -8,7 +8,7 @@
  * and without `--yes`, one sentence naming the hooks and the flag, and nothing runs. When the hooks are not going to
  * run (a dry run without them, `--hooks skip`), they are listed and nothing is asked.
  */
-import { showHiddenChars, showHiddenCharsLine } from '@retake/core';
+import { showHiddenChars, showHiddenCharsLine } from '@retake/core/base';
 import type { AgentWrittenShellHooks, RenderedText, ScenarioShellHook } from '@retake/engine';
 import type { Ui } from './ui.js';
 import { plural } from './ui.js';

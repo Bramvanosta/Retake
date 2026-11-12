@@ -4,7 +4,7 @@
  * every hook run (setup, teardown, step, seed, reset, rollback), who made it (the CLI, the Studio, MCP), when, and the
  * outcome. Read only: nothing here writes, rewrites or removes the journal. Not the job history (`history.jsonl`).
  */
-import { printableText } from '@retake/core';
+import { printableText } from '@retake/core/base';
 import { readJournal } from '@retake/engine';
 import type { JournalEntry } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';

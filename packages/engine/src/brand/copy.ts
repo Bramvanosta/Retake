@@ -12,7 +12,9 @@
  */
 import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RETAKE_VERSION, TEMPLATE_FILE, insideFolder, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
+import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
+import { insideFolder, setMapPath, StepEditError } from '@retake/core/scenario';
+import { TEMPLATE_FILE, parseTemplateYaml } from '@retake/core/theme';
 import { loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';

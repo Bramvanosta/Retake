@@ -3,7 +3,7 @@
  * scene starts (rendered frames, and the capture frames behind them), a screen still changing during the scene's
  * opening still (the page was loading), captions that do not show in their area, segments that render nothing.
  */
-import type { Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
 import { viewOf } from '@retake/editor/plan';
 import type { ClipSegment, EditPlan } from '@retake/editor/plan';
 import type { CheckContext } from './checks.js';

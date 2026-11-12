@@ -3,7 +3,7 @@
  * way by the Studio, MCP and `retake jobs`. Fixed words only: where the take films is "in this workspace" or
  * "elsewhere on this Mac", never named.
  */
-import type { JobKind } from '@retake/core';
+import type { JobKind } from './job-input.js';
 import type { JobRecord, JobYield } from './types.js';
 
 const WHERE: Record<JobYield['cause'], string> = { here: 'in this workspace', elsewhere: 'elsewhere on this Mac' };

@@ -1,5 +1,7 @@
 /** Job records and events as stored under <workspace>/.retake/jobs/<id>/ (L3.1). */
-import type { ComponentKind, JobInput, JobKind, JobState, RunProgress, RunRecord, RunStatus } from '@retake/core';
+import type { ComponentKind, RunStatus } from '@retake/core/model';
+import type { RunProgress, RunRecord } from '@retake/core/run';
+import type { JobInput, JobKind, JobState } from './job-input.js';
 import type { EngineErrorCode } from '../errors.js';
 import type { ProcessIdentity } from './proc.js';
 
@@ -444,7 +446,7 @@ export interface JobRecord {
   /** The state was derived when reading (the stored one is older: a worker died, or a cancel came before it started). */
   derived?: true;
   /**
-   * L5.14, derived when reading: a heavy job (core JOB_CLASS) a filming take holds — `waiting`: queued, it starts once
+   * L5.14, derived when reading: a heavy job (job-input.ts JOB_CLASS) a filming take holds — `waiting`: queued, it starts once
    * the take ends; `background`: running, slowed (background priority) during the take, from its worker's yield.json;
    * `past_cap`: running at normal priority although a take still films, because that take has held heavy work for longer
    * than the cap (RETAKE_CAPTURE_HOLD_MAX_MIN). `cause`: the take films in this workspace, or elsewhere on this Mac

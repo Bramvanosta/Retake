@@ -4,9 +4,13 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { GUIDE, missingOrInvalid, previousRender, projectPath, renderRecordsOf } from '@retake/core';
+import { GUIDE, missingOrInvalid } from '@retake/core/base';
+import { projectPath } from '@retake/core/project';
+import { previousRender, renderRecordsOf } from '@retake/core/render';
 import { findNamedRender, loadProject, readRendersFolder, readRunRecord, readTimeline } from '@retake/core/io';
-import type { LoadedProject, StoredRunRecord, Timeline, ErrorKind, UnknownStatusRun } from '@retake/core';
+import type { ErrorKind } from '@retake/core/base';
+import type { LoadedProject, Timeline } from '@retake/core/model';
+import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
 import type { NamedRenderFound } from '@retake/core/io';
 import { withPlan } from '@retake/editor/plan';
 import type { NamedRender, StoredRender } from '@retake/editor/plan';

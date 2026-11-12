@@ -7,8 +7,11 @@
  */
 import { createRequire } from 'node:module';
 import type { Browser } from 'playwright-core';
-import { environmentHttpCredentials, policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
-import type { BrowserConfig, LoadedProject, PageHttpCredentials, WorkPolicy } from '@retake/core';
+import { environmentHttpCredentials } from '@retake/core/environment';
+import { policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core/policy';
+import type { BrowserConfig, LoadedProject } from '@retake/core/model';
+import type { PageHttpCredentials } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
 import { playwrightBrowser, programLookup } from '@retake/core/io';
 import { RunnerError } from './errors.js';
 

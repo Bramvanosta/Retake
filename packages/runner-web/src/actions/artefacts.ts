@@ -6,8 +6,9 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { APIResponse, Download, Page } from 'playwright-core';
-import { mailPersona, mailboxFor, personaEmail, sandboxOf } from '@retake/core';
-import type { DocumentArtefact, NormalizedArgsMap, WaitForEmailArgs } from '@retake/core';
+import { mailPersona, personaEmail } from '@retake/core/environment';
+import { mailboxFor, sandboxOf } from '@retake/core/sandbox';
+import type { DocumentArtefact, NormalizedArgsMap, WaitForEmailArgs } from '@retake/core/model';
 import { MailboxClient, formatAddress, mailMatches } from '../artefacts/mailbox.js';
 import type { MailSummary } from '../artefacts/mailbox.js';
 import { imageSize, sniffMime } from '../artefacts/store.js';

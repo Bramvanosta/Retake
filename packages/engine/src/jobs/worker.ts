@@ -1,6 +1,6 @@
 /**
  * The jobs worker of a workspace (L3.1, L5.14): one process per workspace (the worker lock) with two slots — captures
- * first. The capture slot runs one capture-class job at a time (core JOB_CLASS: takes, what prepares them, sign-ins,
+ * first. The capture slot runs one capture-class job at a time (job-input.ts JOB_CLASS: takes, what prepares them, sign-ins,
  * recordings, inspections) in this process; the heavy slot runs one heavy job at a time (renders, reviews, exports,
  * previews, site extractions) in a job process of its own (job-child.ts). Each slot claims the oldest queued job of its
  * class, captures whatever their age (pick.ts); a heavy job starts only while no filming take of this workspace is

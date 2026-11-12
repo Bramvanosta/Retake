@@ -2,7 +2,7 @@
  * Pure helpers of the composition (no React): transition windows, URL and camera lookups, brand mark placement,
  * music volume. Shared by the Remotion composition and the tests (and later by the Studio preview).
  */
-import type { ComponentKind } from '@retake/core';
+import type { ComponentKind } from '@retake/core/model';
 import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@retake/components/geometry';
 import type { LayoutRects, LoupePlacement } from '@retake/components/geometry';
 import { mapSourceRect } from '../layout.js';

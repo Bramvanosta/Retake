@@ -14,6 +14,7 @@ import { evalStep } from '../src/actions/misc.js';
 import type { StepContext } from '../src/runtime.js';
 import { FAST, makeProject, makeScenario, startServer, tempDir, testHookRunner } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
+import { STUDIO_CONFINEMENT } from '../../core/test/helpers.js';
 
 let dir: string;
 let outside: string;
@@ -62,7 +63,7 @@ describe('runner, trust mcp', () => {
       scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ new_tab: { href: 'http://127.0.0.1:10/admin', as: 'other' } }, { open: 'http://127.0.0.1:9/ok' }] }],
     };
     const base = { project: makeProject(dir, { app: 'http://127.0.0.1:9' }), scenario: makeScenario('elsewhere', sc), mode: 'dry' as const, env: 'test', browser: { executable: '/nonexistent/chromium' } };
-    const rec = await runScenario({ policy: PERSON_POLICY, ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: 'studio' });
+    const rec = await runScenario({ policy: PERSON_POLICY, ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: STUDIO_CONFINEMENT });
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toMatch(/^refused \(work submitted from the Studio\): scenes\[0\]\.steps\[0\]\.new_tab\.href: http:\/\/127\.0\.0\.1:10\/admin is on http:\/\/127\.0\.0\.1:10, not an origin of environment test's pages \(http:\/\/127\.0\.0\.1:9\)/);
     expect(rec.error?.message).toContain('add its origin as a page of environment test in project.yaml');

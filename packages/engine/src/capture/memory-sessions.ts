@@ -18,8 +18,12 @@
  */
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { personaAuthOriginProblem, resolveRunAccess } from '@retake/core';
-import type { ErrorKind, PersonaRequestAuth, RecordedEvent, ResolvedPersona } from '@retake/core';
+import { resolveRunAccess } from '@retake/core/environment';
+import { personaAuthOriginProblem } from '@retake/core/scenario';
+import type { ErrorKind } from '@retake/core/base';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { PersonaRequestAuth } from '@retake/core/hooks';
+import type { RecordedEvent } from '@retake/core/run';
 import type {
   HookPageOptions,
   PersonaCheckResult,

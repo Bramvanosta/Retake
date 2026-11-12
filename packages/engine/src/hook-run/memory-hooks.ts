@@ -27,8 +27,11 @@
  */
 import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
-import { AGENT_SQL_REASON, canonicalJson, journalsRollback, listTemplateTokens, projectPath, runPath, statePath } from '@retake/core';
-import type { HookContext, HookKind, HookPhase, HookResult, HookStep, JournalEntry, RollbackAction } from '@retake/core';
+import { canonicalJson, listTemplateTokens } from '@retake/core/base';
+import { AGENT_SQL_REASON, journalsRollback } from '@retake/core/hooks';
+import { projectPath, runPath, statePath } from '@retake/core/project';
+import type { HookKind, HookStep } from '@retake/core/model';
+import type { HookContext, HookPhase, HookResult, JournalEntry, RollbackAction } from '@retake/core/hooks';
 import { describeHook, describeRollback, hookKindOf } from '@retake/hooks/describe';
 import { EngineError } from '../errors.js';
 import type { HookJournal, HookJournalRollback, HookPlace, HookRunOptions, HookRunner, PendingHookJournal } from './runner.js';

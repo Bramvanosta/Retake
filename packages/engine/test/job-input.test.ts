@@ -1,10 +1,24 @@
 /**
- * L3.2 render job inputs (core jobs.ts): the render id is built from SLUG_RE (a scenario name may hold upper-case
- * letters and "_"), a theme is a name, the overrides are strict and bounded, a music file is a relative project file,
- * and `project` is required (as for every kind).
+ * L3.2 render job inputs (engine jobs/job-input.ts; core's jobs.ts until L7.35): the render id is built from SLUG_RE
+ * (a scenario name may hold upper-case letters and "_"), a theme is a name, the overrides are strict and bounded, a
+ * music file is a relative project file, and `project` is required (as for every kind).
  */
 import { describe, expect, it } from 'vitest';
-import { EXPORT_FORMAT_NAMES, EditOverridesInputSchema, ExportJobInputSchema, INSPECT_ID_RE, InspectJobInputSchema, JOB_INPUT_VERSION, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, JOB_KINDS, JobInputSchema, PREVIEW_ID_RE, PreviewJobInputSchema, RECORD_ID_RE, RENDER_ID_RE, RecordJobInputSchema, RenderJobInputSchema, ReviewJobInputSchema, SLUG_RE } from '../src/index.js';
+import { EXPORT_FORMAT_NAMES, INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, RENDER_ID_RE, SLUG_RE } from '@retake/core';
+import {
+  EditOverridesInputSchema,
+  ExportJobInputSchema,
+  InspectJobInputSchema,
+  JOB_INPUT_VERSION,
+  LIBRARY_JOB_MAX,
+  LIBRARY_PREVIEW_KEY_RE,
+  JOB_KINDS,
+  JobInputSchema,
+  PreviewJobInputSchema,
+  RecordJobInputSchema,
+  RenderJobInputSchema,
+  ReviewJobInputSchema,
+} from '@retake/engine';
 
 const SHA = 'a'.repeat(64);
 const input = (extra: Record<string, unknown> = {}) => ({

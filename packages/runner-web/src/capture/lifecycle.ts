@@ -8,9 +8,21 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { FORMAT_VERSIONS, agentTrustProblems, channelWords, displayPages, displayTable, finishRun, hookStepNames, isCaptureScene, listSteps, mailboxFor, parseRunId, projectPath, resolveClock, resolveEnvironment, resolveRunAccess, resolveStepRef, sceneId, startedRun, stepHookList, templateVideo, timelineVideo, writingHooks } from '@retake/core';
+import { FORMAT_VERSIONS } from '@retake/core/base';
+import { AGENT_CONFINEMENT, confinementWords, isCaptureScene } from '@retake/core/model';
+import { parseRunId } from '@retake/core/ids';
+import { listSteps, resolveStepRef, sceneId, templateVideo, timelineVideo } from '@retake/core/language';
+import { displayPages, displayTable, resolveClock, resolveEnvironment, resolveRunAccess } from '@retake/core/environment';
+import { hookStepNames, stepHookList, writingHooks } from '@retake/core/hooks';
+import { projectPath } from '@retake/core/project';
+import { mailboxFor } from '@retake/core/sandbox';
+import { agentTrustProblems } from '@retake/core/scenario';
+import { finishRun, startedRun } from '@retake/core/run';
 import { nodeFileFacts, reserveRunId, writeJson } from '@retake/core/io';
-import type { MailboxConfig, ResolvedClock, ResolvedEnvironment, RunAccess, RunEnd, RunError, RunProgress, RunRecord, RunningRun, RunSandbox, Scenario, TemplateContext, TimelineEnvironment } from '@retake/core';
+import type { TemplateContext } from '@retake/core/base';
+import type { MailboxConfig, ResolvedClock, ResolvedEnvironment, RunError, RunSandbox, Scenario, TimelineEnvironment } from '@retake/core/model';
+import type { RunAccess } from '@retake/core/environment';
+import type { RunEnd, RunProgress, RunRecord, RunningRun } from '@retake/core/run';
 import { mergeCapture, mergePacing, projectBrowser } from '../config.js';
 import { runEngine } from '../engine.js';
 import { CancelledError, RunnerError, errorMessage, isCancelled } from '../errors.js';
@@ -298,8 +310,8 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
     // stay in the project (code never from a file an agent can write) and the URLs it opens are on the environment's
     // origins — refused before anything runs.
     if (opts.hookTrust === 'mcp') {
-      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp', env, files: nodeFileFacts });
-      if (problems.length) throw new RunnerError(`refused (work submitted ${channelWords(opts.hookVia)}): ${problems.join('; ')}`);
+      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? AGENT_CONFINEMENT, env, files: nodeFileFacts });
+      if (problems.length) throw new RunnerError(`refused (work submitted ${confinementWords(opts.hookVia)}): ${problems.join('; ')}`);
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
     if (access.mode === 'read-only' && hooksMode === 'run') {

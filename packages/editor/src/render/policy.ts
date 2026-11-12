@@ -25,8 +25,12 @@
 import { availableParallelism, cpus as osCpus } from 'node:os';
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join } from 'node:path';
-import { RENDER_CONCURRENCY_MAX, RENDER_ENV, RenderSettingsError, agentProgram, gpuInfoOf, programProblem, renderSettingsFromEnv, sandboxSwitchOff } from '@retake/core';
-import type { GpuInfo, ProgramPolicyOptions, RenderEncoderSetting, RenderFfmpegSetting, RenderGlSetting, RenderSettings, SystemInfoReply, WorkPolicy } from '@retake/core';
+import { RENDER_CONCURRENCY_MAX, RENDER_ENV, RenderSettingsError, renderSettingsFromEnv } from '@retake/core/model';
+import { agentProgram, programProblem, sandboxSwitchOff } from '@retake/core/policy';
+import { gpuInfoOf } from '@retake/core/render';
+import type { RenderEncoderSetting, RenderFfmpegSetting, RenderGlSetting, RenderSettings } from '@retake/core/model';
+import type { ProgramPolicyOptions, WorkPolicy } from '@retake/core/policy';
+import type { GpuInfo, SystemInfoReply } from '@retake/core/render';
 import { bundleInfoOrNull, ffmpegBin, programLookup, retakeHome } from '@retake/core/io';
 import { ENCODE_TOOLS_DIR, EncodeToolsError, encodeFolder, fileId, ownEncodeFailedEarlier, ownFfmpeg, probeFrameEncode } from './encode-tools.js';
 import type { OwnFfmpeg } from './encode-tools.js';

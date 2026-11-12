@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rename, symlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION } from '@retake/core';
+import { JOB_INPUT_VERSION } from '@retake/engine';
 import type { RenderRecord } from '@retake/editor';
 import { FileJobQueue, JobFiles, cleanupInterruptedRender, cleanupInterruptedReview, createEngine, historyFile, openWorkspace, runWorker } from '../src/index.js';
 import type { Engine, ExportJobResult, JobRecord, ReviewJobResult } from '../src/index.js';

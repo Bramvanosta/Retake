@@ -26,7 +26,11 @@
  */
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { extname, join, relative, resolve, sep } from 'node:path';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, agentWritable, brandRefSyntaxProblem, expandHome, insideFolder, printableText, realPathOf, siteRef, STATE_DIR, STATE_DIRS } from '@retake/core';
+import { expandHome, printableText } from '@retake/core/base';
+import { agentWritable, realPathOf } from '@retake/core/policy';
+import { STATE_DIR, STATE_DIRS } from '@retake/core/project';
+import { insideFolder } from '@retake/core/scenario';
+import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, brandRefSyntaxProblem, siteRef } from '@retake/core/theme';
 import { nodeFileFacts } from '@retake/core/io';
 import type { CallerTrust } from '../caller.js';
 import { EngineError } from '../errors.js';

@@ -9,7 +9,8 @@
  *
  * Which earlier render a review compares with is not the reviewer's: a records rule, run by the engine over core.
  */
-import type { CommentRegion, WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { CommentRegion } from '@retake/core/comments';
 import type { ReviewOptions, ReviewResult } from '@retake/review/checks';
 
 /** A video to take frames from: a path (file protocol only), or one open descriptor per time (fd protocol only). */

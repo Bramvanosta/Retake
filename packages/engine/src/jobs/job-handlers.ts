@@ -5,7 +5,7 @@
  * kind, does not compile (no default branch). Everything around the handler — the claim, the cancel / stop / pause
  * poll, the progress writes, the final write, the history line — stays runJob's.
  */
-import type { JobInput, JobKind } from '@retake/core';
+import type { JobInput, JobKind } from './job-input.js';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
 import type { Clock } from '../clock.js';
 import type { CaptureRunner } from '../capture/runner.js';
@@ -202,7 +202,7 @@ const siteHandler: JobHandler<'site'> = async (job, run) => {
   return succeeded(await executeSiteJob({ ...run.base, jobId: run.id, input: job, progress: run.progress }), true);
 };
 
-/** The handler of each job kind (core JOB_KINDS): exhaustive by its type. */
+/** The handler of each job kind (job-input.ts JOB_KINDS): exhaustive by its type. */
 export const JOB_HANDLERS: { readonly [K in JobKind]: JobHandler<K> } = {
   run: runHandler,
   hooks: hooksHandler,

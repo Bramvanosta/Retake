@@ -31,8 +31,9 @@
  * loads on a remote one.
  */
 import type { BrowserContext, Dialog, Page, Route } from 'playwright-core';
-import { classifyRequest, describeWriteRequest, guardedHostPatterns, isGuardedHost, isWriteMethod, networkHost } from '@retake/core';
-import type { TimelineWrite, WritePolicy } from '@retake/core';
+import { classifyRequest, describeWriteRequest, guardedHostPatterns, isGuardedHost, isWriteMethod, networkHost } from '@retake/core/environment';
+import type { TimelineWrite } from '@retake/core/model';
+import type { WritePolicy } from '@retake/core/environment';
 import { sleep, wallNow } from './util.js';
 
 export type WriteVia = NonNullable<TimelineWrite['via']>;

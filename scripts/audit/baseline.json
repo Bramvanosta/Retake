@@ -64,6 +64,14 @@
    ]
   },
   {
+   "rule": "core-context",
+   "reason": "Two imports of a later context, measured when the contexts were drawn (L7.35): the scenario's checks read the default theme's component names (template-defaults, theme) to check a scenario's components, and a script's draft checks its page paths with the inspection's grammar (inspectPathProblem, run). Each goes when that value moves below the scenario context (a follow-up of U10).",
+   "entries": [
+    "packages/core/src/checks/scenario.ts → packages/core/src/template-defaults.ts",
+    "packages/core/src/script-draft.ts → packages/core/src/inspect.ts"
+   ]
+  },
+  {
    "rule": "clock-read",
    "reason": "Elapsed time and deadlines (a scheduler, not a stamp): the worker's idle and build-check timers, waits, grace periods (a cancel's before the kill, an orphan's before recovery), a history line's `ms` (a recording's too), the journal's warn rate limit, the in-memory renderer's render time. Never written as a time; `performance.now()` would do (BACKLOG).",
    "entries": [
@@ -161,9 +169,9 @@
    "rule": "id-grammar",
    "reason": "Other names with a grammar of the same shape, each written at its definition and out of the id module: a scenario name (SLUG_RE), a project slug (PROJECT_SLUG_RE), an environment name, a run-folder segment, a review file id.",
    "entries": [
-    "packages/core/src/jobs.ts → 1 hand-written id pattern",
     "packages/core/src/project.ts → 1 hand-written id pattern",
     "packages/core/src/schemas/primitives.ts → 1 hand-written id pattern",
+    "packages/engine/src/jobs/job-input.ts → 1 hand-written id pattern",
     "packages/engine/src/reviews.ts → 1 hand-written id pattern",
     "packages/engine/src/run-files.ts → 1 hand-written id pattern"
    ]

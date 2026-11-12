@@ -19,8 +19,11 @@
  */
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, PreviewJobInputSchema, newUlidId, statePath } from '@retake/core';
-import type { ComponentKind, LoadedTemplate, PreviewJobInput } from '@retake/core';
+import { newUlidId } from '@retake/core/ids';
+import { statePath } from '@retake/core/project';
+import { JOB_INPUT_VERSION, PreviewJobInputSchema } from './job-input.js';
+import type { ComponentKind, LoadedTemplate } from '@retake/core/model';
+import type { PreviewJobInput } from './job-input.js';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, LoopItem, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
 import { fileFacts } from '@retake/core/io';

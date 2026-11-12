@@ -1,4 +1,4 @@
-import type { BBox, NormalizedStep, Pacing, PointSpec, ScrollArgs } from '@retake/core';
+import type { BBox, NormalizedStep, Pacing, PointSpec, ScrollArgs } from '@retake/core/model';
 import { distance } from './motion.js';
 import type { Acted, StepContext } from './runtime.js';
 import { KEEP_NEAR_PX, cursorCovers } from './scene-cursor.js';

@@ -1,5 +1,5 @@
 /** Which page of a capture shows at a time, and its URL: the scenes' joins and the browser bars use them. */
-import type { Timeline, TimelineTrack } from '@retake/core';
+import type { Timeline, TimelineTrack } from '@retake/core/model';
 import type { ClipSegment } from '../plan-types.js';
 
 /** The URL a page's track shows at capture time `t` (its last URL segment starting at or before `t`). */

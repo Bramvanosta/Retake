@@ -5,7 +5,8 @@
  * wait_s and answers with what the job's follow-up read says (run_status, render_status, review_get, job_status).
  */
 import { z } from 'zod';
-import { EXPORT_FORMAT_NAMES, SLUG_RE } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import type { ExportJobResult, JobRecord } from '../jobs/types.js';
 import { RENDER_JOB, RUN_JOB } from './annotations.js';
 import { detail } from './compact.js';

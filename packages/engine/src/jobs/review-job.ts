@@ -9,8 +9,10 @@
  * stops the review between its stages and kills ffmpeg; the previous review of the render stays as it was. No image
  * data goes into job.json: review_get makes thumbnails when it is read.
  */
-import { JOB_INPUT_VERSION, isRenderId, projectPath } from '@retake/core';
-import type { ReviewJobInput } from '@retake/core';
+import { isRenderId } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { ReviewJobInput } from './job-input.js';
 import type { ReviewProgress } from '@retake/review/checks';
 import { stampOf } from '../clock.js';
 import { EngineError } from '../errors.js';

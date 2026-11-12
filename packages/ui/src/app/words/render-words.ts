@@ -4,7 +4,7 @@
  * Every value here is a trusted word (ids, phases, numbers); untrusted text (a failure's message, a finding's message)
  * stays with the caller, shown through Txt.
  */
-import type { RenderNot } from '@retake/core';
+import type { RenderNot } from '@retake/core/render';
 import type { HeldWork, JobYield, RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
 import type { StudioEvent } from '../events.js';
 import { APP_NAME } from '../brand.js';

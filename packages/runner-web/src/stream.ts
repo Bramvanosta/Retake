@@ -11,7 +11,8 @@ import type { ChildProcess } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffmpegEncoders, startMediaTool, stderrLines } from '@retake/core/io';
 import type { MediaProcess } from '@retake/core/io';
-import type { CaptureEncoder, WorkPolicy } from '@retake/core';
+import type { CaptureEncoder } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import { EncodeError } from './errors.js';
 
 /** How far behind the capture clock the encoder's ticks stay (s): later frames are counted `late`. */

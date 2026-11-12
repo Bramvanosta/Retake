@@ -3,8 +3,9 @@
  * (trust author: whoever types the command). Only this command creates and reopens threads; Claude replies to and
  * resolves them through MCP. Texts shown on the terminal are printable only (they are written by people and agents).
  */
-import { commentAuthorName, printableText, regionProblem } from '@retake/core';
-import type { CommentAuthor, CommentRegion } from '@retake/core';
+import { printableText } from '@retake/core/base';
+import { commentAuthorName, regionProblem } from '@retake/core/comments';
+import type { CommentAuthor, CommentRegion } from '@retake/core/comments';
 import { EngineError, addComment, defaultAuthorName, listComments, personScope, reopenComment, replyComment, resolveComment } from '@retake/engine';
 import type { CommentListView, CommentView, CommentWritten } from '@retake/engine';
 import { fileFacts } from '@retake/core/io';

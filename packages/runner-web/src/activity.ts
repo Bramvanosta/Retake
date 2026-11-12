@@ -13,7 +13,7 @@
  *   once) — the edit shortens them.
  * Pure but for `ActivityRecorder`, which only stores 18 bytes a frame.
  */
-import type { CursorEffect, CursorSample, TimelineBusy, TimelineEvent, TimelineLoading } from '@retake/core';
+import type { CursorEffect, CursorSample, TimelineBusy, TimelineEvent, TimelineLoading } from '@retake/core/model';
 import { THUMB_H, THUMB_W } from './stream.js';
 import { round3 } from './util.js';
 

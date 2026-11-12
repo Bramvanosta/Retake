@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ComponentKind } from '@retake/core';
+import type { ComponentKind } from '@retake/core/model';
 
 /** packages/components (this module lives in src/ or dist/, one level below). */
 export const PACKAGE_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');

@@ -12,7 +12,7 @@
 import type { Readable } from 'node:stream';
 import sharp from 'sharp';
 import { ffmpegBin, startMediaTool } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
 
 /** Long side of a thumbnail, at most (240 CSS px on a 2× screen). */
 export const THUMB_MAX_PX = 480;

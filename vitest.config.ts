@@ -42,6 +42,22 @@ export default defineConfig({
     alias: {
       // Before '@retake/core', as for the kit: the side of core that touches the machine.
       '@retake/core/io': fileURLToPath(new URL('./packages/core/src/io/index.ts', import.meta.url)),
+      // Before '@retake/core', as for io: core's entries, one per context (L7.35).
+      '@retake/core/base': fileURLToPath(new URL('./packages/core/src/entries/base.ts', import.meta.url)),
+      '@retake/core/model': fileURLToPath(new URL('./packages/core/src/entries/model.ts', import.meta.url)),
+      '@retake/core/ids': fileURLToPath(new URL('./packages/core/src/entries/ids.ts', import.meta.url)),
+      '@retake/core/language': fileURLToPath(new URL('./packages/core/src/entries/language.ts', import.meta.url)),
+      '@retake/core/environment': fileURLToPath(new URL('./packages/core/src/entries/environment.ts', import.meta.url)),
+      '@retake/core/policy': fileURLToPath(new URL('./packages/core/src/entries/policy.ts', import.meta.url)),
+      '@retake/core/hooks': fileURLToPath(new URL('./packages/core/src/entries/hooks.ts', import.meta.url)),
+      '@retake/core/project': fileURLToPath(new URL('./packages/core/src/entries/project.ts', import.meta.url)),
+      '@retake/core/sandbox': fileURLToPath(new URL('./packages/core/src/entries/sandbox.ts', import.meta.url)),
+      '@retake/core/scenario': fileURLToPath(new URL('./packages/core/src/entries/scenario.ts', import.meta.url)),
+      '@retake/core/comments': fileURLToPath(new URL('./packages/core/src/entries/comments.ts', import.meta.url)),
+      '@retake/core/run': fileURLToPath(new URL('./packages/core/src/entries/run.ts', import.meta.url)),
+      '@retake/core/render': fileURLToPath(new URL('./packages/core/src/entries/render.ts', import.meta.url)),
+      '@retake/core/theme': fileURLToPath(new URL('./packages/core/src/entries/theme.ts', import.meta.url)),
+      '@retake/core/schema': fileURLToPath(new URL('./packages/core/src/entries/schema.ts', import.meta.url)),
       '@retake/core': pkg('core'),
       // Before '@retake/hooks', as for the kit: the hooks described without running them (a domain entry).
       '@retake/hooks/describe': fileURLToPath(new URL('./packages/hooks/src/describe-entry.ts', import.meta.url)),

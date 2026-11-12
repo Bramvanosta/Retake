@@ -15,7 +15,9 @@
  * comments façade's own words, which it keeps checking for the callers that reach it directly (the CLI).
  */
 import { z } from 'zod';
-import { COMMENT_ID_RE, COMMENT_TEXT_MAX, PROPOSAL_REWRITE_NOTE_PCT, SCENARIO_EDIT_MAX_CHARS } from '@retake/core';
+import { COMMENT_ID_RE } from '@retake/core/ids';
+import { SCENARIO_EDIT_MAX_CHARS } from '@retake/core/scenario';
+import { COMMENT_TEXT_MAX, PROPOSAL_REWRITE_NOTE_PCT } from '@retake/core/comments';
 import type { CommentEntryView, CommentProposalView, CommentView } from '../comments.js';
 import type { Engine } from '../engine.js';
 import { EngineError } from '../errors.js';

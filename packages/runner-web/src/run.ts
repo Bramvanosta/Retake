@@ -3,7 +3,7 @@
  * capture, teardown hooks (always), encoding, timeline.json and run.json. The lifecycle any capture has is
  * capture/lifecycle.ts; what drives Chromium and films it is capture/browser-driver.ts (the seam: capture/driver.ts).
  */
-import type { RunRecord } from '@retake/core';
+import type { RunRecord } from '@retake/core/run';
 import { browserDriver } from './capture/browser-driver.js';
 import { runCapture } from './capture/lifecycle.js';
 import type { RunOptions } from './capture/options.js';

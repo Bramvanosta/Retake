@@ -2,7 +2,7 @@
  * The open jobs a jobs worker (worker.ts) sees, and the claim of one: re-read, refused at once when its record lies
  * about its kind or its approvals were taken before, given back unrun (its claim and the approvals its claim took).
  */
-import { isFilming } from '@retake/core';
+import { isFilming } from './job-input.js';
 import { stampOf } from '../clock.js';
 import { buildStamp } from './build.js';
 import type { PickRecord } from './pick.js';

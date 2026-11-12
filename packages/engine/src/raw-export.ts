@@ -8,7 +8,8 @@
  */
 import { isAbsolute, join } from 'node:path';
 import { loadProjectTemplate, fileFacts } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, Timeline, WorkFileFacts, WorkPolicy } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Timeline, WorkFileFacts } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { ExportCaptureOptions, RawExportProgress, RawExportResult } from '@retake/runner-web/types';
 import type { CaptureRunner } from './capture/runner.js';
 import { editor } from './lazy.js';

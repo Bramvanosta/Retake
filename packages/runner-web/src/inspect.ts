@@ -12,8 +12,9 @@
  */
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { flowYaml, isPageOrigin, isPoint, normalizeTarget, roundTrips, targetValue } from '@retake/core';
-import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core';
+import { isPoint, normalizeTarget } from '@retake/core/language';
+import { flowYaml, isPageOrigin, roundTrips, targetValue } from '@retake/core/run';
+import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core/model';
 import type { Route } from 'playwright-core';
 import { errorMessage, isCancelled } from './errors.js';
 import { DocumentChangedError } from './session.js';
@@ -35,7 +36,7 @@ export const INSPECT_BUDGET_MS = 2500;
 export const INSPECT_DEADLINES = { guard_ms: 5_000, call_ms: 15_000 } as const;
 export type InspectDeadlines = { guard_ms: number; call_ms: number };
 /** The replay's pacing (core inspect-pacing.ts, L7.12): re-exported under the same name. */
-export { INSPECT_PACING } from '@retake/core';
+export { INSPECT_PACING } from '@retake/core/run';
 
 /** What `runScenario` inspects (`RunOptions.inspect`): the run is a dry run, its hooks skipped. */
 export interface InspectRequest {

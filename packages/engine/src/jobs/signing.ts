@@ -17,9 +17,10 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { ULID_PREFIXES, canonicalJson, isJobId, ulidTime } from '@retake/core';
+import { canonicalJson } from '@retake/core/base';
+import { ULID_PREFIXES, isJobId, ulidTime } from '@retake/core/ids';
 import { HOME_KEY_FILE, homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core/io';
-import type { JobApproval, JobInput } from '@retake/core';
+import type { JobApproval, JobInput } from './job-input.js';
 
 export const APPROVAL_KEY_FILE = HOME_KEY_FILE;
 /** `<RETAKE_HOME>/approvals-used/<job id>`: the jobs whose approvals a worker took (claimed). */

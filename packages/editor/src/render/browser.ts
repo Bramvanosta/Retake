@@ -6,8 +6,8 @@
  */
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { policyProgram } from '@retake/core';
-import type { WorkPolicy } from '@retake/core';
+import { policyProgram } from '@retake/core/policy';
+import type { WorkPolicy } from '@retake/core/policy';
 import { bundleInfo, insideBundle, playwrightBrowser, programLookup } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import { RenderError } from './types.js';

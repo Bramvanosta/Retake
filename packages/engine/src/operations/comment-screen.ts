@@ -33,7 +33,12 @@
  * characters per string by the server: every stored text is at most that by construction).
  */
 import { z } from 'zod';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, isThemeName, parseYaml, zRenderId } from '@retake/core';
+import { parseYaml } from '@retake/core/base';
+import { SLUG_RE } from '@retake/core/model';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, isThemeName, zRenderId } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { isTemplatePath } from '@retake/core/scenario';
+import { COMMENT_TEXT_MAX, isIsoUtcDate } from '@retake/core/comments';
 import { loadProjectTemplate, fileFacts } from '@retake/core/io';
 import type { CommentEntryView, CommentProposalView, CommentView } from '../comments.js';
 import type { Engine } from '../engine.js';

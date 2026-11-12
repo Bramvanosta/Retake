@@ -22,7 +22,7 @@
  * slot); page text stays in boxes titled "From the page".
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { EntryBlock, SceneBlock, StepForms } from '@retake/core';
+import type { EntryBlock, SceneBlock, StepForms } from '@retake/core/scenario';
 import { runThumbs, scenarioForms, useScenarioBlocks } from '../data/scenarios.js';
 import { Txt, plural } from '../bits.js';
 import { envFlagWords } from '../words/board-words.js';

@@ -3,8 +3,8 @@
  * render override, the slot context) and the tutorial overlays' switches (L2.10: scenario → scene → step, the render
  * override over the scenario's).
  */
-import { TUTORIAL_COMPONENTS } from '@retake/core';
-import type { ComponentKind } from '@retake/core';
+import { TUTORIAL_COMPONENTS } from '@retake/core/model';
+import type { ComponentKind } from '@retake/core/model';
 import type { SlotContext } from '@retake/components/geometry';
 import type { PlanTutorial } from '../plan-types.js';
 import { ComponentResolver } from '../resolve.js';

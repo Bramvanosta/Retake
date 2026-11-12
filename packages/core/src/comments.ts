@@ -14,14 +14,13 @@ import { createHash } from 'node:crypto';
 import { parse as parseYamlText } from 'yaml';
 import { z } from 'zod';
 import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './printable.js';
-import { canonicalJson } from './canonical-json.js';
 import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, renderIdOf } from './id-grammar.js';
 import { newUlidId, zRenderId, zRunId } from './ids.js';
 import { hunkOrderProblem, hunkStats } from './line-diff.js';
 import type { LineHunk } from './line-diff.js';
 import { firstHiddenChar, hiddenCharName } from './scenario-edit.js';
 import { COMPONENT_ID_RE, SLUG_RE } from './schemas/primitives.js';
-import { normalizeStep } from './steps.js';
+import { stepFingerprint } from './steps.js';
 import { parseYaml } from './validation/yaml-source.js';
 import { ACTION_NAMES } from './types.js';
 import type { FrameCommentAnchor } from './types.js';
@@ -97,30 +96,6 @@ export function regionProblem(r: CommentRegion): string | null {
   if (r.w <= 0 || r.h <= 0) return 'a region has a width and a height above 0';
   if (r.x + r.w > 1 + EPS || r.y + r.h > 1 + EPS) return 'a region lies inside the frame (x + w ≤ 1, y + h ≤ 1)';
   return null;
-}
-
-// ── Step fingerprints ───────────────────────────────────────────────────────
-
-export { canonicalJson } from './canonical-json.js';
-
-/**
- * The fingerprint of a raw scenario step: the first 12 hex characters of the sha256 of its action and normalised
- * arguments (a shorthand and its object form agree), modifiers left out (caption, hold next to an action, speed, camera,
- * mark, overlay, id…) — a `hold:` that is the action stays. Undefined for a step without exactly one action.
- */
-export function stepFingerprint(step: unknown): string | undefined {
-  return stepFingerprintOf(step)?.fp;
-}
-
-/** stepFingerprint and the step's action (undefined: the step has no single action). */
-export function stepFingerprintOf(step: unknown): { fp: string; action: string } | undefined {
-  let n: ReturnType<typeof normalizeStep>;
-  try {
-    n = normalizeStep(step as Parameters<typeof normalizeStep>[0], 0);
-  } catch {
-    return undefined;
-  }
-  return { fp: createHash('sha256').update(canonicalJson({ action: n.action, args: n.args })).digest('hex').slice(0, 12), action: n.action };
 }
 
 /**

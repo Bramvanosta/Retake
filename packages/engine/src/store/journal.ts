@@ -17,7 +17,8 @@
  */
 import { existsSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, sep } from 'node:path';
-import { STATE_DIR, WORKSPACE_JOURNAL_FILE, relativeInside } from '@retake/core';
+import { relativeInside } from '@retake/core/base';
+import { STATE_DIR, WORKSPACE_JOURNAL_FILE } from '@retake/core/project';
 import type { Caller } from '../caller.js';
 import { stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';

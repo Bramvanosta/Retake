@@ -1,8 +1,8 @@
-import { SandboxError } from '@retake/core';
+import { SandboxError } from '@retake/core/sandbox';
 
 // L7.25: the class is core's (core/src/sandbox-error.ts: one class, `instanceof` holds), re-exported here.
-export { SandboxError } from '@retake/core';
-export type { SandboxErrorCode } from '@retake/core';
+export { SandboxError } from '@retake/core/sandbox';
+export type { SandboxErrorCode } from '@retake/core/sandbox';
 
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

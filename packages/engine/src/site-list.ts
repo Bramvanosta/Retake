@@ -10,7 +10,9 @@
  */
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { SITE_ID_RE, ULID_PREFIXES, parseSiteUrl, ulidTime, unsafeTestResolve, statePath } from '@retake/core';
+import { SITE_ID_RE, ULID_PREFIXES, ulidTime } from '@retake/core/ids';
+import { statePath } from '@retake/core/project';
+import { parseSiteUrl, unsafeTestResolve } from '@retake/core/theme';
 import { readPlainFile } from '@retake/core/io';
 import type { PaletteCheck } from '@retake/components';
 import { components } from './components.js';

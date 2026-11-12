@@ -1,6 +1,6 @@
 /** The music bed of an edit: which file, its levels, and how a track of a known length plays over the video. */
 import { isAbsolute, join } from 'node:path';
-import type { LoadedProject, TimelineVideo } from '@retake/core';
+import type { LoadedProject, TimelineVideo } from '@retake/core/model';
 import type { EditOverrides, PlanMusic, PlanSegment } from '../plan-types.js';
 import { playsSound } from '../remotion/frames.js';
 import { round, secs } from '../util.js';

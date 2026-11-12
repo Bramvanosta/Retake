@@ -1,5 +1,5 @@
 /** A step of `planEdit`: the chapter progress bar and the summary of what the tutorial overlays did. */
-import { applyTutorial, tutorialOff } from '@retake/core';
+import { applyTutorial, tutorialOff } from '@retake/core/language';
 import type { PlanSegment } from '../plan-types.js';
 import { planProgress } from '../tutorial.js';
 import { secs } from '../util.js';

@@ -84,8 +84,10 @@ export {
   agentChecks,
   agentWorkspace,
   anchorsOnShownRender,
+  CONFINEMENTS,
   callerOf,
   chainsRecordings,
+  confinementOf,
   cleansWorkerEnv,
   drivesRecordScreen,
   editsThemes,
@@ -97,7 +99,9 @@ export {
   submittedInStudio,
   submitterChannel,
 } from './caller.js';
-export type { Caller, CallerChannel, CallerTrust } from './caller.js';
+export type { AgentChannel, Caller, CallerChannel, CallerTrust } from './caller.js';
+// The job input contract (L3.1; core's until L7.35, audit 2026-11-10 D7): kinds, states, classes, clients, the inputs.
+export * from './jobs/job-input.js';
 export { EXPORTS_OPEN_MAX, SUBMIT_RULES, admission, confirmWhy, opChain, sessionsToConfirm } from './admission.js';
 export type { Admission, AdmissionDeps, OpChain, PreparedTake, RunAdmit, SessionToConfirm, SessionsView } from './admission.js';
 export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, CompactRunStatus, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, ScenarioSessions, WaitOptions } from './engine.js';

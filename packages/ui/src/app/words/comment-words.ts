@@ -10,7 +10,7 @@
  * through Txt. A channel (`via`) says how an entry was written, never who typed it: `studio` is the Studio page, which
  * any program holding its session token could drive.
  */
-import type { FrameCommentAnchor } from '@retake/core';
+import type { FrameCommentAnchor } from '@retake/core/model';
 import type { KeyTarget } from './timeline-words.js';
 import { renderVersionWords } from '../id-words.js';
 

@@ -1,6 +1,6 @@
 /** Popups and where the cursor goes: the open popups, blank points outside them, rest points next to a target. */
 import type { OutsidePlan, PopupEntry } from '../types.js';
-import type { BBox, PointSpec } from '@retake/core';
+import type { BBox, PointSpec } from '@retake/core/model';
 import { config } from './config.js';
 import { host } from './host.js';
 import { pointFor } from './points.js';

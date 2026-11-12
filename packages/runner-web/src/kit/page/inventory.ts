@@ -1,6 +1,6 @@
 /** Page inspection: the visible interactive elements, each with a suggested target verified with `find`. */
 import type { FragileFlag, InventoryContext, InventoryElement, InventoryOptions, InventoryPopup, InventoryScroller, KitActionHint, KitInventory, KitSuggestion, ResolveResult } from '../types.js';
-import type { ScopeSpec, TargetObject } from '@retake/core';
+import type { ScopeSpec, TargetObject } from '@retake/core/model';
 import { RT } from './clock.js';
 import { host } from './host.js';
 import { withMemo } from './memo.js';

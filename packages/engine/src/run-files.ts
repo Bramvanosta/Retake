@@ -18,8 +18,10 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, re
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pathInside, parseRunId, projectPath } from '@retake/core';
-import type { RunId } from '@retake/core';
+import { pathInside } from '@retake/core/base';
+import { parseRunId } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import type { RunId } from '@retake/core/ids';
 import { readPlainFile } from '@retake/core/io';
 import type { PlainFileProblem, PlainFileRead } from '@retake/core/io';
 

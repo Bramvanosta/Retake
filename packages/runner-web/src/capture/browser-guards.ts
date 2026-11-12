@@ -4,8 +4,11 @@
  * step failed.
  */
 import type { Page } from 'playwright-core';
-import { loginMatchers, networkHost, personaPageOrigins } from '@retake/core';
-import type { HookContext, LoadedProject, PersonaPlan, ResolvedPersona, TimelineWrite, WritePolicy } from '@retake/core';
+import { loginMatchers, networkHost } from '@retake/core/environment';
+import { personaPageOrigins } from '@retake/core/scenario';
+import type { LoadedProject, TimelineWrite } from '@retake/core/model';
+import type { PersonaPlan, ResolvedPersona, WritePolicy } from '@retake/core/environment';
+import type { HookContext } from '@retake/core/hooks';
 import { LoginGuard, checkPersona, signInMatchers } from '../auth.js';
 import type { PreparedSession } from '../auth.js';
 import { LoginPageError, RunnerError } from '../errors.js';

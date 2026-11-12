@@ -20,8 +20,9 @@
  * (write-guard.ts UNGUARDED_APIS_SCRIPT): a shared worker's requests would escape both guards.
  */
 import type { CDPSession, Page } from 'playwright-core';
-import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@retake/core';
-import type { LoadedProject, WritePolicy } from '@retake/core';
+import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@retake/core/environment';
+import type { LoadedProject } from '@retake/core/model';
+import type { WritePolicy } from '@retake/core/environment';
 import { evalInPage } from './actions/misc.js';
 import { LoginPageError, RunnerError, errorMessage } from './errors.js';
 import type { BrowserSession } from './session.js';

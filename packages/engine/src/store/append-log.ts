@@ -24,7 +24,7 @@
  * A normal line's bytes are its writer's: this module adds nothing to them (a `\n` before one only after a torn line).
  */
 import { constants, mkdir, open, readFile } from 'node:fs/promises';
-import { STATE_DIR, statePath } from '@retake/core';
+import { STATE_DIR, statePath } from '@retake/core/project';
 import { opChain } from '../admission.js';
 import { EngineError } from '../errors.js';
 import { takeProjectLock } from '../project-lock.js';

@@ -2,8 +2,8 @@
  * Typed engine errors for clients outside the CLI (the MCP server; later the jobs worker and the HTTP API). The CLI keeps
  * its native errors, messages and exit codes: `toEngineError` maps them at the client boundary only.
  */
-import { ERROR_KINDS, docsUrl, errorKindOf } from '@retake/core';
-import type { KindedError } from '@retake/core';
+import { ERROR_KINDS, docsUrl, errorKindOf } from '@retake/core/base';
+import type { KindedError } from '@retake/core/base';
 
 /** The codes of an EngineError: core's error kinds (core error-kind.ts, each documented there). */
 export const ENGINE_ERROR_CODES = ERROR_KINDS;

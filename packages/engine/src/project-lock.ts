@@ -7,7 +7,9 @@
  */
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { isIsoUtcDate, printableText, pathInside, STATE_DIR } from '@retake/core';
+import { printableText, pathInside } from '@retake/core/base';
+import { STATE_DIR } from '@retake/core/project';
+import { isIsoUtcDate } from '@retake/core/comments';
 import { TakeLock, readLock } from '@retake/core/io';
 import type { LockRecord } from '@retake/core/io';
 import { EngineError } from './errors.js';

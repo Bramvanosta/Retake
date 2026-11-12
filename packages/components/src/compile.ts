@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 import type { Message, Plugin } from 'esbuild';
-import { didYouMean, pathInside } from '@retake/core';
+import { didYouMean, pathInside } from '@retake/core/base';
 import { KIT_MODULE, kitEntry } from './paths.js';
 import type { ComponentIssue } from './types.js';
 

@@ -1,8 +1,10 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, takeWords, untilStep } from '@retake/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@retake/core/model';
+import { editReplannedMessage, scenarioChangedMessage } from '@retake/core/scenario';
+import { takeWords, untilStep } from '@retake/core/run';
 import { scenarioSinceRun } from '@retake/core/io';
-import type { LoadedProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
 import { defaultStillFile, editorErrorOf, editorRenderer, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
 import type { EditOverrides, RenderProgress, RenderRecord, RunRef } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';

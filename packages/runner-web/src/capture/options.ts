@@ -2,7 +2,10 @@
  * What a capture run is given (runScenario's options, whatever drives the product) and what it tells its caller while
  * it films (onFilming).
  */
-import type { AgentChannel, BrowserConfig, CaptureHookRunner, ConfirmHook, HookResult, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunMode, RunProgress, RunSandbox, WorkPolicy } from '@retake/core';
+import type { BrowserConfig, Confinement, LoadedProject, LoadedScenario, LoadedTemplate, RunMode, RunSandbox } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { CaptureHookRunner, ConfirmHook, HookResult, HookTrust } from '@retake/core/hooks';
+import type { RunProgress } from '@retake/core/run';
 import type { InspectRequest } from '../inspect.js';
 import type { LiveSink } from '../live-preview.js';
 import type { PauseGate } from '../pause.js';
@@ -73,7 +76,7 @@ export interface RunOptions {
    * The channel a trust-`mcp` run came through, for the wording of its refusals (L4.2): `studio` (a Studio user is told
    * "from the Studio", never about MCP) or `mcp` (default).
    */
-  hookVia?: AgentChannel;
+  hookVia?: Confinement;
   /**
    * Approves a hook that needs a human (L3.1: the jobs worker checks the hook's fingerprint against its job's
    * approvals). Without it such hooks are refused, as before.

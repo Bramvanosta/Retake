@@ -2,7 +2,9 @@
  * The engine façade's types: its options, the Engine interface (one member per sub-API) and the views its methods
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
-import type { ComponentKind, InspectJobInput, RecordAnnotationChange, RunMode } from '@retake/core';
+import type { ComponentKind, RunMode } from '@retake/core/model';
+import type { RecordAnnotationChange } from '@retake/core/run';
+import type { InspectJobInput } from '../jobs/job-input.js';
 import type { PersonaStateView } from '../auth.js';
 import type { CreateProjectRequest, ProjectSummary, ProjectView } from '../projects.js';
 import type { RunStatusView, RunSummary } from '../runs.js';

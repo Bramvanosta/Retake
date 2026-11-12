@@ -23,7 +23,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ValidationIssue } from '@retake/core';
+import type { ValidationIssue } from '@retake/core/model';
 import { CallError, errorText } from '../api.js';
 import { scenarioBlocks, scenarioEdit, scenarioValidate } from '../data/scenarios.js';
 import { Txt, plural, shown } from '../bits.js';

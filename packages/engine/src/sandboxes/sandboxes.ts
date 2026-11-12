@@ -13,7 +13,9 @@
  * core's (a sandbox's paths and error class, the lock record of core's io side). A handle is one sandbox, as
  * `openSandbox` gives it: every refusal is a SandboxError (core), with its code and its words.
  */
-import type { LoadedProject, LoadedSandbox, SandboxPaths, SandboxResetStrategy, WorkPolicy } from '@retake/core';
+import type { LoadedProject, LoadedSandbox, SandboxResetStrategy } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { SandboxPaths } from '@retake/core/project';
 import type { LockRecord } from '@retake/core/io';
 import type { DownResult, InitSandboxOptions, InitSandboxResult, ProviderCapabilities, ResetResult, SandboxCallOptions, SandboxLogs, SandboxStatus, SandboxUpResult, Take } from '@retake/sandbox/types';
 

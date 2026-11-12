@@ -6,8 +6,8 @@
  * (anything else is an error rather than being silently ignored), and — like every Retake format — objects are
  * CLOSED unless they set `additionalProperties`: an unknown param is a typo until proven otherwise.
  */
-import { describeValue, didYouMean } from '@retake/core';
-import type { LocatedIssue } from '@retake/core';
+import { describeValue, didYouMean } from '@retake/core/base';
+import type { LocatedIssue } from '@retake/core/base';
 
 export type JsonSchemaNode = Record<string, unknown>;
 type Path = Array<string | number>;

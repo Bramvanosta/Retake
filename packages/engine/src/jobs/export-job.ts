@@ -9,8 +9,11 @@
  * must lie in the project folder. No output location: the folder is fixed. A cancel stops between formats and kills
  * ffmpeg or the re-render; a killed worker's leftovers (the re-render's browser, partial files) are removed by the next.
  */
-import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION, projectPath } from '@retake/core';
-import type { ExportFormatName, ExportJobInput } from '@retake/core';
+import { projectPath } from '@retake/core/project';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { ExportFormatName } from '@retake/core/render';
+import type { ExportJobInput } from './job-input.js';
 import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';

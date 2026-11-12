@@ -1,5 +1,7 @@
-import { AGENT_SQL_REASON, channelWords, readOnlyHookMessage, shellAlwaysWrites } from '@retake/core';
-import type { HookKind, HookStep, HttpHookSpec } from '@retake/core';
+import { confinementOrDefault, confinementWords } from '@retake/core/model';
+import { readOnlyHookMessage } from '@retake/core/environment';
+import { AGENT_SQL_REASON, shellAlwaysWrites } from '@retake/core/hooks';
+import type { HookKind, HookStep, HttpHookSpec } from '@retake/core/model';
 import { checkWriteHosts } from './allow-list.js';
 import { hookFiles, hookFingerprint } from './approval.js';
 import { describeHook, hookKindOf, withName } from './describe.js';
@@ -81,9 +83,7 @@ async function confirmDestructive(hook: HookStep, reason: string, description: s
   if (!approved) {
     throw new HookSecurityError(
       mcp
-        ? ctx.via === 'studio'
-          ? `refusing hook (${reason}) without a human approval: ${channelWords(ctx.via)}, "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal`
-          : `refusing hook (${reason}) without a human approval: ${channelWords(ctx.via)}, "confirm: true" does not count — a human approves it when asked, or runs it in a terminal`
+        ? `refusing hook (${reason}) without a human approval: ${confinementWords(ctx.via)}, "confirm: true" does not count${confinementOrDefault(ctx.via).approval}`
         : `refusing destructive hook (${reason}) without "confirm: true"; add it to the hook once you have checked what it does`,
       'destructive',
     );

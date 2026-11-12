@@ -8,9 +8,14 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { SLUG_RE, canonicalJson, formatRenderId, isRenderId, isRunId, isThemeName, latestProjectRender, orderRenders, projectPath, projectRef, projectRenderOf, renderIdOf, renderLackWords, renderNot, renderNotWords } from '@retake/core';
+import { canonicalJson } from '@retake/core/base';
+import { SLUG_RE } from '@retake/core/model';
+import { formatRenderId, isRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
+import { projectPath, projectRef } from '@retake/core/project';
+import { latestProjectRender, orderRenders, projectRenderOf, renderLackWords, renderNot, renderNotWords } from '@retake/core/render';
 import { readListedRender, readPlainFile } from '@retake/core/io';
-import type { LoadedProject, ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
 import type { StoredRender } from '@retake/editor';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';

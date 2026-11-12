@@ -1,6 +1,6 @@
 import { Command, CommanderError } from 'commander';
 import { resolve } from 'node:path';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 import { assertOutsideBundle, bundleInfoOrNull } from '@retake/core/io';
 import { EXIT, errorMessage, errorText, exitCodeOf, isKnownError } from './errors.js';
 import type { ExitCode } from './errors.js';

@@ -8,8 +8,10 @@
  * `reseed`; the job's `seedTrust` taken at submit — never one the caller did not give), and a refusal is the sandbox's
  * SandboxError, which the CLI turns into its usage errors and the jobs into an EngineError.
  */
-import { resolveEnvironment, sandboxNames } from '@retake/core';
-import type { LoadedProject, ValidationIssue, WorkPolicy } from '@retake/core';
+import { resolveEnvironment } from '@retake/core/environment';
+import { sandboxNames } from '@retake/core/sandbox';
+import type { LoadedProject, ValidationIssue } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import { loadProject } from '@retake/core/io';
 import type { DownResult, InitSandboxOptions, InitSandboxResult, ResetResult, SandboxLog, SandboxLogs, SandboxProgress, SandboxStatus, SandboxUpResult, SeedTrust } from '@retake/sandbox/types';
 import type { ENGINE_TRUST } from './caller.js';

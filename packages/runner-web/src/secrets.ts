@@ -1,6 +1,8 @@
-import { collectSecretRefs, redact, secretForms } from '@retake/core';
+import { collectSecretRefs, redact, secretForms } from '@retake/core/base';
 import { resolveSecretRef } from '@retake/core/io';
-import type { RunProgress, RunRecord, SecretResolver, Timeline } from '@retake/core';
+import type { SecretResolver } from '@retake/core/base';
+import type { Timeline } from '@retake/core/model';
+import type { RunProgress, RunRecord } from '@retake/core/run';
 
 /**
  * Where a run file keeps its strings as written (R-RUN-17), key by key along the file's shape: `keep` keeps the subtree

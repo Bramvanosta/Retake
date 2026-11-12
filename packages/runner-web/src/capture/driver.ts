@@ -6,7 +6,20 @@
  * (failed when anything of the run threw), then always stop, close and finish — and a driver reads and writes the run
  * through `CaptureRun`. Nothing here names a browser.
  */
-import type { CaptureSettings, LoadedProject, LoadedScenario, MailboxConfig, Pacing, ResolvedClock, RunAccess, RunMode, ResolvedEnvironment, RunProgress, RunningRun, Scenario, TemplateContext } from '@retake/core';
+import type { TemplateContext } from '@retake/core/base';
+import type {
+  CaptureSettings,
+  LoadedProject,
+  LoadedScenario,
+  MailboxConfig,
+  Pacing,
+  ResolvedClock,
+  RunMode,
+  ResolvedEnvironment,
+  Scenario,
+} from '@retake/core/model';
+import type { RunAccess } from '@retake/core/environment';
+import type { RunProgress, RunningRun } from '@retake/core/run';
 import type { HookStepOutcome, LogLevel } from '../runtime.js';
 import type { RunSecrets } from '../secrets.js';
 import type { RunFiles } from '../runfiles.js';

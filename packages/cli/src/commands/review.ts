@@ -1,8 +1,8 @@
 import type { Finding, ReviewProgress } from '@retake/review/checks';
 import { environmentLine, findRenderOf, findingLine, reviewWork, summaryLine } from '@retake/engine';
 import type { ReviewResult, Reviewer } from '@retake/engine';
-import { printableText } from '@retake/core';
-import type { WorkPolicy } from '@retake/core';
+import { printableText } from '@retake/core/base';
+import type { WorkPolicy } from '@retake/core/policy';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';

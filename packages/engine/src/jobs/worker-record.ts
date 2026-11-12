@@ -9,7 +9,7 @@
  * through interfaces of their own.
  */
 import { hostname } from 'node:os';
-import type { JobKind } from '@retake/core';
+import type { JobKind } from './job-input.js';
 import type { Renderer } from '../render/renderer.js';
 import type { buildDirs } from './build.js';
 import { FilmingWatch } from './captures.js';

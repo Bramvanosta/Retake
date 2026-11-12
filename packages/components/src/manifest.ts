@@ -6,17 +6,10 @@
  * JSON Schema and its defaults, preview samples) and returns positioned issues.
  */
 import { z } from 'zod';
-import {
-  COMPONENT_KINDS,
-  brokenUnder,
-  checkYamlDocument,
-  componentIdSchema,
-  didYouMean,
-  hasErrors,
-  keyString,
-  locatedIssue,
-} from '@retake/core';
-import type { ComponentKind, LocatedIssue } from '@retake/core';
+import { brokenUnder, checkYamlDocument, didYouMean, hasErrors, locatedIssue } from '@retake/core/base';
+import { COMPONENT_KINDS, componentIdSchema, keyString } from '@retake/core/model';
+import type { LocatedIssue } from '@retake/core/base';
+import type { ComponentKind } from '@retake/core/model';
 import { applyParamDefaults, checkParamsSchema, isPlainObject, paramDefaults, validateParamValue } from './json-schema.js';
 import { ANCHOR_KEYS, GEOMETRY_BUILTINS, GEOMETRY_KEYS, anchorScope, evalAnchor, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, paramEnums } from './geometry.js';
 import type { JsonSchemaNode } from './json-schema.js';

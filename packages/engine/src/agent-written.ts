@@ -30,8 +30,12 @@ import { constants, createReadStream, existsSync, readFileSync, statSync } from 
 import { mkdir, open, realpath, rmdir } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, canonicalJson, hookStepNames, interpolate, projectPath, resolveEnvironment, sqlSource, statePath, usedNamedHooks } from '@retake/core';
-import type { HookStep, LoadedProject, Scenario, TemplateContext, WorkFileFacts } from '@retake/core';
+import { canonicalJson, interpolate } from '@retake/core/base';
+import { resolveEnvironment } from '@retake/core/environment';
+import { hookStepNames, sqlSource, usedNamedHooks } from '@retake/core/hooks';
+import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, projectPath, statePath } from '@retake/core/project';
+import type { TemplateContext } from '@retake/core/base';
+import type { HookStep, LoadedProject, Scenario, WorkFileFacts } from '@retake/core/model';
 import { findWorkspaceUpward, loadScenario, loadWorkspaceConfig, reserveRunId } from '@retake/core/io';
 import type { Caller } from './caller.js';
 import { stampOf } from './clock.js';

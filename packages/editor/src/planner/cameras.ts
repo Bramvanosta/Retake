@@ -2,7 +2,7 @@
  * A step of `planEdit`: the camera of each run — the zoom moves of the steps' camera hints and the theme's default
  * zoom (R-ED-22), as a per-frame camera track; a multi-page run (L2.11) has one camera per page.
  */
-import type { Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase } from '../camera.js';
 import type { ZoomMove } from '../camera.js';
 import type { CameraFrame } from '../plan-types.js';

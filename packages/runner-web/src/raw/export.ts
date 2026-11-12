@@ -15,9 +15,15 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, namedRunProblem, resolveEnvironment, shownText, projectPath, takeWords, timelineProblem } from '@retake/core';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '@retake/core/model';
+import { displayRows, editDisplayTable, resolveEnvironment, shownText } from '@retake/core/environment';
+import { projectPath } from '@retake/core/project';
+import { namedRunProblem, takeWords, timelineProblem } from '@retake/core/run';
 import { ffmpegBin, readNamedRun } from '@retake/core/io';
-import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunFolderFacts, Timeline, WorkPolicy } from '@retake/core';
+import type { BrowserConfig, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, Timeline } from '@retake/core/model';
+import type { DisplayEntry } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { RunFolderFacts } from '@retake/core/run';
 import type { H264Encoder } from '@retake/core/io';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';

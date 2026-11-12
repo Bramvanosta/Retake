@@ -29,7 +29,8 @@
  *   the engine's operation chain by its `serialize`); its answer carries no absolute path.
  */
 import { z } from 'zod';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE } from '@retake/core';
+import { COMPONENT_ID_RE } from '@retake/core/model';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE } from '@retake/core/ids';
 import { EngineError, firstErrorLine } from '@retake/engine';
 import type { TimelineView } from '@retake/engine';
 import { READ, defineTool, plural, studioProject as project, studioRun as run, studioScenario as scenario } from '@retake/engine/contract';

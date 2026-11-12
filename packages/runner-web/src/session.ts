@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
-import { gpuInfoOf } from '@retake/core';
-import type { BrowserConfig, GpuInfo, PageHttpCredentials, ResolvedClock, SystemInfoReply, WorkPolicy } from '@retake/core';
+import { gpuInfoOf } from '@retake/core/render';
+import type { BrowserConfig, ResolvedClock } from '@retake/core/model';
+import type { PageHttpCredentials } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { GpuInfo, SystemInfoReply } from '@retake/core/render';
 import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
@@ -40,7 +43,7 @@ import type {
   ScrollInfo,
   ScrollOp,
 } from './kit/types.js';
-import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core';
+import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core/model';
 
 export interface SessionOptions {
   /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
@@ -906,8 +909,8 @@ export class BrowserSession {
 }
 
 // The GPU status reading moved to core (L5.15: the render browser reads it too); re-exported for this package's users.
-export { gpuInfoOf } from '@retake/core';
-export type { GpuInfo, SystemInfoReply } from '@retake/core';
+export { gpuInfoOf } from '@retake/core/render';
+export type { GpuInfo, SystemInfoReply } from '@retake/core/render';
 
 /** Launch one realm: a persistent context with the kit, the bindings, the notification permission and its session. */
 async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {

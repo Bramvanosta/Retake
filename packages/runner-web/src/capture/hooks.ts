@@ -4,8 +4,13 @@
  * is the driver's (`DriverHooks`).
  */
 import { join } from 'node:path';
-import { resolveNamedHook } from '@retake/core';
-import type { AgentChannel, CaptureHookRunner, ConfirmHook, HookContext, HookJournal, HookResult, HookStep, HookTrust, LoadedProject, RunAccess, RunProgress, RunRecord, RunningRun, Scenario, TemplateContext, WorkPolicy } from '@retake/core';
+import { resolveNamedHook } from '@retake/core/hooks';
+import type { TemplateContext } from '@retake/core/base';
+import type { Confinement, HookStep, LoadedProject, Scenario } from '@retake/core/model';
+import type { RunAccess } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { CaptureHookRunner, ConfirmHook, HookContext, HookJournal, HookResult, HookTrust } from '@retake/core/hooks';
+import type { RunProgress, RunRecord, RunningRun } from '@retake/core/run';
 import { RunnerError, StepError } from '../errors.js';
 import { hookResultFailed, hookResultName, loadHookRunner } from '../hooks-bridge.js';
 import type { HookStepOutcome, LogLevel } from '../runtime.js';
@@ -44,7 +49,7 @@ export interface SetupDeps extends DriverHooks {
   /** The process groups of the shell hooks running now (any phase): a second signal kills them before the process quits. */
   running: Set<number>;
   trust?: HookTrust;
-  via?: AgentChannel;
+  via?: Confinement;
   /** Trust `mcp`: the scenario's own vars, the agent's (HookContext.agentVars). */
   agentVars?: readonly string[];
   confirmHook?: ConfirmHook;

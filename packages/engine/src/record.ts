@@ -33,24 +33,17 @@ import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  INSPECT_PACING,
-  PERSONA_NONE,
-  RECORD_ID_RE,
-  draftFromRecording,
-  draftInvalidIssue,
-  inspectPathProblem,
-  isPageOrigin,
-  newUlidId,
-  parseScenario,
-  parseYaml,
-  resolveEnvironment,
-  resolvePersonas,
-  resolveRunAccess,
-  projectPath,
-  statePath,
-} from '@retake/core';
-import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkPolicy } from '@retake/core';
+import { parseYaml } from '@retake/core/base';
+import { RECORD_ID_RE, newUlidId } from '@retake/core/ids';
+import { PERSONA_NONE, resolveEnvironment, resolvePersonas, resolveRunAccess } from '@retake/core/environment';
+import { projectPath, statePath } from '@retake/core/project';
+import { parseScenario } from '@retake/core/scenario';
+import { INSPECT_PACING, draftFromRecording, draftInvalidIssue, inspectPathProblem, isPageOrigin } from '@retake/core/run';
+import type { LoadedProject, LoadedScenario, ResolvedEnvironment } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { DraftIssue, RecordedEvent, RunProgress, RunRecord } from '@retake/core/run';
+import type { JobClient } from './jobs/job-input.js';
 import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web/types';
 import { lockAlive, readLock, retakeHome, fileFacts } from '@retake/core/io';
 import type { CaptureRunner } from './capture/runner.js';

@@ -4,8 +4,8 @@
  * calls the package's function with the same arguments: what runs, what is journaled and signed, and every approval's
  * fingerprint are the package's, unchanged. Made by the composition roots only (ports.ts enginePorts).
  */
-import { projectPath } from '@retake/core';
-import type { HookStep } from '@retake/core';
+import { projectPath } from '@retake/core/project';
+import type { HookStep } from '@retake/core/model';
 import { EngineError } from '../errors.js';
 import { hooks } from '../lazy.js';
 import type { HookJournal, HookRunner, PendingHookJournal } from './runner.js';

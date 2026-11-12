@@ -5,8 +5,10 @@
  * handler's (job-handlers.ts, one per kind); runJob holds what every kind shares around it.
  */
 import { rm, writeFile } from 'node:fs/promises';
-import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, projectPath } from '@retake/core';
-import type { RenderJobInput, RunJobInput } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
+import { projectPath } from '@retake/core/project';
+import { JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from './job-input.js';
+import type { RenderJobInput, RunJobInput } from './job-input.js';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
 import { stampOf } from '../clock.js';
 import { toEngineError } from '../errors.js';

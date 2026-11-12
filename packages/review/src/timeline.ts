@@ -3,7 +3,7 @@
  * markers, step spans, transitions, zooms, overlays and the clicks of the capture placed on the output — all in
  * output frames and seconds, so an agent or the Studio can say "at 00:23.4 the second click of scene X".
  */
-import type { Timeline } from '@retake/core';
+import type { Timeline } from '@retake/core/model';
 import type { EditPlan, NamedRender, ResolvedComponent } from '@retake/editor/plan';
 import { mapPaneRect, mapSourceRect, paneIndexOf } from '@retake/editor/plan';
 import { isClip, meanSpeed, outputFrameOf, round, segmentSpans, transitionSpans } from './spans.js';

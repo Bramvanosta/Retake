@@ -5,7 +5,8 @@
  * here, so that the port names no adapter's type.
  */
 import type { HookAccess } from './access.js';
-import type { AgentChannel, WorkPolicy } from './agent-policy.js';
+import type { WorkPolicy } from './agent-policy.js';
+import type { Confinement } from './confinement.js';
 import type { HookTrust } from './hook-writes.js';
 import type { HookKind, HookStep, HttpHookSpec, LoadedProject, ResolvedEnvironment } from './types.js';
 
@@ -98,10 +99,10 @@ export interface HookContext {
    */
   agentVars?: readonly string[];
   /**
-   * The channel trust-`mcp` work came through, for the wording of its refusals (L4.2): `studio` (the Studio web app:
-   * "from the Studio", "run it in a terminal") or `mcp` (default: "through MCP").
+   * The confinement of trust-`mcp` work, for the wording of its refusals (L4.2; L7.35: a value, core Confinement — the
+   * Studio's says "from the Studio" and "run it in a terminal"; absent: AGENT_CONFINEMENT, "through MCP").
    */
-  via?: AgentChannel;
+  via?: Confinement;
   /**
    * The access of the run (L1.7, core resolveRunAccess): on `read-only`, a hook that writes is refused (status
    * `refused`, reason `read-only`) and SQL runs in a read-only transaction. Absent: read-write.

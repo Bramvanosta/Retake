@@ -3,7 +3,7 @@
  * starting with the queue's `cli`). Derived by the queue for a dead worker (queue-core.ts), written by the worker that
  * saw its job process die (worker.ts) and by a job process whose worker stopped (run-job-record.ts).
  */
-import { stateRef } from '@retake/core';
+import { stateRef } from '@retake/core/project';
 import { submittedInStudio } from '../caller.js';
 import type { JobRecord } from './types.js';
 

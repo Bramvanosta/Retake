@@ -20,9 +20,10 @@ import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION, siteApprovalFingerprint, PERSON_POLICY } from '@retake/core';
+import { siteApprovalFingerprint, PERSON_POLICY } from '@retake/core';
+import { JOB_INPUT_VERSION } from '@retake/engine';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import type { SiteJobInput } from '@retake/core';
+import type { SiteJobInput } from '@retake/engine';
 import { FileJobQueue, MemoryJobQueue, SITE_KEEP, THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, executeSiteJob, historyFile, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readBrandFile, readSite, runWorker, signApprovals, siteDir, personScope, enginePorts } from '../src/index.js';
 import type { ApprovalOutcome, Approver, Engine, EngineError, JobRecord, OpenedWorkspace, SiteApprovalRequest, SiteJobResult } from '../src/index.js';
 import { ManualClock, systemClock } from '../src/clock.js';

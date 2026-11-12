@@ -9,8 +9,8 @@
  * the work that wrote it replies. A line that cannot be written never fails the work it records: the failure is said
  * on stderr, at most once a minute.
  */
-import { HISTORY_FILE, STATE_DIR } from '@retake/core';
-import type { JobClient } from '@retake/core';
+import { HISTORY_FILE, STATE_DIR } from '@retake/core/project';
+import type { JobClient } from './jobs/job-input.js';
 import { stampOf } from './clock.js';
 import type { Clock } from './clock.js';
 import { appendLogLine, logFile, logWarner, readLogLines } from './store/append-log.js';

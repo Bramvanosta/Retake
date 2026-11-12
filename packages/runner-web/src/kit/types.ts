@@ -5,7 +5,8 @@
  * frame (R-ISS-07); every box and point crossing the boundary, both ways, is in top-level viewport CSS px (an element
  * in a frame is offset by the frames' positions).
  */
-import type { BBox, NearElement, PointSpec, SecretFieldKind, TargetObject } from '@retake/core';
+import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core/model';
+import type { SecretFieldKind } from '@retake/core/run';
 
 export type CursorStyle = 'arrow-dark' | 'arrow-light' | 'debug';
 export type CursorKind = 'arrow' | 'hand' | 'ibeam';
@@ -372,7 +373,7 @@ export interface KitTargetCheck {
 }
 
 /** A visible element close to a target the kit did not find (role, accessible name, text). */
-export type { NearElement } from '@retake/core';
+export type { NearElement } from '@retake/core/model';
 
 /** `checkTargets`' answer, with the document's `location.origin` (the runner checks it). */
 export interface KitTargetChecks {

@@ -18,6 +18,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, destructiveReason, hookWriteReason, parseProjectYaml, parseSandboxYaml, parseScenario, parseTemplateYaml } from '@retake/core';
 import { composeEnvFile, findWorkspaceRoot, listProjects, listScenarioNames, listTemplates, loadProject, loadProjectTemplate, loadScenario, loadTemplate, loadWorkspaceConfig, nodeFileFacts, fileFacts, readRunRecord, readScenarioSource, scenarioSinceRun, seedFileRefs, seedHash } from '@retake/core/io';
 import type { HookStep } from '@retake/core';
+import { STUDIO_CONFINEMENT } from './helpers.js';
+import { AGENT_CONFINEMENT } from '@retake/core';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 const GOLDEN = fileURLToPath(new URL('./golden/io-loaders.json', import.meta.url));
@@ -115,7 +117,7 @@ describe('core loaders and disk probes (characterization)', () => {
     const p2 = await loadProject('p', join(tmp, 'ws'));
     for (const name of ['missing', 'present', 'link', 'abs', 'image']) {
       broken[`scenario:${name}`] = await outcome(() => loadScenario(p2, name, { files: work }), (s) => issuesOf(s.issues));
-      for (const confined of ['mcp', 'studio'] as const) broken[`scenario:${name}:${confined}`] = await outcome(() => loadScenario(p2, name, { confined, files: work }), (s) => issuesOf(s.issues));
+      for (const confined of ['mcp', 'studio'] as const) broken[`scenario:${name}:${confined}`] = await outcome(() => loadScenario(p2, name, { confined: { mcp: AGENT_CONFINEMENT, studio: STUDIO_CONFINEMENT }[confined], files: work }), (s) => issuesOf(s.issues));
     }
     const filesRead = new Set<string>();
     parseScenario(scenarioText('data/rows.csv'), { project: p2, filesRead, files: nodeFileFacts });

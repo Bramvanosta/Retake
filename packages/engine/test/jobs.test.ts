@@ -11,7 +11,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_ID_RE, RunRecordSchema } from '@retake/core';
 import { reserveRunId } from '@retake/core/io';
-import type { RunJobInput, Scene } from '@retake/core';
+import type { Scene } from '@retake/core';
+import type { RunJobInput } from '@retake/engine';
 import {
   EngineError,
   FileJobQueue,

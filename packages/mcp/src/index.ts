@@ -18,7 +18,7 @@
  * separate process, runs them. L4.1: the same tools over Streamable HTTP too (`retake mcp --http`, http.ts: 127.0.0.1,
  * the engine's gate refusing any request a browser could send, a stable token in the Retake home).
  */
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core/base';
 import { staleEngine } from '@retake/core/io';
 import type { StaleEngine } from '@retake/core/io';
 import { createEngine } from '@retake/engine';

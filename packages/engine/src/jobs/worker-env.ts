@@ -26,7 +26,8 @@
  */
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, isUnder, loadPathSeparator, workspaceFolders } from '@retake/core';
+import { isUnder } from '@retake/core/base';
+import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, loadPathSeparator, workspaceFolders } from '@retake/core/policy';
 import { clientPath, retakeHome, nodeFileFacts } from '@retake/core/io';
 import { cleansWorkerEnv } from '../caller.js';
 import type { Caller } from '../caller.js';

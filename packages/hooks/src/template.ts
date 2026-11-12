@@ -1,5 +1,5 @@
-import { interpolate, listTemplateTokens } from '@retake/core';
-import type { TemplateContext } from '@retake/core';
+import { interpolate, listTemplateTokens } from '@retake/core/base';
+import type { TemplateContext } from '@retake/core/base';
 import { isAccountsRoot, sandboxAccounts } from './sandbox-refs.js';
 import { addSecret, redactDeep, secretResolver } from './secrets.js';
 import type { HookContext, TemplateSnapshot } from './types.js';

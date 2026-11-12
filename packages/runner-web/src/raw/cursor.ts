@@ -4,7 +4,7 @@
  * presses and ripples the kit reported as it drew them; runs captured before L2.13 have none: approximated from the
  * steps, see `approximateEffects`). Clicks with their step and target. Pure.
  */
-import type { BBox, CursorEffect, CursorIcon, CursorSample, Timeline, TimelineEvent } from '@retake/core';
+import type { BBox, CursorEffect, CursorIcon, CursorSample, Timeline, TimelineEvent } from '@retake/core/model';
 import { gridFrameOf, type RawClipPlan, type RawPlan, sequenceStartOf } from './plan.js';
 
 /**

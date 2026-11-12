@@ -6,7 +6,7 @@
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { ffmpegBin, runMediaTool, stderrLines } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
 
 /** Hz of the four chords (root, third, fifth, bass an octave below the root). */
 const CHORDS = [

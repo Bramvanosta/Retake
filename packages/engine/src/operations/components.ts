@@ -4,7 +4,7 @@
  * folder (engine components.ts).
  */
 import { z } from 'zod';
-import { COMPONENT_KINDS, KEY_RE } from '@retake/core';
+import { COMPONENT_KINDS, KEY_RE } from '@retake/core/model';
 import { PREVIEW_JOB, READ, WRITE_FILES } from './annotations.js';
 import { defineOperation } from './define.js';
 import type { ToolContext } from './define.js';

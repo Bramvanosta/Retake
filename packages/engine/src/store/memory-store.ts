@@ -28,7 +28,7 @@ import { isUtf8 } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join, normalize, sep } from 'node:path';
-import { errorKindOf } from '@retake/core';
+import { errorKindOf } from '@retake/core/base';
 import { EngineError } from '../errors.js';
 import { conflictError, refOfIn, resolveIn, sha256Hex } from '../storage.js';
 import type { WriteResult } from '../storage.js';

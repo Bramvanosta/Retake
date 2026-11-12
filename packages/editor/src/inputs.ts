@@ -6,9 +6,12 @@
  */
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { LOTTIE_FILE_EXTENSIONS, MEDIA_COMPONENTS, VIDEO_FILE_EXTENSIONS, fileExtension, isImagePath, mediaFileOf, readLottieMeta, resolveThemeComponents } from '@retake/core';
+import { LOTTIE_FILE_EXTENSIONS, MEDIA_COMPONENTS, VIDEO_FILE_EXTENSIONS, fileExtension, mediaFileOf, readLottieMeta } from '@retake/core/model';
+import { isImagePath } from '@retake/core/language';
+import { resolveThemeComponents } from '@retake/core/theme';
 import { probeVideoFile } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline, WorkPolicy } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import type { PlanInputFile } from './planner/input.js';
 
 const DATA_RE = /\.(csv|tsv)$/i;

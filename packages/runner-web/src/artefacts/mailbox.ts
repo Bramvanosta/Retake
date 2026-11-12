@@ -9,8 +9,10 @@
  *             `from` is "Name <address>", "address" or {name, address}; `to` a string, an array of those, or of objects.
  * The host is checked against the project's allow-list before any request.
  */
-import { allowedHosts, interpolate, isHostAllowed } from '@retake/core';
-import type { LoadedProject, MailboxConfig, TemplateContext } from '@retake/core';
+import { interpolate } from '@retake/core/base';
+import { allowedHosts, isHostAllowed } from '@retake/core/environment';
+import type { TemplateContext } from '@retake/core/base';
+import type { LoadedProject, MailboxConfig } from '@retake/core/model';
 import { StepError, errorMessage } from '../errors.js';
 
 export interface MailAddress {

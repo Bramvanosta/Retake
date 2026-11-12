@@ -19,7 +19,7 @@
 import { randomBytes } from 'node:crypto';
 import { copyFile, mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { errorKindOf } from '@retake/core';
+import { errorKindOf } from '@retake/core/base';
 import type { TakeLock } from '@retake/core/io';
 import { callerOf } from '../caller.js';
 import type { Clock } from '../clock.js';

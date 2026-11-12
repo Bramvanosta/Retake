@@ -30,8 +30,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_ID_RE } from '@retake/core';
-import type { JobId } from '@retake/core';
+import { JOB_ID_RE } from '@retake/core/ids';
+import type { JobId } from '@retake/core/ids';
 import { readPlainFile } from '@retake/core/io';
 import { opChain } from '../admission.js';
 import type { OpChain } from '../admission.js';

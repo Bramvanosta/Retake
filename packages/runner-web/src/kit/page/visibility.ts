@@ -1,5 +1,5 @@
 /** Visibility: what a viewer can see, boxes, what is in view. */
-import type { BBox } from '@retake/core';
+import type { BBox } from '@retake/core/model';
 import { memo } from './memo.js';
 import { SKIP_TAGS, lc, norm } from './text.js';
 import { flatParent, frameElOf, frameOffset, rectOf, styleOf, trees, upOf, winOf } from './trees.js';

@@ -5,8 +5,11 @@
 import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { collectSecretRefs, planPersonas, resolveEnvironment, resolvePersonas, sandboxOf } from '@retake/core';
-import type { LoadedProject, ResolvedPersona, Scenario } from '@retake/core';
+import { collectSecretRefs } from '@retake/core/base';
+import { planPersonas, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
+import { sandboxOf } from '@retake/core/sandbox';
+import type { LoadedProject, Scenario } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
 import { retakeHome } from '@retake/core/io';
 import type { CaptureSessions } from './capture/runner.js';
 

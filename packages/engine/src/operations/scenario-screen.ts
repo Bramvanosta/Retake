@@ -18,8 +18,9 @@
  *   capture's `sessions_ack` must name.
  */
 import { z } from 'zod';
-import { ACTION_DESCRIPTIONS, stepForms } from '@retake/core';
-import type { ActionName } from '@retake/core';
+import { ACTION_DESCRIPTIONS } from '@retake/core/language';
+import { stepForms } from '@retake/core/scenario';
+import type { ActionName } from '@retake/core/model';
 import { sessionsToConfirm } from '../admission.js';
 import type { SessionToConfirm } from '../admission.js';
 import type { Engine } from '../engine.js';

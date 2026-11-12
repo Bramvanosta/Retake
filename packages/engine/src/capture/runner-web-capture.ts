@@ -7,8 +7,8 @@
  * the composition roots only (ports.ts enginePorts).
  */
 import type { RunOptions } from '@retake/runner-web/types';
-import { missingOrInvalid } from '@retake/core';
-import type { CaptureHookRunner } from '@retake/core';
+import { missingOrInvalid } from '@retake/core/base';
+import type { CaptureHookRunner } from '@retake/core/hooks';
 import { EngineError } from '../errors.js';
 import type { HookRunner } from '../hook-run/runner.js';
 import { runnerWeb } from '../lazy.js';

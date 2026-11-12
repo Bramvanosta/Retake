@@ -46,8 +46,8 @@ const fakes = vi.hoisted(() => ({
 
 // The stamp of a run or journal id is a clock read (second resolution): a fixed clock, one tick per id, so that two
 // commands never share an id by the timing of the machine (L7.21: they would — see "hooks run twice in one second").
-vi.mock('@retake/core', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@retake/core')>();
+vi.mock('@retake/core/ids', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@retake/core/ids')>();
   return {
     ...real,
     newRunId: (label: string, date?: Date) => {

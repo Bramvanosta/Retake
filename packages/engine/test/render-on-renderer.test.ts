@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
-import type { RenderJobInput } from '@retake/core';
+import type { RenderJobInput } from '@retake/engine';
 import { JobFiles, createEngine, editorErrorOf, historyFile, jobsDir, openProject, planWork, renderInProcess, runWorker, stillInProcess, withPreviewBackend } from '../src/index.js';
 import type { Engine, JobRecord, RenderRecord } from '../src/index.js';
 import { ManualClock, systemClock } from '../src/clock.js';

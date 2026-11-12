@@ -8,12 +8,18 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigationTrustProblems, showHiddenCharsLine } from '@retake/core';
-import type { AgentTrustEnvironment, WorkPolicy } from '@retake/core';
-import type { AgentChannel, HookPhase, HookResult, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
+import { showHiddenCharsLine } from '@retake/core/base';
+import { hookApprovalReason, hookKind } from '@retake/core/hooks';
+import { agentTrustProblems, navigationTrustProblems } from '@retake/core/scenario';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { AgentTrustEnvironment } from '@retake/core/scenario';
+import type { HookStep, LoadedProject, Scenario } from '@retake/core/model';
+import type { HookPhase, HookResult } from '@retake/core/hooks';
+import type { JobApproval, JobClient } from './jobs/job-input.js';
 import { nodeFileFacts } from '@retake/core/io';
 import { declaredHookLines, describeHook, describeRollback } from '@retake/hooks/describe';
-import { ENGINE_TRUST, submitterChannel } from './caller.js';
+import { ENGINE_TRUST, confinementOf, submitterChannel } from './caller.js';
+import type { AgentChannel } from './caller.js';
 import { stampOf } from './clock.js';
 import type { Clock } from './clock.js';
 import { EngineError } from './errors.js';
@@ -295,11 +301,11 @@ export async function seedApprovalItems(project: LoadedProject, env: string, hoo
  */
 export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient, env?: AgentTrustEnvironment): void {
   const via = agentChannel(client);
-  const problems = agentTrustProblems(project, sc, { via, ...(env ? { env } : {}), files: nodeFileFacts });
+  const problems = agentTrustProblems(project, sc, { via: confinementOf(via), ...(env ? { env } : {}), files: nodeFileFacts });
   if (problems.length) {
     // How many are about the URLs it opens (the Studio's own words when they are all of them: "opens another site").
-    const navigation = env ? navigationTrustProblems(sc, { via, env }).length : 0;
-    throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems, navigation } });
+    const navigation = env ? navigationTrustProblems(sc, { via: confinementOf(via), env }).length : 0;
+    throw new EngineError('refused', `refused ${confinementOf(via).words}: ${problems.join('; ')}`, { fix, details: { problems, navigation } });
   }
 }
 

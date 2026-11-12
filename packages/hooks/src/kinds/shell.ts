@@ -1,8 +1,23 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, projectPath } from '@retake/core';
-import type { ShellHookSpec } from '@retake/core';
+import { listTemplateTokens } from '@retake/core/base';
+import { confinementWords } from '@retake/core/model';
+import { allowedHosts } from '@retake/core/environment';
+import {
+  AGENT_SHELL_GRAMMAR,
+  agentShellCwdProblems,
+  agentShellEnvProblems,
+  agentShellProblems,
+  bareEnvHint,
+  childEnv,
+  childEnvHint,
+  policyChildEnv,
+} from '@retake/core/policy';
+import { shellHostRefs } from '@retake/core/hooks';
+import { projectPath } from '@retake/core/project';
+import { sandboxOf } from '@retake/core/sandbox';
+import type { ShellHookSpec } from '@retake/core/model';
 import { nodeFileFacts } from '@retake/core/io';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
@@ -265,7 +280,7 @@ async function agentShellView(ctx: HookContext, cmd: Pick<ShellCommand, 'run' | 
 
 /** The end of every refusal of an agent-written shell hook: what it may be, and what a person does instead. */
 function agentShellFix(ctx: HookContext): string {
-  return `a shell hook written ${channelWords(ctx.via)} is ${AGENT_SHELL_GRAMMAR}, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (\`retake hooks run <project> hooks/<name>.yaml\`), or run it in a terminal`;
+  return `a shell hook written ${confinementWords(ctx.via)} is ${AGENT_SHELL_GRAMMAR}, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (\`retake hooks run <project> hooks/<name>.yaml\`), or run it in a terminal`;
 }
 
 /**

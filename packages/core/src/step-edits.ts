@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { CST, Composer, Document, Parser, isAlias, isCollection, isMap, isScalar, isSeq, visit } from 'yaml';
 import type { Node, Pair, Scalar, YAMLMap, YAMLSeq } from 'yaml';
-import { canonicalJson } from './comments.js';
+import { canonicalJson } from './canonical-json.js';
 import { editValueProblem, verifyEditText } from './scenario-edit.js';
 import { actionFormOf, expandShorthand, fieldKindProblem, fieldOf, readField, shorthandOf, stepFormValues } from './step-forms.js';
 import type { FormValue } from './step-forms.js';

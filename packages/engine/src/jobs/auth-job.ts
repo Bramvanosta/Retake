@@ -9,8 +9,10 @@
  * held while it is open, and a click in the Studio opens it — and `cancelSignIn` stops one (an `auth_login` job only).
  */
 import { readdir } from 'node:fs/promises';
-import { JOB_INPUT_VERSION, SLUG_RE, resolveEnvironment } from '@retake/core';
-import type { AuthLoginJobInput } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { resolveEnvironment } from '@retake/core/environment';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { AuthLoginJobInput } from './job-input.js';
 import { EngineError, toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import type { JobQueueView } from './job-queue.js';

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import { canonicalJson, hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
-import type { HookStep, ShellHookSpec } from '@retake/core';
+import { canonicalJson, nestedShellScript, shellCommands, shellWords } from '@retake/core/base';
+import { hookFileRefs, projectFileProblem } from '@retake/core/scenario';
+import type { HookStep, ShellHookSpec } from '@retake/core/model';
 import { nodeFileFacts } from '@retake/core/io';
 import type { HookPhase } from './types.js';
 

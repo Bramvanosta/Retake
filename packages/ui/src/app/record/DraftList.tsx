@@ -1,7 +1,7 @@
 /** The draft's step rows, scene by scene: the listbox, the cursor block, a row's alternatives and its inserts. */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { FocusEvent as ReactFocusEvent, KeyboardEvent, ReactNode } from 'react';
-import type { RecordInsert } from '@retake/core';
+import type { RecordInsert } from '@retake/core/run';
 import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { Txt, plural, shown, visibleControls } from '../bits.js';
 import { stepWords } from '../words/scenario-words.js';

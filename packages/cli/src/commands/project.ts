@@ -1,6 +1,8 @@
-import { AUTH_KEYS, PERSONA_NONE, SLUG_RE, loginPatternForm, resolveEnvironment, resolvePersonas } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { AUTH_KEYS, PERSONA_NONE, loginPatternForm, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
 import { checkNewProject, listProjects, listTemplates, retakeHome } from '@retake/core/io';
-import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig, WorkPolicy } from '@retake/core';
+import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
 import { personScope, writeNewProject } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';

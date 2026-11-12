@@ -1,6 +1,7 @@
 /** The first steps of `planEdit`: the input checked, the output format, the edit info — the plan's context. */
-import { hasTokens, timelineVideo } from '@retake/core';
-import type { Timeline, TimelineVideo } from '@retake/core';
+import { hasTokens } from '@retake/core/base';
+import { timelineVideo } from '@retake/core/language';
+import type { Timeline, TimelineVideo } from '@retake/core/model';
 import { DESIGN_SPACES } from '../layout.js';
 import type { EditOverrides, PlanVariant } from '../plan-types.js';
 import { MessageList, round } from '../util.js';

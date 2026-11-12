@@ -5,7 +5,10 @@
  * with a default is optional for the caller.
  */
 import { z } from 'zod';
-import { COMPONENT_ID_RE, EditOverridesInputSchema, PROJECT_SLUG_RE, SLUG_RE, zRenderId, zRunId, zThemeName } from '@retake/core';
+import { COMPONENT_ID_RE, SLUG_RE } from '@retake/core/model';
+import { zRenderId, zRunId, zThemeName } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { EditOverridesInputSchema } from '../jobs/job-input.js';
 
 export const projectSlug = z
   .string()

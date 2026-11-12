@@ -7,7 +7,7 @@
  * they are (its params schema, defaults applied), and — for a layout — shows as many pages as the scene films. A use
  * that is a user file (`video` / `image` / `lottie`) takes no component: the file replaces it. Pure.
  */
-import type { ComponentKind } from '@retake/core';
+import type { ComponentKind } from '@retake/core/model';
 import { isMultiPaneGeometry } from './geometry.js';
 import { applyParamDefaults, validateParamValue } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';

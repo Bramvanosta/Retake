@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES, printableText } from '@retake/core';
+import { printableText } from '@retake/core/base';
+import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import { DEFAULT_JOB_EXPORT_FORMATS, editorRenderer, exportInProcess, findRenderOf } from '@retake/engine';
 import type { ExportFormat, ExportProgress } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';

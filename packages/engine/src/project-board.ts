@@ -29,8 +29,13 @@
 import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, filmedChanges, isRunId, isThemeName, orderRenders, parseRenderId, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
-import type { LoadedProject, RenderEntry, RunStatus, StoredRenderRecord } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { isRunId, isThemeName, parseRenderId } from '@retake/core/ids';
+import { projectPath } from '@retake/core/project';
+import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@retake/core/scenario';
+import { orderRenders } from '@retake/core/render';
+import type { LoadedProject, RunStatus } from '@retake/core/model';
+import type { RenderEntry, StoredRenderRecord } from '@retake/core/render';
 import { fileFacts, projectTemplateFolderId } from '@retake/core/io';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';

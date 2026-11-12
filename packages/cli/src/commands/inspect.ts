@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
-import { InspectTargetSchema, parseYaml, resolveEnvironment } from '@retake/core';
-import type { TargetSpec } from '@retake/core';
+import { parseYaml } from '@retake/core/base';
+import { resolveEnvironment } from '@retake/core/environment';
+import { InspectTargetSchema } from '@retake/engine';
+import type { TargetSpec } from '@retake/core/model';
 import { inspectInProcess, inspectRoot, newInspectId, pageOfUrl, prepareInspect } from '@retake/engine';
 import type { InspectSourceDraft } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';

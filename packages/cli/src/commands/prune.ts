@@ -13,7 +13,7 @@
  * too big to read keeps everything, and a warning says so. Without --yes it only lists.
  */
 import { resolve } from 'node:path';
-import { printableText } from '@retake/core';
+import { printableText } from '@retake/core/base';
 import { DEFAULT_KEEP_RENDERS, createEngine, formatBytes } from '@retake/engine';
 import type { PruneResult } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';

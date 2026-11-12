@@ -6,7 +6,7 @@
  * is Node-only).
  */
 export * from './types.js';
-export { COMPONENT_KINDS } from '@retake/core';
+export { COMPONENT_KINDS } from '@retake/core/model';
 export { ComponentError, formatComponentIssues } from './errors.js';
 export {
   MANIFEST_FILE,

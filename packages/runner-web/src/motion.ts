@@ -1,5 +1,5 @@
-import { seededRandom } from '@retake/core';
-import type { Pacing, PointSpec } from '@retake/core';
+import { seededRandom } from '@retake/core/base';
+import type { Pacing, PointSpec } from '@retake/core/model';
 import { clamp } from './util.js';
 
 export function easeInOutCubic(u: number): number {

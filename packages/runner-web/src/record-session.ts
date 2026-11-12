@@ -31,20 +31,21 @@ import { randomBytes } from 'node:crypto';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import {
-  RecordedEventSchema,
   compileWritePolicy,
   describeWriteRequest,
   graphqlOf,
   graphqlReadsOnly,
   guardsWrites,
   isGuardedHost,
-  isPageOrigin,
   isWriteMethod,
-  pageOrigins,
   resolveRunAccess,
   urlOriginPath,
-} from '@retake/core';
-import type { BrowserConfig, LoadedProject, LoginMatcher, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunAccess, WorkPolicy } from '@retake/core';
+} from '@retake/core/environment';
+import { RecordedEventSchema, isPageOrigin, pageOrigins } from '@retake/core/run';
+import type { BrowserConfig, LoadedProject, ResolvedEnvironment } from '@retake/core/model';
+import type { LoginMatcher, ResolvedPersona, RunAccess } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { RecordedEvent } from '@retake/core/run';
 import { ensurePrivateDir, prepareSessions, registerSessionCopy, signInMatchers } from './auth.js';
 import { projectBrowser } from './config.js';
 import { CancelledError, RunnerError } from './errors.js';

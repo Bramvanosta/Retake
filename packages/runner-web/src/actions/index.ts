@@ -1,5 +1,5 @@
-import { hasLocator, normalizeTarget, pickTarget } from '@retake/core';
-import type { NormalizedStep, TargetSpec } from '@retake/core';
+import { hasLocator, normalizeTarget, pickTarget } from '@retake/core/language';
+import type { NormalizedStep, TargetSpec } from '@retake/core/model';
 import { click, doubleClick, hover } from './click.js';
 import { captureText, download, waitForEmail } from './artefacts.js';
 import { date } from './calendar.js';

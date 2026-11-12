@@ -25,9 +25,17 @@
  */
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, canonicalJson, ffprobePackets, isRenderId, isTemplatePath, locateAnchorStep, packetsArgs, parseScenario, parseYaml, readFfprobeJson, renderOfFile, sameRender, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
+import { canonicalJson, parseYaml } from '@retake/core/base';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, isRenderId } from '@retake/core/ids';
+import { projectPath, scenarioRef } from '@retake/core/project';
+import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retake/core/scenario';
+import { locateAnchorStep } from '@retake/core/comments';
+import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender } from '@retake/core/render';
 import { listTemplates, readListedRender, readPlainFile, ffprobeBin, fileFacts, startMediaTool } from '@retake/core/io';
-import type { FieldAt, FieldValue, LoadedProject, RenderEntry, WorkPolicy } from '@retake/core';
+import type { LoadedProject } from '@retake/core/model';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { FieldAt, FieldValue } from '@retake/core/scenario';
+import type { RenderEntry } from '@retake/core/render';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
 import { listComments, proposalForPreview } from './comments.js';
@@ -46,6 +54,7 @@ import { getScenario, scenarioEditBlocker } from './scenarios.js';
 import { sha256Hex } from './storage.js';
 import { themeUnusable } from './templates.js';
 import type { OpenedWorkspace } from './workspace.js';
+import type { AgentChannel } from './caller.js';
 
 export interface TimelineViewRequest {
   project: string;
@@ -546,7 +555,7 @@ function depsOf(ed: Awaited<ReturnType<typeof editor>>, r: TimelineViewResult): 
  * The timeline view of a scenario's take (see the module comment). The same key (file, run, timeline, components)
  * returns the memoised view: a click's write and the event it raises plan once.
  */
-export async function timelineView(ws: OpenedWorkspace, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: import('@retake/core').AgentChannel }): Promise<TimelineViewResult> {
+export async function timelineView(ws: OpenedWorkspace, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: AgentChannel }): Promise<TimelineViewResult> {
   const t0 = performance.now();
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);

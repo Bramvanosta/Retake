@@ -6,9 +6,10 @@
  * read renders/ without importing the render views.
  */
 import { existsSync } from 'node:fs';
-import { byIdProblem, previousRender, projectPath, renderRecordsOf } from '@retake/core';
+import { projectPath } from '@retake/core/project';
+import { byIdProblem, previousRender, renderRecordsOf } from '@retake/core/render';
 import { readRenderById, readRendersFolder } from '@retake/core/io';
-import type { CompleteRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord } from '@retake/core';
+import type { CompleteRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord } from '@retake/core/render';
 import { EngineError } from './errors.js';
 
 /**

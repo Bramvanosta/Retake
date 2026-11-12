@@ -31,8 +31,9 @@ import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { resolvePersonas } from './auth.js';
 import { collectSandboxRefs, collectSecretRefs } from './templating.js';
-import { agentWritable, canonicalOrigin, channelWords, realPathOf, scenarioNavigationProblems } from './agent-policy.js';
-import type { AgentChannel } from './agent-policy.js';
+import { agentWritable, canonicalOrigin, realPathOf, scenarioNavigationProblems } from './agent-policy.js';
+import { confinementOrDefault, confinementWords } from './confinement.js';
+import type { Confinement } from './confinement.js';
 import { needFiles } from './file-facts.js';
 import type { FileFacts } from './file-facts.js';
 import { formatPath } from './issues.js';
@@ -51,8 +52,8 @@ export function insideFolder(dir: string, p: string, files: FileFacts): boolean 
  * project folder; a sandbox seed's: its sandbox.yaml folder) and must stay inside the project folder once symbolic
  * links are followed. `code`: the file is run (or sent to a database) — it must not be one an agent can write.
  */
-export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean; via?: AgentChannel; files: FileFacts }): string | null {
-  const through = channelWords(o.via);
+export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean; via?: Confinement; files: FileFacts }): string | null {
+  const through = confinementWords(o.via);
   if (isAbsolute(ref) || /^~(?:[\\/]|$)/.test(ref)) {
     return `${ref} is an absolute path: ${through} a file is referenced relative to the project folder, inside it`;
   }
@@ -65,7 +66,8 @@ export function projectFileProblem(projectDir: string, ref: string, o: { baseDir
     return `${ref} resolves outside the project folder: ${through} only files of the project folder are read`;
   }
   if (o.code && agentWritable(rel)) {
-    return `${ref} is a file an agent can write${o.via === 'studio' ? '' : ' through MCP'} (${rel.split(sep).join('/')}): ${through} code is only run from files a human put elsewhere in the project (hooks/, assets/…)`;
+    const writes = confinementOrDefault(o.via).writesThrough;
+    return `${ref} is a file an agent can write${writes ? ` ${writes}` : ''} (${rel.split(sep).join('/')}): ${through} code is only run from files a human put elsewhere in the project (hooks/, assets/…)`;
   }
   return null;
 }
@@ -128,11 +130,11 @@ export function scenarioFileRefs(sc: Scenario): ScenarioFileRef[] {
 }
 
 /** The refusal of secret references in what an agent wrote or runs (trust `mcp`). */
-export function secretRefsProblem(refs: Iterable<string>, where: string, via?: AgentChannel): string | null {
+export function secretRefsProblem(refs: Iterable<string>, where: string, via?: Confinement): string | null {
   const list = [...new Set(refs)];
   if (!list.length) return null;
   return (
-    `${where} uses ${list.map((r) => `{{${r}}}`).join(', ')}: ${channelWords(via)} a scenario never resolves a secret — ` +
+    `${where} uses ${list.map((r) => `{{${r}}}`).join(', ')}: ${confinementWords(via)} a scenario never resolves a secret — ` +
     "only project.yaml (personas' login steps, databases, mailbox, reset and named hooks) and the project's hooks files do; a human runs it in a terminal"
   );
 }
@@ -147,10 +149,11 @@ export function isTemplatePath(ref: string): boolean {
  * workspace's templates_dir or a starter), never a folder — except the project's own `template:` of project.yaml
  * (`projectTemplate`), written by a human. `where`: "the scenario's template", "the run's theme"…
  */
-export function templateRefProblem(ref: string | undefined, projectTemplate: string | undefined, where: string, via?: AgentChannel): string | null {
+export function templateRefProblem(ref: string | undefined, projectTemplate: string | undefined, where: string, via?: Confinement): string | null {
   if (ref === undefined || !isTemplatePath(ref) || ref === projectTemplate) return null;
+  const lists = confinementOrDefault(via).themeList;
   return (
-    `${where} is a folder (${ref}): ${channelWords(via)} a theme is named${via === 'studio' ? '' : ' (template_list names them)'} — a theme folder is used only ` +
+    `${where} is a folder (${ref}): ${confinementWords(via)} a theme is named${lists ? ` (${lists} names them)` : ''} — a theme folder is used only ` +
     "when project.yaml's own template: names it (a human edits project.yaml)"
   );
 }
@@ -184,8 +187,8 @@ export interface AgentTrustEnvironment {
 
 /** What agentTrustProblems(At) is given besides the scenario. */
 export interface AgentTrustOptions {
-  /** The wording's channel (the rules are the same). */
-  via?: AgentChannel;
+  /** The words of the work's confinement (the rules are the same; AGENT_CONFINEMENT when absent). */
+  via?: Confinement;
   /**
    * The environment the run opens, when it is known (a submit, the worker): every absolute URL the scenario opens must
    * have the exact origin of one of its pages (core navigationProblem with `origins`). Without it (a save), the URLs
@@ -224,11 +227,11 @@ export function personaPageOrigins(pages: readonly string[], envPages: Readonly<
  * own pages — the origin of `url` must be the origin of a page the persona signs in to (`allowed`: personaPageOrigins).
  * One sentence when it is not (`url` null: its origin cannot be told before it runs); null when it is.
  */
-export function personaAuthOriginProblem(persona: string, url: string | null, allowed: readonly string[], via?: AgentChannel): string | null {
+export function personaAuthOriginProblem(persona: string, url: string | null, allowed: readonly string[], via?: Confinement): string | null {
   const origin = url === null ? null : canonicalOrigin(url);
   if (origin !== null && allowed.includes(origin)) return null;
   return (
-    `${channelWords(via)} an http hook acting as persona ${persona} (\`auth: {persona}\`) sends its session only to that persona's own pages ` +
+    `${confinementWords(via)} an http hook acting as persona ${persona} (\`auth: {persona}\`) sends its session only to that persona's own pages ` +
     `(${allowed.join(', ') || 'none'}): ${origin ?? 'its URL\'s origin cannot be told before it runs'}${origin ? ' is not one of them' : ''}`
   );
 }

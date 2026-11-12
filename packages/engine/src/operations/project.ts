@@ -4,7 +4,9 @@
  */
 import { realpathSync } from 'node:fs';
 import { z } from 'zod';
-import { pathInside, sandboxAdvice, sandboxAdviceText, zThemeName } from '@retake/core';
+import { pathInside } from '@retake/core/base';
+import { zThemeName } from '@retake/core/ids';
+import { sandboxAdvice, sandboxAdviceText } from '@retake/core/sandbox';
 import { engineLocation, staleEngine } from '@retake/core/io';
 import { heldWork, heldWorkWords } from '../jobs/held.js';
 import { otherCopy } from '../jobs/lock.js';

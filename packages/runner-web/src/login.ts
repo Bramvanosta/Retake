@@ -11,8 +11,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, Page } from 'playwright-core';
-import { LEGACY_PERSONA, loginCommand, resolveCheckUrl, resolveEnvironment, resolvePageUrl, resolvePersonas } from '@retake/core';
-import type { BrowserConfig, LoadedProject, ResolvedPersona, TemplateContext, WorkPolicy } from '@retake/core';
+import { resolvePageUrl } from '@retake/core/base';
+import { LEGACY_PERSONA, loginCommand, resolveCheckUrl, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
+import type { TemplateContext } from '@retake/core/base';
+import type { BrowserConfig, LoadedProject } from '@retake/core/model';
+import type { ResolvedPersona } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
 import { retakeHome, writeTextAtomic } from '@retake/core/io';
 import {
   autoLogin,

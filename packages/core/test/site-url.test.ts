@@ -4,7 +4,8 @@
  * canonical href approved; the unsafe test resolver (its `.test` names only, loopback only); the site job's input.
  */
 import { describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION, JOB_KINDS, SITE_ID_RE, SiteJobInputSchema, parseSiteUrl, siteApprovalFingerprint, siteThemeName, siteUrlProblem, unsafeTestResolve } from '../src/index.js';
+import { SITE_ID_RE, parseSiteUrl, siteApprovalFingerprint, siteThemeName, siteUrlProblem, unsafeTestResolve } from '../src/index.js';
+import { JOB_INPUT_VERSION, JOB_KINDS, SiteJobInputSchema } from '@retake/engine';
 
 const none = new Map<string, unknown>();
 

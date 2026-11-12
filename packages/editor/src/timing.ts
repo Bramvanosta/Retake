@@ -10,8 +10,8 @@
  * output positions `q` are output frames (float). Speeds `v` are playback speeds (×); `u`/`w` are the slopes
  * dp/dq = v · srcFps / outFps at the start / end of a map piece (linear in q on a ramp, constant otherwise).
  */
-import { LOADING_CUT_MIN_S } from '@retake/core';
-import type { TimelineEvent } from '@retake/core';
+import { LOADING_CUT_MIN_S } from '@retake/core/model';
+import type { TimelineEvent } from '@retake/core/model';
 import type { Interval } from './util.js';
 import { intersect, mergeIntervals, stepEnd, subtractIntervals } from './util.js';
 

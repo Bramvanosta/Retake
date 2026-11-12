@@ -9,7 +9,7 @@
  *
  * L5.10b fixes: a frame's title words and a scene's length words (pure, unit-tested).
  */
-import type { StepBlock } from '@retake/core';
+import type { StepBlock } from '@retake/core/scenario';
 import { verbWords } from '../words/scenario-words.js';
 
 /** Where a step is: its scene (among the scenes with steps, in order) and its index in it. */

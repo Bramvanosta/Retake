@@ -1,5 +1,5 @@
-import { describeScope, describeTarget, normalizeTarget } from '@retake/core';
-import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core';
+import { describeScope, describeTarget, normalizeTarget } from '@retake/core/language';
+import type { BBox, PointSpec, TargetObject, TargetSpec } from '@retake/core/model';
 import { StepError, formatNear } from './errors.js';
 import type { ResolveMissing, ResolveResult } from './kit/types.js';
 import type { StepContext } from './runtime.js';

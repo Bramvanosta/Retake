@@ -10,7 +10,11 @@
  * Reviewer names the review's options through `@retake/review/checks`): a mirror of a run's options would only drift. The
  * engine adds one thing to a run's request: the hook runner its hooks run through (hook-run/runner.ts).
  */
-import type { LoadedProject, PersonaRequestAuth, ResolvedPersona, RunRecord, Timeline, WorkPolicy, WritePolicy } from '@retake/core';
+import type { LoadedProject, Timeline } from '@retake/core/model';
+import type { ResolvedPersona, WritePolicy } from '@retake/core/environment';
+import type { WorkPolicy } from '@retake/core/policy';
+import type { PersonaRequestAuth } from '@retake/core/hooks';
+import type { RunRecord } from '@retake/core/run';
 import type {
   ExportCaptureOptions,
   HookPageOptions,

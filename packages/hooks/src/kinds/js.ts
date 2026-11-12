@@ -1,5 +1,5 @@
-import { isHostRefusedError, isWriteRefusedError, protectedHostMessage, readOnlyHookMessage } from '@retake/core';
-import type { JsHookSpec } from '@retake/core';
+import { isHostRefusedError, isWriteRefusedError, protectedHostMessage, readOnlyHookMessage } from '@retake/core/environment';
+import type { JsHookSpec } from '@retake/core/model';
 import { describeJs } from '../describe.js';
 import { HookError, HookSecurityError } from '../errors.js';
 import { redactText } from '../secrets.js';

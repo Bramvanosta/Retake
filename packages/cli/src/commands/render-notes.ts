@@ -1,4 +1,4 @@
-import { projectPath } from '@retake/core';
+import { projectPath } from '@retake/core/project';
 import { latestRenderLines, renamedRenderLine } from '@retake/core/io';
 import type { FoundRender } from '@retake/engine';
 

@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { printableText } from '@retake/core';
+import { printableText } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
 import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkSlowTransitions, checkTextSlots, checkButtonContrast, checkOverlayCover, checkLoadingFilmed, checkZoomScroll, checkCaptionContradictions, checkOverlaysKept, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';

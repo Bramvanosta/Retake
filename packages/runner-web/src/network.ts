@@ -1,5 +1,5 @@
 import type { Frame, Page, Request } from 'playwright-core';
-import { urlOriginPath } from '@retake/core';
+import { urlOriginPath } from '@retake/core/environment';
 import { sleep, wallNow } from './util.js';
 
 /** Quiet time that counts as "network idle": no request in flight for this long (Playwright's networkidle definition). */

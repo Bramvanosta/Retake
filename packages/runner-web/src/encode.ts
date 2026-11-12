@@ -1,7 +1,7 @@
 import { copyFile, link, mkdir, rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { ffmpegBin, h264CodecArgs, h264Encoder, startMediaTool, stderrLines } from '@retake/core/io';
-import type { WorkPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core/policy';
 import { EncodeError } from './errors.js';
 import type { FrameIndexEntry } from './recorder.js';
 

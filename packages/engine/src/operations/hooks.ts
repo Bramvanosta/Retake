@@ -4,7 +4,7 @@
  * engine's hooks and env façades gather the items, refuse a production write before asking, and sign what was approved.
  */
 import { z } from 'zod';
-import { HOOKS_SOURCE_RE } from '@retake/core';
+import { HOOKS_SOURCE_RE } from '../jobs/job-input.js';
 import type { Engine } from '../engine.js';
 import type { HookResultView, JobRecord } from '../jobs/types.js';
 import { HOOK_JOB } from './annotations.js';

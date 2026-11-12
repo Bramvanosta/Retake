@@ -3,6 +3,7 @@ import { PERSONA_NONE, authFor, mailPersona, personaEmail, planPersonas, project
 import { scenarioNavigationProblems } from '../agent-policy.js';
 import { needFiles } from '../file-facts.js';
 import type { CheckFiles, FilesWith } from '../file-facts.js';
+import type { Confinement } from '../confinement.js';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
@@ -42,8 +43,8 @@ export interface ScenarioCheckFields {
   env?: string;
   /** A `--until` step reference that must resolve. */
   until?: string;
-  /** Work an agent submits, by its channel: file references stay inside the project, unlooked-at outside (CheckContext.confined). */
-  confined?: 'mcp' | 'studio';
+  /** Work an agent submits, with its confinement's words: file references stay inside the project, unlooked-at outside (CheckContext.confined). */
+  confined?: Confinement;
   /** Filled with the absolute path of every file the checks look for (CheckContext.filesRead). */
   filesRead?: Set<string>;
   /**

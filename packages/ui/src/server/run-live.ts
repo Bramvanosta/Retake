@@ -36,8 +36,11 @@ import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { JOB_STATES, PROJECT_SLUG_RE, SLUG_RE, zRunId } from '@retake/core';
-import type { JobState } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { zRunId } from '@retake/core/ids';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { JOB_STATES } from '@retake/engine';
+import type { JobState } from '@retake/engine';
 import {
   ERROR_STATUS,
   EngineError,

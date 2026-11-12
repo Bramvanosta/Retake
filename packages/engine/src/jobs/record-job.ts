@@ -21,8 +21,11 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@retake/core';
-import type { RecordJobInput, RecordedEvent } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { resolveRunAccess } from '@retake/core/environment';
+import { JOB_INPUT_VERSION } from './job-input.js';
+import type { RecordedEvent } from '@retake/core/run';
+import type { RecordJobInput } from './job-input.js';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST, submittedInStudio } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';

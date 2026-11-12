@@ -38,7 +38,11 @@
  * stays under `untrusted`, which the HTTP layer caps and the app renders as text only.
  */
 import { z } from 'zod';
-import { JOB_ID_RE, PROJECT_SLUG_RE, RECORD_ID_RE, RecordAnnotationChangeSchema, SLUG_RE, resolveRunAccess } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { JOB_ID_RE, RECORD_ID_RE } from '@retake/core/ids';
+import { resolveRunAccess } from '@retake/core/environment';
+import { PROJECT_SLUG_RE } from '@retake/core/project';
+import { RecordAnnotationChangeSchema } from '@retake/core/run';
 import { dateOf } from '../clock.js';
 import type { AuthStatusItem, Engine } from '../engine.js';
 import { openProjectBySlug } from '../projects.js';

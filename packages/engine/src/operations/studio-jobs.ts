@@ -32,7 +32,8 @@
  *   rules (export_cap).
  */
 import { z } from 'zod';
-import { JOB_ID_RE, SLUG_RE } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { JOB_ID_RE } from '@retake/core/ids';
 import { EXPORTS_OPEN_MAX } from '../admission.js';
 import { EngineError } from '../errors.js';
 import type { RenderEditSource } from '../jobs/render-job.js';

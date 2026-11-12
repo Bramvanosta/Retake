@@ -29,7 +29,7 @@ import { randomBytes } from 'node:crypto';
 import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync, writeSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { newUlidId, ulidFileRe } from '@retake/core';
+import { newUlidId, ulidFileRe } from '@retake/core/ids';
 import { START_TOLERANCE_MS, processTable, readPlainFile, retakeHome, signalState } from '@retake/core/io';
 import type { ProcessIdentity } from './proc.js';
 import { processStart } from './proc.js';

@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { statePath } from '@retake/core';
+import { statePath } from '@retake/core/project';
 import { editor } from './lazy.js';
 
 /** Entries a tree signature looks at, at most (a component folder is a handful of files). */

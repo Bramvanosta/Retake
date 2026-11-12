@@ -11,7 +11,7 @@
  * (elements dropped from the end, `truncated` counts them; inspect.json keeps them all).
  */
 import { z } from 'zod';
-import { INSPECT_JOB_LIMIT_MAX, INSPECT_JOB_TARGETS_MAX, InspectTargetSchema } from '@retake/core';
+import { INSPECT_JOB_LIMIT_MAX, INSPECT_JOB_TARGETS_MAX, InspectTargetSchema } from '../jobs/job-input.js';
 import type { Engine } from '../engine.js';
 import type { InspectJobResult, JobRecord } from '../jobs/types.js';
 import { RUN_JOB } from './annotations.js';

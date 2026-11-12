@@ -4,7 +4,8 @@
  * scenario_render, thread_apply and record_save (the Studio holds one engine per server: its chain).
  */
 import { z } from 'zod';
-import { FIELD_PATHS, PALETTE_ACTIONS, SCENARIO_EDIT_MAX_CHARS, SLUG_RE } from '@retake/core';
+import { SLUG_RE } from '@retake/core/model';
+import { FIELD_PATHS, PALETTE_ACTIONS, SCENARIO_EDIT_MAX_CHARS } from '@retake/core/scenario';
 import { defineOperation } from './define.js';
 import { scenarioKey } from './studio-jobs.js';
 import { studioProject as project, studioScenario as scenario } from './studio-schema.js';

@@ -68,7 +68,8 @@ describe('@retake/hooks/describe (the pure entry)', () => {
         expect(s.startsWith('node:') || createRequire(import.meta.url)('node:module').isBuiltin(s), `${file} → ${s}`).toBe(false);
       }
     }
-    expect([...packages].sort()).toEqual(['@retake/core']);
+    // Core by its entries (L7.35): the kernel, the shared contracts and the hooks' own context.
+    expect([...packages].sort()).toEqual(['@retake/core/base', '@retake/core/hooks', '@retake/core/model']);
     for (const f of all.files) expect(readFileSync(join(SRC, f), 'utf8'), f).not.toMatch(/\bcreateRequire\b|\bgetBuiltinModule\b|\bimport\(|\brequire\(/);
   });
 

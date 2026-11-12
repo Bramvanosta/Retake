@@ -4,7 +4,7 @@
  * (worker-heavy.ts: a job process of its own). Handed a port a heavy job reads (worker-ports.ts), the capture slot
  * runs heavy jobs too, one at a time.
  */
-import { jobClass } from '@retake/core';
+import { jobClass } from './job-input.js';
 import { pick } from './pick.js';
 import { createJobRunner } from './run-job-record.js';
 import type { JobRecord } from './types.js';

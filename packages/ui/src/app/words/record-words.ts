@@ -6,7 +6,8 @@
  * The caps and defaults mirror core record-annotations.ts (the app imports no runtime code from core; the server
  * validates every value again).
  */
-import type { DraftSource, JobClient, RecordInsert, RecordInsertAt, SecretFieldKind } from '@retake/core';
+import type { DraftSource, RecordInsert, RecordInsertAt, SecretFieldKind } from '@retake/core/run';
+import type { JobClient } from '@retake/engine';
 import type { RecordCheckView, RecordState } from '@retake/engine';
 
 /** Quick inserts' defaults (core RECORD_HOLD_S.default) and caps; the zoom's factor comes with the view (the theme's max_zoom). */

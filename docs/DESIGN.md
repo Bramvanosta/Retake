@@ -51,6 +51,26 @@ media tools (`bundle.ts`, `media-tools.ts`), the Retake home and its signing key
 the media probes, the Node implementations of the ports below, and the environment the domain is given (this process's
 PATH: `programLookup()`; whether its file system ignores case: `nodeFileFacts.ignoresCase`). The domain never imports it.
 
+**Contexts and their entries** (L7.35, audit 2026-11-10 D1). The domain is fifteen contexts, in an order where each
+imports only those before it: `base` (the kernel: issues, error kinds, format versions, canonical JSON, printable text,
+token templating, YAML validation), `model` (the shared contracts: types.ts — not split by context yet —, the primitive
+schemas, user media, the ports, the render settings, the confinement of agent work, the checks' shared context), `ids`,
+`language` (steps, targets, pages, tutorial switches, the video's edit info), `environment` (pages, hosts, access,
+writes, the product clock, personas), `policy` (the agent policy), `hooks`, `project` (the workspace, project.yaml, the
+layout), `sandbox`, `scenario` (the file read, checked and edited; the agent's trust checks), `comments`, `run` (the run
+record, takes, the timeline schema, recordings, inspection), `render` (the render record, ffprobe's answers, the GPU
+status, the export formats), `theme` (template.yaml, components, theme edits, brand inputs, the site) and `schema` (the
+JSON Schemas). Each is an entry, `@retake/core/<context>` (`src/entries/<context>.ts`), exporting the names of the files
+it holds; the root `@retake/core` is every entry at once, kept for the tests and scripts. The map is data
+(`scripts/audit/lib.mjs` `CORE_CONTEXTS`) and the import-rules ratchet holds it: `core-context` (a file importing a later
+context is a hit — a type-only import of `model` is free —, a file of no context, an entry reaching outside its own; two
+entries at L7.35: the scenario's checks read the default theme's components, a script's draft the inspection's path
+grammar) and `core-root` (a package's sources import an entry, never the root). The job vocabulary is the engine's
+(`packages/engine/src/jobs/job-input.ts`, D7), and the domain names no channel: the words of a refusal of confined work
+are a value it is handed (`Confinement`, `confinement.ts`: the words, what follows "a file an agent can write", the
+operation that lists themes, who approves a hook; `AGENT_CONFINEMENT` when none is given — the MCP server's words), which
+the engine maps its callers onto (`caller.ts` `confinementOf`, D6).
+
 - **FileFacts** and **VideoProber** (`file-facts.ts`): what a domain rule learns from the machine. FileFacts is the
   disk — kind (a file, a folder, something else, or nothing), real path (as given / as the file system spells it),
   text, first bytes, executable, whether the file system ignores case; VideoProber is a video's ffprobe, which runs
@@ -2155,7 +2175,7 @@ CLI's implementation is `onInterrupt`, the worker's the job's AbortSignal plus i
 throws `AccessError` (the CLI turns it into its usage error), a failed take `SandboxTakeError` (`interrupted` → exit
 130). `retake run`'s output, errors and exit codes are unchanged (a cancelled run still exits 1).
 
-**Jobs** (R-ARC-02; `jobs/`). Input contract in core (`jobs.ts`, `JobInputSchema`, version 1): a `run` job is
+**Jobs** (R-ARC-02; `jobs/`). Input contract in the engine (`jobs/job-input.ts`, `JobInputSchema`, version 1; core's `jobs.ts` until L7.35): a `run` job is
 `{version, kind: 'run', project (slug), scenario (name), scenario_sha256 (of the file's bytes at submit), mode,
 env?, until?, hooks?, sandbox?, run_id (reserved), submitted_by}` — strict (no other key), never a secret, a session or
 a path. Files under `<workspace>/.retake/` (git-ignored):
@@ -2536,11 +2556,12 @@ workers/worker.log      what workers print (stderr), appended
   token (a reuse sends it to the record's port only). A process of this user that reads the Retake home is the person
   (the MCP HTTP token and the signed-in profiles are there too).
 
-**Engine client `ui`.** `EngineClient` and core `JOB_CLIENTS` gain `ui`; `agentTrust(client)` (= not `cli`, not
-`test`) gives the scenario checks agent trust; comment authorship and `cliOnly` already treat anything but `cli` as the
-agent; no approver is ever passed (`needs_approval`). The L4.1 allow-list runs under agent trust; how a person proves
-presence in the UI (approvals, comment authorship, edits with secret refs) is open: L4.3 and L4.4 kept agent trust
-(approvals and edits with secret refs: BL-106), comment authorship is L4.6's.
+**Engine client `ui`.** `EngineClient` and `JOB_CLIENTS` (core's then; the engine's jobs/job-input.ts since L7.35) gain
+`ui`; `agentTrust(client)` (= not `cli`, not `test`) gives the scenario checks agent trust; comment authorship and
+`cliOnly` already treat anything but `cli` as the agent; no approver is ever passed (`needs_approval`). The L4.1
+allow-list runs under agent trust; how a person proves presence in the UI (approvals, comment authorship, edits with
+secret refs) is open: L4.3 and L4.4 kept agent trust (approvals and edits with secret refs: BL-106), comment authorship
+is L4.6's.
 
 **`LocalStorage` reads** (`readText`, and the if_match hash of `writeText`) go through the file's real path and are
 refused (`refused`) when it lies outside the project's real path — README.md, scenario_get, scenario_save,
@@ -2617,7 +2638,7 @@ that skips the rules. Who calls is one `Caller` (`callerOf(client)`: client, cha
 `author` / `mcp`), and every decision the engine and the Studio's server take from it, or from who submitted a job, is
 a function of caller.ts (agent checks, refusal wording — `refusalChannel` of a caller, `submitterChannel` of a job's
 submitter —, person channel `speaksAsPerson`, `if_match`, proposals, the Record screen, a Studio recording
-`submittedInStudio`, the worker's clean environment, theme edits, admission); `EngineClient` is core's `JobClient`;
+`submittedInStudio`, the worker's clean environment, theme edits, admission); `EngineClient` is the job inputs' `JobClient`;
 `CallerTrust` is defined there and core's `HookTrust`, the editor's `PlanTrust` and `BrandTrust` are held to it (a
 compile-time check), and the engine holds every job and a theme made from a brand to `mcp` (`ENGINE_TRUST`, which every
 job module uses instead of a literal — a test reads them).
@@ -6546,7 +6567,7 @@ A take filmed on a loaded machine shows it (fewer frames during motion, more kic
 previews and site extractions are background work, a take is not (BL-116). Built on the file queue (decision of
 2026-11-04: no new dependency; ADR-1 unchanged, BL-117 parked).
 
-- **Classes** (core `JOB_CLASS`, `jobClass`, `isFilming`): `capture` — run, hooks, env_reset, auth_login, sandbox_up,
+- **Classes** (`JOB_CLASS`, `jobClass`, `isFilming`: engine jobs/job-input.ts, core's until L7.35): `capture` — run, hooks, env_reset, auth_login, sandbox_up,
   sandbox_reset, inspect, record; `heavy` — render, review, export, preview, site. An unknown kind is a capture (the
   worker refuses it in its own process, as before). A new kind does not type-check until it picks a class. Only a
   filming take (`run`, mode `capture`) holds heavy work; the other captures go first and stay one at a time with the

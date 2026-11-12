@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ValidationIssue } from '@retake/core';
+import type { ValidationIssue } from '@retake/core/model';
 import { CallError, errorText } from '../api.js';
 import { scenarioEdit } from '../data/scenarios.js';
 import type { ScenarioEdit } from '../data/scenarios.js';
