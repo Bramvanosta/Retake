@@ -44,6 +44,14 @@ describe('the test-migration guard', () => {
     expect(compareTests(before, parseTests(stronger))).toEqual([]);
   });
 
+  it('reads a title by its value and an expect.poll broken onto the next line: a formatter changes neither', () => {
+    const before = parseTests("it('the shell\\'s lines', async () => {\n  await expect.poll(() => 1).toBe(1);\n});\n");
+    const after = parseTests('it("the shell\'s lines", async () => {\n  await expect\n    .poll(() => 1)\n    .toBe(1);\n});\n');
+    expect([...after.keys()]).toEqual(["the shell's lines"]);
+    expect(after.get("the shell's lines").expects).toBe(1);
+    expect(compareTests(before, after)).toEqual([]);
+  });
+
   it('runs as a command: no decrease against the working tree itself', () => {
     const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'test-guard.mjs'), '--base', 'HEAD', 'scripts'], { cwd: ROOT, encoding: 'utf8' });
     expect(r.stdout).toContain('no decrease');

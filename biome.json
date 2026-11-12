@@ -1,0 +1,60 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "packages/*/src/**/*.{ts,tsx,mts,cts,js,mjs,cjs}",
+      "packages/*/test/**/*.{ts,tsx,mts,cts,js,mjs,cjs}",
+      "scripts/**/*.{ts,mjs,js,cjs}",
+      "apps/desktop/scripts/**/*.{mjs,js,cjs}",
+      "apps/desktop/bundle/*.{mjs,cjs}",
+      "!**/test/fixtures",
+      "!**/test/golden",
+      "!**/dist"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "includes": ["**", "!apps/desktop/**"],
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 200
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "quoteProperties": "preserve"
+    }
+  },
+  "assist": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "off",
+        "useTemplate": "off"
+      },
+      "complexity": {
+        "noCommaOperator": "off"
+      },
+      "suspicious": {
+        "noAssignInExpressions": "off",
+        "noTemplateCurlyInString": "off",
+        "noControlCharactersInRegex": "off",
+        "useIterableCallbackReturn": "off",
+        "noThenProperty": "off"
+      },
+      "correctness": {
+        "noChildrenProp": "off",
+        "noVoidTypeReturn": "off",
+        "noEmptyCharacterClassInRegex": "off"
+      }
+    }
+  }
+}

@@ -9,14 +9,18 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-/** Per test title: the number of expect calls and the test ids its body uses. */
+/**
+ * Per test title: the number of expect calls and the test ids its body uses. A title is read by its value (an escaped
+ * quote and the same quote unescaped are one title: a formatter may change the quotes) and `expect` may be followed by
+ * `.poll` on the next line (how a formatter breaks a long chain).
+ */
 export function parseTests(text) {
   const out = new Map();
   const re = /\bit(?:\.skipIf\([^)]*\)|\.only|\.skip)?\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
-  const marks = [...text.matchAll(re)].map((m) => ({ title: m[2], at: m.index }));
+  const marks = [...text.matchAll(re)].map((m) => ({ title: m[2].replace(/\\(['"`\\])/g, '$1'), at: m.index }));
   marks.forEach((m, i) => {
     const body = text.slice(m.at, i + 1 < marks.length ? marks[i + 1].at : text.length);
-    const expects = (body.match(/\bexpect(?:\.poll)?\(/g) ?? []).length;
+    const expects = (body.match(/\bexpect(?:\s*\.poll)?\(/g) ?? []).length;
     const ids = new Set(
       [...body.matchAll(/getByTestId\(\s*['"`]([^'"`]+)['"`]/g), ...body.matchAll(/data-testid="([^"]+)"/g)].map((x) => x[1]),
     );

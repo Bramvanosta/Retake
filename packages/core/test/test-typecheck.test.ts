@@ -113,7 +113,7 @@ function vitestAliases(): Record<string, string> {
 }
 
 /** How many expected-error directives the test folders hold (2026-11-12). */
-const EXPECT_ERRORS = 47;
+const EXPECT_ERRORS = 48;
 
 describe('the type check of the test files (tsconfig.test.json)', () => {
   const config = readConfig('tsconfig.test.json');

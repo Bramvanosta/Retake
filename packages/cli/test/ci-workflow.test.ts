@@ -74,7 +74,7 @@ describe('the CI workflow (ci.yml)', () => {
     // one), in a step that is its name and its script (no `if:`, no `continue-on-error`).
     const guards = step('checks', "The repository's guards");
     expect(Object.keys(guards).sort()).toEqual(['name', 'run']);
-    expect(guards.run!.trim().split('\n')).toEqual(['set -eu', 'node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites', 'npx tsc -p tsconfig.test.json']);
+    expect(guards.run!.trim().split('\n')).toEqual(['set -eu', 'node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites', 'npx tsc -p tsconfig.test.json', 'node scripts/lint.mjs']);
     expect(Object.keys(step('checks', 'Build the packages')).sort()).toEqual(['name', 'run']);
     // The suite runs on the Mac only until it is faster and steadier (BL-163): no test step, no browser, no gated test.
     expect(names('checks').at(-1)).toBe("The repository's guards");

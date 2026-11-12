@@ -1123,7 +1123,8 @@ function jsxControls(file: string, text: string): JsxFinding[] {
         const attrs = new Map(list.map((a) => [a.name.getText(src), a.initializer ? a.initializer.getText(src) : 'true']));
         const start = n.getStart(src);
         const line = src.getLineAndCharacterOfPosition(start).line + 1;
-        const lineText = text.split('\n')[line - 1] ?? '';
+        // An exception names a piece of the element's opening tag, read on one line (however the formatter lays it out).
+        const tagText = text.slice(start, n.end).replace(/\s+/g, ' ');
         const href = attrs.get('href');
         const realHref = href !== undefined && !/^\{\s*(?:undefined|null)\s*\}$|^""$/.test(href);
         const native = NATIVE.has(tag) || (tag === 'a' && realHref);
@@ -1134,7 +1135,7 @@ function jsxControls(file: string, text: string): JsxFinding[] {
           const keys = handlers.some((h) => /^onKey(?:Down|Up)/.test(h));
           const clickOnly = handlers.some((h) => /^on(?:Click|DoubleClick)/.test(h)) && !keys && role !== undefined && CLICK_ROLE.has(role);
           const real = role !== undefined && CONTROL_ROLE.has(role) && stop && !clickOnly;
-          const excused = REAL_CONTROL_EXCEPTIONS.some((x) => x.file === file && x.tag === tag && Object.entries(x.attrs).every(([k, v]) => attrs.get(k) === v) && lineText.includes(x.line));
+          const excused = REAL_CONTROL_EXCEPTIONS.some((x) => x.file === file && x.tag === tag && Object.entries(x.attrs).every(([k, v]) => attrs.get(k) === v) && tagText.includes(x.line));
           if (!real && !excused) out.push({ file, line, what: `<${tag}> with ${handlers.join(', ')} is not a control (${role === undefined || !CONTROL_ROLE.has(role) ? 'no control role' : !stop ? 'no tab stop (tabIndex 0 or a roving 0)' : 'a click with no key handler'})` });
         }
         if (n.attributes.properties.some(ts.isJsxSpreadAttribute) && !native && !SPREAD_EXCEPTIONS.some((x) => x.file === file && x.tag === tag)) out.push({ file, line, what: `a spread onto <${tag}> (props the lint cannot see)` });
@@ -2499,7 +2500,7 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(new Set(opsCalled(shell))).toEqual(new Set(['engine_info']));
     // The mutations (reviews A-L3 / B-M2): a writer one definition away, a writer imported, the bus's commands.
     const timeline = files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1];
-    const away = timeline.replace('run: () => onSelect(s.id, landingOf(s)) })),', 'run: () => pickScene(s.id) })),').replace('  // A segment gone from the new version', "  const pickScene = (id: string) => void call('scenario_edit', { project: slug, name, id });\n  // A segment gone from the new version");
+    const away = timeline.replace(/run: \(\) => onSelect\(s\.id, landingOf\(s\)\)(?:,\s*| )\}\)\),/, 'run: () => pickScene(s.id) })),').replace('  // A segment gone from the new version', "  const pickScene = (id: string) => void call('scenario_edit', { project: slug, name, id });\n  // A segment gone from the new version");
     expect(away).not.toBe(timeline);
     expect(paletteGroupWriters('edit/TimelineScreen.tsx', away).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('scenario_edit', { project: slug, name, id })"]);
     const deep = timeline.replace('      setSelected(id);\n      seek(from);', "      setSelected(id);\n      seek(from);\n      void call('timeline_set', { id });");

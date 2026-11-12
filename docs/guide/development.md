@@ -39,7 +39,7 @@ projects/             the fixture project and its sandboxes (your projects live 
 templates/            starter themes: default, editorial, motion
 scripts/              requirements.mjs (docs/REQUIREMENTS.md; `--check-cites`: quoted test titles exist), fixture media
                       and preview samples, validate-raw.py,
-                      test-pg.mjs (`pnpm test:pg`)
+                      test-pg.mjs (`pnpm test:pg`), lint.mjs (`pnpm lint`) and its lint-baseline.json
 docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts), HANDOFF.md,
                       ROADMAP.md, BACKLOG.md, ACCEPTANCE-phase2.md, MACOS-CHECKLIST.md, RELEASING.md; guide/ (the
                       user guide: the reference the README links)
@@ -49,7 +49,13 @@ CLAUDE.md             notes for Claude Code sessions (read order, working agreem
 Development: `pnpm build` (TypeScript project references), `pnpm typecheck` (the build, then the files under
 `packages/*/test` type-checked with `tsconfig.test.json`: the build does not read them, the CI does), `pnpm test` (vitest; the end-to-end tests start the
 fixture on free ports and skip themselves when Chromium or ffmpeg is missing; some CLI tests run `packages/cli/dist`,
-so build first). Gated tests:
+so build first). `pnpm lint` runs Biome's linter (`biome.json`: the recommended rules, a few turned off with their
+reason in `scripts/lint-baseline.json`) and holds the code to that baseline: a new violation fails, and a count that
+went down asks for the baseline to be lowered (`node scripts/lint.mjs --write-baseline`), so it only shrinks; the CI
+runs it. `pnpm format` formats the code with Biome (`pnpm format:check` only reports). The linter reads the TypeScript
+and JavaScript of `packages/*/src`, `packages/*/test`, `scripts` and the desktop app (`apps/desktop/scripts`,
+`apps/desktop/bundle`); the formatter the same but the desktop app's, whose release and bundle tests read its exact
+text; neither reads test fixtures, golden files, `dist`, templates, the component library or Rust. Gated tests:
 
 | Command | What it runs |
 |---|---|

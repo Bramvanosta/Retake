@@ -217,9 +217,11 @@ describe("the engine's needs", () => {
     // The probe (probeFrameEncode): three `color` frames written as JPEG to the image pipe, then the frame encode on
     // them, written nowhere.
     expect(/`(color)=c=gray:s=/.exec(tools)?.[1]).toBe('color');
-    expect(tools).toMatch(/'-c:v', 'mjpeg', .*'-f', 'image2pipe', '-'\]/);
-    expect(tools).toMatch(/'-f', 'image2pipe', .*'-vcodec', 'mjpeg', '-i', '-'/);
-    expect(tools).toMatch(/'-f', 'null', '-'/);
+    // The argument lists read on one line, however the formatter lays them out.
+    const flat = tools.replace(/\s+/g, ' ').replace(/, \]/g, ']');
+    expect(flat).toMatch(/'-c:v', 'mjpeg', .*'-f', 'image2pipe', '-'\]/);
+    expect(flat).toMatch(/'-f', 'image2pipe', .*'-vcodec', 'mjpeg', '-i', '-'/);
+    expect(flat).toMatch(/'-f', 'null', '-'/);
     expect(ENGINE_NEEDS.filters).toContain('color');
     expect(ENGINE_NEEDS.encoders).toEqual(expect.arrayContaining(['mjpeg', 'libx264', 'h264_videotoolbox', 'wrapped_avframe']));
     expect(ENGINE_NEEDS.decoders).toContain('mjpeg');

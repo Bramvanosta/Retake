@@ -3,7 +3,8 @@
 #    - the pinned Node.js, then pnpm;
 #    - the packages built;
 #    - the repository's own guards: one version, the import-rules ratchet, every phase-1 requirement tested, every
-#      cited test title present, the test files type-checked (tsconfig.test.json).
+#      cited test title present, the test files type-checked (tsconfig.test.json), the lint ratchet (scripts/lint.mjs:
+#      Biome's linter held to scripts/lint-baseline.json).
 #    The test suite does not run here: on a shared runner (three cores, no GPU) it took about fifty minutes and some
 #    timing tests failed on every run, a different set each time. It runs on the Mac (`pnpm test`) until it is made
 #    faster and steadier (BACKLOG BL-163).
@@ -61,6 +62,7 @@ jobs:
           node scripts/requirements.mjs --untested 1
           node scripts/requirements.mjs --check-cites
           npx tsc -p tsconfig.test.json
+          node scripts/lint.mjs
 
   desktop:
     runs-on: macos-15
