@@ -7,6 +7,7 @@
  * the composition roots only (ports.ts enginePorts).
  */
 import type { RunOptions } from '@retake/runner-web/types';
+import { missingOrInvalid } from '@retake/core';
 import { EngineError } from '../errors.js';
 import type { HookJournal, HookRunner } from '../hook-run/runner.js';
 import { runnerWeb } from '../lazy.js';
@@ -36,6 +37,16 @@ type HookRunnerChecks = [
   Assignable<HookRunner['run'], OwnJournal<Mirror['run'], HookJournal>>,
   Assignable<HookRunner['journals']['open'], Strict<Mirror['journals']['open']>>,
 ];
+
+/** A refusal of the package's raw export (RawExportError) as an EngineError of its sentence (core missingOrInvalid). */
+async function refusals<T>(rw: RunnerWeb, work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (e) {
+    if (e instanceof rw.RawExportError) throw new EngineError(missingOrInvalid(e.message), e.message);
+    throw e;
+  }
+}
 
 export function runnerWebCapture(): CaptureRunner {
   let loaded: RunnerWeb | undefined;
@@ -88,6 +99,18 @@ export function runnerWebCapture(): CaptureRunner {
     },
     site: {
       extract: async (o) => (await load()).extractSite(o),
+    },
+    // The package's raw export (L7.22): its own refusals (RawExportError, which states no kind) become EngineErrors in
+    // the same sentence; anything else is thrown as the package threw it.
+    raw: {
+      timeline: async (runDir) => {
+        const rw = await load();
+        return (await refusals(rw, () => rw.rawExportRun(runDir))).recorded;
+      },
+      export: async (o) => {
+        const rw = await load();
+        return refusals(rw, () => rw.exportCapture(o));
+      },
     },
     cancelled: (message) => {
       const { CancelledError } = sync('cancelled');

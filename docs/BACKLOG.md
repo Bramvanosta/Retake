@@ -2739,5 +2739,8 @@ yet, from the job's `submitted_by`. Seen in the L7.18 characterization (fixtures
   share one id and one journal.
 - `retake export-capture --json` drops the template note: it reaches no stream and not the manifest.
 - `plan` and `export-capture` word the "no timeline" refusal differently.
+- (L7.22) `findRun`'s refusal of a run whose run.json a newer Retake wrote says "render" for `plan` and
+  `export-capture` too (its verb is fixed).
+- (L7.22) The raw export's dry-run sentence names the timeline's `run_id`, not the folder that was named.
 - A scaffolded `component.yaml` names its `$schema` by a path relative to the Retake checkout, which breaks when either
   folder moves.

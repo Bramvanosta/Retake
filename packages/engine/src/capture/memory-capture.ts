@@ -11,7 +11,8 @@
  * (`run`) is memory-run.ts's — a run folder, its records and events, the signal, `until`, the pause gate, the live sink,
  * an inspection's report, the filming events and the hooks through the handed hook runner, with no browser — and the
  * run contract (engine/test/capture-runner-contract.ts) runs it beside the runner package; the recording's window, the
- * sessions, the js-hook pages and the site come from memory-sessions.ts, or from the options.
+ * sessions, the js-hook pages and the site come from memory-sessions.ts, the raw export from memory-raw.ts (its calls
+ * kept in `calls` too), or from the options.
  */
 import type { ErrorKind, RunRecord } from '@retake/core';
 import { ManualClock } from '../clock.js';
@@ -19,8 +20,10 @@ import { EngineError } from '../errors.js';
 import type { Clock } from '../clock.js';
 import { memoryRun } from './memory-run.js';
 import type { MemoryStepFailure } from './memory-run.js';
+import { memoryRaw } from './memory-raw.js';
+import type { MemoryRawCall } from './memory-raw.js';
 import { memoryHookPages, memoryRecord, memorySessions, memorySite } from './memory-sessions.js';
-import type { CaptureRequest, CaptureRunner, CaptureSessions, HookPages } from './runner.js';
+import type { CaptureRaw, CaptureRequest, CaptureRunner, CaptureSessions, HookPages } from './runner.js';
 
 /** The in-memory runner's cancel: the runner's name and kind. */
 export class MemoryCancelledError extends Error {
@@ -39,7 +42,8 @@ export type MemoryCaptureCall =
   | { member: 'load' }
   | { member: 'run'; req: CaptureRequest }
   | { member: 'cancelled'; message?: string }
-  | { member: 'cleanupSync' };
+  | { member: 'cleanupSync' }
+  | MemoryRawCall;
 
 export interface MemoryCaptureRunnerOptions {
   /** What its runs stamp (default a ManualClock at 2026-11-11T12:00:00Z: the stamps stand still, elapsed times do not). */
@@ -50,6 +54,7 @@ export interface MemoryCaptureRunnerOptions {
   sessions?: CaptureSessions;
   hookPages?: HookPages;
   site?: CaptureRunner['site'];
+  raw?: CaptureRaw;
 }
 
 export class MemoryCaptureRunner implements CaptureRunner {
@@ -60,6 +65,7 @@ export class MemoryCaptureRunner implements CaptureRunner {
   readonly sessions: CaptureSessions;
   readonly hookPages: HookPages;
   readonly site: CaptureRunner['site'];
+  readonly raw: CaptureRaw;
   readonly #fail: MemoryStepFailure | undefined;
   readonly #clock: Clock;
   #loaded = false;
@@ -69,6 +75,7 @@ export class MemoryCaptureRunner implements CaptureRunner {
     this.sessions = o.sessions ?? memorySessions();
     this.hookPages = o.hookPages ?? memoryHookPages();
     this.site = o.site ?? memorySite();
+    this.raw = o.raw ?? memoryRaw(this.calls);
     this.#fail = o.fail;
     this.#clock = o.clock ?? new ManualClock('2026-11-11T12:00:00.000Z');
   }

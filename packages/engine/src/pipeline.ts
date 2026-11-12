@@ -10,7 +10,7 @@
  * writes the history: the worker writes a job's line, in-process.ts the CLI's.
  */
 import { RENDER_VARIANT_SUFFIX, projectPath } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import type { LoadedProject, WorkPolicy } from '@retake/core';
 import type {
   EditOverrides,
   ExportFormat,
@@ -36,6 +36,49 @@ export type { EditOverrides, ExportFormat, ExportProgress, ExportRenderOptions, 
 /** Plan a run's edit (the editor's planRun: no browser). */
 export async function planWork(o: PlanRunOptions): Promise<PlannedRun> {
   return (await editor()).planRun(o);
+}
+
+/** What `planOfRun` is asked: the run's scenario (with `latest`), a theme in place of the run's, the overrides, who asks. */
+export interface PlanOfRunOptions {
+  /** With `latest`: the latest capture of this scenario; else the run must be of it. */
+  scenario?: string;
+  /** A theme (a name, or a ./path for a person) instead of the one the run used. */
+  theme?: string;
+  /** The frame, the variant… (`theme` is set to the theme's name when one is asked). */
+  overrides?: EditOverrides;
+  /**
+   * A person at a terminal only (no trust gate: a theme may be a ./path). The run is resolved as a terminal resolves it
+   * (findRun), so work an agent asks never comes through here: plan_preview and the render submit plan under `mcp`.
+   */
+  trust: 'author';
+  /** The run found, before anything of it is read: what a terminal says of `latest` comes before any refusal. */
+  onRun?: (run: RunRef) => void;
+}
+
+/**
+ * A run's edit plan, on its own (`retake plan`, L7.22): the run found by the rule every reader of runs shares (findRunOf:
+ * an id, a directory or `latest`), then the planning of a render (planWork: the edit of today's scenario file when
+ * its filmed part is unchanged, the theme, the registry, the planner) — for a plan alone (`purpose: 'plan'`: its
+ * refusals say plan, a run without its film plans, no music measured). With the summary's lines (the editor's
+ * summarizePlan), so a shell prints it without the editor. The plan of plan_preview and of a render is the same
+ * function with `purpose: 'render'`.
+ */
+export async function planOfRun(ws: { root: string; policy: WorkPolicy }, project: LoadedProject, runArg: string, o: PlanOfRunOptions): Promise<PlannedRun & { summary: string[] }> {
+  const run = await findRunOf(project, runArg, o.scenario);
+  o.onRun?.(run);
+  const planned = await planWork({
+    workPolicy: ws.policy,
+    project,
+    run,
+    ...(o.scenario !== undefined ? { scenario: o.scenario } : {}),
+    ...(o.theme !== undefined ? { template: o.theme } : {}),
+    overrides: o.overrides ?? {},
+    root: ws.root,
+    trust: o.trust,
+    measureMusic: false,
+    purpose: 'plan',
+  });
+  return { ...planned, summary: (await editor()).summarizePlan(planned.plan) };
 }
 
 // What renders — a video, a still, an export's re-rendered formats — runs on the renderer its caller hands (render/work.ts).

@@ -1,16 +1,14 @@
-import { isAbsolute, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '@retake/core';
-import { loadProjectTemplate, fileFacts } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, Timeline, WorkFileFacts } from '@retake/core';
-import { RenderError, findRun, planFileRefs, themeFileRefs } from '@retake/editor';
-import type { RawExportProgress, RawExportResult } from '@retake/runner-web';
-import type { OpenedWorkspace } from '@retake/engine';
-import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
+import type { LoadedProject, RawCursorMode, RawFormat, RawFps, RawLayerFormat } from '@retake/core';
+import { findRunOf, rawExportWork } from '@retake/engine';
+import type { OpenedWorkspace, RawExportProgress, RawExportResult } from '@retake/engine';
+import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { cliPorts, openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes, warnLatest } from './render.js';
 
@@ -50,15 +48,6 @@ export function parseRawFlags(f: RawFlags): { format?: RawFormat; fps?: RawFps; 
   };
 }
 
-/** The template a run was captured with (its cursor look), else the project's; undefined = the default look. */
-async function runTemplate(project: LoadedProject, timeline: Timeline, files: WorkFileFacts): Promise<{ template?: LoadedTemplate; note?: string }> {
-  try {
-    return { template: await loadProjectTemplate(project, timeline.video?.template, { files }) };
-  } catch (e) {
-    return { note: `the run's template could not be loaded (${errorMessage(e)}): the cursor layer uses the default look` };
-  }
-}
-
 /** The line `retake run --raw --json` prints after its RunProgress events (one JSON object per line). */
 export interface RawExportEvent {
   type: 'raw_export';
@@ -79,19 +68,6 @@ export async function rawExportOfRun(
   flags: ReturnType<typeof parseRawFlags>,
   opts: { json?: boolean; jsonLines?: boolean; signal?: AbortSignal },
 ): Promise<RawExportResult> {
-  const { exportCapture, rawExportRun, RawExportError } = await import('@retake/runner-web');
-  // The run's timeline through the package's own gate (the one reader and the named run's rule): a run it refuses is
-  // refused here in the same words, before the theme is looked for.
-  let timeline: Timeline;
-  try {
-    timeline = (await rawExportRun(runDir)).recorded;
-  } catch (e) {
-    if (e instanceof RawExportError) throw new CliError(e.message);
-    throw e;
-  }
-  const { template, note } = await runTemplate(project, timeline, fileFacts(ws.policy));
-  if (note && !opts.json) ui.warn(note);
-  const editFiles = [...planFileRefs(timeline).map((f) => (isAbsolute(f) ? f : join(project.dir, f))), ...themeFileRefs(template)];
   const t0 = performance.now();
   const status = (p: RawExportProgress) => {
     if (opts.json) return;
@@ -99,15 +75,19 @@ export async function rawExportOfRun(
     else ui.setStatus(ui.c.dim(`  … ${p.stage}${p.total > 1 ? ` ${p.done}/${p.total}` : ''}${p.message ? ` ${p.message}` : ''}`));
   };
   try {
-    const r = await exportCapture({
-      policy: ws.policy,
+    // The engine's raw export (L7.22, U8e: rawExportWork on the capture port): the run's gate (a run it refuses is
+    // refused in its words, before the theme is looked for), the run's theme (a note on stderr when it does not load:
+    // the default look), the edit's files, the package. Its refusals state their kind: main prints their sentence.
+    const r = await rawExportWork({
+      capture: cliPorts.capture,
+      ws,
       project,
       runDir,
-      ...(template ? { template } : {}),
-      ...flags,
-      editFiles,
-      ffmpeg: ws.ffmpeg,
+      settings: flags,
       signal: opts.signal,
+      onNote: (note) => {
+        if (!opts.json) ui.warn(note);
+      },
       onProgress: status,
     });
     ui.clearStatus();
@@ -117,7 +97,6 @@ export async function rawExportOfRun(
     return r;
   } catch (e) {
     ui.clearStatus();
-    if (e instanceof RawExportError) throw new CliError(e.message);
     throw e;
   }
 }
@@ -151,16 +130,11 @@ export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projec
   const flags = parseRawFlags(opts);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  let runDir: string;
-  try {
-    const run = await findRun(project, runArg, opts.scenario);
-    runDir = run.dir;
-    // What `latest` passed over, and a capture stopped by `--until` (stderr; nothing for a run that was named).
-    warnLatest(ui, run, { ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}), name: 'name one in place of "latest"', json: opts.json });
-  } catch (e) {
-    if (e instanceof RenderError) throw new CliError(e.message);
-    throw e;
-  }
+  // The run by the rule every reader of runs shares (findRunOf; its errors state their kind: main prints their sentence).
+  const run = await findRunOf(project, runArg, opts.scenario);
+  const runDir = run.dir;
+  // What `latest` passed over, and a capture stopped by `--until` (stderr; nothing for a run that was named).
+  warnLatest(ui, run, { ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}), name: 'name one in place of "latest"', json: opts.json });
   // Captures first (L5.14, critique L8): its encodes are heavy work — the run was resolved before any wait.
   const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
   const ac = new AbortController();

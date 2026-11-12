@@ -1,8 +1,8 @@
 /**
  * The CaptureRunner port (L7.12, U6's last slice): what drives a real browser for the engine — a scenario's run
  * (capture, dry, inspection), a recording's window, a persona's session (its check, its sign-in, its lock and last
- * status), the browsers js hooks run in outside a capture, a site's facts — and the two things a signal handler needs
- * synchronously: the cancel's error and the removal of a persona's session copies. The composition roots choose it
+ * status), the browsers js hooks run in outside a capture, a site's facts, a run's raw package (L7.22) — and the two
+ * things a signal handler needs synchronously: the cancel's error and the removal of a persona's session copies. The composition roots choose it
  * (ports.ts `EnginePorts.capture`): the runner package (`runnerWebCapture()`), or an in-memory one in tests
  * (memory-capture.ts).
  *
@@ -10,14 +10,16 @@
  * Reviewer names the review's options through `@retake/review/checks`): a mirror of a run's options would only drift. The
  * engine adds one thing to a run's request: the hook runner its hooks run through (hook-run/runner.ts).
  */
-import type { LoadedProject, PersonaRequestAuth, ResolvedPersona, RunRecord, WorkPolicy, WritePolicy } from '@retake/core';
+import type { LoadedProject, PersonaRequestAuth, ResolvedPersona, RunRecord, Timeline, WorkPolicy, WritePolicy } from '@retake/core';
 import type {
+  ExportCaptureOptions,
   HookPageOptions,
   PersonaAuthSource,
   PersonaCheckResult,
   PersonaStatusRecord,
   ProfileLock,
   RecordSessionOptions,
+  RawExportResult,
   RecordSessionResult,
   RunOptions,
   SignInOptions,
@@ -85,6 +87,19 @@ export interface HookPages {
   authReader(o: HookAuthOptions): Promise<(url: string) => Promise<PersonaRequestAuth>>;
 }
 
+/**
+ * A run's raw package for another editing tool (L7.22, U8e): the runner package's encoder (its ffmpeg) over the run's
+ * screencast frames or film. Each refusal of the export is an EngineError of `not_found` or `invalid` (core
+ * missingOrInvalid of its sentence: the run it refuses, the settings it cannot give); any other failure is thrown as
+ * the package threw it.
+ */
+export interface CaptureRaw {
+  /** The run's timeline through the export's own gate (the one reader and the named run's rule: a dry run, no timeline, one that does not read, a run.json a newer Retake wrote are refused in the export's words; a missing film is not the gate's). */
+  timeline(runDir: string): Promise<Timeline>;
+  /** The package: clips, cursor data or layer, markers, manifest and README (the caller resolved the run and its theme). */
+  export(o: ExportCaptureOptions): Promise<RawExportResult>;
+}
+
 export interface CaptureRunner {
   /**
    * Load the runner, as the roots do before they listen to signals: `cancelled` and `cleanupSync` work after it only
@@ -101,6 +116,8 @@ export interface CaptureRunner {
     /** One public page's colours, fonts and logos through the worker's proxy, into `outDir`. */
     extract(o: SiteExtractOptions): Promise<SiteReport>;
   };
+  /** A run's raw package (export-capture, run --raw). */
+  readonly raw: CaptureRaw;
   /** The error a cancel aborts a running capture with (the runner's own cancel: its name, its kind). Synchronous. */
   cancelled(message?: string): Error;
   /** Remove every session copy this process made, synchronously (a second signal); how many were removed. */

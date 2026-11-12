@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -156,6 +156,47 @@ describe('retake plan', () => {
       expect((JSON.parse(json.out) as EditPlan).meta.run_id).toBe(run);
     } finally {
       await rm(file, { force: true });
+      await rm(join(runs, run, 'scenario.yaml'), { force: true });
+    }
+  });
+
+  it('takes a theme folder of the project by its ./path at the terminal (L7.22: trust author): the plan names the theme', async () => {
+    const theme = join(ws, 'projects', 'demo', 'themes', 'house');
+    await cp(join(TEMPLATES, 'motion'), theme, { recursive: true });
+    await writeFile(join(theme, 'template.yaml'), (await readFile(join(theme, 'template.yaml'), 'utf8')).replace(/^name: motion$/m, 'name: house'));
+    const out = join(ws, 'house-plan.json');
+    try {
+      const r = await retake('plan', 'demo', '20261011-182706-quote', '--theme', './themes/house', '--json', '--out', out);
+      expect(r.code, r.err).toBe(EXIT.ok);
+      const plan = JSON.parse(r.out) as EditPlan;
+      expect(plan.meta.theme).toBe('house');
+      expect((JSON.parse(await readFile(out, 'utf8')) as EditPlan).meta.theme).toBe('house');
+    } finally {
+      await rm(join(ws, 'projects', 'demo', 'themes'), { recursive: true, force: true });
+      await rm(out, { force: true });
+    }
+  });
+
+  it('--out writes the plan --json prints, with the note and warnings of where its edit came from (L7.22: the file was written before them)', async () => {
+    const run = '20261011-182706-quote';
+    // A snapshot whose scenes are not the ones the run filmed, and today's file the same but for a caption (no filmed
+    // change): the edit is the run's as captured, and the plan says why in a warning.
+    const snapshot = 'video: quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
+    const file = join(ws, 'projects', 'demo', 'scenarios', 'quote.yaml');
+    const out = join(ws, 'noted-plan.json');
+    await writeFile(join(runs, run, 'scenario.yaml'), snapshot);
+    await mkdir(join(ws, 'projects', 'demo', 'scenarios'), { recursive: true });
+    try {
+      await writeFile(file, snapshot.replace('    open: /\n', '    open: /\n    caption: Hello\n'));
+      const r = await retake('plan', 'demo', run, '--json', '--out', out);
+      expect(r.code, r.err).toBe(EXIT.ok);
+      const printed = JSON.parse(r.out) as EditPlan;
+      const written = JSON.parse(await readFile(out, 'utf8')) as EditPlan;
+      expect(printed.warnings.some((w) => w.includes(`the snapshot of run ${run} does not describe the scenes its timeline filmed`))).toBe(true);
+      expect(written).toEqual(printed);
+    } finally {
+      await rm(file, { force: true });
+      await rm(out, { force: true });
       await rm(join(runs, run, 'scenario.yaml'), { force: true });
     }
   });

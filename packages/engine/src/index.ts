@@ -38,7 +38,7 @@ export { packageHookRunner } from './hook-run/package-hooks.js';
 export type { HookJournal, HookJournalRollback, HookPlace, HookRunOptions, HookRunner, PendingHookJournal } from './hook-run/runner.js';
 export { packageReviewer } from './review/review-package.js';
 export { runnerWebCapture } from './capture/runner-web-capture.js';
-export type { CaptureRequest, CaptureRunner, CaptureSessions, HookAuthOptions, HookBrowser, HookBrowserOptions, HookPages, SessionCheckOptions } from './capture/runner.js';
+export type { CaptureRaw, CaptureRequest, CaptureRunner, CaptureSessions, HookAuthOptions, HookBrowser, HookBrowserOptions, HookPages, SessionCheckOptions } from './capture/runner.js';
 export type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './review/reviewer.js';
 export { rollbackActionLines } from '@retake/hooks/describe';
 export { environmentLine, findingLine, summaryLine } from '@retake/review/checks';
@@ -105,6 +105,13 @@ export { RunOptionError, SandboxTakeError, checkAllowWrites, checkSandboxEnv, ex
 export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
 // The pipeline calls a shell makes itself (renderWork / stillWork / exportWork: through the in-process functions below).
 export { defaultStillFile, editorErrorOf, findRenderOf, findRunOf, planWork, reviewWork } from './pipeline.js';
+// L7.22: `retake plan`'s use case (findRunOf, then planWork for a plan alone, with the summary's lines).
+export { planOfRun } from './pipeline.js';
+export type { PlanOfRunOptions } from './pipeline.js';
+// L7.22: a run's raw package (export-capture, run --raw) through the capture port's `raw`.
+export { rawExportWork } from './raw-export.js';
+export type { RawExportSettings, RawExportWorkOptions } from './raw-export.js';
+export type { ExportCaptureOptions, RawExportProgress, RawExportResult, RawManifest } from '@retake/runner-web/types';
 export { exportInProcess, inspectInProcess, renderInProcess, runInProcess, stillInProcess } from './in-process.js';
 // The renderer port, and the product's renderer for a composition root (a shell's command run in process).
 export { editorRenderer } from './render/editor-renderer.js';

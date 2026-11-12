@@ -58,8 +58,8 @@ export interface PlanRunOptions {
   /** What the work runs under (core WorkPolicy): the ffprobe of its files. */
   workPolicy: WorkPolicy;
   project: LoadedProject;
-  /** Run id, run directory, or "latest" (of `scenario` when given). */
-  run: string;
+  /** Run id, run directory, or "latest" (of `scenario` when given); or a run its caller already found (no second lookup). */
+  run: string | RunRef;
   /** Scenario name: required to match the run's; picks the run with "latest". */
   scenario?: string;
   /** Theme to use instead of the run's (name, ./path or a loaded template). */
@@ -85,6 +85,12 @@ export interface PlanRunOptions {
    * gates apply; only the source of the text differs.
    */
   editText?: string;
+  /**
+   * What the plan is for (L7.22). `render` (default): what renders it — its words say render, and a run without its
+   * film is refused. `plan`: a plan alone (`retake plan`) — its words say plan, and a run without its film still plans
+   * (a plan reads no film).
+   */
+  purpose?: 'render' | 'plan';
 }
 
 /**
@@ -206,10 +212,13 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const project = o.project;
   const trust = o.trust ?? 'author';
   const root = resolve(o.root ?? project.root);
-  const run = await locateRun(project, o.run, o.scenario, { trust });
+  const run = typeof o.run === 'string' ? await locateRun(project, o.run, o.scenario, { trust }) : o.run;
   const facts = await namedRunFacts(project, run.dir);
-  const refused = namedRunProblem(facts.facts, { ...(o.scenario !== undefined ? { scenario: o.scenario } : {}), trust, inside: facts.inside });
-  const words = (problem: NamedProblem): string => takeWords(problem, { run: run.id, verb: 'render', dir: run.dir });
+  const purpose = o.purpose ?? 'render';
+  const ruled = namedRunProblem(facts.facts, { ...(o.scenario !== undefined ? { scenario: o.scenario } : {}), trust, inside: facts.inside });
+  // A plan alone reads no film: a run without its film still plans (`retake plan`), as it always has.
+  const refused = purpose === 'plan' && ruled?.why === 'no-film' ? null : ruled;
+  const words = (problem: NamedProblem): string => takeWords(problem, { run: run.id, verb: purpose, dir: run.dir });
   if (refused?.why === 'linked-outside' || refused?.why === 'outside' || refused?.why === 'linked-files' || refused?.why === 'film-outside') throw new PlanTrustError([words(refused)]);
   // A missing film is said where it always was: after the trust gate and the theme (no-film is the rule's last test).
   if (refused && refused.why !== 'no-film') throw new RenderError(words(refused));
