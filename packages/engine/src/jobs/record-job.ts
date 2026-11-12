@@ -30,7 +30,8 @@ import { checkSandboxEnv } from '../execute-run.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { newRecordId, recordDir, recordScenario, recordStart } from '../record.js';
-import type { RecordOutcome, RecordPorts } from '../record.js';
+import type { RecordOutcome } from '../record.js';
+import type { RecordWindow } from './worker-ports.js';
 import { settleDiscardAtJobEnd } from '../record-studio.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { checkEnvName } from './hooks-job.js';
@@ -122,9 +123,6 @@ export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitReque
   return { job: await ctx.queue.enqueue(input), rec_id: recId, env: start.env.name, page: start.page, path: start.path, persona: start.persona?.name ?? null, warnings };
 }
 
-/** Test hooks of the worker (in-process tests only): Playwright plays the person in a headless "headed" window. */
-export type RecordJobTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windowSize'>;
-
 /** What the job runs with; its ports (ports.ts EnginePorts) are its composition root's, handed on by the job runner. */
 export interface RecordJobContext extends EnginePorts {
   ws: OpenedWorkspace;
@@ -142,7 +140,8 @@ export interface RecordJobContext extends EnginePorts {
   jobId?: string;
   event(e: JobEventBody): void;
   progress(p: JobProgress): void;
-  test?: RecordJobTestHooks;
+  /** The window it opens (the worker's port, worker-ports.ts; absent: a headed window a person drives). */
+  window?: RecordWindow;
 }
 
 const ACTIONS = new Set<RecordedEvent['kind']>(['pointer', 'type', 'key', 'select_native', 'file']);
@@ -252,7 +251,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         hookTrust: ENGINE_TRUST,
         loginCommand,
         history: false,
-        ...(ctx.test ?? {}),
+        ...(ctx.window ?? {}),
       },
     );
     // A Discard asked during the draft or the check: the folder goes now (B9 / B-L2), even with no Record screen open.

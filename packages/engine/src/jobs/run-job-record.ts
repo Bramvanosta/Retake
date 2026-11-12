@@ -1,14 +1,13 @@
 /**
  * Running one claimed job (L3.1 → L5.14): its state in job.json, its events, its history line — the code the jobs worker
  * runs for a capture in its own process, and a job process (`worker-main --job`, job-child.ts) runs for a heavy job.
- * One writer of job.json at a time: the claimer until the job runs, then whoever runs it.
+ * One writer of job.json at a time: the claimer until the job runs, then whoever runs it. What a kind does is its
+ * handler's (job-handlers.ts, one per kind); runJob holds what every kind shares around it.
  */
 import { rm, writeFile } from 'node:fs/promises';
 import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, projectPath } from '@retake/core';
 import type { RenderJobInput, RunJobInput } from '@retake/core';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
-import type { RecordJobTestHooks } from './record-job.js';
-import type { PreviewJobTestHooks } from './preview-job.js';
 import { stampOf } from '../clock.js';
 import { toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
@@ -22,16 +21,13 @@ import { interrupted } from './interrupted.js';
 import type { JobQueue } from './job-queue.js';
 import { jobProject } from './queue-core.js';
 import type { JobFiles } from './queue.js';
-import { executeEnvResetJob, executeHooksJob } from './hooks-job.js';
-import { executeRunJob, finaliseReservedRun, pauseMaxMs } from './run-job.js';
-import { openLiveChannel } from './live-channel.js';
-import type { LiveChannel } from './live-channel.js';
-import { executeAuthLoginJob, signInStoppedText } from './auth-job.js';
-import { executeSandboxJob } from './sandbox-job.js';
+import { finaliseReservedRun } from './run-job.js';
 import { appendHistory, runCounted } from '../history.js';
 import type { EnginePorts } from '../ports.js';
 import { approvalsOf, verifiedApprovals } from './signing.js';
 import type { JobErrorView, JobEventBody, JobProgress, JobRecord, JobWorkerInfo } from './types.js';
+import { handleJob } from './job-handlers.js';
+import type { FreeBytes, RecordWindow } from './worker-ports.js';
 
 export type Workspace = Awaited<ReturnType<typeof openWorkspace>>;
 
@@ -58,10 +54,12 @@ export interface JobRunnerContext extends EnginePorts {
   done: Set<string>;
   /** Write job.json, or exit: a job whose state cannot be written must not look alive. */
   writeOrExit: (rec: JobRecord) => Promise<void>;
-  recordTest?: RecordJobTestHooks;
-  previewTest?: PreviewJobTestHooks;
   /** What render, export and preview jobs render with: the composition root's choice (render/renderer.ts). */
   renderer: Renderer;
+  /** The window a `record` job opens (worker-ports.ts; absent: the product's, a headed window a person drives). */
+  recordWindow?: RecordWindow;
+  /** What a library preview job reads the free space with (worker-ports.ts; absent: library.ts freeBytesOf). */
+  freeBytes?: FreeBytes;
   /** Why the running job was aborted when it was not a cancel (a job process whose worker stopped): it ends interrupted. */
   abortedBecause?: () => string | undefined;
   /** A filming take of this process started (true), paused, resumed or stopped filming (L5.14: the worker's loop wakes). */
@@ -296,137 +294,25 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
           await writeFile(files.browser(id), `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`).catch(() => undefined);
         });
       };
-      switch (job.kind) {
-        case 'run': {
-          try {
-            const max = pauseMaxMs();
-            if (max !== undefined) pauseGate.maxMs = max;
-          } catch (e) {
-            event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });
-          }
-          // The live picture's channel (L4.4): a loopback listener and live.json, for as long as the job runs.
-          let channel: LiveChannel | null = null;
-          try {
-            channel = await openLiveChannel({ files, jobId: id, runId: job.run_id, worker: self });
-          } catch (e) {
-            log(`job ${id}: no live picture (${(e as Error).message})`);
-          }
-          // L5.14: a filming take holds heavy work of every workspace while it films (captures.ts).
-          const film = job.mode === 'capture' ? filmingOf(id, event) : undefined;
-          let result: Awaited<ReturnType<typeof executeRunJob>>;
-          try {
-            result = await executeRunJob({
-              ...base,
-              input: job,
-              interrupts: interrupts(controller.signal),
-              progress: onProgress,
-              ...(channel ? { live: channel.sink } : {}),
-              pause: pauseGate,
-              ...(film ? { onFilming: film.on } : {}),
-            });
-          } finally {
-            film?.close();
-            await channel?.close();
-          }
-          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: result.status === 'cancelled' ? 'cancelled' : 'succeeded' };
-          if (result.status === 'cancelled') error = { code: 'cancelled', message: result.untrusted?.error_message ?? 'run cancelled' };
-          break;
-        }
-        case 'hooks':
-        case 'env_reset': {
-          const result = job.kind === 'hooks' ? await executeHooksJob({ ...base, input: job }) : await executeEnvResetJob({ ...base, input: job });
-          rec = { ...rec, result, state: result.interrupted ? 'cancelled' : 'succeeded' };
-          if (result.interrupted) error = { code: 'cancelled', message: `${job.kind === 'hooks' ? 'hooks' : 'environment reset'} cancelled: the remaining hooks did not run` };
-          break;
-        }
-        case 'auth_login': {
-          const result = await executeAuthLoginJob({ ...base, input: job, interrupts: interrupts(controller.signal) });
-          rec = { ...rec, result, state: result.interrupted ? 'cancelled' : 'succeeded' };
-          if (result.interrupted) {
-            error = {
-              code: 'cancelled',
-              message: `sign-in ${result.timed_out ? 'stopped' : 'cancelled'}: ${signInStoppedText(result)}`,
-            };
-          }
-          break;
-        }
-        case 'sandbox_up':
-        case 'sandbox_reset': {
-          const result = await executeSandboxJob({ ...base, input: job, interrupts: interrupts(controller.signal) });
-          rec = { ...rec, result, state: 'succeeded' };
-          break;
-        }
-        case 'render': {
-          // Lazy: Remotion is loaded by the first render, never by a capture-only worker.
-          const { executeRenderJob } = await import('./render-job.js');
-          const result = await executeRenderJob({
-            ...base,
-            input: job,
-            progress: onProgress,
-            browser: recordBrowser,
-            renderer: c.renderer,
-            jobFile: (name, maxBytes) => queue.jobFile(id, name, maxBytes),
-          });
-          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
-          break;
-        }
-        case 'review': {
-          // Lazy: sharp and the review checks are loaded by the first review.
-          const { executeReviewJob } = await import('./review-job.js');
-          const result = await executeReviewJob({ ...base, input: job, progress: onProgress });
-          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
-          break;
-        }
-        case 'export': {
-          const { executeExportJob } = await import('./export-job.js');
-          const result = await executeExportJob({ ...base, input: job, progress: onProgress, browser: recordBrowser, renderer: c.renderer });
-          // A cancel stops between formats: what was written stays (and is in the result).
-          const cancelled = controller.signal.aborted;
-          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: cancelled ? 'cancelled' : 'succeeded' };
-          if (cancelled) error = { code: 'cancelled', message: `export cancelled: ${result.outputs.length} of ${job.formats.length} formats written` };
-          break;
-        }
-        case 'preview': {
-          // Lazy: Remotion is loaded by the first preview. A cancel stops between images.
-          const { executePreviewJob } = await import('./preview-job.js');
-          const result = await executePreviewJob({ ...base, input: job, progress: onProgress, browser: recordBrowser, renderer: c.renderer, ...(c.previewTest ? { test: c.previewTest } : {}) });
-          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
-          break;
-        }
-        case 'inspect': {
-          // Lazy: the review package (sharp) draws the marks; the runner is already loaded.
-          const { executeInspectJob } = await import('./inspect-job.js');
-          const result = await executeInspectJob({ ...base, input: job, progress: onProgress });
-          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
-          break;
-        }
-        case 'record': {
-          // A headed window for a person: it holds the worker's capture slot (renders go on beside it) until it is closed.
-          const { executeRecordJob } = await import('./record-job.js');
-          const stop = new AbortController();
-          slot.currentStop = stop;
-          // A Stop asked before the worker took the job (the Studio's Stop as it was taken): seen before anything opens.
-          if (!stopAsked.signal.aborted && (await queue.stopOf(id).catch(() => undefined)) !== undefined) stopAsked.abort();
-          try {
-            const result = await executeRecordJob({ ...base, input: job, jobId: id, stop: stop.signal, finish: stopAsked.signal, progress: onProgress, ...(c.recordTest ? { test: c.recordTest } : {}) });
-            rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
-          } finally {
-            slot.currentStop = undefined;
-          }
-          break;
-        }
-        case 'site': {
-          // A clean browser on one public page, through the worker's CONNECT proxy; refused without its signed approval.
-          const { executeSiteJob } = await import('./site-job.js');
-          const result = await executeSiteJob({ ...base, jobId: id, input: job, progress: onProgress });
-          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
-          break;
-        }
-        default: {
-          const never: never = job;
-          throw new Error(`unknown job kind ${(never as { kind: string }).kind}`);
-        }
-      }
+      const outcome = await handleJob(job, {
+        id,
+        base,
+        interrupts: () => interrupts(controller.signal),
+        progress: onProgress,
+        browser: recordBrowser,
+        renderer: c.renderer,
+        files,
+        self,
+        log,
+        pause: pauseGate,
+        filming: () => filmingOf(id, event),
+        stopAsked,
+        slot,
+        ...(c.recordWindow ? { recordWindow: c.recordWindow } : {}),
+        ...(c.freeBytes ? { freeBytes: c.freeBytes } : {}),
+      });
+      rec = { ...rec, result: outcome.result, ...(outcome.progress && latest ? { progress: latest } : {}), state: outcome.state };
+      if (outcome.error) error = outcome.error;
     } catch (e) {
       const err = toEngineError(e);
       const cancelled = controller.signal.aborted || err.code === 'cancelled';

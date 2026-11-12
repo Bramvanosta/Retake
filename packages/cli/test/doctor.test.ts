@@ -279,6 +279,32 @@ describe('retake doctor (mocked environment)', () => {
     expect(byName(unknown.checks, 'Project nope')).toMatchObject({ status: 'fail' });
   });
 
+  it('the lines come in display order, one check each (L7.29): the machine, the workspace and its themes, then the project, its browser, its profiles, its hosts', async () => {
+    const dir = join(ws, 'projects', 'ordered');
+    await mkdir(join(dir, 'scenarios'), { recursive: true });
+    await writeFile(
+      join(dir, 'project.yaml'),
+      ['name: Ordered', 'environments:', '  staging: {app: "https://app.staging.example.com"}', '  prod: {app: "https://app.example.com"}', 'browser: {executable: ./tools/chrome}', 'auth:', `  staging: {profile: ${JSON.stringify(profile)}}`, ''].join('\n'),
+    );
+    try {
+      const { checks: list } = await checks(macProbes(), 'ordered');
+      const names = list.map((c) => c.name);
+      const themes = names.filter((n) => n.startsWith('Template '));
+      expect(themes.length).toBeGreaterThan(0);
+      expect(names).toEqual(['Node.js', 'Chromium', 'Chromium sandbox', 'GPU', 'ffmpeg', 'ffprobe', 'Capture encoder', 'Display', 'Secrets', 'Notifications', 'Docker', 'Workspace', ...themes, 'MCP', 'Project ordered', 'Project ordered: Studio and MCP jobs', 'Profile (staging)', 'Host staging·app', 'Host prod·app']);
+      // A project with a profile and no persona has no "none configured" line; one with neither has it, after its browser.
+      await writeFile(join(dir, 'project.yaml'), ['name: Ordered', 'environments:', '  staging: {app: "https://app.staging.example.com"}', 'browser: {executable: ./tools/chrome}', ''].join('\n'));
+      const bare = (await checks(macProbes(), 'ordered')).checks.map((c) => c.name);
+      expect(bare.slice(bare.indexOf('Project ordered'))).toEqual(['Project ordered', 'Project ordered: Studio and MCP jobs', 'Profile', 'Host staging·app']);
+      expect(byName((await checks(macProbes(), 'ordered')).checks, 'Profile')).toMatchObject({ status: 'ok', detail: 'none configured (a fresh temporary profile per run)' });
+      // A damaged app bundle: its line right after Node.js.
+      const damaged = (await checks(macProbes({ bundleProblems: () => ['manifest unreadable'] }))).checks.map((c) => c.name);
+      expect(damaged.slice(0, 3)).toEqual(['Node.js', 'App bundle', 'Chromium']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('a template whose fonts are missing is a failure', async () => {
     const broken = await mkdtemp(join(tmpdir(), 'studio-doctor-tpl-'));
     try {

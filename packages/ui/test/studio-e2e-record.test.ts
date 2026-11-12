@@ -1,7 +1,7 @@
 /**
  * L4.8 part 5: the Record screen end to end — the built-in Studio server on a scratch workspace and home, headless
  * Chromium on the Studio app, the fixture product on this test's own ports (4551–4554), and the `record` job run by a
- * worker IN THIS PROCESS with Playwright playing the person in the recording window (`recordTest.drive`: a worker
+ * worker IN THIS PROCESS with Playwright playing the person in the recording window (`ports.recordWindow.drive`: a worker
  * process cannot receive it — the real headed window with a person switching to the Studio is MACOS-CHECKLIST 13i).
  * While the window is open, the test works the Studio page as the person would. Covered:
  *
@@ -44,13 +44,13 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyStepEdit, firstHiddenChar, parseScenario, stepGuard } from '@retake/core';
 import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@retake/engine';
-import type { JobRecord, RecordJobTestHooks } from '@retake/engine';
+import type { JobRecord, RecordWindow } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { RecordViewAnswer, StudioServer } from '../src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 
-type Window = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Window = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string; signedIn?: { console: string; shop: string } };
@@ -117,20 +117,22 @@ async function work(drive: (w: Window) => Promise<void>): Promise<number> {
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => workerLogs.push(m),
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (w) => {
-        await w.waitForLoadState('domcontentloaded');
-        await w.waitForTimeout(800);
-        try {
-          await drive(w);
-        } catch (error) {
-          failed = { error };
-          throw error;
-        }
-        await w.waitForTimeout(400).catch(() => undefined);
-        await w.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (w) => {
+          await w.waitForLoadState('domcontentloaded');
+          await w.waitForTimeout(800);
+          try {
+            await drive(w);
+          } catch (error) {
+            failed = { error };
+            throw error;
+          }
+          await w.waitForTimeout(400).catch(() => undefined);
+          await w.close().catch(() => undefined);
+        },
       },
     },
   });

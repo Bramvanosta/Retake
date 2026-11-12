@@ -184,19 +184,21 @@ describe('retake mcp: scenario_record', () => {
       idleExitMs: 8_000,
       pollMs: 100,
       log: () => undefined,
-      recordTest: {
-        headless: true,
-        windowSize: { width: 1400, height: 1000 },
-        drive: async (page) => {
-          await page.waitForLoadState('domcontentloaded');
-          await page.waitForTimeout(800);
-          await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
-          await page.locator('#lab-password').click();
-          await page.keyboard.type(sentinel);
-          await page.getByLabel('Note').click();
-          await page.keyboard.type('Two bags of the washed lot');
-          await page.waitForTimeout(400);
-          await page.close();
+      ports: {
+        recordWindow: {
+          headless: true,
+          windowSize: { width: 1400, height: 1000 },
+          drive: async (page) => {
+            await page.waitForLoadState('domcontentloaded');
+            await page.waitForTimeout(800);
+            await page.getByRole('heading', { name: 'Recording lab' }).waitFor();
+            await page.locator('#lab-password').click();
+            await page.keyboard.type(sentinel);
+            await page.getByLabel('Note').click();
+            await page.keyboard.type('Two bags of the washed lot');
+            await page.waitForTimeout(400);
+            await page.close();
+          },
         },
       },
     });

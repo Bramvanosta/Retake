@@ -21,7 +21,8 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
-import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@retake/engine';
+import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, editorRenderer, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker, withPreviewBackend } from '@retake/engine';
+import type { FreeBytes } from '@retake/engine';
 import type { PreviewBackend } from '@retake/editor';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, UI_OPS, startStudioServer } from '../src/index.js';
 import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryRenderAnswer, LibraryViewAnswer, StudioServer } from '../src/index.js';
@@ -220,9 +221,11 @@ describe('library_component (part D1)', () => {
 });
 
 /** Run the worker (one job at a time: cancelled ones first) until job `id` has finished. */
-async function workUntil(id: string, previewTest: Parameters<typeof runWorker>[0]['previewTest']): Promise<void> {
+async function workUntil(id: string, test: { backend?: PreviewBackend; freeBytes: FreeBytes }): Promise<void> {
+  // The worker's ports (L7.29): the backend draws the previews of its renderer, the free space its disk gate sees.
+  const ports = { ...(test.backend ? { renderer: withPreviewBackend(editorRenderer(), test.backend) } : {}), freeBytes: test.freeBytes };
   for (let i = 0; i < 10 && ['queued', 'running'].includes((await studio.engine.jobs.get(id)).state); i++) {
-    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, previewTest });
+    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports });
   }
 }
 

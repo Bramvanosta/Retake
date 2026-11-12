@@ -24,14 +24,14 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CommentThread } from '@retake/core';
 import { runWorker } from '@retake/engine';
-import type { RecordJobTestHooks } from '@retake/engine';
+import type { RecordWindow } from '@retake/engine';
 import { hasTool } from '../../editor/test/render-helpers.js';
 import { dialogCheck } from './a11y.js';
 import { N, POLL, REPO, THREAD, TOUR_THEME, go, settle, startTour, station, tabTo } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';
 import { BITS_TEXT } from './timeline-take.js';
 
-type RecordWindow = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type RecordPage = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string; signedIn?: { console: string; shop: string } };
@@ -89,21 +89,23 @@ const RECORD_SCHEMES = [
 const stateOf = () => t.page.getByTestId('record-state').first().getAttribute('data-state');
 
 /** The in-process worker (one job), Playwright playing the person; the window closes after `drive` if still open. */
-function work(drive: (w: RecordWindow) => Promise<void>): Promise<number> {
+function work(drive: (w: RecordPage) => Promise<void>): Promise<number> {
   return runWorker({
     root: t.ws,
     once: true,
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => workerLogs.push(m),
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (w) => {
-        await w.waitForLoadState('domcontentloaded');
-        await w.waitForTimeout(800);
-        await drive(w);
-        await w.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (w) => {
+          await w.waitForLoadState('domcontentloaded');
+          await w.waitForTimeout(800);
+          await drive(w);
+          await w.close().catch(() => undefined);
+        },
       },
     },
   });

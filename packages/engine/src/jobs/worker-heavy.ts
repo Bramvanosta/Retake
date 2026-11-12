@@ -14,7 +14,6 @@ import { capMinutes, heldFile } from './captures.js';
 import { JOB_EXIT } from './job-child.js';
 import { workersDir } from './lock.js';
 import { interrupted } from './interrupted.js';
-import { jobProcessCommand } from './spawn.js';
 import { FINISHED_JOB_STATES } from './types.js';
 import type { JobRecord } from './types.js';
 import { killTree } from './signal.js';
@@ -29,7 +28,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
   w.started++;
   await mkdir(workersDir(w.root), { recursive: true });
   const job = { id: stored.id, kind: stored.kind, build: w.build, supervisor: process.pid, digest: recordDigest(stored) };
-  const { command, args } = w.o.jobProcessTest?.command ? w.o.jobProcessTest.command({ ...job, root: w.root }) : jobProcessCommand(w.root, job);
+  const { command, args } = w.processes.command({ ...job, root: w.root });
   const out = openSync(join(workersDir(w.root), 'worker.log'), 'a');
   let child;
   try {
@@ -45,7 +44,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
     kind: stored.kind,
     pid,
     exit: Promise.resolve(),
-    qos: new QosYield(pid, { group: true, ...(w.o.jobProcessTest?.qos ? { deps: w.o.jobProcessTest.qos } : {}) }),
+    qos: new QosYield(pid, { group: true, deps: w.processes.qos }),
   };
   h.exit = new Promise<void>((r) => {
     child.on('exit', (code, signal) => {
@@ -144,7 +143,7 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
   if (h.cancelSeen !== undefined && !h.killed && Date.now() - h.cancelSeen >= w.cancelGraceMs) {
     h.killed = 'cancel';
     w.log(`job ${h.id}: still running ${Math.round(w.cancelGraceMs / 1000)} s after its cancel: killing its job process`);
-    await killTree(h.pid, w.kill);
+    await killTree(h.pid, w.processes.kill);
   }
 }
 

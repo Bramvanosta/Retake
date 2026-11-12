@@ -177,6 +177,76 @@ function isExecutable(p: string): boolean {
   }
 }
 
+/** Run a command; null when it cannot be started (not found). */
+function execProbe(cmd: string, args: string[], timeoutMs: number): Promise<ExecResult | null> {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout: timeoutMs, encoding: 'utf8' }, (err, stdout, stderr) => {
+      if (err && (err as NodeJS.ErrnoException).code === 'ENOENT') return resolve(null);
+      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? ((err as { code: number }).code) : 1) : 0;
+      resolve({ code, stdout: String(stdout), stderr: String(stderr) });
+    });
+  });
+}
+
+/** The names in a real folder (not a link), or null. */
+function listProbe(dir: string): string[] | null {
+  try {
+    return lstatSync(dir).isDirectory() ? readdirSync(dir) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A sandbox of the project as `retake sandbox status` sees it (no lock, nothing started). */
+async function sandboxProbe(project: LoadedProject, env: string, policy: WorkPolicy): Promise<SandboxProbe> {
+  const { openSandbox } = await import('@retake/sandbox');
+  try {
+    const st = await openSandbox(project, env, policy).status();
+    const problems = st.services
+      .filter((x) => !x.orphan && (x.state !== 'running' || x.healthy === false))
+      .map((x) => `${x.name}: ${x.state === 'stopped' ? 'not running' : x.state === 'starting' ? 'starting' : `not healthy (${x.health})`}`);
+    return { state: st.state, provider: st.provider, problems, services: st.services.filter((x) => !x.orphan).length, ...(st.seed ? { seed: st.seed.hash } : {}) };
+  } catch (e) {
+    return { state: 'down', provider: project.sandboxes?.[env]?.manifest.provider ?? '?', problems: [], services: 0, error: errorMessage(e) };
+  }
+}
+
+/** This user's filming markers on this Mac, as the "Captures first" line counts them (nothing made). */
+async function capturesProbe(root: string): Promise<CapturesProbe> {
+  const e = await import('@retake/engine');
+  const loc = e.capturesLocation(process.env);
+  const exists = existsSync(loc.dir);
+  // Nothing is made: an absent folder is read as "no take yet" (capturesDir would make it).
+  const usable = exists ? e.capturesDir(process.env) : { dir: null, ...(loc.problem ? { problem: loc.problem } : {}) };
+  const st = usable.dir ? await new e.FilmingWatch({ root }).scan() : { takes: [] };
+  const takes = [];
+  for (const t of st.takes) {
+    const cmd = await new Promise<string>((r) => execFile('ps', ['-ww', '-o', 'command=', '-p', String(t.pid)], { timeout: 5000, encoding: 'utf8' }, (err, out) => r(err ? '' : String(out))));
+    // Review A L3: a Retake worker or `retake run` only (any other node process is not one).
+    takes.push({ here: t.here, paused: t.paused, capped: t.capped, retake: e.isTakeOwnerCommand(cmd.trim()) });
+  }
+  return { dir: loc.dir, override: loc.override, exists, ...(usable.problem ? { problem: usable.problem } : {}), takes, qos: process.platform === 'darwin' && existsSync('/usr/sbin/taskpolicy'), capMin: e.capMinutes(process.env) };
+}
+
+/** The jobs worker serving a workspace (its lock), or null. */
+async function workerProbe(root: string): Promise<{ pid: number; since: string; started_by?: string; version?: string; engine?: string } | null> {
+  const w = await (await import('@retake/engine')).liveWorker(root);
+  return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}), version: w.version, ...(w.engine ? { engine: w.engine } : {}) } : null;
+}
+
+/** A HEAD request: an HTTP status (reachable), or the network error. */
+async function headProbe(url: string, timeoutMs: number): Promise<{ status?: number; error?: string; ms: number }> {
+  const t0 = performance.now();
+  try {
+    const res = await fetch(url, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
+    return { status: res.status, ms: Math.round(performance.now() - t0) };
+  } catch (e) {
+    const err = e as Error & { cause?: { code?: string; message?: string } };
+    const why = err.name === 'TimeoutError' ? `no answer within ${timeoutMs / 1000} s` : (err.cause?.code ?? err.cause?.message ?? err.message);
+    return { error: why, ms: Math.round(performance.now() - t0) };
+  }
+}
+
 /** Probes bound to this machine. */
 export function systemProbes(): DoctorProbes {
   return {
@@ -184,71 +254,20 @@ export function systemProbes(): DoctorProbes {
     nodeVersion: process.versions.node,
     env: process.env,
     which: (cmd) => whichOnPath(cmd, process.env, process.platform),
-    exec: (cmd, args, timeoutMs) =>
-      new Promise((resolve) => {
-        execFile(cmd, args, { timeout: timeoutMs, encoding: 'utf8' }, (err, stdout, stderr) => {
-          if (err && (err as NodeJS.ErrnoException).code === 'ENOENT') return resolve(null);
-          const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? ((err as { code: number }).code) : 1) : 0;
-          resolve({ code, stdout: String(stdout), stderr: String(stderr) });
-        });
-      }),
+    exec: execProbe,
     exists: (p) => existsSync(p),
-    list: (dir) => {
-      try {
-        return lstatSync(dir).isDirectory() ? readdirSync(dir) : null;
-      } catch {
-        return null;
-      }
-    },
+    list: listProbe,
     read: readSmallFile,
-    sandbox: async (project, env, policy) => {
-      const { openSandbox } = await import('@retake/sandbox');
-      try {
-        const st = await openSandbox(project, env, policy).status();
-        const problems = st.services
-          .filter((x) => !x.orphan && (x.state !== 'running' || x.healthy === false))
-          .map((x) => `${x.name}: ${x.state === 'stopped' ? 'not running' : x.state === 'starting' ? 'starting' : `not healthy (${x.health})`}`);
-        return { state: st.state, provider: st.provider, problems, services: st.services.filter((x) => !x.orphan).length, ...(st.seed ? { seed: st.seed.hash } : {}) };
-      } catch (e) {
-        return { state: 'down', provider: project.sandboxes?.[env]?.manifest.provider ?? '?', problems: [], services: 0, error: errorMessage(e) };
-      }
-    },
+    sandbox: sandboxProbe,
     chromium: async (browser, policy) => (await import('@retake/runner-web')).probeChromium(browser, { policy }),
     execPath: process.execPath,
     bundle: bundleInfoOrNull(),
     bundleProblems,
     renderBrowser: systemRenderBrowser,
     renders: async (policy) => (await import('@retake/editor')).probeRenderPath({ workPolicy: policy }),
-    captures: async (root) => {
-      const e = await import('@retake/engine');
-      const loc = e.capturesLocation(process.env);
-      const exists = existsSync(loc.dir);
-      // Nothing is made: an absent folder is read as "no take yet" (capturesDir would make it).
-      const usable = exists ? e.capturesDir(process.env) : { dir: null, ...(loc.problem ? { problem: loc.problem } : {}) };
-      const st = usable.dir ? await new e.FilmingWatch({ root }).scan() : { takes: [] };
-      const takes = [];
-      for (const t of st.takes) {
-        const cmd = await new Promise<string>((r) => execFile('ps', ['-ww', '-o', 'command=', '-p', String(t.pid)], { timeout: 5000, encoding: 'utf8' }, (err, out) => r(err ? '' : String(out))));
-        // Review A L3: a Retake worker or `retake run` only (any other node process is not one).
-        takes.push({ here: t.here, paused: t.paused, capped: t.capped, retake: e.isTakeOwnerCommand(cmd.trim()) });
-      }
-      return { dir: loc.dir, override: loc.override, exists, ...(usable.problem ? { problem: usable.problem } : {}), takes, qos: process.platform === 'darwin' && existsSync('/usr/sbin/taskpolicy'), capMin: e.capMinutes(process.env) };
-    },
-    worker: async (root) => {
-      const w = await (await import('@retake/engine')).liveWorker(root);
-      return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}), version: w.version, ...(w.engine ? { engine: w.engine } : {}) } : null;
-    },
-    head: async (url, timeoutMs) => {
-      const t0 = performance.now();
-      try {
-        const res = await fetch(url, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
-        return { status: res.status, ms: Math.round(performance.now() - t0) };
-      } catch (e) {
-        const err = e as Error & { cause?: { code?: string; message?: string } };
-        const why = err.name === 'TimeoutError' ? `no answer within ${timeoutMs / 1000} s` : (err.cause?.code ?? err.cause?.message ?? err.message);
-        return { error: why, ms: Math.round(performance.now() - t0) };
-      }
-    },
+    captures: capturesProbe,
+    worker: workerProbe,
+    head: headProbe,
   };
 }
 
@@ -626,22 +645,30 @@ export async function dockerCheck(p: DoctorProbes, need: DockerNeed | null = nul
   return { status: 'ok', name, detail: `${server} · Compose ${compose}${context ? ` · context ${context}` : ''} · ${bin}` };
 }
 
+/** The workspace's lines: the workspace (its projects), then its themes. */
 async function workspaceChecks(p: DoctorProbes, ws: OpenedWorkspace): Promise<DoctorCheck[]> {
-  const out: DoctorCheck[] = [];
+  return [await workspaceCheck(p, ws), ...(await templateChecks(p, ws))];
+}
+
+/** The workspace: its root, its marker file, its projects (a WARN without any). */
+async function workspaceCheck(p: DoctorProbes, ws: OpenedWorkspace): Promise<DoctorCheck> {
   const marker = p.exists(join(ws.root, WORKSPACE_FILE)) ? WORKSPACE_FILE : `no ${WORKSPACE_FILE}`;
   const projects = await listProjects(ws.root).catch(() => []);
   const names = projects.map((x) => x.slug);
   const list = names.length ? `: ${names.slice(0, 6).join(', ')}${names.length > 6 ? ', …' : ''}` : '';
-  out.push(
-    names.length
-      ? { status: 'ok', name: 'Workspace', detail: `${ws.root} (${marker}) · ${names.length} project${names.length === 1 ? '' : 's'}${list}` }
-      : {
-          status: 'warn',
-          name: 'Workspace',
-          detail: `${ws.root} (${marker}) · no projects in ${ws.projectsDir}`,
-          hint: 'cd into your workspace, pass --root <dir>, set $RETAKE_ROOT, or create a project with retake new <slug>',
-        },
-  );
+  return names.length
+    ? { status: 'ok', name: 'Workspace', detail: `${ws.root} (${marker}) · ${names.length} project${names.length === 1 ? '' : 's'}${list}` }
+    : {
+        status: 'warn',
+        name: 'Workspace',
+        detail: `${ws.root} (${marker}) · no projects in ${ws.projectsDir}`,
+        hint: 'cd into your workspace, pass --root <dir>, set $RETAKE_ROOT, or create a project with retake new <slug>',
+      };
+}
+
+/** The workspace's themes: one line each (fonts present, or what is missing), a WARN when there is none. */
+async function templateChecks(p: DoctorProbes, ws: OpenedWorkspace): Promise<DoctorCheck[]> {
+  const out: DoctorCheck[] = [];
   const templates = await listTemplates(ws.root).catch(() => []);
   if (!templates.length) {
     // The check names `Templates` / `Template <name>` stay (`retake doctor --json` reads them; docs/GLOSSARY.md).
@@ -660,8 +687,24 @@ async function workspaceChecks(p: DoctorProbes, ws: OpenedWorkspace): Promise<Do
   return out;
 }
 
+/** What the checks of a `--project` read: the loaded project, its environments, how its hints' commands are written. */
+interface ProjectContext {
+  p: DoctorProbes;
+  ws: OpenedWorkspace;
+  project: LoadedProject;
+  slug: string;
+  global: GlobalOptions;
+  /** The commands of the hints, with `-C <root>` when the command line named the workspace root. */
+  loginCommand: ReturnType<typeof loginCommandFor>;
+  envNames: string[];
+  /** The environment a run picks without --env (else the first declared). */
+  defaultEnv: string | undefined;
+  /** The project's sandbox environments. */
+  sandboxes: Set<string>;
+}
+
+/** The lines of a `--project`, in display order: the project, its browser, profiles, sessions, sandboxes, hosts. */
 async function projectChecks(p: DoctorProbes, ws: OpenedWorkspace, slug: string, global: GlobalOptions): Promise<DoctorCheck[]> {
-  // The commands of the hints, with `-C <root>` when the command line named the workspace root.
   const loginCommand = loginCommandFor(global);
   let project: LoadedProject;
   try {
@@ -669,22 +712,42 @@ async function projectChecks(p: DoctorProbes, ws: OpenedWorkspace, slug: string,
   } catch (e) {
     return [{ status: 'fail', name: `Project ${slug}`, detail: errorMessage(e).split('\n')[0], hint: 'retake list shows the projects of the workspace' }];
   }
-  const out: DoctorCheck[] = [{ status: 'ok', name: `Project ${slug}`, detail: project.dir }];
-  // The project's browser (retake.yaml's merged in): only what the workspace line does not say already.
-  const own = project.config.browser;
-  if (own && (own.executable !== ws.browser?.executable || (own.args?.length ?? 0) !== (ws.browser?.args?.length ?? 0))) {
-    const jobs = agentJobsCheck({}, ws, { ...(own.executable !== ws.browser?.executable ? { executable: own.executable } : {}), args: own.args?.slice(ws.browser?.args?.length ?? 0) ?? [] }, `Project ${slug}: Studio and MCP jobs`);
-    if (jobs) out.push(jobs);
-  }
   const envNames = Object.keys(project.config.environments ?? {});
-  const defaultEnv = (() => {
-    try {
-      return resolveEnvironment(project).name;
-    } catch {
-      return envNames[0];
-    }
-  })();
-  // Browser profile(s) of the single-account form (auth.profile / storage_state): global, or one per environment.
+  // Sandboxes (L1.8): one line each — their accounts sign in off camera at every take and their hosts are up only
+  // while the sandbox runs, so neither gets a line of its own.
+  const x: ProjectContext = { p, ws, project, slug, global, loginCommand, envNames, defaultEnv: defaultEnvOf(project, envNames), sandboxes: new Set(sandboxNames(project)) };
+  const out: DoctorCheck[] = [{ status: 'ok', name: `Project ${slug}`, detail: project.dir }];
+  const browser = projectBrowserCheck(x);
+  if (browser) out.push(browser);
+  const profiles = await profileChecks(x);
+  out.push(...profiles);
+  out.push(...(await sessionChecks(x, profiles.length > 0)));
+  for (const env of x.sandboxes) out.push(await sandboxCheck(p, project, env, global, ws.policy));
+  const advice = sandboxAdviceCheck(x);
+  if (advice) out.push(advice);
+  out.push(...(await hostChecks(x)));
+  return out;
+}
+
+/** The environment a run picks without --env; the first declared when that cannot be told. */
+function defaultEnvOf(project: LoadedProject, envNames: string[]): string | undefined {
+  try {
+    return resolveEnvironment(project).name;
+  } catch {
+    return envNames[0];
+  }
+}
+
+/** The project's browser (retake.yaml's merged in): only what the workspace line does not say already. */
+function projectBrowserCheck({ ws, project, slug }: ProjectContext): DoctorCheck | null {
+  const own = project.config.browser;
+  if (!own || (own.executable === ws.browser?.executable && (own.args?.length ?? 0) === (ws.browser?.args?.length ?? 0))) return null;
+  return agentJobsCheck({}, ws, { ...(own.executable !== ws.browser?.executable ? { executable: own.executable } : {}), args: own.args?.slice(ws.browser?.args?.length ?? 0) ?? [] }, `Project ${slug}: Studio and MCP jobs`);
+}
+
+/** Browser profile(s) of the single-account form (auth.profile / storage_state): global, or one per environment; one line each. */
+async function profileChecks({ p, project, slug, loginCommand, envNames }: ProjectContext): Promise<DoctorCheck[]> {
+  const out: DoctorCheck[] = [];
   const rw = await import('@retake/runner-web');
   const seen = new Set<string>();
   for (const env of envNames.length ? envNames : ['']) {
@@ -711,25 +774,32 @@ async function projectChecks(p: DoctorProbes, ws: OpenedWorkspace, slug: string,
       );
     }
   }
-  // Sandboxes (L1.8): one line each — their accounts sign in off camera at every take and their hosts are up only
-  // while the sandbox runs, so neither gets a line of its own.
-  const sandboxes = new Set(sandboxNames(project));
-  // Personas (L1.6): their sessions live under the Retake home, never in the project.
+  return out;
+}
+
+/**
+ * Personas (L1.6): their sessions live under the Retake home, never in the project — the home's line, then one per
+ * persona (not a sandbox's). Without any, and without a profile line (`profiles`), the one "none configured" line.
+ */
+async function sessionChecks({ p, project, slug, global, loginCommand, sandboxes }: ProjectContext, profiles: boolean): Promise<DoctorCheck[]> {
   const home = retakeHome(p.env as NodeJS.ProcessEnv);
   const personas = (await projectPersonaStates(project, loginCommand, cliPorts.capture.sessions, undefined, home)).filter((x) => !x.state.legacy && !sandboxes.has(x.state.env));
-  if (personas.length) {
-    const where = `${tildePath(home)}${p.env.RETAKE_HOME ? ' (RETAKE_HOME)' : ''}`;
-    out.push((await gitPlacement(p, home, true, 'Session home', where)) ?? { status: 'ok', name: 'Session home', detail: `${where} · outside any git work tree` });
-    for (const { state } of personas) out.push(await personaCheck(p, state, home, `${retakeCommand(global)} auth status --project ${slug} --check`));
-  } else if (!seen.size) {
-    out.push({ status: 'ok', name: 'Profile', detail: 'none configured (a fresh temporary profile per run)' });
-  }
+  if (!personas.length) return profiles ? [] : [{ status: 'ok', name: 'Profile', detail: 'none configured (a fresh temporary profile per run)' }];
+  const where = `${tildePath(home)}${p.env.RETAKE_HOME ? ' (RETAKE_HOME)' : ''}`;
+  const out: DoctorCheck[] = [(await gitPlacement(p, home, true, 'Session home', where)) ?? { status: 'ok', name: 'Session home', detail: `${where} · outside any git work tree` }];
+  for (const { state } of personas) out.push(await personaCheck(p, state, home, `${retakeCommand(global)} auth status --project ${slug} --check`));
+  return out;
+}
 
-  for (const env of sandboxes) out.push(await sandboxCheck(p, project, env, global, ws.policy));
-  // L5.8 (R-FLD-30): a local environment with a database, a mailbox or reset hooks and no sandbox: point to one.
+/** L5.8 (R-FLD-30): a local environment with a database, a mailbox or reset hooks and no sandbox: point to one. */
+function sandboxAdviceCheck({ project, slug, global }: ProjectContext): DoctorCheck | null {
   const advice = sandboxAdvice(project);
-  if (advice) out.push({ status: 'warn', name: 'Sandbox', ...sandboxAdviceText(advice, slug, retakeCommand(global)) });
-  // Hosts of every environment page: HEAD with a 5 s timeout. An unreachable default environment is a failure.
+  return advice ? { status: 'warn', name: 'Sandbox', ...sandboxAdviceText(advice, slug, retakeCommand(global)) } : null;
+}
+
+/** Hosts of every environment page but a sandbox's: HEAD with a 5 s timeout. An unreachable default environment is a failure. */
+async function hostChecks({ p, project, envNames, defaultEnv, sandboxes }: ProjectContext): Promise<DoctorCheck[]> {
+  const out: DoctorCheck[] = [];
   for (const env of envNames) {
     if (sandboxes.has(env)) continue;
     for (const [key, url] of Object.entries(project.config.environments[env] ?? {})) {
@@ -818,17 +888,6 @@ async function personaCheck(p: DoctorProbes, s: PersonaState, home: string, rech
   return { status: 'ok', name, detail };
 }
 
-/**
- * The MCP line (L3.1): the Node.js a registration names (`retake mcp --print-config`: a stable alias of it where one
- * exists, so a patch upgrade does not break it), the PATH a GUI client gets from it finds ffmpeg, the jobs worker, and
- * the workspace's `.retake/` (its job queue and history) git-ignored when the workspace is a git work tree.
- */
-/**
- * L5.16c — the installed app (DESIGN §4p (c)): where it runs from (critique H1: a translocated copy, its disk image or
- * /Volumes — every path recorded then breaks) and the `retake` command's link (`<home>/app.json`'s, else
- * ~/.local/bin/retake): a link to an app that is gone, a file in its place that is not Retake's, another `retake` first
- * on this shell's PATH. From a repository checkout: only a dangling link is said.
- */
 /** A path for a command line to paste (review c A-L7): `~/` kept outside, the rest single-quoted unless plain. */
 export function pastePath(p: string): string {
   const t = tildePath(p);
@@ -883,6 +942,12 @@ export function launchUpdates(text: string | null): 'on' | 'off' | null {
   }
 }
 
+/**
+ * L5.16c — the installed app (DESIGN §4p (c)): where it runs from (critique H1: a translocated copy, its disk image or
+ * /Volumes — every path recorded then breaks) and the `retake` command's link (`<home>/app.json`'s, else
+ * ~/.local/bin/retake): a link to an app that is gone, a file in its place that is not Retake's, another `retake` first
+ * on this shell's PATH. From a repository checkout: only a dangling link is said.
+ */
 function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
   const out: DoctorCheck[] = [];
   const b = p.bundle ?? null;
@@ -924,6 +989,11 @@ function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
   return out;
 }
 
+/**
+ * The MCP line (L3.1): the Node.js a registration names (`retake mcp --print-config`: a stable alias of it where one
+ * exists, so a patch upgrade does not break it), the PATH a GUI client gets from it finds ffmpeg, the jobs worker, and
+ * the workspace's `.retake/` (its job queue and history) git-ignored when the workspace is a git work tree.
+ */
 async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorCheck> {
   const name = 'MCP';
   const exec = p.execPath ?? process.execPath;
@@ -1002,11 +1072,17 @@ export function capturesCheck(c: CapturesProbe): DoctorCheck {
   return { status: 'ok', name, detail: parts.join(' · ') };
 }
 
+/** What is wrong with the app bundle this engine runs from (a damaged manifest, playwright-core not loading): a FAIL, or no line. */
+function appBundleCheck(p: DoctorProbes): DoctorCheck | null {
+  const damaged = p.bundleProblems?.() ?? [];
+  return damaged.length ? { status: 'fail', name: 'App bundle', detail: damaged.join(' · '), hint: 'reinstall Retake' } : null;
+}
+
 /** Every doctor check, in display order. */
 export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, opts: { project?: string; global?: GlobalOptions } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
-  const damaged = probes.bundleProblems?.() ?? [];
-  if (damaged.length) out.push({ status: 'fail', name: 'App bundle', detail: damaged.join(' · '), hint: 'reinstall Retake' });
+  const bundle = appBundleCheck(probes);
+  if (bundle) out.push(bundle);
   out.push(...appChecks(probes));
   const chromium = await probes.chromium(ws.browser, ws.policy);
   out.push(chromiumCheck(chromium, ws.browser, probes.bundle));

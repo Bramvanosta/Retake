@@ -44,8 +44,8 @@ export function editorRenderer(): Renderer {
 
 /**
  * `renderer` with its previews drawn by a preview backend of the editor's instead (in-process tests of library
- * previews: PreviewJobTestHooks.backend). The backend becomes the previews of a renderer here, so the work is handed
- * one renderer and nothing beside it.
+ * previews: a worker's `ports.renderer`, worker-ports.ts). The backend becomes the previews of a renderer here, so the
+ * work is handed one renderer and nothing beside it.
  */
 export function withPreviewBackend(renderer: Renderer, backend: PreviewBackend): Renderer {
   const previews = once(async () => (await editor()).previewDriver(backend) satisfies Renderer['previews']);

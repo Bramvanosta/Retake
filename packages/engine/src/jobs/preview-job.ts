@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { JOB_INPUT_VERSION, PreviewJobInputSchema, newUlidId, statePath } from '@retake/core';
 import type { ComponentKind, LoadedTemplate, PreviewJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
-import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
+import type { BrowserProcessInfo, LoopItem, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
 import { fileFacts } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
@@ -50,13 +50,13 @@ import type { LibraryKeyContext, LibraryPreviewKind, LibraryStatesView } from '.
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
 import { themeAssetProblems, themeForWork } from '../templates.js';
-import { withPreviewBackend } from '../render/editor-renderer.js';
 import { diskFullWork, loopsWork, previewsWork } from '../render/work.js';
 import type { Renderer } from '../render/renderer.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import type { FreeBytes } from './worker-ports.js';
 
 /** The kinds a theme preview shows, in order (R-MCP-11). */
 export const THEME_PREVIEW_KINDS: readonly ComponentKind[] = ['intro', 'layout', 'card', 'interstitial', 'outro'];
@@ -220,19 +220,8 @@ export interface PreviewJobContext extends EnginePorts {
   browser(b: BrowserProcessInfo): void;
   /** What the job renders with (the runner's: render/renderer.ts). */
   renderer: Renderer;
-  /** In-process tests only (WorkerOptions.previewTest). */
-  test?: PreviewJobTestHooks;
-}
-
-/**
- * In-process tests of library jobs: a stand-in for Remotion, and the free space the disk gate sees. `backend` draws a
- * library job's posters and loops in place of the worker's renderer's previews (render/editor-renderer.ts
- * withPreviewBackend). A worker is handed this or a whole renderer (WorkerOptions.ports.renderer), never both: runWorker
- * refuses the two together.
- */
-export interface PreviewJobTestHooks {
-  backend?: PreviewBackend;
-  freeBytes?: (dir: string) => Promise<number | undefined>;
+  /** What a library job's disk gate reads the free space with (the worker's port, worker-ports.ts; absent: freeBytesOf). */
+  freeBytes?: FreeBytes;
 }
 
 /** Execute a `preview` job: the checks again, then `renderComponentPreviews` into the preview's folder, guarded. */
@@ -292,7 +281,7 @@ interface LibraryWant {
 /** Execute a library job (see the module comment). */
 async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarget): Promise<PreviewJobResult> {
   const { input, ws } = ctx;
-  const freeBytes = ctx.test?.freeBytes ?? freeBytesOf;
+  const freeBytes = ctx.freeBytes ?? freeBytesOf;
   await checkLibraryDisk(ws.root, freeBytes);
   const { template, registry } = await previewTheme(ws, input);
   const keys: LibraryKeyContext = await libraryKeyContext(template, registry, { policy: ctx.ws.policy });
@@ -366,7 +355,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
         }
       };
       const done = await loopsWork({
-        renderer: ctx.test?.backend ? withPreviewBackend(ctx.renderer, ctx.test.backend) : ctx.renderer,
+        renderer: ctx.renderer,
         workPolicy: ws.policy,
         root: ws.root,
         registry,

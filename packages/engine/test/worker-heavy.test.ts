@@ -19,7 +19,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { createRequire } from 'node:module';
@@ -27,7 +27,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { APPROVALS_USED_DIR, FileJobQueue, createEngine, heldFile, historyFile, processStart, readWorkerLock, runWorker, signApprovals } from '../src/index.js';
+import { APPROVALS_USED_DIR, FileJobQueue, MARKER_NAME_RE, buildDirs, buildStamp, capturesDir, createEngine, heldFile, historyFile, processStart, readWorkerLock, runWorker, signApprovals, workspaceCaptureId } from '../src/index.js';
 import type { JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
 
@@ -91,15 +91,38 @@ function work(root: string, modes: Record<string, string>, extra: Partial<Parame
     pollMs: 50,
     log: (m) => logs.push(m),
     ...extra,
-    jobProcessTest: {
-      command: (j) => ({ command: process.execPath, args: [fakeBin, '--job', j.id, '--kind', j.kind, '--root', j.root, '--build', j.build, '--supervisor', String(j.supervisor), '--mode', modes[j.id] ?? 'succeed'] }),
-      kill,
-      ...extra.jobProcessTest,
+    ports: {
+      ...extra.ports,
+      processes: {
+        command: (j) => ({ command: process.execPath, args: [fakeBin, '--job', j.id, '--kind', j.kind, '--root', j.root, '--build', j.build, '--supervisor', String(j.supervisor), '--mode', modes[j.id] ?? 'succeed'] }),
+        kill,
+        ...extra.ports?.processes,
+      },
     },
   });
   pending.add(p);
   void p.finally(() => pending.delete(p));
   return p;
+}
+
+/** This build's stamp (what the product's build stamp port answers while the code does not change). */
+const stamp = buildStamp(buildDirs());
+
+/** A take of this workspace films now: one of its filming markers is live and not paused (read as the worker's slot sees it). */
+function filmingHere(root: string): boolean {
+  const { dir } = capturesDir(process.env);
+  if (!dir) return false;
+  const ws = workspaceCaptureId(root);
+  return readdirSync(dir)
+    .filter((n) => MARKER_NAME_RE.test(n))
+    .some((n) => {
+      try {
+        const m = JSON.parse(readFileSync(join(dir, n), 'utf8')) as { ws?: string; paused?: boolean };
+        return m.ws === ws && m.paused !== true;
+      } catch {
+        return false;
+      }
+    });
 }
 
 async function waitFor<T>(what: string, fn: () => Promise<T | undefined | false> | T | undefined | false, ms = 20_000): Promise<T> {
@@ -229,7 +252,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     const job = await review(queue);
     let changed = false;
     const logs: string[] = [];
-    const worker = work(root, { [job.id]: 'until-file' }, { buildCheckMs: 1, jobProcessTest: { buildChanged: () => changed } }, logs);
+    const worker = work(root, { [job.id]: 'until-file' }, { buildCheckMs: 1, ports: { processes: { buildStamp: () => (changed ? `${stamp}-changed` : stamp) } } }, logs);
     await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
     changed = true;
     await waitFor('the build change seen', () => logs.some((l) => /the code changed since this worker started: no new job here/.test(l)));
@@ -349,7 +372,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
       await new Promise((r) => setTimeout(r, 3_000));
       return [];
     };
-    const worker = work(root, { [job.id]: 'term' }, { jobProcessTest: { qos: { table: slowTable, apply: async () => undefined } } });
+    const worker = work(root, { [job.id]: 'term' }, { ports: { processes: { qos: { table: slowTable, apply: async () => undefined } } } });
     await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
     const take = FilmingMarker.open({ root: join(base, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
     try {
@@ -375,7 +398,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
       // The spawn failure window: the worker holds the child, no pid, no `error` event yet.
       if (m.includes('in job process (none)')) for (const l of process.listeners('SIGTERM').filter((x) => !before.includes(x))) (l as (s: string) => void)('SIGTERM');
     };
-    expect(await work(root, {}, { log, jobProcessTest: { command: () => ({ command: join(base, 'missing', 'node'), args: [] }) } })).toBe(0);
+    expect(await work(root, {}, { log, ports: { processes: { command: () => ({ command: join(base, 'missing', 'node'), args: [] }) } } })).toBe(0);
     expect(logs.join('\n')).toMatch(/its job process did not start/);
     expect(sent).toEqual([]);
     expect((await queue.stored(job.id))?.state).toBe('interrupted');
@@ -687,9 +710,14 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     const take = await engine.runs.submit({ project: 'w', scenario: 'gated', mode: 'capture', hooks: 'run' }, { approver: { approve: async () => ({ approved: true as const }) } });
     const heavy = await review(queue);
     const yieldFile = queue.files.yield(heavy.id);
-    // Review B L2: the build is not stamped while the take films (a synchronous walk on the take's event loop).
+    // Review B L2: the build is not stamped while the take films (a synchronous walk on the take's event loop): each
+    // stamp records whether a take of this workspace films then (its marker, written with the slot's filming state).
     const checks: boolean[] = [];
-    const worker = work(root, { [heavy.id]: 'until-file' }, { idleExitMs: 400, buildCheckMs: 1, jobProcessTest: { buildCheck: (filming) => void checks.push(filming) } });
+    const buildStampSeen = () => {
+      checks.push(filmingHere(root));
+      return stamp;
+    };
+    const worker = work(root, { [heavy.id]: 'until-file' }, { idleExitMs: 400, buildCheckMs: 1, ports: { processes: { buildStamp: buildStampSeen } } });
     // Setup hooks: not filming — the render starts beside them.
     await waitFor('the setup hook', () => hookSeen);
     await waitFor('the render running during setup', async () => (await queue.stored(heavy.id))?.state === 'running');

@@ -2,7 +2,7 @@
  * L4.8 acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Record screen, then the scenario it
  * saved filmed and rendered. The built-in Studio server on a clean copy of projects/northfield-fixture (its local
  * environment pointed at the fixture product on free ports), headless Chromium on the Studio app, and every job run by
- * a worker IN THIS PROCESS — the `record` job's window played by Playwright (`recordTest.drive`: a worker process cannot
+ * a worker IN THIS PROCESS — the `record` job's window played by Playwright (`ports.recordWindow.drive`: a worker process cannot
  * receive it; the real window with a person switching to the Studio is MACOS-CHECKLIST 13i). The window is headless;
  * `RETAKE_TEST_HEADED=1` shows it.
  *
@@ -24,7 +24,7 @@ import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml } from '@retake/core';
 import { runWorker } from '@retake/engine';
-import type { RecordJobTestHooks } from '@retake/engine';
+import type { RecordWindow } from '@retake/engine';
 import { timelineOf } from '@retake/editor';
 import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
@@ -32,7 +32,7 @@ import type { RecordViewAnswer, StudioServer } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 
-type Window = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Window = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string };
@@ -74,8 +74,8 @@ async function call<T>(op: string, args: Record<string, unknown>): Promise<T> {
 }
 
 /** The jobs queued so far, run by a worker in this process; it exits once idle. */
-function drain(recordTest?: RecordJobTestHooks): Promise<number> {
-  return runWorker({ root, idleExitMs: 1500, pollMs: 100, log: (m) => workerLogs.push(m), ...(recordTest ? { recordTest, once: true, idleExitMs: 0 } : {}) });
+function drain(recordWindow?: RecordWindow): Promise<number> {
+  return runWorker({ root, idleExitMs: 1500, pollMs: 100, log: (m) => workerLogs.push(m), ...(recordWindow ? { ports: { recordWindow }, once: true, idleExitMs: 0 } : {}) });
 }
 
 const stateOf = () => page.getByTestId('record-state').first().getAttribute('data-state');

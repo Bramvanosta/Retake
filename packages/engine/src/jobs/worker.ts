@@ -30,10 +30,9 @@ import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { processTableSync } from '@retake/core/io';
 import { stampOf } from '../clock.js';
-import { EngineError } from '../errors.js';
 import { enginePorts } from '../ports.js';
 import { openWorkspace } from '../workspace.js';
-import { buildDirs, buildStamp } from './build.js';
+import { buildDirs } from './build.js';
 import { heldFile } from './captures.js';
 import { WorkerLock } from './lock.js';
 import { selfIdentity } from './proc.js';
@@ -46,6 +45,7 @@ import type { WorkerOptions } from './worker-record.js';
 import { recoverLeftovers } from './worker-recovery.js';
 import { handleSignals } from './worker-signals.js';
 import { captureJobRunner } from './worker-slots.js';
+import { workerPorts } from './worker-ports.js';
 
 export type { WorkerOptions } from './worker-record.js';
 
@@ -65,20 +65,18 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
 /** Run a worker until it is idle, stopped or replaced; resolves with the process exit code. */
 export async function runWorker(o: WorkerOptions): Promise<number> {
   // The worker process's composition root: the ports its jobs run with (a test's, else the product's).
-  const { clock, stores, hooks, reviewer, capture, sandboxes } = enginePorts(o.ports);
+  const engine = enginePorts(o.ports);
+  const { clock, stores, hooks, reviewer, capture, sandboxes } = engine;
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
-  // Two test stand-ins for the same thing: which one would draw a preview is not left to an order of precedence.
-  if (o.ports?.renderer !== undefined && o.previewTest?.backend !== undefined) {
-    throw new EngineError('internal', 'a worker is handed a renderer (ports.renderer) or a preview backend (previewTest.backend), not both');
-  }
   const ws = await openForWorker(root, log);
   if (!ws) return 1;
   const cli = `retake -C ${shellQuote(root)}`;
   // The worker process's composition root: the one queue this worker reads and writes.
   const queue = new FileJobQueue(root, cli, clock);
   const dirs = buildDirs();
-  const build = buildStamp(dirs);
+  const { ports, heavyInProcess } = workerPorts(engine, o.ports, dirs);
+  const build = ports.processes.buildStamp();
   const lock = await WorkerLock.acquire(root, build, clock, log, o.startedBy);
   if (!lock) {
     log('another worker serves this workspace: exiting');
@@ -89,7 +87,31 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   await capture.load();
   log(`serving ${root} (build ${build})`);
 
-  const w = newWorker({ o, log, root, clock, stores, hooks, reviewer, ws, cli, queue, files: queue.files, dirs, build, lock, self, captureRunner: capture, sandboxes, os: { processTableSync } });
+  const w = newWorker({
+    o,
+    log,
+    root,
+    clock,
+    stores,
+    hooks,
+    reviewer,
+    ws,
+    cli,
+    queue,
+    files: queue.files,
+    dirs,
+    build,
+    lock,
+    self,
+    captureRunner: capture,
+    sandboxes,
+    os: { processTableSync },
+    renderer: ports.renderer,
+    recordWindow: ports.recordWindow,
+    freeBytes: ports.freeBytes,
+    processes: ports.processes,
+    heavyInProcess,
+  });
   const stopListening = handleSignals(w);
   w.runJob = captureJobRunner(w);
   let handover = false;

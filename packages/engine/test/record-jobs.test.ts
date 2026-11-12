@@ -1,7 +1,7 @@
 /**
  * L3.4 `record` jobs (engine jobs/record-job.ts, R-MCP-24) on the fixture product, the worker run in this process
  * (`once`) with an injected driver: Playwright stands in for the person in a headless "headed" window (the worker
- * option `recordTest`, which a worker process cannot receive). Refusals at submit (another origin, a template, an
+ * port `recordWindow`, which a worker process cannot receive). Refusals at submit (another origin, a template, an
  * unknown page, a bad name, a protected host); a recording of the lab (a sentinel typed in its password field, a note):
  * the job succeeds with counts only in job.json, its events and the history (one line, the worker's), the draft read
  * back from the folder with a {{vars.password_1}} placeholder and the note, the sentinel nowhere. On the in-memory
@@ -29,7 +29,7 @@ import {
   recordsRoot,
   runWorker,
 } from '../src/index.js';
-import type { Engine, EngineError, JobRecord, RecordJobResult, RecordJobTestHooks } from '../src/index.js';
+import type { Engine, EngineError, JobRecord, RecordJobResult, RecordWindow } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { memoryRecord } from '../src/capture/memory-sessions.js';
@@ -37,7 +37,7 @@ import type { MemoryRecordOptions } from '../src/capture/memory-sessions.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 import { oneButtonPress } from './recorded-events.js';
 
-type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string; signedIn?: { console: string; shop: string } };
@@ -58,15 +58,17 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
     idleExitMs: 0,
     pollMs: 50,
     log: () => undefined,
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (page) => {
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(800);
-        await drive(page);
-        await page.waitForTimeout(400).catch(() => undefined);
-        await page.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (page) => {
+          await page.waitForLoadState('domcontentloaded');
+          await page.waitForTimeout(800);
+          await drive(page);
+          await page.waitForTimeout(400).catch(() => undefined);
+          await page.close().catch(() => undefined);
+        },
       },
     },
   });
@@ -78,7 +80,7 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
  */
 function workInMemory(during: NonNullable<MemoryRecordOptions['during']>): Promise<number> {
   const capture = new MemoryCaptureRunner({ record: memoryRecord({ events: oneButtonPress({ pageKey: 'shop', button: 'Request a quote' }), during }) });
-  return runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture }, recordTest: { headless: true, drive: async () => undefined } });
+  return runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture, recordWindow: { headless: true, drive: async () => undefined } } });
 }
 
 /** Resolves once `signal` is aborted. */

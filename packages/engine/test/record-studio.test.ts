@@ -1,6 +1,6 @@
 /**
  * L4.8 the Studio's side of a recording (engine record-studio.ts, R-UI-20 / 21 / 22) on the fixture product (own ports
- * 4551–4554), the worker run in this process with Playwright playing the person (`recordTest.drive`, which a worker
+ * 4551–4554), the worker run in this process with Playwright playing the person (`ports.recordWindow.drive`, which a worker
  * process cannot receive) — and the person's Studio calls made from inside the drive, while the window is open.
  *
  * - A Studio recording (`ui`): meta.json at folder creation, never auto-saved; the live view; a caption inserted "at the
@@ -46,12 +46,12 @@ import {
   saveRecordedDraft,
   enginePorts,
 } from '../src/index.js';
-import type { Engine, EngineError, RecordJobResult, RecordJobTestHooks, RecordView } from '../src/index.js';
+import type { Engine, EngineError, RecordJobResult, RecordWindow, RecordView } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 import { fileFacts } from '@retake/core/io';
 
-type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string; signedIn?: { console: string; shop: string } };
@@ -82,15 +82,17 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => logs.push(m),
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (page) => {
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(800);
-        await drive(page);
-        await page.waitForTimeout(400).catch(() => undefined);
-        await page.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (page) => {
+          await page.waitForLoadState('domcontentloaded');
+          await page.waitForTimeout(800);
+          await drive(page);
+          await page.waitForTimeout(400).catch(() => undefined);
+          await page.close().catch(() => undefined);
+        },
       },
     },
   });

@@ -1673,9 +1673,10 @@ panel — the same session, nothing forwarded to it.
   {total, by_steps, ambient}, check {status, scope, reason?, steps_passed, steps_total, dir?}`, and under `untrusted`:
   `scenes` (ids made from page paths), `issues` (with scene / step), `first_write`, `check {until?, failed_at?,
   error?}`. Never the draft's text: `engine.record.get` reads draft.yaml from the folder (≤ 200 kB).
-- **Test hook**: `runWorker({recordTest: {drive, headless, windowSize}})` — in-process only (worker-main never sets it;
-  a worker process has no way to receive a driver), not gated on `submitted_by`, so a stdio test can submit through
-  MCP while this process's worker holds the lock and plays the person.
+- **The window port** (L7.29; was the `recordTest` option): `runWorker({ports: {recordWindow: {drive, headless,
+  windowSize}}})` — in-process only (worker-main hands none; a worker process has no way to receive a driver), not gated
+  on `submitted_by`, so a stdio test can submit through MCP while this process's worker holds the lock and plays the
+  person.
 - **MCP** `scenario_record({project, env?, page?, path?, url?, persona?, scenario?, check = true})` (RUN_JOB
   annotations; 39 tools): submits and returns at once — the summary tells Claude to ask the user to perform the flow
   and close the window, that it does not drive it, to follow with `job_status {wait_s: 25}` and to submit no other job
@@ -4195,7 +4196,7 @@ the fixture's flagged page (`/record-lab?hostile=1`, a label with markup and a d
 ran.
 
 **Tests.** `studio-e2e-record.test.ts` (default suite, ≈ 19 s; Studio server, headless Chromium, an in-process worker
-whose `recordTest.drive` plays the person in the window, fixture on 4551–4554): a pick that folds, a password sentinel,
+whose `ports.recordWindow.drive` plays the person in the window, fixture on 4551–4554): a pick that folds, a password sentinel,
 a blur mid-word, each insert, Stop, Save (a taken name refused), the hostile page, Discard during the check, a
 read-only recording, the sign-in mapping, the sentinel nowhere. `studio-e2e-record-acceptance.test.ts` (gated by
 `RETAKE_TEST_SLOW=1`, ≈ 107 s; `RETAKE_TEST_HEADED=1` shows the window): the shop's quote flow recorded with
@@ -6517,9 +6518,14 @@ previews and site extractions are background work, a take is not (BL-116). Built
   start time its record names, with a job process's command line for that job id and this workspace (review A M1);
   any other recorded pid is left alone and the job persisted `interrupted` without its clean-ups. A record whose kind is
   not its input's kind (what a job process refuses) ends `failed` on its first claim, never claimed and given back in a
-  loop (review A M2). With `previewTest` or `ports` (in-process tests only: a stand-in preview backend; the worker's ports —
-  a whole stand-in renderer, a clock, stores; a renderer and a preview backend together are refused; L7.10 replaced
-  `rendererTest` with `ports.renderer`) heavy jobs run in the worker, one job at a time, as before.
+  loop (review A M2). With `ports` (jobs/worker-ports.ts `WorkerPorts`, in-process tests only: L7.10 replaced
+  `rendererTest` with `ports.renderer`; L7.29 `previewTest` with `ports.renderer` — a preview backend is a renderer of
+  its own, editor-renderer.ts `withPreviewBackend` — and `ports.freeBytes`, `recordTest` with `ports.recordWindow`,
+  `jobProcessTest` with `ports.processes`: a job process's command line, the signal sender, the QoS table, the build
+  stamp) the worker record holds no test hook. Given a port a heavy job reads (the engine's, the renderer, the free
+  space) heavy jobs run in the worker, one job at a time, as before; the window and the job processes alone change
+  nothing of that. What a job of each kind does is its handler's (jobs/job-handlers.ts `JOB_HANDLERS`, a table typed by
+  the job kind: no default branch).
 - **Signals** (jobs/signal.ts, review B L1): every signal to a job process or its tree, and the root of every QoS hold,
   goes through one guard — never a pid that is not an integer above 1 (a failed spawn's -1: `kill(-1)` reaches every
   process of the user; 0: this process's own group; 1: launchd), the worker itself or its own group. A spawn that failed

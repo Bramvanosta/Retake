@@ -21,8 +21,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createComponent } from '@retake/components';
 import { bundleHash } from '@retake/editor';
 import type { ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
-import { LIBRARY_FILES, createEngine, libraryCacheDir, runWorker } from '../src/index.js';
-import type { Engine, JobRecord, LibraryStatesView, PreviewJobResult, PreviewJobTestHooks } from '../src/index.js';
+import { LIBRARY_FILES, createEngine, editorRenderer, libraryCacheDir, runWorker, withPreviewBackend } from '../src/index.js';
+import type { Engine, FreeBytes, JobRecord, LibraryStatesView, PreviewJobResult, WorkerPortsGiven } from '../src/index.js';
 import { REPO } from './helpers.js';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
@@ -93,15 +93,27 @@ function fake(o: { fail?: (spec: ComponentPreviewSpec, what: 'still' | 'gif') =>
   };
 }
 
-const plenty: PreviewJobTestHooks['freeBytes'] = async () => 50_000_000_000;
+const plenty: FreeBytes = async () => 50_000_000_000;
 
-async function work(test: PreviewJobTestHooks, id: string): Promise<JobRecord> {
-  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, previewTest: test });
+/** The stand-ins of a library job: a preview backend in place of Remotion, the free space the disk gate sees. */
+interface LibraryStandIns {
+  backend?: PreviewBackend;
+  freeBytes?: FreeBytes;
+}
+
+/** The worker's ports of these stand-ins (L7.29: the backend draws the previews of the worker's renderer). */
+const libraryPorts = (test: LibraryStandIns): WorkerPortsGiven => ({
+  ...(test.backend ? { renderer: withPreviewBackend(editorRenderer(), test.backend) } : {}),
+  ...(test.freeBytes ? { freeBytes: test.freeBytes } : {}),
+});
+
+async function work(test: LibraryStandIns, id: string): Promise<JobRecord> {
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: libraryPorts(test) });
   return engine.jobs.get(id);
 }
 
 /** Submit and run one library job of these components (poster + loop, the keys of `states`). */
-async function renderLibrary(states: LibraryStatesView, ids: string[], test: PreviewJobTestHooks, o: { template?: string; retry?: boolean; what?: 'poster' | 'loop' | 'both' } = {}): Promise<{ job: JobRecord; result: PreviewJobResult }> {
+async function renderLibrary(states: LibraryStatesView, ids: string[], test: LibraryStandIns, o: { template?: string; retry?: boolean; what?: 'poster' | 'loop' | 'both' } = {}): Promise<{ job: JobRecord; result: PreviewJobResult }> {
   const what = o.what ?? 'both';
   const items = ids.map((id) => {
     const s = states.items.find((i) => i.component === id)!;

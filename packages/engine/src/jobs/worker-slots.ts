@@ -1,11 +1,10 @@
 /**
  * The two slots of a jobs worker (worker.ts, L5.14) and the claims of one turn of its loop: the capture slot first — it
  * runs one capture-class job at a time in this process (createJobRunner, run-job-record.ts) — then the heavy slot
- * (worker-heavy.ts: a job process of its own). With previewTest or ports the capture slot runs heavy jobs too,
- * one at a time.
+ * (worker-heavy.ts: a job process of its own). Handed a port a heavy job reads (worker-ports.ts), the capture slot
+ * runs heavy jobs too, one at a time.
  */
 import { jobClass } from '@retake/core';
-import { editorRenderer } from '../render/editor-renderer.js';
 import { pick } from './pick.js';
 import { createJobRunner } from './run-job-record.js';
 import type { JobRecord } from './types.js';
@@ -17,7 +16,6 @@ import { interruptPort } from './worker-signals.js';
 
 /** How the capture slot runs a claimed job: this worker's runner (its job.json, events, history line). */
 export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void> {
-  const o = w.o;
   return createJobRunner({
     root: w.root,
     ws: w.ws,
@@ -38,11 +36,11 @@ export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void
     slot: w.slot,
     done: w.done,
     writeOrExit: (rec) => writeOrExit(w, rec),
-    ...(o.recordTest ? { recordTest: o.recordTest } : {}),
-    ...(o.previewTest ? { previewTest: o.previewTest } : {}),
-    // The worker is a composition root: a heavy job it runs in this process (in-process tests) renders with the
-    // test's renderer, or with the editor's driver.
-    renderer: o.ports?.renderer ?? editorRenderer(),
+    // The worker is a composition root: a heavy job it runs in this process renders with its renderer port, a library
+    // preview reads its free space port, a `record` job opens its window port.
+    renderer: w.renderer,
+    recordWindow: w.recordWindow,
+    freeBytes: w.freeBytes,
     // A take of this worker started, paused, resumed or stopped filming: its hold follows now, not at the next poll.
     onFilming: (on) => {
       if (w.capture) w.capture.filming = on;
@@ -70,25 +68,25 @@ function startCapture(w: Worker, stored: JobRecord): void {
 }
 
 /**
- * The claims of one turn of the loop: the capture slot first (with previewTest or ports, heavy jobs too), then the heavy slot.
+ * The claims of one turn of the loop: the capture slot first (heavy jobs too when they run in this process), then the heavy slot.
  * Not while a take of this worker films and the heavy slot has nothing to take (critique M6: the take's event loop is
  * this process's), nor after a build change (critique L4: captures included), nor past `once`. True when one started.
  */
 export async function claimNext(w: Worker): Promise<boolean> {
   let claimed = false;
-  const room = !w.capture || (!w.heavy && !w.inlineHeavy && !w.capture.filming);
+  const room = !w.capture || (!w.heavy && !w.heavyInProcess && !w.capture.filming);
   if (room && !w.buildChanged && !w.newerJob && !(w.o.once && w.started > 0) && !w.stopping) {
     const records = await scanOpenJobs(w);
     if (!w.capture) {
       let id = pick(records, { slot: 'capture', filmingLive: w.filmingLive });
-      if (!id && w.inlineHeavy) id = pick(records, { slot: 'heavy', filmingLive: w.filmingLive });
+      if (!id && w.heavyInProcess) id = pick(records, { slot: 'heavy', filmingLive: w.filmingLive });
       const stored = id ? await claimJob(w, id) : undefined;
       if (stored) {
         startCapture(w, stored);
         claimed = true;
       }
     }
-    if (!w.heavy && !w.inlineHeavy && !w.newerJob && !(w.o.once && w.started > 0)) {
+    if (!w.heavy && !w.heavyInProcess && !w.newerJob && !(w.o.once && w.started > 0)) {
       const id = pick(records, { slot: 'heavy', filmingLive: w.filmingLive || w.capture?.filming === true });
       const stored = id ? await claimJob(w, id) : undefined;
       if (stored) {

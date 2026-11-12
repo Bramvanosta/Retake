@@ -7,7 +7,6 @@
  */
 import { existsSync } from 'node:fs';
 import { stateDir } from '../workspace-state.js';
-import { buildStamp } from './build.js';
 import { WorkerLock } from './lock.js';
 import { spawnWorker } from './spawn.js';
 import { hasQueued } from './worker-claim.js';
@@ -26,7 +25,7 @@ const sleep = (ms: number, wake: { fn?: () => void }) =>
 
 /** Serve until stopped, gone, idle, past `once` or handing over; resolves true when this worker hands over. */
 export async function serve(w: Worker): Promise<boolean> {
-  const { o, log, root, dirs, build } = w;
+  const { o, log, root, build } = w;
   let lastBuildCheck = Date.now();
   for (;;) {
     if (w.stopping) break;
@@ -75,8 +74,7 @@ export async function serve(w: Worker): Promise<boolean> {
     // Not while this worker's take films (review B L2: the stamp is a synchronous walk on the take's event loop).
     if (Date.now() - lastBuildCheck >= w.buildCheckMs && w.capture?.filming !== true) {
       lastBuildCheck = Date.now();
-      o.jobProcessTest?.buildCheck?.(w.capture?.filming ?? false);
-      if (o.jobProcessTest?.buildChanged?.() === true || buildStamp(dirs) !== build) {
+      if (w.processes.buildStamp() !== build) {
         if (!w.buildChanged && !empty) log('the code changed since this worker started: no new job here, handing over once the running ones end');
         w.buildChanged = true;
         continue;

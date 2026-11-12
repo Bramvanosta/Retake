@@ -66,10 +66,10 @@ async function recoverOrphans(w: Worker): Promise<void> {
     const until = Date.now() + w.orphanGraceMs;
     while (Date.now() < until && (await isAlive(stored.worker))) await new Promise((r) => setTimeout(r, 200));
     if (await isAlive(stored.worker)) {
-      signalTree(pid, 'SIGTERM', undefined, w.kill);
+      signalTree(pid, 'SIGTERM', undefined, w.processes.kill);
       const t = Date.now() + 5_000;
       while (Date.now() < t && (await isAlive(stored.worker))) await new Promise((r) => setTimeout(r, 200));
-      if (await isAlive(stored.worker)) await killTree(pid, w.kill);
+      if (await isAlive(stored.worker)) await killTree(pid, w.processes.kill);
     }
     const after = await w.queue.stored(id);
     if (after && !FINISHED_JOB_STATES.has(after.state)) await persistDerived(w, after);

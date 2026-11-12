@@ -47,14 +47,15 @@ export function treeOf<T extends ProcInfo>(table: readonly T[], root: number, op
   return [...seen.values()];
 }
 
-const defaultKill: KillFn = (target, sig) => process.kill(target, sig);
+/** The signal sender of the product (WorkerPorts.processes.kill's default). */
+export const processKill: KillFn = (target, sig) => process.kill(target, sig);
 
 /**
  * Signal a job process (`table` absent) or its whole tree (`table`: its group, then every descendant — Remotion's browser
  * leads a group of its own). Nothing at all when `pid` is not signalable; a descendant that is this process is skipped.
  * Returns the targets signalled.
  */
-export function signalTree(pid: number, sig: NodeJS.Signals, table?: readonly ProcInfo[], kill: KillFn = defaultKill): number[] {
+export function signalTree(pid: number, sig: NodeJS.Signals, table?: readonly ProcInfo[], kill: KillFn = processKill): number[] {
   if (!signalablePid(pid)) return [];
   const sent: number[] = [];
   const send = (target: number) => {

@@ -1,7 +1,7 @@
 /**
  * L4.8 part 4: the Record screen's ops over HTTP (record-ops.ts, R-UI-20 / 21 / 22), under the `ui` client — the
  * fixture product on ephemeral ports, the worker run in this process with Playwright playing the person
- * (`recordTest.drive`: a worker process cannot receive it), the person's Studio calls made over HTTP from inside the
+ * (`ports.recordWindow.drive`: a worker process cannot receive it), the person's Studio calls made over HTTP from inside the
  * drive while the window is open.
  *
  * - The allow-list: the 7 record ops are the Studio's own; scenario_record and job_cancel stay 404.
@@ -26,14 +26,14 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@retake/engine';
-import type { JobRecord, RecordJobTestHooks } from '@retake/engine';
+import type { JobRecord, RecordWindow } from '@retake/engine';
 import { OWN_OPS, RECORD_OPS, UI_OPS, recordPathFree, startStudioServer } from '../src/index.js';
 import type { RecordOptionsAnswer, RecordStartAnswer, RecordViewAnswer, StudioServer } from '../src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 import { recordsWatchScan } from '../src/server/record-watch.js';
 
-type Page = Parameters<NonNullable<RecordJobTestHooks['drive']>>[0];
+type Page = Parameters<NonNullable<RecordWindow['drive']>>[0];
 
 interface Fixture {
   urls: { console: string; shop: string };
@@ -89,15 +89,17 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => workerLogs.push(m),
-    recordTest: {
-      headless: true,
-      windowSize: { width: 1400, height: 1000 },
-      drive: async (page) => {
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(800);
-        await drive(page);
-        await page.waitForTimeout(400).catch(() => undefined);
-        await page.close().catch(() => undefined);
+    ports: {
+      recordWindow: {
+        headless: true,
+        windowSize: { width: 1400, height: 1000 },
+        drive: async (page) => {
+          await page.waitForLoadState('domcontentloaded');
+          await page.waitForTimeout(800);
+          await drive(page);
+          await page.waitForTimeout(400).catch(() => undefined);
+          await page.close().catch(() => undefined);
+        },
       },
     },
   });

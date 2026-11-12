@@ -117,7 +117,7 @@ export type { RawExportSettings, RawExportWorkOptions } from './raw-export.js';
 export type { ExportCaptureOptions, RawExportProgress, RawExportResult, RawManifest } from '@retake/runner-web/types';
 export { exportInProcess, inspectInProcess, renderInProcess, runInProcess, stillInProcess } from './in-process.js';
 // The renderer port, and the product's renderer for a composition root (a shell's command run in process).
-export { editorRenderer } from './render/editor-renderer.js';
+export { editorRenderer, withPreviewBackend } from './render/editor-renderer.js';
 // Component previews on a handed renderer (a shell's `components preview` and `components create`).
 export { previewsWork } from './render/work.js';
 export type { OnRenderer } from './render/work.js';
@@ -192,6 +192,7 @@ export type { PickContext, PickRecord } from './jobs/pick.js';
 export { JOB_EXIT, runJobChild } from './jobs/job-child.js';
 export { jobProcessCommand } from './jobs/spawn.js';
 export type { WorkerOptions } from './jobs/worker.js';
+export type { FreeBytes, JobProcesses, JobProcessJob, RecordWindow, WorkerPorts, WorkerPortsGiven } from './jobs/worker-ports.js';
 export { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './jobs/types.js';
 export type {
   AuthLoginJobResult,
@@ -248,7 +249,7 @@ export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob,
 export type { ExportRequest } from './jobs/export-job.js';
 export { REVIEW_IMAGE_BASE64_MAX, REVIEW_IMAGE_MAX_PX, REVIEW_IMAGE_RE, REVIEW_IMAGE_SOURCE_MAX, reviewGet, reviewImage, thumbnail } from './reviews.js';
 export { THEME_PREVIEW_KINDS, executePreviewJob, libraryStatesOf, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';
-export type { PreviewJobTestHooks, PreviewRequest } from './jobs/preview-job.js';
+export type { PreviewRequest } from './jobs/preview-job.js';
 export {
   LIBRARY_CACHE_MAX_BYTES,
   LIBRARY_CACHE_MAX_ENTRIES,
@@ -296,7 +297,7 @@ export {
 } from './jobs/inspect-job.js';
 export type { InspectSourceDraft, InspectSubmitRequest, InspectionOptions, InspectionRun, PreparedInspect } from './jobs/inspect-job.js';
 export { RECORD_DRAFT_MAX, executeRecordJob, readRecording, recordCommandLine, recordResult, submitRecordJob } from './jobs/record-job.js';
-export type { RecordJobContext, RecordJobTestHooks, RecordSubmitRequest } from './jobs/record-job.js';
+export type { RecordJobContext, RecordSubmitRequest } from './jobs/record-job.js';
 export { checkComponentId, componentCreate, componentWriter, componentGet, componentList, componentValidate } from './components.js';
 export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
 // The shell forms (L7.24: the CLI's `retake components`): by id or folder, the registry's notices whole, previews into the component's folder.

@@ -21,12 +21,14 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
 import type { RenderJobInput } from '@retake/core';
-import { JobFiles, createEngine, editorErrorOf, historyFile, jobsDir, openProject, planWork, renderInProcess, runWorker, stillInProcess } from '../src/index.js';
+import { JobFiles, createEngine, editorErrorOf, historyFile, jobsDir, openProject, planWork, renderInProcess, runWorker, stillInProcess, withPreviewBackend } from '../src/index.js';
 import type { Engine, JobRecord, RenderRecord } from '../src/index.js';
 import { ManualClock, systemClock } from '../src/clock.js';
 import { MEMORY_PNG, MEMORY_VIDEO, MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { MemoryRendererOptions } from '../src/render/memory-renderer.js';
 import type { RenderVideoRequest } from '../src/render/renderer.js';
+import { bundleHash } from '@retake/editor';
+import type { PreviewBackend } from '@retake/editor';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 
@@ -162,14 +164,41 @@ describe('render jobs on the renderer the worker was handed', () => {
 });
 
 describe('one renderer, and nothing beside it', () => {
-  it('a worker handed both a renderer and a preview backend is refused before it claims a job', async () => {
-    const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
+  it('a worker is handed one renderer (L7.29): with a preview backend made a renderer of its own (withPreviewBackend), a library preview draws on the backend while a render draws its video on the base renderer', async () => {
     const fake = new MemoryRenderer();
-    const both = { root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { renderer: fake }, previewTest: { backend: { bundle: async () => ({}), open: async () => ({}) } } };
-    await expect(runWorker(both as never)).rejects.toThrow('a worker is handed a renderer (ports.renderer) or a preview backend (previewTest.backend), not both');
-    expect((await engine.jobs.get(sub.job.id)).state).toBe('queued');
-    expect(fake.calls).toEqual([]);
-    await engine.jobs.cancel(sub.job.id);
+    const drawn: string[] = [];
+    // A stand-in for the editor's preview driver (Remotion): bundle folders, small PNG / GIF files.
+    const backend: PreviewBackend = {
+      async bundle({ root: r, components }) {
+        const hash = await bundleHash(components);
+        const at = join(r, '.retake', 'cache', `remotion-${hash}`);
+        await mkdir(at, { recursive: true });
+        return { serveUrl: at, hash, cached: false };
+      },
+      async open() {
+        return {
+          still: async (spec, file) => void (drawn.push(`still ${spec.main.id}`), await writeFile(file, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('poster')]))),
+          gif: async (spec, file) => void (drawn.push(`gif ${spec.main.id}`), await writeFile(file, Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]))),
+          warnings: () => [],
+          close: async () => undefined,
+        };
+      },
+    };
+    const ports = { renderer: withPreviewBackend(fake, backend), freeBytes: async () => 50_000_000_000 };
+    const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports });
+    const states = await engine.components.library({ project: 'demo', template: 'editorial', components: ['studio/card-title'] });
+    const library = await engine.components.libraryRender({ project: 'demo', template: 'editorial', items: [{ component: 'studio/card-title', loop: states.items[0].loop.key }] });
+    await work();
+    const previewed = await engine.jobs.get(library.job.id);
+    expect(previewed.state, JSON.stringify(previewed.error)).toBe('succeeded');
+    expect(drawn).toEqual(['gif studio/card-title']);
+    const render = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
+    await work();
+    const rendered = await engine.jobs.get(render.job.id);
+    expect(rendered.state, JSON.stringify(rendered.error)).toBe('succeeded');
+    // The base renderer drew the video and nothing of the previews; the backend drew nothing more.
+    expect(fake.calls.map((c) => c.op)).toEqual(['video']);
+    expect(drawn).toEqual(['gif studio/card-title']);
   });
 
   it('the options of the editor\'s own driver (a cache folder, a preview backend) are refused beside the renderer, which is asked nothing', async () => {

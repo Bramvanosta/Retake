@@ -658,7 +658,7 @@ describe('the component library in Chromium', () => {
     const sub = await studio.engine.components.libraryRender({ project: P, template: 'editorial', items: [{ component: id, loop: it0.loop.key }] });
     // The worker refuses it (the disk gate, 300 MB): the job fails before rendering anything.
     for (let i = 0; i < 10 && ['queued', 'running'].includes((await studio.engine.jobs.get(sub.job.id)).state); i++) {
-      await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, previewTest: { freeBytes: async () => 300_000_000 } });
+      await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { freeBytes: async () => 300_000_000 } });
     }
     expect((await studio.engine.jobs.get(sub.job.id)).state).toBe('failed');
     await page.goto(`${studio.url}#/p/${P}/library`);

@@ -31,7 +31,7 @@ export function handleSignals(w: Worker): () => void {
       const h = w.heavy;
       if (h && !h.exited) {
         log(`${sig}: cancelling job ${h.id} in its job process`);
-        signalTree(h.pid, 'SIGTERM', undefined, w.kill);
+        signalTree(h.pid, 'SIGTERM', undefined, w.processes.kill);
         void queue
           .setYield(h.id, null)
           .catch(() => undefined)
@@ -48,7 +48,7 @@ export function handleSignals(w: Worker): () => void {
         /* quitting anyway */
       }
     }
-    if (w.heavy && !w.heavy.exited && signalablePid(w.heavy.pid)) signalTree(w.heavy.pid, 'SIGKILL', os.processTableSync(), w.kill);
+    if (w.heavy && !w.heavy.exited && signalablePid(w.heavy.pid)) signalTree(w.heavy.pid, 'SIGKILL', os.processTableSync(), w.processes.kill);
     w.lock?.release();
     process.nextTick(() => process.exit(130));
   };
