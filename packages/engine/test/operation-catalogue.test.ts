@@ -4,7 +4,8 @@
  * Studio's pins and statuses only where the Studio serves it; the facets' hints (the table the shells' annotations are
  * held to); the counts pinned (a new operation is a deliberate change of this file). The shells' own lists are held to
  * it by their own tests: packages/mcp/test/, packages/ui/test/ and packages/cli/test/operation-catalogue.test.ts. The
- * catalogue's entry imports nothing at run time (a page may import it).
+ * catalogue's entry imports nothing at run time (a page may import it). The use cases served under more than one name
+ * (S2, L7.20: linked, nothing renamed) are counted and named here, one name per shell, the Studio's narrowings marked.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -31,10 +32,13 @@ import {
   servedNames,
   studioPins,
   studioStatus,
+  useCaseGroups,
+  useCaseProblem,
 } from '@retake/engine/contract';
 import type { Facets, NotServed, Operation, StudioServe } from '@retake/engine/contract';
 import { ENGINE_ERROR_CODES, EngineError, SUBMIT_RULES } from '../src/index.js';
 
+const R0 = { effect: 'read', job: false, code: 'none' } as const;
 const why = (v: unknown): string | undefined => (v && typeof v === 'object' && 'why' in v ? (v as NotServed).why : undefined);
 
 describe('the operation catalogue', () => {
@@ -165,7 +169,7 @@ describe('the operation catalogue', () => {
     visit('catalogue.ts');
     expect([...seen]).toEqual(['catalogue.ts']);
     // The entry is the catalogue itself (functions and data, no class or engine).
-    expect(Object.keys(catalogueEntry).sort()).toEqual(['ADMISSION_RULES', 'CATALOGUE', 'CODE_RUNS', 'EFFECTS', 'SHELLS', 'annotationProblem', 'catalogueOperation', 'cliCommandsOf', 'facetProblem', 'hintsOf', 'servedBy', 'servedNames', 'studioPins', 'studioStatus']);
+    expect(Object.keys(catalogueEntry).sort()).toEqual(['ADMISSION_RULES', 'CATALOGUE', 'CODE_RUNS', 'EFFECTS', 'SHELLS', 'annotationProblem', 'catalogueOperation', 'cliCommandsOf', 'facetProblem', 'hintsOf', 'servedBy', 'servedNames', 'studioPins', 'studioStatus', 'useCaseGroups', 'useCaseProblem']);
   });
 
   it('gives every shell that does not serve an operation a one-line reason, and some shell serves each one', () => {
@@ -237,6 +241,75 @@ describe('the operation catalogue', () => {
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
     expect([by(3), by(2), by(1)]).toEqual([5, 43, 76]);
+  });
+
+  it('links 18 use cases served under two names (S2, L7.20: nothing renamed), one name per shell, and names each', () => {
+    expect(useCaseProblem()).toBeUndefined();
+    const groups = useCaseGroups();
+    expect(groups).toEqual({
+      'scenario.read': ['scenario_get', 'scenario_blocks'],
+      'scenario.save': ['scenario_save', 'scenario_edit'],
+      'scenario.run': ['run_capture', 'scenario_run'],
+      'plan.view': ['plan_preview', 'timeline_view'],
+      'render.queue': ['render', 'scenario_render'],
+      'render.status': ['render_status', 'scenario_renders'],
+      'review.read': ['review_get', 'render_review'],
+      'export.queue': ['export', 'review_export'],
+      'comments.list': ['comments_list', 'threads_list'],
+      'comments.reply': ['comment_reply', 'thread_reply'],
+      'comments.resolve': ['comment_resolve', 'thread_resolve'],
+      'themes.list': ['template_list', 'theme_list'],
+      'themes.create': ['template_create_from_brand', 'theme_create'],
+      'themes.preview': ['template_preview', 'theme_preview'],
+      'components.list': ['component_list', 'library_view'],
+      'components.get': ['component_get', 'library_component'],
+      'components.preview': ['component_preview', 'library_render'],
+      'recording.start': ['scenario_record', 'record_start'],
+    });
+    // Every linked name is an operation of the catalogue, and each group is an MCP tool and a Studio op (one each).
+    for (const [key, names] of Object.entries(groups)) {
+      for (const n of names) expect(catalogueOperation(n), `${key} ${n}`).toBeDefined();
+      expect(names.map((n) => [servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')]), key).toEqual([[true, false], [false, true]]);
+    }
+    // Not linked on purpose: a shell's split of one use case by an argument (a use case holds one name per shell).
+    for (const n of ['run_dry', 'job_cancel', 'render_cancel', 'sign_in_cancel', 'template_from_site', 'site_list', 'theme_view', 'review_image', 'library_images']) expect(catalogueOperation(n)?.useCase, n).toBeUndefined();
+  });
+
+  it('marks the three Studio narrowings of an MCP tool, each with why they stay apart (a later lot may merge them)', () => {
+    const narrowings = CATALOGUE.filter((o) => o.narrows).map((o) => [o.name, o.narrows!.of]);
+    expect(narrowings).toEqual([['thread_reply', 'comment_reply'], ['thread_resolve', 'comment_resolve'], ['theme_create', 'template_create_from_brand']]);
+    for (const o of CATALOGUE.filter((x) => x.narrows)) {
+      expect(catalogueOperation(o.narrows!.of)?.useCase, o.name).toBe(o.useCase);
+      expect(o.narrows!.apart, o.name).toMatch(/^[^\n]{40,320}$/);
+    }
+    // The reasons name what differs: the answer, the chain, and for the theme the effect.
+    expect(catalogueOperation('thread_reply')!.narrows!.apart).toMatch(/threadKey/);
+    expect(catalogueOperation('thread_resolve')!.narrows!.apart).toMatch(/latest/);
+    expect(catalogueOperation('theme_create')!.narrows!.apart).toMatch(/destructive/);
+    expect([catalogueOperation('template_create_from_brand')!.effect, catalogueOperation('theme_create')!.effect]).toEqual(['destructive', 'write']);
+  });
+
+  it('useCaseProblem bites on each rule: a key, two names, one name per shell, a narrowing of its own use case', () => {
+    const op = (name: string, more: Partial<Operation>): Operation => ({ name, ...R0, cli: { why: 'none' }, mcp: { why: 'none' }, studio: { why: 'none' }, ...more });
+    const mcp = op('a_tool', { mcp: true, useCase: 'x.read', cli: ['x'] });
+    const studio = op('a_op', { studio: {}, useCase: 'x.read', cli: ['x'] });
+    expect(useCaseProblem([mcp, studio])).toBeUndefined();
+    expect(useCaseProblem([{ ...mcp, useCase: 'X read' }, { ...studio, useCase: 'X read' }])).toMatch(/family\.verb/);
+    expect(useCaseProblem([mcp])).toMatch(/one operation \(a_tool\) is no other name/);
+    expect(useCaseProblem([mcp, { ...studio, mcp: true }])).toMatch(/mcp serves a_tool and a_op: one name per shell/);
+    expect(useCaseProblem([{ ...mcp, studio: {} }, studio])).toMatch(/studio serves a_tool and a_op/);
+    expect(useCaseProblem([mcp, { ...studio, cli: ['y'] }])).toMatch(/the CLI serves it under x and y/);
+    expect(useCaseProblem([mcp, { ...studio, cli: { why: 'none' } }])).toBeUndefined();
+    const apart = 'their answers differ, and the Studio chains its writes';
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart } }])).toBeUndefined();
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'nope', apart } }])).toMatch(/does not hold/);
+    expect(useCaseProblem([mcp, studio, op('c', { studio: {}, narrows: { of: 'a_tool', apart } })])).toMatch(/of its own use case/);
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_op', apart } }])).toMatch(/of its own use case/);
+    // A narrowing of an MCP tool of another use case.
+    expect(useCaseProblem([mcp, studio, op('b_tool', { mcp: true, useCase: 'y.read' }), op('b_op', { studio: {}, useCase: 'y.read', narrows: { of: 'a_tool', apart } })])).toMatch(/b_op narrows a_tool: a narrowing names another operation of its own use case/);
+    expect(useCaseProblem([{ ...mcp, narrows: { of: 'a_op', apart } }, studio])).toMatch(/a Studio op of an MCP operation/);
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart: 'short' } }])).toMatch(/why they stay apart/);
+    expect(useCaseProblem([mcp, { ...studio, narrows: { of: 'a_tool', apart: `${apart}\nmore` } }])).toMatch(/why they stay apart/);
   });
 
   it('looks operations up by name; servedBy reads a reason as not served', () => {

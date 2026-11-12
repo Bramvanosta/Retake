@@ -28,8 +28,10 @@ export {
   servedNames,
   studioPins,
   studioStatus,
+  useCaseGroups,
+  useCaseProblem,
 } from './catalogue.js';
-export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, NotServed, Operation, OperationName, Shell, StudioOpName, StudioPinsOf, StudioServe } from './catalogue.js';
+export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, Narrowing, NotServed, Operation, OperationName, Shell, StudioOpName, StudioPinsOf, StudioServe } from './catalogue.js';
 
 // An operation's definition and one call of it (operations/: define.ts, invoke.ts), and the engine's operations
 // (operations/index.ts), with the pieces the shells' own operations still share with them (schema pieces, annotations,

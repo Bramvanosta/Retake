@@ -2549,8 +2549,8 @@ objects and the Studio's table those or their pinned arguments (`defineOperation
 answer data, name — kept, not erased: `defineTool` infers them; `ToolArgs`, `ToolData`, `ToolsByName` read them) /
 `ToolContext` / `ToolOutput<D>`, `capUntrusted` and `pinArguments` (typed by its pins: `PinnedTool`), and the
 **operation catalogue** (`catalogue.ts`, also its own
-browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): every operation once (122: the 45 MCP
-tools, the Studio's 65 own ops, 12 operations only the CLI serves), its facets — the effect (`read`, `write`,
+browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): every operation once (124: the 45 MCP
+tools, the Studio's 65 own ops, 14 operations only the CLI serves), its facets — the effect (`read`, `write`,
 `destructive`), whether MCP and the Studio queue it as a job, whose code it runs (`none`, `project`: hooks and sandbox
 commands, `workspace`: components and themes rendered), `serves` for the commands that serve others (`mcp`, `ui`,
 `worker`) — the engine's admission rules it meets (§4d; held to the engine's `SUBMIT_RULES` by a test), and, for each shell (CLI commands, MCP tool, Studio op), the
@@ -2564,7 +2564,18 @@ read-only and destructive hints to its effect (`hintsOf`: read-only exactly for 
 `if_match` on the version read, and its entry says what (`removes`; `facetProblem` refuses a destructive entry without
 one, a `removes` on any other, and a destructive operation held to admission rules) — `job_cancel` is one (it discards
 a recording whose window is open), `scenario_save` and the README are writes (if_match), and a run's hooks or sandbox
-reset are its `code: 'project'`, not its effect. Snapshots hold the published tool list and the Studio's operation table byte for byte
+reset are its `code: 'project'`, not its effect. One use case served by two shells under their own names (S2,
+L7.20) is linked, not renamed: the operations of one use case share a `useCase` key (`useCaseGroups()`: 18 today, each
+an MCP tool and a Studio op — `scenario_get` / `scenario_blocks`, `run_capture` / `scenario_run`, `render` /
+`scenario_render`, `comment_reply` / `thread_reply`, `template_list` / `theme_list`, `component_list` / `library_view`…),
+one name per shell (`useCaseProblem`: at most one served by MCP, one by the Studio, and the CLI's members name the same
+command). A shell's split of one use case by an argument stays unlinked (`run_dry` beside `run_capture`; `job_cancel`
+against `render_cancel` and `sign_in_cancel`). The three Studio ops whose arguments narrow their MCP tool say why they
+stay two operations (`narrows: { of, apart }`): `thread_reply` and `thread_resolve` answer the Studio's path-free thread
+and chain per thread (`threadKey`; `thread_resolve` also refuses `latest`), `theme_create` never replaces (a write
+where `template_create_from_brand` is destructive), answers without the theme's folder and chains per theme — a merge
+needs the presentation split from the handler. Nothing published moved: the tool list, the op table, the CLI's golden.
+Snapshots hold the published tool list and the Studio's operation table byte for byte
 (packages/mcp/test/fixtures/tool-list.json, packages/ui/test/fixtures/op-table.json).
 
 **Admission rules and the caller (L6.5).** The engine's submits of a run, a render and an export hold the Studio and
