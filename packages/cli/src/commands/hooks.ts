@@ -1,7 +1,9 @@
-import { ScenarioError, isAccessError, newRunId } from '@retake/core';
+import { ScenarioError, isAccessError, newRunId, showHiddenCharsLine } from '@retake/core';
 import type { HookContext, HookResult, RunAccess, WorkPolicy } from '@retake/core';
-import { HooksSourceError, callerOf, envResetWork, hooksRunWork, rollbackActionLines, rollbackWork } from '@retake/engine';
+import { HooksSourceError, agentWrittenShellHooks, callerOf, envResetWork, hooksRunWork, hooksTrustView, listingContext, rollbackActionLines, rollbackWork, trustScenarioHooks } from '@retake/engine';
 import type { HookJournal, HookJournalRollback, HookWorkOptions, HooksRunOutcome, PendingHookJournal } from '@retake/engine';
+import { fileFacts } from '@retake/core/io';
+import { agentHooksListing, askAgentHooks } from '../agent-hooks.js';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -135,6 +137,28 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
         }
         return e;
       },
+      // L7.27: a scenario's setup or teardown whose bytes an agent wrote: its shell hooks are listed, and run only on a
+      // person's yes (a terminal's, or --yes); listed only with --dry (nothing executes).
+      onSelected: async (sel, { runId }) => {
+        if (!sel.scenario || sel.file === undefined || (sel.phase !== 'setup' && sel.phase !== 'teardown')) return;
+        const sc = sel.scenario;
+        const found = await agentWrittenShellHooks(ws.root, project, { file: sel.file, ...(sel.sha256 !== undefined ? { sha256: sel.sha256 } : {}), scenario: sc }, async () => listingContext(project, sc, opts.env ?? sel.env, { id: runId }), [sel.phase]);
+        if (!found) return;
+        const verdict = await askAgentHooks(ui, found, {
+          scenario: sel.label.replace(/-(setup|teardown)$/, ''),
+          run: opts.dry ? '--dry' : true,
+          yes: opts.yes === true,
+          print: (header, lines) => {
+            ui.warn(header);
+            for (const l of lines) ui.line(l);
+          },
+          note: (message) => ui.warn(message),
+        });
+        if (!verdict.ok) {
+          ui.error(verdict.message);
+          throw new Printed(EXIT.failure);
+        }
+      },
       onStart: ({ sel, ctx, access }) => {
         ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
         printAccess(ui, access);
@@ -267,4 +291,50 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
   });
   if (out.interrupted) return EXIT.interrupted;
   return out.ok ? EXIT.ok : EXIT.failure;
+}
+
+export interface HooksTrustOptions {
+  env?: string;
+  /** Mark them without asking (they are listed first). */
+  yes?: boolean;
+}
+
+/**
+ * `retake hooks trust <project> <scenario>` (L7.27): a person marks the shell hooks of a scenario an agent wrote as
+ * theirs — listed as a run lists them, then asked (y/N; `--yes`; without a terminal and without `--yes`, refused) —
+ * and on yes one record line by the person settles them: a run no longer asks until they change. A terminal's command
+ * only: no MCP tool or Studio route does this.
+ */
+export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string, opts: HooksTrustOptions): Promise<ExitCode> {
+  const ws = await openWorkspace(global);
+  const project = await openProject(ws, projectArg);
+  const view = await hooksTrustView(ws.root, project, scenarioArg, { files: fileFacts(ws.policy), ...(opts.env !== undefined ? { env: opts.env } : {}) });
+  const name = showHiddenCharsLine(view.name);
+  if (!view.hooks.length) {
+    ui.ok(`scenario ${name} has no shell hooks: nothing to trust`);
+    return EXIT.ok;
+  }
+  if (!view.author.agent) {
+    ui.ok(`the hooks of scenario ${name} are already yours: a run does not ask about them`);
+    return EXIT.ok;
+  }
+  const listing = agentHooksListing(view.name, { hooks: view.hooks, ...('unknown' in view.author ? { unknown: view.author.unknown } : { by: view.author.by, at: view.author.at }) });
+  ui.warn(listing.header);
+  for (const l of listing.lines) ui.line(l);
+  const n = view.hooks.length === 1 ? 'this shell hook' : `these ${view.hooks.length} shell hooks`;
+  if (!opts.yes) {
+    if (!ui.io.canPrompt || !ui.io.confirm) {
+      throw new CliError(`refused: marking the hooks of scenario ${name} as yours takes a person's yes — answer in a terminal, or pass --yes`);
+    }
+    let yes = false;
+    try {
+      yes = await ui.io.confirm(`Mark ${n} as yours, as listed (runs no longer ask until they change)?`);
+    } catch {
+      yes = false; // the input closed: no answer is a no
+    }
+    if (!yes) throw new CliError(`not trusted: the hooks of scenario ${name} stay asked about (nothing written)`);
+  }
+  await trustScenarioHooks(project, view, callerOf('cli'), cliPorts.clock);
+  ui.ok(`the hooks of scenario ${name} are yours now: a run asks again once they change`);
+  return EXIT.ok;
 }

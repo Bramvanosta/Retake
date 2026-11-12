@@ -12,8 +12,8 @@ import { doctorCommand } from './commands/doctor.js';
 import { journalCommand } from './commands/journal.js';
 import type { JournalOptions } from './commands/journal.js';
 import type { DoctorOptions } from './commands/doctor.js';
-import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './commands/hooks.js';
-import type { HookCommandOptions } from './commands/hooks.js';
+import { envResetCommand, hooksRollbackCommand, hooksRunCommand, hooksTrustCommand } from './commands/hooks.js';
+import type { HookCommandOptions, HooksTrustOptions } from './commands/hooks.js';
 import { initCommand } from './commands/init.js';
 import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, schemaCommand } from './commands/misc.js';
 import { authStatusCommand, loginCommand } from './commands/auth.js';
@@ -148,6 +148,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
     .option('--headed', 'show the browser window (needs a display)')
     .option('--allow-writes', 'let a run on a production environment write (only where project.yaml sets access: read-write; without it such a run is read-only)')
+    .option('--yes', 'run the shell hooks of a scenario an agent wrote last without asking (they are listed; otherwise a terminal asks, and without one the run is refused)')
     .option('--sandbox', 'reset the sandbox to its seed before the take: up if needed, health, reset (environment: --env, the scenario env or default_env when a sandbox, else the first sandbox); it stays up after')
     .option('--json', 'stream progress events as JSON lines on stdout')
     .option('--raw', 'then export the raw package for editors (as retake export-capture: clips per scene, cursor data, markers)')
@@ -299,7 +300,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<project>', 'project slug or directory')
     .argument('<source>', '<scenario>:setup | <scenario>:teardown | reset | hooks/<file>.yaml')
     .option('--env <name>', 'environment')
-    .option('--yes', 'approve destructive hooks that lack "confirm: true"')
+    .option('--yes', 'approve destructive hooks that lack "confirm: true", and run the shell hooks of a scenario an agent wrote last without asking')
     .option('--allow-writes', 'let hooks write to a production environment (only where project.yaml sets access: read-write)')
     .option('--dry', 'fill in the hooks\' {{…}} values and security-check them without executing them')
     .action(action((u, g, p: string, s: string, o: HookCommandOptions) => hooksRunCommand(u, g, p, s, o)));
@@ -313,6 +314,14 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--replay-unsigned', 'ask about each rollback Retake did not record in its journal with this home (shown in full, y/N; in a terminal only; never a sql or js one, one with secrets or on a sandbox)')
     .option('--dry', 'describe the rollbacks without executing them')
     .action(action((u, g, p: string, r: string | undefined, o: HookCommandOptions) => hooksRollbackCommand(u, g, p, r, o)));
+  hooks
+    .command('trust')
+    .description('after reading them, mark the shell hooks of a scenario an agent wrote as yours: runs no longer ask about them until they change')
+    .argument('<project>', 'project slug or directory')
+    .argument('<scenario>', 'scenario name or YAML file')
+    .option('--env <name>', 'environment whose pages fill the listing (default: scenario env, project default_env, first one)')
+    .option('--yes', 'mark them without asking (they are listed first)')
+    .action(action((u, g, p: string, s: string, o: HooksTrustOptions) => hooksTrustCommand(u, g, p, s, o)));
 
   const env = program.command('env').description('environment maintenance');
   env

@@ -946,8 +946,8 @@ export function portTypeHits(fileImports) {
 
 /** The folder names of the layout (packages/core/src/layout.ts PROJECT_DIRS and STATE_DIR; the import-rules test checks they agree). */
 export const LAYOUT_NAMES = ['scenarios', 'hooks', 'assets', 'comments', 'runs', 'renders', 'review', 'exports', '.retake'];
-/** The workspace files the layout names (layout.ts HISTORY_FILE, WORKSPACE_JOURNAL_FILE). */
-export const LAYOUT_FILES = ['history.jsonl', 'journal.jsonl'];
+/** The state files the layout names (layout.ts HISTORY_FILE, WORKSPACE_JOURNAL_FILE: the workspace's; PROJECT_SCENARIO_WRITES_FILE: a project's). */
+export const LAYOUT_FILES = ['history.jsonl', 'journal.jsonl', 'scenario-writes.jsonl'];
 export const LAYOUT_HOME = 'packages/core/src/layout.ts';
 const PATH_MODULES = new Set(['path', 'node:path', 'path/posix', 'node:path/posix']);
 /** Names that are a path wherever they are written (no word of the tool's other vocabularies). */

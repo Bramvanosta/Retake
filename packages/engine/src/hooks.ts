@@ -51,6 +51,8 @@ export interface HookSelection {
   scenario?: Scenario;
   /** `<scenario>:setup|teardown`: sha256 of the scenario file's bytes these hooks were read from (one read). */
   sha256?: string;
+  /** `<scenario>:setup|teardown`: the scenario file (absolute) those bytes were read from. */
+  file?: string;
 }
 
 const SCENARIO_HOOKS_RE = /^([^:/\\]+):(setup|teardown)$/;
@@ -86,6 +88,7 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt: 
       env: loaded.scenario.env,
       scenario: loaded.scenario,
       ...(loaded.sha256 !== undefined ? { sha256: loaded.sha256 } : {}),
+      file: loaded.file,
     };
   }
   if (/\.ya?ml$/i.test(spec)) {

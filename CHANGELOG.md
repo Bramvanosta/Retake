@@ -12,6 +12,10 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- `retake run` (and `retake hooks run <scenario>:setup|teardown`) lists, as they will run, the shell hooks of a
+  scenario whose hooks an agent wrote last (through MCP or the Studio) and runs them only on your yes — asked in a
+  terminal, `--yes` in a script, refused otherwise; hooks you wrote or changed yourself run as before, and
+  `retake hooks trust` makes an agent's hooks yours once you have read them.
 - `retake prune` and `project_prune` keep the capture you can still edit. Per scenario they now keep the newest take
   whose record says the capture succeeded **and** the newest take that can really be edited (its timeline reads, its
   film is there) **and** the newest such take that was not stopped by `--until`. Before, a newer capture whose film

@@ -139,6 +139,11 @@ interface HooksRunWorkBase extends Omit<HookWorkOptions, 'trust'> {
   runId: string | ((sel: HookSelection) => string);
   /** What a failed selection throws instead. */
   selectError?: (e: unknown) => unknown;
+  /**
+   * After the selection, before anything opens: a person's command asks here about what it is about to run (the CLI's
+   * shell hooks of a scenario an agent wrote, L7.27, rendered with the run's id); what it throws ends the work.
+   */
+  onSelected?: (sel: HookSelection, s: { runId: string }) => Promise<void>;
   onStart?: (s: { sel: HookSelection; ctx: HookContext; access: RunAccess; runId: string; journalFile: string }) => void;
   onResults?: (out: HooksRunOutcome) => void;
 }
@@ -158,6 +163,7 @@ export async function hooksRunWork(project: LoadedProject, source: string, o: Ho
   });
   if (p) await p.check(sel);
   const runId = typeof o.runId === 'function' ? o.runId(sel) : o.runId;
+  await o.onSelected?.(sel, { runId });
   const journalFile = await o.hooks.journals.standaloneFile(project.dir, runId);
   const env = o.env ?? sel.env;
   return inHookContext(project, { ...o, ...(env !== undefined ? { env } : {}) }, { runId, ...(sel.vars ? { vars: sel.vars } : {}), ...(sel.scenario ? { scenario: sel.scenario } : {}) }, async (ctx, access, interrupted) => {

@@ -722,12 +722,30 @@ describe('the commands U8 moves, held against fixtures/operations-cli.json (U8.0
     expect.soft((await retake('export-capture bad format', 'export-capture', 'film', RUN, '--format', 'avi')).code).toBe(EXIT.usage);
   });
 
+  it('hooks trust (L7.27): no terminal, answered no, --yes, again, no shell hooks, unknown scenario', async () => {
+    // trusty: scenarios saved through MCP (an agent's), one with shell hooks and one without.
+    const trusty = join(ws, 'projects', 'trusty');
+    await mkdir(join(trusty, 'scenarios'), { recursive: true });
+    await writeFile(join(trusty, 'project.yaml'), 'name: Trusty\nenvironments:\n  local: {app: "http://app.example.test"}\n');
+    const { createEngine } = await import('@retake/engine');
+    const agent = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
+    await agent.scenarios.save('trusty', 'agentmade', scenario('agentmade', 'app', ['vars:', '  file: made.txt', 'setup:', '  - name: make', '    shell: {run: "touch {{vars.file}}", env: {MODE: "{{app}}"}, rollback: "rm -f {{vars.file}}"}']));
+    await agent.scenarios.save('trusty', 'plainmade', scenario('plainmade', 'app', []));
+    expect.soft((await retake('hooks trust no terminal', 'hooks', 'trust', 'trusty', 'agentmade')).code).toBe(EXIT.failure);
+    expect.soft((await retake('hooks trust answered no', 'hooks', 'trust', 'trusty', 'agentmade', { answers: ['n'] })).code).toBe(EXIT.failure);
+    expect.soft((await retake('hooks trust --yes', 'hooks', 'trust', 'trusty', 'agentmade', '--yes')).code).toBe(EXIT.ok);
+    expect.soft((await retake('hooks trust again', 'hooks', 'trust', 'trusty', 'agentmade')).code).toBe(EXIT.ok);
+    expect.soft((await retake('hooks trust no shell hooks', 'hooks', 'trust', 'trusty', 'plainmade')).code).toBe(EXIT.ok);
+    expect.soft((await retake('hooks trust unknown scenario', 'hooks', 'trust', 'trusty', 'nope')).code).toBe(EXIT.failure);
+  });
+
   it('the help of each command', async () => {
     for (const cmd of [
       ['plan'],
       ['export-capture'],
       ['hooks', 'run'],
       ['hooks', 'rollback'],
+      ['hooks', 'trust'],
       ['env', 'reset'],
       ['sandbox', 'init'],
       ['sandbox', 'up'],

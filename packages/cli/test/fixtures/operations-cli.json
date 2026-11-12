@@ -2565,6 +2565,99 @@
   "files": {},
   "calls": []
  },
+ "hooks trust no terminal": {
+  "args": [
+   "hooks",
+   "trust",
+   "trusty",
+   "agentmade"
+  ],
+  "code": 1,
+  "out": "",
+  "err": "! the hooks of scenario agentmade were last written by an agent (through MCP, <at>): its 1 shell hook runs a command on this machine\n  setup 1 (make): touch made.txt\n      as written: touch {{vars.file}}\n      env MODE=http://app.example.test\n        as written: {{app}}\n      rollback: rm -f made.txt\n        as written: rm -f {{vars.file}}\n✗ refused: marking the hooks of scenario agentmade as yours takes a person's yes — answer in a terminal, or pass --yes\n",
+  "history": [],
+  "journal": [],
+  "files": {},
+  "calls": []
+ },
+ "hooks trust answered no": {
+  "args": [
+   "hooks",
+   "trust",
+   "trusty",
+   "agentmade"
+  ],
+  "code": 1,
+  "out": "",
+  "err": "! the hooks of scenario agentmade were last written by an agent (through MCP, <at>): its 1 shell hook runs a command on this machine\n  setup 1 (make): touch made.txt\n      as written: touch {{vars.file}}\n      env MODE=http://app.example.test\n        as written: {{app}}\n      rollback: rm -f made.txt\n        as written: rm -f {{vars.file}}\nMark this shell hook as yours, as listed (runs no longer ask until they change)? n\n✗ not trusted: the hooks of scenario agentmade stay asked about (nothing written)\n",
+  "history": [],
+  "journal": [],
+  "files": {},
+  "calls": []
+ },
+ "hooks trust --yes": {
+  "args": [
+   "hooks",
+   "trust",
+   "trusty",
+   "agentmade",
+   "--yes"
+  ],
+  "code": 0,
+  "out": "",
+  "err": "! the hooks of scenario agentmade were last written by an agent (through MCP, <at>): its 1 shell hook runs a command on this machine\n  setup 1 (make): touch made.txt\n      as written: touch {{vars.file}}\n      env MODE=http://app.example.test\n        as written: {{app}}\n      rollback: rm -f made.txt\n        as written: rm -f {{vars.file}}\n✓ the hooks of scenario agentmade are yours now: a run asks again once they change\n",
+  "history": [],
+  "journal": [],
+  "files": {
+   "projects/trusty/.retake/scenario-writes.jsonl": "<written>"
+  },
+  "calls": []
+ },
+ "hooks trust again": {
+  "args": [
+   "hooks",
+   "trust",
+   "trusty",
+   "agentmade"
+  ],
+  "code": 0,
+  "out": "",
+  "err": "✓ the hooks of scenario agentmade are already yours: a run does not ask about them\n",
+  "history": [],
+  "journal": [],
+  "files": {},
+  "calls": []
+ },
+ "hooks trust no shell hooks": {
+  "args": [
+   "hooks",
+   "trust",
+   "trusty",
+   "plainmade"
+  ],
+  "code": 0,
+  "out": "",
+  "err": "✓ scenario plainmade has no shell hooks: nothing to trust\n",
+  "history": [],
+  "journal": [],
+  "files": {},
+  "calls": []
+ },
+ "hooks trust unknown scenario": {
+  "args": [
+   "hooks",
+   "trust",
+   "trusty",
+   "nope"
+  ],
+  "code": 1,
+  "out": "",
+  "err": "✗ scenario \"nope\" not found in <ws>/projects/trusty/scenarios (available: agentmade, plainmade)\n",
+  "history": [],
+  "journal": [],
+  "files": {},
+  "calls": []
+ },
  "plan --help": {
   "args": [
    "plan",
@@ -2598,7 +2691,7 @@
    "--help"
   ],
   "code": 0,
-  "out": "Usage: retake hooks run [options] <project> <source>\n\nrun <scenario>:setup, <scenario>:teardown, reset (project.yaml) or a YAML file\nlisting hooks\n\nArguments:\n  project         project slug or directory\n  source          <scenario>:setup | <scenario>:teardown | reset |\n                  hooks/<file>.yaml\n\nOptions:\n  --env <name>    environment\n  --yes           approve destructive hooks that lack \"confirm: true\"\n  --allow-writes  let hooks write to a production environment (only where\n                  project.yaml sets access: read-write)\n  --dry           fill in the hooks' {{…}} values and security-check them\n                  without executing them\n  -h, --help      display help for command\n",
+  "out": "Usage: retake hooks run [options] <project> <source>\n\nrun <scenario>:setup, <scenario>:teardown, reset (project.yaml) or a YAML file\nlisting hooks\n\nArguments:\n  project         project slug or directory\n  source          <scenario>:setup | <scenario>:teardown | reset |\n                  hooks/<file>.yaml\n\nOptions:\n  --env <name>    environment\n  --yes           approve destructive hooks that lack \"confirm: true\", and run\n                  the shell hooks of a scenario an agent wrote last without\n                  asking\n  --allow-writes  let hooks write to a production environment (only where\n                  project.yaml sets access: read-write)\n  --dry           fill in the hooks' {{…}} values and security-check them\n                  without executing them\n  -h, --help      display help for command\n",
   "err": "",
   "history": [],
   "journal": [],
@@ -2613,6 +2706,20 @@
   ],
   "code": 0,
   "out": "Usage: retake hooks rollback [options] <project> [id]\n\nreplay the pending rollbacks of a run (or of every run)\n\nArguments:\n  project            project slug or directory\n  id                 run id (folder under runs/) or hooks journal id\n                     (.retake/journals/<id>.json)\n\nOptions:\n  --env <name>       environment\n  --allow-writes     replay rollbacks of a production environment (only where\n                     project.yaml sets access: read-write)\n  --replay-unsigned  ask about each rollback Retake did not record in its\n                     journal with this home (shown in full, y/N; in a terminal\n                     only; never a sql or js one, one with secrets or on a\n                     sandbox)\n  --dry              describe the rollbacks without executing them\n  -h, --help         display help for command\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "files": {},
+  "calls": []
+ },
+ "hooks trust --help": {
+  "args": [
+   "hooks",
+   "trust",
+   "--help"
+  ],
+  "code": 0,
+  "out": "Usage: retake hooks trust [options] <project> <scenario>\n\nafter reading them, mark the shell hooks of a scenario an agent wrote as yours:\nruns no longer ask about them until they change\n\nArguments:\n  project       project slug or directory\n  scenario      scenario name or YAML file\n\nOptions:\n  --env <name>  environment whose pages fill the listing (default: scenario env,\n                project default_env, first one)\n  --yes         mark them without asking (they are listed first)\n  -h, --help    display help for command\n",
   "err": "",
   "history": [],
   "journal": [],

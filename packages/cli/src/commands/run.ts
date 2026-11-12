@@ -2,8 +2,9 @@ import { join } from 'node:path';
 import { formatIssues, isAccessError, perfSummary } from '@retake/core';
 import { readTimeline } from '@retake/core/io';
 import type { RunProgress, RunRecord, Timeline } from '@retake/core';
-import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, callerOf, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
+import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, agentWrittenShellHooks, callerOf, listingContext, reserveListedRun, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
 import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
+import { askAgentHooks } from '../agent-hooks.js';
 import { heavyGate } from '../heavy-gate.js';
 import { EXIT, UsageError, errorMessage, errorText } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -34,6 +35,8 @@ export interface RunCommandOptions extends RawFlags {
   sandbox?: boolean;
   /** `--no-wait` (wait: false): the raw export starts even while another take films, at normal priority (L5.14). */
   wait?: boolean;
+  /** L7.27: run the shell hooks of a scenario an agent wrote last without asking. */
+  yes?: boolean;
 }
 
 /** Raw flags given without --raw are a usage error (they only shape the raw export). */
@@ -97,6 +100,39 @@ export async function runCommand(
     else if (level === 'warn') ui.warn(message);
     else ui.line(ui.c.dim(message));
   };
+  // L7.27: the shell hooks of a scenario whose hooks an agent wrote (or whose writer cannot be known) are listed as
+  // they will run — rendered with this run's context, its id reserved for it — and run only on a person's yes (a
+  // terminal's, or --yes); listed only when they do not run (the runner's default: run for a capture, skip for --dry).
+  let listedRun: Awaited<ReturnType<typeof reserveListedRun>> | undefined;
+  try {
+    const agentHooks = await agentWrittenShellHooks(ws.root, project, scenario, async () => {
+      listedRun = await reserveListedRun(project, scenario.name);
+      return listingContext(project, scenario.scenario, sandboxEnv ?? opts.env ?? scenario.scenario.env, { id: listedRun.id, dir: listedRun.dir });
+    });
+    if (agentHooks) {
+      const hooksRun = (opts.hooks ?? (opts.dry ? 'skip' : 'run')) === 'run';
+      const verdict = await askAgentHooks(ui, agentHooks, {
+        scenario: scenario.name,
+        run: hooksRun ? true : opts.hooks === 'skip' ? '--hooks skip' : 'dry run',
+        yes: opts.yes === true,
+        print: (header, lines) => {
+          if (json) emitJson({ type: 'log', level: 'warn', message: [header, ...lines].join('\n') });
+          else {
+            ui.warn(header);
+            for (const l of lines) ui.line(l);
+          }
+        },
+        note: (message) => emitNote('warn', message),
+      });
+      if (!verdict.ok) {
+        await listedRun?.release();
+        return fail(verdict.message);
+      }
+    }
+  } catch (e) {
+    await (listedRun as { release(): Promise<void> } | undefined)?.release();
+    return fail(errorMessage(e));
+  }
   // Captures first (L5.14): while this capture films, heavy work of every workspace of this user waits or yields
   // (engine captures.ts) — from capture time 0 to the end of its scenes, not around its hooks; none for a dry run.
   const owner = await selfIdentity();
@@ -133,6 +169,8 @@ export async function runCommand(
         sandboxes: cliPorts.sandboxes,
         // The fix of an expired session names this workspace when the command line did (-C).
         loginCommand: loginCommandFor(global),
+        // The id the listing of an agent's shell hooks showed (its folder reserved for this run).
+        ...(listedRun ? { runId: (listedRun as { id: string }).id } : {}),
         ...(opts.allowWrites ? { allowWrites: true } : {}),
         ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
         ...(opts.dry ? {} : { onFilming }),

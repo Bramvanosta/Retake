@@ -6,6 +6,7 @@ import { SCENARIO_EDIT_MAX_CHARS, ScenarioError, StepEditError, agentTrustProble
 import { listTemplates, loadProjectTemplate, nodeFileFacts } from '@retake/core/io';
 import type { AgentChannel, AgentTrustEnvironment, FieldEdit, LoadedProject, PositionedTrustProblem, Scenario, StepEdit, Template, ValidationIssue, WorkFileFacts } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
+import { recordScenarioWrite } from './agent-written.js';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { fieldFitProblem } from './field-options.js';
@@ -214,6 +215,11 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
   const text = yaml.endsWith('\n') ? yaml : `${yaml}\n`;
   const res = await store.writeText(ref, text, { ifMatch: opts.ifMatch ?? null, what: 'scenario' });
   rememberVersion(path, res.sha256);
+  // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
+  if (scenario) {
+    const before = current?.utf8 ? parseScenario(current.text, { files: opts.files, file: path, project, template: await templateOf(project, opts.files) }).scenario : undefined;
+    await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario, before: before ?? null, caller: opts.scope.caller, clock: opts.scope.clock });
+  }
   if (!project.scenarios.includes(name)) project.scenarios = [...project.scenarios, name].sort();
   return { name, file: res.ref, path: res.path, hash: res.sha256, created: !current, warnings: issues };
 }
@@ -323,6 +329,8 @@ export async function editScenario(
   const p = await prepareScenarioEdit(project, name, req, o);
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
   rememberVersion(p.base.path, res.sha256);
+  // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
+  if (p.scenario) await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario: p.scenario, before: p.before ?? null, caller: o.scope.caller, clock: o.scope.clock });
   return { name, file: p.base.file, path: res.path, hash: res.sha256, label: p.label, select: p.select, warnings: p.warnings, notices: p.notices, ...(p.change ? { change: p.change } : {}) };
 }
 
@@ -337,6 +345,9 @@ export interface PreparedScenarioEdit {
   warnings: ValidationIssue[];
   notices: string[];
   change?: 'filmed' | 'edit';
+  /** The new text parsed, and the file as it was (L7.27: the record of the write's hook surface). */
+  scenario?: Scenario;
+  before?: Scenario;
 }
 
 /**
@@ -470,5 +481,5 @@ export async function prepareScenarioEdit(
   const { scenario, issues: parsed } = parseScenario(text, checkOpts);
   const issues = o.agent ? [...parsed, ...agentIssues(project, scenario, text, o.via)] : parsed;
   if (hasErrors(issues)) throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, base.path)}`, issues, base.path);
-  return { base, text, label, select, warnings: issues, notices, ...(change ? { change } : {}) };
+  return { base, text, label, select, warnings: issues, notices, ...(change ? { change } : {}), ...(scenario ? { scenario } : {}), ...(baseParsed.scenario ? { before: baseParsed.scenario } : {}) };
 }

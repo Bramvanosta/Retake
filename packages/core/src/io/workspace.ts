@@ -40,11 +40,15 @@ function findUp(start: string, test: (dir: string) => boolean): string | undefin
 export function findWorkspaceRoot(start: string = process.cwd()): string {
   const env = process.env.RETAKE_ROOT;
   if (env && env.trim()) return resolve(expandHome(env.trim()));
-  return (
-    findUp(start, (d) => existsSync(join(d, WORKSPACE_FILE))) ??
-    findUp(start, (d) => isDir(join(d, 'projects')) || isDir(join(d, 'templates'))) ??
-    resolve(start)
-  );
+  return findWorkspaceUpward(start) ?? resolve(start);
+}
+
+/**
+ * The workspace found upward from `start` alone (never `$RETAKE_ROOT`): the nearest ancestor containing retake.yaml,
+ * else the nearest containing a projects/ or templates/ directory; undefined when there is none.
+ */
+export function findWorkspaceUpward(start: string): string | undefined {
+  return findUp(start, (d) => existsSync(join(d, WORKSPACE_FILE))) ?? findUp(start, (d) => isDir(join(d, 'projects')) || isDir(join(d, 'templates')));
 }
 
 /**

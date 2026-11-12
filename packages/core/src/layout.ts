@@ -133,3 +133,5 @@ export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
 export function serviceLog(paths: SandboxPaths, service: string): string {
   return join(paths.logs, `${service}.log`);
 }
+/** A project's record of scenario writes: `<project>/.retake/scenario-writes.jsonl` (each write's hook surface and who made it, L7.27). */
+export const PROJECT_SCENARIO_WRITES_FILE = 'scenario-writes.jsonl';

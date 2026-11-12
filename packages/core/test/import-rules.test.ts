@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { HISTORY_FILE, PROJECT_DIRS, STATE_DIR, WORKSPACE_JOURNAL_FILE } from '../src/layout.js';
+import { HISTORY_FILE, PROJECT_DIRS, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, WORKSPACE_JOURNAL_FILE } from '../src/layout.js';
 import { ULID_PREFIXES } from '../src/id-grammar.js';
 // @ts-expect-error — a plain .mjs script without types
 import * as lib from '../../../scripts/audit/lib.mjs';
@@ -1222,7 +1222,7 @@ describe('the import-rules ratchet', () => {
     expect(layout('packages/engine/src/b.ts', "import { join } from 'node:path';\njoin(dir, 'scenarios-old');\nconst x = 'scenarios';\n")).toEqual([]);
     // The names the check looks for are the layout module's.
     expect([...lib.LAYOUT_NAMES].sort()).toEqual([...Object.values(PROJECT_DIRS), STATE_DIR].sort());
-    expect([...lib.LAYOUT_FILES].sort()).toEqual([HISTORY_FILE, WORKSPACE_JOURNAL_FILE].sort());
+    expect([...lib.LAYOUT_FILES].sort()).toEqual([HISTORY_FILE, WORKSPACE_JOURNAL_FILE, PROJECT_SCENARIO_WRITES_FILE].sort());
     // A ratchet entry per file, with its count: one more path in a file is a new entry (and its old count a stale one).
     const entries = lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('layout '));
     expect(entries.length).toBeGreaterThan(0);

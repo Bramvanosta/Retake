@@ -161,6 +161,25 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   These rules decide how a command is written, not what a program does with its arguments: the form still shows the
   command in full, and approving it is approving what it does. A hook that needs more belongs in `hooks/<name>.yaml`
   (or project.yaml's `hooks:` without the scenario's vars), shown in full and asked about, or in a terminal.
+- **An agent's shell hooks are asked about in a terminal too.** When the hooks of a scenario were last written by an
+  agent — through MCP or the Studio — `retake run` and `retake hooks run <scenario>:setup|teardown` list its shell
+  hooks (setup, teardown, the named hooks its steps run) as they will run: the command rendered with the run's vars,
+  pages and run id, its working folder, each environment entry and its rollback, every hidden character written out;
+  a secret stays a token and a value filled from an earlier hook's response is said to be unknown until the run. They
+  run only on your yes: asked in a terminal (no by default), `--yes` in a script, refused without a terminal.
+  Who wrote them is read from the scenario's hook surface — its setup, teardown, named hooks, the names its `hook:`
+  steps run, its vars and its env: each scenario write of Retake adds a line to the project's own record
+  (`<project>/.retake/scenario-writes.jsonl`: the bytes' and the surface's hashes, never a value, and who wrote it).
+  The surface belongs to the newest write that brought it, or to your newest write of it; a write that left it as it
+  was (a caption edited in the Studio) changes nothing, and an edit by hand that leaves the hooks as they were keeps
+  them the agent's. The record read is that of the project holding the scenario file. For writes the record does not
+  hold (from before it, or a line it lost), the workspace journal decides on the exact bytes; when it holds an agent's
+  write of the file with other bytes, who brought the hooks cannot be told, and you are asked. For such a scenario an edit by
+  hand does not stop the question; `retake hooks trust <project> <scenario>` does — it lists the hooks as a run would,
+  asks, and on your yes records them as yours, so runs no longer ask until they change (a terminal's command only). You are asked as well
+  when the record or the journal cannot be read, or when the project lies outside the projects folder of the
+  workspaces Retake looks at. The listing shows the commands, not the files they read: a command that runs or reads a
+  file an agent can write (a scenario, a theme, a component) runs what that file holds now — read it before you say yes.
 - **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
   and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
   again under the id of a job that already ran, runs no approved hook.
