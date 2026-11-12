@@ -63,10 +63,10 @@ import {
   timeExample,
   viewerKey,
   whereWords,
-} from '../src/app/comment-words.js';
-import type { FrameAsk, FrameOutcome } from '../src/app/comment-words.js';
+} from '../src/app/words/comment-words.js';
+import type { FrameAsk, FrameOutcome } from '../src/app/words/comment-words.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
-import { dropProposalFocus, focusProposalOf, proposalFocusRouteChanged, takeProposalFocus } from '../src/app/proposal-focus.js';
+import { dropProposalFocus, focusProposalOf, proposalFocusRouteChanged, takeProposalFocus } from '../src/app/review/proposal-focus.js';
 
 /** A deterministic random source (mulberry32). */
 function rng(seed: number): () => number {

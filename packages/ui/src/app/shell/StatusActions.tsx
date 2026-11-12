@@ -23,7 +23,7 @@ import { Txt, When, shown } from '../bits.js';
 import { scenarioEventAction, useEvents } from '../events.js';
 import { useProjectView } from '../project-data.js';
 import type { Route } from '../route.js';
-import { droppedLocation, takeDropped, useRunLocation } from '../run-location.js';
+import { droppedLocation, takeDropped, useRunLocation } from '../shoot/run-location.js';
 import {
   askSignIn,
   closeSheet,
@@ -41,10 +41,10 @@ import {
   useSending,
   useSheet,
   useShootEvents,
-} from '../shoot-data.js';
-import type { LiveRun, SheetAsk } from '../shoot-data.js';
-import { PROPOSAL_RENDER } from '../render-words.js';
-import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../shoot-words.js';
+} from '../shoot/shoot-data.js';
+import type { LiveRun, SheetAsk } from '../shoot/shoot-data.js';
+import { PROPOSAL_RENDER } from '../words/render-words.js';
+import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../words/shoot-words.js';
 import { Blocker, Button, LinkButton, Sheet, StatusMark } from '../ui-kit/index.js';
 import { PRIORITY, useShellCommand } from './command-bus.js';
 import type { ScenarioContext } from './modes.js';

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import type { ScenarioRenderJobView, ScenarioRendersView } from '@retake/engine';
 import { renderNotWords } from '@retake/core';
 import type { RenderNot } from '@retake/core';
-import { RENDER_NOT_WORDS, findingAt, findingFrame, heldShortWords, heldWords, jobVersionNote, jobWords, notShownWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords, yieldWords } from '../src/app/render-words.js';
+import { RENDER_NOT_WORDS, findingAt, findingFrame, heldShortWords, heldWords, jobVersionNote, jobWords, notShownWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords, yieldWords } from '../src/app/words/render-words.js';
 
 const H = 'a'.repeat(64);
 const job = (o: Partial<ScenarioRenderJobView> = {}): ScenarioRenderJobView => ({

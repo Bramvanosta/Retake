@@ -25,7 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { FRAME_URL_RE, landingOf } from '../src/app/timeline-words.js';
+import { FRAME_URL_RE, landingOf } from '../src/app/words/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { hasTool } from '../../editor/test/render-helpers.js';
 import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake, writeThread } from './timeline-take.js';

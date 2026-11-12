@@ -7,10 +7,10 @@ import { recordStart, useRecordOptions } from '../data/record.js';
 import { Txt, shown } from '../bits.js';
 import { recordEventAction, useEvents } from '../events.js';
 import { hrefTo } from '../route.js';
-import { SignIn, StoredState } from '../Sessions.js';
+import { SignIn, StoredState } from '../project/Sessions.js';
 import { say } from '../shell/say.js';
 import { Button, Callout, Select, TerminalCommands, TextField } from '../ui-kit/index.js';
-import { NAME_MAX, WINDOW_NOTE, nameProblem, personaProblem } from '../record-words.js';
+import { NAME_MAX, WINDOW_NOTE, nameProblem, personaProblem } from '../words/record-words.js';
 import { RecordBrowser } from './RecordBrowser.js';
 import { startedJobs, focusOnArrival } from './started.js';
 

@@ -7,13 +7,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { JobRecord } from '@retake/engine';
-import { renderWords } from '../src/app/comment-words.js';
+import { renderWords } from '../src/app/words/comment-words.js';
 import { ANY_THEME_NAME, PROJECT_SLUG, okNewThemeName } from '../src/app/id-words.js';
-import { NAME_MAX, copyName, createPrompt, okName, okTheme, themeNameProblem } from '../src/app/library-words.js';
-import { versionWords } from '../src/app/render-words.js';
-import { rawExportCommand } from '../src/app/review-words.js';
+import { NAME_MAX, copyName, createPrompt, okName, okTheme, themeNameProblem } from '../src/app/words/library-words.js';
+import { versionWords } from '../src/app/words/render-words.js';
+import { rawExportCommand } from '../src/app/review/review-words.js';
 import { RENDER_ID } from '../src/app/route.js';
-import { EMPTY_FORM, newThemeProblem } from '../src/app/theme-words.js';
+import { EMPTY_FORM, newThemeProblem } from '../src/app/words/theme-words.js';
 import { proposalOffer } from '../src/server/comment-ops.js';
 import type { OfferFacts } from '../src/server/comment-ops.js';
 import { RunLiveInput } from '../src/server/run-live.js';

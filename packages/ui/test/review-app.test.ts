@@ -18,10 +18,10 @@ import { describe, expect, it } from 'vitest';
 import { RENDER_ID_RE } from '@retake/core';
 import { FINDING_CODES } from '../../review/src/types.js';
 import { REPO } from '../../engine/test/helpers.js';
-import { CHECK_FAMILIES, NOTHING_ELSE, agoWords, clockWords, countWords, exportReadsOn, familyOf, groupFindings, rawExportCommand, reportHint, sharedWhen, severityMark, stepKeyOf, whereWords } from '../src/app/review-words.js';
+import { CHECK_FAMILIES, NOTHING_ELSE, agoWords, clockWords, countWords, exportReadsOn, familyOf, groupFindings, rawExportCommand, reportHint, sharedWhen, severityMark, stepKeyOf, whereWords } from '../src/app/review/review-words.js';
 import { RENDER_ID, hrefTo, parseRoute } from '../src/app/route.js';
 import { modeOf, modeTarget, noteReviewView, reviewView } from '../src/app/shell/modes.js';
-import { editSeekRouteChanged, seekInEdit, takeEditSeek } from '../src/app/edit-handoff.js';
+import { editSeekRouteChanged, seekInEdit, takeEditSeek } from '../src/app/edit/edit-handoff.js';
 
 const APP = join(REPO, 'packages', 'ui', 'src', 'app');
 
@@ -61,7 +61,7 @@ describe('the Review report (L5.12a)', () => {
     expect(reportHint({ render_id: 'bits-v1', review: { state: 'none' } })).toBe('last render v1 · not reviewed');
     expect(reportHint(undefined, 2)).toBe('no finished render yet');
     for (const state of ['clean', 'warnings', 'errors', 'queued', 'running', 'failed', 'cancelled', 'none']) expect(reportHint({ render_id: 'x-v3', review: { state, counts: { error: 1, warning: 1, info: 1 } } as never }), state).not.toMatch(/\bpass(?:ed|es)?\b|no render/i);
-    for (const f of ['ReviewScreen.tsx', 'review-words.ts', 'Renders.tsx', 'render-words.ts', 'EditStatus.tsx', 'ScenarioScreen.tsx', 'shell/AppShell.tsx', 'shell/command-bus.ts', 'ui-kit/CommandPalette.tsx', 'CommentsScreen.tsx', 'TimelineScreen.tsx']) {
+    for (const f of ['review/ReviewScreen.tsx', 'review/review-words.ts', 'review/Renders.tsx', 'words/render-words.ts', 'edit/EditStatus.tsx', 'script/ScenarioScreen.tsx', 'shell/AppShell.tsx', 'shell/command-bus.ts', 'ui-kit/CommandPalette.tsx', 'review/CommentsScreen.tsx', 'edit/TimelineScreen.tsx']) {
       const text = (await readFile(join(APP, f), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
       expect(/\bpass(?:ed|es)?\b/i.test(text), `${f} says "passed"`).toBe(false);
     }

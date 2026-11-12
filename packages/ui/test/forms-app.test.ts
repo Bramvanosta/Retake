@@ -8,8 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import { scenarioBlocks, stepForms } from '@retake/core';
 import type { SceneBlock } from '@retake/core';
-import { anchorOf, editAgain, fieldsOf, formChanges, issueField, readInput, readInputs } from '../src/app/forms.js';
-import type { View } from '../src/app/scenario-words.js';
+import { anchorOf, editAgain, fieldsOf, formChanges, issueField, readInput, readInputs } from '../src/app/script/forms.js';
+import type { View } from '../src/app/words/scenario-words.js';
 
 const forms = stepForms();
 const typeFields = fieldsOf(forms, 'type');

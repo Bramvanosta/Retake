@@ -1,10 +1,10 @@
 /** One recording's inspector: Started with, the selected step, Stop / Save / Discard, the check, issues, placeholders, writes. */
 import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { Txt, When, plural, shown } from '../bits.js';
-import { stepWords } from '../scenario-words.js';
+import { stepWords } from '../words/scenario-words.js';
 import { say } from '../shell/say.js';
 import { Button, Callout, Facts, InspectorSection, TextField } from '../ui-kit/index.js';
-import { CHECK_SCOPE_NOTE, NAME_MAX, PLACEHOLDER_WORDS, SEVERITY_WORDS, checkFailedAt, checkWords, nameProblem, saveWhyWords, startedByWords, writesWords } from '../record-words.js';
+import { CHECK_SCOPE_NOTE, NAME_MAX, PLACEHOLDER_WORDS, SEVERITY_WORDS, checkFailedAt, checkWords, nameProblem, saveWhyWords, startedByWords, writesWords } from '../words/record-words.js';
 import { TONE_MARK, selectedRow, chosenOf } from './draft.js';
 import type { Cursor, RecordingActions, RecordingUi } from './draft.js';
 

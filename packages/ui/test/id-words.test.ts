@@ -34,12 +34,12 @@ import {
 } from '@retake/core';
 import * as mirror from '../src/app/id-words.js';
 import { ANY_THEME_NAME, ANY_THEME_NAME_MAX, NEW_THEME_NAME, NEW_THEME_NAME_MAX, PROJECT_SLUG, RENDER_ID, RENDER_ID_MAX, RUN_ID, RUN_ID_MAX, okNewThemeName, okRenderIdShape, renderVersionWords } from '../src/app/id-words.js';
-import { renderWords } from '../src/app/comment-words.js';
-import { versionWords } from '../src/app/render-words.js';
-import { NAME_MAX, NEW_THEME_NAME_HINT, NEW_THEME_TOO_LONG, okName, okTheme, themeNameProblem } from '../src/app/library-words.js';
-import { rawExportCommand } from '../src/app/review-words.js';
+import { renderWords } from '../src/app/words/comment-words.js';
+import { versionWords } from '../src/app/words/render-words.js';
+import { NAME_MAX, NEW_THEME_NAME_HINT, NEW_THEME_TOO_LONG, okName, okTheme, themeNameProblem } from '../src/app/words/library-words.js';
+import { rawExportCommand } from '../src/app/review/review-words.js';
 import { RENDER_ID as ROUTE_RENDER_ID, hrefTo, parseRoute } from '../src/app/route.js';
-import { EMPTY_FORM, newThemeProblem } from '../src/app/theme-words.js';
+import { EMPTY_FORM, newThemeProblem } from '../src/app/words/theme-words.js';
 
 const a = (n: number, ch = 'a') => ch.repeat(n);
 const src = (file: string) => readFileSync(fileURLToPath(new URL(`../src/app/${file}`, import.meta.url)), 'utf8');
@@ -154,9 +154,9 @@ describe('60 characters for a new theme\'s name, wherever the app asks for one (
       const named = [...text.matchAll(/<TextField label="(Name of the copy|Name)"[^\n]*?maxLength=\{([^}]+)\} hint=\{NEW_THEME_NAME_HINT\}/g)].map((m) => `${m[1]}: ${m[2]}`);
       return { named, hundred: (text.match(/maxLength=\{100\}/g) ?? []).length };
     };
-    expect(fields('ThemeEditor.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX'], hundred: 0 });
-    expect(fields('LibraryInspector.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX'], hundred: 0 });
-    expect(fields('ThemesScreen.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX', 'Name: NEW_THEME_NAME_MAX'], hundred: 0 });
-    for (const file of ['ThemeEditor.tsx', 'LibraryInspector.tsx', 'ThemesScreen.tsx']) expect(src(file), file).toMatch(/import \{ NEW_THEME_NAME_MAX \} from '\.\/id-words\.js';/);
+    expect(fields('themes/ThemeEditor.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX'], hundred: 0 });
+    expect(fields('library/LibraryInspector.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX'], hundred: 0 });
+    expect(fields('themes/ThemesScreen.tsx')).toEqual({ named: ['Name of the copy: NEW_THEME_NAME_MAX', 'Name: NEW_THEME_NAME_MAX'], hundred: 0 });
+    for (const file of ['themes/ThemeEditor.tsx', 'library/LibraryInspector.tsx', 'themes/ThemesScreen.tsx']) expect(src(file), file).toMatch(/import \{ NEW_THEME_NAME_MAX \} from '\.\.\/id-words\.js';/);
   });
 });

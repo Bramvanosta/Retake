@@ -10,7 +10,7 @@ import { scenarioEventAction } from '../src/app/events.js';
 import type { StudioEvent } from '../src/app/events.js';
 import { BATCH_MAX, IN_FLIGHT_MAX, ThumbLoader } from '../src/app/thumbs.js';
 import type { ThumbAnswer } from '../src/app/thumbs.js';
-import { bindingWords, layoutWords, missingWords, runErrorWords } from '../src/app/scenario-words.js';
+import { bindingWords, layoutWords, missingWords, runErrorWords } from '../src/app/words/scenario-words.js';
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70]).toString('base64');
 

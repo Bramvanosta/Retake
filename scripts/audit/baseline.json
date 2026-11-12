@@ -144,10 +144,10 @@
     "packages/core/src/project.ts → 10 hand-written layout paths",
     "packages/core/src/schemas/timeline.ts → 2 hand-written layout paths",
     "packages/engine/src/catalogue.ts → 3 hand-written layout paths",
-    "packages/ui/src/app/GalleryScreen.tsx → 1 hand-written layout path",
-    "packages/ui/src/app/ProposalCard.tsx → 1 hand-written layout path",
-    "packages/ui/src/app/TimelineScreen.tsx → 1 hand-written layout path",
-    "packages/ui/src/app/record/RecordingInspector.tsx → 1 hand-written layout path"
+    "packages/ui/src/app/edit/TimelineScreen.tsx → 1 hand-written layout path",
+    "packages/ui/src/app/project/GalleryScreen.tsx → 1 hand-written layout path",
+    "packages/ui/src/app/record/RecordingInspector.tsx → 1 hand-written layout path",
+    "packages/ui/src/app/review/ProposalCard.tsx → 1 hand-written layout path"
    ]
   },
   {
@@ -165,9 +165,9 @@
    "rule": "id-grammar",
    "reason": "Hand-written mirrors of the scenario-name and project-slug grammars in the Studio front end, which imports types only: not ids of the module; one home for those two names in the app is later work.",
    "entries": [
-    "packages/ui/src/app/record-words.ts → 1 hand-written id pattern",
-    "packages/ui/src/app/review-words.ts → 1 hand-written id pattern",
-    "packages/ui/src/app/unsaved-report.ts → 2 hand-written id patterns"
+    "packages/ui/src/app/review/review-words.ts → 1 hand-written id pattern",
+    "packages/ui/src/app/unsaved-report.ts → 2 hand-written id patterns",
+    "packages/ui/src/app/words/record-words.ts → 1 hand-written id pattern"
    ]
   },
   {

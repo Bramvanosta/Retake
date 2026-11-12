@@ -22,7 +22,7 @@ import { scaffoldDir } from '@retake/components';
 import { TOOLS } from '@retake/mcp';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer, TimelineViewAnswer } from '../src/index.js';
-import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
+import { FRAME_URL_RE, previewUrls } from '../src/app/words/timeline-words.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { hasTool } from '../../editor/test/render-helpers.js';
 import { raw } from './http.js';

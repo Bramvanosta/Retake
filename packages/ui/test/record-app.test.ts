@@ -13,7 +13,7 @@ import type { RecordInsert } from '@retake/core';
 import type { RecordCheckView, RecordState } from '@retake/engine';
 import { recordEventAction } from '../src/app/events.js';
 import { cursorRow, draftRows } from '../src/app/record/draft.js';
-import { RECORD_MARK, ShootBrowser, recordStateWord, recordingWords } from '../src/app/ShootBrowser.js';
+import { RECORD_MARK, ShootBrowser, recordStateWord, recordingWords } from '../src/app/shoot/ShootBrowser.js';
 import type { RecordViewAnswer } from '../src/server/record-ops.js';
 import {
   CHECK_SCOPE_NOTE,
@@ -42,7 +42,7 @@ import {
   textProblem,
   timeLeft,
   writesWords,
-} from '../src/app/record-words.js';
+} from '../src/app/words/record-words.js';
 
 const STATES: RecordState[] = ['queued', 'preflight', 'recording', 'draft', 'check', 'done', 'interrupted', 'tampered', 'nothing_recorded', 'failed', 'cancelled', 'discarded', 'missing'];
 

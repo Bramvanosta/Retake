@@ -20,7 +20,7 @@ import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProj
 import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { productionState } from '../src/app/board-words.js';
+import { productionState } from '../src/app/words/board-words.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
 import { raw } from './http.js';

@@ -22,7 +22,7 @@ import { ICON_GRID, MARK, MARK_ICONSET, MARK_VARIANTS, markSvg, markVariantFor }
 import type { MarkVariant } from '../src/mark.js';
 import { MARK_INK, UI_COLOURS } from '../src/app/tokens.js';
 import { AppMark } from '../src/app/ui-kit/index.js';
-import { WelcomeScreen } from '../src/app/WelcomeScreen.js';
+import { WelcomeScreen } from '../src/app/project/WelcomeScreen.js';
 
 const ICONS = join(REPO, 'apps', 'desktop', 'icons');
 const sha256 = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
@@ -186,13 +186,13 @@ describe('the favicon and the Studio\'s mark', () => {
     const welcome = renderToStaticMarkup(createElement(WelcomeScreen, { list }));
     expect(welcome).toMatch(/<section class="wl-intro" aria-labelledby="wl-h1"><svg class="k-appmark" viewBox="0 0 100 100" width="128" height="128" aria-hidden="true" focusable="false" data-variant="full">[\s\S]*?<\/svg><h1 id="wl-h1"/);
     // The gallery shows each variant at its sizes with a visible caption naming them (the marks themselves are aria-hidden).
-    const gallery = readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'GalleryScreen.tsx'), 'utf8');
+    const gallery = readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', 'project/GalleryScreen.tsx'), 'utf8');
     expect(gallery).toContain("const APP_MARKS: Array<[MarkVariant, number]> = [['full', 128], ['full', 64], ['small', 32], ['tiny', 18], ['tiny', 16]];");
     const section = /<Section title="App mark">([\s\S]*?)<\/Section>/.exec(gallery)?.[1] ?? '';
     expect(section).toContain('<AppMark key={`${variant}-${size}`} variant={variant} size={size} />');
     expect(section).toContain('<span className="gl-lede">{APP_MARKS.map(([variant, size]) => `${variant} ${size} px`).join(\' · \')}</span>');
     // The placeholder squares are gone with their rules.
-    for (const f of ['shell/shell.css', 'screens.css', 'shell/AppShell.tsx', 'WelcomeScreen.tsx']) {
+    for (const f of ['shell/shell.css', 'screens.css', 'shell/AppShell.tsx', 'project/WelcomeScreen.tsx']) {
       expect(readFileSync(join(REPO, 'packages', 'ui', 'src', 'app', f), 'utf8'), f).not.toMatch(/sh-appmark|wl-mark/);
     }
   });

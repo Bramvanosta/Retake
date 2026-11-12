@@ -5,8 +5,8 @@
  * (rows × the row height: critique L1).
  */
 import { describe, expect, it } from 'vitest';
-import { FRAME_ROW_PX, frameTitle, gridMove, sceneIntrinsicPx, sceneLengthWords } from '../src/app/board-keys.js';
-import { fieldLabel } from '../src/app/forms.js';
+import { FRAME_ROW_PX, frameTitle, gridMove, sceneIntrinsicPx, sceneLengthWords } from '../src/app/script/board-keys.js';
+import { fieldLabel } from '../src/app/script/forms.js';
 
 const at = (scene: number, index: number) => ({ scene, index });
 

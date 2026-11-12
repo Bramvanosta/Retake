@@ -1384,7 +1384,7 @@ describe('the import-rules ratchet', () => {
       expect(hits.flatMap((h) => h.kinds.map((k, i) => (k === 3 || k === 5 || k === 6 ? '' : `${h.file}:${h.lines[i]} kind ${k}`))).filter(Boolean)).toEqual([]);
       expect(hits.filter((h) => h.kinds.includes(5)).map((h) => h.file)).toEqual(['packages/editor/src/render/export.ts']);
       expect(hits.filter((h) => h.kinds.includes(6)).map((h) => h.file)).toEqual(['packages/engine/src/brand/create.ts']);
-      expect(hits.filter((h) => h.kinds.includes(3)).map((h) => h.file)).toEqual(['packages/core/src/jobs.ts', 'packages/core/src/project.ts', 'packages/core/src/schemas/primitives.ts', 'packages/engine/src/reviews.ts', 'packages/engine/src/run-files.ts', 'packages/ui/src/app/record-words.ts', 'packages/ui/src/app/review-words.ts', 'packages/ui/src/app/unsaved-report.ts']);
+      expect(hits.filter((h) => h.kinds.includes(3)).map((h) => h.file)).toEqual(['packages/core/src/jobs.ts', 'packages/core/src/project.ts', 'packages/core/src/schemas/primitives.ts', 'packages/engine/src/reviews.ts', 'packages/engine/src/run-files.ts', 'packages/ui/src/app/review/review-words.ts', 'packages/ui/src/app/unsaved-report.ts', 'packages/ui/src/app/words/record-words.ts']);
       const entries = today.filter((e: string) => e.startsWith('id-grammar '));
       expect(entries).toEqual(hits.map((h) => `id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`).sort());
       // One more pattern in a file is a new entry (and its old count a stale one).

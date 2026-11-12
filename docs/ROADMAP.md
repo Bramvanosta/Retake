@@ -122,6 +122,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.27 | Security: `retake run` and `hooks run <scenario>:setup\|teardown` list, rendered as they will run (cwd, env, vars, run id), the shell hooks of a scenario whose hooks an agent wrote last (the project's record of hook surfaces, the journals before it; asked when unknown) and run them only on a person's yes (terminal, or `--yes`; refused otherwise); `retake hooks trust` makes them the person's | S | **done** (2026-11-12; two review fix passes F1–F3, F5, F6, N1–N5, and `retake hooks trust`; 52 mutations red; operations-cli: `hooks run --help` changed, 7 `hooks trust` cases added) |
 | L7.20 | One name per use case (S2): the catalogue links each use case served under two shells' names (`useCase`, 18 groups, one name per shell), the Studio's three narrowings marked (`narrows`); nothing renamed (option C) | S | **done** (2026-11-12; 11 mutations red; no fixture changed; R-ARCH-40) |
 | L7.30 | U16 (second part): `buildProgram` → ten command families registering their commands (cli src/program/, `ProgramContext`); the Record screen → a folder of parts (ui src/app/record/: start form, draft, list, inserts, body, inspector, live view, the changes it sends as hooks); the rest of the front end by feature proposed as its own lot | M | **done** (2026-11-12; every `--help` and usage error byte-identical with 65d4243's build; pipeline-cli, operations-cli unchanged; Studio screenshots equal but for the workspace path; full suite not run) |
+| L7.32 | U16 (last part, S12): the Studio front end by feature — ui src/app/ in record/, script/, shoot/, edit/, review/, library/, themes/, project/, the shared words in words/, the foundations at the root; feature-boundaries checks each feature is reached only through its listed public modules and that the foundations and words import no feature | M | **done** (2026-11-12; moves and imports only; 14 Studio routes equal to c1b889b's build but for the workspace path and the recording name's minute; op table and fixtures unchanged; full suite not run) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1181,6 +1182,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.30 — Function splits, second part (M; decided 2026-11-11)
 - **Goal:** the CLI's buildProgram by command family, the Studio's record screen in its own folder of parts; the rest of the front end by feature left to its own lot (U16).
 - **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.30)". Requirement R-ARCH-43.
+
+### L7.32 — The Studio front end by feature (M; decided 2026-11-11)
+- **Goal:** the Studio's modules live in one folder per feature, shared words and foundations apart, and the feature-boundary test holds the new parts (U16, finding S12).
+- **Done (2026-11-12, branch `claude/arch-l7`):** see HANDOFF "State (after L7.32)". Requirement R-ARCH-45; 17 evidences repointed.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

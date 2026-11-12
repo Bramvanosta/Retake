@@ -5,7 +5,7 @@ import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { CallError, errorText } from '../api.js';
 import { recordOptions, recordView } from '../data/record.js';
 import { recordEventAction, useEvents } from '../events.js';
-import { DONE_POLL_MS, LIVE_POLL_MS, LIVE_STATES, newerView } from '../record-words.js';
+import { DONE_POLL_MS, LIVE_POLL_MS, LIVE_STATES, newerView } from '../words/record-words.js';
 import { startedJobs } from './started.js';
 
 /** A recording's view, read live: the poll (700 ms live / 3 s after, never while the tab is hidden) and the events. */

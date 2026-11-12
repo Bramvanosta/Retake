@@ -510,9 +510,10 @@ describe('L5.16d: the updater, shell side (static)', () => {
     const upd = read('src/update.rs');
     // Review d A-L1: the update never arms while a quit question is up in the page (its answer would install).
     expect(upd).toContain('if guard::GUARD_OPEN.load(Ordering::SeqCst) || macos::modal_up() || guard::page_question_up() {');
-    // Test mode restarts the binary directly; LaunchServices (Tauri's restart) only outside it, the log filter flushed
-    // first (review d A-L6: the restart exits the process).
-    expect(upd).toMatch(/fn restart\(app: &AppHandle\) \{\s*if test_mode\(\) \{[\s\S]*?std::process::Command::new\(&exe\)[\s\S]*?return;\s*\}\s*crate::logfilter::finish\(\);\s*app\.restart\(\);/);
+    // Test mode restarts the binary directly. Outside it (hotfix v0.2.4, BL-168) a detached relaunch of the bundle once
+    // this process has ended (the app keeps its Dock icon); Tauri's restart only when that cannot start, the log filter
+    // flushed first (review d A-L6: the restart exits the process).
+    expect(upd).toMatch(/fn restart\(app: &AppHandle\) \{\s*if test_mode\(\) \{[\s\S]*?std::process::Command::new\(&exe\)[\s\S]*?return;\s*\}\s*let bundle = [^\n]*dc::relaunch::is_bundle\(b\)\);\s*if let Some\(bundle\) = bundle \{[\s\S]*?dc::relaunch::Relaunch::after_this_process\(bundle, args\)\.spawn\(\) \{\s*Ok\(c\) => \{\s*log\([\s\S]*?\);\s*return;\s*\}\s*Err\(e\) => log\([\s\S]*?\),\s*\}\s*\}\s*crate::logfilter::finish\(\);\s*app\.restart\(\);\s*\}/);
     expect(upd).not.toMatch(/\/usr\/bin\/open|osascript/);
     // …with the real stderr: the log filter's pipe dies with the old process (the e2e test's first run lost every line).
     expect(upd).toContain('if let Some(err) = crate::logfilter::real_stderr() {\n            cmd.stderr(err);');
@@ -543,7 +544,8 @@ describe('L5.16d: the updater, shell side (static)', () => {
       if (existsSync(updater)) expect([...readFileSync(updater, 'utf8').matchAll(/if let Some\(ref configure_client\) = self\.context\.configure_client \{\s*request = configure_client\(request\);/g)].length).toBe(2);
     }
     expect(upd).toContain('f.timeout = None;');
-    expect(upd).toContain('let stop = uf::watch(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen);');
+    // Hotfix v0.2.4 (BL-167): the same limits, each new byte count reported to the Studio (`watch_reporting`).
+    expect(upd).toContain('let stop = uf::watch_reporting(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen, report);');
     expect(upd).toMatch(/Some\(s\) => \{\s*task\.abort\(\);/);
     expect(upd).toMatch(/if f\.download_url\.scheme\(\) != "https" && !\(test_feed\(\) && f\.download_url\.as_str\(\)\.starts_with\("http:\/\/127\.0\.0\.1:"\)\) \{\s*return Err/);
     expect(upd).toContain('uf::write_archive(&cache, std::process::id(), &bytes)');

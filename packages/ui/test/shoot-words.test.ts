@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MARK_STATES } from '../src/app/ui-kit/index.js';
-import { REHEARSE_MAPPING, SHOOT_STATES, blockerShort, modeWord, shootState } from '../src/app/shoot-words.js';
-import type { ShootState } from '../src/app/shoot-words.js';
+import { REHEARSE_MAPPING, SHOOT_STATES, blockerShort, modeWord, shootState } from '../src/app/words/shoot-words.js';
+import type { ShootState } from '../src/app/words/shoot-words.js';
 import { PRIORITY, ownerOf, registerShellCommand, runShellCommand } from '../src/app/shell/command-bus.js';
 
 describe('blocker words by kind (critique H3)', () => {

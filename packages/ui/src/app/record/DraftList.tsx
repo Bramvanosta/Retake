@@ -4,10 +4,10 @@ import type { FocusEvent as ReactFocusEvent, KeyboardEvent, ReactNode } from 're
 import type { RecordInsert } from '@retake/core';
 import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { Txt, plural, shown, visibleControls } from '../bits.js';
-import { stepWords } from '../scenario-words.js';
-import { gridMove } from '../board-keys.js';
+import { stepWords } from '../words/scenario-words.js';
+import { gridMove } from '../script/board-keys.js';
 import { Button, RadioGroup, RowCard, RowList, RowListItem, StatusMark } from '../ui-kit/index.js';
-import { INSERT_KIND_WORDS, LIVE_STATES, fragileWords, insertText, insertWords } from '../record-words.js';
+import { INSERT_KIND_WORDS, LIVE_STATES, fragileWords, insertText, insertWords } from '../words/record-words.js';
 import { Inserts } from './Inserts.js';
 import type { InsertFormState } from './Inserts.js';
 import { draftRows, cursorRow, chosenOf } from './draft.js';

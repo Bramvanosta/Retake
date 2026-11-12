@@ -5,7 +5,7 @@
  * decides between the preview and the "cannot play" message.
  */
 import { describe, expect, it } from 'vitest';
-import { canPlay, cannotPlayWords, codecType, codecWords, cutWords, frameWords, keyAction, landingOf, skippedWords, targetFrame, timecode, whereAt, zoomFactor } from '../src/app/timeline-words.js';
+import { canPlay, cannotPlayWords, codecType, codecWords, cutWords, frameWords, keyAction, landingOf, skippedWords, targetFrame, timecode, whereAt, zoomFactor } from '../src/app/words/timeline-words.js';
 
 const model = {
   fps: 30,

@@ -42,7 +42,7 @@ import type { RecordingUi } from '../src/app/record/draft.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { visibleControls } from '../src/app/bits.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
-import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
+import { FRAME_URL_RE, previewUrls } from '../src/app/words/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
@@ -77,7 +77,7 @@ const BANNED: Array<[RegExp, string]> = [
  * (WebCodecs' ImageDecoder, review A) else `createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }))`, each once,
  * on the checked bytes of a frame; no other file decodes an image.
  */
-const LIVE_FILE = 'LiveView.tsx';
+const LIVE_FILE = 'shoot/LiveView.tsx';
 const LIVE_DECODE = /createImageBitmap\(new Blob\(\[bytes\], \{ type: 'image\/jpeg' \}\)\)/g;
 const LIVE_IMAGE_DECODER = /new Decoder\(\{ data: bytes, type: 'image\/jpeg' \}\)/g;
 
@@ -103,7 +103,7 @@ const PICTURE_JPEG = '<Picture format="jpeg" base64={base64} max={max} width={wi
  * PREVIEW_FRAME_ATTRS) and `src={frameSrc}` once, where `const frameSrc = armed ? url : undefined;` (url: the checked
  * frame URL its page passes, `url={urls.frame}`, urls = previewUrls(...)).
  */
-const FRAME_FILE = 'PreviewFrame.tsx';
+const FRAME_FILE = 'edit/PreviewFrame.tsx';
 const FRAME_TAG = /<iframe\b/g;
 const FRAME_SRC = /\bsrc=\{frameSrc\}/g;
 const FRAME_SRC_SET = /const frameSrc = armed \? url : undefined;/g;
@@ -236,7 +236,7 @@ function apiCalls(text: string, o: { members?: boolean } = {}): ApiCall[] {
 describe('the app builds no HTML from data (source lint)', () => {
   it('no raw-HTML, eval or src= API in src/app; every href is hrefTo(...) or a literal "#…"', async () => {
     const files = await appSources();
-    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['main.tsx', 'ReadmeEditor.tsx', 'WelcomeScreen.tsx', 'shell/AppShell.tsx', 'ui-kit/Button.tsx']));
+    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['main.tsx', 'project/ReadmeEditor.tsx', 'project/WelcomeScreen.tsx', 'shell/AppShell.tsx', 'ui-kit/Button.tsx']));
     for (const [f, text] of files) {
       const src = linted(f, code(text));
       for (const [re, why] of BANNED) expect(re.test(src), `${f}: ${why} (${re})`).toBe(false);
@@ -255,7 +255,7 @@ describe('the app builds no HTML from data (source lint)', () => {
 
   it('L4.3: the app builds no YAML — no yaml import, only types from core (the server alone writes scenario text)', async () => {
     const files = await appSources();
-    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['YamlTab.tsx', 'TextEditing.tsx']));
+    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['script/YamlTab.tsx', 'script/TextEditing.tsx']));
     for (const [f, text] of files) {
       const src = code(text);
       expect(/from\s+['"]yaml['"]|import\(\s*['"]yaml['"]\s*\)|require\(\s*['"]yaml['"]/.test(src), `${f}: imports yaml`).toBe(false);
@@ -328,18 +328,18 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(PREVIEW_FRAME_ATTRS).toEqual({ sandbox: 'allow-scripts', referrerpolicy: 'no-referrer', allow: 'autoplay', 'aria-hidden': 'true', tabindex: '-1' });
     expect(tag).not.toMatch(/\{\.\.\./);
     // Its page passes the URL previewUrls checked, nothing else.
-    const screen = code(files.get('TimelineScreen.tsx') ?? '');
+    const screen = code(files.get('edit/TimelineScreen.tsx') ?? '');
     expect(screen.match(/<PreviewFrame\b/g)?.length).toBe(1);
     expect(screen.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
     expect(screen.match(/const urls = 'frame_url' in v \? previewUrls\(v\.frame_url, v\.plan_url\) : null;/g)?.length).toBe(1);
     expect(screen.match(/\burls\s*=/g)?.length).toBe(1);
     // L4.7 part D2: the theme editor's live frame passes its checked URL the same way; no other file mounts a PreviewFrame.
-    const themes = code(files.get('ThemeEditor.tsx') ?? '');
+    const themes = code(files.get('themes/ThemeEditor.tsx') ?? '');
     expect(themes.match(/<PreviewFrame\b/g)?.length).toBe(1);
     expect(themes.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
     expect(themes.match(/const urls = 'frame_url' in v \? previewUrls\(v\.frame_url, v\.plan_url\) : null;/g)?.length).toBe(1);
     expect(themes.match(/\burls\s*=/g)?.length).toBe(1);
-    for (const [f, text] of files) if (f !== 'TimelineScreen.tsx' && f !== 'ThemeEditor.tsx') expect(/<PreviewFrame\b/.test(code(text)), `${f}: mounts a PreviewFrame`).toBe(false);
+    for (const [f, text] of files) if (f !== 'edit/TimelineScreen.tsx' && f !== 'themes/ThemeEditor.tsx') expect(/<PreviewFrame\b/.test(code(text)), `${f}: mounts a PreviewFrame`).toBe(false);
     // No other file frames anything, connects a preview or loosens a sandbox; sandbox= appears once in the app.
     let sandboxes = 0;
     for (const [f, text] of files) {
@@ -449,11 +449,11 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
     // Reply, resolve and reopen go through one helper (ThreadActions' send — L5.12b: ThreadPanel.tsx): its op names are
     // arguments. M1: the helper's call is pinned by name to its owner, and no other file of the app holds it.
     const sources = await appSources();
-    const screen = code(sources.find(([f]) => f === 'ThreadPanel.tsx')![1]);
+    const screen = code(sources.find(([f]) => f === 'review/ThreadPanel.tsx')![1]);
     for (const op of ['thread_reply', 'thread_resolve', 'thread_reopen']) expect(screen).toContain(`'${op}'`);
     const HELPER = /threadWrite\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \} as OpArgs<K>\)/g;
     expect(screen.match(HELPER)?.length).toBe(1);
-    expect(sources.filter(([f, text]) => (code(text).match(HELPER) ?? []).length > 0 || /\bsend\('[A-Za-z]+', 'thread_/.test(code(text))).map(([f]) => f)).toEqual(['ThreadPanel.tsx']);
+    expect(sources.filter(([f, text]) => (code(text).match(HELPER) ?? []).length > 0 || /\bsend\('[A-Za-z]+', 'thread_/.test(code(text))).map(([f]) => f)).toEqual(['review/ThreadPanel.tsx']);
     for (const c of calls) expect(NAMED.test(c.args), `${c.f}: ${c.op} sends ${c.args}`).toBe(false);
     // Every send(...) of the thread's writes: its argument object names nobody either.
     for (const m of screen.matchAll(/\bsend\('[A-Za-z]+', '(thread_[a-z_]+)', (\{[^}]*\})/g)) expect(NAMED.test(m[2]), `${m[1]}: ${m[2]}`).toBe(false);
@@ -475,19 +475,19 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
       args += (src.match(/\{ proposal: \{ comment_id: pc, entry_id: pe \} \}/g) ?? []).length;
     }
     expect(args).toBe(1);
-    const timeline = code(files.find(([f]) => f === 'TimelineScreen.tsx')![1]);
+    const timeline = code(files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1]);
     expect(timeline).toMatch(/useTimelineView\(args,/);
     // L6.12–L6.13 fixes (L7): that read is timeline_view's (the one op whose `proposal` it is).
     expect(DATA_FNS.get('useTimelineView')).toEqual({ op: 'timeline_view', ops: ['timeline_view'] });
     // thread_apply sends the reply and the proposal's hash shown, nothing else (L5.12b: ProposalCard.tsx, M1: the one call
     // of the app — no other file applies).
-    const panel = code(files.find(([f]) => f === 'ProposalCard.tsx')![1]);
+    const panel = code(files.find(([f]) => f === 'review/ProposalCard.tsx')![1]);
     const applies = threadCalls(panel).filter((c) => c.op === 'thread_apply');
     expect(applies.map((c) => c.args)).toEqual(['({ project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch })']);
     const everywhere = files.flatMap(([f, text]) => threadCalls(code(text)).filter((c) => c.op === 'thread_apply').map(() => f));
-    expect(everywhere).toEqual(['ProposalCard.tsx']);
+    expect(everywhere).toEqual(['review/ProposalCard.tsx']);
     // L6.13: data/ names it once (its function); its arguments and result are derived from the op table (data/ops.ts).
-    expect(files.filter(([f, text]) => !f.startsWith('data/') && /thread_apply|threadApply/.test(code(text))).map(([f]) => f)).toEqual(['ProposalCard.tsx']);
+    expect(files.filter(([f, text]) => !f.startsWith('data/') && /thread_apply|threadApply/.test(code(text))).map(([f]) => f)).toEqual(['review/ProposalCard.tsx']);
     expect(files.filter(([f, text]) => f.startsWith('data/') && /\bop\('thread_apply'\)/.test(text)).map(([f]) => f)).toEqual(['data/comments.ts']);
   });
 });
@@ -856,7 +856,7 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
   });
 
   it('record-words.ts never reads page text (no `untrusted`): its sentences hold enums, numbers and the Studio\'s own words', async () => {
-    const words = code((await appSources()).find(([f]) => f === 'record-words.ts')![1]);
+    const words = code((await appSources()).find(([f]) => f === 'words/record-words.ts')![1]);
     expect(words).not.toMatch(/untrusted|yaml_lines|\.words\b|\.label\b|\.summary\b/);
   });
 
@@ -1011,7 +1011,7 @@ const CLICK_ROLE = new Set(['button', 'link', 'checkbox', 'radio', 'switch', 'ta
  * piece of the element's source line (a new element of the same kind is not excused).
  */
 const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<string, string>; line: string; why: string }> = [
-  { file: 'FrameViewer.tsx', tag: 'div', attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' }, line: '<div', why: "the region drag on the frame (L5.12b: FrameViewer.tsx's FramePicture; RegionOverlay draws, presentational); its keyboard alternative is the composer's four % fields" },
+  { file: 'review/FrameViewer.tsx', tag: 'div', attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' }, line: '<div', why: "the region drag on the frame (L5.12b: FrameViewer.tsx's FramePicture; RegionOverlay draws, presentational); its keyboard alternative is the composer's four % fields" },
   { file: 'ui-kit/frames.tsx', tag: 'li', attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' }, line: '<li', why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard" },
   { file: 'ui-kit/frames.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' }, line: '<p', why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows' },
   { file: 'ui-kit/ChoiceChips.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"k-chips"', onKeyDown: '{rove}' }, line: '<div className="k-chips" role="radiogroup"', why: "L5.12a (was TimelineInspector.tsx's tl-radios): the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop" },
@@ -1020,7 +1020,7 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
   { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
   { file: 'ui-kit/cards.tsx', tag: 'li', attrs: { role: '"option"', 'data-index': '{n}' }, line: '<li', why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does' },
   { file: 'ui-kit/frames.tsx', tag: 'div', attrs: { role: '"option"', id: '{option.id}' }, line: 'role="option"', why: "L5.11b fixes (review A-M2): a RowCard option of a RowList listbox (the Record screen's draft), which holds the tab stop (aria-activedescendant); Enter / Space select the active one as a click does" },
-  { file: 'LibraryScreen.tsx', tag: 'div', attrs: { className: '"lb-cards"', onKeyDown: '{gridKeys}' }, line: '<div className="lb-cards"', why: "L5.12c fixes (review A-M3): the roving keys of the Library's card grid (arrows, Home / End, Escape, Enter to the inspector); the cards' own buttons hold its one tab stop" },
+  { file: 'library/LibraryScreen.tsx', tag: 'div', attrs: { className: '"lb-cards"', onKeyDown: '{gridKeys}' }, line: '<div className="lb-cards"', why: "L5.12c fixes (review A-M3): the roving keys of the Library's card grid (arrows, Home / End, Escape, Enter to the inspector); the cards' own buttons hold its one tab stop" },
   { file: 'ui-kit/Sheet.tsx', tag: 'dialog', attrs: { onKeyDown: '{onKeyDown}' }, line: '<dialog', why: "L5.12c fixes (review A-L2 / B-L2): Return in a sheet's one-line text field chooses its default action; the dialog is no control (its fields and actions are)" },
 ];
 const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
@@ -1213,7 +1213,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
   });
 
   it('⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor\'s defaults (theme data, not the Studio\'s chrome) and tokens.ts', async () => {
-    const THEME_DATA = new Set(['ThemeEditor.tsx', 'ThemesScreen.tsx', 'theme-words.ts', 'tokens.ts']);
+    const THEME_DATA = new Set(['themes/ThemeEditor.tsx', 'themes/ThemesScreen.tsx', 'words/theme-words.ts', 'tokens.ts']);
     // L5.12c (critique M1): the set stays these four — a new file (ThemeFields.tsx, the kit's ColorField) takes its
     // colours as data, never a literal of its own.
     expect(THEME_DATA.size).toBe(4);
@@ -1654,7 +1654,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     expect(table).toEqual({});
     expect([...found].filter(([, x]) => x.length > 0).map(([f, x]) => `${f}: ${x.join('; ')}`)).toEqual([]);
     // The shell and the gallery are kit-only: no row, nothing found.
-    for (const f of [...found.keys()].filter((x) => x.startsWith('shell/') || x === 'GalleryScreen.tsx')) {
+    for (const f of [...found.keys()].filter((x) => x.startsWith('shell/') || x === 'project/GalleryScreen.tsx')) {
       expect(table[f], f).toBeUndefined();
       expect(found.get(f), f).toEqual([]);
     }
@@ -1848,7 +1848,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
 // ── L5.10a: the project side (Welcome, the Project screen, the Cast, Lately) ─────────────────────────────────────────
 
 /** The rebuilt project-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
-const PROJECT_SIDE = ['WelcomeScreen.tsx', 'ProductionsScreen.tsx', 'CastScreen.tsx', 'Activity.tsx'];
+const PROJECT_SIDE = ['project/WelcomeScreen.tsx', 'project/ProductionsScreen.tsx', 'project/CastScreen.tsx', 'project/Activity.tsx'];
 /** The ops the project side may call: reads only (the write path is unchanged: critique §7.3). */
 const PROJECT_SIDE_OPS = new Set(['project_get', 'project_board', 'auth_status', 'projects_overview', 'engine_info', 'run_list', 'run_status', 'run_thumbs', 'activity_list', 'search']);
 
@@ -1885,10 +1885,10 @@ describe('L5.10a: the project side', () => {
     expect(files.map(([f]) => f).sort()).toEqual([...PROJECT_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
     // The review's mutation: the poster title rendered bare.
-    const productions = files.find(([f]) => f === 'ProductionsScreen.tsx')![1];
+    const productions = files.find(([f]) => f === 'project/ProductionsScreen.tsx')![1];
     const planted = productions.replace('title: <Txt text={posterTitle(s)} />,', 'title: <span>{posterTitle(s)}</span>,');
     expect(planted).not.toBe(productions);
-    expect(kitBareText('ProductionsScreen.tsx', planted)).toEqual([expect.stringContaining('{posterTitle(s)}')]);
+    expect(kitBareText('project/ProductionsScreen.tsx', planted)).toEqual([expect.stringContaining('{posterTitle(s)}')]);
   });
 
   it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; the replaced files are gone', async () => {
@@ -1906,7 +1906,7 @@ describe('L5.10a: the project side', () => {
   });
 
   it('⚑ the project side only reads: the ops it calls are read ops (a planted scenario_save fails it); project_board is a Studio read', async () => {
-    const files = (await appSources()).filter(([f]) => [...PROJECT_SIDE, 'project-data.ts', 'board-words.ts'].includes(f));
+    const files = (await appSources()).filter(([f]) => [...PROJECT_SIDE, 'project-data.ts', 'words/board-words.ts'].includes(f));
     const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
     expect(called.length).toBeGreaterThan(5);
     expect(called.filter(([f, op]) => !PROJECT_SIDE_OPS.has(op) && !(f === 'project-data.ts' && op === '(not a literal: e.op)'))).toEqual([]);
@@ -1921,7 +1921,7 @@ describe('L5.10a: the project side', () => {
 // ── L5.10b: the scenario side (the storyboard, its inspector, the take strip, the scenes browser, the YAML source) ────
 
 /** The rebuilt scenario-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
-const SCENARIO_SIDE = ['ScenarioScreen.tsx', 'Storyboard.tsx', 'TakeStrip.tsx', 'ScenarioInspector.tsx', 'ScenesBrowser.tsx', 'StepForm.tsx', 'StepEditing.tsx', 'YamlTab.tsx', 'YamlView.tsx', 'TextEditing.tsx', 'Thumb.tsx'];
+const SCENARIO_SIDE = ['script/ScenarioScreen.tsx', 'script/Storyboard.tsx', 'shoot/TakeStrip.tsx', 'script/ScenarioInspector.tsx', 'script/ScenesBrowser.tsx', 'script/StepForm.tsx', 'script/StepEditing.tsx', 'script/YamlTab.tsx', 'script/YamlView.tsx', 'script/TextEditing.tsx', 'Thumb.tsx'];
 /** The ops the scenario side may call: its reads, and the mutating ones the plan allows (critique §7.3). */
 // L5.11a: Rehearse, Capture and Stop moved to the status bar (shoot-data.ts): the scenario side no longer starts or stops a run.
 const SCENARIO_SIDE_OPS = new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit']);
@@ -1939,15 +1939,15 @@ describe('L5.10b: the scenario side', () => {
     expect(files.map(([f]) => f).sort()).toEqual([...SCENARIO_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
     // The mutation: a frame's target rendered bare.
-    const board = files.find(([f]) => f === 'Storyboard.tsx')![1];
+    const board = files.find(([f]) => f === 'script/Storyboard.tsx')![1];
     // (L5.10b fixes: the title's target or summary is `rest`, frameTitle's.)
     const planted = board.replace('<Txt text={rest} />', '<span>{rest}</span>');
     expect(planted).not.toBe(board);
-    expect(kitBareText('Storyboard.tsx', planted)).toEqual([expect.stringContaining('{rest}')]);
+    expect(kitBareText('script/Storyboard.tsx', planted)).toEqual([expect.stringContaining('{rest}')]);
     // A scene title and a caption the same way.
     const title = board.replace('<Txt text={e.caption?.kicker ?? e.id} />', '{e.caption?.kicker ?? e.id}');
     expect(title).not.toBe(board);
-    expect(kitBareText('Storyboard.tsx', title)).toEqual([expect.stringContaining('e.caption?.kicker ?? e.id')]);
+    expect(kitBareText('script/Storyboard.tsx', title)).toEqual([expect.stringContaining('e.caption?.kicker ?? e.id')]);
   });
 
   it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; Inspector.tsx is gone; the frames\' widget roles live in the kit', async () => {
@@ -1961,11 +1961,11 @@ describe('L5.10b: the scenario side', () => {
     expect(names).not.toContain('Inspector.tsx');
     expect(table['Inspector.tsx']).toBeUndefined();
     // The mutation: an off-kit button in the storyboard counts (and Storyboard.tsx has no row to hold it).
-    const board = (await appSources()).find(([f]) => f === 'Storyboard.tsx')![1];
+    const board = (await appSources()).find(([f]) => f === 'script/Storyboard.tsx')![1];
     const planted = board.replace('<p id="steps-keys" className="sc-quiet sb-keys">', '<p id="steps-keys" className="sc-quiet sb-keys"><button className="button">x</button>');
     expect(planted).not.toBe(board);
     const ctx = { tokens: new Set<string>() };
-    expect(offKit('Storyboard.tsx', planted, ctx).length).toBeGreaterThan(offKit('Storyboard.tsx', board, ctx).length);
+    expect(offKit('script/Storyboard.tsx', planted, ctx).length).toBeGreaterThan(offKit('script/Storyboard.tsx', board, ctx).length);
   });
 
   it('⚑ the write path is unchanged: the scenario side calls only its reads and scenario_edit (L5.11a: runs start and stop in the status bar); every scenario_edit names the version shown (if_match)', async () => {
@@ -1975,7 +1975,7 @@ describe('L5.10b: the scenario side', () => {
     expect(new Set(called.map(([, op]) => op))).toEqual(new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit']));
     // scenario_edit: only from the edit loop (StepEditing.tsx) and the YAML save (YamlTab.tsx), each with its hash.
     const edits = files.flatMap(([f, text]) => editCalls(text).map((c) => ({ f, ...c })));
-    expect(edits.map((e) => e.f).sort()).toEqual(['StepEditing.tsx', 'YamlTab.tsx']);
+    expect(edits.map((e) => e.f).sort()).toEqual(['script/StepEditing.tsx', 'script/YamlTab.tsx']);
     expect(edits.every((e) => e.hash)).toBe(true);
     // The mutations: a planted scenario_save, an edit without its version.
     expect(opsCalled("call('scenario_save', { project, name, yaml })")).toEqual(['scenario_save']);
@@ -1987,7 +1987,7 @@ describe('L5.10b: the scenario side', () => {
 // ── L5.11a: Shoot (Prepare, live, the status bar's actions, the Cast) ──────────────────────────────────────────────────
 
 /** The rebuilt Shoot files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
-const SHOOT_SIDE = ['ShootPrepare.tsx', 'ShootLive.tsx', 'ShootBrowser.tsx', 'LiveView.tsx', 'Sessions.tsx', 'CastScreen.tsx', 'shell/StatusActions.tsx'];
+const SHOOT_SIDE = ['shoot/ShootPrepare.tsx', 'shoot/ShootLive.tsx', 'shoot/ShootBrowser.tsx', 'shoot/LiveView.tsx', 'project/Sessions.tsx', 'project/CastScreen.tsx', 'shell/StatusActions.tsx'];
 /** The ops Shoot may call: its reads, the run's own controls, a render, a sign-in (no edit, no other write). */
 const SHOOT_OPS = new Set(['scenario_actions', 'scenario_sessions', 'scenario_run', 'scenario_render', 'run_cancel', 'run_pause', 'run_status', 'run_thumbs', 'auth_login', 'sign_in_cancel', 'job_list']);
 
@@ -2016,15 +2016,15 @@ describe('L5.11a: Shoot', () => {
     expect(files.map(([f]) => f).sort()).toEqual([...SHOOT_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
     // The mutation: Prepare's blocker message rendered bare.
-    const prep = files.find(([f]) => f === 'ShootPrepare.tsx')![1];
+    const prep = files.find(([f]) => f === 'shoot/ShootPrepare.tsx')![1];
     const planted = prep.replace('<Txt text={b.message} />', '{b.message}');
     expect(planted).not.toBe(prep);
-    expect(kitBareText('ShootPrepare.tsx', planted)).toEqual([expect.stringContaining('{b.message}')]);
+    expect(kitBareText('shoot/ShootPrepare.tsx', planted)).toEqual([expect.stringContaining('{b.message}')]);
     // A step description of the live list the same way.
-    const live = files.find(([f]) => f === 'ShootLive.tsx')![1];
+    const live = files.find(([f]) => f === 'shoot/ShootLive.tsx')![1];
     const desc = live.replace('{r.desc && <Txt text={r.desc} />}', '{r.desc}');
     expect(desc).not.toBe(live);
-    expect(kitBareText('ShootLive.tsx', desc)).toEqual([expect.stringContaining('{r.desc}')]);
+    expect(kitBareText('shoot/ShootLive.tsx', desc)).toEqual([expect.stringContaining('{r.desc}')]);
   });
 
   it('⚑ kit only: the rebuilt Shoot files have no ratchet row and nothing off the kit; RunScreen.tsx is gone (−192 legacy controls)', async () => {
@@ -2036,23 +2036,23 @@ describe('L5.11a: Shoot', () => {
     }
     const names = (await appSources()).map(([f]) => f);
     expect(names).not.toContain('RunScreen.tsx');
-    for (const gone of ['RunScreen.tsx', 'LiveView.tsx', 'Sessions.tsx']) expect(table[gone], gone).toBeUndefined();
+    for (const gone of ['RunScreen.tsx', 'shoot/LiveView.tsx', 'project/Sessions.tsx']) expect(table[gone], gone).toBeUndefined();
     // The mutation: a native checkbox in the live step list counts (and ShootLive.tsx has no row to hold it).
-    const live = (await appSources()).find(([f]) => f === 'ShootLive.tsx')![1];
+    const live = (await appSources()).find(([f]) => f === 'shoot/ShootLive.tsx')![1];
     const planted = live.replace('<Switch label="Follow current step"', '<input type="checkbox" /><Switch label="Follow current step"');
     expect(planted).not.toBe(live);
     const ctx = { tokens: new Set<string>() };
-    expect(offKit('ShootLive.tsx', planted, ctx).length).toBeGreaterThan(offKit('ShootLive.tsx', live, ctx).length);
+    expect(offKit('shoot/ShootLive.tsx', planted, ctx).length).toBeGreaterThan(offKit('shoot/ShootLive.tsx', live, ctx).length);
   });
 
   it('⚑ Shoot calls only its reads, the run\'s controls, a render and a sign-in; every scenario_run of the app goes through shoot-data.ts and names the file shown (hash)', async () => {
-    const files = (await appSources()).filter(([f]) => [...SHOOT_SIDE, 'shoot-data.ts'].includes(f));
+    const files = (await appSources()).filter(([f]) => [...SHOOT_SIDE, 'shoot/shoot-data.ts'].includes(f));
     const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
     expect(called.length).toBeGreaterThan(5);
     expect(called.filter(([, op]) => !SHOOT_OPS.has(op))).toEqual([]);
     const runs = (await appSources()).flatMap(([f, text]) => opsCalled(text).filter((op) => op === 'scenario_run').map(() => f));
-    expect(runs).toEqual(['shoot-data.ts']);
-    const store = files.find(([f]) => f === 'shoot-data.ts')![1];
+    expect(runs).toEqual(['shoot/shoot-data.ts']);
+    const store = files.find(([f]) => f === 'shoot/shoot-data.ts')![1];
     expect(store).toMatch(/scenarioRun\(\{ project: o\.slug, name: o\.name, mode: o\.mode, \.\.\.\(o\.hash \? \{ hash: o\.hash \} : \{\}\)/);
   });
 
@@ -2106,7 +2106,7 @@ describe('L5.11b: Record', () => {
     const found = await ratchetFindings();
     const files = (await recordSources()).map(([f]) => f);
     expect(files).toContain('record/RecordScreen.tsx');
-    for (const f of [...files, 'ShootBrowser.tsx']) {
+    for (const f of [...files, 'shoot/ShootBrowser.tsx']) {
       expect(table[f], f).toBeUndefined();
       expect(found.get(f) ?? [], f).toEqual([]);
     }
@@ -2133,7 +2133,7 @@ describe('L5.11b: Record', () => {
 // ── L5.12a: Edit and the Review report (R4-Edit, R4-Review) ──────────────────────────────────────────────────────────
 
 /** The rebuilt Edit / Review files (L5.12a fixes, review A-M3): every value from data through Txt / a kit slot. */
-const EDIT_REVIEW_SIDE = ['TimelineScreen.tsx', 'TimelineInspector.tsx', 'TimelineTracks.tsx', 'EditPreview.tsx', 'EditStatus.tsx', 'EditNotes.tsx', 'ReviewScreen.tsx', 'Renders.tsx'];
+const EDIT_REVIEW_SIDE = ['edit/TimelineScreen.tsx', 'edit/TimelineInspector.tsx', 'edit/TimelineTracks.tsx', 'edit/EditPreview.tsx', 'edit/EditStatus.tsx', 'edit/EditNotes.tsx', 'review/ReviewScreen.tsx', 'review/Renders.tsx'];
 
 describe('L5.12a: Edit and the Review report', () => {
   it('⚑ every value from data is text: each JSX child of Edit\'s and the Review report\'s files goes through Txt / shown / a kit slot (a planted bare scenario name or finding code fails it)', async () => {
@@ -2141,42 +2141,42 @@ describe('L5.12a: Edit and the Review report', () => {
     expect(files.map(([f]) => f).sort()).toEqual([...EDIT_REVIEW_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
     // The review's mutations: the scenario name from the address bar in Edit's h1 as a template, a finding's code bare.
-    const edit = files.find(([f]) => f === 'TimelineScreen.tsx')![1];
+    const edit = files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1];
     const h1 = edit.replace("<Txt text={name} />\n      {' — Edit'}", '{`${name} — Edit`}');
     expect(h1).not.toBe(edit);
-    expect(kitBareText('TimelineScreen.tsx', h1)).toEqual([expect.stringContaining('{`${name} — Edit`}')]);
-    const report = files.find(([f]) => f === 'ReviewScreen.tsx')![1];
+    expect(kitBareText('edit/TimelineScreen.tsx', h1)).toEqual([expect.stringContaining('{`${name} — Edit`}')]);
+    const report = files.find(([f]) => f === 'review/ReviewScreen.tsx')![1];
     const code = report.replace('value: <Txt className="k-mono" text={finding.code} /> }', 'value: <span className="k-mono">{finding.code}</span> }');
     expect(code).not.toBe(report);
-    expect(kitBareText('ReviewScreen.tsx', code)).toEqual([expect.stringContaining('{finding.code}')]);
+    expect(kitBareText('review/ReviewScreen.tsx', code)).toEqual([expect.stringContaining('{finding.code}')]);
   });
 });
 
 // ── L5.12b: Review › Comments, Claude's proposal, the README editor, the ⌘K palette (R4-Comments, R4-Palette) ─────────
 
 /** The files L5.12b rebuilt or added (kit only, every value from data through Txt / a kit slot). */
-const COMMENTS_SIDE = ['CommentsScreen.tsx', 'ThreadList.tsx', 'FrameViewer.tsx', 'Composer.tsx', 'ThreadPanel.tsx', 'ProposalCard.tsx', 'ProposalBanner.tsx', 'ReadmeEditor.tsx'];
+const COMMENTS_SIDE = ['review/CommentsScreen.tsx', 'review/ThreadList.tsx', 'review/FrameViewer.tsx', 'review/Composer.tsx', 'review/ThreadPanel.tsx', 'review/ProposalCard.tsx', 'review/ProposalBanner.tsx', 'project/ReadmeEditor.tsx'];
 
 /** The ops each comments-side file may call (L5.12b fixes, reviews A-M1 / B-M1 — like SHOOT_OPS / SCENARIO_SIDE_OPS). */
 const COMMENTS_OPS: Record<string, string[]> = {
-  'CommentsScreen.tsx': [],
-  'ThreadList.tsx': ['threads_list'],
-  'FrameViewer.tsx': ['render_outline', 'render_frame'],
-  'Composer.tsx': ['frame_anchor', 'thread_add'],
+  'review/CommentsScreen.tsx': [],
+  'review/ThreadList.tsx': ['threads_list'],
+  'review/FrameViewer.tsx': ['render_outline', 'render_frame'],
+  'review/Composer.tsx': ['frame_anchor', 'thread_add'],
   // Its reads, and the one helper of the thread's writes (`call(op, …)`: Reply, Resolve, Reopen — sendOps).
-  'ThreadPanel.tsx': ['thread_get', 'thread_still', '(not a literal: op)'],
-  'ProposalCard.tsx': ['thread_apply', 'scenario_render', 'scenario_edit', 'thread_resolve'],
-  'ProposalBanner.tsx': ['thread_get'],
-  'proposal-focus.ts': [],
+  'review/ThreadPanel.tsx': ['thread_get', 'thread_still', '(not a literal: op)'],
+  'review/ProposalCard.tsx': ['thread_apply', 'scenario_render', 'scenario_edit', 'thread_resolve'],
+  'review/ProposalBanner.tsx': ['thread_get'],
+  'review/proposal-focus.ts': [],
 };
 /** The timeline's proposal banner may import exactly these values (a read, words, the focus hand-off, the kit). */
 const BANNER_IMPORTS: Record<string, string[]> = {
   bits: ['Txt'],
-  'comment-words': ['proposalButtons', 'proposalSummary'],
   'data/comments': ['useThreadGet'],
-  'proposal-focus': ['focusProposalOf'],
-  'render-words': ['versionWords'],
+  'review/proposal-focus': ['focusProposalOf'],
   'ui-kit/index': ['Callout', 'LinkButton'],
+  'words/comment-words': ['proposalButtons', 'proposalSummary'],
+  'words/render-words': ['versionWords'],
 };
 
 const tsx = (text: string) => ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -2345,23 +2345,23 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     const files = (await appSources()).filter(([f]) => COMMENTS_SIDE.includes(f));
     expect(files.map(([f]) => f).sort()).toEqual([...COMMENTS_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
-    const panel = files.find(([f]) => f === 'ThreadPanel.tsx')![1];
+    const panel = files.find(([f]) => f === 'review/ThreadPanel.tsx')![1];
     for (const [from, to, bare] of [
       ['<Txt text={th.untrusted.text} />', '{th.untrusted.text}', '{th.untrusted.text}'],
       ['<Txt text={u.author} />', '{u.author}', '{u.author}'],
     ]) {
       const planted = panel.replace(from, to);
       expect(planted, from).not.toBe(panel);
-      expect(kitBareText('ThreadPanel.tsx', planted)).toEqual([expect.stringContaining(bare)]);
+      expect(kitBareText('review/ThreadPanel.tsx', planted)).toEqual([expect.stringContaining(bare)]);
     }
-    const card = files.find(([f]) => f === 'ProposalCard.tsx')![1];
+    const card = files.find(([f]) => f === 'review/ProposalCard.tsx')![1];
     const summary = card.replace('<Txt text={`: ${proposalSummary(p)}.`} />', '{proposalSummary(p)}');
     expect(summary).not.toBe(card);
-    expect(kitBareText('ProposalCard.tsx', summary)).toEqual([expect.stringContaining('{proposalSummary(p)}')]);
-    const list = files.find(([f]) => f === 'ThreadList.tsx')![1];
+    expect(kitBareText('review/ProposalCard.tsx', summary)).toEqual([expect.stringContaining('{proposalSummary(p)}')]);
+    const list = files.find(([f]) => f === 'review/ThreadList.tsx')![1];
     const row = list.replace('title={<Txt text={firstLine(t.untrusted.text)} />}', 'title={<span>{firstLine(t.untrusted.text)}</span>}');
     expect(row).not.toBe(list);
-    expect(kitBareText('ThreadList.tsx', row)).toEqual([expect.stringContaining('firstLine(t.untrusted.text)')]);
+    expect(kitBareText('review/ThreadList.tsx', row)).toEqual([expect.stringContaining('firstLine(t.untrusted.text)')]);
   });
 
   it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; ProposalPanel.tsx and CommentsTab.tsx are gone (−339 legacy controls); their CSS left app.css', async () => {
@@ -2378,11 +2378,11 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     }
     await legacyGone();
     // The mutation: a native button in the composer counts (and Composer.tsx has no row to hold it).
-    const text = (await appSources()).find(([f]) => f === 'Composer.tsx')![1];
+    const text = (await appSources()).find(([f]) => f === 'review/Composer.tsx')![1];
     const planted = text.replace('<div className="cm-actions" ref={actionsRef}>', '<div className="cm-actions" ref={actionsRef}><button type="button">x</button>');
     expect(planted).not.toBe(text);
     const ctx = { tokens: new Set<string>() };
-    expect(offKit('Composer.tsx', planted, ctx).length).toBeGreaterThan(offKit('Composer.tsx', text, ctx).length);
+    expect(offKit('review/Composer.tsx', planted, ctx).length).toBeGreaterThan(offKit('review/Composer.tsx', text, ctx).length);
   });
 
   it('⚑ the palette never writes (L5.12b fixes, reviews A-L3 / B-M2: structural): every screen group\'s handlers reach no writer — the identifiers its entries use are followed to their definitions in the file; the shell\'s builder calls engine_info only', async () => {
@@ -2391,23 +2391,23 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     const bus = code(files.find(([f]) => f === 'shell/command-bus.ts')![1]);
     const groups = files.flatMap(([f, text]) => paletteGroupWriters(f, text).map((g) => ({ f, ...g })));
     // Scenes (Scenario, Edit), Themes (Edit), Review (Comments), the report (Renders: the screens that hold renders).
-    expect(groups.map((g) => `${g.f}:${g.slot}`).sort()).toEqual(['CommentsScreen.tsx:review', 'Renders.tsx:report', 'ScenarioScreen.tsx:scenes', 'TimelineScreen.tsx:scenes', 'TimelineScreen.tsx:themes']);
+    expect(groups.map((g) => `${g.f}:${g.slot}`).sort()).toEqual(['edit/TimelineScreen.tsx:scenes', 'edit/TimelineScreen.tsx:themes', 'review/CommentsScreen.tsx:review', 'review/Renders.tsx:report', 'script/ScenarioScreen.tsx:scenes']);
     for (const g of groups) expect(g.writers, `${g.f} ${g.slot}`).toEqual([]);
     expect(opsCalled(bus)).toEqual([]);
     // The shell's palette builder: commands go through the bus or a route; the one op the shell calls is engine_info.
     expect(new Set(opsCalled(shell))).toEqual(new Set(['engine_info']));
     // The mutations (reviews A-L3 / B-M2): a writer one definition away, a writer imported, the bus's commands.
-    const timeline = files.find(([f]) => f === 'TimelineScreen.tsx')![1];
+    const timeline = files.find(([f]) => f === 'edit/TimelineScreen.tsx')![1];
     const away = timeline.replace('run: () => onSelect(s.id, landingOf(s)) })),', 'run: () => pickScene(s.id) })),').replace('  // A segment gone from the new version', "  const pickScene = (id: string) => void call('scenario_edit', { project: slug, name, id });\n  // A segment gone from the new version");
     expect(away).not.toBe(timeline);
-    expect(paletteGroupWriters('TimelineScreen.tsx', away).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('scenario_edit', { project: slug, name, id })"]);
+    expect(paletteGroupWriters('edit/TimelineScreen.tsx', away).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('scenario_edit', { project: slug, name, id })"]);
     const deep = timeline.replace('      setSelected(id);\n      seek(from);', "      setSelected(id);\n      seek(from);\n      void call('timeline_set', { id });");
     expect(deep).not.toBe(timeline);
-    expect(paletteGroupWriters('TimelineScreen.tsx', deep).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('timeline_set', { id })"]);
-    const comments = files.find(([f]) => f === 'CommentsScreen.tsx')![1];
-    const imported = comments.replace("import { ShellSlot } from './shell/slots.js';", "import { ShellSlot } from './shell/slots.js';\nimport { runShellCommand } from './shell/command-bus.js';").replace("if (composing) setTimeout(", "runShellCommand('render');\n              if (composing) setTimeout(");
+    expect(paletteGroupWriters('edit/TimelineScreen.tsx', deep).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('timeline_set', { id })"]);
+    const comments = files.find(([f]) => f === 'review/CommentsScreen.tsx')![1];
+    const imported = comments.replace("import { ShellSlot } from '../shell/slots.js';", "import { ShellSlot } from '../shell/slots.js';\nimport { runShellCommand } from '../shell/command-bus.js';").replace("if (composing) setTimeout(", "runShellCommand('render');\n              if (composing) setTimeout(");
     expect(imported).not.toBe(comments);
-    expect(paletteGroupWriters('CommentsScreen.tsx', imported)[0].writers).toEqual(["runShellCommand('render')"]);
+    expect(paletteGroupWriters('review/CommentsScreen.tsx', imported)[0].writers).toEqual(["runShellCommand('render')"]);
   });
 
   it('⚑ the comments side calls only its own ops (L5.12b fixes, reviews A-M1 / B-M1): an allow-list per file, like Shoot\'s and the scenario side\'s; the thread\'s writes through ThreadPanel\'s one helper', async () => {
@@ -2417,45 +2417,45 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     const want = Object.fromEntries(Object.entries(COMMENTS_OPS).map(([f, ops]) => [f, [...ops].sort()]));
     expect(found).toEqual(want);
     // The helper's literal ops (its op is an argument): Reply, Resolve, Reopen — nothing else.
-    const panel = files.find(([f]) => f === 'ThreadPanel.tsx')![1];
+    const panel = files.find(([f]) => f === 'review/ThreadPanel.tsx')![1];
     expect(sendOps(panel).sort()).toEqual(['thread_reopen', 'thread_reply', 'thread_resolve']);
     // A call with an op that is not a literal: the thread's helper, the project reads' loader and (L6.13) the data layer's
     // own — its client and the thread writes' data function (L6.12–L6.13 fixes: projectRead calls its reads' own op
     // functions) — no other.
-    expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['ThreadPanel.tsx', 'data/client.ts', 'data/comments.ts', 'project-data.ts']);
+    expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['data/client.ts', 'data/comments.ts', 'project-data.ts', 'review/ThreadPanel.tsx']);
     expect(nonLiteralCalls(panel)).toBe(1);
     // The mutation (review A-M1): a resolve planted in the list fails its allow-list.
-    const list = files.find(([f]) => f === 'ThreadList.tsx')![1];
+    const list = files.find(([f]) => f === 'review/ThreadList.tsx')![1];
     const planted = list.replace("  const first = useRef(true);", "  void call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' });\n  const first = useRef(true);");
     expect(planted).not.toBe(list);
-    expect([...new Set(opsCalled(planted))].sort()).not.toEqual(want['ThreadList.tsx']);
+    expect([...new Set(opsCalled(planted))].sort()).not.toEqual(want['review/ThreadList.tsx']);
   });
 
   it('⚑ the proposal\'s writers stay with their owner (L5.12b fixes, reviews A-M1 / B-M1: an import graph) — ProposalCard.tsx exports only its card, imported by ThreadPanel.tsx alone; the timeline\'s banner imports nothing that writes', async () => {
     const files = await appSources();
     const exportsOf = (f: string) => valueExports(files.find(([x]) => x === f)![1]).sort();
-    expect(exportsOf('ProposalCard.tsx')).toEqual(['ProposalCard']);
-    expect(exportsOf('ThreadPanel.tsx')).toEqual(['ChipList', 'ThreadPanel', 'threadMark']);
+    expect(exportsOf('review/ProposalCard.tsx')).toEqual(['ProposalCard']);
+    expect(exportsOf('review/ThreadPanel.tsx')).toEqual(['ChipList', 'ThreadPanel', 'threadMark']);
     const importers = (mod: string) => files.flatMap(([f, text]) => importsOf(f, text).filter((i) => i.module === mod && i.names.length > 0).map((i) => `${f}: ${i.names.sort().join(', ')}`)).sort();
-    expect(importers('ProposalCard')).toEqual(['ThreadPanel.tsx: ProposalCard']);
-    expect(importers('ThreadPanel')).toEqual(['CommentsScreen.tsx: ThreadPanel', 'Composer.tsx: ChipList', 'ThreadList.tsx: threadMark']);
+    expect(importers('review/ProposalCard')).toEqual(['review/ThreadPanel.tsx: ProposalCard']);
+    expect(importers('review/ThreadPanel')).toEqual(['review/CommentsScreen.tsx: ThreadPanel', 'review/Composer.tsx: ChipList', 'review/ThreadList.tsx: threadMark']);
     // The banner: exactly these imports (values) — a read (useCall), words, the focus hand-off, the kit. Nothing that writes.
-    const banner = files.find(([f]) => f === 'ProposalBanner.tsx')![1];
-    expect(Object.fromEntries(importsOf('ProposalBanner.tsx', banner).filter((i) => i.names.length > 0).map((i) => [i.module, i.names.sort()]))).toEqual(BANNER_IMPORTS);
+    const banner = files.find(([f]) => f === 'review/ProposalBanner.tsx')![1];
+    expect(Object.fromEntries(importsOf('review/ProposalBanner.tsx', banner).filter((i) => i.names.length > 0).map((i) => [i.module, i.names.sort()]))).toEqual(BANNER_IMPORTS);
     // The mutation (reviews A-M1 / B-M1): the banner applying through the card's helper (exported again for it) fails both.
-    const card = files.find(([f]) => f === 'ProposalCard.tsx')![1];
+    const card = files.find(([f]) => f === 'review/ProposalCard.tsx')![1];
     const exported = card.replace('async function applyProposal(', 'export async function applyProposal(');
     expect(exported).not.toBe(card);
     expect(valueExports(exported).sort()).toEqual(['ProposalCard', 'applyProposal']);
     const applying = banner.replace("import { focusProposalOf } from './proposal-focus.js';", "import { focusProposalOf } from './proposal-focus.js';\nimport { applyProposal } from './ProposalCard.js';");
     expect(applying).not.toBe(banner);
-    expect(importsOf('ProposalBanner.tsx', applying).map((i) => i.module)).toContain('ProposalCard');
+    expect(importsOf('review/ProposalBanner.tsx', applying).map((i) => i.module)).toContain('review/ProposalCard');
   });
 
   it('⚑ every thread write the engine guards carries the version shown (L5.12b fixes, review A-M1: checked on each call\'s argument object) — thread_resolve / thread_reopen / thread_apply name if_match; thread_reply, whose input has no if_match, sends its text only', async () => {
     const files = await appSources();
     const writes = files.flatMap(([f, text]) => threadWrites(text).map((w) => ({ f, ...w })));
-    expect(writes.map((w) => `${w.f}:${w.op}`).sort()).toEqual(['ProposalCard.tsx:thread_apply', 'ProposalCard.tsx:thread_resolve', 'ThreadPanel.tsx:thread_reopen', 'ThreadPanel.tsx:thread_reply', 'ThreadPanel.tsx:thread_resolve']);
+    expect(writes.map((w) => `${w.f}:${w.op}`).sort()).toEqual(['review/ProposalCard.tsx:thread_apply', 'review/ProposalCard.tsx:thread_resolve', 'review/ThreadPanel.tsx:thread_reopen', 'review/ThreadPanel.tsx:thread_reply', 'review/ThreadPanel.tsx:thread_resolve']);
     for (const w of writes) {
       if (w.op === 'thread_reply') expect(w.keys, `${w.f}: thread_reply`).toEqual(['text']);
       else expect(w.keys, `${w.f}: ${w.op}`).toContain('if_match');
@@ -2475,19 +2475,19 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
 // ── L5.12c: the Library, the Themes list and the theme editor (R4-Library, R4-Theme) ──────────────────────────────────
 
 /** The files L5.12c rebuilt or added (kit only, every value from data through Txt / a kit slot). */
-const LIBRARY_SIDE = ['LibraryScreen.tsx', 'LibraryCards.tsx', 'LibraryInspector.tsx', 'LibraryDetail.tsx', 'LibraryBrowser.tsx', 'CreateSheet.tsx', 'ThemesScreen.tsx', 'ThemeEditor.tsx', 'ThemeFields.tsx'];
+const LIBRARY_SIDE = ['library/LibraryScreen.tsx', 'library/LibraryCards.tsx', 'library/LibraryInspector.tsx', 'library/LibraryDetail.tsx', 'library/LibraryBrowser.tsx', 'project/CreateSheet.tsx', 'themes/ThemesScreen.tsx', 'themes/ThemeEditor.tsx', 'themes/ThemeFields.tsx'];
 
 /** The ops each Library / themes file may call (critique M1 of L5.12: an allow-list per file, like the comments side's). */
 const LIBRARY_OPS: Record<string, string[]> = {
-  'LibraryScreen.tsx': ['library_view', 'library_render', 'library_images', 'library_component'],
-  'LibraryCards.tsx': [],
-  'LibraryInspector.tsx': ['theme_view', 'theme_edit', 'theme_copy'],
-  'LibraryDetail.tsx': [],
-  'LibraryBrowser.tsx': [],
-  'CreateSheet.tsx': [],
-  'ThemesScreen.tsx': ['theme_list', 'theme_copy', 'brand_files', 'theme_create', 'site_list'],
-  'ThemeEditor.tsx': ['theme_view', 'timeline_leave', 'theme_preview', 'theme_edit', 'theme_copy', 'preview_allow', 'scenario_blocks', 'scenario_edit'],
-  'ThemeFields.tsx': [],
+  'library/LibraryScreen.tsx': ['library_view', 'library_render', 'library_images', 'library_component'],
+  'library/LibraryCards.tsx': [],
+  'library/LibraryInspector.tsx': ['theme_view', 'theme_edit', 'theme_copy'],
+  'library/LibraryDetail.tsx': [],
+  'library/LibraryBrowser.tsx': [],
+  'project/CreateSheet.tsx': [],
+  'themes/ThemesScreen.tsx': ['theme_list', 'theme_copy', 'brand_files', 'theme_create', 'site_list'],
+  'themes/ThemeEditor.tsx': ['theme_view', 'timeline_leave', 'theme_preview', 'theme_edit', 'theme_copy', 'preview_allow', 'scenario_blocks', 'scenario_edit'],
+  'themes/ThemeFields.tsx': [],
 };
 
 /** Every `call('<op>', {…})` of a source among `ops` and its argument keys (a parser pass: the object written in the call). */
@@ -2571,10 +2571,10 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(files.map(([f]) => f).sort()).toEqual([...LIBRARY_SIDE].sort());
     expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
     for (const [file, from, to, bare] of [
-      ['LibraryCards.tsx', '<Txt text={item.untrusted.name} />', '{item.untrusted.name}', '{item.untrusted.name}'],
-      ['ThemesScreen.tsx', '<Txt text={s.untrusted.title} />', '{s.untrusted.title}', '{s.untrusted.title}'],
-      ['LibraryDetail.tsx', '<Txt text={d.data.untrusted.readme} />', '{d.data.untrusted.readme}', '{d.data.untrusted.readme}'],
-      ['ThemeFields.tsx', '<Txt text={w} />', '{w}', '{w}'],
+      ['library/LibraryCards.tsx', '<Txt text={item.untrusted.name} />', '{item.untrusted.name}', '{item.untrusted.name}'],
+      ['themes/ThemesScreen.tsx', '<Txt text={s.untrusted.title} />', '{s.untrusted.title}', '{s.untrusted.title}'],
+      ['library/LibraryDetail.tsx', '<Txt text={d.data.untrusted.readme} />', '{d.data.untrusted.readme}', '{d.data.untrusted.readme}'],
+      ['themes/ThemeFields.tsx', '<Txt text={w} />', '{w}', '{w}'],
     ] as const) {
       const text = files.find(([f]) => f === file)![1];
       const planted = text.replace(from, to);
@@ -2595,11 +2595,11 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(sources.filter(([f, text]) => !f.startsWith('ui-kit/') && /<dialog\b/.test(code(text))).map(([f]) => f)).toEqual([]);
     await legacyGone();
     // The mutation: a native input in the theme's fields counts (and ThemeFields.tsx has no row to hold it).
-    const text = sources.find(([f]) => f === 'ThemeFields.tsx')![1];
+    const text = sources.find(([f]) => f === 'themes/ThemeFields.tsx')![1];
     const planted = text.replace('<div className="tm-chips" data-testid={`chips-${name}`}>', '<div className="tm-chips" data-testid={`chips-${name}`}><input type="radio" />');
     expect(planted).not.toBe(text);
     const ctx = { tokens: new Set<string>() };
-    expect(offKit('ThemeFields.tsx', planted, ctx).length).toBeGreaterThan(offKit('ThemeFields.tsx', text, ctx).length);
+    expect(offKit('themes/ThemeFields.tsx', planted, ctx).length).toBeGreaterThan(offKit('themes/ThemeFields.tsx', text, ctx).length);
   });
 
   it('⚑ the Library and the themes call only their own ops (an allow-list per file); a library render and the theme writes come from these files only', async () => {
@@ -2609,23 +2609,23 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(found).toEqual(Object.fromEntries(Object.entries(LIBRARY_OPS).map(([f, ops]) => [f, [...ops].sort()])));
     // App-wide: who renders library previews, who writes a theme (the palette's Themes rows never do: L5.12b's lint).
     const owners = (op: string) => files.filter(([, text]) => opsCalled(text).includes(op)).map(([f]) => f).sort();
-    expect(owners('library_render')).toEqual(['LibraryScreen.tsx']);
-    expect(owners('theme_edit')).toEqual(['LibraryInspector.tsx', 'ThemeEditor.tsx']);
-    expect(owners('theme_copy')).toEqual(['LibraryInspector.tsx', 'ThemeEditor.tsx', 'ThemesScreen.tsx']);
-    expect(owners('theme_create')).toEqual(['ThemesScreen.tsx']);
+    expect(owners('library_render')).toEqual(['library/LibraryScreen.tsx']);
+    expect(owners('theme_edit')).toEqual(['library/LibraryInspector.tsx', 'themes/ThemeEditor.tsx']);
+    expect(owners('theme_copy')).toEqual(['library/LibraryInspector.tsx', 'themes/ThemeEditor.tsx', 'themes/ThemesScreen.tsx']);
+    expect(owners('theme_create')).toEqual(['themes/ThemesScreen.tsx']);
     // The mutation: a theme write planted in the list fails its allow-list.
-    const list = files.find(([f]) => f === 'ThemesScreen.tsx')![1];
+    const list = files.find(([f]) => f === 'themes/ThemesScreen.tsx')![1];
     const planted = list.replace('  const first = useRef(true);', "  void call('theme_edit', { theme: 'x', if_match: 'y', edit: {} });\n  const first = useRef(true);");
     expect(planted).not.toBe(list);
-    expect([...new Set(opsCalled(planted))].sort()).not.toEqual([...LIBRARY_OPS['ThemesScreen.tsx']].sort());
+    expect([...new Set(opsCalled(planted))].sort()).not.toEqual([...LIBRARY_OPS['themes/ThemesScreen.tsx']].sort());
   });
 
   it('⚑ every theme write the engine guards names the version shown — theme_edit carries if_match (checked on each call\'s argument object); the scenario writes of "Use in a scenario" name its hash', async () => {
     const files = await appSources();
     const edits = files.flatMap(([f, text]) => opCalls(text, new Set(['theme_edit'])).map((c) => ({ f, ...c })));
-    expect(edits.map((c) => c.f).sort()).toEqual(['LibraryInspector.tsx', 'LibraryInspector.tsx', 'ThemeEditor.tsx']);
+    expect(edits.map((c) => c.f).sort()).toEqual(['library/LibraryInspector.tsx', 'library/LibraryInspector.tsx', 'themes/ThemeEditor.tsx']);
     for (const c of edits) expect(c.keys, `${c.f}:${c.line}`).toEqual(['theme', 'if_match', 'edit']);
-    const scenario = opCalls(files.find(([f]) => f === 'ThemeEditor.tsx')![1], new Set(['scenario_edit']));
+    const scenario = opCalls(files.find(([f]) => f === 'themes/ThemeEditor.tsx')![1], new Set(['scenario_edit']));
     expect(scenario.length).toBe(2);
     for (const c of scenario) expect(c.keys).toContain('hash');
     // The engine's own input requires it (L7.17: theme_edit is the engine's operation).
@@ -2639,21 +2639,21 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f) && f !== 'api.ts');
     expect(files.flatMap(([f, text]) => apiImportFindings(f, text))).toEqual([]);
     // The files that call the api at all (L6.13: through a data module) are seen by the lint (it is not vacuous).
-    expect(files.filter(([, text]) => /from '\.\/(?:\.\.\/)?(?:api|data\/[a-z-]+)\.js'/.test(text)).length).toBeGreaterThan(20);
-    const editor = files.find(([f]) => f === 'ThemeEditor.tsx')![1];
-    const line = "import { CallError, errorText } from './api.js';";
+    expect(files.filter(([, text]) => /from '(?:\.\.?\/)+(?:api|data\/[a-z-]+)\.js'/.test(text)).length).toBeGreaterThan(20);
+    const editor = files.find(([f]) => f === 'themes/ThemeEditor.tsx')![1];
+    const line = "import { CallError, errorText } from '../api.js';";
     expect(editor).toContain(line);
     // Dodge 1: `import { call as rpc }` then rpc('theme_edit', …) — invisible to opsCalled, caught here.
-    const alias = `${editor.replace(line, `${line}\nimport { call as rpc } from './api.js';`)}\nexport const dodge = () => rpc('theme_edit', { theme: 'x', edit: {} });\n`;
+    const alias = `${editor.replace(line, `${line}\nimport { call as rpc } from '../api.js';`)}\nexport const dodge = () => rpc('theme_edit', { theme: 'x', edit: {} });\n`;
     expect(opsCalled(alias).filter((op) => op === 'theme_edit').length).toBe(opsCalled(editor).filter((op) => op === 'theme_edit').length);
-    expect(apiImportFindings('ThemeEditor.tsx', alias)).toEqual(['ThemeEditor.tsx: import { call as rpc } from the api']);
+    expect(apiImportFindings('themes/ThemeEditor.tsx', alias)).toEqual(['themes/ThemeEditor.tsx: import { call as rpc } from the api']);
     // L6.13: the same dodge through a data function — `import { themeEdit as rpc }`.
-    const dataAlias = `${editor.replace(line, `${line}\nimport { themeEdit as rpc } from './data/themes.js';`)}\nexport const dodge = () => rpc({ theme: 'x', edit: {} });\n`;
+    const dataAlias = `${editor.replace(line, `${line}\nimport { themeEdit as rpc } from '../data/themes.js';`)}\nexport const dodge = () => rpc({ theme: 'x', edit: {} });\n`;
     expect(opsCalled(dataAlias).filter((op) => op === 'theme_edit').length).toBe(opsCalled(editor).filter((op) => op === 'theme_edit').length);
-    expect(apiImportFindings('ThemeEditor.tsx', dataAlias)).toEqual(['ThemeEditor.tsx: import { themeEdit as rpc } from the api']);
+    expect(apiImportFindings('themes/ThemeEditor.tsx', dataAlias)).toEqual(['themes/ThemeEditor.tsx: import { themeEdit as rpc } from the api']);
     // Dodge 2: `import * as api` then api.call('theme_edit', …) without if_match — caught here and by opCalls.
-    const ns = `${editor.replace(line, `${line}\nimport * as api from './api.js';`)}\nexport const dodge = () => api.call('theme_edit', { theme: 'x', edit: {} });\n`;
-    expect(apiImportFindings('ThemeEditor.tsx', ns)).toEqual(['ThemeEditor.tsx: import * as api from the api']);
+    const ns = `${editor.replace(line, `${line}\nimport * as api from '../api.js';`)}\nexport const dodge = () => api.call('theme_edit', { theme: 'x', edit: {} });\n`;
+    expect(apiImportFindings('themes/ThemeEditor.tsx', ns)).toEqual(['themes/ThemeEditor.tsx: import * as api from the api']);
     expect(opCalls(ns, new Set(['theme_edit'])).filter((c) => !c.keys.includes('if_match'))).toEqual([expect.objectContaining({ op: 'theme_edit', keys: ['theme', 'edit'] })]);
     // A call bound to another name or passed on; a default, a re-export, a dynamic import.
     expect(apiImportFindings('X.tsx', "import { call } from './api.js';\nconst rpc = call;\nrpc('theme_edit', {});")).toEqual(['X.tsx:2: call used as a value']);
@@ -2681,16 +2681,16 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
 
   it('⚑ L5.12c fixes (review A-L5): the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery\'s sample, the New theme form, the colour fields\' fallback', async () => {
     const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f));
-    const colours = colourExports(files.find(([f]) => f === 'theme-words.ts')![1]);
+    const colours = colourExports(files.find(([f]) => f === 'words/theme-words.ts')![1]);
     expect(colours.sort()).toEqual(['EMPTY_FORM', 'SAMPLE_ACCENT', 'pickerValue']);
     const ALLOWED: Record<string, string[]> = {
-      'GalleryScreen.tsx': ['SAMPLE_ACCENT', 'pickerValue'],
-      'ThemesScreen.tsx': ['EMPTY_FORM', 'pickerValue'],
-      'ThemeFields.tsx': ['pickerValue'],
+      'project/GalleryScreen.tsx': ['SAMPLE_ACCENT', 'pickerValue'],
+      'themes/ThemesScreen.tsx': ['EMPTY_FORM', 'pickerValue'],
+      'themes/ThemeFields.tsx': ['pickerValue'],
     };
     const found: Record<string, string[]> = {};
     for (const [f, text] of files) {
-      if (f === 'theme-words.ts') continue;
+      if (f === 'words/theme-words.ts') continue;
       const names = themeWordsImports(text);
       const taken = names === '*' ? ['*'] : names.filter((n) => colours.includes(n));
       if (taken.length) found[f] = taken.sort();

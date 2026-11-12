@@ -47,7 +47,7 @@ import {
   useInScenarioPlan,
   usedByWords,
   zoomProblem,
-} from '../src/app/theme-words.js';
+} from '../src/app/words/theme-words.js';
 
 const comp = (id: string, extra: Partial<ThemeEditView['components']['intro']> = {}): ThemeEditView['components']['intro'] => ({ written: 'id', id, resolved: { id, params: {} }, ...extra });
 const view = (over: Partial<ThemeEditView> = {}): ThemeEditView =>

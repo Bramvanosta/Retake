@@ -45,7 +45,7 @@ describe('another copy\'s worker takes the Studio\'s own submit', () => {
     const said = `Rehearsal of quote queued${submitNotice(otherCopyOf(data, 'other_copy'))}`;
     expect(said).toBe(`Rehearsal of quote queued. It runs in another copy of Retake (0.1.0, ${folder}), with that copy's browsers and tools: to use this one, let that worker finish (it stops a minute after its last job) and start it again`);
     // The page builds the line from these two, for a run and for a render.
-    const shoot = await readFile(join(__dirname, '..', 'src', 'app', 'shoot-data.ts'), 'utf8');
+    const shoot = await readFile(join(__dirname, '..', 'src', 'app', 'shoot/shoot-data.ts'), 'utf8');
     expect(shoot.match(/queued\$\{submitNotice\(otherCopyOf\(d, 'other_copy'\)\)\}/g)).toHaveLength(2);
   });
 

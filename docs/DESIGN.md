@@ -2686,6 +2686,18 @@ package it takes only the tools it serves as they are and the Set-up sheet's reg
   modules (`ui-kit/index`; the shell, its slots, command bus, announcer and modes); outside the app it imports types
   only (the server's answers above all), save the browser-safe modules listed with their reason (`mark`,
   `player/parent`); exceptions listed with a reason, ratchet-style (new and stale both fail).
+- The screens by feature (L7.30 – L7.32): `src/app/` holds a folder per feature — `record/`, `script/` (the scenario
+  screen, storyboard, steps, YAML, forms), `shoot/` (Prepare, Live, takes, the run's stream and location, the shoot's
+  store `shoot-data.ts`), `edit/` (the timeline, the preview frame), `review/` (the report, renders, comments, threads,
+  the proposal), `library/`, `themes/`, `project/` (Welcome, the Project screen, Cast, Lately, the gallery, the README,
+  the sessions picker) — beside `words/` (the words two features or more show: board, comment, library, record,
+  render, scenario, shoot, theme, timeline) and, at the root, the shared foundations (api.ts, session, sse, events,
+  bits, brand, route, id-words, drafts and the unsaved report, the project's store `project-data.ts`, Thumb / thumbs,
+  tokens, other-copy) and the entry, main.tsx. Bare file names elsewhere in this document name a module of its
+  feature's folder. feature-boundaries.test.ts lists each feature's public modules (what the entry, the shell or
+  another feature may import of it: its screens, the parts it shares) and fails on any other crossing, on a public
+  module nobody outside imports, on a foundation or a shared word importing a feature, and on a new root module or
+  folder it does not know.
 - README editor: a textarea with `maxLength` 200,000 (the tool's cap) and a counter; save (button, Cmd/Ctrl+S) →
   `project_update_readme {markdown, if_match: the hash the text was based on}` — `markdown` with a final line break and
   the file's own line breaks (the textarea works in LF; `drafts.ts` remembers CR LF or LF from the text loaded, so
@@ -3857,7 +3869,7 @@ the Studio does not take". Page → frame: `load {plan_url, frame}`, `seek`, `pl
 `error`. `PREVIEW_FRAME_ATTRS`: `sandbox="allow-scripts"`, `referrerpolicy="no-referrer"`, `allow="autoplay"`,
 `aria-hidden`, `tabindex=-1` (part C's PreviewFrame uses the same).
 
-**Timeline screen** (part C; ui `app/TimelineScreen.tsx`, `TimelineTracks.tsx`, `PreviewFrame.tsx`, `timeline-words.ts`,
+**Timeline screen** (part C; ui `app/edit/TimelineScreen.tsx`, `TimelineTracks.tsx`, `PreviewFrame.tsx`, `timeline-words.ts`,
 op `timeline_view` in `server/ops.ts`). Route `#/p/<slug>/s/<name>/timeline[/<run>[/<step key>]]` (`hrefTo` drops a
 step without its run: the key is the run's own); reached from the scenario screen's **Open timeline** (R-UI-15; the
 newest capture that succeeded with its video, else the button disabled with why), the Run screen's outcome of a
@@ -3917,7 +3929,7 @@ frame settled 320 ms after the tracks drew, 8 seeks median 106–107 ms (max 223
 short 640×360 / 1080p takes the long GOP costs no visible seek time; the note stays (critique B14: an 8-s GOP on a long
 1080p take decodes up to 8 s per seek).
 
-**Inspector** (part D; ui `app/TimelineInspector.tsx`, `field-switch.ts`; the timeline screen and tracks). Beside the
+**Inspector** (part D; ui `app/edit/TimelineInspector.tsx`, `field-switch.ts`; the timeline screen and tracks). Beside the
 preview (under it below 1,040 px): the video's switches (`choices.video`: the caption component, every scene's layout)
 and the selected segment's (`choices.segments[<id>]`: a scene's layout, transition, speed; a card's component, duration,
 transition; a waiting screen's component, duration; intro / outro: the switch, component, duration). **Selecting:** a
@@ -3964,7 +3976,7 @@ blocks no longer read; undo gave back the original bytes (`Buffer.compare` 0) an
 The caption component (studio/caption-below → studio/caption-overlay): the caption band changed (mean difference 10.9 /
 255) while the capture's blocks still read exactly.
 
-**Render, queue, review** (part E, R-UI-26; engine operations: `scenario_render`, `render_cancel` and `review_export` in `packages/engine/src/operations/studio-jobs.ts` (L7.15), `scenario_renders`, `render_review` and `review_image` in `packages/engine/src/operations/render-screen.ts` (L7.14) — before them the Studio's `server/ops.ts` —; `app/Renders.tsx`, `render-words.ts`;
+**Render, queue, review** (part E, R-UI-26; engine operations: `scenario_render`, `render_cancel` and `review_export` in `packages/engine/src/operations/studio-jobs.ts` (L7.15), `scenario_renders`, `render_review` and `review_image` in `packages/engine/src/operations/render-screen.ts` (L7.14) — before them the Studio's `server/ops.ts` —; `app/review/Renders.tsx`, `render-words.ts`;
 engine `renders.ofScenario`, `reviews.image`). **`scenario_render {project, name, run, expect_edit_sha256}`** — strict,
 nothing else: no theme, override, variant, review setting or path (400); it calls `renders.submit` with `review: {fps:
 1}` (the review inline, critique B12) and the snapshot of B5, the theme and every option coming from the files.

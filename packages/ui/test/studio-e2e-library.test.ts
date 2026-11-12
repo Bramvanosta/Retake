@@ -34,7 +34,7 @@ import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { createPrompt } from '../src/app/library-words.js';
+import { createPrompt } from '../src/app/words/library-words.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const P = 'northfield-fixture';

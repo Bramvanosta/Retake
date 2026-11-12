@@ -47,7 +47,7 @@ import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { BITS_TEXT, bitsTimeline, bitsVideo, readBits, takeWorkspace, writeTake } from './timeline-take.js';
-import { parseTimecode, timeExample } from '../src/app/comment-words.js';
+import { parseTimecode, timeExample } from '../src/app/words/comment-words.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const SHOTS = process.env.RETAKE_UI_SHOTS;

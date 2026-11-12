@@ -28,8 +28,10 @@ apps/desktop          the macOS app (L5.2): a Tauri shell (Rust, Cargo; not a pn
                       --supervised` and showing it; core/ holds its rules (no dependency); scripts/desktop.mjs
 packages/ui           the Studio web app (`retake ui`): a React app bundled in memory by esbuild and its server — the
                       engine's /v1 HTTP API behind the engine's gate (engine src/http/), an allow-list of the MCP tools,
-                      the event stream and the index reads (src/server/live.ts, ops.ts); the scenario screen
-                      (src/app/ScenarioScreen.tsx, Inspector.tsx, YamlView.tsx, Thumb.tsx, thumbs.ts)
+                      the event stream and the index reads (src/server/live.ts, ops.ts); the screens in a folder
+                      per feature (src/app/record/, script/, shoot/, edit/, review/, library/, themes/, project/;
+                      the scenario screen: src/app/script/ScenarioScreen.tsx, ScenarioInspector.tsx, YamlView.tsx),
+                      the shared words in src/app/words/, the foundations at src/app/ (Thumb.tsx, thumbs.ts, …)
 skills/               the Claude Code plugin: Claude skills + the MCP server from userConfig values (skills/README.md)
 .claude-plugin/       the local plugin marketplace (`claude plugin marketplace add <repo>`)
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests (and its Dockerfile)

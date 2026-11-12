@@ -5,7 +5,7 @@ import type { RecordAnnotationChange, RecordInsertAt } from '@retake/core';
 import type { RecordViewAnswer } from '../../server/record-ops.js';
 import { Txt, shown, visibleControls } from '../bits.js';
 import { Button, RadioGroup, TextField, Toolbar } from '../ui-kit/index.js';
-import { CAPTION_MAX, HOLD_DEFAULT_S, KICKER_MAX, WAIT_TEXT_MAX, textProblem } from '../record-words.js';
+import { CAPTION_MAX, HOLD_DEFAULT_S, KICKER_MAX, WAIT_TEXT_MAX, textProblem } from '../words/record-words.js';
 import type { Cursor, RecordingActions } from './draft.js';
 
 type InsertForm = 'wait' | 'caption' | 'zoom';

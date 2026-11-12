@@ -9,9 +9,9 @@
  * elapsed time of a run without run_end (`lastTs`), the pause's maximum, and the SSE block parser (U+2028).
  */
 import { describe, expect, it } from 'vitest';
-import { EMPTY, LIVE_BOX, LOG_KEEP, SETTLE_FRAMES, applyEvent, nextLayout, pauseMaxWords, placeFrame, stepCounts, stepStatus } from '../src/app/run-live.js';
+import { EMPTY, LIVE_BOX, LOG_KEEP, SETTLE_FRAMES, applyEvent, nextLayout, pauseMaxWords, placeFrame, stepCounts, stepStatus } from '../src/app/shoot/run-live.js';
 import { parseSseBlock } from '../src/app/sse.js';
-import type { RunLiveState } from '../src/app/run-live.js';
+import type { RunLiveState } from '../src/app/shoot/run-live.js';
 
 const fold = (events: Array<Record<string, unknown>>, s: RunLiveState = EMPTY) => events.reduce((acc, ev, i) => applyEvent(acc, 'log', (i + 1) * 100, ev), s);
 

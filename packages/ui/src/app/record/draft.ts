@@ -1,9 +1,9 @@
 /** The Record screen's draft as rows, the cursor, and what a recording's body is handed (pure: a test reads them). */
 import type { DraftIssue, DraftSource, RecordAnnotationChange, RecordInsert, RecordInsertAt, StepBlock } from '@retake/core';
 import type { RecordViewAnswer } from '../../server/record-ops.js';
-import { stepWords } from '../scenario-words.js';
+import { stepWords } from '../words/scenario-words.js';
 import type { MarkState } from '../ui-kit/index.js';
-import { insertAnchor } from '../record-words.js';
+import { insertAnchor } from '../words/record-words.js';
 
 /** A note's tone as a mark. */
 export const TONE_MARK: Record<'info' | 'warning' | 'danger', MarkState> = { info: 'idle', warning: 'warn', danger: 'fail' };

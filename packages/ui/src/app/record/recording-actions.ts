@@ -7,7 +7,7 @@ import { recordAnnotate, recordDiscard, recordSave, recordStop } from '../data/r
 import { hrefTo } from '../route.js';
 import { PRIORITY, useScenarioGroup, useShellCommand } from '../shell/command-bus.js';
 import { say } from '../shell/say.js';
-import { STATE_WORDS, annotateErrorWords, annotatedWords } from '../record-words.js';
+import { STATE_WORDS, annotateErrorWords, annotatedWords } from '../words/record-words.js';
 import { cursorRow } from './draft.js';
 import type { Cursor, RecordingActions, RecordingUi } from './draft.js';
 import { startedJobs } from './started.js';

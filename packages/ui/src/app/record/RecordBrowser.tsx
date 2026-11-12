@@ -1,12 +1,12 @@
 /** The Record screen's browser (Shoot's, with the Recordings group). */
 import { useSyncExternalStore } from 'react';
 import { useProjectView } from '../project-data.js';
-import { useRunLocation } from '../run-location.js';
+import { useRunLocation } from '../shoot/run-location.js';
 import { contextWatch, scenarioInContext } from '../shell/modes.js';
 import { ShellSlot } from '../shell/slots.js';
-import { useScenarioActions } from '../shoot-data.js';
-import { ShootBrowser } from '../ShootBrowser.js';
-import type { ShootRecordings } from '../ShootBrowser.js';
+import { useScenarioActions } from '../shoot/shoot-data.js';
+import { ShootBrowser } from '../shoot/ShootBrowser.js';
+import type { ShootRecordings } from '../shoot/ShootBrowser.js';
 
 /** The scenario in context on a Record route (the project's last one opened in this tab), for Shoot's browser. */
 function useContextScenario(slug: string): string | null {

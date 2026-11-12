@@ -1045,7 +1045,7 @@ hidden characters removed (controls, format and tag characters, variation select
 is selected), the scaffold command is shown for a terminal. The Studio calls no model and queues no job but library
 previews.
 
-*Theme screens* (L4.7 part D2; `packages/ui` app `ThemesScreen.tsx`, `ThemeEditor.tsx`, `theme-words.ts`; route
+*Theme screens* (L4.7 part D2; `packages/ui` app `themes/ThemesScreen.tsx`, `themes/ThemeEditor.tsx`, `words/theme-words.ts`; route
 `#/p/<slug>/themes[/<theme>]`, sidebar "Themes", "Open the theme editor" from the library bar and the Set-as-default
 card). *List*: own op `theme_list {project}` (engine `themeEditList`: every listed theme with `editable` decided by real
 path — the same rule as templates.view —, the project's own folder theme first, read-only "edit it by hand"; hex colours
@@ -1571,7 +1571,7 @@ via, path, marker, time, scenario or proposal field anywhere (a `proposal` from 
   (threads on its own `comments`, the proposal state on its own scenario file, newer renders on its project's renders).
   Tests: ui `comment-ops.test.ts` (T11), `events.test.ts` (T12).
 
-**The Comments screen** (L4.6 part D1, packages/ui `app/CommentsScreen.tsx`, pure rules in `app/comment-words.ts`;
+**The Comments screen** (L4.6 part D1, packages/ui `app/review/CommentsScreen.tsx`, pure rules in `app/words/comment-words.ts`;
 R-UI-27, R-UI-29). Routes `#/p/<slug>/s/<name>/comments` (the list; the viewer on the newest finished render),
 `…/comments/<comment id>` (a thread open; the viewer on its render at its frame, or a notice and the thread's still
 when that render is gone) and `…/comments/at/<render id>/<frame>` (a render's frame, composer ready) — ids are inert
@@ -1639,7 +1639,7 @@ What each part holds (L4.6, unchanged in substance):
   pin's Open thread; a vertical drag and an edge drag clamped), `app-source.test.ts` (no `thread_*` call of the app
   sends an author, a via, a proposal or a name).
 
-**The proposal view** (L4.6 part D2, packages/ui `app/ProposalPanel.tsx`, pure rules in `app/comment-words.ts`;
+**The proposal view** (L4.6 part D2, packages/ui `app/ProposalPanel.tsx`, pure rules in `app/words/comment-words.ts`;
 R-UI-28; critique B1–B4, B9, B13). In the thread, under its entries, the newest proposal (`thread_get`'s `proposal`):
 - **The diff**: the server's rows (the canonical diff of the exact bytes Apply writes, rebuilt from today's file, with
   3 context lines; the engine's context after a change stops before the next one, so no line shows twice) as a table —
