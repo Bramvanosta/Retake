@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, loadWorkspaceConfig } from '@retake/core/io';
 import type { OpenedWorkspace } from '../src/index.js';
-import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont } from '../src/index.js';
+import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont, diskWorkspaceReads } from '../src/index.js';
 import { fontFileFace } from '@retake/components';
 import { PERSON_POLICY } from '@retake/core';
 
@@ -51,7 +51,7 @@ beforeAll(async () => {
   await symlink(join(root, 'projects', 'demo', 'runs', '20261019-1-quote', 'logo.svg'), join(root, 'brand', 'run-link.svg'));
   await symlink(join(root, '.retake', 'site', 's1', 'logo-1.png'), join(root, 'brand', 'site-link.png'));
   await mkdir(join(root, 'brand', 'folder.svg'));
-  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY };
+  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
 });
 
 afterAll(async () => {

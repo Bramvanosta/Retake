@@ -14,7 +14,8 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AccessError, DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { HookStep, LoadedProject } from '@retake/core';
-import { HooksSourceError, envResetWork, hooksRunWork, rollbackWork, systemClock, callerOf } from '../src/index.js';
+import { HooksSourceError, envResetWork, hooksRunWork, rollbackWork, systemClock, callerOf, diskWorkspaceReads } from '../src/index.js';
+import type { WorkspaceReads } from '../src/index.js';
 import type { HookWorkOptions } from '../src/index.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import { MemoryHookPages } from '../src/capture/memory-sessions.js';
@@ -52,9 +53,10 @@ async function project(reset: HookStep[] = RESET): Promise<LoadedProject> {
 const outside = join(root, 'outside.yaml');
 await writeFile(outside, '- name: seed\n  shell:\n    run: echo seed\n    rollback: echo unseed\n');
 
-function base(hooks: MemoryHookRunner, pages = new MemoryHookPages(), more: Partial<Omit<HookWorkOptions, 'trust'>> = {}): HookWorkOptions & { trust: 'author' } {
+function base(hooks: MemoryHookRunner, pages = new MemoryHookPages(), more: Partial<Omit<HookWorkOptions, 'trust'>> = {}): HookWorkOptions & { trust: 'author'; reads: WorkspaceReads } {
   return {
     policy: PERSON_POLICY,
+    reads: diskWorkspaceReads,
     hooks,
     pages,
     env: 'test',

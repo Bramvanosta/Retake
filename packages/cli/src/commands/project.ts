@@ -60,7 +60,7 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
     await checkNewProject(ws.root, base);
     ({ environments, auth } = await askSetup(ui));
   }
-  const project = await writeNewProject(ws.root, { ...base, environments, ...(auth ? { auth } : {}) }, personScope(ws.root, cliPorts));
+  const project = await writeNewProject(ws, { ...base, environments, ...(auth ? { auth } : {}) }, personScope(ws.root, cliPorts));
   const c = ui.c;
   ui.ok(`created project ${c.bold(project.slug)} in ${ui.path(project.dir)}`);
   ui.line(c.dim('  README.md     what the product is, audience, goals, tone, accounts (by reference)'));

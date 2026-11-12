@@ -22,7 +22,7 @@ import {
   textEol,
   verifyEditText,
 } from '@retake/core/scenario';
-import { listTemplates, loadProjectTemplate, nodeFileFacts } from '@retake/core/io';
+import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario, Template, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { AgentTrustEnvironment, FieldEdit, PositionedTrustProblem, StepEdit } from '@retake/core/scenario';
 import type { AgentChannel } from './caller.js';
@@ -36,6 +36,7 @@ import { LocalStorage, sha256Hex } from './storage.js';
 import { storeOf } from './store/store.js';
 import type { StoreScope } from './store/store.js';
 import { confinementOf } from './caller.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 export interface ScenarioText {
   name: string;
@@ -125,9 +126,9 @@ export async function getScenario(project: LoadedProject, name: string): Promise
 }
 
 /** The project's template, for the checks that need it (theme slots, components); undefined when it does not load. */
-async function templateOf(project: LoadedProject, files: WorkFileFacts): Promise<Template | undefined> {
+async function templateOf(project: LoadedProject, o: { reads: WorkspaceReads; files: WorkFileFacts }): Promise<Template | undefined> {
   try {
-    return (await loadProjectTemplate(project, undefined, { files })).template;
+    return (await o.reads.loadProjectTemplate(project, undefined, { files: o.files })).template;
   } catch {
     return undefined;
   }
@@ -171,7 +172,7 @@ function trustIssue(p: PositionedTrustProblem): ValidationIssue {
 export async function validateScenarioText(
   project: LoadedProject,
   yaml: string,
-  opts: { files: WorkFileFacts; env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel; filesRead?: Set<string> },
+  opts: { files: WorkFileFacts; reads: WorkspaceReads; env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel; filesRead?: Set<string> },
 ): Promise<ValidateResult> {
   if (opts.name !== undefined) checkScenarioName(opts.name);
   const file = scenarioFile(project.dir, opts.name ?? 'untitled');
@@ -181,7 +182,7 @@ export async function validateScenarioText(
     project,
     ...(opts.env !== undefined ? { env: opts.env } : {}),
     ...(opts.until !== undefined ? { until: opts.until } : {}),
-    template: await templateOf(project, opts.files),
+    template: await templateOf(project, opts),
     ...(opts.agent ? { confined: confinementOf(opts.via ?? 'mcp') } : {}),
     ...(opts.filesRead ? { filesRead: opts.filesRead } : {}),
   });
@@ -209,7 +210,7 @@ export async function saveScenarioText(
   project: LoadedProject,
   name: string,
   yaml: string,
-  opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: WorkFileFacts },
+  opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<SaveResult> {
   checkScenarioName(name);
   const ref = scenarioRef(name);
@@ -233,7 +234,7 @@ export async function saveScenarioText(
     files: opts.files,
     file: path,
     project,
-    template: await templateOf(project, opts.files),
+    template: await templateOf(project, opts),
     ...(opts.agent ? { confined: confinementOf(opts.via ?? 'mcp') } : {}),
   });
   const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via)] : parsed;
@@ -250,7 +251,7 @@ export async function saveScenarioText(
   rememberVersion(path, res.sha256);
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
   if (scenario) {
-    const before = current?.utf8 ? parseScenario(current.text, { files: opts.files, file: path, project, template: await templateOf(project, opts.files) }).scenario : undefined;
+    const before = current?.utf8 ? parseScenario(current.text, { files: opts.files, file: path, project, template: await templateOf(project, opts) }).scenario : undefined;
     await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario, before: before ?? null, caller: opts.scope.caller, clock: opts.scope.clock });
   }
   if (!project.scenarios.includes(name)) project.scenarios = [...project.scenarios, name].sort();
@@ -363,7 +364,7 @@ export async function editScenario(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<ScenarioEditResult> {
   const p = await prepareScenarioEdit(project, name, req, o);
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
@@ -400,7 +401,7 @@ export async function prepareScenarioEdit(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<PreparedScenarioEdit> {
   const base = await getScenario(project, name);
   if (base.hash !== req.hash) {
@@ -408,7 +409,7 @@ export async function prepareScenarioEdit(
       details: { current: base.hash },
     });
   }
-  const tplt = await templateOf(project, o.files);
+  const tplt = await templateOf(project, o);
   // The file as it is (its trust problems block it whole, below); the new text as an agent's work (confined: a file
   // outside the project is said to be outside, never looked at).
   const baseParsed = base.utf8 ? parseScenario(base.yaml, { files: o.files, file: base.path, project, template: tplt }) : { scenario: undefined, issues: [] };
@@ -488,7 +489,7 @@ export async function prepareScenarioEdit(
       if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
       // L4.7 (critique B1): a scenario's theme is a theme the workspace lists (by name, never a path).
       if (edit.field === 'template' && typeof edit.to === 'string') {
-        const names = (await listTemplates(project.root)).map((t) => t.name);
+        const names = (await o.reads.listTemplates(project.root)).map((t) => t.name);
         if (!names.includes(edit.to)) {
           throw new EngineError('invalid', `not saved: "${edit.to}" is not a theme of this workspace (themes: ${names.join(', ') || 'none'})`, { details: { field: edit.field } });
         }

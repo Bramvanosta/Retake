@@ -57,6 +57,7 @@ import type { CommentView } from './views.js';
 import type { WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import { parseTimeline } from '@retake/core/run';
+import type { WorkspaceReads } from '../workspace-reads/reads.js';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 
@@ -393,7 +394,7 @@ export async function replyComment(
   id: string,
   rawText: string,
   author: CommentAuthor,
-  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts },
+  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<CommentWritten> {
   const text = cleanText(rawText, 'the reply', 'text');
   const write = { scope: o.scope };
@@ -402,7 +403,7 @@ export async function replyComment(
   }
   // The target is the thread's own scenario (its folder, checked against the file by readThread): never an argument.
   const f = await locateThread(project.dir, id);
-  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, ...(o.registry ? { registry: o.registry } : {}) });
+  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, reads: o.reads, ...(o.registry ? { registry: o.registry } : {}) });
   const w = await appendEntry(
     project,
     id,

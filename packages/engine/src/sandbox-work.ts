@@ -12,7 +12,6 @@ import { resolveEnvironment } from '@retake/core/environment';
 import { sandboxNames } from '@retake/core/sandbox';
 import type { LoadedProject, ValidationIssue } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import { loadProject } from '@retake/core/io';
 import type { DownResult, InitSandboxOptions, InitSandboxResult, ResetResult, SandboxLog, SandboxLogs, SandboxProgress, SandboxStatus, SandboxUpResult, SeedTrust } from '@retake/sandbox/types';
 import type { ENGINE_TRUST } from './caller.js';
 import { EngineError } from './errors.js';
@@ -20,6 +19,7 @@ import type { InterruptPort } from './interrupts.js';
 import type { SandboxHandle, Sandboxes } from './sandboxes/sandboxes.js';
 import { hookRunRecorder } from './store/journal.js';
 import type { JournalAs } from './store/journal.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** What a lock-holding call (up, reset, down) takes besides its own options. */
 export interface SandboxHeldOptions {
@@ -97,9 +97,9 @@ export const sandboxWork = {
   },
 
   /** Scaffold a docker-compose sandbox, then read the project back as written (it must load: its warnings). */
-  async init(sandboxes: Sandboxes, project: LoadedProject, o: InitSandboxOptions): Promise<SandboxInitView> {
-    const result = await sandboxes.init(project, o);
-    const reloaded = await loadProject(project.dir);
+  async init(ports: { sandboxes: Sandboxes; reads: WorkspaceReads }, project: LoadedProject, o: InitSandboxOptions): Promise<SandboxInitView> {
+    const result = await ports.sandboxes.init(project, o);
+    const reloaded = await ports.reads.loadProject(project.dir);
     return { result, warnings: reloaded.sandboxes?.[result.env]?.issues ?? [], isDefault: sandboxNames(reloaded)[0] === result.env };
   },
 

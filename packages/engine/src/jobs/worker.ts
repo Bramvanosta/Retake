@@ -32,6 +32,7 @@ import { processTableSync } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { enginePorts } from '../ports.js';
 import { openWorkspace } from '../workspace.js';
+import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import { buildDirs } from './build.js';
 import { heldFile } from './captures.js';
 import { WorkerLock } from './lock.js';
@@ -50,11 +51,11 @@ import { workerPorts } from './worker-ports.js';
 export type { WorkerOptions } from './worker-record.js';
 
 /** The workspace a worker serves, opened under the agent policy; undefined (said) when it cannot be. */
-async function openForWorker(root: string, log: (message: string) => void): Promise<Workspace | undefined> {
+async function openForWorker(root: string, reads: WorkspaceReads, log: (message: string) => void): Promise<Workspace | undefined> {
   let ws: Workspace;
   try {
     // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
-    ws = await openWorkspace({ root, agent: true });
+    ws = await openWorkspace({ root, agent: true, reads });
   } catch (e) {
     log(`no workspace at ${root}: ${(e as Error).message}`);
     return undefined;
@@ -66,10 +67,10 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
 export async function runWorker(o: WorkerOptions): Promise<number> {
   // The worker process's composition root: the ports its jobs run with (a test's, else the product's).
   const engine = enginePorts(o.ports);
-  const { clock, stores, hooks, reviewer, capture, sandboxes } = engine;
+  const { clock, stores, reads, hooks, reviewer, capture, sandboxes } = engine;
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
-  const ws = await openForWorker(root, log);
+  const ws = await openForWorker(root, reads, log);
   if (!ws) return 1;
   const cli = `retake -C ${shellQuote(root)}`;
   // The worker process's composition root: the one queue this worker reads and writes.
@@ -93,6 +94,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     root,
     clock,
     stores,
+    reads,
     hooks,
     reviewer,
     ws,

@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ACTION_NAMES, parseSandboxYaml, PERSON_POLICY } from '@retake/core';
 import { loadProject, fileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
-import { validateScenarioText } from '@retake/engine';
+import { validateScenarioText, diskWorkspaceReads } from '@retake/engine';
 import { checkComponentEntry, parseManifest } from '@retake/components';
 import * as kit from '@retake/components/kit';
 import { main, memoryIo } from '../../cli/src/index.js';
@@ -149,7 +149,7 @@ beforeAll(async () => {
       return `${io.stdout()}${io.stderr()}`;
     },
     validateScenario: async (yaml) =>
-      (await validateScenarioText(project, yaml, { files: fileFacts(PERSON_POLICY), agent: true })).issues
+      (await validateScenarioText(project, yaml, { files: fileFacts(PERSON_POLICY), reads: diskWorkspaceReads, agent: true })).issues
         .filter((i) => i.severity === 'error')
         .map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
     validateManifest: (yaml) =>

@@ -29,6 +29,7 @@ import { EngineError } from './errors.js';
 import { getScenario, prepareScenarioEdit } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';
 import { sha256Hex } from './storage.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** Context lines shown around each change of a proposal (the only lines the diff leaves out are unchanged ones). */
 export const PROPOSAL_CONTEXT_LINES = 3;
@@ -154,7 +155,7 @@ export async function checkProposedText(
   today: ScenarioText,
   text: string,
   stage: Stage,
-  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<ValidationIssue[]> {
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
@@ -162,7 +163,7 @@ export async function checkProposedText(
       project,
       scenario,
       { hash: today.hash, edit: { kind: 'replace_text', text } },
-      { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}) },
+      { agent: true, via: 'studio', files: o.files, reads: o.reads, ...(o.registry ? { registry: o.registry } : {}) },
     );
   } catch (e) {
     throw restage(e, stage);
@@ -196,7 +197,12 @@ export async function checkProposedText(
  * `conflict` (the file changed since Claude read it), `invalid` (the text: line breaks, caps, identical), `refused`
  * (what the Studio would refuse), ScenarioError (validation errors, with their lines).
  */
-export async function buildProposal(project: LoadedProject, scenario: string, input: ProposalInput, o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts }): Promise<BuiltProposal> {
+export async function buildProposal(
+  project: LoadedProject,
+  scenario: string,
+  input: ProposalInput,
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts; reads: WorkspaceReads },
+): Promise<BuiltProposal> {
   if (!input || typeof input !== 'object') throw invalid('a proposal is {scenario_yaml, scenario_hash}', 'proposal');
   const raw = input.scenario_yaml;
   if (typeof raw !== 'string' || raw.trim() === '') throw invalid('proposal.scenario_yaml is the whole new text of the scenario file', 'proposal.scenario_yaml');

@@ -2,8 +2,9 @@
  * The engine's ports bag: the adapters a composition root chooses — createEngine (its `ports` option, which the MCP
  * server and the Studio leave out), the jobs worker (`WorkerOptions.ports`), the job process and the CLI
  * (`cli/src/workspace.ts` `cliPorts`). `enginePorts` is the one place their defaults are written: nothing but those
- * roots calls it, nor names `systemClock`, `diskProjectStores`, `packageHookRunner`, `packageReviewer`,
- * `runnerWebCapture` or `packageSandboxes` (the import-rules ratchet's `clock-read`, `store-new` and `loader-use` checks).
+ * roots calls it, nor names `systemClock`, `diskProjectStores`, `diskWorkspaceReads`, `packageHookRunner`,
+ * `packageReviewer`, `runnerWebCapture` or `packageSandboxes` (the import-rules ratchet's `clock-read`, `store-new`,
+ * `workspace-read` and `loader-use` checks).
  */
 import { runnerWebCapture } from './capture/runner-web-capture.js';
 import type { CaptureRunner } from './capture/runner.js';
@@ -17,12 +18,16 @@ import { packageSandboxes } from './sandboxes/package-sandboxes.js';
 import type { Sandboxes } from './sandboxes/sandboxes.js';
 import { diskProjectStores } from './store/project-store.js';
 import type { ProjectStores } from './store/store.js';
+import { diskWorkspaceReads } from './workspace-reads/disk-reads.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 export interface EnginePorts {
   /** What the engine stamps what it writes with (clock.ts). */
   clock: Clock;
   /** What every authored write goes through (store/store.ts). */
   stores: ProjectStores;
+  /** What a workspace, its projects, scenarios and themes are read by: core's loaders on its disk (workspace-reads/reads.ts). */
+  reads: WorkspaceReads;
   /** What runs hooks — outside a capture, and a capture's own through the capture runner — and replays their journals' rollbacks (hook-run/runner.ts). */
   hooks: HookRunner;
   /** What reviews a render and draws the frames and thumbnails the façade serves (review/reviewer.ts). */
@@ -34,13 +39,14 @@ export interface EnginePorts {
 }
 
 /**
- * The ports given, the product's adapters for the others: the system's clock, the disk's stores, the hooks package and
+ * The ports given, the product's adapters for the others: the system's clock, the disk's stores and reads, the hooks package and
  * the review package, the runner package (none loaded before a member's first call or, for the runner, its `load()`).
  */
 export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
   return {
     clock: given.clock ?? systemClock,
     stores: given.stores ?? diskProjectStores,
+    reads: given.reads ?? diskWorkspaceReads,
     hooks: given.hooks ?? packageHookRunner(),
     reviewer: given.reviewer ?? packageReviewer(),
     capture: given.capture ?? runnerWebCapture(),

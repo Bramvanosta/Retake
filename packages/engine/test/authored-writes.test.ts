@@ -26,6 +26,7 @@ import {
   enginePorts,
   diskProjectStores,
   ManualClock,
+  diskWorkspaceReads,
 } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
@@ -103,7 +104,7 @@ describe('the bytes of the authored writers', () => {
   });
 
   it("a theme copied: the starter's files verbatim, its name spliced, the provenance file", async () => {
-    const ws = await openWorkspace({ root, agent: false });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     await copyTheme(ws, { from: 'default', name: 'mine' }, { scope: personScope(root, { ...enginePorts(), clock: new ManualClock(NOW.getTime()) }) });
     expect(await tree(join(root, 'templates', 'mine'), noToolVersion)).toEqual({
       '.retake-theme.json': '7b275d8e5d2e3d99354224699037aea782a421a28bdeeb6c351de13450f05936',
@@ -119,7 +120,7 @@ describe('the bytes of the authored writers', () => {
   });
 
   it('a theme made from brand inputs: template.yaml, the logo, LICENSES.md, the provenance file', async () => {
-    const ws = await openWorkspace({ root, agent: false });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     await createThemeFromBrand(
       ws,
       { name: 'acme', colors: { accent: '#0e7c66' }, logo: 'brand/logo.svg' },
@@ -138,7 +139,7 @@ describe('the bytes of the authored writers', () => {
   });
 
   it('a component scaffold: component.yaml, the entry, README.md', async () => {
-    const ws = await openWorkspace({ root, agent: false });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     await componentCreate(ws, { id: 'acme/intro-split', kind: 'intro', description: 'A split title card.' }, personScope(root, enginePorts()));
     expect(await tree(join(root, 'components', 'acme', 'intro-split'), noSchemaLine)).toEqual({
       'README.md': 'e8ecf52b5ad81b5ba5f49f31e2f22a394ad55c251df1b9bed8262c17df562f99',
@@ -148,7 +149,7 @@ describe('the bytes of the authored writers', () => {
   });
 
   it('a sandbox scaffold: its files and the line project.yaml gains', async () => {
-    const project = await openProjectBySlug(await openWorkspace({ root, agent: false }), 'acme');
+    const project = await openProjectBySlug(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads }), 'acme');
     const before = await readFile(project.file, 'utf8');
     await initSandbox(project, { isFree: async () => true, write: fileWriter(diskProjectStores.of(project, personScope(root, enginePorts())), 'sandbox') });
     const after = await readFile(project.file, 'utf8');

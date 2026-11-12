@@ -1,19 +1,23 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AccessError, ConfigError, ScenarioError } from '@retake/core';
 import { HookSecurityError } from '@retake/hooks';
 import { CancelledError } from '@retake/runner-web';
 import { SandboxError } from '@retake/sandbox';
-import { EngineError, LocalStorage, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
+import { EngineError, LocalStorage, MemoryWorkspace, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
 import type { Engine } from '../src/index.js';
-import { fixtureWorkspace } from '@retake/test-support/workspace';
+import { REPO } from '@retake/test-support/repo';
+import { fixtureWorkspace, memoryFixtureWorkspace } from '@retake/test-support/workspace';
 import { scratchHome } from '@retake/test-support/home';
 
 let ws: string;
 let home: string;
 let engine: Engine;
+/** The fixture workspace in memory (L7.38: a MemoryWorkspace — the engine's reads and store on one Map, no folder). */
+const MEM = join(sep, 'retake-memory', 'engine');
+let memory: Engine;
 const retakeHome = scratchHome();
 
 beforeAll(async () => {
@@ -22,6 +26,9 @@ beforeAll(async () => {
   retakeHome.use(home);
   await fixtureWorkspace(ws);
   engine = await createEngine({ root: ws, client: 'test' });
+  const mem = new MemoryWorkspace();
+  await memoryFixtureWorkspace(mem, MEM);
+  memory = await createEngine({ root: MEM, client: 'test', autoStartWorker: false, ports: mem.ports() });
 });
 
 afterAll(async () => {
@@ -97,27 +104,24 @@ describe('engine: projects', () => {
   it('a project that does not load is listed with its first problem, not just "has 1 error:" (review B L5)', async () => {
     expect(firstErrorLine('project.yaml has 1 error:\n  environments.local: expected an object\n')).toBe('project.yaml has 1 error: environments.local: expected an object');
     expect(firstErrorLine('no project.yaml in /x')).toBe('no project.yaml in /x');
-    const dir = await mkdtemp(join(tmpdir(), 'studio-engine-broken-'));
-    try {
-      await mkdir(join(dir, 'projects', 'broken'), { recursive: true });
-      await writeFile(join(dir, 'projects', 'broken', 'project.yaml'), 'version: 1\nname: Broken\nenvironments:\n  local: "not a page map"\n');
-      const e = await createEngine({ root: dir, client: 'test', autoStartWorker: false });
-      const [b] = await e.projects.list();
-      expect(b.error).toMatch(/error[^\n]*: \S/);
-      expect(b.error).toContain('local');
-      expect(b.error).not.toMatch(/:$/);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    // In memory (L7.38): the workspace's reads are the port's, nothing is written.
+    const dir = join(sep, 'retake-memory', 'broken');
+    const mem = new MemoryWorkspace().seed(join(dir, 'projects', 'broken', 'project.yaml'), 'version: 1\nname: Broken\nenvironments:\n  local: "not a page map"\n');
+    const e = await createEngine({ root: dir, client: 'test', autoStartWorker: false, ports: mem.ports() });
+    const [b] = await e.projects.list();
+    expect(b.error).toMatch(/error[^\n]*: \S/);
+    expect(b.error).toContain('local');
+    expect(b.error).not.toMatch(/:$/);
   });
 
   it('lists projects and reads one without session paths, login steps or account passwords', async () => {
-    const list = await engine.projects.list();
+    // On the fixture in memory (L7.38): its README is the fixture's own bytes.
+    const list = await memory.projects.list();
     expect(list.map((p) => p.slug)).toEqual(['northfield-fixture']);
     expect(list[0].scenarios).toContain('quote');
-    const p = await engine.projects.get('northfield-fixture');
+    const p = await memory.projects.get('northfield-fixture');
     expect(p.readme).toContain('Northfield');
-    expect(p.readme_hash).toBe(sha256Hex(await readFile(join(ws, 'projects', 'northfield-fixture', 'README.md'))));
+    expect(p.readme_hash).toBe(sha256Hex(await readFile(join(REPO, 'projects', 'northfield-fixture', 'README.md'))));
     expect(p.file).toBe('project.yaml');
     const prod = p.environments.find((e) => e.name === 'production');
     expect(prod).toMatchObject({ production: true, access: 'read-only', sandbox: false });
@@ -133,9 +137,9 @@ describe('engine: projects', () => {
 
   it('refuses paths where a slug is expected', async () => {
     for (const bad of ['../northfield-fixture', '/etc', './x', 'projects/northfield-fixture']) {
-      await expect(engine.projects.get(bad)).rejects.toMatchObject({ name: 'EngineError', code: 'invalid' });
+      await expect(memory.projects.get(bad)).rejects.toMatchObject({ name: 'EngineError', code: 'invalid' });
     }
-    await expect(engine.projects.get('nope')).rejects.toThrow(/not found/);
+    await expect(memory.projects.get('nope')).rejects.toThrow(/not found/);
   });
 
   it('creates a project and replaces its README only with the right if_match', async () => {

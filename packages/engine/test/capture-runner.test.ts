@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import { chromiumExecutable } from '@retake/runner-web';
-import { createEngine, historyFile, openWorkspace, prepareRun, runInProcess, runWorker, runnerWebCapture, signalInterrupts, systemClock } from '../src/index.js';
+import { createEngine, historyFile, openWorkspace, prepareRun, runInProcess, runWorker, runnerWebCapture, signalInterrupts, systemClock, diskWorkspaceReads } from '../src/index.js';
 import type { InspectJobResult, RunPorts } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import type { CaptureRequest } from '../src/capture/runner.js';
@@ -137,7 +137,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
   });
 
   it("a run in process (the CLI's): the hook runner handed, no run id, trust author, then its history line as the cli's", async () => {
-    const w = await openWorkspace({ root: ws, agent: false });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const prepared = await prepareRun(w, project, 'quote', { dry: true, until: 'discover.0' });
     const capture = new MemoryCaptureRunner();

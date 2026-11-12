@@ -1272,7 +1272,7 @@ export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, op
  * sandbox — `default_env` when it is a sandbox, else the first declared — is one of them; another one (the fixture's
  * optional `sandbox-docker`) only makes a missing Docker a warning.
  */
-async function composeSandboxOf(ws: WorkspaceConfig, slug: string): Promise<DockerNeed | null> {
+async function composeSandboxOf(ws: OpenedWorkspace, slug: string): Promise<DockerNeed | null> {
   try {
     const project = await openProject(ws, slug);
     const names = sandboxNames(project);

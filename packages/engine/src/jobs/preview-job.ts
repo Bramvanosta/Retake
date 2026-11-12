@@ -26,7 +26,6 @@ import type { ComponentKind, LoadedTemplate } from '@retake/core/model';
 import type { PreviewJobInput } from './job-input.js';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, LoopItem, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
-import { fileFacts } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -96,7 +95,7 @@ interface PreparedPreview {
 async function previewTheme(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'project' | 'template'>): Promise<{ template: LoadedTemplate; registry: ComponentRegistry }> {
   checkProjectSlug(req.project);
   const project = await openProjectBySlug(ws, req.project);
-  const template = await themeForWork(project, req.template, fileFacts(ws.policy));
+  const template = await themeForWork(ws, project, req.template);
   const assets = themeAssetProblems(template);
   if (assets.length) throw new EngineError('refused', `${assets.join('; ')}: through MCP a theme serves only its own files`, { details: { problems: assets } });
   return { template, registry: await workspaceRegistry(ws) };

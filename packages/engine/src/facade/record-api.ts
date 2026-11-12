@@ -24,7 +24,7 @@ export function inspectApi(ctx: EngineContext): Engine['inspect'] {
 export function recordApi(ctx: EngineContext): Engine['record'] {
   const { opts, caller, ws, scope, project, queue, submitCtx, startWorker } = ctx;
   // L4.8: the Record screen's operations are the Studio's (and tests'): an agent starts a recording, never arranges one.
-  const recordCtx = { queue, client: opts.client, scope, files: ctx.files };
+  const recordCtx = { queue, client: opts.client, scope, files: ctx.files, reads: ctx.ws.reads };
   let recordChain: Promise<unknown> = Promise.resolve();
   // The operations hold the same rule as their `callers` (L7.18, operations/record.ts); this copy stays for the
   // façade's direct callers (the engine's tests; the CLI calls none of these).

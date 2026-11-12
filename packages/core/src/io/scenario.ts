@@ -3,18 +3,17 @@
  * expected sha256) and validated.
  */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import type { ScenarioCheckOptions } from '../checks/scenario.js';
-import type { WorkFileFacts } from '../file-facts.js';
+import type { WorkFileFacts, WorkspaceDisk } from '../file-facts.js';
 import { projectPath } from '../layout.js';
 import { relativeInside } from '../path-inside.js';
 import { ScenarioChangedError, ScenarioError, parseScenarioSource, scenarioSourceEnv } from '../scenario.js';
 import type { ScenarioSource } from '../scenario.js';
 import type { LoadedProject, LoadedScenario } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
-import { listScenarioNames } from './project.js';
+import { nodeWorkspaceDisk } from './file-facts.js';
+import { listScenarioNamesOn } from './project.js';
 
 function scenariosDir(project: Pick<LoadedProject, 'dir'>): string {
   return projectPath(project.dir, 'scenarios');
@@ -26,12 +25,12 @@ function scenarioNameFiles(project: Pick<LoadedProject, 'dir'>, name: string): s
 }
 
 /** "catalogue" → <project>/scenarios/catalogue.yaml; paths are taken relative to the project dir, then the cwd. */
-async function resolveScenarioFile(project: LoadedProject, nameOrPath: string): Promise<string> {
+async function resolveScenarioFile(disk: WorkspaceDisk, project: LoadedProject, nameOrPath: string): Promise<string> {
   const pathLike = /[\\/]/.test(nameOrPath) || /\.ya?ml$/i.test(nameOrPath);
   const candidates = pathLike ? (isAbsolute(nameOrPath) ? [nameOrPath] : [resolve(project.dir, nameOrPath), resolve(nameOrPath)]) : scenarioNameFiles(project, nameOrPath);
-  const found = candidates.find((c) => existsSync(c));
+  const found = candidates.find((c) => disk.facts.kind(c) !== undefined);
   if (found) return found;
-  const available = await listScenarioNames(project.dir);
+  const available = await listScenarioNamesOn(disk, project.dir);
   const where = pathLike ? candidates.join(' or ') : scenariosDir(project);
   throw new ScenarioError(`scenario "${nameOrPath}" not found in ${where}${suggestion(nameOrPath, available)} (available: ${available.join(', ') || 'none'})`);
 }
@@ -40,7 +39,7 @@ async function resolveScenarioFile(project: LoadedProject, nameOrPath: string): 
 export interface ScenarioReadOptions {
   /** sha256 (lower-case hex) the file's bytes must have; other bytes throw ScenarioChangedError, unparsed. */
   expectSha256?: string;
-  /** Reads the file's bytes (default node:fs readFile; a test seam). Called once per load. */
+  /** Reads the file's bytes (default: the disk's readFile; a test seam). Called once per load. */
   readFile?: (file: string) => Promise<Uint8Array>;
 }
 
@@ -54,8 +53,13 @@ function sha256Of(bytes: Uint8Array): string {
  * difference) and decoded as UTF-8. Whatever uses the result works on those bytes, never on a later read of the file.
  */
 export async function readScenarioSource(project: LoadedProject, nameOrPath: string, o: ScenarioReadOptions = {}): Promise<ScenarioSource> {
-  const file = await resolveScenarioFile(project, nameOrPath);
-  const bytes = await (o.readFile ?? readFile)(file);
+  return readScenarioSourceOn(nodeWorkspaceDisk, project, nameOrPath, o);
+}
+
+/** readScenarioSource on a disk. */
+export async function readScenarioSourceOn(disk: WorkspaceDisk, project: LoadedProject, nameOrPath: string, o: ScenarioReadOptions = {}): Promise<ScenarioSource> {
+  const file = await resolveScenarioFile(disk, project, nameOrPath);
+  const bytes = await (o.readFile ? o.readFile(file) : disk.readFile(file));
   const sha256 = sha256Of(bytes);
   if (o.expectSha256 !== undefined && o.expectSha256 !== sha256) {
     const shown = relativeInside(file, project.dir, { self: false, dotDotPrefix: true })?.split(sep).join('/') ?? basename(file);
@@ -71,13 +75,17 @@ export async function readScenarioSource(project: LoadedProject, nameOrPath: str
  * VideoProber checks its video files) — always given, never a default. Throws ScenarioError on any error-level issue,
  * ScenarioChangedError on other bytes than expected.
  */
-export async function loadScenario(
-  project: LoadedProject,
-  nameOrPath: string,
-  opts: Omit<ScenarioCheckOptions, 'project' | 'file' | 'files'> & ScenarioReadOptions & { files: WorkFileFacts },
-): Promise<LoadedScenario> {
+export async function loadScenario(project: LoadedProject, nameOrPath: string, opts: ScenarioLoadOptions): Promise<LoadedScenario> {
+  return loadScenarioOn(nodeWorkspaceDisk, project, nameOrPath, opts);
+}
+
+/** How loadScenario checks and reads a scenario: its checks' options, its read's, and its checks' FileFacts. */
+export type ScenarioLoadOptions = Omit<ScenarioCheckOptions, 'project' | 'file' | 'files'> & ScenarioReadOptions & { files: WorkFileFacts };
+
+/** loadScenario on a disk. */
+export async function loadScenarioOn(disk: WorkspaceDisk, project: LoadedProject, nameOrPath: string, opts: ScenarioLoadOptions): Promise<LoadedScenario> {
   const { expectSha256, readFile: read, ...check } = opts;
-  const src = await readScenarioSource(project, nameOrPath, { ...(expectSha256 !== undefined ? { expectSha256 } : {}), ...(read ? { readFile: read } : {}) });
+  const src = await readScenarioSourceOn(disk, project, nameOrPath, { ...(expectSha256 !== undefined ? { expectSha256 } : {}), ...(read ? { readFile: read } : {}) });
   return parseScenarioSource(project, src, check);
 }
 

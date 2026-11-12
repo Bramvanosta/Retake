@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
-import { JOB_INPUT_VERSION } from '@retake/engine';
+import { JOB_INPUT_VERSION, diskWorkspaceReads } from '@retake/engine';
 import { loadWorkspaceConfig } from '@retake/core/io';
 import { JOB_RECORD_VERSION, createEngine, makeSiteDir, newSiteId } from '@retake/engine';
 import type { Engine, JobRecord, SiteJobResult } from '@retake/engine';
@@ -34,7 +34,7 @@ afterAll(async () => {
 });
 
 async function finishedJob(warnings: unknown[]): Promise<{ job: JobRecord; dir: string }> {
-  const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY };
+  const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
   await writeFile(

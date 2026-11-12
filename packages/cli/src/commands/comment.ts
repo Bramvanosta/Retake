@@ -218,7 +218,12 @@ export async function commentReplyCommand(ui: Ui, global: GlobalOptions, project
   const by = author(opts.author);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  return printWritten(ui, 'replied to', await engineCall(() => replyComment(project, id, text, by, { scope: personScope(project.root, cliPorts), files: fileFacts(ws.policy) })), opts.json);
+  return printWritten(
+    ui,
+    'replied to',
+    await engineCall(() => replyComment(project, id, text, by, { scope: personScope(project.root, cliPorts), files: fileFacts(ws.policy), reads: ws.reads })),
+    opts.json,
+  );
 }
 
 /** `retake comment resolve <project> <id> --note "…" [--render <id>]`. */

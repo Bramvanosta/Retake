@@ -416,6 +416,7 @@ export async function reviewInline(
       cli: ctx.cli,
       clock: ctx.clock,
       stores: ctx.stores,
+      reads: ctx.reads,
       hooks: ctx.hooks,
       reviewer: ctx.reviewer,
       capture: ctx.capture,

@@ -38,7 +38,7 @@ import { COMPONENT_ID_RE } from '@retake/core/model';
 import { zThemeName } from '@retake/core/ids';
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE } from '../jobs/job-input.js';
-import { readPlainFile, fileFacts } from '@retake/core/io';
+import { readPlainFile } from '@retake/core/io';
 import { components } from '../components.js';
 import type { Engine } from '../engine.js';
 import { EngineError } from '../errors.js';
@@ -229,7 +229,7 @@ function memoOf(engine: Engine): Map<string, ViewMemo> {
 const viewSignature = async (engine: Engine, slug: string, asked: string | undefined): Promise<string> => {
   const ws = engine.workspace;
   const p = await openProjectBySlug(ws, slug);
-  const t = await themeForWork(p, asked, fileFacts(ws.policy));
+  const t = await themeForWork(ws, p, asked);
   const reg = (await memoRegistry(ws)).registry;
   // One entry budget for the whole signature (review A L4), as the event stream's scan.
   const budget = watchBudget();

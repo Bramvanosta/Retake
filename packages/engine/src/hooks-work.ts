@@ -18,7 +18,6 @@ import type { HookStep, LoadedProject, ResolvedEnvironment } from '@retake/core/
 import type { RunAccess } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { HookContext, HookResult, HookTrust } from '@retake/core/hooks';
-import { fileFacts } from '@retake/core/io';
 import type { LoginCommandOf } from './auth.js';
 import type { ENGINE_TRUST } from './caller.js';
 import { EngineError } from './errors.js';
@@ -27,6 +26,7 @@ import type { HookJournalRollback, HookRunner, PendingHookJournal } from './hook
 import { createHookContext, selectHooks } from './hooks.js';
 import type { HookSelection } from './hooks.js';
 import type { JournalAs } from './store/journal.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** A shell's watch on Ctrl-C while hooks hold browsers (the CLI's interrupt.ts onInterrupt with `exit`). */
 export interface HookInterrupt {
@@ -142,6 +142,8 @@ interface HooksRunWorkBase extends Omit<HookWorkOptions, 'trust'> {
   runId: string | ((sel: HookSelection) => string);
   /** What a failed selection throws instead. */
   selectError?: (e: unknown) => unknown;
+  /** What the hooks source is read by (its workspace's WorkspaceReads: a scenario's setup / teardown loaded). */
+  reads: WorkspaceReads;
   /**
    * After the selection, before anything opens: a person's command asks here about what it is about to run (the CLI's
    * shell hooks of a scenario an agent wrote, L7.27, rendered with the run's id); what it throws ends the work.
@@ -160,7 +162,8 @@ export async function hooksRunWork(project: LoadedProject, source: string, o: Ho
   const p = o.protection;
   const sel = await selectHooks(project, source, o.env, {
     ...(p ? { projectFilesOnly: true, ...(p.expectSha256 !== undefined ? { expectSha256: p.expectSha256 } : {}) } : {}),
-    files: fileFacts(o.policy),
+    files: o.reads.fileFacts(o.policy),
+    reads: o.reads,
   }).catch((e: unknown) => {
     throw o.selectError ? o.selectError(e) : e;
   });

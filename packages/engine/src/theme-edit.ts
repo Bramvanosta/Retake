@@ -28,7 +28,7 @@ import { realPathOf } from '@retake/core/policy';
 import { projectPath } from '@retake/core/project';
 import { StepEditError, insideFolder, isTemplatePath, newHiddenCharProblem, verifyEditText } from '@retake/core/scenario';
 import { TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit, isTemplateMediaRef, parseTemplateYaml } from '@retake/core/theme';
-import { STARTER_TEMPLATES_DIR, listTemplates, loadProjectTemplate, loadTemplate, readPlainFile, nodeFileFacts, fileFacts } from '@retake/core/io';
+import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
 import type { ComponentKind, Template } from '@retake/core/model';
 import type { TemplateEntry, ThemeEdit, ThemeField } from '@retake/core/theme';
 import type { PaletteCheck } from '@retake/components';
@@ -87,7 +87,7 @@ export function knownThemeVersion(realFile: string, hash: string): boolean {
 /** The theme `name` of the workspace (a listed name, never a path) and whether the Studio may edit it. */
 async function locateTheme(ws: OpenedWorkspace, name: string): Promise<ThemeLocation> {
   checkTemplateName(name);
-  const entry = (await listTemplates(ws.root)).find((e) => e.name === name);
+  const entry = (await ws.reads.listTemplates(ws.root)).find((e) => e.name === name);
   if (!entry) throw new EngineError('not_found', `theme "${name}" not found (the themes list names them)`);
   const realDir = realPathOf(entry.dir, nodeFileFacts);
   const realFile = realPathOf(join(entry.dir, TEMPLATE_FILE), nodeFileFacts);
@@ -349,7 +349,7 @@ export async function templateView(ws: OpenedWorkspace, name: string): Promise<T
     for (const k of f.split('.')) cur = isObj(cur) ? cur[k] : undefined;
     if (cur !== undefined && cur !== null) fields[f] = cur;
   }
-  const parsed = read.utf8 ? parseTemplateYaml(read.text, { dir: loc.realDir, files: fileFacts(ws.policy) }) : { issues: [], template: undefined };
+  const parsed = read.utf8 ? parseTemplateYaml(read.text, { dir: loc.realDir, files: ws.reads.fileFacts(ws.policy) }) : { issues: [], template: undefined };
   const issues: string[] = parsed.issues.filter((i) => i.severity === 'error').map((i) => i.message);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);
   const comps = isObj(root.components) ? root.components : {};
@@ -543,7 +543,7 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
   }
   if (text.length > THEME_EDIT_MAX_CHARS) throw new EngineError('invalid', `not saved: the theme would hold more than ${THEME_EDIT_MAX_CHARS.toLocaleString('en')} characters`);
   // The theme as a render will load it: valid, every file it names served from its own folder, every kind resolved.
-  const parsed = parseTemplateYaml(text, { dir: loc.realDir, files: fileFacts(ws.policy) });
+  const parsed = parseTemplateYaml(text, { dir: loc.realDir, files: ws.reads.fileFacts(ws.policy) });
   const errors = parsed.issues.filter((i) => i.severity === 'error');
   if (!parsed.template || errors.length)
     throw new EngineError(
@@ -617,7 +617,7 @@ export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): 
     let t: Template | undefined;
     const issues: string[] = [];
     try {
-      t = (await loadProjectTemplate(project, undefined, { files: fileFacts(ws.policy) })).template;
+      t = (await ws.reads.loadProjectTemplate(project, undefined, { files: ws.reads.fileFacts(ws.policy) })).template;
     } catch (e) {
       issues.push(toEngineError(e).message);
     }
@@ -631,7 +631,7 @@ export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): 
       used_by: { projects: [project.slug], scenarios: [] },
     });
   }
-  for (const e of await listTemplates(ws.root)) {
+  for (const e of await ws.reads.listTemplates(ws.root)) {
     let editable: ThemeEditable;
     try {
       editable = await editability(ws, e, realPathOf(e.dir, nodeFileFacts));
@@ -641,7 +641,7 @@ export async function themeEditList(ws: OpenedWorkspace, projectSlug?: string): 
     let t: Template | undefined;
     const issues: string[] = [];
     try {
-      t = (await loadTemplate(e.dir, undefined, { files: fileFacts(ws.policy) })).template;
+      t = (await ws.reads.loadTemplate(e.dir, undefined, { files: ws.reads.fileFacts(ws.policy) })).template;
     } catch (err) {
       issues.push(toEngineError(err).message);
     }

@@ -1,10 +1,9 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
-import { realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { pathInside } from '@retake/core/base';
 import { environmentAccess, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
 import { PROJECT_FILE, README_FILE, readmeEnvironmentsDrift } from '@retake/core/project';
-import { loadProject, planNewProject, listProjects, retakeHome } from '@retake/core/io';
+import { retakeHome } from '@retake/core/io';
 import type { LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core/model';
 import type { CreateProjectInput } from '@retake/core/project';
 import { EngineError } from './errors.js';
@@ -49,14 +48,13 @@ export function firstErrorLine(message: string): string {
  * read through the engine (MCP, the Studio) — its content would come back in errors and views. The CLI reads what the
  * person points it at.
  */
-async function checkProjectFile(dir: string): Promise<void> {
-  let real: string;
-  let realDir: string;
-  try {
-    [realDir, real] = await Promise.all([realpath(dir), realpath(join(dir, PROJECT_FILE))]);
-  } catch {
-    return; // no project.yaml (or no folder): core says so in its own words
-  }
+async function checkProjectFile(ws: Pick<OpenedWorkspace, 'reads'>, dir: string): Promise<void> {
+  // The native real paths (node's promises realpath, as before L7.38: the case as the disk keeps it).
+  const facts = ws.reads.disk.facts;
+  const realDir = facts.nativeRealpath(dir);
+  const real = realDir === undefined ? undefined : facts.nativeRealpath(join(dir, PROJECT_FILE));
+  // No project.yaml (or no folder): core says so in its own words.
+  if (realDir === undefined || real === undefined) return;
   if (!pathInside(real, realDir, { self: false, dotDotPrefix: true })) {
     throw new EngineError('refused', `${join(dir, PROJECT_FILE)} leads out of the project folder (a symbolic link): not read`, { fix: `replace the link with a regular file inside ${dir}` });
   }
@@ -64,11 +62,11 @@ async function checkProjectFile(dir: string): Promise<void> {
 
 /** Every project of the workspace with its scenarios and environments (a broken one is listed with its error). */
 export async function listProjectSummaries(ws: OpenedWorkspace): Promise<ProjectSummary[]> {
-  const projects = await listProjects(ws.root);
+  const projects = await ws.reads.listProjects(ws.root);
   return Promise.all(
     projects.map(async (p) => {
       try {
-        await checkProjectFile(p.dir);
+        await checkProjectFile(ws, p.dir);
         const loaded = await openProject(ws, p.dir);
         return { ...p, scenarios: loaded.scenarios, environments: Object.keys(loaded.config.environments) };
       } catch (e) {
@@ -80,7 +78,7 @@ export async function listProjectSummaries(ws: OpenedWorkspace): Promise<Project
 
 /** A project by slug (never a path: core would resolve one outside the workspace). */
 export async function openProjectBySlug(ws: OpenedWorkspace, slug: string): Promise<LoadedProject> {
-  await checkProjectFile(join(ws.projectsDir, checkProjectSlug(slug)));
+  await checkProjectFile(ws, join(ws.projectsDir, checkProjectSlug(slug)));
   return openProject(ws, slug);
 }
 
@@ -226,11 +224,11 @@ export type CreateProjectRequest = Pick<CreateProjectInput, 'name' | 'slug' | 'r
  * it. Refuses what core refuses (a taken slug, a folder that is not empty, an invalid project.yaml). `retake new` and
  * engine.projects.create both write a project this way.
  */
-export async function writeNewProject(root: string, input: CreateProjectInput, scope: StoreScope): Promise<LoadedProject> {
-  const plan = await planNewProject(root, input);
+export async function writeNewProject(ws: Pick<OpenedWorkspace, 'root' | 'reads'>, input: CreateProjectInput, scope: StoreScope): Promise<LoadedProject> {
+  const plan = await ws.reads.planNewProject(ws.root, input);
   const store = scope.stores.at(plan.dir, scope, { project: plan.slug });
   for (const f of plan.files) await store.writeText(f.ref, f.text, { ifMatch: null, what: 'project' });
-  return loadProject(plan.dir, plan.wsRoot);
+  return ws.reads.loadProject(plan.dir, plan.wsRoot);
 }
 
 /** README.md, project.yaml, scenarios/, hooks/, assets/ and .gitignore of a new project; refuses an existing slug. */
@@ -242,7 +240,7 @@ export async function createProjectFromRequest(ws: OpenedWorkspace, input: Creat
     : undefined;
   await checkNewProjectHosts(ws, urls);
   const created = await writeNewProject(
-    ws.root,
+    ws,
     {
       name: input.name,
       ...(input.slug !== undefined ? { slug: input.slug } : {}),

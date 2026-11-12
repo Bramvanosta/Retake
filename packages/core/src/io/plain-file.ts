@@ -1,10 +1,10 @@
 import { closeSync, constants as fsConstants, fstatSync, openSync, readSync } from 'node:fs';
 import type { Stats } from 'node:fs';
+import { plainFileVerdict } from '../file-facts.js';
+import type { PlainFileRead } from '../file-facts.js';
 
-/** Why `readPlainFile` read nothing. */
-export type PlainFileProblem = 'missing' | 'link' | 'not_file' | 'too_large' | 'unreadable';
-
-export type PlainFileRead = { ok: true; bytes: Buffer } | { ok: false; reason: PlainFileProblem; size?: number; error?: string };
+/** Why `readPlainFile` read nothing, and what it read (core file-facts.ts: the memory disk answers the same). */
+export type { PlainFileProblem, PlainFileRead } from '../file-facts.js';
 
 /**
  * A small regular file read whole — the one reader of the files a person or an agent may have replaced by something
@@ -31,9 +31,9 @@ export function readPlainFile(file: string, max: number, o: { verify?: (st: Stat
       return { ok: false, reason: 'unreadable', error: code ?? String(e) };
     }
     const st = fstatSync(fd);
-    if (!st.isFile()) return { ok: false, reason: 'not_file' };
-    if (o.verify && !o.verify(st)) return { ok: false, reason: 'link' };
-    if (st.size > max) return { ok: false, reason: 'too_large', size: st.size };
+    const verify = o.verify;
+    const why = plainFileVerdict({ isFile: st.isFile(), size: st.size, ...(verify ? { verified: () => verify(st) } : {}) }, max);
+    if (why) return why === 'too_large' ? { ok: false, reason: why, size: st.size } : { ok: false, reason: why };
     let buf = Buffer.allocUnsafe(Math.min(max, st.size) + 1);
     let n = 0;
     for (;;) {

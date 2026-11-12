@@ -11,6 +11,7 @@ import type { ScriptIssue, ScriptOutline } from '@retake/core/scenario';
 import { checkScenarioName } from './refs.js';
 import { validateScenarioText } from './scenarios.js';
 import type { ValidateResult } from './scenarios.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 export interface ScriptDraftView {
   project: string;
@@ -28,11 +29,17 @@ export interface ScriptDraftView {
 }
 
 /** Parse a script, draft a scenario and validate it (`agent`: the MCP server's rules for what an agent writes). */
-export async function draftFromScript(project: LoadedProject, markdown: string, opts: { env?: string; name?: string; agent?: boolean; files: WorkFileFacts }): Promise<ScriptDraftView> {
+export async function draftFromScript(
+  project: LoadedProject,
+  markdown: string,
+  opts: { env?: string; name?: string; agent?: boolean; files: WorkFileFacts; reads: WorkspaceReads },
+): Promise<ScriptDraftView> {
   const name = opts.name ?? 'draft';
   checkScenarioName(name);
   const env = resolveEnvironment(project, opts.env);
   const d = draftScenarioFromScript(markdown, { env, video: name });
-  const validation = d.yaml ? await validateScenarioText(project, d.yaml, { files: opts.files, env: env.name, name, ...(opts.agent ? { agent: true } : {}) }) : { ok: false, issues: [] };
+  const validation = d.yaml
+    ? await validateScenarioText(project, d.yaml, { files: opts.files, reads: opts.reads, env: env.name, name, ...(opts.agent ? { agent: true } : {}) })
+    : { ok: false, issues: [] };
   return { project: project.slug, env: env.name, name, outline: d.outline, yaml: d.yaml, script_issues: d.issues, validation };
 }

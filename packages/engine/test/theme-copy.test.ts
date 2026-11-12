@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
-import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem, personScope, enginePorts } from '../src/index.js';
+import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem, personScope, enginePorts, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { scratchHome } from '@retake/test-support/home';
@@ -102,7 +102,7 @@ describe('copy a theme (L4.7)', () => {
     expect(e.code).toBe('refused');
     expect(e.message).toMatch(/holds a symbolic link \(notes.txt\)/);
     expect((await readdir(join(root, 'templates'))).some((n) => n.includes('linky-copy'))).toBe(false);
-    const repoWs = await openWorkspace({ root: REPO, agent: false });
+    const repoWs = await openWorkspace({ root: REPO, agent: false, reads: diskWorkspaceReads });
     expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root, enginePorts()) }))).message).toMatch(/lies inside the Retake folder/);
   });
 

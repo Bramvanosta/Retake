@@ -1,7 +1,7 @@
 /** A workspace holding a copy of the fixture project: the engine's, the CLI's, the MCP server's and the Studio's tests. */
-import { cp, mkdir, symlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { REPO } from './repo.js';
+import { cp, mkdir, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
+import { join, relative } from 'node:path';
+import { REPO, TEMPLATES } from './repo.js';
 
 const FIXTURE = join(REPO, 'projects', 'northfield-fixture');
 const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames']);
@@ -80,4 +80,36 @@ export async function fixtureWorkspace(dir: string): Promise<void> {
     }),
   );
   await mkdir(join(runs, 'no-record'), { recursive: true });
+}
+
+/** What a workspace in memory takes its starting state by (the engine's MemoryWorkspace `seed`). */
+export interface MemorySeed {
+  seed(path: string, data: Uint8Array): unknown;
+  folder(path: string): unknown;
+}
+
+/**
+ * The files of a folder of the disk put into a workspace in memory at `at` (default: the same path), read once here: a
+ * test's starting state. `skip(rel)` leaves out a file or folder by its path relative to `from`.
+ */
+export async function memoryCopy(to: MemorySeed, from: string, at: string = from, skip: (rel: string) => boolean = () => false): Promise<void> {
+  for (const e of await readdir(from, { recursive: true, withFileTypes: true })) {
+    if (!e.isFile()) continue;
+    const abs = join(e.parentPath, e.name);
+    const rel = relative(from, abs);
+    if (skip(rel)) continue;
+    to.seed(join(at, rel), await readFile(abs));
+  }
+}
+
+/**
+ * fixtureWorkspace in memory (the engine's MemoryWorkspace): its retake.yaml, the fixture project's authored files and the
+ * starter themes at their own path (its templates_dir), and the fixture product's folder empty (the sandbox's `cwd` is
+ * checked, never run here) — no run: what the workspace reads see, nothing the disk's readers would.
+ */
+export async function memoryFixtureWorkspace(to: MemorySeed, dir: string): Promise<void> {
+  to.seed(join(dir, 'retake.yaml'), Buffer.from(`version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`));
+  await memoryCopy(to, FIXTURE, join(dir, 'projects', 'northfield-fixture'), (rel) => GENERATED.has(rel.split('/')[0]));
+  await memoryCopy(to, TEMPLATES);
+  to.folder(join(dir, 'fixtures', 'wholesale'));
 }

@@ -16,7 +16,6 @@
 import { lookup } from 'node:dns/promises';
 import { environmentAccess, hostMatches, normalizeAllowEntry, resolveEnvironment } from '@retake/core/environment';
 import { canonicalAddress, canonicalIp } from '@retake/core/policy';
-import { listProjects } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core/model';
 import type { AgentChannel } from './caller.js';
 import { EngineError } from './errors.js';
@@ -108,7 +107,7 @@ function isProtected(env: Parameters<typeof environmentAccess>[0]): boolean {
 /** The protected hosts of every project of the workspace but `except` (a project that does not load protects nothing). */
 export async function workspaceProtectedHosts(ws: OpenedWorkspace, except?: string): Promise<WorkspaceProtectedHost[]> {
   const out: WorkspaceProtectedHost[] = [];
-  for (const p of await listProjects(ws.root)) {
+  for (const p of await ws.reads.listProjects(ws.root)) {
     if (p.slug === except) continue;
     let project: LoadedProject;
     try {

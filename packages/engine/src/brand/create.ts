@@ -21,7 +21,7 @@ import { RETAKE_VERSION, parseYaml, printableText } from '@retake/core/base';
 import { NEW_THEME_NAME_RE } from '@retake/core/ids';
 import { insideFolder } from '@retake/core/scenario';
 import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, fontRefFile, parseTemplateYaml, siteRef } from '@retake/core/theme';
-import { STARTER_TEMPLATES_DIR, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import { STARTER_TEMPLATES_DIR, nodeFileFacts } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
 import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core/theme';
 import type { Palette } from '@retake/components';
@@ -404,7 +404,7 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   // The base: its components, frame, captions, motion and durations; its fonts when none are given.
   let base;
   try {
-    base = await loadTemplate(baseName, ws.root, { files: fileFacts(ws.policy) });
+    base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -575,9 +575,9 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
         await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
         for (const [f, b] of written) await stage.write(f, b);
         // What a render will load: the loader, the files inside the folder, the components it picks.
-        const parsed = parseTemplateYaml(generated.yaml, { dir: stage.dir, files: fileFacts(ws.policy) });
+        const parsed = parseTemplateYaml(generated.yaml, { dir: stage.dir, files: ws.reads.fileFacts(ws.policy) });
         if (parsed.issues.length) throw new EngineError('internal', `the new theme does not validate: ${parsed.issues.map((i) => i.message).join('; ')}`);
-        const loaded = await loadTemplate(stage.dir, undefined, { files: fileFacts(ws.policy) });
+        const loaded = await ws.reads.loadTemplate(stage.dir, undefined, { files: ws.reads.fileFacts(ws.policy) });
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('internal', outside.join('; '));
         try {

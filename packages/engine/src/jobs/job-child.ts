@@ -61,7 +61,7 @@ export function passedBuildDirs(raw: string | undefined): string[] | undefined {
 /** Run the job; resolves with the exit code. */
 export async function runJobChild(o: JobChildOptions): Promise<number> {
   // A job process is a composition root: the product's ports (a test's cannot reach a process).
-  const { clock, stores, hooks, reviewer, capture, sandboxes } = enginePorts();
+  const { clock, stores, reads, hooks, reviewer, capture, sandboxes } = enginePorts();
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} job process ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   const stamp = buildStamp(o.dirs ?? buildDirs());
@@ -72,7 +72,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   let ws: Awaited<ReturnType<typeof openWorkspace>>;
   try {
     // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
-    ws = await openWorkspace({ root, agent: true });
+    ws = await openWorkspace({ root, agent: true, reads });
   } catch (e) {
     log(`job ${o.id}: no workspace at ${root}: ${(e as Error).message}`);
     return 1;
@@ -178,6 +178,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     log,
     clock,
     stores,
+    reads,
     hooks,
     reviewer,
     capture,

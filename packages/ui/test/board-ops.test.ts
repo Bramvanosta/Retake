@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, renderRecordReads, reportReads, scanSources } from '@retake/engine';
+import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, renderRecordReads, reportReads, scanSources, diskWorkspaceReads } from '@retake/engine';
 import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
@@ -232,7 +232,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     return dir;
   }
   beforeAll(async () => {
-    wsc = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY };
+    wsc = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
     fresh();
   });
 

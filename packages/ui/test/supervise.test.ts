@@ -12,7 +12,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JOB_KINDS } from '@retake/engine';
+import { JOB_KINDS, diskWorkspaceReads } from '@retake/engine';
 import type { JobKind } from '@retake/engine';
 import { FileJobQueue, openWorkspace, selfIdentity } from '@retake/engine';
 import type { JobQueueView, JobRecord } from '@retake/engine';
@@ -396,7 +396,7 @@ describe("each watcher reads the engine's queue with a memory of its own", () =>
     await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v8' }, state: 'queued' });
     const e = engineQueue();
     const logs: string[] = [];
-    const live = await Live.start({ ws: await openWorkspace({ root: ws, agent: false }), queue: e.queue, pollMs: 60_000, log: (m) => logs.push(m) });
+    const live = await Live.start({ ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads }), queue: e.queue, pollMs: 60_000, log: (m) => logs.push(m) });
     try {
       expect(logs.filter((m) => /failed|could not/.test(m))).toEqual([]);
       expect({ own: e.own, reads: e.reads }).toEqual({ own: [undefined, undefined], reads: [] });

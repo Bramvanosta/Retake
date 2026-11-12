@@ -15,6 +15,7 @@ import type { Renderer } from '../render/renderer.js';
 import type { Reviewer } from '../review/reviewer.js';
 import type { Sandboxes } from '../sandboxes/sandboxes.js';
 import type { ProjectStores } from '../store/store.js';
+import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import type { openWorkspace } from '../workspace.js';
 import { executeAuthLoginJob, signInStoppedText } from './auth-job.js';
 import { executeEnvResetJob, executeHooksJob } from './hooks-job.js';
@@ -41,6 +42,7 @@ export interface JobBase {
   event: (e: JobEventBody) => void;
   clock: Clock;
   stores: ProjectStores;
+  reads: WorkspaceReads;
   hooks: HookRunner;
   reviewer: Reviewer;
   capture: CaptureRunner;

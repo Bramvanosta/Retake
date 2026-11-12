@@ -16,7 +16,6 @@ import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION } from './job-input.js'
 import type { HookStep } from '@retake/core/model';
 import type { HookResult } from '@retake/core/hooks';
 import type { EnvResetJobInput, HooksJobInput, JobApproval } from './job-input.js';
-import { fileFacts } from '@retake/core/io';
 import { describeHook } from '@retake/hooks/describe';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
@@ -82,7 +81,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
   let label: string;
   let scenarioSha: string | undefined;
   try {
-    const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true, files: fileFacts(ctx.ws.policy) });
+    const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true, files: ctx.ws.reads.fileFacts(ctx.ws.policy), reads: ctx.ws.reads });
     label = sel.label;
     scenarioSha = sel.sha256;
     const env = req.env ?? sel.env;
@@ -222,6 +221,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     ...(input.env !== undefined ? { env: input.env } : {}),
     dry: input.dry,
     runId: input.journal_id,
+    reads: ctx.ws.reads,
     selectError: (e) => scenarioChangedConflict(e, `${projectRef('scenarios', String(scenario))} changed since the hooks were submitted: submit them again (what was approved is what runs)`),
     // The jobs' checks (hooks-work.ts protection): project files only, the bytes approved, agent trust, protected hosts.
     protection: {

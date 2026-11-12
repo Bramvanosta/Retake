@@ -34,6 +34,7 @@ import {
   toEngineError,
   systemClock,
   enginePorts,
+  diskWorkspaceReads,
 } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
@@ -374,7 +375,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
       const events: unknown[] = [];
       const e = await executeRunJob({
         ...enginePorts(),
-        ws: await openWorkspace({ root: ws, agent: false }),
+        ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads }),
         cli: 'retake',
         input: sub.job.input as RunJobInput,
         signal: new AbortController().signal,
@@ -396,7 +397,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
   });
 
   it('prepareRun reads the file once: the sandbox it picks, the scenario it parses and their hash come from that one read', async () => {
-    const w = await openWorkspace({ root: ws, agent: false });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const disk = join(ws, 'projects', 'northfield-fixture', 'scenarios', 'sandbox-quote.yaml');
     const onDisk = await readFile(disk, 'utf8');
@@ -420,7 +421,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
   });
 
   it('an inspection of a scenario: the hash of the bytes it parsed, a pinned one checked on those bytes', async () => {
-    const w = await openWorkspace({ root: ws, agent: false });
+    const w = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const text = await readFile(file());
     const pinned = await prepareInspect(w, project, { kind: 'scenario', scenario: 'quote' }, undefined);

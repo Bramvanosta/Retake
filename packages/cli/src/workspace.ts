@@ -14,7 +14,7 @@ export const cliPorts: EnginePorts = enginePorts();
 
 /** The workspace of a command a person types (`--root`, else $RETAKE_ROOT, else the lookup): a person's policy, the agent policy off. */
 export function openWorkspace(global: Pick<GlobalOptions, 'root'>): Promise<OpenedWorkspace> {
-  return openEngineWorkspace({ root: global.root, agent: false });
+  return openEngineWorkspace({ root: global.root, agent: false, reads: cliPorts.reads });
 }
 
 /**

@@ -17,6 +17,7 @@ import { APP_BUNDLE_ID, UPDATES_FILE, readUpdateChecks, writeAppSettings } from 
 import type { BundleInfo } from '@retake/core/io';
 import { appChecks, doctorChecks, launchUpdates, updateCheck } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
+import { diskWorkspaceReads } from '@retake/engine';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'doctor-app-')));
 afterAll(() => rmSync(base, { recursive: true, force: true }));
@@ -146,7 +147,14 @@ describe('doctor: App location and the retake command', () => {
 });
 
 describe("doctor: the workspace's worker of another copy of Retake (critique M6)", () => {
-  const ws = { root: join(base, 'ws'), projectsDir: join(base, 'ws', 'projects'), templatesDir: join(base, 'ws', 'templates'), componentsDir: join(base, 'ws', 'components'), policy: PERSON_POLICY };
+  const ws = {
+    root: join(base, 'ws'),
+    projectsDir: join(base, 'ws', 'projects'),
+    templatesDir: join(base, 'ws', 'templates'),
+    componentsDir: join(base, 'ws', 'components'),
+    policy: PERSON_POLICY,
+    reads: diskWorkspaceReads,
+  };
   mkdirSync(ws.projectsDir, { recursive: true });
   const mcpLine = async (worker: Awaited<ReturnType<NonNullable<DoctorProbes['worker']>>>) => {
     const checks = await doctorChecks(

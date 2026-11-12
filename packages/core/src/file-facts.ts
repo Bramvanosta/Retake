@@ -142,3 +142,51 @@ export function memoryFileFacts(
     },
   };
 }
+
+/** What a folder's entry is, its own kind (a symbolic link is not followed: a Dirent's view). */
+export type DiskEntryKind = 'file' | 'directory' | 'link' | 'other';
+
+/** One entry of a folder (WorkspaceDisk.list). */
+export interface DiskEntry {
+  name: string;
+  kind: DiskEntryKind;
+}
+
+/** Why a plain-file read read nothing (WorkspaceDisk.readPlain; `@retake/core/io` readPlainFile on the disk). */
+export type PlainFileProblem = 'missing' | 'link' | 'not_file' | 'too_large' | 'unreadable';
+
+export type PlainFileRead = { ok: true; bytes: Buffer } | { ok: false; reason: PlainFileProblem; size?: number; error?: string };
+
+/**
+ * The plain-file rule once the file is open (its own kind known, the last segment not followed): not a regular file,
+ * then the caller's check that it is still the file its folder names (`verified`, read only for a regular file: false is
+ * a `link`), then more than `max` bytes. Undefined: it may be read. Both disks decide by it (readPlainFile on the open
+ * descriptor's stat, memoryDisk on its table).
+ */
+export function plainFileVerdict(st: { isFile: boolean; size: number; verified?: () => boolean }, max: number): 'not_file' | 'link' | 'too_large' | undefined {
+  if (!st.isFile) return 'not_file';
+  if (st.verified && !st.verified()) return 'link';
+  if (st.size > max) return 'too_large';
+  return undefined;
+}
+
+/**
+ * The disk core's workspace loaders read (`@retake/core/io` reader.ts: the workspace, its projects, scenarios, themes
+ * and sandboxes): what is at a path and its real path (`facts`, links followed — the FileFacts its rules are handed
+ * too), a file's bytes, a folder's entries and a small file read whole under the plain-file rule. `@retake/core/io`
+ * nodeWorkspaceDisk is node:fs; its memoryDisk answers from maps (tests). The loaders' rules — their refusals, words and
+ * order — are theirs alone: a disk answers only these reads.
+ */
+export interface WorkspaceDisk {
+  /** Kinds and real paths (links followed), texts, first bytes, programs: the FileFacts the loaders' rules are given. */
+  readonly facts: FileFacts;
+  /** A file's bytes, links followed; rejects as node's readFile does (`code` ENOENT for nothing there, EISDIR for a folder). */
+  readFile(file: string): Promise<Buffer>;
+  /** A folder's entries (links followed to the folder; each entry's own kind); rejects as node's readdir (ENOENT, ENOTDIR). */
+  list(dir: string): Promise<DiskEntry[]>;
+  /**
+   * A small regular file read whole (`@retake/core/io` readPlainFile): its last segment never followed (`link`), a
+   * folder or a special file `not_file`, more than `max` bytes `too_large`. Never throws.
+   */
+  readPlain(file: string, max: number): PlainFileRead;
+}

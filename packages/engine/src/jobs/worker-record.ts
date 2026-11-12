@@ -24,6 +24,7 @@ import type { CaptureRunner } from '../capture/runner.js';
 import type { HookRunner } from '../hook-run/runner.js';
 import type { Reviewer } from '../review/reviewer.js';
 import type { ProjectStores } from '../store/store.js';
+import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import type { Sandboxes } from '../sandboxes/sandboxes.js';
 import type { ProcInfo } from '@retake/core/io';
 import type { QosYield } from './yield.js';
@@ -90,6 +91,8 @@ export interface Worker {
   readonly clock: Clock;
   /** What its jobs' authored writes go through. */
   readonly stores: ProjectStores;
+  /** What its workspace is read by (its root's, ports.ts): the jobs' loads of projects, scenarios and themes. */
+  readonly reads: WorkspaceReads;
   /** What its hooks and env_reset jobs run hooks with, and its recovery prunes the replayed rollbacks with. */
   readonly hooks: HookRunner;
   /** What its inline heavy jobs review with, and its recovery puts an interrupted review back with. */
@@ -155,6 +158,7 @@ export interface WorkerParts {
   root: string;
   clock: Clock;
   stores: ProjectStores;
+  reads: WorkspaceReads;
   hooks: HookRunner;
   reviewer: Reviewer;
   ws: Workspace;
@@ -189,6 +193,7 @@ export function newWorker(p: WorkerParts): Worker {
     orphanGraceMs: o.orphanGraceMs ?? 15_000,
     clock: p.clock,
     stores: p.stores,
+    reads: p.reads,
     hooks: p.hooks,
     reviewer: p.reviewer,
     ws: p.ws,

@@ -8,7 +8,6 @@
  */
 import type { ComponentKind, LoadedTemplate } from '@retake/core/model';
 import { isTemplateMediaRef } from '@retake/core/theme';
-import { fileFacts } from '@retake/core/io';
 import type { ComponentRegistry } from '@retake/components';
 import type { ComponentPreviewSpec, PreviewSamples } from '@retake/editor';
 import { components } from './components.js';
@@ -85,7 +84,7 @@ function withDraft(t: LoadedTemplate, draft: ThemePreviewDraft | undefined): Loa
  */
 export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequest, o: { start: () => ThemePreviewServe }): Promise<ThemePreviewBuild> {
   const p = await openProjectBySlug(ws, a.project);
-  const loaded = await themeForWork(p, a.theme, fileFacts(ws.policy));
+  const loaded = await themeForWork(ws, p, a.theme);
   const problems = themeAssetProblems(loaded);
   if (problems.length) throw new EngineError('refused', `${problems.map((x) => pathFree(x, ws.root)).join('; ')}: a theme serves only its own files`);
   const registry = (await memoRegistry(ws)).registry;

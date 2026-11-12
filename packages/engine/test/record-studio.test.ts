@@ -47,6 +47,7 @@ import {
   personScope,
   saveRecordedDraft,
   enginePorts,
+  diskWorkspaceReads,
 } from '../src/index.js';
 import type { Engine, EngineError, RecordJobResult, RecordWindow, RecordView } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
@@ -173,7 +174,7 @@ async function files(dir: string): Promise<string[]> {
   return out;
 }
 
-const project = async () => openProject(await openWorkspace({ root, agent: false }), PROJECT);
+const project = async () => openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads }), PROJECT);
 const recDir = async (id: string) => join(recordsRoot(await project()), id);
 const fileEvents = async (id: string) =>
   (await readFile(join(await recDir(id), 'events.jsonl'), 'utf8'))
@@ -432,7 +433,7 @@ describe('a Studio recording: live view, annotations, Stop, Save', () => {
   it('the write path of Save: agent trust refuses a secret reference, with no path in the answer', async () => {
     const p = await project();
     const yaml = `version: 1\nvideo: trust-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - type: {into: {label: Note}, text: "{{env:HOME}}"}\n`;
-    const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY)));
+    const e = await refusal(saveRecordedDraft(p, 'trust-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads));
     expect(e.code).toBe('invalid');
     expect(JSON.stringify({ m: e.message, d: e.details })).not.toContain(p.dir);
     expect((e.details as { issues: Array<{ scene?: string; step?: number }> }).issues[0]).toMatchObject({ scene: 'lab', step: 0 });
@@ -675,7 +676,7 @@ describe('after the reviews (trust)', () => {
     const p = await project();
     const rlo = String.fromCharCode(0x202e);
     const yaml = `version: 1\nvideo: hidden-check\nscenes:\n  - id: lab\n    page: shop\n    open: /record-lab\n    steps:\n      - click: Save\n      - click: "Cancel${rlo}lecnac"\n`;
-    const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY)));
+    const e = await refusal(saveRecordedDraft(p, 'hidden-check', yaml, ['lab'], personScope(p.root, enginePorts()), fileFacts(PERSON_POLICY), diskWorkspaceReads));
     expect(e.code).toBe('invalid');
     expect(e.message).toMatch(/scene lab, step 2 holds U\+202E \(a direction control\)/);
     expect(firstHiddenChar(e.message)).toBeUndefined();
@@ -709,7 +710,7 @@ describe('after the reviews (trust)', () => {
   });
 
   it('A-L3: reads never follow a link — a records folder (or .retake) that is one: no draft, no list item, the reason said', async () => {
-    const ws = await openWorkspace({ root, agent: false });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     for (const which of ['records', '.retake'] as const) {
       const slug = which === 'records' ? 'linky-read' : 'linky-read-2';
       const dir = join(root, 'projects', slug);
@@ -801,7 +802,7 @@ describe('after the reviews (the screen)', () => {
 
 describe('folders', () => {
   it('prune keeps a folder whose lock is held and an unsaved Studio recording younger than 7 days (B12)', async () => {
-    const ws = await openWorkspace({ root, agent: false });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     const other = join(root, 'projects', 'prune-me');
     await mkdir(other, { recursive: true });
     await writeFile(join(other, 'project.yaml'), 'name: Prune\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');
@@ -849,7 +850,7 @@ describe('folders', () => {
   });
 
   it('the records folder a symbolic link: Discard removes nothing through it', async () => {
-    const ws = await openWorkspace({ root, agent: false });
+    const ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
     const linky = join(root, 'projects', 'linky');
     await mkdir(join(linky, '.retake'), { recursive: true });
     await writeFile(join(linky, 'project.yaml'), 'name: Linky\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');

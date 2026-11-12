@@ -19,7 +19,7 @@ import { parseScenario, PERSON_POLICY } from '@retake/core';
 import { loadScenario, fileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
-import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot, enginePorts } from '../src/index.js';
+import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot, enginePorts, diskWorkspaceReads } from '../src/index.js';
 import type { OpenedWorkspace, RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
 import { ManualClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
@@ -64,7 +64,7 @@ beforeAll(async () => {
   await writeFile(join(projectDir, 'project.yaml'), yaml);
   csv = join(root, 'prices.csv');
   await writeFile(csv, 'lot,price\nA,10\n');
-  ws = await openWorkspace({ root, agent: false });
+  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
 }, 120_000);
 
 afterAll(async () => {

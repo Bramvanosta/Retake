@@ -252,7 +252,7 @@ export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectA
   let view;
   try {
     // The result must load as written: the engine reads the project back with its new sandbox (its warnings).
-    view = await sandboxWork.init(cliPorts.sandboxes, project, { env: opts.env, force: opts.force, write: fileWriter(storeOf(project, personScope(project.root, cliPorts)), 'sandbox') });
+    view = await sandboxWork.init(cliPorts, project, { env: opts.env, force: opts.force, write: fileWriter(storeOf(project, personScope(project.root, cliPorts)), 'sandbox') });
   } catch (e) {
     if (e instanceof SandboxError) throw new UsageError(e.message);
     throw e;

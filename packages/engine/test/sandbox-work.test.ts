@@ -26,6 +26,7 @@ import { executeSandboxJob } from '../src/jobs/sandbox-job.js';
 import { EngineError } from '../src/errors.js';
 import { enginePorts } from '../src/ports.js';
 import { openWorkspace } from '../src/workspace.js';
+import { diskWorkspaceReads } from '../src/index.js';
 
 let root = '';
 let project: LoadedProject;
@@ -274,24 +275,24 @@ describe('sandboxWork (L7.28)', () => {
       },
     };
     const write = async () => undefined;
-    const other = await sandboxWork.init(sandboxes, before, { env: 'other', force: true, write } as never);
+    const other = await sandboxWork.init({ sandboxes, reads: diskWorkspaceReads }, before, { env: 'other', force: true, write } as never);
     expect(other.result.env).toBe('other');
     expect(other.isDefault).toBe(true);
     expect(other.warnings).toEqual([]);
     expect(given).toEqual([{ project: before, env: 'other', force: true, write }]);
-    const third = await sandboxWork.init(sandboxes, before, { env: 'third', write } as never);
+    const third = await sandboxWork.init({ sandboxes, reads: diskWorkspaceReads }, before, { env: 'third', write } as never);
     expect(third.isDefault).toBe(false);
-    const first = await sandboxWork.init(sandboxes, before, { write } as never);
+    const first = await sandboxWork.init({ sandboxes, reads: diskWorkspaceReads }, before, { write } as never);
     expect(first.isDefault).toBe(true);
     // A SandboxError of the scaffold is the caller's to word (the CLI: a usage error).
     const refusing: Sandboxes = { ...sandboxes, init: () => Promise.reject(new SandboxError('sandbox folder exists: --force')) };
-    await expect(sandboxWork.init(refusing, before, { write } as never)).rejects.toBeInstanceOf(SandboxError);
+    await expect(sandboxWork.init({ sandboxes: refusing, reads: diskWorkspaceReads }, before, { write } as never)).rejects.toBeInstanceOf(SandboxError);
   });
 
   it("the sandbox jobs run through it: up and reset under the job's interrupt port (its quit kill is the handle's), the result unchanged", async () => {
     const wsRoot = join(root, 'w');
     await writeProject(join(wsRoot, 'projects', 's'), ['sandbox']);
-    const ws = await openWorkspace({ root: wsRoot, agent: false });
+    const ws = await openWorkspace({ root: wsRoot, agent: false, reads: diskWorkspaceReads });
     const sandboxes = new MemorySandboxes();
     for (const input of [
       { version: 1, kind: 'sandbox_up', project: 's', submitted_by: 'test' },

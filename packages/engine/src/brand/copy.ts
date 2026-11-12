@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { RETAKE_VERSION, parseYaml } from '@retake/core/base';
 import { insideFolder, setMapPath, StepEditError } from '@retake/core/scenario';
 import { TEMPLATE_FILE, parseTemplateYaml } from '@retake/core/theme';
-import { loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import { nodeFileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
@@ -89,7 +89,7 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
   }
   let source;
   try {
-    source = await loadTemplate(from, ws.root, { files: fileFacts(ws.policy) });
+    source = await ws.reads.loadTemplate(from, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -118,10 +118,10 @@ export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: 
             if (sha256Hex(await readFile(join(stage.dir, ...f.split('/')))) !== hashes[f]) throw new EngineError('conflict', `theme ${from}: ${f} changed while it was copied — try again`);
           }
         }
-        const parsed = parseTemplateYaml(text, { dir: stage.dir, files: fileFacts(ws.policy) });
+        const parsed = parseTemplateYaml(text, { dir: stage.dir, files: ws.reads.fileFacts(ws.policy) });
         const errors = parsed.issues.filter((i) => i.severity === 'error');
         if (errors.length) throw new EngineError('invalid', `the copy does not validate: ${errors.map((i) => i.message).join('; ')}`);
-        const loaded = await loadTemplate(stage.dir, undefined, { files: fileFacts(ws.policy) });
+        const loaded = await ws.reads.loadTemplate(stage.dir, undefined, { files: ws.reads.fileFacts(ws.policy) });
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('refused', outside.join('; '));
         try {

@@ -18,8 +18,9 @@
  * Limits (what only the disk can do, said so a test does not rely on the fake for it): a `build` that reads `stage.dir`
  * from the disk (brand/copy.ts, brand/create.ts list or read their stage) fails — the stage is not on the disk;
  * `stage.copy` reads its source from the disk (the fake stands for writes only); there are no symbolic links, file
- * modes, cross-process locks or size refusals (READ_TEXT_MAX_BYTES); the engine's reads that are not through the port
- * (loadProject, scenarios, the journal's readers) still read the disk. Paths are compared byte for byte: on APFS (the
+ * modes, cross-process locks or size refusals (READ_TEXT_MAX_BYTES); the engine's loads (loadProject, scenarios,
+ * themes) read the disk unless the WorkspaceReads port is a MemoryWorkspace's over the same Map
+ * (workspace-reads/memory-reads.ts); the journal's readers still read the disk. Paths are compared byte for byte: on APFS (the
  * Mac's file system, case-insensitive by default) `README.md` and `readme.md` are one file, here two — a test of
  * a name's case belongs on the disk. A `createFolder` whose recheck says no folder while `<parent>/<name>` holds files
  * fails as the disk's rename does (ENOTEMPTY; ENOTDIR over a file), never merged.
@@ -219,7 +220,12 @@ class MemoryProjectStore extends MemoryFolder implements ProjectStore {
 
 /** The ProjectStore port in memory (see the head of this file): files in a Map, the journal in a list. */
 export class MemoryProjectStores implements ProjectStores {
-  readonly #memory: Memory = { files: new Map(), lines: [], creating: new Map() };
+  readonly #memory: Memory;
+
+  /** `files`: the Map its files are kept in (a MemoryWorkspace shares its own with its reads); default a new one. */
+  constructor(o: { files?: Map<string, Buffer> } = {}) {
+    this.#memory = { files: o.files ?? new Map(), lines: [], creating: new Map() };
+  }
 
   of(project: { dir: string; slug: string }, scope: StoreScope): ProjectStore {
     return new MemoryProjectStore(this.#memory, project.dir, scope, project.slug);

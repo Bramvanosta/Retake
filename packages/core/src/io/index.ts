@@ -24,6 +24,7 @@ export type { LockRecord } from './lock.js';
 export { describeListeners, listeners, parseLsof, probePort } from './listeners.js';
 export type { Listener } from './listeners.js';
 export * from './media.js';
+export * from './memory-disk.js';
 export * from './media-tools.js';
 export * from './media-run.js';
 export * from './plain-file.js';
@@ -47,6 +48,7 @@ export {
 } from './proc.js';
 export type { Known, Member, ProcInfo, StopResult } from './proc.js';
 export * from './project.js';
+export * from './reader.js';
 export * from './render-folder.js';
 export * from './run-folder.js';
 export * from './sandbox.js';

@@ -27,7 +27,6 @@ import type { WorkPolicy } from '@retake/core/policy';
 import type { RunProgress, RunRecord } from '@retake/core/run';
 import type { InspectJobInput } from './job-input.js';
 import type { InspectReport } from '@retake/runner-web/types';
-import { fileFacts } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
@@ -225,7 +224,10 @@ export async function prepareInspect(ws: OpenedWorkspace, project: LoadedProject
       if (!isPageOrigin(env.pages[source.page], env.pages)) throw new EngineError('refused', `page ${source.page} of environment ${env.name} is not an http(s) URL: nothing to inspect`);
       let scenario: LoadedScenario;
       try {
-        scenario = inspectScenario(source.page, source.path, { ...(source.persona !== undefined ? { persona: source.persona } : {}), check: { project, env: env.name, files: fileFacts(ws.policy) } });
+        scenario = inspectScenario(source.page, source.path, {
+          ...(source.persona !== undefined ? { persona: source.persona } : {}),
+          check: { project, env: env.name, files: ws.reads.fileFacts(ws.policy) },
+        });
       } catch (e) {
         throw new EngineError('invalid', (e as Error).message);
       }

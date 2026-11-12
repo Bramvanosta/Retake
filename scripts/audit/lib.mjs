@@ -225,6 +225,38 @@ export const RENDER_HOME = 'packages/engine/src/render/';
 export const CLOCK_HOME = 'packages/engine/src/clock.ts';
 /** The project store's folder and the media storage (store-new): where a store or a storage of a folder is built. */
 export const STORE_HOME = 'packages/engine/src/store/';
+/** The WorkspaceReads port's folder (workspace-read, L7.38): the one engine folder that names a workspace loader of core io. */
+export const WORKSPACE_READS_HOME = 'packages/engine/src/workspace-reads/';
+/**
+ * core io's workspace loaders (workspace-read): the readers of a workspace, its projects, scenarios, themes and sandboxes
+ * (io workspace.ts, project.ts, scenario.ts, template.ts, sandbox.ts), their `…On` forms on a disk, and what binds them
+ * to a disk (reader.ts) or is the machine's disk (file-facts.ts nodeWorkspaceDisk).
+ */
+export const WORKSPACE_LOADERS = [
+  ...[
+    'findWorkspaceRoot',
+    'findWorkspaceUpward',
+    'loadWorkspaceConfig',
+    'listScenarioNames',
+    'listProjects',
+    'loadProject',
+    'planNewProject',
+    'readScenarioSource',
+    'loadScenario',
+    'listTemplates',
+    'loadTemplate',
+    'loadProjectTemplate',
+    'templateFolderId',
+    'projectTemplateFolderId',
+    'loadSandboxes',
+    'accountsComposeEnv',
+  ].flatMap((n) => [n, `${n}On`]),
+  'checkNewProject',
+  'scenarioEnvOf',
+  'workspaceReader',
+  'nodeWorkspaceReader',
+  'nodeWorkspaceDisk',
+];
 export const STORAGE_FILE = 'packages/engine/src/storage.ts';
 /**
  * Where each product adapter of a port may be named as a value (clock-read, store-new): its own file, the ports bag
@@ -236,6 +268,8 @@ export const PORT_ROOTS = {
   systemClock: [CLOCK_HOME, 'packages/engine/src/ports.ts', 'packages/engine/src/jobs/queue.ts', 'packages/engine/src/jobs/memory-queue.ts'],
   enginePorts: ['packages/engine/src/ports.ts', 'packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/cli/src/workspace.ts'],
   diskProjectStores: ['packages/engine/src/store/project-store.ts', 'packages/engine/src/ports.ts'],
+  diskWorkspaceReads: ['packages/engine/src/workspace-reads/disk-reads.ts', 'packages/engine/src/ports.ts'],
+  MemoryWorkspace: ['packages/engine/src/workspace-reads/memory-reads.ts'],
   packageHookRunner: ['packages/engine/src/hook-run/package-hooks.ts', 'packages/engine/src/ports.ts'],
   packageReviewer: ['packages/engine/src/review/review-package.ts', 'packages/engine/src/ports.ts'],
   runnerWebCapture: ['packages/engine/src/capture/runner-web-capture.ts', 'packages/engine/src/ports.ts'],
@@ -246,6 +280,8 @@ export const PORT_ROOT_RULE = {
   systemClock: 'clock-read',
   enginePorts: 'clock-read',
   diskProjectStores: 'store-new',
+  diskWorkspaceReads: 'workspace-read',
+  MemoryWorkspace: 'workspace-read',
   packageHookRunner: 'loader-use',
   packageReviewer: 'loader-use',
   runnerWebCapture: 'loader-use',
@@ -483,6 +519,10 @@ export const CHECKS = [
   {
     id: 'store-new',
     title: `only the project store builds a store or a storage of a folder: in packages/*/src outside ${STORE_HOME} and ${STORAGE_FILE}, \`new LocalStorage(…)\`, \`new DiskProjectStore(…)\`, a class extending either, or either class passed on as a value is a hit, and so is the disk adapter \`diskProjectStores\` named as a value outside PORT_ROOTS (entries: the file and the form; a type position, an import and an export are not uses), under its own name, an import alias (\`{ LocalStorage as LS }\`) or off a namespace import (\`new st.LocalStorage()\`, \`ps.diskProjectStores\`): every authored write is handed a ProjectStores port in its StoreScope. Not seen: \`Reflect.construct(LocalStorage, …)\` counted only as the class used as a value, a class reached through another variable, a namespace from \`await import()\``,
+  },
+  {
+    id: 'workspace-read',
+    title: `the engine reads a workspace through its WorkspaceReads port (${WORKSPACE_READS_HOME}, L7.38): in packages/engine/src outside it, a value import of a workspace loader of \`@retake/core/io\` (WORKSPACE_LOADERS: the loaders of io workspace.ts, project.ts, scenario.ts, template.ts and sandbox.ts, their \`…On\` forms, \`workspaceReader\`, \`nodeWorkspaceReader\`, \`nodeWorkspaceDisk\`) under its name or an alias, a loader read off a namespace import of it (\`io.loadProject\`, \`io['loadProject']\`), a loader re-exported from it (\`export { loadProject } from\`, \`export * from\`), an \`import()\` or \`require()\` of it (\`import() of @retake/core/io\`, whatever it takes out); and the product's adapter \`diskWorkspaceReads\` named as a value outside PORT_ROOTS (\`<name> outside a root\`). Read through parentheses, \`as\`, \`satisfies\` and \`!\` around the namespace. Not seen: a loader reached through another module that re-exports it under its own name, a namespace member taken by destructuring (\`const { loadProject } = io\`), a namespace aliased (\`const m = io\` then \`m.loadProject\`) or passed on whole, a key computed at run time (\`io[name]\`); and the in-memory adapter \`MemoryWorkspace\` named as a value in packages/*/src outside its own file (a test's fake, \`<name> outside a root\`)`,
   },
   {
     id: 'loader-use',
@@ -1129,6 +1169,60 @@ export function portHits(root, files) {
     }
   }
   return { clock, hits };
+}
+
+const CORE_IO = '@retake/core/io';
+
+/**
+ * The workspace reads' wiring (workspace-read), read from the syntax tree: in packages/engine/src outside
+ * WORKSPACE_READS_HOME, a loader of WORKSPACE_LOADERS imported from `@retake/core/io` as a value (its name, an alias),
+ * read off a namespace import of it, re-exported from it, and `import()` / `require()` of it. Type-only imports load
+ * nothing. `[{ rule, file, spec }]`, one per name and file.
+ */
+export function workspaceReadHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  const LOADERS = new Set(WORKSPACE_LOADERS);
+  for (const { rel, text } of files) {
+    if (!rel.startsWith('packages/engine/src/') || rel.startsWith(WORKSPACE_READS_HOME) || !text.includes(CORE_IO)) continue;
+    const sf = parse(ts, rel, text);
+    const found = new Set();
+    const spaces = new Set();
+    sf.forEachChild((n) => {
+      if (ts.isImportDeclaration(n) && literal(ts, n.moduleSpecifier) === CORE_IO) {
+        const c = n.importClause;
+        if (!c || c.isTypeOnly) return;
+        const b = c.namedBindings;
+        if (b && ts.isNamespaceImport(b)) spaces.add(b.name.text);
+        if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly && LOADERS.has((e.propertyName ?? e.name).text)) found.add((e.propertyName ?? e.name).text);
+      }
+      if (ts.isExportDeclaration(n) && !n.isTypeOnly && literal(ts, n.moduleSpecifier) === CORE_IO) {
+        if (!n.exportClause || ts.isNamespaceExport(n.exportClause)) found.add(`export * from ${CORE_IO}`);
+        else for (const e of n.exportClause.elements) if (!e.isTypeOnly && LOADERS.has((e.propertyName ?? e.name).text)) found.add(`${(e.propertyName ?? e.name).text} re-exported`);
+      }
+      // `import io = require('@retake/core/io')`: the module whole, as a namespace import.
+      if (ts.isImportEqualsDeclaration(n) && !n.isTypeOnly && ts.isExternalModuleReference(n.moduleReference) && literal(ts, n.moduleReference.expression) === CORE_IO) spaces.add(n.name.text);
+    });
+    (function visit(n) {
+      if (ts.isCallExpression(n) && literal(ts, n.arguments[0]) === CORE_IO) {
+        if (n.expression.kind === ts.SyntaxKind.ImportKeyword) found.add(`import() of ${CORE_IO}`);
+        if (ts.isIdentifier(n.expression) && n.expression.text === 'require') found.add(`require() of ${CORE_IO}`);
+      }
+      // The namespace through parentheses, `as`, `satisfies` and `!`: `(io as typeof io).loadProject`.
+      const space = (e) => {
+        while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isNonNullExpression(e) || ts.isTypeAssertionExpression(e)) e = e.expression;
+        return ts.isIdentifier(e) && spaces.has(e.text);
+      };
+      if (ts.isPropertyAccessExpression(n) && space(n.expression) && LOADERS.has(n.name.text)) found.add(n.name.text);
+      if (ts.isElementAccessExpression(n) && space(n.expression)) {
+        const k = constText(ts, n.argumentExpression);
+        if (k !== undefined && LOADERS.has(k)) found.add(k);
+      }
+      n.forEachChild(visit);
+    })(sf);
+    for (const k of found) hits.push({ rule: 'workspace-read', file: rel, spec: k });
+  }
+  return hits;
 }
 
 /** Whether a relative specifier of an engine file names the engine's loader file (lazy.ts, as `.js`, `.ts` or bare). */
@@ -2055,6 +2149,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
     ...wiringHits(root, scanned.files),
     ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)]),
     ...loaderHits(root, scanned.files),
+    ...workspaceReadHits(root, scanned.files),
     ...portTypeHits(scanned.fileImports),
     ...coreContextHits(root, scanned.files),
     ...coreRootHits(root, scanned.files),

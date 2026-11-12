@@ -36,7 +36,6 @@ import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges, scenarioBlocks, scenarioText
 import { orderRenders } from '@retake/core/render';
 import type { LoadedProject, RunStatus } from '@retake/core/model';
 import type { RenderEntry, StoredRenderRecord } from '@retake/core/render';
-import { fileFacts, projectTemplateFolderId } from '@retake/core/io';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
 import { jobProject } from './jobs/queue-core.js';
@@ -291,7 +290,7 @@ export class ProjectBoards {
     const folderIds = (ref: string | undefined): Promise<string | undefined> => {
       if (typeof ref !== 'string') return Promise.resolve(undefined);
       let id = folders.get(ref);
-      if (!id) folders.set(ref, (id = projectTemplateFolderId(p, ref).catch(() => undefined)));
+      if (!id) folders.set(ref, (id = this.ctx.ws.reads.projectTemplateFolderId(p, ref).catch(() => undefined)));
       return id;
     };
     const out: BoardScenario[] = [];
@@ -492,7 +491,7 @@ export class ProjectBoards {
     }
     const filesRead = new Set<string>();
     const at = Date.now();
-    const { ok, issues } = await validateScenarioText(p, text.yaml, { files: fileFacts(this.ctx.ws.policy), name, filesRead });
+    const { ok, issues } = await validateScenarioText(p, text.yaml, { files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy), reads: this.ctx.ws.reads, name, filesRead });
     const deps = [...filesRead].sort();
     const depSig = await this.depSig(deps);
     const blocks = scenarioBlocks(text.yaml, { issues });

@@ -2,15 +2,14 @@
  * The ProjectStore port's memory adapter (store/memory-store.ts): the contract suite the disk adapter passes
  * (project-store-contract.ts), its stated limit (a `build` reading its stage from the disk fails), and the README's
  * rules through the engine on in-memory ports — conflict, creation, the cap, and project_get reading back what was
- * written — with exact journal lines under a ManualClock. One disk test of each kind stays: engine.test.ts (conflict,
+ * written — with exact journal lines under a ManualClock, the workspace itself in memory (a MemoryWorkspace, L7.38). One disk test of each kind stays: engine.test.ts (conflict,
  * replacement), storage-links.test.ts (a link written through), project-store.test.ts (the journal on disk).
  */
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ManualClock, MemoryProjectStores, README_MAX_CHARS, callerOf, createEngine, sha256Hex } from '../src/index.js';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { ManualClock, MemoryProjectStores, MemoryWorkspace, README_MAX_CHARS, callerOf, createEngine, sha256Hex } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { projectStoreContract } from './project-store-contract.js';
 
@@ -76,25 +75,20 @@ describe('the memory store: what only the disk does', () => {
 describe('the README on in-memory ports (engine.projects: updateReadme, get)', () => {
   const AT = '2026-05-06T07:08:09.000Z';
   const clock = new ManualClock(AT);
-  const stores = new MemoryProjectStores();
-  let root: string;
-  let dir: string;
+  // L7.38: the workspace is in memory too (a MemoryWorkspace: its reads and its store share one Map) — no folder of the disk.
+  const mem = new MemoryWorkspace();
+  const stores = mem.stores;
+  const root = join(sep, 'retake-memory', 'readme');
+  const dir = join(root, 'projects', 'acme');
   let engine: Engine;
   const readmeLine = (o: Record<string, unknown>) =>
     JSON.stringify({ v: 1, at: AT, by: { client: 'mcp', channel: 'mcp', trust: 'mcp' }, project: 'acme', op: 'write', what: 'readme', path: 'projects/acme/README.md', ...o });
 
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), 'retake-memory-readme-'));
-    dir = join(root, 'projects', 'acme');
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
-    // The project loads from the disk (core loadProject); its README is the memory store's only.
-    await writeFile(join(dir, 'project.yaml'), 'version: 1\nname: Acme\nenvironments:\n  local:\n    app: http://127.0.0.1:4999\n');
-    engine = await createEngine({ root, client: 'mcp', autoStartWorker: false, ports: { clock, stores } });
-  });
-
-  afterAll(async () => {
-    await rm(root, { recursive: true, force: true });
+    mem.seed(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
+    // The project loads from the Map (core loadProject on the memory disk), its README is written to it by the store.
+    mem.seed(join(dir, 'project.yaml'), 'version: 1\nname: Acme\nenvironments:\n  local:\n    app: http://127.0.0.1:4999\n');
+    engine = await createEngine({ root, client: 'mcp', autoStartWorker: false, ports: { clock, ...mem.ports() } });
   });
 
   it('a missing README is created (no if_match), then replaced on its hash only; get reads it back through the port', async () => {

@@ -15,7 +15,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, RunDataCache, ScenarioViews, createEngine, openProjectBySlug, openWorkspace } from '../src/index.js';
+import { EngineError, RunDataCache, ScenarioViews, createEngine, openProjectBySlug, openWorkspace, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, RunBlocker } from '../src/index.js';
 import { blockerKind } from '../src/jobs/run-job.js';
 import { writeRun } from '@retake/test-support/runs';
@@ -169,7 +169,7 @@ describe('scenarios.actions: the status bar’s read', () => {
 
 describe('memo (critique H2)', () => {
   const views = async () => {
-    const wsc = await openWorkspace({ root: ws, agent: false });
+    const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
     let blockers = 0;
     const v = new ScenarioViews({
       ws: wsc,

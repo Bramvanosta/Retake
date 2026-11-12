@@ -24,7 +24,7 @@ import {
 } from '@retake/core/environment';
 import { parseHookFile } from '@retake/core/hooks';
 import { ScenarioError, personaPageOrigins } from '@retake/core/scenario';
-import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
+import { retakeHome, nodeFileFacts } from '@retake/core/io';
 import type { ErrorKind } from '@retake/core/base';
 import type { HookStep, LoadedProject, Scenario, WorkFileFacts } from '@retake/core/model';
 import type { ResolvedPersona, RunAccess } from '@retake/core/environment';
@@ -37,6 +37,7 @@ import { EngineError } from './errors.js';
 import { hookRunRecorder } from './store/journal.js';
 import type { JournalAs } from './store/journal.js';
 import { confinementOf } from './caller.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /**
  * A hooks source that cannot be used: `usage` — not a hooks source at all (the CLI: a usage error, exit 2); otherwise
@@ -93,7 +94,7 @@ export async function selectHooks(
   project: LoadedProject,
   spec: string,
   envOpt: string | undefined,
-  o: { projectFilesOnly?: boolean; expectSha256?: string; files: WorkFileFacts },
+  o: { projectFilesOnly?: boolean; expectSha256?: string; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<HookSelection> {
   if (spec === 'reset') {
     const hooks = project.config.reset ?? [];
@@ -103,7 +104,7 @@ export async function selectHooks(
   const m = SCENARIO_HOOKS_RE.exec(spec);
   if (m) {
     const [, name, which] = m;
-    const loaded = await loadScenario(project, name, { files: o.files, env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
+    const loaded = await o.reads.loadScenario(project, name, { files: o.files, env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
     const hooks = (which === 'setup' ? loaded.scenario.setup : loaded.scenario.teardown) ?? [];
     if (!hooks.length) throw new HooksSourceError(`scenario "${loaded.name}" has no ${which} hooks`, false);
     return {

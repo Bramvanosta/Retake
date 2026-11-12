@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, listTemplates, loadTemplate, loadWorkspaceConfig, fileFacts } from '@retake/core/io';
 import { fontFileFace } from '@retake/components';
-import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace, personScope, enginePorts } from '../src/index.js';
+import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace, personScope, enginePorts, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, EngineError, ThemeCreated } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { PERSON_POLICY } from '@retake/core';
@@ -211,7 +211,9 @@ describe('template_create_from_brand (engine)', () => {
       await mkdir(join(ws, 'brand'));
       await cp(join(T, 'editorial', 'logo.svg'), join(ws, 'brand', 'logo.svg'));
       await writeFile(join(ws, 'retake.yaml'), `templates_dir: ${JSON.stringify(td)}\n`);
-      const e = await refusal(createThemeFromBrand({ ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY }, input(), { trust: 'mcp', scope: personScope(ws, enginePorts()) }));
+      const e = await refusal(
+        createThemeFromBrand({ ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, input(), { trust: 'mcp', scope: personScope(ws, enginePorts()) }),
+      );
       expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/lies inside the Retake folder/), fix: expect.stringMatching(/RETAKE_ROOT/) });
       await rm(ws, { recursive: true, force: true });
     }
@@ -356,7 +358,7 @@ describe('template_create_from_brand (engine)', () => {
   });
 
   it('replace through MCP never takes a theme a human made with the CLI; the CLI may replace a tool-made one', async () => {
-    const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY };
+    const ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
     await createThemeFromBrand(ws, input({ name: 'bob' }), { trust: 'author', cwd: root, scope: personScope(root, enginePorts()) });
     expect(await refusal(engine.templates.create(input({ name: 'bob', colors: { accent: '#00aa00' }, replace: true })))).toMatchObject({
       code: 'refused',

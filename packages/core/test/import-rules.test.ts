@@ -525,6 +525,88 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe('workspace-read: the engine reads a workspace through its WorkspaceReads port (L7.38)', () => {
+    const reads = (rel: string, text: string): string[] => lib.workspaceReadHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+    const ports = (rel: string, text: string): string[] => lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+
+    it('flags a workspace loader of core io imported in the engine outside the port, under its name or an alias, its `…On` form and the binders too', () => {
+      expect(reads('packages/engine/src/a.ts', "import { loadProject, reserveRunId } from '@retake/core/io';")).toEqual(['workspace-read packages/engine/src/a.ts → loadProject']);
+      expect(reads('packages/engine/src/jobs/a.ts', "import { listTemplates as lt, loadTemplateOn } from '@retake/core/io';")).toEqual([
+        'workspace-read packages/engine/src/jobs/a.ts → listTemplates',
+        'workspace-read packages/engine/src/jobs/a.ts → loadTemplateOn',
+      ]);
+      expect(reads('packages/engine/src/a.ts', "import { nodeWorkspaceReader, workspaceReader, nodeWorkspaceDisk } from '@retake/core/io';")).toEqual([
+        'workspace-read packages/engine/src/a.ts → nodeWorkspaceReader',
+        'workspace-read packages/engine/src/a.ts → workspaceReader',
+        'workspace-read packages/engine/src/a.ts → nodeWorkspaceDisk',
+      ]);
+      // The port's folder, a type-only import, another name of core io, another module and a file outside the engine are free.
+      expect(reads('packages/engine/src/workspace-reads/disk-reads.ts', "import { nodeWorkspaceReader } from '@retake/core/io';")).toEqual([]);
+      expect(reads('packages/engine/src/a.ts', "import type { loadProject } from '@retake/core/io';\nimport { type listProjects, retakeHome } from '@retake/core/io';")).toEqual([]);
+      expect(reads('packages/engine/src/a.ts', "import { loadProject } from './projects.js';\nimport { loadTemplate } from '@retake/core/template';")).toEqual([]);
+      expect(reads('packages/cli/src/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
+    });
+
+    it('flags a loader read off a namespace import, re-exported, or core io loaded by import() or require()', () => {
+      expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nawait io.loadProject('x');\nio.retakeHome();")).toEqual([
+        'workspace-read packages/engine/src/a.ts → loadProject',
+      ]);
+      expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nawait io['listProjects']('/w');")).toEqual(['workspace-read packages/engine/src/a.ts → listProjects']);
+      expect(reads('packages/engine/src/a.ts', "import io = require('@retake/core/io');\nio.loadWorkspaceConfig('/w');")).toEqual(['workspace-read packages/engine/src/a.ts → loadWorkspaceConfig']);
+      expect(reads('packages/engine/src/a.ts', "export { loadScenario as ls, retakeHome } from '@retake/core/io';")).toEqual(['workspace-read packages/engine/src/a.ts → loadScenario re-exported']);
+      expect(reads('packages/engine/src/a.ts', "export * from '@retake/core/io';")).toEqual(['workspace-read packages/engine/src/a.ts → export * from @retake/core/io']);
+      expect(reads('packages/engine/src/a.ts', "const { loadProject } = await import('@retake/core/io');")).toEqual(['workspace-read packages/engine/src/a.ts → import() of @retake/core/io']);
+      expect(reads('packages/engine/src/a.ts', "const io = require('@retake/core/io');")).toEqual(['workspace-read packages/engine/src/a.ts → require() of @retake/core/io']);
+      // The namespace read through parentheses, `as`, `satisfies` and `!`.
+      expect(
+        reads(
+          'packages/engine/src/a.ts',
+          "import * as io from '@retake/core/io';\n(io as typeof io).loadProject('x');\n(io!).listTemplates('/w');\n(io satisfies object)['loadTemplate'];\n((io)).planNewProject;",
+        ),
+      ).toEqual([
+        'workspace-read packages/engine/src/a.ts → loadProject',
+        'workspace-read packages/engine/src/a.ts → listTemplates',
+        'workspace-read packages/engine/src/a.ts → loadTemplate',
+        'workspace-read packages/engine/src/a.ts → planNewProject',
+      ]);
+      // The limits the title names: a namespace member taken by destructuring, a namespace aliased, a computed key.
+      expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nconst { loadProject } = io;")).toEqual([]);
+      expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nconst m = io;\nm.loadProject('x');")).toEqual([]);
+      expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nconst k = 'loadProject';\nio[k]('x');")).toEqual([]);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'workspace-read')!.title;
+      for (const words of ['const { loadProject } = io', 'const m = io', 'io[name]', '`satisfies`', 'outside a root', 'WORKSPACE_LOADERS', 'MemoryWorkspace']) expect(title, words).toContain(words);
+    });
+
+    it('flags the disk adapter of the port, and its in-memory one, named as a value outside their roots', () => {
+      expect(ports('packages/engine/src/a.ts', "import { diskWorkspaceReads } from './workspace-reads/disk-reads.js';\nopen({ reads: diskWorkspaceReads });")).toEqual([
+        'workspace-read packages/engine/src/a.ts → diskWorkspaceReads outside a root',
+      ]);
+      expect(ports('packages/cli/src/a.ts', "import { diskWorkspaceReads as d } from '@retake/engine';\nf(d);")).toEqual(['workspace-read packages/cli/src/a.ts → diskWorkspaceReads outside a root']);
+      expect(ports('packages/engine/src/ports.ts', "import { diskWorkspaceReads } from './workspace-reads/disk-reads.js';\nconst r = diskWorkspaceReads;")).toEqual([]);
+      // The in-memory adapter is a test's: named as a value in a source outside its own file is a hit; its re-export is not a use.
+      expect(ports('packages/engine/src/engine.ts', "import { MemoryWorkspace } from './workspace-reads/memory-reads.js';\nconst m = new MemoryWorkspace();")).toEqual([
+        'workspace-read packages/engine/src/engine.ts → MemoryWorkspace outside a root',
+      ]);
+      expect(ports('packages/ui/src/a.ts', "import { MemoryWorkspace as M } from '@retake/engine';\nf(M);")).toEqual(['workspace-read packages/ui/src/a.ts → MemoryWorkspace outside a root']);
+      expect(ports('packages/engine/src/index.ts', "export { MemoryWorkspace } from './workspace-reads/memory-reads.js';")).toEqual([]);
+    });
+
+    it("holds today: every loader the engine calls goes through the port but agent-written.ts's (the lot beside this one) and the in-memory reviewer's, pinned", () => {
+      const entries = ratchetOfRepo().filter((e) => e.startsWith('workspace-read '));
+      expect(entries).toEqual([
+        'workspace-read packages/engine/src/agent-written.ts → findWorkspaceUpward',
+        'workspace-read packages/engine/src/agent-written.ts → loadScenario',
+        'workspace-read packages/engine/src/agent-written.ts → loadWorkspaceConfig',
+        'workspace-read packages/engine/src/review/memory-reviewer.ts → loadProject',
+      ]);
+      // Every loader the port binds is one the check knows (a loader added to the reader and not to the list fails here).
+      const reader = readFileSync(join(ROOT, 'packages/core/src/io/reader.ts'), 'utf8');
+      const bound = [...reader.matchAll(/\b(\w+On)\(disk/g)].map((m) => m[1]);
+      expect(bound.length).toBeGreaterThan(10);
+      for (const n of bound) expect(lib.WORKSPACE_LOADERS, n).toContain(n);
+    });
+  });
+
   describe('browser-registry: one browser-discovery module (L7.25, finding X9)', () => {
     const at = (rel: string, text: string): string[] =>
       (lib.browserRegistryHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);

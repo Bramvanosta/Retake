@@ -32,6 +32,7 @@ import {
   takeApprovals,
   enginePorts,
   ManualClock,
+  diskWorkspaceReads,
 } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
@@ -79,7 +80,14 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 async function execHooks(input: HooksJobInput, signal = new AbortController().signal) {
   const events: JobEventBody[] = [];
-  const result = await executeHooksJob({ ...enginePorts(), ws: await openWorkspace({ root: ws, agent: false }), cli: `retake -C ${ws}`, input, signal, event: (e) => events.push(e) });
+  const result = await executeHooksJob({
+    ...enginePorts(),
+    ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads }),
+    cli: `retake -C ${ws}`,
+    input,
+    signal,
+    event: (e) => events.push(e),
+  });
   return { result, events };
 }
 
@@ -265,7 +273,7 @@ describe('hooks executed by the worker (trust mcp)', () => {
     const reset = await engine.env.reset({ project: 'northfield-fixture', dry: false }, { approver: accept() });
     const r = await executeEnvResetJob({
       ...enginePorts(),
-      ws: await openWorkspace({ root: ws, agent: false }),
+      ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads }),
       cli: 'retake',
       input: reset.job.input as EnvResetJobInput,
       signal: new AbortController().signal,

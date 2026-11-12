@@ -16,7 +16,7 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, RECORD_KEEP, createEngine, historyFile, jobsDir, newRecordId, openProject, openWorkspace, pruneRecords, recordsRoot, runWorker } from '../src/index.js';
+import { FileJobQueue, RECORD_KEEP, createEngine, historyFile, jobsDir, newRecordId, openProject, openWorkspace, pruneRecords, recordsRoot, runWorker, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, EngineError, JobRecord, RecordJobResult, RecordWindow } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
@@ -181,7 +181,7 @@ describe('record jobs: run by the worker', () => {
     expect(r.stats.secrets).toBe(1);
     expect(r.issues.codes).toContain('secret_field');
     expect(r.untrusted.issues.map((i) => i.code)).toContain('secret_field');
-    expect(r.dir).toBe(join(recordsRoot(await openProject(await openWorkspace({ root, agent: false }), PROJECT)), sub.rec_id));
+    expect(r.dir).toBe(join(recordsRoot(await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads }), PROJECT)), sub.rec_id));
 
     const got = await engine.record.get(PROJECT, sub.rec_id);
     expect(got.draft).toContain('text: "{{vars.password_1}}"');
@@ -209,7 +209,7 @@ describe('record jobs: run by the worker', () => {
         counted: { captures: 0, dry_runs: 0, renders: 0 },
       }),
     ]);
-    const p = await openProject(await openWorkspace({ root, agent: false }), PROJECT);
+    const p = await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads }), PROJECT);
     for (const f of [...(await files(r.dir!)), join(p.dir, 'scenarios', 'lab-job.yaml'), historyFile(root)]) {
       expect((await readFile(f)).includes(sentinel), f).toBe(false);
     }
@@ -237,7 +237,7 @@ describe('record jobs: run by the worker', () => {
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state).toBe('cancelled');
     expect(job.error?.message).toMatch(/nothing was kept/);
-    const p = await openProject(await openWorkspace({ root, agent: false }), PROJECT);
+    const p = await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads }), PROJECT);
     expect(existsSync(join(recordsRoot(p), sub.rec_id))).toBe(false);
     expect(existsSync(join(p.dir, 'scenarios', 'discarded.yaml'))).toBe(false);
     expect((await engine.record.get(PROJECT, sub.rec_id)).draft).toBeNull();
@@ -247,7 +247,7 @@ describe('record jobs: run by the worker', () => {
 describe('record jobs: folders and interruptions', () => {
   it('pruning keeps the folder of a queued record job, even the oldest', async () => {
     const sub = await engine.record.submit({ project: PROJECT, page: 'shop' });
-    const p = await openProject(await openWorkspace({ root, agent: false }), PROJECT);
+    const p = await openProject(await openWorkspace({ root, agent: false, reads: diskWorkspaceReads }), PROJECT);
     const mine = join(recordsRoot(p), sub.rec_id);
     await mkdir(mine, { recursive: true });
     for (let i = 0; i < RECORD_KEEP + 2; i++) await mkdir(join(recordsRoot(p), newRecordId()), { recursive: true });

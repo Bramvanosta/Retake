@@ -21,7 +21,6 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core/model';
 import type { ComponentKind, LoadedTemplate, ValidationIssue } from '@retake/core/model';
-import { fileFacts } from '@retake/core/io';
 import type { ComponentInfo, ComponentManifest, ComponentRegistry, ComponentSource } from '@retake/components';
 import type { PreviewComponentTarget, PreviewReadmeWriter } from '@retake/editor';
 import { EngineError, toEngineError } from './errors.js';
@@ -481,5 +480,5 @@ export async function componentPreviewTargets(ws: OpenedWorkspace, sel: PreviewS
 /** The theme a shell's previews are rendered with (a name or a folder; default the previews' own), read with the workspace's file facts. */
 export async function componentPreviewTheme(ws: OpenedWorkspace, name?: string): Promise<{ theme: string; template: LoadedTemplate }> {
   const theme = name ?? (await components()).PREVIEW_THEME;
-  return { theme, template: await (await editor()).loadPreviewTheme(theme, ws.root, fileFacts(ws.policy)) };
+  return { theme, template: await (await editor()).loadPreviewTheme(theme, ws.root, ws.reads.fileFacts(ws.policy)) };
 }

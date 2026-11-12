@@ -20,7 +20,7 @@ import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_INPUT_VERSION } from '@retake/engine';
 import type { RenderRecord } from '@retake/editor';
-import { FileJobQueue, JobFiles, cleanupInterruptedRender, cleanupInterruptedReview, createEngine, historyFile, openWorkspace, runWorker } from '../src/index.js';
+import { FileJobQueue, JobFiles, cleanupInterruptedRender, cleanupInterruptedReview, createEngine, historyFile, openWorkspace, runWorker, diskWorkspaceReads } from '../src/index.js';
 import type { Engine, ExportJobResult, JobRecord, ReviewJobResult } from '../src/index.js';
 import { MEMORY_JPEG, MemoryReviewer } from '../src/review/memory-reviewer.js';
 import { MEMORY_PNG, MemoryRenderer } from '../src/render/memory-renderer.js';
@@ -305,7 +305,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
   it(
     "a worker that died mid-review or mid inline review: the cleanups put the review folder back with the worker's reviewer",
     async () => {
-      const ows = await openWorkspace({ root: mws.root, agent: true });
+      const ows = await openWorkspace({ root: mws.root, agent: true, reads: diskWorkspaceReads });
       const dir = join(mws.project.dir, 'review', 'long-v1');
       const report = await readFile(join(dir, 'report.json'), 'utf8');
       // A review set aside by a dead process (the swap's first rename done, not the second): it comes back.

@@ -39,7 +39,6 @@ import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, isThemeName, zRenderId } from '@ret
 import { PROJECT_SLUG_RE } from '@retake/core/project';
 import { isTemplatePath } from '@retake/core/scenario';
 import { COMMENT_TEXT_MAX, isIsoUtcDate } from '@retake/core/comments';
-import { loadProjectTemplate, fileFacts } from '@retake/core/io';
 import type { CommentEntryView, CommentProposalView, CommentView } from '../comments.js';
 import type { Engine } from '../engine.js';
 import { EngineError } from '../errors.js';
@@ -299,7 +298,7 @@ async function offerFacts(engine: Engine, slug: string, t: CommentView): Promise
     const ref = doc && typeof doc === 'object' && typeof doc.template === 'string' ? doc.template : undefined;
     // A theme folder named by the scenario is refused by the Studio's render (a theme is named): never read here.
     if (ref !== undefined && isTemplatePath(ref) && ref !== p.config.template) files = { missing: "The scenario's template: is a folder" };
-    else files = { name: (await loadProjectTemplate(p, ref, { files: fileFacts(engine.workspace.policy) })).name };
+    else files = { name: (await engine.workspace.reads.loadProjectTemplate(p, ref, { files: engine.workspace.reads.fileFacts(engine.workspace.policy) })).name };
   } catch {
     files = { missing: "The files' theme cannot be read" };
   }

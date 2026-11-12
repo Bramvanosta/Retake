@@ -506,7 +506,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   // Valid in the project (its vars, pages, personas), not only as a scenario: else it is neither saved nor checked.
   if (!draft.issues.some((i) => i.severity === 'error')) {
     const ids = base.scenes.map((x) => x.id);
-    for (const x of parseScenario(draft.yaml, { files: fileFacts(ws.policy), project, file: draftFile, env: env.name }).issues) {
+    for (const x of parseScenario(draft.yaml, { files: ws.reads.fileFacts(ws.policy), project, file: draftFile, env: env.name }).issues) {
       if (x.severity === 'error') draft.issues.push(draftInvalidIssue(x, ids, 'the draft does not validate in the project'));
     }
   }
@@ -527,7 +527,8 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   else {
     try {
       const r = await saveScenarioText(project, name, draft.yaml, {
-        files: fileFacts(ws.policy),
+        files: ws.reads.fileFacts(ws.policy),
+        reads: ws.reads,
         ifMatch: null,
         agent: req.agent === true,
         scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli'), clock: ports.clock, stores: ports.stores },

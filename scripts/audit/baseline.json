@@ -125,6 +125,22 @@
    ]
   },
   {
+   "rule": "workspace-read",
+   "reason": "agent-written.ts reads the workspaces of an agent's write and a scenario's hooks for `retake hooks trust` on core io's loaders: the file belongs to the lot in flight beside this one (L7.39), switched onto the port after it lands",
+   "entries": [
+    "packages/engine/src/agent-written.ts → findWorkspaceUpward",
+    "packages/engine/src/agent-written.ts → loadScenario",
+    "packages/engine/src/agent-written.ts → loadWorkspaceConfig"
+   ]
+  },
+  {
+   "rule": "workspace-read",
+   "reason": "the in-memory reviewer stands for the review package, which loads the project a review names by slug itself (core io loadProject, outside the engine): the fake does what the adapter does",
+   "entries": [
+    "packages/engine/src/review/memory-reviewer.ts → loadProject"
+   ]
+  },
+  {
    "rule": "port-types",
    "reason": "The renderer port still borrows the editor's and the components' types (the registry, bundle components, preview specs, render progress: L7.1 and L7.2, left), until they have a home in core or a domain entry.",
    "entries": [

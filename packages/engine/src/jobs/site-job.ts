@@ -34,7 +34,7 @@ import { statePath, STATE_DIR, STATE_DIRS } from '@retake/core/project';
 import { insideFolder } from '@retake/core/scenario';
 import { BRAND_IMAGE_MAX_BYTES, TEMPLATE_FILE, parseSiteUrl, siteApprovalFingerprint, siteThemeName, unsafeTestResolve } from '@retake/core/theme';
 import { JOB_INPUT_VERSION } from './job-input.js';
-import { listProjects, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core/model';
 import type { SiteUrl, TemplateFile } from '@retake/core/theme';
 import type { JobApproval, SiteJobInput } from './job-input.js';
@@ -177,7 +177,7 @@ export function checkSiteUrl(url: string, fix?: string): SiteUrl {
  */
 export async function siteHostConflicts(ws: OpenedWorkspace, host: string): Promise<string[]> {
   const out: string[] = [];
-  for (const p of await listProjects(ws.root)) {
+  for (const p of await ws.reads.listProjects(ws.root)) {
     let project: LoadedProject;
     try {
       project = await openProject(ws, p.dir);
@@ -312,7 +312,7 @@ export async function siteDraft(ws: OpenedWorkspace, siteId: string, view: Pick<
   const baseName = tone === 'dark' ? 'motion' : 'editorial';
   let base;
   try {
-    base = await loadTemplate(baseName, ws.root, { files: fileFacts(ws.policy) });
+    base = await ws.reads.loadTemplate(baseName, ws.root, { files: ws.reads.fileFacts(ws.policy) });
   } catch {
     return null;
   }

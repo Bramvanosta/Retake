@@ -8,7 +8,7 @@ import { GUIDE, sandboxErrorKind } from '@retake/core/base';
 import { resolveEnvironment, resolveRunAccess } from '@retake/core/environment';
 import { sandboxNames, sandboxOf } from '@retake/core/sandbox';
 import { parseScenarioSource, scenarioSourceEnv } from '@retake/core/scenario';
-import { describeLock, loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
+import { describeLock } from '@retake/core/io';
 import type { ErrorKind } from '@retake/core/base';
 import type { LoadedProject, LoadedScenario, LoadedTemplate, Timeline, ValidationIssue } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
@@ -128,13 +128,16 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  */
 export async function prepareRun(ws: OpenedWorkspace, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
   if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
-  const src = await readScenarioSource(project, scenarioRef, { ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}), ...(req.readFile ? { readFile: req.readFile } : {}) });
+  const src = await ws.reads.readScenarioSource(project, scenarioRef, {
+    ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}),
+    ...(req.readFile ? { readFile: req.readFile } : {}),
+  });
   const sandboxEnv = req.sandbox ? pickSandboxEnv(project, req.env, scenarioSourceEnv(src.text)) : undefined;
-  const scenario = parseScenarioSource(project, src, { files: fileFacts(ws.policy), env: sandboxEnv ?? req.env, until: req.until });
+  const scenario = parseScenarioSource(project, src, { files: ws.reads.fileFacts(ws.policy), env: sandboxEnv ?? req.env, until: req.until });
   let template: LoadedTemplate | undefined;
   let templateWarning: string | undefined;
   try {
-    template = await loadProjectTemplate(project, scenario.scenario.template, { files: fileFacts(ws.policy) });
+    template = await ws.reads.loadProjectTemplate(project, scenario.scenario.template, { files: ws.reads.fileFacts(ws.policy) });
   } catch (e) {
     // Phase 1 only takes the cursor ripple colour from the template: capture with the defaults.
     templateWarning = `${errorMessage(e)} — capturing with the default cursor colours`;

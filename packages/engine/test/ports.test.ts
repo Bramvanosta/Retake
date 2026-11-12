@@ -45,7 +45,7 @@ beforeEach(() => void calls.splice(0));
 describe('the ports bag: the hook runner and the reviewer', () => {
   it('defaults to the package adapters and keeps the ones handed; making them loads nothing', () => {
     const p = enginePorts();
-    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'hooks', 'reviewer', 'sandboxes', 'stores']);
+    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'hooks', 'reads', 'reviewer', 'sandboxes', 'stores']);
     expect(typeof p.sandboxes.open).toBe('function');
     expect(typeof p.capture.run).toBe('function');
     expect(typeof p.hooks.run).toBe('function');

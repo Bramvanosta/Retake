@@ -6,7 +6,6 @@
 import { loginCommand as coreLoginCommand } from '@retake/core/environment';
 import type { LoadedProject, RunMode, Scenario, WorkFileFacts } from '@retake/core/model';
 import type { AgentChannel } from '../caller.js';
-import { fileFacts } from '@retake/core/io';
 import { admission } from '../admission.js';
 import type { Admission } from '../admission.js';
 import { admits, agentChecks, agentWorkspace, callerOf, refusalChannel } from '../caller.js';
@@ -88,7 +87,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
   const agent = agentChecks(caller);
   const via = refusalChannel(caller);
   // Every caller but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
-  const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller) });
+  const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller), reads: ports.reads });
   // Every authored write of this engine goes through the project store, journaled as this caller's.
   const scope: StoreScope = { workspace: ws.root, caller, clock: ports.clock, stores: ports.stores };
   const project = (slug: string) => openProjectBySlug(ws, slug);
@@ -164,7 +163,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
     agent,
     via,
     ws,
-    files: fileFacts(ws.policy),
+    files: ws.reads.fileFacts(ws.policy),
     scope,
     project,
     studio,

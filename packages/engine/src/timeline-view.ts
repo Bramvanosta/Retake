@@ -31,7 +31,7 @@ import { projectPath, scenarioRef } from '@retake/core/project';
 import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retake/core/scenario';
 import { locateAnchorStep } from '@retake/core/comments';
 import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender } from '@retake/core/render';
-import { listTemplates, readListedRender, readPlainFile, ffprobeBin, fileFacts, startMediaTool } from '@retake/core/io';
+import { readListedRender, readPlainFile, ffprobeBin, startMediaTool } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { FieldAt, FieldValue } from '@retake/core/scenario';
@@ -578,7 +578,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   let file: { hash?: string; yaml?: string; blocked?: string } = {};
   try {
     const text = await getScenario(project, req.scenario);
-    const parsed = text.utf8 ? parseScenario(text.yaml, { files: fileFacts(ws.policy), file: text.path, project }).scenario : undefined;
+    const parsed = text.utf8 ? parseScenario(text.yaml, { files: ws.reads.fileFacts(ws.policy), file: text.path, project }).scenario : undefined;
     const blocked = scenarioEditBlocker(project, text, parsed, o);
     file = { hash: text.hash, yaml: text.yaml, ...(blocked ? { blocked: blocked.why } : {}) };
   } catch (e) {
@@ -592,7 +592,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
     if (!pr || typeof pr !== 'object' || typeof pr.comment_id !== 'string' || !COMMENT_ID_RE.test(pr.comment_id) || typeof pr.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(pr.entry_id)) {
       throw new EngineError('invalid', 'proposal is {comment_id: c_…, entry_id: r_…}: the thread and the reply holding the proposal', { details: { argument: 'proposal' } });
     }
-    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry, files: fileFacts(ws.policy) });
+    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry, files: ws.reads.fileFacts(ws.policy), reads: ws.reads });
     if (req.run_id !== undefined && req.run_id !== proposal.run_id) {
       throw new EngineError('invalid', `a proposal is previewed on the take its comment was made on (run ${proposal.run_id})`, { details: { argument: 'run_id' } });
     }
@@ -607,11 +607,11 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   const commentsStat = statKey(projectPath(project.dir, 'comments', req.scenario));
   const projectStat = statKey(join(project.dir, 'project.yaml'));
   // The themes the scenario's theme switch offers (a theme copied or created since: a new view).
-  const listed = await listTemplates(project.root);
+  const listed = await ws.reads.listTemplates(project.root);
   const unusable: Record<string, string> = {};
   const reg = (await memoRegistry(ws)).registry;
   for (const t of listed) {
-    const why = await themeUnusable(t.dir, reg, ws.root, fileFacts(ws.policy));
+    const why = await themeUnusable(t.dir, reg, ws);
     if (why !== null) unusable[t.name] = why;
   }
   const themes: ThemeChoices = { names: listed.map((t) => t.name), unusable, ...(typeof project.config.template === 'string' ? { project: project.config.template } : {}) };

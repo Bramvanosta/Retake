@@ -28,6 +28,7 @@ export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void
     log: w.log,
     clock: w.clock,
     stores: w.stores,
+    reads: w.reads,
     hooks: w.hooks,
     reviewer: w.reviewer,
     capture: w.captureRunner,

@@ -32,6 +32,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         registry: async () => (await memoRegistry(ws)).registry,
         scope,
         files: ctx.files,
+        reads: ws.reads,
       });
     },
     resolve: async (slug, id, req) => {
@@ -55,9 +56,10 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         registry: async () => (await memoRegistry(ws)).registry,
         scope,
         files: ctx.files,
+        reads: ws.reads,
       });
     },
-    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry, files: ctx.files }),
+    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry, files: ctx.files, reads: ws.reads }),
     counts: async (slug, o = {}) => commentIndex.counts(await project(slug), o),
   };
 }

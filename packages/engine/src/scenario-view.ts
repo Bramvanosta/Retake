@@ -29,7 +29,7 @@ import { environmentAccess, resolveEnvironment } from '@retake/core/environment'
 import { projectPath } from '@retake/core/project';
 import { filmedChanges, parseScenario, matchRunSteps, movedSteps, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core/scenario';
 import { orderRuns, parseRunRecord } from '@retake/core/run';
-import { loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
+import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { ScenarioBlocks, ScenarioIdentity, SceneBlock } from '@retake/core/scenario';
 import type { RunRecord, StoredRunRecord } from '@retake/core/run';
@@ -47,6 +47,7 @@ import type { RunRecordOnDisk, RunSummary } from './runs.js';
 import { getScenario, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';
 import type { OpenedWorkspace } from './workspace.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** Runs of the scenario in the picker, at most. */
 export const VIEW_RUNS_MAX = 20;
@@ -459,7 +460,12 @@ export class ScenarioViews {
     if (pending) return pending;
     const job = (async () => {
       this.stats.actions++;
-      const { ok, issues } = await validateScenarioText(p, file.yaml, { files: fileFacts(this.ctx.ws.policy), name, ...(env !== undefined ? { env } : {}) });
+      const { ok, issues } = await validateScenarioText(p, file.yaml, {
+        files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy),
+        reads: this.ctx.ws.reads,
+        name,
+        ...(env !== undefined ? { env } : {}),
+      });
       const blocks = scenarioBlocks(file.yaml, { issues, hookFiles: { projectDir: p.dir, files: nodeFileFacts } });
       const run_blockers = studioBlockers(await this.ctx.blockers({ project: slug, scenario: name, ...(env !== undefined ? { env } : {}) }), blocks, ok, issues);
       return remember(this.acts, key, { at: Date.now(), ok, run_blockers, environment: environmentFacts(p, env ?? blocks.video.env), content: contentOf(blocks) }, 64);
@@ -498,7 +504,7 @@ export class ScenarioViews {
   private async computeText(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined, key: string): Promise<TextLayer> {
     const { yaml } = file;
     this.stats.text++;
-    const { ok, issues } = await validateScenarioText(p, yaml, { files: fileFacts(this.ctx.ws.policy), name, ...(env !== undefined ? { env } : {}) });
+    const { ok, issues } = await validateScenarioText(p, yaml, { files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy), reads: this.ctx.ws.reads, name, ...(env !== undefined ? { env } : {}) });
     const blocks = scenarioBlocks(yaml, { issues, hookFiles: { projectDir: p.dir, files: nodeFileFacts } });
     const run_blockers = studioBlockers(await this.ctx.blockers({ project: slug, scenario: name, ...(env !== undefined ? { env } : {}) }), blocks, ok, issues);
     let environment: ScenarioEnvironmentFacts | null = null;
@@ -562,7 +568,7 @@ export class ScenarioViews {
     const edit = await editAbility(
       p,
       file,
-      { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio', files: fileFacts(this.ctx.ws.policy) },
+      { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio', files: this.ctx.ws.reads.fileFacts(this.ctx.ws.policy), reads: this.ctx.ws.reads },
       { parsed: blocks.parsed, ok, truncated: shown.keys !== null },
     );
     return remember(this.texts, key, { at: Date.now(), blocks, shown, ok, issues, run_blockers, environment, scenes, identity, edit });
@@ -924,12 +930,12 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
 async function editAbility(
   p: LoadedProject,
   file: ScenarioText,
-  o: { agent: boolean; via: AgentChannel; files: WorkFileFacts },
+  o: { agent: boolean; via: AgentChannel; files: WorkFileFacts; reads: WorkspaceReads },
   facts: { parsed: boolean; ok: boolean; truncated: boolean },
 ): Promise<ScenarioView['edit']> {
   let scenario;
   if (o.agent && file.utf8) {
-    const template = await loadProjectTemplate(p, undefined, { files: o.files }).then(
+    const template = await o.reads.loadProjectTemplate(p, undefined, { files: o.files }).then(
       (t) => t.template,
       () => undefined,
     );

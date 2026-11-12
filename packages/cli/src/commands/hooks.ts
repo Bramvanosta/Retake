@@ -132,6 +132,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   try {
     out = await hooksRunWork(project, spec, {
       ...workOptions(ui, opts, global, ws.policy),
+      reads: ws.reads,
       runId: (sel) => newRunId(`hooks-${sel.label}`),
       selectError: (e) => {
         if (e instanceof HooksSourceError) return e.usage ? new UsageError(e.message) : new CliError(e.message);

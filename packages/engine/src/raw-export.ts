@@ -7,12 +7,13 @@
  * and waited at its heavy-work gate in between; it prints the progress, the note and the result its own way.
  */
 import { isAbsolute, join } from 'node:path';
-import { loadProjectTemplate, fileFacts } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, Timeline, WorkFileFacts } from '@retake/core/model';
+import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ExportCaptureOptions, RawExportProgress, RawExportResult } from '@retake/runner-web/types';
 import type { CaptureRunner } from './capture/runner.js';
 import { editor } from './lazy.js';
+import type { OpenedWorkspace } from './workspace.js';
+import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** The package's settings a caller may set (undefined: project.yaml `raw`, else the defaults). */
 export type RawExportSettings = Pick<ExportCaptureOptions, 'format' | 'fps' | 'cursor' | 'layer' | 'selects' | 'cuts' | 'out'>;
@@ -21,7 +22,7 @@ export interface RawExportWorkOptions {
   /** What exports it: the composition root's capture runner (its `raw`). */
   capture: Pick<CaptureRunner, 'raw'>;
   /** What the work runs under, and the ffmpeg the workspace names. */
-  ws: { policy: WorkPolicy; ffmpeg?: string };
+  ws: { policy: WorkPolicy; ffmpeg?: string; reads: WorkspaceReads };
   project: LoadedProject;
   /** The run's folder (found by the caller). */
   runDir: string;
@@ -33,9 +34,9 @@ export interface RawExportWorkOptions {
 }
 
 /** The template a run was captured with (its cursor look), else the project's; a note when it does not load. */
-async function runTemplate(project: LoadedProject, timeline: Timeline, files: WorkFileFacts): Promise<{ template?: LoadedTemplate; note?: string }> {
+async function runTemplate(project: LoadedProject, timeline: Timeline, ws: Pick<OpenedWorkspace, 'reads' | 'policy'>): Promise<{ template?: LoadedTemplate; note?: string }> {
   try {
-    return { template: await loadProjectTemplate(project, timeline.video?.template, { files }) };
+    return { template: await ws.reads.loadProjectTemplate(project, timeline.video?.template, { files: ws.reads.fileFacts(ws.policy) }) };
   } catch (e) {
     return { note: `the run's template could not be loaded (${e instanceof Error ? e.message : String(e)}): the cursor layer uses the default look` };
   }
@@ -45,7 +46,7 @@ async function runTemplate(project: LoadedProject, timeline: Timeline, files: Wo
 export async function rawExportWork(o: RawExportWorkOptions): Promise<RawExportResult> {
   // The gate first: a run it refuses is refused in its words, before the theme is looked for.
   const timeline = await o.capture.raw.timeline(o.runDir);
-  const { template, note } = await runTemplate(o.project, timeline, fileFacts(o.ws.policy));
+  const { template, note } = await runTemplate(o.project, timeline, o.ws);
   if (note) o.onNote?.(note);
   const ed = await editor();
   const editFiles = [...ed.planFileRefs(timeline).map((f) => (isAbsolute(f) ? f : join(o.project.dir, f))), ...ed.themeFileRefs(template)];
