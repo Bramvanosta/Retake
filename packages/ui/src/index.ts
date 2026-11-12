@@ -15,7 +15,7 @@ export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RENDER_OPS, REVIEW_IMAGES_MAX, 
 export type { ProjectOverview, RenderReviewAnswer, ScenarioRenderAnswer, ScenarioRunAnswer, SessionToConfirm, TimelineViewAnswer } from './server/ops.js';
 export { PreviewLeases, TIMELINE_LEASE_TTL_MS } from './server/preview-leases.js';
 export type { PreviewHeld } from './server/preview-leases.js';
-export { COMMENT_OPS, THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, commentOps, pathFree, proposalOffer, threadAnswer, threadItem } from './server/comment-ops.js';
+export { COMMENT_OPS, THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, pathFree, proposalOffer, threadAnswer, threadItem } from './server/comment-ops.js';
 export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from './server/comment-ops.js';
 export { opChain, scenarioKey } from './server/op-chain.js';
 export { LIBRARY_IMAGES_ANSWER_MAX, LIBRARY_OPS, LIBRARY_VIEW_MEMO_MAX, LOOP_DATA_MAX, POSTER_DATA_MAX, componentAnswer } from './server/library-ops.js';

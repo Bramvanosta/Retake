@@ -2446,8 +2446,8 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
       if (w.op === 'thread_reply') expect(w.keys, `${w.f}: thread_reply`).toEqual(['text']);
       else expect(w.keys, `${w.f}: ${w.op}`).toContain('if_match');
     }
-    // The engine's own input: reply strict and without if_match, the three others requiring it.
-    const ops = await readFile(join(REPO, 'packages', 'ui', 'src', 'server', 'comment-ops.ts'), 'utf8');
+    // The engine's own input: reply strict and without if_match, the three others requiring it (L7.16: the engine's operations).
+    const ops = await readFile(join(REPO, 'packages', 'engine', 'src', 'operations', 'comment-screen.ts'), 'utf8');
     expect(ops).toMatch(/const ReplyInput = z\.strictObject\(\{ project, comment_id: commentId, text: text\('The reply'\) \}\);/);
     for (const input of ['ResolveInput', 'ReopenInput', 'ApplyInput']) expect(ops.slice(ops.indexOf(`const ${input} =`)).split('\n;')[0].split('});')[0]).toContain('if_match: ifMatch');
     // The mutations (review A-M1): a resolve without its version — through the helper, or a direct call.

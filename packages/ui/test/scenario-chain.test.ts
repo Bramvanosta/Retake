@@ -6,6 +6,8 @@
  * starts and ends), so the order is the chain's alone — nothing is written, planned or queued. A probe's call fails
  * (409) once released: the ops' answers are not what this test is about. The chain's keys are `<project>\0<name>`:
  * an edit of "quote" and a render of "quote" share one; a render of "catalogue" has its own.
+ * L7.16: a thread's writes (thread_reply, thread_resolve, thread_apply) run one at a time on the thread's key, and
+ * thread_apply takes its scenario's key before its thread's: held behind an edit, it does not hold its thread.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -50,6 +52,8 @@ const edit = (name: string, label: string) => call('scenario_edit', { project: P
 const render = (name: string, label: string) => call('scenario_render', { project: P, name, run: `20261016-090000-${label}`, expect_edit_sha256: HEX });
 /** thread_apply's label is hex (it travels as the thread hash): "a1", "a2"… */
 const apply = (label: string) => call('thread_apply', { project: P, comment_id: `c_${ULID}`, entry_id: `r_${ULID}`, if_match: label.padEnd(64, '0') });
+const reply = (label: string) => call('thread_reply', { project: P, comment_id: `c_${ULID}`, text: label });
+const resolve = (label: string) => call('thread_resolve', { project: P, comment_id: `c_${ULID}`, note: label, if_match: HEX });
 const save = (name: string, label: string) => call('record_save', { project: P, rec_id: `rec_${ULID}`, name, rev: Number(label.replace(/\D/g, '')), draft: HEX });
 
 beforeAll(async () => {
@@ -65,6 +69,8 @@ beforeAll(async () => {
   e.comments!.get = (async () => ({ scenario: 'quote' })) as never;
   e.comments!.apply = ((_p: string, _id: string, o: { if_match: string }) => held(o.if_match.replace(/0+$/, ''))) as never;
   e.record!.save = ((_p: string, _id: string, o: { rev: number }) => held(`save${o.rev}`)) as never;
+  e.comments!.reply = ((_p: string, _id: string, text: string) => held(text)) as never;
+  e.comments!.resolve = ((_p: string, _id: string, o: { note: string }) => held(o.note)) as never;
 }, 60_000);
 
 afterAll(async () => {
@@ -128,6 +134,37 @@ describe("the Studio's per-scenario chain (scenario_edit, scenario_render, threa
     await release('render4');
     expect((await Promise.all(answers)).map((r) => r.status)).toEqual([409, 409, 409, 409]);
     expect(log.filter((l) => !l.includes('edit3'))).toEqual(['start render3', 'end render3', 'start edit2', 'end edit2', 'start render4', 'end render4']);
+  });
+
+  it("a thread's writes one at a time on its key; an apply held behind its scenario's edit does not hold its thread, once running it does (L7.16)", async () => {
+    log.length = 0;
+    const answers = [edit('quote', 'edit5')];
+    await tick();
+    answers.push(apply('a2'));
+    await tick();
+    answers.push(reply('reply1'));
+    await tick();
+    answers.push(reply('reply2'));
+    await tick();
+    // The apply waits for the edit of its scenario, outside its thread's key: the first reply runs, the second waits for it.
+    expect([...log].sort()).toEqual(['start edit5', 'start reply1']);
+    await release('reply1');
+    await tick();
+    expect(log.at(-1)).toBe('start reply2');
+    await release('reply2');
+    await release('edit5');
+    await tick();
+    expect(log.at(-1)).toBe('start a2');
+    // Running, the apply holds its thread: a resolve of it waits.
+    answers.push(resolve('resolve1'));
+    await tick();
+    expect(log.at(-1)).toBe('start a2');
+    await release('a2');
+    await tick();
+    expect(log.at(-1)).toBe('start resolve1');
+    await release('resolve1');
+    expect((await Promise.all(answers)).map((r) => r.status)).toEqual([409, 409, 409, 409, 409]);
+    expect(log).toEqual(['start edit5', 'start reply1', 'end reply1', 'start reply2', 'end reply2', 'end edit5', 'start a2', 'end a2', 'start resolve1', 'end resolve1']);
   });
 
   it('a refused call never takes its place in the chain: a render whose arguments do not parse answers at once', async () => {

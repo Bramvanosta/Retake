@@ -449,8 +449,9 @@ describe('the import-rules ratchet', () => {
       // MCP's run_dry, run_capture, render, review, export, page_inspect, job_cancel; the Studio's scenario_run,
       // run_pause, sign_in_cancel, scenario_render, render_cancel, review_export); L7.19: MCP −5 (hooks_run, env_reset,
       // sandbox_status, sandbox_up, sandbox_reset).
-      expect(total('packages/mcp/src/')).toBe(9);
-      expect(total('packages/ui/src/')).toBe(38);
+      // L7.16: MCP −3 (comments_list, comment_reply, comment_resolve), Studio −12 (comment-ops.ts: the twelve).
+      expect(total('packages/mcp/src/')).toBe(9 - 3);
+      expect(total('packages/ui/src/')).toBe(38 - 12);
       expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
     });
   });

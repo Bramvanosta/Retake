@@ -59,7 +59,7 @@ import { editOps, indexOps, timelineOps } from './ops.js';
 import { PreviewLeases } from './preview-leases.js';
 import { themeOps } from './theme-ops.js';
 import { recordOps } from './record-ops.js';
-import { commentOps, pathFree } from './comment-ops.js';
+import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
@@ -247,7 +247,6 @@ function ownOps(d: StudioToolDeps) {
     ...indexOps(d.live),
     ...editOps(chain),
     ...timelineOps({ player: d.player, forbid: d.forbid, allow: d.allow, registry: d.registry, leases }),
-    ...commentOps({ chain }),
     ...themeOps({ player: d.player, forbid: d.forbid, allow: d.allow, leases }),
     ...recordOps({ chain }),
     ...unsavedOps(d.unsaved),
@@ -304,7 +303,8 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   };
   // One chain for the writes of a scenario: scenario_edit, scenario_render, thread_apply and record_save — the engine's
   // operation chain (L7.15), on which invoke runs scenario_render (the engine's operation: its `serialize` is the same
-  // scenarioKey); this server holds one engine, so it is this server's chain.
+  // scenarioKey) and thread_apply (L7.16: the engine's operation, on its thread's scenario key); this server holds one
+  // engine, so it is this server's chain.
   const chain = operationChain(engine);
   // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));

@@ -80,6 +80,11 @@ export { REVIEW_EXPORTS_OPEN, REVIEW_EXPORT_FORMATS, scenarioKey } from './opera
 export type { ReviewExportAnswer, ScenarioRenderAnswer, ScenarioRunAnswer } from './operations/studio-jobs.js';
 // L7.19: the annotations of MCP's hooks, environment-reset and sandbox operations (operations/hooks.ts, sandbox.ts).
 export { HOOK_JOB, SANDBOX_JOB } from './operations/annotations.js';
+// L7.16: the comment operations' pieces the shells still name (MCP's caps, read by its tests; the Studio's mappers,
+// caps, thread key and the answer types the app reads).
+export { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN, PROPOSAL_ROWS_UNTRUSTED_MAX } from './operations/comments.js';
+export { THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, proposalOffer, threadAnswer, threadItem, threadKey } from './operations/comment-screen.js';
+export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from './operations/comment-screen.js';
 
 /** Longest untrusted string a result carries. */
 export const UNTRUSTED_MAX = 2000;

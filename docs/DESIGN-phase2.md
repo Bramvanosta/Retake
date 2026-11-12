@@ -1515,8 +1515,11 @@ critique B1 / B2 / B4 / B5 / B9 / B10 / B13):
   holds the proposal (the file's view and the proposal's stay apart). The plan carries the workspace components the
   proposal names: the Studio's preview hold (`heldOf` in the ui ops) reads it there.
 
-**The Studio's comment ops** (L4.6 part C, packages/ui `server/comment-ops.ts`; the server's engine is client `ui`, so
-every entry is written as `studio`, named by the Studio process — never by the page). Own ops on the `UI_OPS`
+**The Studio's comment ops** (L4.6 part C, packages/ui `server/comment-ops.ts`; since L7.16 the engine's operations,
+`packages/engine/src/operations/comment-screen.ts`, which the server serves as they are; the server's engine is client
+`ui`, so every entry is written as `studio`, named by the Studio process — never by the page). The comments façade's
+caller rules are their `callers` (a person creates, reopens and applies; resolve, reopen and apply name the version
+read), checked by invoke after the parse and before anything is read; the façade keeps its copy for the CLI. Own ops on the `UI_OPS`
 allow-list (names distinct from the MCP tools, which stay out: a page is never Claude), strict zod inputs — slugs,
 `COMMENT_ID_RE` / `COMMENT_ENTRY_ID_RE` / `RENDER_ID_RE` ids, an ISO `created_at`, integer frames, a region of four
 numbers in 0..1, texts ≤ 2,000, a 64-hex `if_match` required by the op itself on resolve / reopen / apply; no author,
@@ -1540,9 +1543,11 @@ via, path, marker, time, scenario or proposal field anywhere (a `proposal` from 
   409); `thread_reply {project, comment_id, text}`; `thread_resolve {…, note, render_id?, if_match}`; `thread_reopen
   {…, note?, if_match}`; `thread_apply {project, comment_id, entry_id, if_match}` (engine `comments.apply`; answer
   `{thread, hash, entry?, scenario {name, file, hash, previous {text, hash}}, label, change, warnings, problems}`). The
-  writes of one thread run one at a time in this server; `thread_apply` also runs on the scenario's key of the **one op
+  writes of one thread run one at a time in this server (L7.16: `thread_reply` / `thread_resolve` / `thread_reopen`
+  declare the thread's key as their `serialize`); `thread_apply` also runs on the scenario's key of the **one op
   chain** the Studio shares between `scenario_edit`, `scenario_render`, `thread_apply` and `record_save` (`op-chain.ts`, critique B5;
-  since L7.15 the engine's operation chain, `operationChain(engine)`, on which scenario_render runs by its `serialize`):
+  since L7.15 the engine's operation chain, `operationChain(engine)`, on which scenario_render runs by its `serialize`;
+  thread_apply's key is its thread's scenario, read from the engine, so its handler chains it, then the thread's key):
   an edit sent while an apply runs finds the applied file (409). **Undo apply** is `scenario_edit` `restore` of
   `previous` (a version the engine read); the proposal then reads `undone`, actionable again.
 - `offer` (`proposalOffer`, computed by the server, critique B2 / B3 / B4): `apply` — the newest proposal, pending or
@@ -1713,7 +1718,9 @@ else `$RETAKE_AUTHOR`, else the OS user name (never git config). Texts are print
 `printableText`. The tool repository ignores `projects/*/comments/` (hand runs on the fixture); a user's workspace
 commits its own `comments/`.
 
-**The MCP tools** (packages/mcp `src/tools/comments.ts`; 45 tools in all since L5.8; the server's engine is client `mcp`):
+**The MCP tools** (packages/mcp `src/tools/comments.ts`; since L7.16 the engine's operations,
+`packages/engine/src/operations/comments.ts`, served as these very objects; 45 tools in all since L5.8; the server's
+engine is client `mcp`; a reply's proposal is refused for any other caller by the operation's `callers`):
 - `comments_list({project, scenario?, render?: id | latest, status? = open, limit? = 20 (≤ 100)})` (READ) →
   `engine.comments.list`: the `CommentListView` as data (threads, `total`, `problems`), a summary of one block per
   thread built from trusted fields only (id, status, channel, render id, frame, timecode, the anchor's kind / segment /

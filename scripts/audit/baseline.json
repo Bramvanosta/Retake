@@ -149,7 +149,6 @@
    "reason": "The MCP server's tools not yet moved into the engine's operations (U7: 9 of 45 on 2026-11-12, after L7.13 moved the eleven the Studio shares, L7.14 four read-only queries, L7.17 the nine theme and component tools, L7.15 the seven submits and job controls and L7.19 the five hooks, environment-reset and sandbox tools; job_status waits for the recording output it answers with): they move family by family (L7.15–L7.19) and the group goes.",
    "entries": [
     "packages/mcp/src/tools/authoring.ts → 2 operations defined",
-    "packages/mcp/src/tools/comments.ts → 3 operations defined",
     "packages/mcp/src/tools/jobs.ts → 1 operation defined",
     "packages/mcp/src/tools/project.ts → 2 operations defined",
     "packages/mcp/src/tools/scenario.ts → 1 operation defined"
@@ -159,7 +158,6 @@
    "rule": "shell-op",
    "reason": "The Studio's own ops (38 on 2026-11-12, after L7.14 moved its ten read-only queries, L7.17 its eleven theme and library ops and L7.15 its six submits and job controls): those of a use case the engine serves move into its operations (L7.15–L7.18); the ones that hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe: 18 in 6 files) stay here.",
    "entries": [
-    "packages/ui/src/server/comment-ops.ts → 12 operations defined",
     "packages/ui/src/server/desktop.ts → 1 operation defined",
     "packages/ui/src/server/ops.ts → 6 operations defined",
     "packages/ui/src/server/record-ops.ts → 7 operations defined",

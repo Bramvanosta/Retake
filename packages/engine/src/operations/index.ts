@@ -6,6 +6,8 @@
  */
 import { authLogin, authStatus } from './auth.js';
 import { projectBoard, projectsOverview } from './board.js';
+import { frameAnchor, renderFrame, renderOutline, threadAdd, threadApply, threadGet, threadReopen, threadReply, threadResolve, threadStill, threadsCounts, threadsList } from './comment-screen.js';
+import { commentReply, commentResolve, commentsList } from './comments.js';
 import { componentCreate, componentGet, componentList, componentPreview, componentValidate } from './components.js';
 import type { ToolsByName } from './define.js';
 import { envReset, hooksRun } from './hooks.js';
@@ -27,7 +29,8 @@ import { brandFiles, siteList, templateCreateFromBrand, templateFromSite, templa
 /**
  * Every engine operation, in catalogue order: the eleven MCP and the Studio share (L7.13); MCP's reads of scenarios,
  * plans, renders and reviews, and the Studio's screen reads (L7.14); the themes, components and the library (L7.17);
- * the submits and job controls of both (L7.15); MCP's hooks, environment reset and sandboxes (L7.19).
+ * the submits and job controls of both (L7.15); MCP's hooks, environment reset and sandboxes (L7.19); the comments of
+ * both (L7.16).
  */
 export const OPERATIONS = [
   engineInfo,
@@ -48,6 +51,9 @@ export const OPERATIONS = [
   review,
   reviewGet,
   exportRender,
+  commentsList,
+  commentReply,
+  commentResolve,
   templateList,
   templatePreview,
   templateFromSite,
@@ -82,6 +88,18 @@ export const OPERATIONS = [
   renderReview,
   reviewImage,
   reviewExport,
+  threadsList,
+  threadsCounts,
+  threadGet,
+  threadStill,
+  renderOutline,
+  renderFrame,
+  frameAnchor,
+  threadAdd,
+  threadReply,
+  threadResolve,
+  threadReopen,
+  threadApply,
   libraryView,
   libraryImages,
   libraryRender,
