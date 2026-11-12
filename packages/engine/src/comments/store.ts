@@ -19,7 +19,7 @@ import {
   ulidFileRe,
 } from '@retake/core';
 import type { CommentAuthor, CommentEntry, CommentThread, LoadedProject } from '@retake/core';
-import type { TakeLock } from '@retake/sandbox';
+import type { TakeLock } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import { lockHolder, takeProjectLock, toolDir } from '../project-lock.js';
 import { sha256Hex } from '../storage.js';

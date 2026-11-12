@@ -121,7 +121,7 @@ export async function checkMailbox(pctx: ProviderContext, provider: Provider): P
 /** port → address of the sandbox's own databases (provider.address: docker-compose publishes them), for sql steps. */
 async function databaseAddresses(pctx: ProviderContext, provider: Provider): Promise<Map<number, string>> {
   const out = new Map<number, string>();
-  if (!provider.address) return out;
+  if (!provider.capabilities.address) return out;
   for (const db of Object.values(pctx.sandbox.manifest.databases ?? {})) {
     if (db.external) continue;
     const port = portOf(db.url, true);
@@ -248,7 +248,7 @@ export async function runSeed(
     if (opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if ('exec' in step) {
       await flush();
-      if (!provider.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
+      if (!provider.capabilities.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec ${word} steps need provider docker-compose`, 'seed');
       pctx.progress?.step(`${word} ${done + 1}/${steps.length}`, `exec in ${step.exec.service}`);
       const t1 = Date.now();
       try {

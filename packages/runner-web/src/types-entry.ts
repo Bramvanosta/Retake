@@ -12,7 +12,7 @@ export type { LiveFrame, LiveSink } from './live-preview.js';
 export type { PauseGate } from './pause.js';
 export type { InspectReport, InspectRequest } from './inspect.js';
 export type { SiteExtractOptions, SiteReport } from './site/extract.js';
-export type { ConfirmHook, HookApprovalRequestLike } from './hooks-bridge.js';
+export type { ConfirmHook } from './hooks-bridge.js';
 export type { PersonaCheckResult, PersonaStatusRecord, ProfileLock } from './auth.js';
 export type { SignInOptions, SignInResult } from './login.js';
 export type { RecordSessionOptions, RecordSessionResult } from './record-session.js';

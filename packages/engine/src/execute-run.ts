@@ -5,12 +5,13 @@
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
 import { parseScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
-import { loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
-import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
-import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
-import type { SandboxLog, Take } from '@retake/sandbox';
+import { describeLock, loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
+import type { AgentChannel, ConfirmHook, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
+import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
+import type { SandboxLog, Take } from '@retake/sandbox/types';
 import type { CaptureRunner } from './capture/runner.js';
 import type { HookRunner } from './hook-run/runner.js';
+import type { Sandboxes } from './sandboxes/sandboxes.js';
 import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
@@ -156,6 +157,8 @@ export interface ExecuteRunOptions {
   capture: CaptureRunner;
   /** What the run's setup, teardown and hook steps run through (its composition root's hook runner). */
   hooks: HookRunner;
+  /** What takes a sandbox's take (`sandbox: true`) or checks a sandbox environment (its composition root's Sandboxes port). */
+  sandboxes: Sandboxes;
   /** A run id reserved ahead (core reserveRunId: a job's); default a new one. */
   runId?: string;
   /** `--allow-writes` (L1.7): checked by the caller first (checkAllowWrites). */
@@ -183,8 +186,7 @@ export interface ExecuteRunOptions {
 
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */
 async function prepareSandboxTake(project: LoadedProject, env: string, scenario: string, ports: RunPorts, opts: ExecuteRunOptions): Promise<Take> {
-  const { openSandbox } = await import('@retake/sandbox');
-  const sb = openSandbox(project, env, opts.policy);
+  const sb = await opts.sandboxes.open(project, env, opts.policy);
   const stop = await ports.interrupts.open({ message: 'interrupted: stopping what this take started…', onQuitSync: () => sb.killStartedSync() });
   let take: Take;
   try {
@@ -213,12 +215,12 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
 
 /**
  * A run on a sandbox environment without `sandbox`: no reset, and the sandbox must be up (its SandboxError otherwise);
- * a take holding its lock is a warning. Nothing for other environments.
+ * a take holding its lock is a warning. Nothing for other environments. The sandbox is read through `sandboxes` (the
+ * caller's Sandboxes port).
  */
-export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note'], policy: WorkPolicy): Promise<void> {
+export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note'], policy: WorkPolicy, sandboxes: Sandboxes): Promise<void> {
   if (!sandboxOf(project, env)) return;
-  const { openSandbox, describeLock } = await import('@retake/sandbox');
-  const { lock } = await openSandbox(project, env, policy).checkRunning();
+  const { lock } = await (await sandboxes.open(project, env, policy)).checkRunning();
   if (lock) note('warn', `sandbox ${env} is in use by ${describeLock(lock)}: this run films it as it is, while that command may reset it`);
   note('info', `sandbox ${env}: filmed as it is, without a reset (--sandbox resets it to its seed first)`);
 }
@@ -244,7 +246,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   // as it is, and must be up.
   let take: Take | undefined;
   if (sandboxEnv) take = await prepareSandboxTake(project, sandboxEnv, scenario.name, ports, opts);
-  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy);
+  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy, opts.sandboxes);
 
   try {
     return await opts.capture.run({

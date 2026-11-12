@@ -23,7 +23,8 @@ import { serviceLog, shownPath } from './paths.js';
 import { busyPorts, describeListeners, listeners, portLabel, probePort, sandboxPorts } from './ports.js';
 import type { SandboxPort } from './ports.js';
 import { bootTime, groupMembers, groupTree, identify, killGroupSync, processStart, processTable, signalState, stopGroup } from './proc.js';
-import type { DownResult, OwnerUse, Provider, ProviderContext, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import { PROCESS_CAPABILITIES } from './provider.js';
+import type { DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
 import { isProcessService, writeState } from './state.js';
 import type { ProcessServiceState } from './state.js';
 
@@ -95,6 +96,7 @@ function exitText(e: NonNullable<Started['exit']>): string {
 
 export class ProcessProvider implements Provider {
   readonly kind = 'process' as const;
+  readonly capabilities: Readonly<ProviderCapabilities> = PROCESS_CAPABILITIES;
   /** Services this instance started (this call), by name. */
   private readonly started = new Map<string, Started>();
 
@@ -432,4 +434,40 @@ export class ProcessProvider implements Provider {
       /* exiting anyway */
     }
   }
+  // Not capabilities of a process sandbox (PROCESS_CAPABILITIES): the Sandbox tests the capability before it calls,
+  // in its own words; these answer a direct caller.
+  /** No `exec` steps: a process sandbox has no containers (validation refuses them). */
+  async exec(ctx: ProviderContext): Promise<string> {
+    throw notCapable(ctx, 'exec steps');
+  }
+
+  /** Its logs are files (logFiles). */
+  async logs(ctx: ProviderContext): Promise<ProviderLogs[]> {
+    throw notCapable(ctx, 'reading logs other than its log files');
+  }
+
+  /** Its logs are files: tail -f them. */
+  async followLogs(ctx: ProviderContext): Promise<void> {
+    throw notCapable(ctx, 'following logs');
+  }
+
+  /** No snapshots: the database must be published by a container of the sandbox. */
+  async publishedBy(ctx: ProviderContext): Promise<string> {
+    throw notCapable(ctx, 'snapshot resets');
+  }
+
+  /** The URL's own host is used. */
+  async address(): Promise<string | undefined> {
+    return undefined;
+  }
+
+  /** The seed hash has no inputs of its own. */
+  async hashInputs(): Promise<string[]> {
+    return [];
+  }
+}
+
+/** A call of a method whose capability the process provider does not have (a direct caller's). */
+function notCapable(ctx: ProviderContext, what: string): SandboxError {
+  return new SandboxError(`sandbox ${ctx.sandbox.env}: ${what} — a capability of the docker-compose provider, not of a process sandbox`);
 }

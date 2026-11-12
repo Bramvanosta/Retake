@@ -8,8 +8,9 @@
  */
 import type { RunOptions } from '@retake/runner-web/types';
 import { missingOrInvalid } from '@retake/core';
+import type { CaptureHookRunner } from '@retake/core';
 import { EngineError } from '../errors.js';
-import type { HookJournal, HookRunner } from '../hook-run/runner.js';
+import type { HookRunner } from '../hook-run/runner.js';
 import { runnerWeb } from '../lazy.js';
 import type { CaptureRunner, HookBrowser } from './runner.js';
 
@@ -23,20 +24,13 @@ function own(rw: RunnerWeb, browser: HookBrowser): Session {
 }
 
 /**
- * The engine's HookRunner against the runner's mirror of it (RunOptions.hookRunner), strictly: the mirror declares
- * methods (bivariant, for the journal handle it hands back), so `runScenario(req)` alone would accept a runner whose
- * context, options or results the runner does not read as it writes them. Here each member is a function type of its
- * own (compared contravariantly in its parameters), with `run`'s journal the engine's own handle.
+ * The hook runner a run takes (runner-web's RunOptions.hookRunner) is core's CaptureHookRunner, the type the engine's
+ * HookRunner port extends (L7.25: the runner's hand-written mirror of the hooks package is gone): one type, checked
+ * both ways here, where the engine hands its port to the runner.
  */
-type Mirror = NonNullable<RunOptions['hookRunner']>;
-type Strict<F> = F extends (...a: infer P) => infer R ? (...a: P) => R : never;
-type OwnJournal<F, J> = F extends (h: infer H, c: infer C, o: infer O) => infer R ? (h: H, c: C, o: Omit<O, 'journal'> & { journal: J }) => R : never;
-type Assignable<A extends B, B> = [A, B];
-type HookRunnerChecks = [
-  Assignable<HookRunner['load'], Strict<Mirror['load']>>,
-  Assignable<HookRunner['run'], OwnJournal<Mirror['run'], HookJournal>>,
-  Assignable<HookRunner['journals']['open'], Strict<Mirror['journals']['open']>>,
-];
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type Holds<T extends true> = T;
+type HookRunnerShared = [Holds<Same<NonNullable<RunOptions['hookRunner']>, CaptureHookRunner>>, Holds<HookRunner extends CaptureHookRunner ? true : false>];
 
 /** A refusal of the package's raw export (RawExportError) as an EngineError of its sentence (core missingOrInvalid). */
 async function refusals<T>(rw: RunnerWeb, work: () => Promise<T>): Promise<T> {

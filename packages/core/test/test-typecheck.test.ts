@@ -113,7 +113,7 @@ function vitestAliases(): Record<string, string> {
 }
 
 /** How many expected-error directives the test folders hold (2026-11-11). */
-const EXPECT_ERRORS = 35;
+const EXPECT_ERRORS = 40;
 
 describe('the type check of the test files (tsconfig.test.json)', () => {
   const config = readConfig('tsconfig.test.json');
@@ -244,6 +244,11 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
     // L7.6b, +3 (32 → 35), all in packages/core/test/render-record.test.ts: a render record made from another state —
     // an attempt handed to `finishedRender`, a finished render to `renderAttempt`, fields holding a policy — each over
     // the call itself, wrong on purpose (the transitions take a render's fields only).
+    // L7.11, +1 (35 → 36), packages/hooks/test/describe-entry.test.ts:14: the ratchet's lib.mjs, a plain .mjs script
+    // without types, imported by the entry's walk test.
+    // L7.12, +1 (36 → 37), packages/runner-web/test/types-entry.test.ts:12: the same import, for the runner's types entry.
+    // L7.23, +3 (37 → 40), packages/engine/test/hooks-work.test.ts:165, 168, 173: a trust-`mcp` work without the
+    // protection of the jobs (twice) and the CLI's trust with one — each over the call, wrong on purpose.
     expect(count).toBe(EXPECT_ERRORS);
   });
 

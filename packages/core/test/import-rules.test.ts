@@ -403,11 +403,54 @@ describe('the import-rules ratchet', () => {
       for (const f of lib.PORT_FILES as string[]) expect(statSync(join(ROOT, f)).isFile(), f).toBe(true);
     });
 
+    it('the Sandboxes port (L7.25): its loader in sandboxes/ only, its adapter named at its roots only, its port file on the types entry of the sandbox package', () => {
+      expect(lib.LOADER_HOMES.sandbox).toBe('packages/engine/src/sandboxes/');
+      expect(loaders('packages/engine/src/sandboxes/package-sandboxes.ts', "import { sandbox } from '../lazy.js';\nawait sandbox();")).toEqual([]);
+      expect(loaders('packages/engine/src/jobs/sandbox-job.ts', "import { sandbox } from '../lazy.js';\nawait sandbox();")).toEqual(['loader-use packages/engine/src/jobs/sandbox-job.ts → sandbox']);
+      expect(loaders('packages/engine/src/execute-run.ts', "import { sandbox as sb } from './lazy.js';")).toEqual(['loader-use packages/engine/src/execute-run.ts → sandbox']);
+      expect(loaders('packages/engine/src/sandboxes/x.ts', "export { sandbox } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/sandboxes/x.ts → sandbox re-exported']);
+      expect(lib.PORT_ROOTS.packageSandboxes).toEqual(['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts']);
+      expect(lib.PORT_ROOT_RULE.packageSandboxes).toBe('loader-use');
+      for (const root of lib.PORT_ROOTS.packageSandboxes) expect(ports(root, 'f(packageSandboxes());'), root).toEqual([]);
+      expect(ports('packages/cli/src/commands/sandbox.ts', "import { packageSandboxes } from '@retake/engine';\nconst s = packageSandboxes();")).toEqual(['loader-use packages/cli/src/commands/sandbox.ts → packageSandboxes outside a root']);
+      expect(ports('packages/engine/src/jobs/sandbox-job.ts', "import * as ps from '../sandboxes/package-sandboxes.js';\nf(ps.packageSandboxes);")).toEqual(['loader-use packages/engine/src/jobs/sandbox-job.ts → packageSandboxes outside a root']);
+      const port = 'packages/engine/src/sandboxes/sandboxes.ts';
+      expect(lib.PORT_FILES).toContain(port);
+      const at = (fileImports: Record<string, readonly string[]>): string[] => lib.portTypeHits(fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+      expect(at({ [port]: ['@retake/core', '@retake/core/io', '@retake/sandbox/types'] })).toEqual([]);
+      expect(at({ [port]: ['@retake/sandbox'] })).toEqual([`port-types ${port} → @retake/sandbox`]);
+      // The engine names the sandbox package nowhere but in its loader and through the types entry (R11 holds no sandbox pair).
+      const entries = lib.ratchetEntries(ROOT) as string[];
+      expect(entries.filter((e) => e.startsWith('R11 ') && e.includes('@retake/sandbox'))).toEqual([]);
+    });
+
     it('holds today: the new ports name no adapter, and the loaders left outside their homes are the review loader\'s, pinned', () => {
       const entries = lib.ratchetEntries(ROOT) as string[];
       expect(entries.filter((e) => e.startsWith('port-types ')).filter((e) => !e.startsWith('port-types packages/engine/src/render/renderer.ts '))).toEqual([]);
       expect(entries.filter((e) => e.startsWith('loader-use ') && e.endsWith('outside a root'))).toEqual([]);
       for (const e of entries.filter((x) => x.startsWith('loader-use '))) expect(e).toMatch(/ → review( re-exported)?$/);
+    });
+  });
+
+  describe('browser-registry: one browser-discovery module (L7.25, finding X9)', () => {
+    const at = (rel: string, text: string): string[] => (lib.browserRegistryHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
+
+    it('counts the private modules of playwright-core named in packages/*/src outside core/io browsers.ts, in strings and templates, not in comments', () => {
+      expect(lib.BROWSER_REGISTRY_HOME).toBe('packages/core/src/io/browsers.ts');
+      const editor = 'packages/editor/src/render/browser.ts';
+      expect(at(editor, "const { registry } = require('playwright-core/lib/server/registry/index');")).toEqual([`${editor} → 1`]);
+      expect(at(editor, 'const m = `playwright-core/lib/server/${name}`;\nimport x from "playwright-core/lib/utils";')).toEqual([`${editor} → 2`]);
+      // A comment, the public package, its home and anything outside packages/*/src are no use.
+      expect(at(editor, "// playwright-core/lib/server/registry is read in core/io\nimport { chromium } from 'playwright-core';")).toEqual([]);
+      expect(at('packages/core/src/io/browsers.ts', "export const M = 'playwright-core/lib/server/registry/index';")).toEqual([]);
+      expect(at('packages/runner-web/test/a.test.ts', "require('playwright-core/lib/server/registry/index');")).toEqual([]);
+      const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'browser-registry')!.title;
+      for (const words of ['put together from pieces', 'computed at run time']) expect(title, words).toContain(words);
+    });
+
+    it('holds today: the registry is named in its home only', () => {
+      expect((lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('browser-registry '))).toEqual([]);
+      expect(readFileSync(join(ROOT, lib.BROWSER_REGISTRY_HOME), 'utf8')).toContain("'playwright-core/lib/server/registry/index'");
     });
   });
 
@@ -706,7 +749,7 @@ describe('the import-rules ratchet', () => {
   });
 
   it('a shell may import a domain entry, not the package behind it', () => {
-    expect(lib.DOMAIN_ENTRIES).toEqual(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types']);
+    expect(lib.DOMAIN_ENTRIES).toEqual(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types', '@retake/sandbox/types']);
     const entries = lib.DOMAIN_ENTRIES as string[];
     for (const shell of ['packages/ui/src/server/a.ts', 'packages/mcp/src/tools/a.ts', 'packages/cli/src/commands/a.ts']) {
       const r4 = (text: string, specs: readonly string[]) => hitsOf({ [shell]: { text, specs } }).filter((h) => h.startsWith('R4 ')).map((h) => h.replace(`R4 ${shell} → `, ''));
@@ -738,7 +781,7 @@ describe('the import-rules ratchet', () => {
       for (const [form, text] of Object.entries(values)) expect(r4(`${text}\n`, ['@retake/editor/plan']), `${shell} ${form}`).toEqual(['@retake/editor/plan']);
       expect(r4("import { autoFit } from '@retake/components/geometry';\nimport { runChecks } from '@retake/review/checks';\n", ['@retake/components/geometry', '@retake/review/checks']), shell).toEqual(['@retake/components/geometry', '@retake/review/checks']);
       // The package behind an entry stays an adapter import, its types too; a path below an entry is no entry.
-      const behind = ['@retake/components', '@retake/review/thumbs', '@retake/components/kit', '@retake/editor', '@retake/review', '@retake/components/geometry/x', '@retake/runner-web', '@retake/runner-web/types/x'];
+      const behind = ['@retake/components', '@retake/review/thumbs', '@retake/components/kit', '@retake/editor', '@retake/review', '@retake/components/geometry/x', '@retake/runner-web', '@retake/runner-web/types/x', '@retake/sandbox', '@retake/sandbox/types/x'];
       expect(r4(behind.map((s, i) => `import type { T${i} } from '${s}';`).join('\n'), behind), shell).toEqual(behind);
       // A file that cannot be read counts as a value import (the check fails closed).
       expect(hits({ [shell]: [...entries] }, join(tmpdir(), 'retake-import-rules-none')).filter((h) => h.startsWith('R4 '))).toEqual(entries.map((s) => `R4 ${shell} → ${s}`));
@@ -747,7 +790,7 @@ describe('the import-rules ratchet', () => {
     const rule = (lib.RULES as { id: string; typeOnlyCheck?: unknown }[]).find((r) => r.id === 'R4')!;
     expect(typeof rule.typeOnlyCheck).toBe('function');
     const typesFree = rule.typeOnlyCheck as (s: string) => boolean;
-    expect(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types', '@retake/components', '@retake/review/thumbs', '@retake/editor', '@retake/sandbox', '@retake/hooks', '@retake/runner-web'].filter((s) => typesFree(s))).toEqual(entries);
+    expect(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types', '@retake/sandbox/types', '@retake/components', '@retake/review/thumbs', '@retake/editor', '@retake/sandbox', '@retake/hooks', '@retake/runner-web'].filter((s) => typesFree(s))).toEqual(entries);
     // Every domain entry is a real entry of its package (an exports key with a source), and none is a package root.
     for (const entry of lib.DOMAIN_ENTRIES as string[]) {
       const [, pkg, sub] = /^@retake\/([\w-]+)\/([\w-]+)$/.exec(entry)!;
@@ -863,7 +906,7 @@ describe('the import-rules ratchet', () => {
     // The file is exempt from R9 and R11 whole: a static `export * from '@retake/sandbox'` there would hand every engine
     // file the adapter's values through `./lazy.js`, unseen. What it loads, it loads inside a function.
     expect([...uses.statics]).toEqual([]);
-    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs', '@retake/runner-web']);
+    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/hooks', '@retake/review', '@retake/review/thumbs', '@retake/runner-web', '@retake/sandbox']);
     // What `statics` reads, on the forms: a declaration is static, a call is not, a type loads nothing.
     const staticsOf = (text: string): string[] => [...(lib.moduleUses(ts, loader, text) as { statics: Set<string> }).statics];
     for (const text of ["export * from '@retake/sandbox';", "export * as sb from '@retake/sandbox';", "export { pidAlive } from '@retake/sandbox';", "import { pidAlive } from '@retake/sandbox';", "import '@retake/sandbox';", "import sb = require('@retake/sandbox');", "import { type S, pidAlive } from '@retake/sandbox';"]) expect(staticsOf(text), text).toEqual(['@retake/sandbox']);

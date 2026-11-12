@@ -108,3 +108,28 @@ export function defaultRetakeHome(home: string): string {
 export const HISTORY_FILE = 'history.jsonl';
 /** The workspace journal: `<workspace>/.retake/journal.jsonl` (every authored write and hook run: who, what, when). */
 export const WORKSPACE_JOURNAL_FILE = 'journal.jsonl';
+
+/** Where a project keeps its sandboxes' state, lock, seed journal and service logs (git-ignored: `.retake/`). */
+export const SANDBOX_STATE_DIR = join(STATE_DIR, STATE_DIRS.sandbox);
+
+/** The files of one sandbox: `<project>/.retake/sandbox/<env>/…`. */
+export interface SandboxPaths {
+  dir: string;
+  state: string;
+  lock: string;
+  seedJournal: string;
+  /** The journal of `reset.hooks` (hotfix v0.2.5), started afresh at each reset. */
+  resetJournal: string;
+  logs: string;
+}
+
+/** The files of the sandbox of environment `env` (L7.25: from @retake/sandbox's paths.ts, which re-exports them). */
+export function sandboxPaths(projectDir: string, env: string): SandboxPaths {
+  const dir = join(projectDir, SANDBOX_STATE_DIR, env);
+  return { dir, state: join(dir, 'state.json'), lock: join(dir, 'take.lock'), seedJournal: join(dir, 'seed-journal.json'), resetJournal: join(dir, 'reset-journal.json'), logs: join(dir, 'logs') };
+}
+
+/** A service's log file (the previous one is `<file>.1`). */
+export function serviceLog(paths: SandboxPaths, service: string): string {
+  return join(paths.logs, `${service}.log`);
+}

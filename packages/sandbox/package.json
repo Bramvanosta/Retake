@@ -10,6 +10,11 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./types": {
+      "source": "./src/types-entry.ts",
+      "types": "./dist/types-entry.d.ts",
+      "default": "./dist/types-entry.js"
     }
   },
   "files": [

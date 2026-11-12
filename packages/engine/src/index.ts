@@ -38,6 +38,9 @@ export { packageHookRunner } from './hook-run/package-hooks.js';
 export type { HookJournal, HookJournalRollback, HookPlace, HookRunOptions, HookRunner, PendingHookJournal } from './hook-run/runner.js';
 export { packageReviewer } from './review/review-package.js';
 export { runnerWebCapture } from './capture/runner-web-capture.js';
+// L7.25: the Sandboxes port and its package adapter (made by the roots: enginePorts).
+export { packageSandboxes } from './sandboxes/package-sandboxes.js';
+export type { SandboxHandle, Sandboxes } from './sandboxes/sandboxes.js';
 export type { CaptureRaw, CaptureRequest, CaptureRunner, CaptureSessions, HookAuthOptions, HookBrowser, HookBrowserOptions, HookPages, SessionCheckOptions } from './capture/runner.js';
 export type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './review/reviewer.js';
 export { rollbackActionLines } from '@retake/hooks/describe';

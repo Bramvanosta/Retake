@@ -189,7 +189,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
   const project = await openProjectBySlug(ctx.ws, input.project);
   const start = recordStart(project, { env: input.env, persona: input.persona, page: input.source.page, path: input.source.path });
   await checkWorkspaceProtection(ctx.ws, project, start.env.name);
-  await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
+  await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy, ctx.sandboxes);
   const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {
     Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });

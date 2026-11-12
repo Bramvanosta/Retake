@@ -4,7 +4,7 @@
  * enter git), and the views clients read.
  *
  * Writes: a thread is created whole (a link: never over an existing file); an entry is appended under the thread's lock
- * (`<project>/.retake/locks/comment-<id>.lock`, the sandbox package's TakeLock: created whole, stale only when its
+ * (`<project>/.retake/locks/comment-<id>.lock`, core/io's TakeLock: created whole, stale only when its
  * process is gone — never by age —, retried while busy), read → checked → appended → written atomically (temp + rename)
  * with the hash just read, so `ifMatch` (comment_resolve's if_match) is checked inside the lock. A file that does not
  * read as a thread is never overwritten.

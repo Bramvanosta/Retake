@@ -14,8 +14,9 @@ import { EngineError } from '../src/errors.js';
 import { takeProjectLock } from '../src/project-lock.js';
 
 const tries = vi.hoisted(() => ({ n: 0 }));
-vi.mock('@retake/sandbox', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@retake/sandbox')>();
+// TakeLock is core/io's since L7.25 (@retake/sandbox re-exports the same class).
+vi.mock('@retake/core/io', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@retake/core/io')>();
   const acquire = actual.TakeLock.acquire.bind(actual.TakeLock);
   actual.TakeLock.acquire = (...a: Parameters<typeof acquire>) => {
     tries.n++;

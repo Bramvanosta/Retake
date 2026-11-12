@@ -30,7 +30,7 @@ import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rm
 import { readdir, rm } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { newUlidId, ulidFileRe } from '@retake/core';
-import { readPlainFile, retakeHome } from '@retake/core/io';
+import { START_TOLERANCE_MS, processTable, readPlainFile, retakeHome, signalState } from '@retake/core/io';
 import type { ProcessIdentity } from './proc.js';
 import { processStart } from './proc.js';
 import { stateDir } from '../workspace-state.js';
@@ -302,7 +302,6 @@ interface Owner {
   capped: boolean;
 }
 
-const START_TOLERANCE_MS = 2000;
 
 /** The cap in minutes: RETAKE_CAPTURE_HOLD_MAX_MIN (1 min … 24 h), else HOLD_MAX_MIN. */
 export function capMinutes(env: NodeJS.ProcessEnv = process.env): number {
@@ -365,7 +364,7 @@ export class FilmingWatch {
       this.forget(new Set(), now);
       return out;
     }
-    const sig = this.o.signalState ?? (await import('@retake/sandbox')).signalState;
+    const sig = this.o.signalState ?? signalState;
     const startOf = this.o.processStart ?? processStart;
     const ignore = this.o.ignorePids ? await this.o.ignorePids() : undefined;
     const cap = capMs(env);
@@ -537,7 +536,6 @@ export function workerHolds(root: string): boolean {
 
 /** The ancestors of this process (ppid chain, from one ps table): a take's own hooks do not wait for it. */
 export async function ancestorPids(): Promise<ReadonlySet<number>> {
-  const { processTable } = await import('@retake/sandbox');
   const byPid = new Map((await processTable()).map((p) => [p.pid, p.ppid]));
   const out = new Set<number>();
   for (let p = byPid.get(process.pid); p !== undefined && p > 1 && !out.has(p); p = byPid.get(p)) out.add(p);

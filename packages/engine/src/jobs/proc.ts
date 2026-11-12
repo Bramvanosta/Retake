@@ -1,10 +1,9 @@
 /**
- * Who a process is (jobs and the worker lock): a pid AND its start time (`ps -o lstart`, sandbox proc.ts), so a pid
- * the system reused for another program never passes for a worker. Loaded lazily: the sandbox package pulls pg.
+ * Who a process is (jobs and the worker lock): a pid AND its start time (`ps -o lstart`, core/io proc.ts — L7.25: was
+ * the sandbox package's, loaded lazily for it pulls pg), so a pid the system reused for another program never passes
+ * for a worker.
  */
-
-/** Two start times this close (ms) are the same process (lstart has a 1-second resolution). */
-const START_TOLERANCE_MS = 2000;
+import { START_TOLERANCE_MS, processStart as psStart, signalState } from '@retake/core/io';
 
 export interface ProcessIdentity {
   pid: number;
@@ -17,23 +16,20 @@ let own: ProcessIdentity | undefined;
 /** This process, with its start time as ps reports it (read once). */
 export async function selfIdentity(): Promise<ProcessIdentity> {
   if (own) return own;
-  const { processStart } = await import('@retake/sandbox');
-  const t = await processStart(process.pid);
+  const t = await psStart(process.pid);
   own = { pid: process.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}) };
   return own;
 }
 
 /** A process's start time (ms since the epoch, from ps), or null. */
 export async function processStart(pid: number): Promise<number | null> {
-  const { processStart: start } = await import('@retake/sandbox');
-  return start(pid);
+  return psStart(pid);
 }
 
 /** Is the process `id` names still running (same pid, same start time)? */
 export async function isAlive(id: ProcessIdentity): Promise<boolean> {
   // 0 and negative pids name groups (kill(0) is this process's own group), 1 is launchd: never a worker of ours.
   if (!Number.isInteger(id.pid) || id.pid <= 1) return false;
-  const { processStart, signalState } = await import('@retake/sandbox');
   if (id.pid === process.pid) {
     const me = await selfIdentity();
     return !me.started_at || !id.started_at || me.started_at === id.started_at;

@@ -454,6 +454,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
         policy: ctx.ws.policy,
         capture: ctx.capture,
         hooks: ctx.hooks,
+        sandboxes: ctx.sandboxes,
         runId: input.run_id,
         signal: ctx.signal,
         loginCommand: (p) => coreLoginCommand(p).replace(/^retake /, `${ctx.cli} `),

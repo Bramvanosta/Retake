@@ -2,6 +2,7 @@
 import { resolveEnvironment } from '@retake/core';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import type { ProjectFolder } from './store/store.js';
+import type { Sandboxes } from './sandboxes/sandboxes.js';
 
 export interface SandboxStatusView {
   project: string;
@@ -23,10 +24,9 @@ export interface SandboxStatusView {
   untrusted: { health: Record<string, string> };
 }
 
-/** A sandbox's status; its paths shown as refs of the project's folder (`folder`). */
-export async function sandboxStatus(project: LoadedProject, env: string | undefined, policy: WorkPolicy, folder: ProjectFolder): Promise<SandboxStatusView> {
-  const { openSandbox } = await import('@retake/sandbox');
-  const sb = openSandbox(project, env, policy);
+/** A sandbox's status, read through the Sandboxes port (`sandboxes`); its paths shown as refs of the project's folder (`folder`). */
+export async function sandboxStatus(project: LoadedProject, env: string | undefined, policy: WorkPolicy, folder: ProjectFolder, sandboxes: Sandboxes): Promise<SandboxStatusView> {
+  const sb = await sandboxes.open(project, env, policy);
   const st = await sb.status();
   const ref = (p: string) => {
     try {

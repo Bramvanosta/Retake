@@ -247,3 +247,49 @@ export interface JournalEntry {
   /** L5.14: HMAC-SHA256 with the Retake home's key over the journal's id and the entry (journal.ts), hex. */
   sig?: string;
 }
+
+/**
+ * Approves a hook that needs a human (a destructive one without `confirm: true`; with trust `mcp`, any shell hook too):
+ * HookContext's `confirmDestructive`, named once (L7.25: what runner-web's RunOptions.confirmHook and the engine's
+ * ExecuteRunOptions take).
+ */
+export type ConfirmHook = (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
+
+/**
+ * A journal of hook runs, as a hook runner hands it out (L7.25, moved from the engine's HookRunner port so that the
+ * capture runner names the same type: runner-web's mirror of it is gone): the hooks package's Journal in the product.
+ */
+export interface HookJournal {
+  /** The entries whose rollback has not run yet (nor been superseded). */
+  pending(): JournalEntry[];
+  /** Whether Retake recorded this entry in this journal with this home (its signature holds). */
+  isSigned(entry: JournalEntry): boolean;
+  /** Replay every pending rollback, most recent first. */
+  rollbackAll(ctx: HookContext): Promise<HookResult[]>;
+}
+
+/** How one list of hooks runs (a hook runner's `run`). */
+export interface HookRunOptions {
+  phase: HookPhase;
+  /** Where executed hooks and their rollbacks are journaled (a dry run writes nothing). */
+  journal: HookJournal;
+  /** Trust `mcp`: the hooks were written by the agent (a scenario's own). */
+  agentWritten?: boolean;
+}
+
+/**
+ * What runs a capture's hooks (L7.25: the shared type of the engine's HookRunner port and runner-web's
+ * RunOptions.hookRunner — the runner's hand-written mirror of the hooks package is gone): the part of the port a capture
+ * uses. The engine's HookRunner extends it; the hooks package's runHooks and Journal satisfy it (the engine's package
+ * hook runner, an in-memory one in tests).
+ */
+export interface CaptureHookRunner {
+  /** Load what runs the hooks, so that a load failure is told apart from a hook's; resolves at once once loaded. */
+  load(): Promise<void>;
+  /** Run one list of hooks in `ctx`: one result per hook attempted, then (a setup that failed) one per rollback. */
+  run(hooks: readonly HookStep[], ctx: HookContext, o: HookRunOptions): Promise<{ ok: boolean; results: HookResult[] }>;
+  readonly journals: {
+    /** Open (or start) a journal file. */
+    open(file: string): Promise<HookJournal>;
+  };
+}

@@ -27,7 +27,7 @@ import { sandboxPaths, shownPath } from './paths.js';
 import type { SandboxPaths } from './paths.js';
 import { ComposeProvider } from './compose.js';
 import { ProcessProvider, tailLines } from './process.js';
-import type { DownResult, Provider, ProviderContext, SandboxLog, SandboxProgress, SeedRecorder, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type { DownResult, Provider, ProviderCapabilities, ProviderContext, SandboxLog, SandboxProgress, SeedRecorder, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
@@ -158,6 +158,11 @@ export class Sandbox {
     return this.sandbox.manifest.reset?.strategy ?? 'reseed';
   }
 
+  /** What its provider can do beyond what every provider does (ProviderCapabilities: exec, logs, followLogs, snapshots, build, volumes…). */
+  get capabilities(): Readonly<ProviderCapabilities> {
+    return this.provider.capabilities;
+  }
+
   /** A provider context on the state as it is on disk now. */
   private context(opts: SandboxCallOptions): ProviderContext {
     const log = opts.log ?? quiet;
@@ -203,19 +208,24 @@ export class Sandbox {
 
   /** The seed hash (core seedHash) with the provider's inputs (docker-compose: the services' image ids). */
   private async hashOf(ctx: ProviderContext): Promise<string> {
-    return seedHash(this.sandbox, (await this.provider.hashInputs?.(ctx)) ?? []);
+    return seedHash(this.sandbox, this.provider.capabilities.hashInputs ? await this.provider.hashInputs(ctx) : []);
+  }
+
+  /** Where to connect to a port the sandbox's services publish (capability `address`), else undefined: the URL's own host. */
+  private addressOf(ctx: ProviderContext, port: number): Promise<string | undefined> {
+    return this.provider.capabilities.address ? this.provider.address(ctx, port) : Promise.resolve(undefined);
   }
 
   /** The Postgres snapshot of a snapshot reset: its database must be published by the sandbox's own services. */
   private async openSnapshot(ctx: ProviderContext): Promise<PostgresSnapshot> {
-    if (!this.provider.publishedBy) {
+    if (!this.provider.capabilities.snapshots) {
       throw new SandboxError(`sandbox ${this.env}: snapshot resets need provider docker-compose (the database must belong to the sandbox): use strategy reseed`);
     }
     const target = await snapshotTarget(this.project, this.sandbox);
     await this.provider.publishedBy(ctx, target.port);
     // A host name: on the address Docker publishes the port on, never `localhost` (another container may publish the
     // same port on ::1); an address is used as written.
-    const address = isIP(target.host) ? undefined : await this.provider.address?.(ctx, target.port);
+    const address = isIP(target.host) ? undefined : await this.addressOf(ctx, target.port);
     return PostgresSnapshot.open(address ? { ...target, host: address } : target, this.env);
   }
 
@@ -233,7 +243,7 @@ export class Sandbox {
     await checkSeedDatabases(ctx, this.provider, 'reset hooks');
     const snap = this.strategy === 'snapshot' ? await this.openSnapshot(ctx) : null;
     // Hotfix v0.2.5: a Firebase Auth emulator keeps its accounts in memory — saved after the seed, put back below.
-    const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.provider.address?.(ctx, port) ?? Promise.resolve(undefined));
+    const fa = await FirebaseAuthSnapshot.open(this.sandbox, ctx.paths, (port) => this.addressOf(ctx, port));
     let seed = { steps: 0, ms: 0 };
     let snapshot: ResetResult['snapshot'];
     let superseded = 0;
@@ -286,7 +296,7 @@ export class Sandbox {
     } finally {
       await snap?.close();
     }
-    const mailbox = await clearMailbox(this.project, this.sandbox, (port) => this.provider.address?.(ctx, port) ?? Promise.resolve(undefined));
+    const mailbox = await clearMailbox(this.project, this.sandbox, (port) => this.addressOf(ctx, port));
     if (mailbox === 'not-mailpit') ctx.log('info', `sandbox ${this.env}: an http mailbox has no generic way to be emptied — empty it in a seed step`);
     const restarted: string[] = [];
     for (const name of this.sandbox.manifest.reset?.restart ?? []) {
@@ -450,7 +460,7 @@ export class Sandbox {
   async logs(opts: { service?: string; lines?: number } = {}): Promise<SandboxLogs[]> {
     const ctx = this.context({});
     const lines = opts.lines ?? 50;
-    if (this.provider.logs) {
+    if (this.provider.capabilities.logs) {
       const out = await this.provider.logs(ctx, { service: opts.service, lines });
       return out.map((l) => ({ service: l.service, file: '', source: l.source, exists: true, text: l.text }));
     }
@@ -464,7 +474,7 @@ export class Sandbox {
 
   /** Follow the logs until `signal` aborts (docker-compose; a process sandbox's are files: tail -f them). */
   async followLogs(opts: { service?: string; lines?: number; signal: AbortSignal; write: (line: string) => void }): Promise<void> {
-    if (!this.provider.followLogs) throw new SandboxError(`sandbox ${this.env}: following logs is for docker-compose sandboxes — tail -f ${shownPath(this.paths.logs)}/<service>.log`);
+    if (!this.provider.capabilities.followLogs) throw new SandboxError(`sandbox ${this.env}: following logs is for docker-compose sandboxes — tail -f ${shownPath(this.paths.logs)}/<service>.log`);
     await this.provider.followLogs(this.context({}), { service: opts.service, lines: opts.lines ?? 50, signal: opts.signal, write: opts.write });
   }
 

@@ -13,7 +13,7 @@ import type { Worker } from './worker-record.js';
 
 /** Listen to SIGINT, SIGTERM and unhandled rejections for `w`; returns what stops listening (once the worker is done). */
 export function handleSignals(w: Worker): () => void {
-  const { log, queue, captureRunner, sb } = w;
+  const { log, queue, captureRunner, os } = w;
   let signals = 0;
   const onSignal = (sig: NodeJS.Signals) => {
     signals++;
@@ -48,7 +48,7 @@ export function handleSignals(w: Worker): () => void {
         /* quitting anyway */
       }
     }
-    if (w.heavy && !w.heavy.exited && signalablePid(w.heavy.pid)) signalTree(w.heavy.pid, 'SIGKILL', sb.processTableSync(), w.kill);
+    if (w.heavy && !w.heavy.exited && signalablePid(w.heavy.pid)) signalTree(w.heavy.pid, 'SIGKILL', os.processTableSync(), w.kill);
     w.lock?.release();
     process.nextTick(() => process.exit(130));
   };

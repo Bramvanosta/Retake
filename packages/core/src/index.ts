@@ -80,6 +80,8 @@ export { isUnder } from './client-path.js';
 export * from './file-facts.js';
 export * from './path-inside.js';
 export * from './error-kind.js';
+export { SandboxError } from './sandbox-error.js';
+export type { SandboxErrorCode } from './sandbox-error.js';
 export * from './scenario-edit.js';
 export * from './step-edits.js';
 export * from './field-edits.js';

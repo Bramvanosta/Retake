@@ -15,10 +15,13 @@
     "paths": {
       "@retake/core/io": ["./packages/core/src/io/index.ts"],
       "@retake/core": ["./packages/core/src/index.ts"],
+      "@retake/hooks/describe": ["./packages/hooks/src/describe-entry.ts"],
       "@retake/hooks": ["./packages/hooks/src/index.ts"],
+      "@retake/sandbox/types": ["./packages/sandbox/src/types-entry.ts"],
       "@retake/sandbox": ["./packages/sandbox/src/index.ts"],
       "@retake/components/kit": ["./packages/components/src/kit/index.ts"],
       "@retake/components/geometry": ["./packages/components/src/geometry-entry.ts"],
+      "@retake/runner-web/types": ["./packages/runner-web/src/types-entry.ts"],
       "@retake/runner-web": ["./packages/runner-web/src/index.ts"],
       "@retake/components": ["./packages/components/src/index.ts"],
       "@retake/editor/plan": ["./packages/editor/src/plan-entry.ts"],

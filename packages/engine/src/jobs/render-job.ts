@@ -407,6 +407,7 @@ export async function reviewInline(
       hooks: ctx.hooks,
       reviewer: ctx.reviewer,
       capture: ctx.capture,
+      sandboxes: ctx.sandboxes,
       input: { version: JOB_INPUT_VERSION, kind: 'review', project: ctx.input.project, render_id: renderId, fps, submitted_by: ctx.input.submitted_by },
       signal: ctx.signal,
       event: ctx.event,

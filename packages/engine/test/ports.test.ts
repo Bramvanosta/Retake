@@ -3,19 +3,20 @@
  * default (each member loading its package on its call, through the loader of its home), a handed one is kept, and the
  * package adapters hand the package's answers on unchanged — a review's frames and thumbnails through the light
  * thumbnail entry, never the package root (the editor behind it); the capture runner's cancel is the runner's own error,
- * and its two synchronous members work once it is loaded only.
+ * and its two synchronous members work once it is loaded only. And L7.25's Sandboxes: the sandbox package through its
+ * loader, on a call.
  */
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { projectPath, statePath } from '@retake/core';
-import type { HookContext } from '@retake/core';
+import { PERSON_POLICY, projectPath, statePath } from '@retake/core';
+import type { HookContext, LoadedProject } from '@retake/core';
 import { thumbJpeg } from '@retake/review/thumbs';
 import { CancelledError, registerSessionCopy } from '@retake/runner-web';
-import { enginePorts, packageHookRunner, packageReviewer, runnerWebCapture, systemClock } from '../src/index.js';
-import type { CaptureRunner, HookBrowser, HookRunner, Reviewer } from '../src/index.js';
+import { enginePorts, packageHookRunner, packageReviewer, packageSandboxes, runnerWebCapture, systemClock } from '../src/index.js';
+import type { CaptureRunner, HookBrowser, HookRunner, Reviewer, Sandboxes } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
 import * as lazy from '../src/lazy.js';
@@ -34,7 +35,7 @@ vi.mock('../src/lazy.js', async (actual) => {
       failing.next = undefined;
       return e ? Promise.reject(e) : (real[k] as (...x: unknown[]) => unknown)(...a);
     }) as (typeof real)[K];
-  return { editor: spy('editor'), review: spy('review'), thumbs: spy('thumbs'), hooks: spy('hooks'), runnerWeb: spy('runnerWeb') };
+  return { editor: spy('editor'), review: spy('review'), thumbs: spy('thumbs'), hooks: spy('hooks'), runnerWeb: spy('runnerWeb'), sandbox: spy('sandbox') };
 });
 
 const dir = await mkdtemp(join(tmpdir(), 'retake-ports-'));
@@ -44,7 +45,8 @@ beforeEach(() => void calls.splice(0));
 describe('the ports bag: the hook runner and the reviewer', () => {
   it('defaults to the package adapters and keeps the ones handed; making them loads nothing', () => {
     const p = enginePorts();
-    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'hooks', 'reviewer', 'stores']);
+    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'hooks', 'reviewer', 'sandboxes', 'stores']);
+    expect(typeof p.sandboxes.open).toBe('function');
     expect(typeof p.capture.run).toBe('function');
     expect(typeof p.hooks.run).toBe('function');
     expect(typeof p.reviewer.frames.thumb).toBe('function');
@@ -52,7 +54,9 @@ describe('the ports bag: the hook runner and the reviewer', () => {
     const hooks = { marker: 'hooks' } as unknown as HookRunner;
     const reviewer = { marker: 'reviewer' } as unknown as Reviewer;
     const capture = { marker: 'capture' } as unknown as CaptureRunner;
-    const given = enginePorts({ hooks, reviewer, capture });
+    const sandboxes = { marker: 'sandboxes' } as unknown as Sandboxes;
+    const given = enginePorts({ hooks, reviewer, capture, sandboxes });
+    expect(given.sandboxes).toBe(sandboxes);
     expect(given.hooks).toBe(hooks);
     expect(given.reviewer).toBe(reviewer);
     expect(given.capture).toBe(capture);
@@ -177,5 +181,19 @@ describe('the ports bag: the capture runner', () => {
     await packageHookRunner().load();
     expect(calls).toEqual(['hooks']);
     await expect(new MemoryHookRunner().load()).resolves.toBeUndefined();
+  });
+});
+
+describe('the ports bag: the sandboxes (L7.25)', () => {
+  it('the package adapter loads the sandbox package through its loader on a call, and hands its refusal on as it is', async () => {
+    const sb = packageSandboxes();
+    expect(calls).toEqual([]);
+    const bare = { slug: 'bare', dir, config: { environments: {} } } as unknown as LoadedProject;
+    const err = await sb.open(bare, undefined, PERSON_POLICY).catch((e: unknown) => e);
+    expect(calls).toEqual(['sandbox']);
+    expect(err).toMatchObject({ name: 'SandboxError', code: 'failed', message: 'project bare has no sandbox: add `sandboxes: {sandbox: sandbox/sandbox.yaml}` to project.yaml' });
+    // A package that cannot be loaded fails the call with its own error.
+    failing.next = new Error('cannot load pg');
+    await expect(sb.open(bare, undefined, PERSON_POLICY)).rejects.toThrow('cannot load pg');
   });
 });

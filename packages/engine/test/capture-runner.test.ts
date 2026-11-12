@@ -19,6 +19,7 @@ import type { InspectJobResult, RunPorts } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import type { CaptureRequest } from '../src/capture/runner.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
+import { MemorySandboxes } from '../src/sandboxes/memory-sandboxes.js';
 import { openProjectBySlug } from '../src/projects.js';
 import { startServer } from '../../runner-web/test/helpers.js';
 import type { TestServer } from '../../runner-web/test/helpers.js';
@@ -134,7 +135,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
     const hooks = new MemoryHookRunner();
     const progress: string[] = [];
     const ports: RunPorts = { issues: () => undefined, note: () => undefined, sandboxLog: () => undefined, progress: (e) => void progress.push(e.type), interrupts: signalInterrupts() };
-    const rec = await runInProcess(prepared, { dry: true, until: 'discover.0' }, { policy: w.policy, capture, hooks, clock: systemClock }, ports);
+    const rec = await runInProcess(prepared, { dry: true, until: 'discover.0' }, { policy: w.policy, capture, hooks, sandboxes: new MemorySandboxes(), clock: systemClock }, ports);
     expect(rec.status).toBe('succeeded');
     const [req] = requests(capture);
     expect(req!.hookRunner).toBe(hooks);

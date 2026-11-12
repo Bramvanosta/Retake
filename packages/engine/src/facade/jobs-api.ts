@@ -86,7 +86,7 @@ export function sandboxApi(ctx: EngineContext): Engine['sandbox'] {
   return {
     status: async (slug, env) => {
       const p = await project(slug);
-      return sandboxStatus(p, env, ctx.ws.policy, ctx.scope.stores.folder(p.dir));
+      return sandboxStatus(p, env, ctx.ws.policy, ctx.scope.stores.folder(p.dir), ctx.ports.sandboxes);
     },
     up: async (req, o = {}) => {
       const r = await submitSandboxJob(submitCtx, 'sandbox_up', req, o.approver);

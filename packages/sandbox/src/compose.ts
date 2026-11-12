@@ -41,7 +41,8 @@ import { healthNow, pinHealth, serviceHealth, waitHealthy } from './health.js';
 import { shownPath } from './paths.js';
 import { busyPorts, describeListeners, listeners, portLabel, sandboxPorts } from './ports.js';
 import type { Listener, SandboxPort } from './ports.js';
-import type { DownOptions, DownResult, OwnerUse, Provider, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
+import { COMPOSE_CAPABILITIES } from './provider.js';
+import type { DownOptions, DownResult, OwnerUse, Provider, ProviderCapabilities, ProviderContext, ProviderLogs, ServiceLogFile, ServiceStatus, UpOptions, UpResult } from './provider.js';
 import { pgAnswers, pgEndpoint, resolveDatabaseUrl } from './snapshot-postgres.js';
 
 /** A line of `docker compose up --build` that says the build is over: it creates or starts something. */
@@ -407,6 +408,7 @@ export interface ComposeProviderOptions {
 
 export class ComposeProvider implements Provider {
   readonly kind = 'docker-compose' as const;
+  readonly capabilities: Readonly<ProviderCapabilities> = COMPOSE_CAPABILITIES;
   private readonly bin: string | null;
   /** How a refusal names the binary (`$RETAKE_DOCKER` when it came from there). */
   private readonly binWhat: string;

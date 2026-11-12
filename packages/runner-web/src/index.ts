@@ -17,7 +17,7 @@ export { ProxyRefusalError, SITE_PROXY_CAPS, SiteProxy } from './site/proxy.js';
 export type { ProxyRefusal, ResolvedAddress, SiteProxyCaps, SiteProxyOptions, SiteProxyStats } from './site/proxy.js';
 export { chroma, contrast, luminance, mergeSamples, sitePalette } from './site/palette.js';
 export type { SitePalette, SiteRoles, Swatch } from './site/palette.js';
-export type { ConfirmHook, HookApprovalRequestLike } from './hooks-bridge.js';
+export type { ConfirmHook } from './hooks-bridge.js';
 export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS, frameRateArgs, scaleArgs } from './session.js';
 export { gpuInfoOf } from './session.js';
 export type { GpuInfo, RealmSpec, SessionOptions, StorageStateFile, SystemInfoReply } from './session.js';

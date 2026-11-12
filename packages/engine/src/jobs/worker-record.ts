@@ -28,7 +28,14 @@ import type { EnginePorts } from '../ports.js';
 import type { HookRunner } from '../hook-run/runner.js';
 import type { Reviewer } from '../review/reviewer.js';
 import type { ProjectStores } from '../store/store.js';
+import type { Sandboxes } from '../sandboxes/sandboxes.js';
+import type { ProcInfo } from '@retake/core/io';
 import type { QosDeps, QosYield } from './yield.js';
+
+/** The OS utilities the worker's signal handler calls synchronously (core/io's; L7.25: was the whole sandbox package). */
+export interface WorkerOs {
+  processTableSync(): ProcInfo[];
+}
 
 export interface WorkerOptions {
   root: string;
@@ -128,7 +135,10 @@ export interface Worker {
   readonly worker: JobWorkerInfo;
   /** The capture runner (ports.ts EnginePorts.capture; `capture` names the capture slot): loaded before the signals are listened to. */
   readonly captureRunner: CaptureRunner;
-  readonly sb: typeof import('@retake/sandbox');
+  /** The Sandboxes port (ports.ts EnginePorts.sandboxes), handed to the jobs. */
+  readonly sandboxes: Sandboxes;
+  /** The OS utilities a second signal uses synchronously (core/io's process table; a test's stand-in). */
+  readonly os: WorkerOs;
   /** previewTest or ports (in-process tests): heavy jobs run in this process, one job at a time, as before L5.14. */
   readonly inlineHeavy: boolean;
   /** `filming`: the take films now (runner onFilming: not during its setup / teardown hooks, not while paused — review B M3). */
@@ -177,7 +187,8 @@ export interface WorkerParts {
   lock: WorkerLock;
   self: ProcessIdentity;
   captureRunner: CaptureRunner;
-  sb: typeof import('@retake/sandbox');
+  sandboxes: Sandboxes;
+  os: WorkerOs;
 }
 
 /** A new worker's record: both slots empty, nothing seen yet; its capture runner is set by runWorker (worker-slots.ts). */
@@ -207,7 +218,8 @@ export function newWorker(p: WorkerParts): Worker {
     self: p.self,
     worker: { ...p.self, host: hostname() },
     captureRunner: p.captureRunner,
-    sb: p.sb,
+    sandboxes: p.sandboxes,
+    os: p.os,
     inlineHeavy: o.previewTest !== undefined || o.ports !== undefined,
     slot: {},
     quitSync: new Set(),

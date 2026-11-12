@@ -59,20 +59,9 @@
   },
   {
    "rule": "R11",
-   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 12 file → specifier pairs on 2026-11-12 (L7.11: hooks and review/thumbs went through their ports; L7.12: the runner package through the capture runner's): sandbox 11, components 1.",
+   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 1 file → specifier pair on 2026-11-12 (L7.11: hooks and review/thumbs went through their ports; L7.12: the runner package through the capture runner's; L7.25: the sandbox package through the Sandboxes port, its OS utilities from core/io): components 1.",
    "entries": [
-    "packages/engine/src/components.ts → @retake/components",
-    "packages/engine/src/execute-run.ts → @retake/sandbox",
-    "packages/engine/src/jobs/captures.ts → @retake/sandbox",
-    "packages/engine/src/jobs/lock.ts → @retake/sandbox",
-    "packages/engine/src/jobs/proc.ts → @retake/sandbox",
-    "packages/engine/src/jobs/sandbox-job.ts → @retake/sandbox",
-    "packages/engine/src/jobs/signal.ts → @retake/sandbox",
-    "packages/engine/src/jobs/worker.ts → @retake/sandbox",
-    "packages/engine/src/jobs/yield.ts → @retake/sandbox",
-    "packages/engine/src/project-lock.ts → @retake/sandbox",
-    "packages/engine/src/record.ts → @retake/sandbox",
-    "packages/engine/src/sandbox.ts → @retake/sandbox"
+    "packages/engine/src/components.ts → @retake/components"
    ]
   },
   {

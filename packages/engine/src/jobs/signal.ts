@@ -6,7 +6,8 @@
  * the QoS hold's tree).
  */
 import { execFileSync } from 'node:child_process';
-import type { ProcInfo } from '@retake/sandbox';
+import { processTable } from '@retake/core/io';
+import type { ProcInfo } from '@retake/core/io';
 
 /** Sends a signal (process.kill; tests record instead). */
 export type KillFn = (target: number, sig: NodeJS.Signals) => void;
@@ -76,6 +77,5 @@ export function signalTree(pid: number, sig: NodeJS.Signals, table?: readonly Pr
 /** SIGKILL a job process's tree (the machine's process table read first; nothing read for a pid not signalable). */
 export async function killTree(pid: number, kill?: KillFn): Promise<number[]> {
   if (!signalablePid(pid)) return [];
-  const { processTable } = await import('@retake/sandbox');
   return signalTree(pid, 'SIGKILL', await processTable(), kill);
 }

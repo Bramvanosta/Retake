@@ -9,19 +9,12 @@
  * is the adapter's. An approval's fingerprint is too: it hashes the project files a hook references, so it is never
  * re-derived on this side (signed approvals are bound to it).
  */
-import type { HookContext, HookPhase, HookResult, HookStep, JournalEntry as HookJournalEntry } from '@retake/core';
+import type { CaptureHookRunner, HookContext, HookJournal, HookPhase, HookResult, HookRunOptions, HookStep } from '@retake/core';
 
-/** A hooks journal, opened: its pending rollbacks, which entries Retake signed, and their replay. */
-export interface HookJournal {
-  /** The entries whose rollback has not run yet (nor been superseded). */
-  pending(): HookJournalEntry[];
-  /** Whether Retake recorded this entry in this journal with this home (its signature holds). */
-  isSigned(entry: HookJournalEntry): boolean;
-  /** Replay every pending rollback, most recent first. */
-  rollbackAll(ctx: HookContext): Promise<HookResult[]>;
-}
+// L7.25: a journal's handle, a run's options and the capture's part of the port are core's (hook-run.ts), shared with
+// runner-web's RunOptions.hookRunner; re-exported here for the engine's modules.
+export type { HookJournal, HookRunOptions } from '@retake/core';
 
-/** A journal with pending rollbacks, opened (or why it could not be). */
 export interface PendingHookJournal {
   file: string;
   journal?: HookJournal;
@@ -47,15 +40,8 @@ export interface HookPlace {
   files?: Record<string, string>;
 }
 
-export interface HookRunOptions {
-  phase: HookPhase;
-  /** Where executed hooks and their rollbacks are journaled (a dry run writes nothing). */
-  journal: HookJournal;
-  /** Trust `mcp`: the hooks were written by the agent (a scenario's own). */
-  agentWritten?: boolean;
-}
-
-export interface HookRunner {
+/** The port: the capture's part (core CaptureHookRunner, what runner-web's run takes) and the rest the engine uses. */
+export interface HookRunner extends CaptureHookRunner {
   /**
    * Load what runs the hooks (the package adapter: the hooks package), so that a caller that must tell a load failure
    * from a hook's — the capture's hooks (runner-web's run, L7.12) — can; resolves at once once loaded. Every other member
@@ -64,7 +50,7 @@ export interface HookRunner {
   load(): Promise<void>;
   /** Run one list of hooks in `ctx`: one result per hook attempted, then (a setup that failed) one per rollback. */
   run(hooks: readonly HookStep[], ctx: HookContext, o: HookRunOptions): Promise<{ ok: boolean; results: HookResult[] }>;
-  readonly journals: {
+  readonly journals: CaptureHookRunner['journals'] & {
     open(file: string): Promise<HookJournal>;
     /** The journal file of a standalone hooks run (`.retake/journals/<id>.json`). */
     standaloneFile(projectDir: string, id: string): Promise<string>;

@@ -18,7 +18,7 @@ function workerOn(captureRunner: MemoryCaptureRunner, order: string[]) {
     log: (m: string) => void order.push(`log ${m}`),
     queue: { setYield: async () => undefined },
     captureRunner,
-    sb: { processTableSync: () => [] },
+    os: { processTableSync: () => [] },
     slot: { current },
     quitSync: new Set<() => void>([() => void order.push('quit-sync')]),
     wake: {},

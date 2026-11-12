@@ -47,7 +47,7 @@ import { evalHookInPage } from './hook-page.js';
 import { NO_HOOK_RUNNER, hookResultFailed, hookResultName, loadHookRunner } from './hooks-bridge.js';
 import { personaAuthReader } from './persona-auth.js';
 import type { PersonaRequestAuth } from './persona-auth.js';
-import type { ConfirmHook, HookContextLike, HookResultLike, HookRunnerLike, JournalLike } from './hooks-bridge.js';
+import type { CaptureHookRunner, ConfirmHook, HookContext, HookJournal, HookResult } from '@retake/core';
 import { HOLD_MAX_MS } from './hold.js';
 import { INSPECT_PACING, inspectPage } from './inspect.js';
 import type { InspectContext, InspectRequest } from './inspect.js';
@@ -135,12 +135,12 @@ export interface RunOptions {
    * the runner never loads the hooks package itself). Loaded when the run's hooks are opened (a failed load fails the
    * run, as before); a run whose hooks run without one is refused before anything runs.
    */
-  hookRunner?: HookRunnerLike;
+  hookRunner?: CaptureHookRunner;
   /**
    * Reports each hook and rollback this run executes (hooks HookContext.recordRun) with the run's id: the engine journals
    * it in the workspace journal as its caller's (absent: not journaled).
    */
-  recordHookRun?: (result: HookResultLike, runId: string) => Promise<void>;
+  recordHookRun?: (result: HookResult, runId: string) => Promise<void>;
   /**
    * The channel a trust-`mcp` run came through, for the wording of its refusals (L4.2): `studio` (a Studio user is told
    * "from the Studio", never about MCP) or `mcp` (default).
@@ -231,9 +231,9 @@ function tell(f: (state: FilmingEvent) => void | FilmingReport, state: FilmingEv
 }
 
 interface HooksState {
-  runner: HookRunnerLike;
-  journal: JournalLike;
-  ctx: HookContextLike;
+  runner: CaptureHookRunner;
+  journal: HookJournal;
+  ctx: HookContext;
 }
 
 
@@ -1461,14 +1461,14 @@ interface SetupDeps {
   /** Refuses a js hook tab that landed on its persona's sign-in page (L1.6). */
   hookLanding?: (key: string, url: string) => string | null;
   /** `auth: {persona}` of an http hook (hotfix v0.2.3): the persona's session, read in its browser of the run. */
-  personaAuth?: HookContextLike['personaAuth'];
+  personaAuth?: HookContext['personaAuth'];
   /** The run's cancel (Ctrl-C, SIGTERM, opts.signal): it stops the setup — a running shell command's process group too. */
   signal: AbortSignal;
   /** The process groups of the shell hooks running now (any phase): a second signal kills them before the process quits. */
   running: Set<number>;
   trust?: HookTrust;
   via?: AgentChannel;
-  /** Trust `mcp`: the scenario's own vars, the agent's (HookContextLike.agentVars). */
+  /** Trust `mcp`: the scenario's own vars, the agent's (HookContext.agentVars). */
   agentVars?: readonly string[];
   confirmHook?: ConfirmHook;
   recordHookRun?: RunOptions['recordHookRun'];
@@ -1598,7 +1598,7 @@ function hookPersonaAuth(
   command: (persona: string) => string,
   /** Trust `mcp`: the session is read only for the persona's own pages' origins (persona-auth.ts `origins`). */
   ownPagesOnly = false,
-): NonNullable<HookContextLike['personaAuth']> {
+): NonNullable<HookContext['personaAuth']> {
   const readers = new Map<string, (url: string) => Promise<PersonaRequestAuth>>();
   return async (name, url) => {
     const persona = personas.find((p) => p.name === name);
@@ -1684,12 +1684,12 @@ async function discardCapture(dir: string, screenshotsDir: string): Promise<void
  * The hooks of a run: the journal and the context the setup, the teardown and the rollbacks share. Opened before the
  * setup runs, so the teardown runs even when the setup failed or was interrupted.
  */
-async function openHooks(runner: HookRunnerLike, d: SetupDeps): Promise<HooksState> {
+async function openHooks(runner: CaptureHookRunner, d: SetupDeps): Promise<HooksState> {
   await loadHookRunner(runner);
   const journal = await runner.journals.open(join(d.dir, 'hooks-journal.json'));
   const saved: Record<string, unknown> = {};
   d.template.hooks = saved;
-  const ctx: HookContextLike = {
+  const ctx: HookContext = {
     project: d.project,
     policy: d.policy,
     env: d.env,
@@ -1716,7 +1716,7 @@ async function openHooks(runner: HookRunnerLike, d: SetupDeps): Promise<HooksSta
     ...(d.via ? { via: d.via } : {}),
     ...(d.agentVars ? { agentVars: d.agentVars } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
-    ...(d.recordHookRun ? { recordRun: (r: HookResultLike, run?: string) => d.recordHookRun!(r, run ?? d.runId) } : {}),
+    ...(d.recordHookRun ? { recordRun: (r: HookResult, run?: string) => d.recordHookRun!(r, run ?? d.runId) } : {}),
     ...(d.personaAuth ? { personaAuth: d.personaAuth } : {}),
   };
   return { runner, journal, ctx };
@@ -1736,7 +1736,7 @@ async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps): Promi
   // Only the setup sees the run's cancel. The same context object as the teardown's and the rollbacks': the secrets
   // the hooks resolve are looked up once per run and stay registered for redaction.
   h.ctx.signal = d.signal;
-  let res: Awaited<ReturnType<HookRunnerLike['run']>>;
+  let res: Awaited<ReturnType<CaptureHookRunner['run']>>;
   try {
     // The scenario's own hooks: the agent's with trust `mcp` (a shell one is plain words, core agentShellProblems).
     res = await h.runner.run(setup, h.ctx, { phase: 'setup', journal: h.journal, agentWritten: true });
@@ -1766,7 +1766,7 @@ function stepHookRunner(h: HooksState, sc: Scenario, d: SetupDeps): (name: strin
     if (!named) throw new StepError(`unknown hook "${name}": declare it under \`hooks:\` in the scenario or in project.yaml`);
     d.emit({ type: 'hook', phase: 'step', name, status: 'start', message: `${named.hooks.length} hook(s)` });
     h.ctx.signal = d.signal;
-    let res: Awaited<ReturnType<HookRunnerLike['run']>>;
+    let res: Awaited<ReturnType<CaptureHookRunner['run']>>;
     try {
       // A scenario's named hook is the agent's with trust `mcp`; project.yaml's is a person's (unless it uses the scenario's vars).
       res = await h.runner.run(named.hooks, h.ctx, { phase: 'step', journal: h.journal, agentWritten: named.source === 'scenario' });

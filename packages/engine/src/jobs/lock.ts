@@ -9,7 +9,7 @@ import { mkdir } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { RETAKE_VERSION } from '@retake/core';
-import { engineLocation } from '@retake/core/io';
+import { breakStale, createExclusive, engineLocation } from '@retake/core/io';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import { stateDir } from '../workspace-state.js';
@@ -132,7 +132,6 @@ export class WorkerLock {
 
   /** Take the lock, or null when a live worker holds it (`note` reports a stale lock taken over). */
   static async acquire(root: string, build: string, clock: Clock, note?: (msg: string) => void, startedBy?: string): Promise<WorkerLock | null> {
-    const { createExclusive, breakStale } = await import('@retake/sandbox');
     await mkdir(workersDir(root), { recursive: true });
     const file = workerLockFile(root);
     const record: WorkerLockRecord = {

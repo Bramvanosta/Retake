@@ -52,7 +52,7 @@ import {
 } from '@retake/core';
 import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkPolicy } from '@retake/core';
 import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web/types';
-import { retakeHome, fileFacts } from '@retake/core/io';
+import { lockAlive, readLock, retakeHome, fileFacts } from '@retake/core/io';
 import type { CaptureRunner } from './capture/runner.js';
 import type { HookRunner } from './hook-run/runner.js';
 import { callerOf, submittedInStudio } from './caller.js';
@@ -64,7 +64,6 @@ import { dateOf, stampOf } from './clock.js';
 import type { Clock } from './clock.js';
 import type { ProjectStores } from './store/store.js';
 import { selfIdentity } from './jobs/proc.js';
-import { lockAlive, readLock } from '@retake/sandbox';
 import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';

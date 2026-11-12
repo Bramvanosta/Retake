@@ -1,37 +1,8 @@
-import { GUIDE, sandboxErrorKind } from '@retake/core';
-import type { ErrorKind } from '@retake/core';
+import { SandboxError } from '@retake/core';
 
-/**
- * What went wrong with a sandbox, for callers that act on it (the CLI's exit code, L3.1's MCP tools):
- * - busy: another command holds the sandbox's take lock;
- * - down: the sandbox is not running (a run on its environment without --sandbox);
- * - port: a port of the sandbox is used by another program;
- * - unhealthy: a service did not become healthy (or exited);
- * - seed: a seed step failed;
- * - interrupted: Ctrl-C / SIGTERM (what this call started was stopped);
- * - failed: anything else.
- */
-export type SandboxErrorCode = 'busy' | 'down' | 'port' | 'unhealthy' | 'seed' | 'interrupted' | 'failed';
-
-/** A sandbox command failed; the message is written for the user (no stack trace needed). */
-export class SandboxError extends Error {
-  constructor(
-    message: string,
-    readonly code: SandboxErrorCode = 'failed',
-  ) {
-    super(message);
-    this.name = 'SandboxError';
-  }
-
-  /** What a client outside the CLI is told (core error-kind.ts). */
-  get errorKind(): ErrorKind {
-    return sandboxErrorKind(this.code, this.message, 'internal');
-  }
-
-  get errorDocs(): string {
-    return GUIDE.sandbox;
-  }
-}
+// L7.25: the class is core's (core/src/sandbox-error.ts: one class, `instanceof` holds), re-exported here.
+export { SandboxError } from '@retake/core';
+export type { SandboxErrorCode } from '@retake/core';
 
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

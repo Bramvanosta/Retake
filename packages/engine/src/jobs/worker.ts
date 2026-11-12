@@ -28,6 +28,7 @@
  */
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { processTableSync } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { enginePorts } from '../ports.js';
@@ -64,7 +65,7 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
 /** Run a worker until it is idle, stopped or replaced; resolves with the process exit code. */
 export async function runWorker(o: WorkerOptions): Promise<number> {
   // The worker process's composition root: the ports its jobs run with (a test's, else the product's).
-  const { clock, stores, hooks, reviewer, capture } = enginePorts(o.ports);
+  const { clock, stores, hooks, reviewer, capture, sandboxes } = enginePorts(o.ports);
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   // Two test stand-ins for the same thing: which one would draw a preview is not left to an order of precedence.
@@ -86,10 +87,9 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const self = await selfIdentity();
   // Loaded now, before the signals are listened to: a signal's cancel and its removal of session copies are synchronous.
   await capture.load();
-  const sb = await import('@retake/sandbox');
   log(`serving ${root} (build ${build})`);
 
-  const w = newWorker({ o, log, root, clock, stores, hooks, reviewer, ws, cli, queue, files: queue.files, dirs, build, lock, self, captureRunner: capture, sb });
+  const w = newWorker({ o, log, root, clock, stores, hooks, reviewer, ws, cli, queue, files: queue.files, dirs, build, lock, self, captureRunner: capture, sandboxes, os: { processTableSync } });
   const stopListening = handleSignals(w);
   w.runJob = captureJobRunner(w);
   let handover = false;

@@ -139,10 +139,10 @@ export const LAYERS = { domain: ['core'], adapters: ADAPTERS, application: ['eng
  * I/O, no renderer, no adapter code. A shell may import their types only (R4: a value would be the shell doing the
  * application's work by itself); the engine may import their values (R11), all but the editor's, which R9 holds whole
  * (`@retake/editor/plan` as a value in the engine outside its loader is an R9 hit). Each is held pure by its own walk
- * test (components geometry-entry, editor plan-entry, review checks-entry, hooks describe-entry, runner-web types-entry:
- * a type-only entry, whose built file loads nothing).
+ * test (components geometry-entry, editor plan-entry, review checks-entry, hooks describe-entry, runner-web types-entry
+ * and sandbox types-entry: type-only entries, whose built files load nothing).
  */
-export const DOMAIN_ENTRIES = ['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types'];
+export const DOMAIN_ENTRIES = ['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/hooks/describe', '@retake/runner-web/types', '@retake/sandbox/types'];
 /**
  * The review's pure modules (packages/review/src/<name>.ts): what `@retake/review/checks` reaches. R7 keeps each free of
  * I/O and renderer imports, R12 keeps each on the components' geometry entry; both read one file at a time — the
@@ -186,14 +186,15 @@ export const PORT_ROOTS = {
   packageHookRunner: ['packages/engine/src/hook-run/package-hooks.ts', 'packages/engine/src/ports.ts'],
   packageReviewer: ['packages/engine/src/review/review-package.ts', 'packages/engine/src/ports.ts'],
   runnerWebCapture: ['packages/engine/src/capture/runner-web-capture.ts', 'packages/engine/src/ports.ts'],
+  packageSandboxes: ['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts'],
 };
 /** The check that holds each product adapter of PORT_ROOTS to its roots (its entries: `<name> outside a root`). */
-export const PORT_ROOT_RULE = { systemClock: 'clock-read', enginePorts: 'clock-read', diskProjectStores: 'store-new', packageHookRunner: 'loader-use', packageReviewer: 'loader-use', runnerWebCapture: 'loader-use' };
+export const PORT_ROOT_RULE = { systemClock: 'clock-read', enginePorts: 'clock-read', diskProjectStores: 'store-new', packageHookRunner: 'loader-use', packageReviewer: 'loader-use', runnerWebCapture: 'loader-use', packageSandboxes: 'loader-use' };
 /**
  * The loaders of lazy.ts held to a home (loader-use): each is imported from lazy.ts only in its port's folder, where the
  * port's package adapter lives. The editor's loader is not here: R9 and render-call hold the editor.
  */
-export const LOADER_HOMES = { hooks: 'packages/engine/src/hook-run/', review: 'packages/engine/src/review/', thumbs: 'packages/engine/src/review/', runnerWeb: 'packages/engine/src/capture/' };
+export const LOADER_HOMES = { hooks: 'packages/engine/src/hook-run/', review: 'packages/engine/src/review/', thumbs: 'packages/engine/src/review/', runnerWeb: 'packages/engine/src/capture/', sandbox: 'packages/engine/src/sandboxes/' };
 /**
  * The engine's port files (port-types): the interfaces its adapters satisfy, which name no adapter package — types
  * included — but through a domain entry (an adapter satisfies a port structurally: R2 forbids it the engine's types).
@@ -206,6 +207,7 @@ export const PORT_FILES = [
   'packages/engine/src/hook-run/runner.ts',
   'packages/engine/src/review/reviewer.ts',
   'packages/engine/src/capture/runner.ts',
+  'packages/engine/src/sandboxes/sandboxes.ts',
 ];
 /**
  * The editor's render entries: its functions that render (a video, stills, an export's formats, component previews)
@@ -213,6 +215,8 @@ export const PORT_FILES = [
  * A render entry the editor exports and this list misses fails packages/core/test/import-rules.test.ts.
  */
 export const RENDER_CALLS = ['renderVideo', 'renderStill', 'renderStills', 'renderPlan', 'renderComponentPreviews', 'renderComponentLoops', 'exportRender', 'createRenderer', 'planDriver', 'previewDriver', 'REMOTION_PREVIEW_BACKEND'];
+/** The one module that names playwright-core's private browser registry (browser-registry, L7.25). */
+export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
 export const PURE_BINDINGS = { 'node:net': ['isIP', 'isIPv4', 'isIPv6', 'BlockList'], net: ['isIP', 'isIPv4', 'isIPv6', 'BlockList'] };
 export const RULES = [
   { id: 'R1', title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`, files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR), bad: (s, f) => IO.test(s) || coreIoImport(s, f), loaders: true, pure: PURE_BINDINGS },
@@ -236,10 +240,11 @@ export const CHECKS = [
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter\'s own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)' },
   { id: 'clock-read', title: `the engine stamps what it writes with its Clock port (${CLOCK_HOME}): in packages/engine/src outside it, every wall-clock read is counted per file — \`new Date()\` with no argument, \`Date.now\` (called or passed on as a value, \`Date['now']\` too) and \`Date()\` called as a function — and the pinned files are elapsed time, deadlines, memo lifetimes and file times, never a stamp (entries: each file and its count); and the product's ports are named at the composition roots only: \`systemClock\` and \`enginePorts\` as values anywhere in packages/*/src outside PORT_ROOTS (a default parameter included; import and export declarations are not uses). Also read: a name imported under another (\`{ systemClock as sc }\`), a member of a namespace import (\`k.systemClock\`, \`k['enginePorts']\`) and \`now\` taken out of \`Date\` by a pattern (\`const { now } = Date\`). Not seen: \`globalThis.Date\`, \`Date\` or a port under another name made in the file (\`const D = Date\`, \`const c = systemClock\` then \`c\`: the first is counted, not the uses), a name reached through \`Reflect\`, \`Function.prototype.call\` or a computed key, a namespace from \`await import()\`, and \`performance.now()\`, which is allowed (elapsed time)` },
   { id: 'store-new', title: `only the project store builds a store or a storage of a folder: in packages/*/src outside ${STORE_HOME} and ${STORAGE_FILE}, \`new LocalStorage(…)\`, \`new DiskProjectStore(…)\`, a class extending either, or either class passed on as a value is a hit, and so is the disk adapter \`diskProjectStores\` named as a value outside PORT_ROOTS (entries: the file and the form; a type position, an import and an export are not uses), under its own name, an import alias (\`{ LocalStorage as LS }\`) or off a namespace import (\`new st.LocalStorage()\`, \`ps.diskProjectStores\`): every authored write is handed a ProjectStores port in its StoreScope. Not seen: \`Reflect.construct(LocalStorage, …)\` counted only as the class used as a value, a class reached through another variable, a namespace from \`await import()\`` },
-  { id: 'loader-use', title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\`, \`packageReviewer\` and \`runnerWebCapture\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it` },
+  { id: 'loader-use', title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\` and \`packageSandboxes\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it` },
   { id: 'port-types', title: `the engine's port files (PORT_FILES) name no adapter package — a type import, \`typeof import()\` and a value alike (entries: the file and the specifier) — but through a domain entry (DOMAIN_ENTRIES): an adapter satisfies a port structurally, so the vocabulary they share lives in core or a domain entry. Not seen: what a port file names through a relative engine module (not followed)` },
   { id: 'shell-op', title: 'an operation is defined in the engine (packages/engine/src/operations/, U7): in the shells\' sources (SHELL_OP_DIRS: packages/mcp/src, packages/ui/src) every call of `defineTool` or `defineOperation` — by its name, an import alias or a member of a namespace import — is counted per file (entries: each file and its count), so that an operation moved into the engine lowers the baseline and a new one in a shell fails it; and in packages/*/src outside DEFINER_HOMES (the engine\'s operations/, MCP\'s tools/define.ts) a definer re-exported under another name (`export { defineTool as op }`) is a hit. Not seen: a definer under another name made in a file (`const d = defineTool`), a wrapper of one, a parenthesised or computed callee (`(defineTool)(…)`, `c[name](…)`), a member of a namespace from `await import()`, and an operation written as a `ToolDef` object literal with no definer' },
   { id: 'hook-call', title: 'the hooks use cases outside a capture are orchestrated in the engine only (packages/engine/src/hooks-work.ts, U8b: shared by the CLI\'s `hooks run` / `hooks rollback` / `env reset` and the jobs): in packages/*/src outside packages/engine/src every call of `createHookContext` (by its name, an import alias or a member of a namespace import), of `hooks.run` (on something named `hooks`, also `x.hooks`) and of `journals.rollback|openPending|rollbackPending` (on something named `journals`, also `x.journals`), and in the shells (cli, mcp, ui) of `.rollbackAll` on anything, is counted per file (entries: each file and its count; the adapters replay their own journals). Read through parentheses, a comma (`(0, hooks.run)(…)`), a cast or `!`, and as `.call` / `.apply` / `.bind` of a counted function. Not seen: a destructured member (`const { run } = hooks`), a member or port held in a variable (`const r = hooks.run`, `const h = ports.hooks` then `h.run`), a dynamic import\'s destructuring (`const { createHookContext } = await import(…)`) or namespace, an import-equals alias (`import c = e.createHookContext`), a key computed at run time' },
+  { id: 'browser-registry', title: `playwright-core's private modules (\`playwright-core/lib/…\`: its browser registry) are named in ${BROWSER_REGISTRY_HOME} only (U14, finding X9: one browser-discovery module; each caller hands it its own require): in packages/*/src elsewhere, every string or template that holds \`playwright-core/lib/\` is counted per file (entries: each file and its count). Not seen: the path put together from pieces (\`'playwright-core' + '/lib'\`), a specifier computed at run time, and everything outside packages/*/src` },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append|exclusive(…)`, also `x.queue.…`): the engine\'s operations submit after their checks (under the queue\'s lock: `exclusive`), the worker writes' },
   { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
@@ -909,6 +914,28 @@ export function hookCallHits(root, files) {
 }
 
 /** The port files' adapter imports (port-types): every specifier the scan lists (types and `typeof import()` included). */
+/**
+ * The private modules of playwright-core named outside BROWSER_REGISTRY_HOME (browser-registry), read from the syntax
+ * tree: in packages/*\/src, every string literal, template (its text parts) or import specifier holding
+ * `playwright-core/lib/`, counted per file (`{count}`). A comment is no use.
+ */
+export function browserRegistryHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!/^packages\/[^/]+\/src\//.test(rel) || rel === BROWSER_REGISTRY_HOME || !text.includes('playwright-core/lib/')) continue;
+    const sf = parse(ts, rel, text);
+    let count = 0;
+    (function visit(n) {
+      const t = ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) ? n.text : undefined;
+      if (t !== undefined && t.includes('playwright-core/lib/')) count++;
+      n.forEachChild(visit);
+    })(sf);
+    if (count) hits.push({ rule: 'browser-registry', file: rel, count });
+  }
+  return hits;
+}
+
 export function portTypeHits(fileImports) {
   const hits = [];
   for (const f of PORT_FILES) {
@@ -1298,6 +1325,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
   for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
   for (const h of shellOpHits(root, scanned.files)) set.add(h.spec !== undefined ? `shell-op ${h.file} → ${h.spec}` : `shell-op ${h.file} → ${h.count} operation${h.count === 1 ? '' : 's'} defined`);
   for (const h of hookCallHits(root, scanned.files)) set.add(`hook-call ${h.file} → ${h.count} hooks orchestration call${h.count === 1 ? '' : 's'}`);
+  for (const h of browserRegistryHits(root, scanned.files)) set.add(`browser-registry ${h.file} → ${h.count} private module${h.count === 1 ? '' : 's'} of playwright-core named`);
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   for (const h of recordReadHits(root, scanned.files)) {
     const own = h.kinds.filter((k) => k === 10).length;

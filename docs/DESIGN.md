@@ -1143,10 +1143,19 @@ read-only environment and an unusable clock throw before the run folder is made.
   `ComposeProvider` per call. Provider (provider.ts): `up(ctx, {build})`, `down(ctx, {volumes})`, `status`, `restart`,
   `exec?`, `stopStarted`, `killStartedSync`, `logFiles`, `servedBy(ctx, port, use)` (the service of the sandbox
   serving a port, nothing else listening: process — a port a process service names and its own tree listens on;
-  docker-compose — `publishedBy`), and for docker-compose `logs?`, `followLogs?`, `publishedBy?(ctx, port, use?)` (the
-  service of the sandbox's own project publishing a port: a snapshot's database by default), `address?(ctx, port)`
-  (where to connect to a port its own containers publish: 127.0.0.1 / ::1) and `hashInputs?` (the services' image
-  ids: part of the seed hash).
+  docker-compose — `publishedBy`), `logs`, `followLogs`, `publishedBy(ctx, port, use?)` (the service of the sandbox's
+  own project publishing a port: a snapshot's database by default), `address(ctx, port)` (where to connect to a port
+  its own containers publish: 127.0.0.1 / ::1) and `hashInputs` (the services' image ids: part of the seed hash).
+  L7.25 (X8): every method is on every provider and `capabilities` says which do the work (`ProviderCapabilities
+  {exec, logs, followLogs, snapshots, address, hashInputs, build, volumes}`: docker-compose all, process none — its
+  exec / logs / followLogs / publishedBy refuse, its address / hashInputs answer undefined / none); the Sandbox and the
+  seed test a capability before the call, in their own words, and `Sandbox.capabilities` hands them on. The engine
+  reaches all of this through its `Sandboxes` port (engine `sandboxes/`: `packageSandboxes()` over `openSandbox` /
+  `initSandbox`, `MemorySandboxes` for tests, one contract suite on the process provider, the docker-compose one and
+  the fake); its vocabulary is the type-only entry `@retake/sandbox/types`. The OS utilities this package hosted — the
+  process table, start times and groups (`proc.ts`), the lock file (`TakeLock`, `createExclusive`, `breakStale`,
+  `readLock`, `lockAlive`, `describeLock`) and who listens on a port (`probePort`, `listeners`) — are core/io's since
+  L7.25, `SandboxError` and `sandboxPaths` core's: re-exported here unchanged.
 - **Files** (`<project>/.retake/sandbox/<env>/`, git-ignored): `state.json` (version 1, written synchronously and
   atomically: temp + rename) — `services.<name> {kind: process, pid, started_at (ps lstart), command, hash (command /
   cwd / env), status: starting|running, boot (kern.boottime / btime), members ([{pid, start}] of its group once
@@ -2166,7 +2175,7 @@ workers/worker.log      what workers print (stderr), appended
   heavy slot (`worker-heavy.ts`: its job process, yield, cancel and end) and the ends the worker writes itself
   (`worker-finish.ts`).
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
-  Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
+  Readers never write: a `running` job whose worker is gone (pid + `ps` start time, core/io proc.ts) is derived
   `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived
   `cancelled`. The next worker persists those (it holds the lock). run.json is never rewritten for `interrupted`: the
   run status overlays it.

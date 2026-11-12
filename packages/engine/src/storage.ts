@@ -11,7 +11,7 @@ import { chmod, link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } 
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { SCENARIO_COMPARE_MAX_BYTES, pathInside } from '@retake/core';
 import { readPlainFile } from '@retake/core/io';
-import type { TakeLock } from '@retake/sandbox';
+import type { TakeLock } from '@retake/core/io';
 import { EngineError } from './errors.js';
 import { lockHolder, takeProjectLock } from './project-lock.js';
 

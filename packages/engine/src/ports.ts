@@ -2,8 +2,8 @@
  * The engine's ports bag: the adapters a composition root chooses — createEngine (its `ports` option, which the MCP
  * server and the Studio leave out), the jobs worker (`WorkerOptions.ports`), the job process and the CLI
  * (`cli/src/workspace.ts` `cliPorts`). `enginePorts` is the one place their defaults are written: nothing but those
- * roots calls it, nor names `systemClock`, `diskProjectStores`, `packageHookRunner`, `packageReviewer` or
- * `runnerWebCapture` (the import-rules ratchet's `clock-read`, `store-new` and `loader-use` checks).
+ * roots calls it, nor names `systemClock`, `diskProjectStores`, `packageHookRunner`, `packageReviewer`,
+ * `runnerWebCapture` or `packageSandboxes` (the import-rules ratchet's `clock-read`, `store-new` and `loader-use` checks).
  */
 import { runnerWebCapture } from './capture/runner-web-capture.js';
 import type { CaptureRunner } from './capture/runner.js';
@@ -13,6 +13,8 @@ import { packageHookRunner } from './hook-run/package-hooks.js';
 import type { HookRunner } from './hook-run/runner.js';
 import { packageReviewer } from './review/review-package.js';
 import type { Reviewer } from './review/reviewer.js';
+import { packageSandboxes } from './sandboxes/package-sandboxes.js';
+import type { Sandboxes } from './sandboxes/sandboxes.js';
 import { diskProjectStores } from './store/project-store.js';
 import type { ProjectStores } from './store/store.js';
 
@@ -27,6 +29,8 @@ export interface EnginePorts {
   reviewer: Reviewer;
   /** What drives a browser: a run, a recording, a persona's session, js-hook pages, a site (capture/runner.ts). */
   capture: CaptureRunner;
+  /** What starts, seeds, resets, stops and reads a project's sandboxes (sandboxes/sandboxes.ts, L7.25). */
+  sandboxes: Sandboxes;
 }
 
 /**
@@ -40,5 +44,6 @@ export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
     hooks: given.hooks ?? packageHookRunner(),
     reviewer: given.reviewer ?? packageReviewer(),
     capture: given.capture ?? runnerWebCapture(),
+    sandboxes: given.sandboxes ?? packageSandboxes(),
   };
 }

@@ -421,7 +421,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
   const dir = inspectDir(project, input.inspect_id);
   const prepared = await prepareInspect(ctx.ws, project, input.source, input.env);
   await checkWorkspaceProtection(ctx.ws, project, prepared.env);
-  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
+  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy, ctx.sandboxes);
   const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: stampOf(ctx.clock) };
   const update = (patch: Partial<JobProgress>) => {
     Object.assign(progress, patch, { updated_at: stampOf(ctx.clock) });
