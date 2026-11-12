@@ -7,18 +7,20 @@
  * L7.17: the theme, component and library family joins them; an operation that declares `serialize` runs one call of a
  * key at a time per engine (after its caller rules), MCP's declare none, and theme_edit's caller rule refuses MCP.
  * L7.15: the submits and job controls join them; scenario_render runs on its scenario's key (the Studio's scenario chain).
+ * L7.19: MCP's hooks, environment-reset and sandbox operations join them; they hand the engine the shell's approver
+ * (MCP's elicitation) exactly when there is one.
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { OPERATIONS, OPERATIONS_BY_NAME, callTool, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, scenarioKey, servedBy, servedNames, studioPins } from '@retake/engine/contract';
+import { HOOK_JOB, OPERATIONS, OPERATIONS_BY_NAME, READ, SANDBOX_JOB, callTool, catalogueOperation, defineOperation, invoke, operationChain, pinArguments, scenarioKey, servedBy, servedNames, studioPins } from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
 import { TOOLS } from '@retake/mcp';
 import { stubTools } from '../../ui/test/studio-tools.js';
 import { EngineError, callerOf, createEngine, toEngineError } from '../src/index.js';
-import type { Engine } from '../src/index.js';
+import type { Approver, Engine } from '../src/index.js';
 
 const signal = new AbortController().signal;
 const ELEVEN = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'scenario_validate', 'run_list', 'run_status', 'run_cancel', 'job_list', 'auth_status', 'auth_login'];
@@ -31,12 +33,14 @@ const THEMES_STUDIO = ['library_view', 'library_images', 'library_render', 'libr
 /** L7.15: the submits and job controls (MCP's seven — job_status still waits for its recording answer — and the Studio's six). */
 const JOBS_MCP = ['page_inspect', 'run_dry', 'run_capture', 'render', 'review', 'export', 'job_cancel'];
 const JOBS_STUDIO = ['scenario_run', 'run_pause', 'sign_in_cancel', 'scenario_render', 'render_cancel', 'review_export'];
+/** L7.19: the hooks, environment-reset and sandbox family (MCP's five). */
+const HOOKS_MCP = ['hooks_run', 'env_reset', 'sandbox_status', 'sandbox_up', 'sandbox_reset'];
 
 describe("the engine's operations: one definition, served by the shells as it is", () => {
   it('names operations of the catalogue, each served by MCP or the Studio, in catalogue order: the eleven both serve', () => {
     const names = OPERATIONS.map((o) => o.name);
     expect(names.filter((n) => ELEVEN.includes(n))).toEqual(ELEVEN);
-    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO].sort());
+    expect([...names].sort()).toEqual([...ELEVEN, ...QUERIES_MCP, ...QUERIES_STUDIO, ...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP].sort());
     for (const n of [...THEMES_MCP, ...JOBS_MCP]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([true, false]);
     for (const n of [...THEMES_STUDIO, ...JOBS_STUDIO]) expect([servedBy(catalogueOperation(n)!, 'mcp'), servedBy(catalogueOperation(n)!, 'studio')], n).toEqual([false, true]);
     for (const n of names) {
@@ -53,8 +57,8 @@ describe("the engine's operations: one definition, served by the shells as it is
 
   it('names the read-only queries too (L7.14): MCP\'s four, then the Studio\'s ten, each a read served by one shell only', () => {
     const names = OPERATIONS.map((o) => o.name);
-    // In catalogue order among the others (L7.17's theme family and L7.15's jobs left out: the test above holds them).
-    const later = [...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO];
+    // In catalogue order among the others (L7.17's theme family, L7.15's jobs and L7.19's hooks left out: the test above holds them).
+    const later = [...THEMES_MCP, ...THEMES_STUDIO, ...JOBS_MCP, ...JOBS_STUDIO, ...HOOKS_MCP];
     expect(names.filter((n) => !ELEVEN.includes(n) && !later.includes(n))).toEqual([...QUERIES_MCP, ...QUERIES_STUDIO]);
     for (const n of [...QUERIES_MCP, ...QUERIES_STUDIO]) {
       const op = catalogueOperation(n)!;
@@ -343,6 +347,71 @@ describe("theme_edit's caller rule (L7.17: editsThemes as the operation's caller
     const valid = { theme: 'mine', if_match: 'a'.repeat(64), edit: { kind: 'set_field', field: 'colors.accent', to: '#123456' } };
     const refused = await invoke(op, engine, valid, { shell: 'studio', signal });
     expect(!refused.ok && [refused.error.code, refused.error.message]).toEqual(['refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)']);
+  });
+});
+
+describe("the hooks, environment-reset and sandbox operations (L7.19: MCP's five, with the approver)", () => {
+  it("are MCP's only, MCP's TOOLS holds them as these objects, with the hints of their facets and no caller rule or key", () => {
+    const byName = OPERATIONS_BY_NAME as unknown as Record<string, ToolDef>;
+    for (const n of HOOKS_MCP) {
+      const op = catalogueOperation(n)!;
+      expect([servedBy(op, 'mcp'), servedBy(op, 'studio')], n).toEqual([true, false]);
+      expect(TOOLS.find((t) => t.name === n), n).toBe(byName[n]);
+      expect(byName[n].callers, n).toBeUndefined();
+      expect(byName[n].serialize, n).toBeUndefined();
+      expect([op.effect, op.job], n).toEqual(n === 'sandbox_status' ? ['read', false] : ['destructive', true]);
+    }
+    expect(HOOKS_MCP.map((n) => byName[n].annotations)).toEqual([HOOK_JOB, HOOK_JOB, READ, SANDBOX_JOB, SANDBOX_JOB]);
+    expect([HOOK_JOB.destructiveHint, HOOK_JOB.openWorldHint, SANDBOX_JOB.destructiveHint, SANDBOX_JOB.openWorldHint]).toEqual([true, true, true, false]);
+  });
+
+  it('hand the engine the parsed arguments, and the approver exactly when the shell gives one (the very object)', async () => {
+    const seen: Array<[string, unknown, Record<string, unknown>]> = [];
+    const job = { id: 'j_01JZ0000000000000000000000', state: 'queued', input: { kind: 'hooks' } };
+    const submit = (what: string, extra: object = {}) => async (args: unknown, opts: Record<string, unknown>) => (seen.push([what, args, opts]), { job, ...extra });
+    const fake = {
+      caller: callerOf('mcp'),
+      hooks: { submit: submit('hooks.submit') },
+      env: { reset: submit('env.reset') },
+      sandbox: {
+        up: submit('sandbox.up', { env: 'sandbox' }),
+        reset: submit('sandbox.reset', { env: 'sandbox' }),
+        status: async (project: string, env?: string) => (seen.push(['sandbox.status', [project, env], {}]), { project, env: 'sandbox', provider: 'process', state: 'down', services: [], pages: {} }),
+      },
+      jobs: { get: async () => job },
+    } as unknown as Engine;
+    const approver = { approve: async () => ({ approved: false }) } as unknown as Approver;
+    const { hooks_run, env_reset, sandbox_status, sandbox_up, sandbox_reset } = OPERATIONS_BY_NAME;
+    const calls: Array<[ToolDef, Record<string, unknown>]> = [
+      [hooks_run as ToolDef, { project: 'p', source: 'reset', wait_s: 0 }],
+      [hooks_run as ToolDef, { project: 'p', source: 'demo:setup', env: 'local', dry: false, wait_s: 0 }],
+      [env_reset as ToolDef, { project: 'p', wait_s: 0 }],
+      [sandbox_status as ToolDef, { project: 'p' }],
+      [sandbox_up as ToolDef, { project: 'p', wait_s: 0 }],
+      [sandbox_reset as ToolDef, { project: 'p', reseed: true, wait_s: 0 }],
+    ];
+    for (const withApprover of [false, true]) {
+      seen.length = 0;
+      for (const [op, args] of calls) {
+        const r = await invoke(op, fake, args, { shell: 'mcp', signal, ...(withApprover ? { approver } : {}) });
+        expect(r.ok, op.name).toBe(true);
+      }
+      const opts = withApprover ? { approver } : {};
+      // Strictly: no `approver` key at all without one.
+      expect(seen).toStrictEqual([
+        ['hooks.submit', { project: 'p', source: 'reset', env: undefined, dry: true }, opts],
+        ['hooks.submit', { project: 'p', source: 'demo:setup', env: 'local', dry: false }, opts],
+        ['env.reset', { project: 'p', env: undefined, dry: true }, opts],
+        ['sandbox.status', ['p', undefined], {}],
+        ['sandbox.up', { project: 'p', env: undefined }, opts],
+        ['sandbox.reset', { project: 'p', env: undefined, reseed: true }, opts],
+      ]);
+      for (const [, , o] of seen) if (withApprover && 'approver' in o) expect(o.approver).toBe(approver);
+    }
+    // The Studio serves none of them: refused before the engine is asked.
+    seen.length = 0;
+    for (const [op, args] of calls) expect((await invoke(op, fake, args, { shell: 'studio', signal })).ok, op.name).toBe(false);
+    expect(seen).toEqual([]);
   });
 });
 

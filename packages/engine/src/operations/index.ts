@@ -8,6 +8,7 @@ import { authLogin, authStatus } from './auth.js';
 import { projectBoard, projectsOverview } from './board.js';
 import { componentCreate, componentGet, componentList, componentPreview, componentValidate } from './components.js';
 import type { ToolsByName } from './define.js';
+import { envReset, hooksRun } from './hooks.js';
 import { pageInspect } from './inspect.js';
 import { jobCancel, jobList } from './jobs.js';
 import { libraryComponent, libraryImages, libraryRender, libraryView } from './library.js';
@@ -17,6 +18,7 @@ import { renderReview, reviewImage, scenarioRenders } from './render-screen.js';
 import { planPreview, renderStatus } from './renders.js';
 import { reviewGet } from './reviews.js';
 import { runCancel, runList, runStatus } from './runs.js';
+import { sandboxReset, sandboxStatus, sandboxUp } from './sandbox.js';
 import { runThumbs, scenarioActions, scenarioBlocks, scenarioForms, scenarioSessions } from './scenario-screen.js';
 import { renderCancel, reviewExport, runPause, scenarioRender, scenarioRun, signInCancel } from './studio-jobs.js';
 import { exportRender, render, review, runCapture, runDry } from './submit.js';
@@ -25,7 +27,7 @@ import { brandFiles, siteList, templateCreateFromBrand, templateFromSite, templa
 /**
  * Every engine operation, in catalogue order: the eleven MCP and the Studio share (L7.13); MCP's reads of scenarios,
  * plans, renders and reviews, and the Studio's screen reads (L7.14); the themes, components and the library (L7.17);
- * the submits and job controls of both (L7.15).
+ * the submits and job controls of both (L7.15); MCP's hooks, environment reset and sandboxes (L7.19).
  */
 export const OPERATIONS = [
   engineInfo,
@@ -57,8 +59,13 @@ export const OPERATIONS = [
   componentCreate,
   jobList,
   jobCancel,
+  hooksRun,
+  envReset,
   authStatus,
   authLogin,
+  sandboxStatus,
+  sandboxUp,
+  sandboxReset,
   projectsOverview,
   projectBoard,
   scenarioBlocks,

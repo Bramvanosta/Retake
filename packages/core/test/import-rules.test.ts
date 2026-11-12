@@ -447,8 +447,9 @@ describe('the import-rules ratchet', () => {
       // plan_preview, render_status, review_get — and the Studio's ten screen reads); L7.17: 21 / 44 (the theme,
       // component and library family: MCP's nine, the Studio's eleven); L7.15: −7 / −6 (the submits and job controls:
       // MCP's run_dry, run_capture, render, review, export, page_inspect, job_cancel; the Studio's scenario_run,
-      // run_pause, sign_in_cancel, scenario_render, render_cancel, review_export).
-      expect(total('packages/mcp/src/')).toBe(14);
+      // run_pause, sign_in_cancel, scenario_render, render_cancel, review_export); L7.19: MCP −5 (hooks_run, env_reset,
+      // sandbox_status, sandbox_up, sandbox_reset).
+      expect(total('packages/mcp/src/')).toBe(9);
       expect(total('packages/ui/src/')).toBe(38);
       expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
     });

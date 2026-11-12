@@ -1,6 +1,7 @@
 /**
- * The annotations of the engine's operations (moved from the MCP server's tools/define.ts in L7.13, L7.17 and L7.15, with
- * the operations that use them): the hints a client reads, held to each operation's catalogue facets (annotationProblem).
+ * The annotations of the engine's operations (moved from the MCP server's tools/define.ts in L7.13, L7.17, L7.15 and
+ * L7.19, with the operations that use them): the hints a client reads, held to each operation's catalogue facets
+ * (annotationProblem).
  */
 import type { ToolAnnotations } from './define.js';
 
@@ -32,3 +33,7 @@ export const JOB_CANCEL: ToolAnnotations = { ...CANCEL, destructiveHint: true };
  * made, in the worker, and writes only the project's renders/, review/ and exports/ folders).
  */
 export const RENDER_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+/** Starts a job that runs hooks against an environment (a real run may write or delete: approvals guard it). */
+export const HOOK_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
+/** Starts or resets a local sandbox (a reset rewrites the sandbox's own data, nothing else). */
+export const SANDBOX_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };

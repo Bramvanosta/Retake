@@ -78,6 +78,8 @@ export { INSPECT_RESULT_MAX, inspectImages, inspectOutput } from './operations/i
 export { jobId } from './operations/jobs.js';
 export { REVIEW_EXPORTS_OPEN, REVIEW_EXPORT_FORMATS, scenarioKey } from './operations/studio-jobs.js';
 export type { ReviewExportAnswer, ScenarioRenderAnswer, ScenarioRunAnswer } from './operations/studio-jobs.js';
+// L7.19: the annotations of MCP's hooks, environment-reset and sandbox operations (operations/hooks.ts, sandbox.ts).
+export { HOOK_JOB, SANDBOX_JOB } from './operations/annotations.js';
 
 /** Longest untrusted string a result carries. */
 export const UNTRUSTED_MAX = 2000;

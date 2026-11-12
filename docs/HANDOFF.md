@@ -126,6 +126,46 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.19)
+- **L7.19 done (2026-11-12; branch `claude/arch-l7`)** — U7's hooks, environment-reset and sandbox family: MCP's five tools (hooks_run, env_reset, sandbox_status, sandbox_up, sandbox_reset) are the engine's operations. No change a client sees.
+  - **The operations** (`packages/engine/src/operations/`): hooks.ts (hooks_run, env_reset, `hookLine`, `hooksJobSummary`, the hooks job output — renamed `hooksJobOutput` inside the engine, since auth.ts's `jobOutput` is the environment one), sandbox.ts (the three sandbox_*, on auth.ts's `jobOutput`); annotations.ts gains HOOK_JOB and SANDBOX_JOB (the contract exports them). OPERATIONS +5 in catalogue order (`hooks_run`, `env_reset` before `auth_status`; the three sandbox_* after `auth_login`). Moved verbatim (schemas, words, annotation values). MCP's tools/hooks.ts and tools/environment.ts now take the objects from `OPERATIONS_BY_NAME`; HOOK_TOOLS / ENVIRONMENT_TOOLS keep their names and order (tool-set.ts untouched).
+  - **Security paths unchanged.** No caller rule, no `serialize`. The handlers still pass `ctx.approver` only when the shell has one. Everything else stays in the engine's façades under the handler: the approval items (shell, destructive and js hooks; shell seed steps and shell reset hooks, L7.8), the refusal of a production write before anyone is asked, the agent-written scenario rule (plain-word shell), the signed approvals and the "confirm: true in a file does not count" rule.
+  - **Ratchet.** shell-op MCP −5 (tools/environment.ts 3 and tools/hooks.ts 2: both entries removed by hand), so MCP 21 → 16 on top of L7.17 (14 → 9 on top of L7.15). Baseline 111 → **109** (106 → 104 after L7.15). The group reason's count ("21 of 45") was left as it was, for the merge with L7.15. import-rules "holds today": `toBe(21 - 5)` with an L7.19 comment line (title unchanged), so the lead can subtract L7.15's count too. No other ratchet moves.
+  - **Checked.**
+    - Characterization committed before the move: `packages/mcp/test/environment-ops-characterization.test.ts` + `fixtures/environment-ops.json`. It was recorded on `14731b9` in a scratch worktree outside `.claude/worktrees/` (removed since).
+      - 51 calls through MCP stdio with four clients: no elicitation (needs_approval and the command), decline, never answers (refused after 1.5 s), accept.
+      - The workspace: a project whose hooks are shell `touch` / `echo` (a scenario's setup with a rollback and an optional destructive hook, its teardown, a scenario with a redirect, which the agent-written rule refuses, a scenario that does not load, a `writes: false` hooks file, project reset hooks, a production environment) and a process sandbox (a node /health service, a shell seed step, a shell reset hook).
+      - Recorded with each answer: every question the user was asked (message and form) and the marker files after each call.
+      - Covered: dry runs (the accepting client's too: nobody asked), the production refusals before asking, a real run with its journal, env_reset's dry view and replay of the rollback, sandbox up / up again / reset / reseed, and the argument and lookup refusals.
+      - Normalised: paths, ISO and journal stamps, job ids, the two ports, pids, `ms`, the host as a whole word, Node and Retake versions, approvals' `sig` (keyed by the home's secret: shape only). Fingerprints, `scenario_sha256` and the seed hash are kept as values.
+      - Stable over 3 runs (re-recorded on `14731b9` in the fix pass, in a fresh scratch worktree, removed: 50 → 51 calls with the accepting client's dry run, and `loud-marker.txt` among the markers; it stayed absent, so the redirect hook never ran). A second test holds that the fixture holds no host name, account, home, temp folder or repository path (mutation-checked ×3). Equal after the move.
+    - Byte-identical / green: tool-list.json, op-table.json, the earlier characterizations (shared-ops, query-ops, theme-ops), the CLI golden (pipeline-cli). Gates: `tsc -b` 0, `pnpm typecheck` 0, `rules.mjs --check` 0 (109), test-guard 0 (operations.test +2 tests, import-rules unchanged), `--check-cites` 0 on the tree, and 0 on a scratch copy with R-ARCH-32 applied (a wrong title there turns it red).
+    - Each run alone with a fresh `RETAKE_HOME` and `RETAKE_DISK_WARN=off`, all green:
+      - mcp: stdio-approvals, approval, stdio, http, job-errors, operation-catalogue, tool-list-snapshot, the new characterization;
+      - engine: operations, reset-hook-approvals, sign-in-sandbox-jobs, approvals, operation-catalogue;
+      - core: import-rules, environments;
+      - ui: operation-catalogue, op-table-snapshot;
+      - cli: glossary, pipeline-cli;
+      - phase3-acceptance: 14 passed, 6 skipped (its slow part is RETAKE_TEST_SLOW-gated: not run).
+    - Mutations (12, all red):
+      - the approver dropped in hooks_run (operations + characterization + stdio-approvals) and in env_reset (operations + characterization);
+      - an `approver` key always set (operations: the comparison is strict);
+      - sandbox_reset's `reseed` dropped (operations);
+      - env_reset's annotation changed (operations + tool-list);
+      - a `defineTool` back in MCP's hooks.ts (rules --check + import-rules);
+      - a summary word (characterization);
+      - the operations' order (operations);
+      - machine data in the fixture ×3 (the no-machine test).
+  - **Tests changed.** operations.test: `HOOKS_MCP` added to the name list (first test) and to the second test's filter. A new describe has two tests: the five are MCP-only, `TOOLS` holds them as these objects with the hints of their facets and no callers or serialize; and a fake engine sees the parsed arguments, with the approver exactly when given (the same object) and never when not (`toStrictEqual`), while the Studio shell is refused before the engine is asked. import-rules: the MCP count as above.
+  - **For the merge with L7.15.**
+    - Lines that will conflict, each small: operations/index.ts (L7.19's imports and five list lines), contract.ts (its own two lines after L7.17's block), operations.test (the `HOOKS_MCP` const and its uses in the first two tests), import-rules' MCP count (`21 - 5 - <L7.15's>`), baseline.json (L7.19 removes the environment.ts and hooks.ts lines; the group reason's count is for the lead).
+    - Done on `claude/arch-l7` after L7.15 (`37855a4`): six conflicts resolved, keeping both lots. OPERATIONS has both families in catalogue order (`jobCancel`, then `hooksRun`, `envReset`). The annotations and contract export both lots' annotations. MCP's tools/define.ts re-exports HOOK_JOB / SANDBOX_JOB from the contract, as it does L7.15's; its own copies are gone. import-rules "holds today": MCP 9, Studio 38. The shell-op group reasons now say 9 of 45 and 38. Baseline 106 → **104** (rules --check). Gates green: tsc -b, typecheck, rules --check, test-guard, and --check-cites on a scratch copy with R-ARCH-32 keyed after R-ARCH-30. Also green: the five characterizations; engine operations and operation-admission; core import-rules; mcp stdio-approvals, approval and tool-list; ui server and op-table; cli pipeline-cli. The fixtures are unchanged.
+  - **Fix pass (after the independent review, Low items only).** The call count corrected (51 now: the original 50 plus the accepting client's dry run of demo:setup), `loud-marker.txt` added to the markers, the fixture re-recorded on `14731b9` and equal on the lot. Gates and touched tests green again (tsc -b, typecheck, rules --check 109, test-guard, --check-cites; the characterization, stdio-approvals, tool-list, engine operations, import-rules).
+  - **Not done.**
+    - The full suite was not run.
+    - No docker-compose sandbox and no snapshot strategy in the characterization (the CLI's sandbox tests and the Docker suite hold them). No http or sql hooks in it (stdio-approvals holds an http one against the fixture).
+    - `callTool` is kept, as asked.
+
 ## State (after L7.15)
 - **L7.15 done (2026-11-12; branch `claude/arch-l7`)** — U7's job family: the operations that submit and control jobs are the engine's; no change a client sees.
   - **The operations** (`packages/engine/src/operations/`, moved verbatim):

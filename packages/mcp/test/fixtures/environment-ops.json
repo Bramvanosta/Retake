@@ -1,0 +1,3085 @@
+{
+ "mcp": [
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:setup"
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks demo:setup (dry) submitted (job <job-1>).\njob <job-1>: succeeded\nsetup hooks demo:setup on local (dry: nothing executed): ok\n  ◦ 1. prepare (prepare: shell \"touch setup-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code); its rollback: a shell command (runs local code)\n  ◦ 2. drop (drop: shell \"touch drop-marker.txt\"): checked, not executed — needs a human approval to run: declared destructive (optional)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-1>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "demo:setup",
+      "scenario_sha256": "393e5895174c794f4a68cacb77bec426c610ad1c2f48b82a3a255a60a4a2b2b4",
+      "dry": true,
+      "journal_id": "<stamp>-hooks-demo-setup",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "demo:setup",
+      "phase": "setup",
+      "env": "local",
+      "dry": true,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "prepare",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "prepare: shell \"touch setup-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code); its rollback: a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "prepare: shell \"touch setup-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code); its rollback: a shell command (runs local code)"
+        }
+       },
+       {
+        "index": 1,
+        "name": "drop",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "dry",
+        "ok": true,
+        "optional": true,
+        "ms": "<ms>",
+        "declared": "drop: shell \"touch drop-marker.txt\"",
+        "approval": {
+         "reason": "declared destructive"
+        },
+        "untrusted": {
+         "description": "drop: shell \"touch drop-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: declared destructive"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:teardown",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks demo:teardown (dry) submitted (job <job-2>).\njob <job-2>: succeeded\nteardown hooks demo:teardown on local (dry: nothing executed): ok\n  ◦ 1. tidy (tidy: shell \"touch teardown-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-2>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "demo:teardown",
+      "scenario_sha256": "393e5895174c794f4a68cacb77bec426c610ad1c2f48b82a3a255a60a4a2b2b4",
+      "dry": true,
+      "journal_id": "<stamp>-hooks-demo-teardown",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "demo:teardown",
+      "phase": "teardown",
+      "env": "local",
+      "dry": true,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "tidy",
+        "kind": "shell",
+        "phase": "teardown",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "tidy: shell \"touch teardown-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "tidy: shell \"touch teardown-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code)"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "reset",
+    "dry": true,
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks reset (dry) submitted (job <job-3>).\njob <job-3>: succeeded\nreset hooks reset on local (dry: nothing executed): ok\n  ◦ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-3>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "reset",
+      "dry": true,
+      "journal_id": "<stamp>-hooks-reset",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "reset",
+      "phase": "reset",
+      "env": "local",
+      "dry": true,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code)"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "hooks/post.yaml",
+    "env": "production",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks hooks/post.yaml (dry) submitted (job <job-4>).\njob <job-4>: succeeded\nsetup hooks hooks/post.yaml on production (dry: nothing executed): with failures\n  ✗ 1. post (post: shell \"echo post >> post-marker.txt\"): refused (the reason is under \"untrusted\")",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-4>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "hooks/post.yaml",
+      "env": "production",
+      "dry": true,
+      "journal_id": "<stamp>-hooks-post",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "hooks/post.yaml",
+      "phase": "setup",
+      "env": "production",
+      "dry": true,
+      "ok": false,
+      "results": [
+       {
+        "index": 0,
+        "name": "post",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "refused",
+        "ok": false,
+        "ms": "<ms>",
+        "declared": "post: shell \"echo post >> post-marker.txt\"",
+        "untrusted": {
+         "description": "post: shell \"echo post >> post-marker.txt\"",
+         "error": "refusing a hook that writes (a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:setup",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "needs_approval: hooks demo:setup has hooks a human must approve before they run: setup hook 1 \"prepare\" (a shell command (runs local code); its rollback: a shell command (runs local code)), setup hook 2 \"drop\" (declared destructive). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal\nfix: retake -C <ws> hooks run s demo:setup",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "needs_approval",
+      "message": "hooks demo:setup has hooks a human must approve before they run: setup hook 1 \"prepare\" (a shell command (runs local code); its rollback: a shell command (runs local code)), setup hook 2 \"drop\" (declared destructive). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal",
+      "fix": "retake -C <ws> hooks run s demo:setup",
+      "details": {
+       "hooks": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "prepare",
+         "kind": "shell",
+         "description": "prepare: shell \"touch setup-marker.txt\"; rollback: shell \"rm setup-marker.txt\"",
+         "rollback": "shell \"rm setup-marker.txt\"",
+         "reason": "a shell command (runs local code); its rollback: a shell command (runs local code)",
+         "lines": [
+          "run: touch setup-marker.txt",
+          "rollback run: rm setup-marker.txt"
+         ]
+        },
+        {
+         "phase": "setup",
+         "index": 1,
+         "name": "drop",
+         "kind": "shell",
+         "description": "drop: shell \"touch drop-marker.txt\"",
+         "reason": "declared destructive",
+         "lines": [
+          "run: touch drop-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "hooks/post.yaml",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "needs_approval: hooks hooks/post.yaml has hooks a human must approve before they run: setup hook 1 \"post\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal\nfix: retake -C <ws> hooks run s hooks/post.yaml",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "needs_approval",
+      "message": "hooks hooks/post.yaml has hooks a human must approve before they run: setup hook 1 \"post\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal",
+      "fix": "retake -C <ws> hooks run s hooks/post.yaml",
+      "details": {
+       "hooks": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "post",
+         "kind": "shell",
+         "description": "post: shell \"echo post >> post-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo post >> post-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "hooks/post.yaml",
+    "env": "production",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: refused before anything runs on environment production (production): setup hook 1 \"post\": refusing a hook that writes (a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal\nfix: retake -C <ws> hooks run s hooks/post.yaml --env production",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "refused before anything runs on environment production (production): setup hook 1 \"post\": refusing a hook that writes (a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal",
+      "fix": "retake -C <ws> hooks run s hooks/post.yaml --env production",
+      "details": {
+       "refused": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "post",
+         "description": "post: shell \"echo post >> post-marker.txt\"",
+         "error": "refusing a hook that writes (a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal"
+        }
+       ],
+       "env": {
+        "name": "production",
+        "production": true,
+        "access": "read-only"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "../x.yaml"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for hooks_run:\nsource: reset, <scenario>:setup, <scenario>:teardown or hooks/<name>.yaml (never another path)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for hooks_run:\nsource: reset, <scenario>:setup, <scenario>:teardown or hooks/<name>.yaml (never another path)",
+      "details": {
+       "arguments": [
+        "source: reset, <scenario>:setup, <scenario>:teardown or hooks/<name>.yaml (never another path)"
+       ]
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "hooks/none.yaml"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: hooks file \"hooks/none.yaml\" not found (looked in <ws>/projects/s/hooks/none.yaml)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "hooks file \"hooks/none.yaml\" not found (looked in <ws>/projects/s/hooks/none.yaml)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/scenarios.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "nope:setup"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: scenario \"nope\" not found in <ws>/projects/s/scenarios (available: broken, demo, redirect)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "scenario \"nope\" not found in <ws>/projects/s/scenarios (available: broken, demo, redirect)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/scenarios.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "broken:setup"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: scenario <ws>/projects/s/scenarios/broken.yaml has 1 error:\n<ws>/projects/s/scenarios/broken.yaml:6:5 error setup[0]: destructive hook (declared destructive) requires \"confirm: true\"",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "scenario <ws>/projects/s/scenarios/broken.yaml has 1 error:\n<ws>/projects/s/scenarios/broken.yaml:6:5 error setup[0]: destructive hook (declared destructive) requires \"confirm: true\"",
+      "details": {
+       "issues": [
+        {
+         "severity": "error",
+         "path": [
+          "setup",
+          0
+         ],
+         "message": "destructive hook (declared destructive) requires \"confirm: true\"",
+         "line": 6,
+         "col": 5
+        }
+       ]
+      },
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/scenarios.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "redirect:setup",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks redirect:setup (dry) submitted (job <job-5>).\njob <job-5>: succeeded\nsetup hooks redirect:setup on local (dry: nothing executed): with failures\n  ✗ 1. loud (loud: shell \"echo loud >> loud-marker.txt\"): refused (the reason is under \"untrusted\")",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-5>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "redirect:setup",
+      "scenario_sha256": "8d70ce7e30076f4ee48c91d6efb73c2f6f193c4a43f999145b8dc1c17ea5d552",
+      "dry": true,
+      "journal_id": "<stamp>-hooks-redirect-setup",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "redirect:setup",
+      "phase": "setup",
+      "env": "local",
+      "dry": true,
+      "ok": false,
+      "results": [
+       {
+        "index": 0,
+        "name": "loud",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "refused",
+        "ok": false,
+        "ms": "<ms>",
+        "declared": "loud: shell \"echo loud >> loud-marker.txt\"",
+        "untrusted": {
+         "description": "loud: shell \"echo loud >> loud-marker.txt\"",
+         "error": "refusing shell hook: it uses the character `>` (only plain words: letters, digits and . / : = @ % + , - _) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "no-such-project",
+    "source": "reset"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: project \"no-such-project\" not found in <ws>/projects (available: s)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "project \"no-such-project\" not found in <ws>/projects (available: s)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/workspace.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "reset",
+    "env": "nowhere"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: unknown environment \"nowhere\" (available: local, production, sandbox)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "unknown environment \"nowhere\" (available: local, production, sandbox)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/environments.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "reset",
+    "wait_s": 9999
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for hooks_run:\nwait_s: Too big: expected number to be <=25",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for hooks_run:\nwait_s: Too big: expected number to be <=25",
+      "details": {
+       "arguments": [
+        "wait_s: Too big: expected number to be <=25"
+       ]
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "reset",
+    "extra": 1
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for hooks_run:\n(arguments): unknown argument extra",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for hooks_run:\n(arguments): unknown argument extra",
+      "details": {
+       "arguments": [
+        "(arguments): unknown argument extra"
+       ]
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "environment reset (dry) submitted (job <job-6>).\njob <job-6>: succeeded\nenvironment reset of local (dry: nothing executed): ok\nno pending rollbacks\nreset hooks:\n  ◦ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-6>",
+     "kind": "env_reset",
+     "input": {
+      "version": 1,
+      "kind": "env_reset",
+      "project": "s",
+      "dry": true,
+      "journal_id": "<stamp>-env-reset",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "env_reset",
+      "env": "local",
+      "dry": true,
+      "ok": true,
+      "rollbacks": [],
+      "reset": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code)"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "needs_approval: the environment reset of s has hooks a human must approve before they run: reset hook 1 \"wipe\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal\nfix: retake -C <ws> env reset s",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "needs_approval",
+      "message": "the environment reset of s has hooks a human must approve before they run: reset hook 1 \"wipe\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal",
+      "fix": "retake -C <ws> env reset s",
+      "details": {
+       "hooks": [
+        {
+         "phase": "reset",
+         "index": 0,
+         "name": "wipe",
+         "kind": "shell",
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo reset >> reset-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "env": "production",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "environment reset (dry) submitted (job <job-7>).\njob <job-7>: succeeded\nenvironment reset of production (dry: nothing executed): with failures\nno pending rollbacks\nreset hooks:\n  ✗ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): refused (the reason is under \"untrusted\")",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-7>",
+     "kind": "env_reset",
+     "input": {
+      "version": 1,
+      "kind": "env_reset",
+      "project": "s",
+      "env": "production",
+      "dry": true,
+      "journal_id": "<stamp>-env-reset",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "env_reset",
+      "env": "production",
+      "dry": true,
+      "ok": false,
+      "rollbacks": [],
+      "reset": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "refused",
+        "ok": false,
+        "ms": "<ms>",
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "error": "refusing a hook that writes (a shell command — add `writes: false` to a shell hook that only reads) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "env": "sandbox",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "environment reset (dry) submitted (job <job-8>).\njob <job-8>: succeeded\nenvironment reset of sandbox (dry: nothing executed): ok\nno pending rollbacks\nreset hooks:\n  ◦ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-8>",
+     "kind": "env_reset",
+     "input": {
+      "version": 1,
+      "kind": "env_reset",
+      "project": "s",
+      "env": "sandbox",
+      "dry": true,
+      "journal_id": "<stamp>-env-reset",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "env_reset",
+      "env": "sandbox",
+      "dry": true,
+      "ok": true,
+      "rollbacks": [],
+      "reset": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code)"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "env_reset",
+   "args": {
+    "project": "no-such-project"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: project \"no-such-project\" not found in <ws>/projects (available: s)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "project \"no-such-project\" not found in <ws>/projects (available: s)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/workspace.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "env": "nowhere"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: unknown environment \"nowhere\" (available: local, production, sandbox)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "unknown environment \"nowhere\" (available: local, production, sandbox)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/environments.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_status",
+   "args": {
+    "project": "s"
+   },
+   "answer": {
+    "isError": false,
+    "text": "sandbox sandbox of s (process): down — app stopped\nnever seeded\ntake lock: free\nstart it: sandbox_up {project: \"s\", env: \"sandbox\"}",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "project": "s",
+     "env": "sandbox",
+     "provider": "process",
+     "state": "down",
+     "services": [
+      {
+       "name": "app",
+       "state": "stopped"
+      }
+     ],
+     "pages": {
+      "app": "http://localhost:<sandbox-port>"
+     },
+     "file": "sandbox/sandbox.yaml",
+     "logs": ".retake/sandbox/sandbox/logs",
+     "notes": [],
+     "untrusted": {
+      "health": {}
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_status",
+   "args": {
+    "project": "s",
+    "env": "local"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: local is not a sandbox of project s (sandboxes: sandbox)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "local is not a sandbox of project s (sandboxes: sandbox)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/sandbox.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_status",
+   "args": {
+    "project": "s",
+    "env": "nowhere"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: nowhere is not a sandbox of project s (sandboxes: sandbox)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "nowhere is not a sandbox of project s (sandboxes: sandbox)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/sandbox.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_status",
+   "args": {
+    "project": "no-such-project"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: project \"no-such-project\" not found in <ws>/projects (available: s)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "project \"no-such-project\" not found in <ws>/projects (available: s)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/workspace.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_up",
+   "args": {
+    "project": "s"
+   },
+   "answer": {
+    "isError": true,
+    "text": "needs_approval: sandbox up of s (sandbox) has hooks a human must approve before they run: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal\nfix: retake -C <ws> sandbox up s",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "needs_approval",
+      "message": "sandbox up of s (sandbox) has hooks a human must approve before they run: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal",
+      "fix": "retake -C <ws> sandbox up s",
+      "details": {
+       "hooks": [
+        {
+         "phase": "seed",
+         "index": 1,
+         "name": "mark",
+         "kind": "shell",
+         "description": "mark: shell \"echo seeded >> seed-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo seeded >> seed-marker.txt"
+         ]
+        },
+        {
+         "phase": "reset",
+         "index": 1,
+         "name": "clean",
+         "kind": "shell",
+         "description": "clean: shell \"echo reset >> reset-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo reset >> reset-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "sandbox",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_up",
+   "args": {
+    "project": "s",
+    "env": "local"
+   },
+   "answer": {
+    "isError": true,
+    "text": "not_found: local is not a sandbox of project s (sandboxes: sandbox)",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "not_found",
+      "message": "local is not a sandbox of project s (sandboxes: sandbox)",
+      "docs": "https://github.com/Bramvanosta/Retake/blob/v<version>/docs/guide/sandbox.md"
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_reset",
+   "args": {
+    "project": "s"
+   },
+   "answer": {
+    "isError": true,
+    "text": "needs_approval: the sandbox reset of s (sandbox) has hooks a human must approve before they run: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal\nfix: retake -C <ws> sandbox reset s",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "needs_approval",
+      "message": "the sandbox reset of s (sandbox) has hooks a human must approve before they run: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal",
+      "fix": "retake -C <ws> sandbox reset s",
+      "details": {
+       "hooks": [
+        {
+         "phase": "seed",
+         "index": 1,
+         "name": "mark",
+         "kind": "shell",
+         "description": "mark: shell \"echo seeded >> seed-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo seeded >> seed-marker.txt"
+         ]
+        },
+        {
+         "phase": "reset",
+         "index": 1,
+         "name": "clean",
+         "kind": "shell",
+         "description": "clean: shell \"echo reset >> reset-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo reset >> reset-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "sandbox",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "none",
+   "op": "sandbox_reset",
+   "args": {
+    "project": "s",
+    "reseed": "yes"
+   },
+   "answer": {
+    "isError": true,
+    "text": "invalid: invalid arguments for sandbox_reset:\nreseed: Invalid input: expected boolean, received string",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "invalid",
+      "message": "invalid arguments for sandbox_reset:\nreseed: Invalid input: expected boolean, received string",
+      "details": {
+       "arguments": [
+        "reseed: Invalid input: expected boolean, received string"
+       ]
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "decline",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:setup",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: hooks demo:setup was not started: the user declined — hooks needing approval: setup hook 1 \"prepare\" (a shell command (runs local code); its rollback: a shell command (runs local code)), setup hook 2 \"drop\" (declared destructive). Do not retry on your own: ask the user, or let them run it in a terminal\nfix: retake -C <ws> hooks run s demo:setup",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "hooks demo:setup was not started: the user declined — hooks needing approval: setup hook 1 \"prepare\" (a shell command (runs local code); its rollback: a shell command (runs local code)), setup hook 2 \"drop\" (declared destructive). Do not retry on your own: ask the user, or let them run it in a terminal",
+      "fix": "retake -C <ws> hooks run s demo:setup",
+      "details": {
+       "hooks": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "prepare",
+         "kind": "shell",
+         "description": "prepare: shell \"touch setup-marker.txt\"; rollback: shell \"rm setup-marker.txt\"",
+         "rollback": "shell \"rm setup-marker.txt\"",
+         "reason": "a shell command (runs local code); its rollback: a shell command (runs local code)",
+         "lines": [
+          "run: touch setup-marker.txt",
+          "rollback run: rm setup-marker.txt"
+         ]
+        },
+        {
+         "phase": "setup",
+         "index": 1,
+         "name": "drop",
+         "kind": "shell",
+         "description": "drop: shell \"touch drop-marker.txt\"",
+         "reason": "declared destructive",
+         "lines": [
+          "run: touch drop-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       },
+       "outcome": "declined"
+      }
+     }
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run hooks demo:setup in project s, environment local, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. setup hook 1 \"prepare\" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)\n   run: touch setup-marker.txt\n   rollback run: rm setup-marker.txt\n2. setup hook 2 \"drop\" (shell) — declared destructive\n   run: touch drop-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> hooks run s demo:setup",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {}
+  },
+  {
+   "client": "decline",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: the environment reset of s was not started: the user declined — hooks needing approval: reset hook 1 \"wipe\" (a shell command (runs local code)). Do not retry on your own: ask the user, or let them run it in a terminal\nfix: retake -C <ws> env reset s",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "the environment reset of s was not started: the user declined — hooks needing approval: reset hook 1 \"wipe\" (a shell command (runs local code)). Do not retry on your own: ask the user, or let them run it in a terminal",
+      "fix": "retake -C <ws> env reset s",
+      "details": {
+       "hooks": [
+        {
+         "phase": "reset",
+         "index": 0,
+         "name": "wipe",
+         "kind": "shell",
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo reset >> reset-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       },
+       "outcome": "declined"
+      }
+     }
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run the environment reset of s in project s, environment local, read-write.\nThis hook needs your approval before it runs (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. reset hook 1 \"wipe\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> env reset s",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run this hook",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {}
+  },
+  {
+   "client": "decline",
+   "op": "sandbox_up",
+   "args": {
+    "project": "s"
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: sandbox up of s (sandbox) was not started: the user declined — hooks needing approval: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). Do not retry on your own: ask the user, or let them run it in a terminal\nfix: retake -C <ws> sandbox up s",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "sandbox up of s (sandbox) was not started: the user declined — hooks needing approval: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). Do not retry on your own: ask the user, or let them run it in a terminal",
+      "fix": "retake -C <ws> sandbox up s",
+      "details": {
+       "hooks": [
+        {
+         "phase": "seed",
+         "index": 1,
+         "name": "mark",
+         "kind": "shell",
+         "description": "mark: shell \"echo seeded >> seed-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo seeded >> seed-marker.txt"
+         ]
+        },
+        {
+         "phase": "reset",
+         "index": 1,
+         "name": "clean",
+         "kind": "shell",
+         "description": "clean: shell \"echo reset >> reset-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo reset >> reset-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "sandbox",
+        "production": false,
+        "access": "read-write"
+       },
+       "outcome": "declined"
+      }
+     }
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run sandbox up of s (sandbox) in project s, environment sandbox, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. seed hook 2 \"mark\" (shell) — a shell command (runs local code)\n   run: echo seeded >> seed-marker.txt\n2. reset hook 2 \"clean\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> sandbox up s",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {}
+  },
+  {
+   "client": "decline",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "hooks/post.yaml",
+    "env": "production",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: refused before anything runs on environment production (production): setup hook 1 \"post\": refusing a hook that writes (a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal\nfix: retake -C <ws> hooks run s hooks/post.yaml --env production",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "refused before anything runs on environment production (production): setup hook 1 \"post\": refusing a hook that writes (a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal",
+      "fix": "retake -C <ws> hooks run s hooks/post.yaml --env production",
+      "details": {
+       "refused": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "post",
+         "description": "post: shell \"echo post >> post-marker.txt\"",
+         "error": "refusing a hook that writes (a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)) on read-only environment production: hooks that write run on a read-write environment only (environment production is production, read-only in project.yaml); `optional: true` does not skip a refusal"
+        }
+       ],
+       "env": {
+        "name": "production",
+        "production": true,
+        "access": "read-only"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "never",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:setup",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: hooks demo:setup was not started: the user did not answer in time — hooks needing approval: setup hook 1 \"prepare\" (a shell command (runs local code); its rollback: a shell command (runs local code)), setup hook 2 \"drop\" (declared destructive). Do not retry on your own: ask the user, or let them run it in a terminal\nfix: retake -C <ws> hooks run s demo:setup",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "hooks demo:setup was not started: the user did not answer in time — hooks needing approval: setup hook 1 \"prepare\" (a shell command (runs local code); its rollback: a shell command (runs local code)), setup hook 2 \"drop\" (declared destructive). Do not retry on your own: ask the user, or let them run it in a terminal",
+      "fix": "retake -C <ws> hooks run s demo:setup",
+      "details": {
+       "hooks": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "prepare",
+         "kind": "shell",
+         "description": "prepare: shell \"touch setup-marker.txt\"; rollback: shell \"rm setup-marker.txt\"",
+         "rollback": "shell \"rm setup-marker.txt\"",
+         "reason": "a shell command (runs local code); its rollback: a shell command (runs local code)",
+         "lines": [
+          "run: touch setup-marker.txt",
+          "rollback run: rm setup-marker.txt"
+         ]
+        },
+        {
+         "phase": "setup",
+         "index": 1,
+         "name": "drop",
+         "kind": "shell",
+         "description": "drop: shell \"touch drop-marker.txt\"",
+         "reason": "declared destructive",
+         "lines": [
+          "run: touch drop-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       },
+       "outcome": "timeout"
+      }
+     }
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run hooks demo:setup in project s, environment local, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. setup hook 1 \"prepare\" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)\n   run: touch setup-marker.txt\n   rollback run: rm setup-marker.txt\n2. setup hook 2 \"drop\" (shell) — declared destructive\n   run: touch drop-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> hooks run s demo:setup",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {}
+  },
+  {
+   "client": "never",
+   "op": "sandbox_reset",
+   "args": {
+    "project": "s"
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: the sandbox reset of s (sandbox) was not started: the user did not answer in time — hooks needing approval: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). Do not retry on your own: ask the user, or let them run it in a terminal\nfix: retake -C <ws> sandbox reset s",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "the sandbox reset of s (sandbox) was not started: the user did not answer in time — hooks needing approval: seed hook 2 \"mark\" (a shell command (runs local code)), reset hook 2 \"clean\" (a shell command (runs local code)). Do not retry on your own: ask the user, or let them run it in a terminal",
+      "fix": "retake -C <ws> sandbox reset s",
+      "details": {
+       "hooks": [
+        {
+         "phase": "seed",
+         "index": 1,
+         "name": "mark",
+         "kind": "shell",
+         "description": "mark: shell \"echo seeded >> seed-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo seeded >> seed-marker.txt"
+         ]
+        },
+        {
+         "phase": "reset",
+         "index": 1,
+         "name": "clean",
+         "kind": "shell",
+         "description": "clean: shell \"echo reset >> reset-marker.txt\"",
+         "reason": "a shell command (runs local code)",
+         "lines": [
+          "run: echo reset >> reset-marker.txt"
+         ]
+        }
+       ],
+       "env": {
+        "name": "sandbox",
+        "production": false,
+        "access": "read-write"
+       },
+       "outcome": "timeout"
+      }
+     }
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run the sandbox reset of s (sandbox) in project s, environment sandbox, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. seed hook 2 \"mark\" (shell) — a shell command (runs local code)\n   run: echo seeded >> seed-marker.txt\n2. reset hook 2 \"clean\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> sandbox reset s",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {}
+  },
+  {
+   "client": "accept",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:setup",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks demo:setup (dry) submitted (job <job-9>).\njob <job-9>: succeeded\nsetup hooks demo:setup on local (dry: nothing executed): ok\n  ◦ 1. prepare (prepare: shell \"touch setup-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code); its rollback: a shell command (runs local code)\n  ◦ 2. drop (drop: shell \"touch drop-marker.txt\"): checked, not executed — needs a human approval to run: declared destructive (optional)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-9>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "demo:setup",
+      "scenario_sha256": "393e5895174c794f4a68cacb77bec426c610ad1c2f48b82a3a255a60a4a2b2b4",
+      "dry": true,
+      "journal_id": "<stamp>-hooks-demo-setup",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "demo:setup",
+      "phase": "setup",
+      "env": "local",
+      "dry": true,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "prepare",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "prepare: shell \"touch setup-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code); its rollback: a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "prepare: shell \"touch setup-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code); its rollback: a shell command (runs local code)"
+        }
+       },
+       {
+        "index": 1,
+        "name": "drop",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "dry",
+        "ok": true,
+        "optional": true,
+        "ms": "<ms>",
+        "declared": "drop: shell \"touch drop-marker.txt\"",
+        "approval": {
+         "reason": "declared destructive"
+        },
+        "untrusted": {
+         "description": "drop: shell \"touch drop-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: declared destructive"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {}
+  },
+  {
+   "client": "accept",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:setup",
+    "dry": false,
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks demo:setup submitted (job <job-10>).\njob <job-10>: succeeded\nsetup hooks demo:setup on local: ok\n  ✓ 1. prepare (prepare: shell \"touch setup-marker.txt\"): ran — approval: a shell command (runs local code); its rollback: a shell command (runs local code)\n  ✓ 2. drop (drop: shell \"touch drop-marker.txt\"): ran — approval: declared destructive (optional)\n1 rollback pending in journal <stamp>-hooks-demo-setup: env_reset replays them",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-10>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "demo:setup",
+      "scenario_sha256": "393e5895174c794f4a68cacb77bec426c610ad1c2f48b82a3a255a60a4a2b2b4",
+      "dry": false,
+      "journal_id": "<stamp>-hooks-demo-setup",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "1fe07bed81cf0bb57e9ae61db15c1e5fd04e5b51b2a630e0ae67f446c806ab2c",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       },
+       {
+        "fingerprint": "b9e09c78f491925a50873703aa97028e56c56ab13f0e853d8d8e81b185213c3a",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "demo:setup",
+      "phase": "setup",
+      "env": "local",
+      "dry": false,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "prepare",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "ok",
+        "ok": true,
+        "ms": "<ms>",
+        "journal_seq": 1,
+        "declared": "prepare: shell \"touch setup-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code); its rollback: a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "prepare: shell \"touch setup-marker.txt\"",
+         "message": "exit 0"
+        }
+       },
+       {
+        "index": 1,
+        "name": "drop",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "ok",
+        "ok": true,
+        "optional": true,
+        "ms": "<ms>",
+        "journal_seq": 2,
+        "declared": "drop: shell \"touch drop-marker.txt\"",
+        "approval": {
+         "reason": "declared destructive"
+        },
+        "untrusted": {
+         "description": "drop: shell \"touch drop-marker.txt\"",
+         "message": "exit 0"
+        }
+       }
+      ],
+      "journal": {
+       "id": "<stamp>-hooks-demo-setup",
+       "pending": 1
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run hooks demo:setup in project s, environment local, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. setup hook 1 \"prepare\" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)\n   run: touch setup-marker.txt\n   rollback run: rm setup-marker.txt\n2. setup hook 2 \"drop\" (shell) — declared destructive\n   run: touch drop-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> hooks run s demo:setup",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "setup-marker.txt": "",
+    "drop-marker.txt": ""
+   }
+  },
+  {
+   "client": "accept",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "environment reset (dry) submitted (job <job-11>).\njob <job-11>: succeeded\nenvironment reset of local (dry: nothing executed): ok\nrollbacks of <stamp>-hooks-demo-setup\n  ◦ rollback of journal entry 1: checked, not executed\nreset hooks:\n  ◦ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-11>",
+     "kind": "env_reset",
+     "input": {
+      "version": 1,
+      "kind": "env_reset",
+      "project": "s",
+      "dry": true,
+      "journal_id": "<stamp>-env-reset",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "env_reset",
+      "env": "local",
+      "dry": true,
+      "ok": true,
+      "rollbacks": [
+       {
+        "journal": "<stamp>-hooks-demo-setup",
+        "results": [
+         {
+          "index": 1,
+          "name": "prepare",
+          "kind": "shell",
+          "phase": "rollback",
+          "status": "dry",
+          "ok": true,
+          "ms": "<ms>",
+          "journal_seq": 1,
+          "untrusted": {
+           "description": "shell \"rm setup-marker.txt\"",
+           "message": "not executed (dry run)"
+          }
+         }
+        ]
+       }
+      ],
+      "reset": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code)"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {
+    "setup-marker.txt": "",
+    "drop-marker.txt": ""
+   }
+  },
+  {
+   "client": "accept",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "redirect:setup",
+    "dry": false
+   },
+   "answer": {
+    "isError": true,
+    "text": "refused: refused before anything runs on environment local: setup hook 1 \"loud\": refusing shell hook: it uses the character `>` (only plain words: letters, digits and . / : = @ % + , - _) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal\nfix: retake -C <ws> hooks run s redirect:setup",
+    "blocks": [
+     "text"
+    ],
+    "data": {
+     "error": {
+      "code": "refused",
+      "message": "refused before anything runs on environment local: setup hook 1 \"loud\": refusing shell hook: it uses the character `>` (only plain words: letters, digits and . / : = @ % + , - _) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal",
+      "fix": "retake -C <ws> hooks run s redirect:setup",
+      "details": {
+       "refused": [
+        {
+         "phase": "setup",
+         "index": 0,
+         "name": "loud",
+         "description": "loud: shell \"echo loud >> loud-marker.txt\"",
+         "error": "refusing shell hook: it uses the character `>` (only plain words: letters, digits and . / : = @ % + , - _) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal"
+        }
+       ],
+       "env": {
+        "name": "local",
+        "production": false,
+        "access": "read-write"
+       }
+      }
+     }
+    }
+   },
+   "asked": [],
+   "markers": {
+    "setup-marker.txt": "",
+    "drop-marker.txt": ""
+   }
+  },
+  {
+   "client": "accept",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "demo:teardown",
+    "dry": false,
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks demo:teardown submitted (job <job-12>).\njob <job-12>: succeeded\nteardown hooks demo:teardown on local: ok\n  ✓ 1. tidy (tidy: shell \"touch teardown-marker.txt\"): ran — approval: a shell command (runs local code)",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-12>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "demo:teardown",
+      "scenario_sha256": "393e5895174c794f4a68cacb77bec426c610ad1c2f48b82a3a255a60a4a2b2b4",
+      "dry": false,
+      "journal_id": "<stamp>-hooks-demo-teardown",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "8d6eca3f711fa42c60f401f32abd9e35bc08f1b49e393e5ff68cec395315913c",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "demo:teardown",
+      "phase": "teardown",
+      "env": "local",
+      "dry": false,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "tidy",
+        "kind": "shell",
+        "phase": "teardown",
+        "status": "ok",
+        "ok": true,
+        "ms": "<ms>",
+        "journal_seq": 1,
+        "declared": "tidy: shell \"touch teardown-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "tidy: shell \"touch teardown-marker.txt\"",
+         "message": "exit 0"
+        }
+       }
+      ],
+      "journal": {
+       "id": "<stamp>-hooks-demo-teardown",
+       "pending": 0
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run hooks demo:teardown in project s, environment local, read-write.\nThis hook needs your approval before it runs (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. teardown hook 1 \"tidy\" (shell) — a shell command (runs local code)\n   run: touch teardown-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> hooks run s demo:teardown",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run this hook",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "setup-marker.txt": "",
+    "drop-marker.txt": "",
+    "teardown-marker.txt": ""
+   }
+  },
+  {
+   "client": "accept",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "hooks/post.yaml",
+    "dry": false,
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks hooks/post.yaml submitted (job <job-13>).\njob <job-13>: succeeded\nsetup hooks hooks/post.yaml on local: ok\n  ✓ 1. post (post: shell \"echo post >> post-marker.txt\"): ran — approval: a shell command (runs local code)",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-13>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "hooks/post.yaml",
+      "dry": false,
+      "journal_id": "<stamp>-hooks-post",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "53c7a53ff31faa9893808a950bfbaddac7c6abc1e2f4ada028d0d0ace5ceaba6",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "hooks/post.yaml",
+      "phase": "setup",
+      "env": "local",
+      "dry": false,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "post",
+        "kind": "shell",
+        "phase": "setup",
+        "status": "ok",
+        "ok": true,
+        "ms": "<ms>",
+        "journal_seq": 1,
+        "declared": "post: shell \"echo post >> post-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "post: shell \"echo post >> post-marker.txt\"",
+         "message": "exit 0"
+        }
+       }
+      ],
+      "journal": {
+       "id": "<stamp>-hooks-post",
+       "pending": 0
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run hooks hooks/post.yaml in project s, environment local, read-write.\nThis hook needs your approval before it runs (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. setup hook 1 \"post\" (shell) — a shell command (runs local code)\n   run: echo post >> post-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> hooks run s hooks/post.yaml",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run this hook",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "setup-marker.txt": "",
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "dry": false,
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "environment reset submitted (job <job-14>).\njob <job-14>: succeeded\nenvironment reset of local: ok\nrollbacks of <stamp>-hooks-demo-setup\n  ✓ rollback of journal entry 1: ran\nreset hooks:\n  ✓ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): ran — approval: a shell command (runs local code)",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-14>",
+     "kind": "env_reset",
+     "input": {
+      "version": 1,
+      "kind": "env_reset",
+      "project": "s",
+      "dry": false,
+      "journal_id": "<stamp>-env-reset",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "75716f2a822854f31bd54658d537cca6a1d08d7b11c0204aa2db49868cef5936",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "env_reset",
+      "env": "local",
+      "dry": false,
+      "ok": true,
+      "rollbacks": [
+       {
+        "journal": "<stamp>-hooks-demo-setup",
+        "results": [
+         {
+          "index": 1,
+          "name": "prepare",
+          "kind": "shell",
+          "phase": "rollback",
+          "status": "ok",
+          "ok": true,
+          "ms": "<ms>",
+          "journal_seq": 1,
+          "untrusted": {
+           "description": "shell \"rm setup-marker.txt\"",
+           "message": "exit 0"
+          }
+         }
+        ]
+       }
+      ],
+      "reset": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "ok",
+        "ok": true,
+        "ms": "<ms>",
+        "journal_seq": 1,
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "message": "exit 0"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run the environment reset of s in project s, environment local, read-write.\nThis hook needs your approval before it runs (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. reset hook 1 \"wipe\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> env reset s",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run this hook",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "env_reset",
+   "args": {
+    "project": "s",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "environment reset (dry) submitted (job <job-15>).\njob <job-15>: succeeded\nenvironment reset of local (dry: nothing executed): ok\nno pending rollbacks\nreset hooks:\n  ◦ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): checked, not executed — needs a human approval to run: a shell command (runs local code)\nA real run (dry: false) asks the user to approve the hooks marked above.",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-15>",
+     "kind": "env_reset",
+     "input": {
+      "version": 1,
+      "kind": "env_reset",
+      "project": "s",
+      "dry": true,
+      "journal_id": "<stamp>-env-reset",
+      "submitted_by": "mcp"
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "env_reset",
+      "env": "local",
+      "dry": true,
+      "ok": true,
+      "rollbacks": [],
+      "reset": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "dry",
+        "ok": true,
+        "ms": "<ms>",
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "message": "not executed (dry run); needs a human approval: a shell command (runs local code)"
+        }
+       }
+      ]
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "hooks_run",
+   "args": {
+    "project": "s",
+    "source": "reset",
+    "dry": false,
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "hooks reset submitted (job <job-16>).\njob <job-16>: succeeded\nreset hooks reset on local: ok\n  ✓ 1. wipe (wipe: shell \"echo reset >> reset-marker.txt\"): ran — approval: a shell command (runs local code)",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-16>",
+     "kind": "hooks",
+     "input": {
+      "version": 1,
+      "kind": "hooks",
+      "project": "s",
+      "source": "reset",
+      "dry": false,
+      "journal_id": "<stamp>-hooks-reset",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "2c8103669a2fa4af036be9e4a538cf2b095b01fabc52d6763d17abf5edcf172c",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "hooks",
+      "source": "reset",
+      "phase": "reset",
+      "env": "local",
+      "dry": false,
+      "ok": true,
+      "results": [
+       {
+        "index": 0,
+        "name": "wipe",
+        "kind": "shell",
+        "phase": "reset",
+        "status": "ok",
+        "ok": true,
+        "ms": "<ms>",
+        "journal_seq": 1,
+        "declared": "wipe: shell \"echo reset >> reset-marker.txt\"",
+        "approval": {
+         "reason": "a shell command (runs local code)"
+        },
+        "untrusted": {
+         "description": "wipe: shell \"echo reset >> reset-marker.txt\"",
+         "message": "exit 0"
+        }
+       }
+      ],
+      "journal": {
+       "id": "<stamp>-hooks-reset",
+       "pending": 0
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run hooks reset in project s, environment local, read-write.\nThis hook needs your approval before it runs (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. reset hook 1 \"wipe\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> hooks run s reset",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run this hook",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\nreset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "sandbox_up",
+   "args": {
+    "project": "s",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "sandbox up of s (sandbox) submitted (job <job-17>).\njob <job-17>: succeeded\nservices: started app\nreset (reseed): seed 2 steps · 2 reset hooks\npages: app http://localhost:<sandbox-port>",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-17>",
+     "kind": "sandbox_up",
+     "input": {
+      "version": 1,
+      "kind": "sandbox_up",
+      "project": "s",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "8b55b1baceb0ef72d1418d71d9fa7397c8d8785101de48c434dd5ebfaa1dfca7",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       },
+       {
+        "fingerprint": "60315847d899aaa9f06e0a0c5be60ad89e455762ebf70fbc4463b4c7dc39950e",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "sandbox_up",
+      "env": "sandbox",
+      "provider": "process",
+      "services": {
+       "started": [
+        "app"
+       ],
+       "kept": [],
+       "changed": [],
+       "ms": "<ms>"
+      },
+      "reset": {
+       "strategy": "reseed",
+       "restored": false,
+       "ms": "<ms>",
+       "seed": {
+        "steps": 2,
+        "ms": "<ms>"
+       },
+       "mailbox": "none",
+       "restarted": [],
+       "superseded": 0,
+       "hooks": {
+        "steps": 2,
+        "ms": "<ms>"
+       }
+      },
+      "pages": {
+       "app": "http://localhost:<sandbox-port>"
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run sandbox up of s (sandbox) in project s, environment sandbox, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. seed hook 2 \"mark\" (shell) — a shell command (runs local code)\n   run: echo seeded >> seed-marker.txt\n2. reset hook 2 \"clean\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> sandbox up s",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\nreset\n",
+    "sandbox/seed-marker.txt": "seeded\n",
+    "sandbox/reset-marker.txt": "reset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "sandbox_status",
+   "args": {
+    "project": "s"
+   },
+   "answer": {
+    "isError": false,
+    "text": "sandbox sandbox of s (process): up — app running (healthy)\nseed b05d2cbf6418\ntake lock: free",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "project": "s",
+     "env": "sandbox",
+     "provider": "process",
+     "state": "up",
+     "services": [
+      {
+       "name": "app",
+       "state": "running",
+       "healthy": true,
+       "pid": "<pid>",
+       "started_at": "<at>"
+      }
+     ],
+     "pages": {
+      "app": "http://localhost:<sandbox-port>"
+     },
+     "seed": {
+      "hash": "b05d2cbf6418",
+      "at": "<at>",
+      "ms": "<ms>",
+      "current": true
+     },
+     "last_reset": {
+      "strategy": "reseed",
+      "at": "<at>",
+      "ms": "<ms>",
+      "restored": false,
+      "by": "sandbox up"
+     },
+     "file": "sandbox/sandbox.yaml",
+     "logs": ".retake/sandbox/sandbox/logs",
+     "notes": [],
+     "untrusted": {
+      "health": {}
+     }
+    }
+   },
+   "asked": [],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\nreset\n",
+    "sandbox/seed-marker.txt": "seeded\n",
+    "sandbox/reset-marker.txt": "reset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "sandbox_up",
+   "args": {
+    "project": "s",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "sandbox up of s (sandbox) submitted (job <job-18>).\njob <job-18>: succeeded\nservices: already running app\nno seed needed (already seeded with the current seed)\npages: app http://localhost:<sandbox-port>",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-18>",
+     "kind": "sandbox_up",
+     "input": {
+      "version": 1,
+      "kind": "sandbox_up",
+      "project": "s",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "31795e66b93b831c758f89a28169de25090e0be6333e72e771562afee8f30467",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       },
+       {
+        "fingerprint": "a1f69641f62bcd67b5e071c8dc106dd9996d1e6aec67989ae049eb1649ca094b",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "sandbox_up",
+      "env": "sandbox",
+      "provider": "process",
+      "services": {
+       "started": [],
+       "kept": [
+        "app"
+       ],
+       "changed": [],
+       "ms": "<ms>"
+      },
+      "reset": null,
+      "pages": {
+       "app": "http://localhost:<sandbox-port>"
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run sandbox up of s (sandbox) in project s, environment sandbox, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. seed hook 2 \"mark\" (shell) — a shell command (runs local code)\n   run: echo seeded >> seed-marker.txt\n2. reset hook 2 \"clean\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> sandbox up s",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\nreset\n",
+    "sandbox/seed-marker.txt": "seeded\n",
+    "sandbox/reset-marker.txt": "reset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "sandbox_reset",
+   "args": {
+    "project": "s",
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "sandbox reset of s (sandbox) submitted (job <job-19>).\njob <job-19>: succeeded\nreset (reseed): seed 2 steps · 2 reset hooks\npages: app http://localhost:<sandbox-port>",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-19>",
+     "kind": "sandbox_reset",
+     "input": {
+      "version": 1,
+      "kind": "sandbox_reset",
+      "project": "s",
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "31795e66b93b831c758f89a28169de25090e0be6333e72e771562afee8f30467",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       },
+       {
+        "fingerprint": "a1f69641f62bcd67b5e071c8dc106dd9996d1e6aec67989ae049eb1649ca094b",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "sandbox_reset",
+      "env": "sandbox",
+      "provider": "process",
+      "reset": {
+       "strategy": "reseed",
+       "restored": false,
+       "ms": "<ms>",
+       "seed": {
+        "steps": 2,
+        "ms": "<ms>"
+       },
+       "mailbox": "none",
+       "restarted": [],
+       "superseded": 0,
+       "hooks": {
+        "steps": 2,
+        "ms": "<ms>"
+       }
+      },
+      "pages": {
+       "app": "http://localhost:<sandbox-port>"
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run the sandbox reset of s (sandbox) in project s, environment sandbox, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. seed hook 2 \"mark\" (shell) — a shell command (runs local code)\n   run: echo seeded >> seed-marker.txt\n2. reset hook 2 \"clean\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> sandbox reset s",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\nreset\n",
+    "sandbox/seed-marker.txt": "seeded\nseeded\n",
+    "sandbox/reset-marker.txt": "reset\nreset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "sandbox_reset",
+   "args": {
+    "project": "s",
+    "reseed": true,
+    "wait_s": 25
+   },
+   "answer": {
+    "isError": false,
+    "text": "sandbox reset of s (sandbox) submitted (job <job-20>).\njob <job-20>: succeeded\nreset (reseed): seed 2 steps · 2 reset hooks\npages: app http://localhost:<sandbox-port>",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "version": 1,
+     "id": "<job-20>",
+     "kind": "sandbox_reset",
+     "input": {
+      "version": 1,
+      "kind": "sandbox_reset",
+      "project": "s",
+      "reseed": true,
+      "submitted_by": "mcp",
+      "approvals": [
+       {
+        "fingerprint": "db6b1b1e32a280c8742b55957dac8c9ff10971af4a2f56c75274b87b151b7038",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       },
+       {
+        "fingerprint": "e432deecd27d6559aa85d218dc335ba9cb104f253244497bbd6429cc9da1e034",
+        "by": "human-elicitation",
+        "at": "<at>",
+        "sig": "<sig: 64 hex>"
+       }
+      ]
+     },
+     "state": "succeeded",
+     "created_at": "<at>",
+     "started_at": "<at>",
+     "worker": {
+      "pid": "<pid>",
+      "started_at": "<at>",
+      "host": "<host>"
+     },
+     "result": {
+      "kind": "sandbox_reset",
+      "env": "sandbox",
+      "provider": "process",
+      "reset": {
+       "strategy": "reseed",
+       "restored": false,
+       "ms": "<ms>",
+       "seed": {
+        "steps": 2,
+        "ms": "<ms>"
+       },
+       "mailbox": "none",
+       "restarted": [],
+       "superseded": 0,
+       "hooks": {
+        "steps": 2,
+        "ms": "<ms>"
+       }
+      },
+      "pages": {
+       "app": "http://localhost:<sandbox-port>"
+      }
+     },
+     "finished_at": "<at>"
+    }
+   },
+   "asked": [
+    {
+     "message": "Retake: the agent asks to run the sandbox reset of s (sandbox) in project s, environment sandbox, read-write.\nThese 2 hooks need your approval before they run (\"confirm: true\" in a file written through MCP does not count). Each is shown in full, as it will run:\n1. seed hook 2 \"mark\" (shell) — a shell command (runs local code)\n   run: echo seeded >> seed-marker.txt\n2. reset hook 2 \"clean\" (shell) — a shell command (runs local code)\n   run: echo reset >> reset-marker.txt\nApprove to run them now (once, exactly as listed). Decline to refuse: nothing runs.\nInstead, you can run it yourself in a terminal: retake -C <ws> sandbox reset s --reseed",
+     "requestedSchema": {
+      "type": "object",
+      "properties": {
+       "approve": {
+        "type": "boolean",
+        "title": "Run these 2 hooks",
+        "description": "Check to approve the hooks listed above for this one job.",
+        "default": false
+       }
+      },
+      "required": [
+       "approve"
+      ]
+     }
+    }
+   ],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\nreset\n",
+    "sandbox/seed-marker.txt": "seeded\nseeded\nseeded\n",
+    "sandbox/reset-marker.txt": "reset\nreset\nreset\n"
+   }
+  },
+  {
+   "client": "accept",
+   "op": "sandbox_status",
+   "args": {
+    "project": "s",
+    "env": "sandbox"
+   },
+   "answer": {
+    "isError": false,
+    "text": "sandbox sandbox of s (process): up — app running (healthy)\nseed b05d2cbf6418\ntake lock: free",
+    "blocks": [
+     "text",
+     "text"
+    ],
+    "data": {
+     "project": "s",
+     "env": "sandbox",
+     "provider": "process",
+     "state": "up",
+     "services": [
+      {
+       "name": "app",
+       "state": "running",
+       "healthy": true,
+       "pid": "<pid>",
+       "started_at": "<at>"
+      }
+     ],
+     "pages": {
+      "app": "http://localhost:<sandbox-port>"
+     },
+     "seed": {
+      "hash": "b05d2cbf6418",
+      "at": "<at>",
+      "ms": "<ms>",
+      "current": true
+     },
+     "last_reset": {
+      "strategy": "reseed",
+      "at": "<at>",
+      "ms": "<ms>",
+      "restored": false,
+      "by": "sandbox reset"
+     },
+     "file": "sandbox/sandbox.yaml",
+     "logs": ".retake/sandbox/sandbox/logs",
+     "notes": [],
+     "untrusted": {
+      "health": {}
+     }
+    }
+   },
+   "asked": [],
+   "markers": {
+    "drop-marker.txt": "",
+    "teardown-marker.txt": "",
+    "post-marker.txt": "post\n",
+    "reset-marker.txt": "reset\nreset\n",
+    "sandbox/seed-marker.txt": "seeded\nseeded\nseeded\n",
+    "sandbox/reset-marker.txt": "reset\nreset\nreset\n"
+   }
+  }
+ ]
+}
