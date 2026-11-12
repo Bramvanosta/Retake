@@ -2,13 +2,6 @@
  "about": "The allowed exceptions of the import-rules ratchet (packages/core/test/import-rules.test.ts, rules in scripts/audit/lib.mjs). Each group has one rule, a one-line reason and its entries (\"<file> → <import>\"). A new entry and a stale one both fail the test: after a change, run node scripts/audit/rules.mjs . --write-baseline, write the reason of any new group, and review the diff.",
  "groups": [
   {
-   "rule": "R3",
-   "reason": "The Studio server serves eleven MCP tools as they are (TOOLS) until they are operations of the engine: they move with the invoke lot (audit 2026-11-10, U7); the operation contract itself comes from @retake/engine/contract.",
-   "entries": [
-    "packages/ui/src/server/studio.ts → @retake/mcp"
-   ]
-  },
-  {
    "rule": "R4",
    "reason": "CLI commands drive the adapters themselves (raw export, plan, components, sandboxes, doctor, sign-in checks) until they run on the engine operations.",
    "entries": [
@@ -64,9 +57,8 @@
   },
   {
    "rule": "R6",
-   "reason": "Two MCP tools read files directly (project creation, theme files) until the project store serves them.",
+   "reason": "One MCP tool reads files directly (theme.ts `plainFile`: a site extraction's screenshot and logos are plain files before they are shown) until the project store serves them (L7.13: engine_info's real-path read moved into the engine with it).",
    "entries": [
-    "packages/mcp/src/tools/project.ts → node:fs",
     "packages/mcp/src/tools/theme.ts → node:fs"
    ]
   },
@@ -163,6 +155,41 @@
    "entries": [
     "packages/engine/src/render/renderer.ts → @retake/components",
     "packages/engine/src/render/renderer.ts → @retake/editor"
+   ]
+  },
+  {
+   "rule": "shell-op",
+   "reason": "The MCP server's tools not yet moved into the engine's operations (U7: 34 of 45 on 2026-11-12, after L7.13 moved the eleven the Studio shares): they move family by family (L7.14–L7.19) and the group goes.",
+   "entries": [
+    "packages/mcp/src/tools/authoring.ts → 2 operations defined",
+    "packages/mcp/src/tools/comments.ts → 3 operations defined",
+    "packages/mcp/src/tools/component.ts → 5 operations defined",
+    "packages/mcp/src/tools/environment.ts → 3 operations defined",
+    "packages/mcp/src/tools/export.ts → 1 operation defined",
+    "packages/mcp/src/tools/hooks.ts → 2 operations defined",
+    "packages/mcp/src/tools/inspect.ts → 1 operation defined",
+    "packages/mcp/src/tools/jobs.ts → 2 operations defined",
+    "packages/mcp/src/tools/project.ts → 2 operations defined",
+    "packages/mcp/src/tools/render.ts → 3 operations defined",
+    "packages/mcp/src/tools/review.ts → 2 operations defined",
+    "packages/mcp/src/tools/run.ts → 2 operations defined",
+    "packages/mcp/src/tools/scenario.ts → 2 operations defined",
+    "packages/mcp/src/tools/theme.ts → 4 operations defined"
+   ]
+  },
+  {
+   "rule": "shell-op",
+   "reason": "The Studio's own ops (65 on 2026-11-12): those of a use case the engine serves move into its operations (L7.14–L7.18); the ones that hold the server's own state (its index, player, leases, set-up and update state, unsaved tabs, the desktop pipe: 18 in 6 files) stay here.",
+   "entries": [
+    "packages/ui/src/server/comment-ops.ts → 12 operations defined",
+    "packages/ui/src/server/desktop.ts → 1 operation defined",
+    "packages/ui/src/server/library-ops.ts → 4 operations defined",
+    "packages/ui/src/server/ops.ts → 22 operations defined",
+    "packages/ui/src/server/record-ops.ts → 7 operations defined",
+    "packages/ui/src/server/setup-ops.ts → 8 operations defined",
+    "packages/ui/src/server/theme-ops.ts → 8 operations defined",
+    "packages/ui/src/server/unsaved.ts → 1 operation defined",
+    "packages/ui/src/server/update-ops.ts → 2 operations defined"
    ]
   },
   {

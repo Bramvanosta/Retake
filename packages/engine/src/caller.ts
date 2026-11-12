@@ -40,9 +40,13 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const VOCABULARIES_AGREE: Same<HookTrust, CallerTrust> & Same<PlanTrust, CallerTrust> & Same<AgentChannel, Exclude<CallerChannel, 'cli'>> = true;
 void VOCABULARIES_AGREE;
 
-/** The caller of a client: the CLI is a person at a terminal (`author`), the Studio a page (`studio`), every other an agent. */
+/**
+ * The caller of a client: the CLI is a person at a terminal (`author`), the Studio a page (`studio`), every other an
+ * agent. Frozen (L7.13 review): the engine hands this one object to its operations, its store scope and its worker's
+ * environment, so nobody may change who drives it.
+ */
 export function callerOf(client: EngineClient): Caller {
-  return { client, channel: client === 'cli' ? 'cli' : client === 'ui' ? 'studio' : 'mcp', trust: client === 'cli' ? 'author' : 'mcp' };
+  return Object.freeze({ client, channel: client === 'cli' ? 'cli' : client === 'ui' ? 'studio' : 'mcp', trust: client === 'cli' ? 'author' : 'mcp' });
 }
 
 /**

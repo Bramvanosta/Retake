@@ -107,7 +107,5 @@ export function errorResult(e: unknown): CallResult {
   };
 }
 
-/** "3 scenarios" / "1 scenario". */
-export function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
-}
+/** "3 scenarios" / "1 scenario": the engine's operations' words (L7.13). */
+export { plural } from '@retake/engine/contract';

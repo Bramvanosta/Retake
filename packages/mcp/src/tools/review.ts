@@ -5,7 +5,7 @@ import { plural } from '../result.js';
 import { renderLatestData, renderLatestLines } from './render.js';
 import { READ, RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
-import { WAIT_MAX_S, waitJob, waitS } from './run.js';
+import { WAIT_MAX_S, waitJob, waitS } from '@retake/engine/contract';
 import { compactReview, detail } from '../compact.js';
 import type { Detail } from '../compact.js';
 

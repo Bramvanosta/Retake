@@ -43,7 +43,7 @@ import type { ProposalInput } from '../comment-proposals.js';
 import type { RenderFrameRequest, RenderFrameView, RenderOutlineRequest, RenderOutlineView } from '../render-frames.js';
 import type { Entitlements } from '../entitlements.js';
 import type { UsageCounts } from '../history.js';
-import type { EngineClient } from '../caller.js';
+import type { Caller, EngineClient } from '../caller.js';
 import type { Approver } from '../approvals.js';
 import type { RunBlocker, RunSubmitRequest } from '../jobs/run-job.js';
 import type { WorkerSpawnFn } from '../jobs/spawn.js';
@@ -188,6 +188,11 @@ export interface ScenarioCheck extends ScenarioText, ValidateResult {
 
 export interface Engine {
   readonly root: string;
+  /**
+   * Who drives this engine (caller.ts): the caller of the client it was made for, fixed for its life (the workspace's
+   * agent policy is opened from it). Read-only: invoke hands it to an operation's caller rules (L7.13).
+   */
+  readonly caller: Caller;
   readonly workspace: OpenedWorkspace;
   /** `retake -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
   readonly cli: string;

@@ -411,6 +411,44 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe('shell-op: operations defined in the engine, counted where a shell still defines one (L7.13)', () => {
+    const at = (rel: string, text: string): string[] => (lib.shellOpHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
+    const mcp = 'packages/mcp/src/tools/a.ts';
+    const ui = 'packages/ui/src/server/b.ts';
+
+    it('counts each call of a definer in a shell: by its name, an import alias, a namespace member, nested calls too', () => {
+      expect(at(mcp, "import { defineTool } from './define.js';\nexport const a = defineTool({ name: 'x' });\nexport const b = defineTool({ name: 'y' });")).toEqual([`${mcp} → 2`]);
+      expect(at(ui, "import { defineOperation } from '@retake/engine/contract';\nfunction ops() { return [defineOperation({ name: 'x' })]; }")).toEqual([`${ui} → 1`]);
+      expect(at(ui, "import { defineTool as op } from '@retake/engine/contract';\nconst a = op({});\nconst b = op({});\nconst c = op({});")).toEqual([`${ui} → 3`]);
+      expect(at(mcp, "import * as c from '@retake/engine/contract';\nconst a = c.defineTool({});\nconst b = c['defineOperation']({});")).toEqual([`${mcp} → 2`]);
+      expect(at('packages/ui/src/app/x.ts', 'const a = defineTool({});')).toEqual(['packages/ui/src/app/x.ts → 1']);
+    });
+
+    it('a mention is no call: a string, a comment, a type, an import or a re-export; a file outside the shells is not read', () => {
+      expect(at(mcp, "import { defineTool } from './define.js';\nexport { defineTool };\n// defineTool({})\nconst s = 'defineTool({})';\ntype T = ReturnType<typeof defineTool>;")).toEqual([]);
+      expect(at(ui, "import * as c from 'x';\nconst a = c.defineToolish({});\nconst b = other.defineTool({});")).toEqual([]);
+      expect(at('packages/engine/src/operations/project.ts', 'export const a = defineOperation({});')).toEqual([]);
+      expect(at('packages/cli/src/commands/a.ts', 'export const a = defineTool({});')).toEqual([]);
+    });
+
+    it('flags a definer re-exported under another name outside its homes (the engine\'s operations, MCP\'s define.ts), not under its own', () => {
+      const spec = (rel: string, text: string): string[] => (lib.shellOpHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; spec?: string }>).filter((h) => h.spec).map((h) => `${h.file} → ${h.spec}`);
+      expect(spec(mcp, "export { defineTool as tool } from '@retake/engine/contract';")).toEqual([`${mcp} → defineTool re-exported as tool`]);
+      expect(spec('packages/engine/src/contract.ts', "import { defineOperation } from './x.js';\nexport { defineOperation as op };")).toEqual(['packages/engine/src/contract.ts → defineOperation re-exported as op']);
+      expect(spec(ui, "export { defineTool } from '@retake/engine/contract';\nexport type { defineTool as T } from 'x';")).toEqual([]);
+      expect(spec('packages/mcp/src/tools/define.ts', "export { defineTool as tool } from '@retake/engine/contract';")).toEqual([]);
+      expect(spec('packages/engine/src/operations/x.ts', "export { defineOperation as op } from './define.js';")).toEqual([]);
+    });
+
+    it('holds today: the MCP server defines 34 of its 45 tools, the Studio its 65 own ops; the eleven it shares are the engine\'s', () => {
+      const entries = (lib.ratchetEntries(ROOT) as string[]).filter((e) => e.startsWith('shell-op '));
+      const total = (prefix: string) => entries.filter((e) => e.startsWith(`shell-op ${prefix}`)).reduce((n, e) => n + Number(/→ (\d+) operations? defined$/.exec(e)![1]), 0);
+      expect(total('packages/mcp/src/')).toBe(34);
+      expect(total('packages/ui/src/')).toBe(65);
+      expect(entries.some((e) => e.includes('packages/engine/'))).toBe(false);
+    });
+  });
+
   it('flags a submit or a worker\'s write on the job queue outside packages/engine/src, not a read nor a client\'s request', () => {
     const at = (rel: string, text: string) => wiring(rel, text);
     expect(at('packages/ui/src/server/a.ts', 'await engine.queue.enqueue(input);')).toEqual(['queue-call packages/ui/src/server/a.ts → queue.enqueue']);

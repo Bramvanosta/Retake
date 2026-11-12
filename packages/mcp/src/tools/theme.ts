@@ -7,10 +7,10 @@ import { plural } from '../result.js';
 import type { ToolImage } from '../result.js';
 import { isSiteWarning } from '@retake/engine';
 import { PREVIEW_JOB, READ, SITE_JOB, THEME_WRITE, defineTool } from './define.js';
-import { jobErrorLine, jobLine } from './job-lines.js';
+import { jobErrorLine, jobLine } from '@retake/engine/contract';
 import type { ToolContext, ToolDef } from './define.js';
 import { previewOutput } from './preview.js';
-import { WAIT_MAX_S, waitJob, waitS } from './run.js';
+import { WAIT_MAX_S, waitJob, waitS } from '@retake/engine/contract';
 
 function themeLine(t: TemplateSummary): string {
   const picks = Object.entries(t.components)

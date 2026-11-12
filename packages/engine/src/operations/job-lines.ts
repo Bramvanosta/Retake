@@ -1,11 +1,13 @@
 /**
  * How a tool shows a job: its one summary line (jobLine), its error line (jobErrorLine), the job as data with an error
  * that can quote the product kept under `untrusted` (untrustedError, jobData), and a preview job's stills
- * (previewImages). Shared by job_status / job_list (jobs.ts) and the tools that submit jobs.
+ * (previewImages). Shared by job_list (jobs.ts), the MCP server's job_status and the tools that submit jobs (moved from
+ * the MCP server's tools/job-lines.ts in L7.13).
  */
-import { jobProject, yieldWords } from '@retake/engine';
-import type { JobRecord } from '@retake/engine';
-import type { ToolImage } from '../result.js';
+import { jobProject } from '../jobs/queue-core.js';
+import { yieldWords } from '../jobs/held.js';
+import type { JobRecord } from '../jobs/types.js';
+import type { ToolImage } from './define.js';
 
 /**
  * Kinds whose error message can quote the filmed product or the scenario (a page's text, a caption, a component's

@@ -7,10 +7,10 @@
  * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops + L5.2's `counters`: sessions
  * redeemed, event streams open, player media bytes read and range requests — numbers only, what the desktop shell's
  * acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `retake ui`, with the player origin: L5.2); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
- * and live picture: run-live.ts); `POST /v1/call/<op>` — the MCP tool of
- * that name, or one of the Studio's own reads (ops.ts: activity_list, search, projects_overview), run through the
- * same SDK-free `callTool` the MCP server uses (zod parse, trust, untrusted caps, typed errors), for the ops of
- * `UI_OPS` only.
+ * and live picture: run-live.ts); `POST /v1/call/<op>` — the engine's operation of
+ * that name (@retake/engine/contract OPERATIONS: the ones MCP serves too), or one of the Studio's own ops (ops.ts and
+ * the other *-ops.ts modules), run through the same SDK-free `invoke` the MCP server uses (served by the shell, zod
+ * parse, trust, untrusted caps, typed errors), for the ops of `UI_OPS` only.
  *
  * Trust: the engine client is `ui` — the ops L4.1 allows run under the agent's trust, with no approver (a page's
  * script cannot be told from a person's click): a run whose hooks need a person is refused with the `retake run …`
@@ -43,13 +43,11 @@ import {
   securityHeaders,
 } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
-import { servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
+import { catalogueOperation, servedBy, servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
 import type { OperationName, StudioOpName, StudioPinsOf } from '@retake/engine/catalogue';
-import { callTool, capUntrusted, pinArguments } from '@retake/engine/contract';
-import type { PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
+import { OPERATIONS, capUntrusted, invoke, pinArguments } from '@retake/engine/contract';
+import type { OperationsByName, PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
 import type { z } from 'zod';
-import { TOOLS } from '@retake/mcp';
-import type { McpTools } from '@retake/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { PlayerBundles } from '../player/bundle-player.js';
@@ -75,8 +73,8 @@ import type { SetupContext } from './setup-ops.js';
 
 /**
  * The ops the Studio may call, in catalogue order: the operations the catalogue (@retake/engine/catalogue) says the
- * Studio serves — MCP tools it serves as they are or with pinned arguments, and its own ops (ops.ts and the other
- * *-ops.ts modules). The catalogue also says why the Studio serves none of the other MCP tools; an op that is not
+ * Studio serves — the engine's operations it serves as they are or with pinned arguments, and its own ops (ops.ts and
+ * the other *-ops.ts modules). The catalogue also says why the Studio serves none of the other MCP tools; an op that is not
  * listed answers 404 `unknown op`.
  */
 export const UI_OPS: readonly UiOp[] = Object.freeze(servedNames('studio'));
@@ -201,15 +199,20 @@ export interface StudioServer {
 }
 
 /**
- * The ops of the allow-list: the MCP server's tool of each name, or one of `own` (the Studio's reads of the index —
- * which never take an MCP tool's name).
+ * The ops of the allow-list: the engine's operation of each name (L7.13: the operations MCP serves too), or one of
+ * `own` (the Studio's own ops — which never take an engine operation's or an MCP tool's name).
  */
 export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
-  const mcp = new Map<string, ToolDef>(TOOLS.map((t) => [t.name, t]));
+  const shared = new Map<string, ToolDef>(OPERATIONS.map((t) => [t.name, t]));
   const mine = new Map<string, ToolDef>(own.map((t) => [t.name, t]));
-  for (const name of mine.keys()) if (mcp.has(name)) throw new Error(`UI op ${name} would shadow the MCP tool of that name`);
+  for (const name of mine.keys()) {
+    if (shared.has(name)) throw new Error(`UI op ${name} would shadow the engine's operation of that name`);
+    // Nor an MCP tool's name (the catalogue's: one name, one operation), even one the Studio does not serve.
+    const op = catalogueOperation(name);
+    if (op && servedBy(op, 'mcp')) throw new Error(`UI op ${name} would shadow the MCP tool of that name`);
+  }
   return new Map(UI_OPS.map((op) => {
-    const t = mcp.get(op) ?? mine.get(op);
+    const t = shared.get(op) ?? mine.get(op);
     if (!t) throw new Error(`UI op ${op} is not a tool`);
     const pins = studioPins(op);
     return [op, pins.length ? pinArguments(t as ToolDef<z.ZodObject>, pins) : t];
@@ -233,7 +236,7 @@ export interface StudioToolDeps {
   workspace: string;
 }
 
-/** The ops of one Studio server: the MCP tools of the allow-list and the Studio's own ops, each by name (uiTools). */
+/** The ops of one Studio server: the engine's operations of the allow-list and the Studio's own ops, each by name (uiTools). */
 export function studioTools(d: StudioToolDeps): Map<string, ToolDef> {
   return uiTools(ownOps(d));
 }
@@ -264,10 +267,10 @@ function ownOps(d: StudioToolDeps) {
 
 /** The Studio's own ops by name, as types. */
 type OwnOps = ToolsByName<ReturnType<typeof ownOps>[number]>;
-/** The definition of an op the Studio serves: the MCP tool of that name, else its own op. */
-type ToolOf<K extends StudioOpName> = K extends keyof McpTools ? McpTools[K] : K extends keyof OwnOps ? OwnOps[K] : never;
+/** The definition of an op the Studio serves: the engine's operation of that name, else its own op. */
+type ToolOf<K extends StudioOpName> = K extends keyof OperationsByName ? OperationsByName[K] : K extends keyof OwnOps ? OwnOps[K] : never;
 /**
- * Every op the Studio serves as `/v1/call/<op>` runs it — the MCP tool or its own op, the Studio's pinned arguments
+ * Every op the Studio serves as `/v1/call/<op>` runs it — the engine's operation or its own op, the Studio's pinned arguments
  * applied (as uiTools builds them) — by name, as types: the app's StudioOps (src/app/data/ops.ts) is derived from it
  * (each op's arguments `ToolArgs`, its answer `ToolData`). Types only: the server's table is studioTools.
  */
@@ -433,7 +436,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       if (!res.writableEnded) ac.abort();
     });
     calls++;
-    const r = await callTool(tool, getEngine, args, { signal: ac.signal });
+    const r = await invoke(tool, getEngine, args, { shell: 'studio', signal: ac.signal });
     if (!r.ok) {
       const e = r.error;
       const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];

@@ -6,8 +6,8 @@ import { plural } from '../result.js';
 import { renderLatestData, renderLatestLines } from './render.js';
 import { RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
-import { jobData, jobLine } from './job-lines.js';
-import { WAIT_MAX_S, waitJob, waitS } from './run.js';
+import { jobData, jobLine } from '@retake/engine/contract';
+import { WAIT_MAX_S, waitJob, waitS } from '@retake/engine/contract';
 
 /** The summary of an export job: its state, the files written, what to do next. */
 export function exportSummary(job: JobRecord): string {

@@ -1,6 +1,6 @@
 /**
  * The Studio's own ops (L4.1): reads in the MCP tool shape (a zod input, a summary and data) so `/v1/call/<op>` runs
- * them through the same `callTool` — but they are not MCP tools: Claude reads files, project_get, run_list and job_list
+ * them through the same `invoke` — but they are not MCP tools: Claude reads files, project_get, run_list and job_list
  * instead, and the MCP server never depends on this package.
  *
  * - `activity_list`: unfinished jobs, live from the queue (derived states included), then finished jobs and CLI

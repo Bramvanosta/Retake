@@ -238,6 +238,7 @@ export const CHECKS = [
   { id: 'store-new', title: `only the project store builds a store or a storage of a folder: in packages/*/src outside ${STORE_HOME} and ${STORAGE_FILE}, \`new LocalStorage(…)\`, \`new DiskProjectStore(…)\`, a class extending either, or either class passed on as a value is a hit, and so is the disk adapter \`diskProjectStores\` named as a value outside PORT_ROOTS (entries: the file and the form; a type position, an import and an export are not uses), under its own name, an import alias (\`{ LocalStorage as LS }\`) or off a namespace import (\`new st.LocalStorage()\`, \`ps.diskProjectStores\`): every authored write is handed a ProjectStores port in its StoreScope. Not seen: \`Reflect.construct(LocalStorage, …)\` counted only as the class used as a value, a class reached through another variable, a namespace from \`await import()\`` },
   { id: 'loader-use', title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\`, \`packageReviewer\` and \`runnerWebCapture\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it` },
   { id: 'port-types', title: `the engine's port files (PORT_FILES) name no adapter package — a type import, \`typeof import()\` and a value alike (entries: the file and the specifier) — but through a domain entry (DOMAIN_ENTRIES): an adapter satisfies a port structurally, so the vocabulary they share lives in core or a domain entry. Not seen: what a port file names through a relative engine module (not followed)` },
+  { id: 'shell-op', title: 'an operation is defined in the engine (packages/engine/src/operations/, U7): in the shells\' sources (SHELL_OP_DIRS: packages/mcp/src, packages/ui/src) every call of `defineTool` or `defineOperation` — by its name, an import alias or a member of a namespace import — is counted per file (entries: each file and its count), so that an operation moved into the engine lowers the baseline and a new one in a shell fails it; and in packages/*/src outside DEFINER_HOMES (the engine\'s operations/, MCP\'s tools/define.ts) a definer re-exported under another name (`export { defineTool as op }`) is a hit. Not seen: a definer under another name made in a file (`const d = defineTool`), a wrapper of one, a parenthesised or computed callee (`(defineTool)(…)`, `c[name](…)`), a member of a namespace from `await import()`, and an operation written as a `ToolDef` object literal with no definer' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
   { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
@@ -778,6 +779,64 @@ export function loaderHits(root, files) {
   return hits;
 }
 
+/** The names an operation is defined with (shell-op): the contract's two definers. */
+export const OPERATION_DEFINERS = ['defineTool', 'defineOperation'];
+/** Where the shells define operations (shell-op): the MCP server's and the Studio's sources. */
+export const SHELL_OP_DIRS = ['packages/mcp/src/', 'packages/ui/src/'];
+/** Where a definer may be re-exported under another name (shell-op): the engine's operations and MCP's define.ts. */
+export const DEFINER_HOMES = ['packages/engine/src/operations/', 'packages/mcp/src/tools/define.ts'];
+
+/**
+ * The operations a shell defines (shell-op), read from the syntax tree: in SHELL_OP_DIRS, every call of a definer of
+ * OPERATION_DEFINERS — by its name, under an import alias (`{ defineTool as d }`) or as a member of a namespace import
+ * (`c.defineTool(…)`, `c['defineTool'](…)`) — counted per file (`{count}`). A mention in a string, a comment, a type or
+ * an import is no call. And in any packages/*\/src file outside DEFINER_HOMES, a definer re-exported under another
+ * name (`export { defineTool as op }`, with or without `from`: `{spec}`), so that a shell cannot reach one under a
+ * name this check does not read. Not seen: a definer under another name made in a file (`const d = defineTool`), a
+ * wrapper of one, a parenthesised or otherwise computed callee (`(defineTool)(…)`, `c[name](…)`), a member of a
+ * namespace from `await import()`, and an operation written as a `ToolDef` object literal with no definer at all.
+ */
+export function shellOpHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!OPERATION_DEFINERS.some((n) => text.includes(n))) continue;
+    if (rel.startsWith('packages/') && rel.includes('/src/') && !DEFINER_HOMES.some((h) => rel.startsWith(h))) {
+      const sf = parse(ts, rel, text);
+      sf.forEachChild((n) => {
+        if (!ts.isExportDeclaration(n) || n.isTypeOnly || !n.exportClause || !ts.isNamedExports(n.exportClause)) return;
+        for (const e of n.exportClause.elements) {
+          const orig = (e.propertyName ?? e.name).text;
+          if (!e.isTypeOnly && OPERATION_DEFINERS.includes(orig) && e.name.text !== orig) hits.push({ rule: 'shell-op', file: rel, spec: `${orig} re-exported as ${e.name.text}` });
+        }
+      });
+    }
+    if (!SHELL_OP_DIRS.some((d) => rel.startsWith(d))) continue;
+    const sf = parse(ts, rel, text);
+    const names = new Set(OPERATION_DEFINERS);
+    const spaces = new Set();
+    sf.forEachChild((n) => {
+      const c = ts.isImportDeclaration(n) ? n.importClause : undefined;
+      if (!c || c.isTypeOnly) return;
+      const b = c.namedBindings;
+      if (b && ts.isNamespaceImport(b)) spaces.add(b.name.text);
+      if (b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly && OPERATION_DEFINERS.includes((e.propertyName ?? e.name).text)) names.add(e.name.text);
+    });
+    const member = (e) => (ts.isPropertyAccessExpression(e) ? e.name.text : ts.isElementAccessExpression(e) ? literal(ts, e.argumentExpression) : undefined);
+    let count = 0;
+    (function visit(n) {
+      if (ts.isCallExpression(n)) {
+        const e = n.expression;
+        if (ts.isIdentifier(e) && names.has(e.text)) count++;
+        else if ((ts.isPropertyAccessExpression(e) || ts.isElementAccessExpression(e)) && ts.isIdentifier(e.expression) && spaces.has(e.expression.text) && OPERATION_DEFINERS.includes(member(e) ?? '')) count++;
+      }
+      n.forEachChild(visit);
+    })(sf);
+    if (count) hits.push({ rule: 'shell-op', file: rel, count });
+  }
+  return hits;
+}
+
 /** The port files' adapter imports (port-types): every specifier the scan lists (types and `typeof import()` included). */
 export function portTypeHits(fileImports) {
   const hits = [];
@@ -1166,6 +1225,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
   for (const h of ports.hits) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   for (const h of ports.clock) set.add(`clock-read ${h.file} → ${h.count} wall-clock read${h.count === 1 ? '' : 's'}`);
   for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
+  for (const h of shellOpHits(root, scanned.files)) set.add(h.spec !== undefined ? `shell-op ${h.file} → ${h.spec}` : `shell-op ${h.file} → ${h.count} operation${h.count === 1 ? '' : 's'} defined`);
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   for (const h of recordReadHits(root, scanned.files)) {
     const own = h.kinds.filter((k) => k === 10).length;

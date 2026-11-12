@@ -1,17 +1,16 @@
 /**
  * @retake/engine/contract — the operation contract the shells share (no protocol, no SDK): an operation's definition
- * (`ToolDef`: one zod input schema, annotations and a handler over the engine), one SDK-free call (`callTool`: the zod
- * parse with problems named per argument, then the handler; every failure an EngineError), the cap on text under
+ * (`ToolDef`: one zod input schema, annotations and a handler over the engine; operations/define.ts), one SDK-free call
+ * (`invoke`: served by the shell, the zod parse with problems named per argument, the caller rules, then the handler;
+ * every failure an EngineError; operations/invoke.ts), the engine's operations (`OPERATIONS`, L7.13), the cap on text under
  * `untrusted` keys (`capUntrusted`), the Studio's pinned arguments (`pinArguments`), and the operation catalogue
  * re-exported (catalogue.ts: every operation once, its facets and the shells that serve it; @retake/engine/catalogue is
  * the same without the rest, for a page). The MCP server serves these definitions as MCP tools; the Studio's server
  * serves them as `POST /v1/call/<op>`. Not browser-safe: errors.js reaches @retake/core.
  */
 import { z } from 'zod';
-import type { Approver } from './approvals.js';
 import type { ArgumentPin } from './catalogue.js';
-import type { Engine } from './engine.js';
-import { EngineError, toEngineError } from './errors.js';
+import type { ToolData, ToolDef } from './operations/define.js';
 
 // The operation catalogue, also its own browser-safe entry (@retake/engine/catalogue).
 export {
@@ -32,106 +31,25 @@ export {
 } from './catalogue.js';
 export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, NotServed, Operation, OperationName, Shell, StudioOpName, StudioPinsOf, StudioServe } from './catalogue.js';
 
-/** The hints a client reads about an operation (the MCP tool annotations). */
-export interface ToolAnnotations {
-  readOnlyHint?: boolean;
-  destructiveHint?: boolean;
-  idempotentHint?: boolean;
-  openWorldHint?: boolean;
-}
-
-/** Progress of a call that waits (MCP progress notifications). */
-export interface Progress {
-  progress: number;
-  total?: number;
-  message?: string;
-}
-
-/** An image a result shows (a contact sheet, a key frame): a label and its file. */
-export interface ToolImage {
-  label: string;
-  file: string;
-}
-
-/** What an operation answers: a summary line or more, and its data (`D`: the JSON object a client reads). */
-export interface ToolOutput<D extends object = object> {
-  summary: string;
-  data: D;
-  /**
-   * Images to show the client, in order: the first ones go inline as JPEG thumbnails (after the text, each preceded by
-   * its label), within the caps; the others are listed as files to read. Never base64 in `data`.
-   */
-  images?: ToolImage[];
-}
-
-export interface ToolContext {
-  engine: Engine;
-  /** Aborted when the client cancels the call: it ends a wait, never the job. */
-  signal: AbortSignal;
-  /** Progress notifications while a call waits (when the client asked for them). */
-  progress?: (p: Progress) => void;
-  /** Asks the client's user to approve hooks (form elicitation); undefined when the client cannot ask anyone. */
-  approver?: Approver;
-}
-
-/**
- * An operation: one zod input schema (published as JSON Schema, and the parser), annotations and a handler. Its types
- * are kept (L6.12–L6.13 fixes): `S` the input, `D` the data it answers, `N` its name — so a table of operations says
- * each one's arguments and answer (`ToolArgs`, `ToolData`, `ToolsByName`). `ToolDef` alone is any operation.
- */
-export interface ToolDef<S extends z.ZodType = z.ZodType, D extends object = object, N extends string = string> {
-  name: N;
-  title: string;
-  description: string;
-  input: S;
-  annotations: ToolAnnotations;
-  run(args: z.output<S>, ctx: ToolContext): Promise<ToolOutput<D>>;
-}
-
-/**
- * An operation, its types inferred from its definition: the input from `input`, the data from what `run` answers (the
- * union of its answers: inferred through the whole output, so that each `return` adds its own), the name.
- */
-export function defineTool<S extends z.ZodType, O extends ToolOutput, N extends string>(t: Omit<ToolDef<S, O['data'], N>, 'run'> & { run(args: z.output<S>, ctx: ToolContext): Promise<O> }): ToolDef<S, O['data'], N> {
-  return t;
-}
-
-/** The arguments an operation takes, as a client sends them (its input schema's input type). */
-export type ToolArgs<T extends ToolDef> = z.input<T['input']>;
-/** The data an operation answers. */
-export type ToolData<T extends ToolDef> = Awaited<ReturnType<T['run']>>['data'];
-/** A table of operations by name. */
-export type ToolsByName<T extends ToolDef> = { [E in T as E['name']]: E };
-
-/** One line per problem, naming the argument: "project: a project slug…". */
-export function argumentProblems(error: z.ZodError): string[] {
-  return error.issues.map((i) => {
-    const where = i.path.length ? i.path.map(String).join('.') : '(arguments)';
-    const keys = (i as { keys?: string[] }).keys;
-    return i.code === 'unrecognized_keys' && keys ? `${where}: unknown argument${keys.length > 1 ? 's' : ''} ${keys.join(', ')}` : `${where}: ${i.message}`;
-  });
-}
-
-/** What a call gave: its output, or the error (invalid arguments included) as an EngineError. */
-export type ToolCallOutcome<D extends object = object> = { ok: true; output: ToolOutput<D> } | { ok: false; error: EngineError };
-
-/**
- * One call, SDK-free: the zod parse (problems named per argument), then the handler with the engine; never
- * throws — every failure comes back as an EngineError. The MCP protocol layer and the Studio's HTTP API
- * (`POST /v1/call/<op>` of `retake ui`) both run operations through this, so validation, trust and errors stay one.
- */
-export async function callTool<D extends object>(t: ToolDef<z.ZodType, D>, engine: () => Promise<Engine>, args: unknown, ctx: Omit<ToolContext, 'engine'>): Promise<ToolCallOutcome<D>> {
-  const parsed = t.input.safeParse(args);
-  if (!parsed.success) {
-    const problems = argumentProblems(parsed.error);
-    return { ok: false, error: new EngineError('invalid', `invalid arguments for ${t.name}:\n${problems.join('\n')}`, { details: { arguments: problems } }) };
-  }
-  try {
-    return { ok: true, output: await t.run(parsed.data, { ...ctx, engine: await engine() }) };
-  } catch (e) {
-    return { ok: false, error: toEngineError(e) };
-  }
-}
+// An operation's definition and one call of it (operations/: define.ts, invoke.ts), and the engine's operations
+// (operations/index.ts), with the pieces the shells' own operations still share with them (schema pieces, annotations,
+// waits, compacts, words, job lines, the run and sign-in summaries: L7.13).
+export { argumentProblems, defineOperation, defineTool } from './operations/define.js';
+export type { OperationDef, Progress, ToolAnnotations, ToolArgs, ToolCallOutcome, ToolContext, ToolData, ToolDef, ToolImage, ToolOutput, ToolsByName } from './operations/define.js';
+export { callTool, invoke } from './operations/invoke.js';
+export type { InvokeOptions } from './operations/invoke.js';
+export { OPERATIONS, OPERATIONS_BY_NAME } from './operations/index.js';
+export type { OperationsByName } from './operations/index.js';
+export { CANCEL, READ, SIGN_IN, WRITE_FILES } from './operations/annotations.js';
+export { componentId, editOverrides, envName, ifMatch, projectSlug, renderId, runId, scenarioName, templateName } from './operations/schema.js';
+export { JOB_WAIT_MAX_S, WAIT_HEARTBEAT_MS, WAIT_MAX_S, waitJob, waitS } from './operations/wait.js';
+export { COMPACT_FINDINGS_MAX, COMPACT_MESSAGE_MAX, COMPACT_WARNINGS_MAX, compactRunStatus, cutMessage, detail } from './operations/compact.js';
+export type { Detail } from './operations/compact.js';
+export { issueLine, plural } from './operations/words.js';
+export { jobData, jobErrorLine, jobLine, previewImages, untrustedError } from './operations/job-lines.js';
+export type { JobData } from './operations/job-lines.js';
+export { runOutput, runStatusSummary } from './operations/runs.js';
+export { environmentJobSummary, jobOutput } from './operations/auth.js';
 
 /** Longest untrusted string a result carries. */
 export const UNTRUSTED_MAX = 2000;

@@ -5,7 +5,7 @@ import { plural } from '../result.js';
 import { PREVIEW_JOB, READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { previewOutput } from './preview.js';
-import { waitS } from './run.js';
+import { waitS } from '@retake/engine/contract';
 
 const kind = z.enum(COMPONENT_KINDS as [string, ...string[]]);
 

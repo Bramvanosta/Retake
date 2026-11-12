@@ -73,9 +73,18 @@ function copiedOptions(e: Error): EngineError['opts'] {
  * message kept, no stack). An EngineError of another module copy keeps its code, fix, details and docs. The classes and
  * their kinds: engine test/error-kinds.test.ts.
  */
+/** A thrown value that is no Error, as text: `String(x)` throws on an object without a prototype or a throwing toString. */
+function thrownText(e: unknown): string {
+  try {
+    return String(e);
+  } catch {
+    return 'a value that cannot be shown as text was thrown';
+  }
+}
+
 export function toEngineError(e: unknown): EngineError {
   if (e instanceof EngineError) return e;
-  if (!(e instanceof Error)) return new EngineError('internal', String(e));
+  if (!(e instanceof Error)) return new EngineError('internal', thrownText(e));
   const kind = errorKindOf(e);
   if (kind === undefined) return new EngineError('internal', e.message);
   const { issues, errorDocs, clientMessage } = e as Partial<KindedError> & { issues?: unknown };

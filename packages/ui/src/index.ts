@@ -1,8 +1,9 @@
 /**
  * @retake/ui — the Studio web app and its server (L4.1, R-UI-01): `retake ui` serves a React app, bundled in memory
  * by esbuild, and the engine's `/v1` HTTP API of one workspace on 127.0.0.1 behind the engine's gate; the app calls an
- * allow-list of the MCP server's tools through the same SDK-free tool layer (`callTool`). The MCP server never depends
- * on this package: it keeps working without it.
+ * allow-list of operations — the engine's operations it shares with the MCP server and its own ops — through the same
+ * SDK-free call (`invoke`, @retake/engine/contract). The MCP server never depends on this package: it keeps working
+ * without it.
  */
 export { APP_ENTRY, INDEX_HTML, UI_TARGETS, buildUi } from './bundle.js';
 export type { UiAsset } from './bundle.js';

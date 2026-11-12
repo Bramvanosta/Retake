@@ -6,7 +6,7 @@ import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName
 import { plural } from '../result.js';
 import { READ, RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
-import { WAIT_MAX_S, waitJob, waitS } from './run.js';
+import { WAIT_MAX_S, waitJob, waitS } from '@retake/engine/contract';
 
 const renderInput = {
   project: projectSlug,

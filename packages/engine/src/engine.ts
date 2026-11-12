@@ -68,7 +68,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     return { queue, files: queue.files };
   });
   const { ws, queue, jobFiles, studio } = ctx;
-  return {
+  const engine: Omit<Engine, 'caller'> = {
     root: ws.root,
     queue,
     jobFiles,
@@ -95,4 +95,6 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     comments: commentsApi(ctx),
     sandbox: sandboxApi(ctx),
   };
+  // Who drives this engine: the context's frozen caller, a read-only member (not writable, not configurable).
+  return Object.defineProperty(engine, 'caller', { value: ctx.caller, enumerable: true, writable: false, configurable: false }) as Engine;
 }

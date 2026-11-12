@@ -5,7 +5,7 @@ import { envName, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import { HOOK_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
-import { waitJob, waitS } from './run.js';
+import { waitJob, waitS } from '@retake/engine/contract';
 
 /** One hook's line, from the trusted fields only (what a hook returned stays under "untrusted"). */
 function hookLine(r: HookResultView): string {

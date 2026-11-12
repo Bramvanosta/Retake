@@ -17,10 +17,10 @@ import { plural } from '../result.js';
 import type { ToolImage } from '../result.js';
 import { RUN_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
-import { jobErrorLine, jobLine } from './job-lines.js';
+import { jobErrorLine, jobLine } from '@retake/engine/contract';
 import { compactElements, detail } from '../compact.js';
 import type { Detail } from '../compact.js';
-import { WAIT_MAX_S, waitJob, waitS } from './run.js';
+import { WAIT_MAX_S, waitJob, waitS } from '@retake/engine/contract';
 
 type InspectReport = NonNullable<Awaited<ReturnType<Engine['inspect']['get']>>['report']>;
 

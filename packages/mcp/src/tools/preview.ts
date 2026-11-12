@@ -1,8 +1,8 @@
 import type { Engine, JobRecord, PreviewSubmitted } from '@retake/engine';
 import { plural } from '../result.js';
 import type { ToolContext } from './define.js';
-import { jobLine, previewImages } from './job-lines.js';
-import { WAIT_MAX_S, waitJob } from './run.js';
+import { jobLine, previewImages } from '@retake/engine/contract';
+import { WAIT_MAX_S, waitJob } from '@retake/engine/contract';
 
 /** The summary of a preview job: state, the images written, what to do next (the guard's warnings stay under untrusted). */
 export function previewSummary(job: JobRecord): string {

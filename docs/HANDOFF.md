@@ -126,6 +126,34 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.13)
+- **L7.13 done (2026-11-12; branch `claude/arch-l7`)** — U7's first slice: `invoke()` in the engine, and the eleven operations the Studio borrowed from MCP are the engine's; no change a client sees.
+  - **The call** (`packages/engine/src/operations/invoke.ts`): `invoke(op, engine, args, {shell, signal, progress?, approver?})` never throws. In order: the catalogue serves `op` in `shell` (else `not_found`, before the parse, the engine never asked), the zod parse with callTool's words, the op's `callers` rules with the engine's caller, the handler, the error typed (`toEngineError`, itself guarded: a thrown value `String()` cannot show — no prototype, a throwing `toString` — or an error whose `message` getter throws is `internal`, not a throw). Admission stays inside the submits. `callTool` stays as a `@deprecated` alias for one lot. `Engine.caller` is new and additive (`ENGINE_API_VERSION` stays 1): a non-writable, non-configurable member holding the context's caller, which `callerOf` now freezes (the same object is the store scope's and the worker environment's).
+  - **The operations** (`packages/engine/src/operations/`, exported through `@retake/engine/contract`):
+    - Files: define.ts (ToolDef & co. moved out of contract.ts; `OperationDef`, `defineOperation`, the optional `callers` member), annotations.ts (READ, WRITE_FILES, CANCEL, SIGN_IN: four, not the plan's three, because project_update_readme uses WRITE_FILES), schema.ts (moved verbatim), wait.ts, compact.ts (`detail`, `compactRunStatus`), words.ts (`plural`, `issueLine`), job-lines.ts (moved whole), project.ts, reads.ts, runs.ts, jobs.ts, auth.ts, and index.ts (`OPERATIONS` in catalogue order, `OPERATIONS_BY_NAME`, `OperationsByName`).
+    - The eleven: engine_info, project_list, project_get, project_update_readme, scenario_validate, run_list, run_status, run_cancel, job_list, auth_status, auth_login. Their summaries stay in the operation.
+  - **The shells.**
+    - MCP: its family arrays hold the engine's objects (tools/list order unchanged); `protocolTool` calls `invoke` (shell `mcp`) after its stale-engine refusal; tools/job-lines.ts is deleted; schema.ts, define.ts, compact.ts and result.ts re-export the moved pieces.
+    - Studio: `uiTools` takes the shared ops from `OPERATIONS`, the pins applied as before. An own op still may not take an engine operation's name, nor an MCP tool's (now checked against the catalogue). `StudioTools` reads `OperationsByName`; `/v1/call` calls `invoke` (shell `studio`). Nothing in packages/ui/src imports `@retake/mcp` any more, and the ui tsconfig's `../mcp` reference is gone.
+    - **`@retake/mcp` stays in ui `dependencies`.** Moving it to devDependencies made pnpm re-resolve peers across pnpm-lock.yaml (about 1,900 lines), so the line was kept as it was and the lockfile was restored.
+  - **Ratchet.** R3 1 → **0** (group removed). R6 `mcp/src/tools/project.ts → node:fs` → 0 (its group's reason now names theme.ts alone). New check `shell-op` (lib.mjs `shellOpHits`): the definer calls per shell file, by name, alias or namespace member; and a definer re-exported under another name anywhere in packages/*/src outside the engine's operations/ and MCP's tools/define.ts (none today). Its title names the blind spots: a definer renamed by a `const`, a wrapper, a parenthesised or computed callee, a namespace from `await import()`, a `ToolDef` object literal. It has 23 entries in two groups: MCP 34 in 14 files, Studio 65 in 9. Baseline 100 → 98 + 23 = **121**.
+  - **Checked.**
+    - Characterization committed before the move: `packages/mcp/test/shared-ops-characterization.test.ts` with `fixtures/shared-ops.json`, recorded on `efb98ad` in a scratch worktree (since removed). It sends 40 calls through MCP stdio and 45 through the Studio's `/v1/call`, refusals included, plus the pins, a queued run's status and cancel, and a headed sign-in queued in the Studio. Normalised: paths, stamps, job ids, the run id, pids, host, Node and Retake versions. It passes unchanged after the move. Fix pass: the `host` / `node` keys were tested after the string branch, so the fixture held Node's version; the keys are tested first now and the fixture was re-recorded on the lot (not on `efb98ad`): its diff is exactly the two `"node": "22.19.0"` → `"node": "<node>"` lines.
+    - `packages/ui/test/studio-tools-types.test.ts`: 25 type equalities of `ToolArgs` / `ToolData` of `StudioTools` (project_get's answer added in the fix pass), type-checked on `efb98ad` in a scratch worktree; they hold after the move.
+    - tool-list.json and op-table.json are byte-identical (`git diff --exit-code`). The CLI golden is green.
+    - Gates: `tsc -b`, `pnpm typecheck` (exit 0), `rules.mjs --check` (121), `test-guard` (exit 0, no decrease), `--check-cites`.
+    - Test files run one at a time, each with a fresh `RETAKE_HOME` and `RETAKE_DISK_WARN=off`, all green: MCP stdio / stdio-runs / http / operation-catalogue / skills / tool-list / render-latest / compact / admission / stale-engine / engine-info-other-copy / prune-keeps; cli glossary / pipeline-cli / operation-catalogue; UI server / run-ops / studio-ops / operation-catalogue / op-table / app-source / feature-boundaries / desktop-answer / render-ops / setup-ops / timeline-ops / update-ops; engine operation-catalogue / operations / integrations; core import-rules.
+    - About 29 mutations, all red (8 of them on the fix pass).
+  - **Boy scout.** `uiTools`'s shadow check only looked at the eleven at first, and server.test caught it. It now refuses an own op with any MCP tool's name through the catalogue, so the behaviour of before is kept and pinned by the existing test. And `jobs/export-job.ts` wrote the trust `'mcp'` literally (engine caller.test.ts was red on it already at `efb98ad`): it is `ENGINE_TRUST` now, the same value.
+  - **Not done.**
+    - **The full suite was not run.**
+    - The Studio's 65 own ops and the other 34 MCP tools are still shell-defined (L7.14–L7.19).
+    - No operation declares `callers` yet: the slot is tested on a probe. `serialize` and `output` are cut.
+    - The characterization has no successful sign-in through MCP (it would start the worker and open a window), no `stale: true`, no long poll and no other-copy worker. Other tests in the gates cover each of these.
+    - `@retake/engine/contract` exports about 40 more names until the families move.
+    - `OWN_OPS` is an unused import in studio.ts, as it was before this lot.
+    - A `git rm` staged the deletion of mcp tools/job-lines.ts for a moment; it was unstaged at once (`git restore --staged`), and the index is clean.
+
 ## State (after L7.12)
 - **L7.12 done (2026-11-12; branch `claude/arch-l7`)** — U6's last slice: the engine drives every browser through a `CaptureRunner` port chosen at the composition roots (`EnginePorts.capture`); no behaviour change for the product. With it U6 is done: nine ports of twelve (SandboxProvider, SecretStore, ProgressSink are U14's).
   - **The port** (`packages/engine/src/capture/runner.ts`): `run` (capture, dry run, inspection: runner-web's own `RunOptions` with the engine's `hookRunner`), `record` (a recording's window), `sessions` (`check`, `signIn`, `lock`, `status`), `hookPages` (js-hook browsers behind an opaque handle: `open`, `evalIn`, `authReader`; a handle of another runner is refused), `site.extract`, and two synchronous members for signal handlers, `cancelled()` and `cleanupSync()`.
@@ -1506,7 +1534,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: U7 (L7.13 `invoke()` and the eleven shared operations, then the families), U8 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: U7 (the families L7.14 – L7.19, then one name per use case), U8 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

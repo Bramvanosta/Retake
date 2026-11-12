@@ -38,8 +38,11 @@ export { UNTRUSTED_MAX, capUntrusted, errorResult, imageCaps, imageResult, okRes
 export { APPROVAL_TIMEOUT_MS, approvalForm, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalForm, siteApprovalMessage } from './approval.js';
 export type { ImageCaps, Thumbnailer, ToolImage, ToolOutput } from './result.js';
 export type { ToolDef, ToolContext } from './tools/define.js';
-/** One call of an operation, SDK-free: the operation contract's (the Studio's server runs its ops through it too). */
-export { callTool } from '@retake/engine/contract';
+/**
+ * One call of an operation, SDK-free: the operation contract's (`invoke`, which the Studio's server runs its ops
+ * through too); `callTool` is its deprecated alias for one lot (L7.13).
+ */
+export { callTool, invoke } from '@retake/engine/contract';
 export type { ToolCallOutcome } from '@retake/engine/contract';
 export { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN } from './tools/comments.js';
 

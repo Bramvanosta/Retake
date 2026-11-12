@@ -7,7 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Engine, PlanPreviewView, RenderStatusView } from '@retake/engine';
 import { latestLines, planPreview, render } from '../src/tools/render.js';
-import { runList } from '../src/tools/run.js';
+import { OPERATIONS_BY_NAME } from '@retake/engine/contract';
+
+const { run_list: runList } = OPERATIONS_BY_NAME;
 
 const RUN = '20261001-100000-quote';
 /** A folder name that is a run id and reads as an instruction. */

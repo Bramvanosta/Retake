@@ -20,7 +20,8 @@ packages/editor       (phase 2) Remotion compositions + edit planner + render AP
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
 packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
                       if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker;
-                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `callTool`) and catalogue (§4c);
+                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `invoke`), the engine's
+                      operations (`OPERATIONS`, L7.13) and catalogue (§4c);
                       `@retake/engine/catalogue`: the catalogue alone, browser-safe (no run-time import)
 packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c): the contract's operations as tools
 packages/ui           (L4.1) the Studio web app and its server (`retake ui`, §4c)
@@ -2508,9 +2509,15 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 `readme_error` says why (a link leading out: `readme` and `readme_hash` null; not UTF-8: the text with U+FFFD).
 `project_update_readme` holds `README_MAX_CHARS` (200,000) for the file as written, its final line break included.
 
-**`callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** (`@retake/engine/contract`, an
-`exports` sub-path of the engine; moved from the MCP package) — the zod parse (problems per argument) and the handler,
-SDK-free; `protocolTool` and the Studio server both use it. The same entry holds `ToolDef<S, D, N>` (input schema,
+**`invoke(op, engine, args, {shell, signal, progress?, approver?}) → {ok, output} | {ok: false, error: EngineError}`**
+(`@retake/engine/contract`, an `exports` sub-path of the engine; L7.13, after `callTool`, its deprecated alias for one
+lot) — SDK-free and never throwing: the catalogue serves `op` in `shell` (else `not_found`), the zod parse (problems per
+argument), the operation's caller rules (`callers`, with the engine's read-only `Engine.caller`), the handler, every
+failure typed; `protocolTool` (shell `mcp`) and the Studio server (shell `studio`) both use it. Admission stays inside
+the submits. The engine's operations live in `packages/engine/src/operations/` (`OPERATIONS`, `OPERATIONS_BY_NAME`:
+L7.13 moved the eleven both shells serve — engine_info, project_list, project_get, project_update_readme,
+scenario_validate, run_list, run_status, run_cancel, job_list, auth_status, auth_login); MCP's `TOOLS` holds those very
+objects and the Studio's table those or their pinned arguments (`defineOperation` holds a name to the catalogue). The same entry holds `ToolDef<S, D, N>` (input schema,
 answer data, name — kept, not erased: `defineTool` infers them; `ToolArgs`, `ToolData`, `ToolsByName` read them) /
 `ToolContext` / `ToolOutput<D>`, `capUntrusted` and `pinArguments` (typed by its pins: `PinnedTool`), and the
 **operation catalogue** (`catalogue.ts`, also its own

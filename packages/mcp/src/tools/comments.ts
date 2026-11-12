@@ -20,7 +20,7 @@ import { renderLatestData, renderLatestLines } from './render.js';
 import type { ToolImage } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
-import { issueLine } from './scenario.js';
+import { issueLine } from '@retake/engine/contract';
 
 const commentId = z
   .string()

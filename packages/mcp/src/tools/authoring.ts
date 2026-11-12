@@ -18,8 +18,8 @@ import { envName, projectSlug, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import { READ, RUN_JOB, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
-import { jobErrorLine, jobLine } from './job-lines.js';
-import { WAIT_MAX_S } from './run.js';
+import { jobErrorLine, jobLine } from '@retake/engine/contract';
+import { WAIT_MAX_S } from '@retake/engine/contract';
 
 const scriptLine = (i: ScriptIssue) => `script ${i.line}${i.col !== undefined ? `:${i.col}` : ''} ${i.severity}: ${i.message}`;
 const yamlLine = (i: ValidationIssue) => `draft ${i.line !== undefined ? `${i.line}:${i.col ?? 1} ` : ''}${i.severity}${i.path.length ? ` ${i.path.join('.')}` : ''}: ${i.message}`;

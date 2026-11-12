@@ -83,7 +83,7 @@ export async function submitExportJob(
   // (A variant this version does not write has no size: the editor's sentence in fixed words, as the engine's error.)
   let rerendered: ExportFormatName[];
   try {
-    rerendered = formats.filter((f) => ed.exportMethod(record, f, { trust: 'mcp' }) === 'render');
+    rerendered = formats.filter((f) => ed.exportMethod(record, f, { trust: ENGINE_TRUST }) === 'render');
   } catch (e) {
     throw toEngineError(e);
   }

@@ -1,3 +1,4 @@
+import { CANCEL } from '@retake/engine/contract';
 import type { ToolAnnotations } from '@retake/engine/contract';
 
 /**
@@ -7,9 +8,8 @@ import type { ToolAnnotations } from '@retake/engine/contract';
 export type { ToolContext, ToolDef } from '@retake/engine/contract';
 export { defineTool } from '@retake/engine/contract';
 
-export const READ: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
-/** Writes authored files of the workspace (never deletes; overwrites need if_match). */
-export const WRITE_FILES: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+/** The annotations of the engine's operations (L7.13: READ, WRITE_FILES, CANCEL, SIGN_IN), shared by the tools here. */
+export { CANCEL, READ, SIGN_IN, WRITE_FILES } from '@retake/engine/contract';
 /**
  * Writes a new theme folder (templates/<name>/); with replace: true it removes the theme of that name first — only one
  * this tool made through MCP that nobody changed since — hence destructive.
@@ -17,14 +17,10 @@ export const WRITE_FILES: ToolAnnotations = { readOnlyHint: false, destructiveHi
 export const THEME_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 /** Starts a job that drives a browser (and hooks) against an environment of the user's product. */
 export const RUN_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
-/** Asks for a job's cancel (its teardown and rollbacks still run). */
-export const CANCEL: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 /** A job's cancel, which discards a recording whose window is open (the catalogue: job_cancel is destructive). */
 export const JOB_CANCEL: ToolAnnotations = { ...CANCEL, destructiveHint: true };
 /** Starts a job that runs hooks against an environment (a real run may write or delete: approvals guard it). */
 export const HOOK_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
-/** Opens a browser on the user's machine for a human to sign in (or plays a persona's login steps): saves a session. */
-export const SIGN_IN: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 /** Starts or resets a local sandbox (a reset rewrites the sandbox's own data, nothing else). */
 export const SANDBOX_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 /**
