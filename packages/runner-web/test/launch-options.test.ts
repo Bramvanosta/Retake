@@ -3,8 +3,8 @@
  * keeps each launch on launchOptions and refuseUnsandboxed; each launch site, launched for real, reports a command line
  * without a switch that turns them off and puts a cross-site iframe in a process of its own (the headless shell
  * included, which leaves site isolation off unless asked); each one refuses a browser whose executable adds
- * --no-sandbox itself; on macOS (RETAKE_TEST_SLOW, python3) the kernel confirms the renderer and GPU processes are
- * sandboxed. The sign-in and recording windows are launched headless here (same launch site, same options).
+ * --no-sandbox itself; on macOS (with python3; one browser launch, run by default) the kernel confirms the renderer and
+ * GPU processes are sandboxed. The sign-in and recording windows are launched headless here (same launch site, same options).
  */
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
@@ -527,7 +527,8 @@ for p in sys.argv[1:]:
     print(p, l.sandbox_check(int(p), None, 0))
 `;
 
-describe.skipIf(!process.env.RETAKE_TEST_SLOW || !sandboxChecker())('macOS: the kernel sees the capture browser sandboxed (slow)', () => {
+// A security property, not a slow test: it runs by default wherever the kernel can be asked (macOS with python3).
+describe.skipIf(!sandboxChecker())('macOS: the kernel sees the capture browser sandboxed', () => {
   it('its renderers and GPU process are sandboxed, the browser process alone is not', async () => {
     const session = await openSession({ policy: policy, width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) });
     try {

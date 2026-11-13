@@ -144,14 +144,31 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
    re-record `apps/desktop/bundle/browsers.json` for the new revision folders
    (`node apps/desktop/scripts/bundle.mjs browser-digest <Playwright's cache>/chromium-<revision>`, and the headless
    shell's; DESIGN §4p (e)). Every release, even when nothing else changed.
-2. **The version**, everywhere it is written, then the tests, on the Mac (the CI workflow, `.github/workflows/ci.yml`, builds
-   and checks the guards on main but runs no test, BACKLOG BL-163; the release does not wait for it — see that main's run
-   of the commit is green before you tag, BACKLOG BL-144):
+2. **The version**, everywhere it is written, then the tests, on the Mac (the CI workflow, `.github/workflows/ci.yml`, builds,
+   checks the guards and runs only the deterministic tier of the tests, `pnpm test:ci`, on main, BACKLOG BL-163; the
+   release does not wait for it — see that main's run of the commit is green before you tag, BACKLOG BL-144):
    ```sh
    node scripts/set-version.mjs 0.2.1
    node scripts/set-version.mjs --check      # says nothing: every file agrees
    pnpm build && pnpm test
    ```
+   **The gated tests** — neither `pnpm test` nor any workflow runs them (`release.yml` builds and signs, it runs no
+   test), and they alone hold the app, its updater, the Docker sandboxes and the whole loops. Run each once per
+   release, on a quiet Mac with Docker running, and tick it:
+   - [ ] the desktop shell, black box (a release build of the shell first) —
+     `RETAKE_TEST_DESKTOP=1 npx vitest run packages/cli/test/desktop-shell.test.ts`
+   - [ ] the built app, launched and checked (about 5 min) — `RETAKE_TEST_BUNDLE=1
+     RETAKE_TEST_BUNDLE_FFMPEG=<ffmpeg-out> npx vitest run packages/cli/test/app-bundle-acceptance.test.ts`
+     (`<ffmpeg-out>`: the folder `node scripts/build-ffmpeg.mjs` wrote)
+   - [ ] the updater end to end (two app builds, ≈ 3 GB of scratch) —
+     `RETAKE_TEST_UPDATE=1 npx vitest run packages/cli/test/app-update-e2e.test.ts`
+   - [ ] the Docker sandboxes (about 65 s; images `retake-test-*`, removed after) — `RETAKE_TEST_DOCKER=1 npx vitest run
+     packages/sandbox/test/compose.test.ts packages/sandbox/test/compose-env.test.ts packages/engine/test/sandboxes.test.ts
+     packages/cli/test/sandbox-docker.test.ts`
+   - [ ] the SQL hooks against Postgres (a few seconds; `pnpm test` runs them too when the image is here, this one
+     fails instead of skipping) — `pnpm test:pg`
+   - [ ] the slow acceptances: the catalogue capture, the MCP loops, the phase 3 loop, the Studio's (about 13 min) —
+     `pnpm test:slow`
 3. **The notes**: a `## [0.2.1] — <date>` section in `CHANGELOG.md` whose first paragraph is written for the person
    about to click Install and Restart (plain text: the update sheet shows it as typed; the release page shows it too).
 4. **Commit on main** and push main; wait for its CI run (`gh run list --branch main --workflow ci.yml`) to be green.

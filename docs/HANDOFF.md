@@ -75,6 +75,99 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.43)
+- **L7.43 done (2026-11-13; branch `claude/arch-l7`)** — the tests run in the CI (a deterministic tier) and the test
+  tooling holds without a reader's memory.
+  - Code: `scripts/test-ci.json` (`ci`: 358 files; `out`: 187 under 5 reasons — Chromium, ffmpeg, either through a child
+    process, the RETAKE_TEST_* gates, codesign/hdiutil) + `scripts/test-ci.mjs` (`pnpm test:ci`: PATH without the
+    folders of ffmpeg/ffprobe/docker/Chromium, empty PLAYWRIGHT_BROWSERS_PATH, no RETAKE_TEST_* gate or tool variable,
+    RETAKE_TEST_PG=off), run as the last step `The deterministic tests` of ci.yml's `checks` job (timeout 30 → 45 min).
+    `packages/test-support/src/postgres.ts`: the SQL tests start a throwaway `retake-pg-test-<hex>` per file by default
+    when Docker + `postgres:17-alpine` are here (never pulled; 15-min lifetime cap, removed with its volume), skip saying
+    why otherwise; `scripts/test-pg.mjs` now checks Docker/image and runs them with RETAKE_TEST_PG_REQUIRED=1. The macOS
+    kernel-sandbox case of launch-options runs by default (out of RETAKE_TEST_SLOW and of `pnpm test:slow`).
+    `test-support/golden.ts` `recordGolden`: RETAKE_WRITE_SNAPSHOTS=1 writes then fails ("recorded …: review the diff
+    and rerun") in the 12 golden files. `scripts/test-guard.mjs`: counts `expect.soft`, reads `it.each` / `it.for` /
+    nested `skipIf(…)` titles, reports a matcher traded for a weaker one. `test-support/http.ts` `freePort()`:
+    job-programs, render-isolation, cli-http no longer listen on fixed ports. `scripts/coverage.mjs` +
+    `scripts/coverage-setup.mjs` (coverage on demand, no dependency; vitest.config.ts adds the setup file only when
+    RETAKE_COVERAGE_RAW is set). docs/RELEASING.md step 2: the gated release tests as a checklist with their commands.
+    docs/guide/development.md: test:ci, test:pg, goldens, freePort, coverage, test-guard.
+  - Tests: new test-ci-tier (4), postgres-helper (4), record-golden (4), coverage-script (2); test-guard +3, review
+    checks +2 (duration-mismatch / size-mismatch, one-frame caption overlap), editor timeline's 4-minute case made
+    linear (8-minute model ≈ 2× the 4-minute one) with wide bounds (best of 3 < 250 ms / 500 ms; it was < 50 ms on one
+    cold call), ci-workflow (the test step). Run alone with a fresh RETAKE_HOME: every touched file green (list in the
+    report), except requirements-cites until the requirement edits are applied.
+  - Boy scout: `mcp/test/theme-ops-characterization` failed on any day but the one its fixture was recorded (the theme
+    file's header names today's date; fixture said 2026-11-12) — the date is now normalised, fixture updated (4 lines).
+  - Mutations (all red, restored byte for byte): review duration tolerance 0.15 → 1.5, clip cue overlap `>` → `> +1`,
+    video caption overlap `> allowed` → `> allowed + 1`, size check height dropped; test-guard: soft not counted,
+    each/for not read, matcher downgrade not reported; recordGolden not throwing; test-ci.json a file dropped, ciEnv
+    keeping RETAKE_TEST_*, ciEnv keeping tool folders on PATH, ci.yml without the test step; postgres helper: image
+    check dropped, `off` not honoured, REQUIRED not failing.
+  - Measured: `pnpm test:ci` on this Mac (another session loading it, load ≈ 5): 355 files, 4,692 tests, 232 s
+    (3 min 52 s); before the last 3 files were added. The stripped run of the whole suite that chose the tier: 8 min.
+  - Gates: `npx tsc -b`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `node scripts/audit/rules.mjs --check`
+    exit 0; `node scripts/requirements.mjs --check-cites <scratch copy with the edits>` exit 0 (re-run after the fix pass, with the new titles cited in R-ARCH-51); `node
+    scripts/test-guard.mjs`: 1 item — `ci-workflow.test.ts` title "… no test suite on the runner (BL-163)" renamed
+    "… then the CI tier of the tests only (BL-163)" (the test now asserts the opposite; expects 37 → 41), cites
+    updated in R-ARCH-14.
+  - Not done: the CI run itself (not pushed); T-5 (order dependence, and its weekly shuffled run); T-10 (slow files onto
+    memory ports); app-update-e2e keeps its configurable port 4990 (baked into the two builds it may reuse).
+  - Fix pass (review W1–W6, `.private/l7/L7.43-review.md`):
+    - W1: `ciEnv` sets RETAKE_FFMPEG / RETAKE_FFPROBE / RETAKE_CHROMIUM / RETAKE_CHROMIUM_HEADLESS_SHELL / RETAKE_DOCKER
+      to missing paths under the empty browsers folder (read before PATH, so children that re-add Homebrew via
+      clientPath find nothing). Tier rerun: no file failed; one case skipped more (editor render-policy "the work's
+      ffmpeg by its path", it skipped on any RETAKE_FFMPEG) — the case now sets the shell's variable aside instead.
+    - W2: `--pull never` (`containerRunArgs`), `removeOnExit` (exit, IPC disconnect, SIGINT, SIGTERM → `docker rm -f
+      -v`), `stop()` in a `finally` of both SQL files' afterAll. Checked by hand: vitest SIGINT and SIGTERM mid-run →
+      no container left 3 s later (before this fix it stayed; the worker only sees its channel close, hence
+      `disconnect`).
+    - W3: no wall-clock bound of the tier depends on machine speed any more for the cases named: agent-safety (5
+      lookups shown in flight together; the timer was 400 ms each), live-channel S1 (fewer idle sockets closed than
+      the cap when the first frame came), events (README event within 2 ticks of the server's own poll timer, counted
+      by wrapping its setInterval), step-edits / line-diff / agent-shell / timeline (ratio of two sizes, best of 3,
+      1 ms floor: < 10, < 10, < 10, < 3), plain-file FIFO (a synchronous open that waited would never return: the
+      answer is the proof; asserts the fixture is a FIFO). The lower-risk deadline bounds the review lists stay.
+    - W4: test-guard classes exact > partial (bounds, toContain, toMatch, toMatchObject, toHaveProperty, toThrow(x) …)
+      > weak (WEAK_MATCHERS + bare toThrow() / toHaveBeenCalledWith()); a test going down a class is reported. Over
+      HEAD~8/~20/~40 one new finding vs the old guard: ui/test/app-source "⚑ placeholders take the app's own colour…"
+      (L7.34 changed `toBe('var(--ui-text-3)')` into `toContain` + a contrast `≥ 4.5`) — a true positive of the rule,
+      deliberate at the time.
+    - W5: the tier walker skips node_modules only; the test pins vitest's include text.
+    - W6: coverage-script tests on a scratch git repository of their own (summary, report), the merger through a dist
+      `.js.map` and an inline map (two passes add up), and a real run (setup file in the worker; `--state` kept; no
+      `retake-coverage-*` left). coverage.mjs removes its work folder after the report; `createMerger(state, raw,
+      root)`.
+    - Mutations (all red): ciEnv tool variables not set; `--pull never` dropped; removeOnExit (each event) pinned;
+      protected-host lookups made sequential; live channel room never made; event poll refreshing every 3rd tick;
+      line-diff cap applied after an uncapped search (ratio 14.5); a verify that parses n/4000 times (ratio 12.1);
+      test-guard BARE_MATTERS emptied, toBeGreaterThan out of PARTIAL; merger counting every range covered; work folder
+      kept; vitest include narrowed. Survived (noted): a cheap O(n²) line loop in verifyEditText (ratio 7.4 < 10: the
+      parse dominates); the agent-shell ratio was not mutated (its rule is in core/agent-policy.ts, L7.40's file).
+    - Found in the full tier run: the coverage-script real run (vitest inside vitest) inherited this run's
+      `RETAKE_TEST_*_MADE` names, so its teardown removed the parent run's captures and CFFIXED_USER_HOME folders while
+      16 other files used them (ENOENT at collection). The nested run now gets an environment without them
+      (`nestedEnv`), and the test asserts the parent's folders survive (mutation: the old env → red).
+    - Tier after the fix pass (W1 variables set): 358 files, 4,708 tests, 237 s on the loaded Mac; 1 failure,
+      requirements-cites (until the edits are applied); 32 skipped, all gates.
+  - Re-review 1 (R1, R2, events caveat):
+    - R1: `@retake/test-support/timing` `perCallMs` (a call repeated until a round lasts ≥ 20 ms, best of 3): every
+      ratio compares real times, no 1 ms floor. step-edits 1,200 vs 9,600 steps (8.1×, bound 13), line-diff capped
+      3,000 vs 12,000 lines (1.0×, bound 8), agent-shell 250× longer text (1.1×, bound 5), timeline 4 vs 16 minutes
+      (≈ 3.8×, bound 8). Mutations red: the cheap O(n²) line loop in verifyEditText (ratio 29, it survived before), an
+      O(steps²) loop in timelineOf (13×), line-diff cap applied after an uncapped search (17×).
+    - R2: one golden switch. core io-characterization, policy-characterization, blocks and runner-web kit-page, look
+      now record through `recordGolden` under RETAKE_WRITE_SNAPSHOTS (bytes for the PNGs, folder made);
+      RETAKE_UPDATE_GOLDEN is read nowhere. record-golden.test fails on any `process.env.RETAKE_*GOLDEN*/*SNAPSHOT*`
+      reader or a `RETAKE_UPDATE_GOLDEN` in packages or docs/guide (mutation: one put back → red), plus an image-bytes
+      case. Behaviour change to note: look.test under the switch now fails once it wrote a changed PNG (Chromium's
+      bytes differ run to run, so it always does: record, look, rerun without), and kit-page no longer writes a missing
+      golden by itself (it fails asking for the switch). docs/guide/development.md says so.
+    - Events: counts poll starts (`Live.prototype.poll`) instead of timer ticks: the change is in the answer of the
+      poll running at the write or of the first one started after it (≤ 1 started after). Mutation (changes emitted a
+      poll late): red (by the event's content, which also changes).
+
 ## State (after L7.40)
 - **L7.40 done (2026-11-13; branch `claude/arch-l7`)** — one shell lexer in core (`shell-words.ts`: `lexCommand` / `lexShell`, `shellTokens`, `shellWords` a projection) read by the destructive-hook guard, the host scan (`shell-hosts.ts`) and the trust scan of a hook's files (`hooks/trusted-files.ts` `scriptTokens`); the guard reads a command with its quoting resolved and follows every script it makes a program run (`shellRuns`, core shell-runs.ts), under one conservative rule: whenever the script a program will run is not exactly in the command, the command counts as destructive. Closes CC-M1 (S fix and M unify), T-2, T-3, T-4, T-7, T-16, the review's V1–V9, V11 and the re-review's R1–R4 (V10, V12 left by decision).
   - **Code**: core `shell-words.ts` — the lexer (moved from shell-hosts; `LexOptions.dollar` `'keep'` or a lookup; tokens carry `computed` and `pattern` — unquoted glob / brace characters), `shellCommands` generic, `commandWordAt(args, onAssign?)` (assignments, redirections, `function NAME`, `coproc [NAME {]`, `time -p`, keywords, wrappers), `SHELLS` (sh, bash, zsh, dash, ksh, ash, mksh, yash, fish, tcsh, csh), `shellInvocation` (`-c` alone or in a cluster, after options, `-o name`, `--`; stdin; a script file; with the index of the script word) behind `nestedShellScript`. New `shell-runs.ts` (hooks context; scripts/audit/lib.mjs lists it): `shellRuns` — one linear pass over the commands outside heredoc bodies, tracking compound depth and the pipeline being read; it follows exact scripts (literal `-c` / `eval` / `trap` / `alias` / `env -S` / `watch` / `su -c` / `parallel` / `xargs sh -c` / `find -exec sh -c` strings, literal heredocs and here-strings, `cat <<'EOF' |`, an `echo` without backslashes or a `printf` with one literal format, no directive but `%%`, ANSI-C escapes only, piped directly to the shell) and sets `unreadable` for every other script a program runs: computed strings, any other pipe into a shell (after a line break, `|&`, inside a subshell or compound command), `/dev/stdin`, `/dev/fd/*`, `<&N`, `< <(…)`, `bash <(…)`, `source <(…)` / `. <(…)`, a computed script path, `su` / `sudo -s` reading a pipe, `xargs` with a shell and no exact script or with its replace string, `find -exec` with a computed command, `{}` as command or a shell given `{}`, `parallel` without a command or with `{`. A shell at a command's word is any name in SHELLS, `busybox sh`, or a name ending in one after `-` / `_` / a restricted `r` or with a version (`rbash`, `bash5.2`, `my-zsh`). `destructive.ts`: `readScript`; `shellDestructiveCommand` (names, then the scripts, then `unreadable` and computed command words) and `psqlDestructiveStatement` walk the same scripts (depth 8). `shell-hosts.ts`: `tokenize` is `lexCommand` with its scope lookup, `commandAt` is `commandWordAt` with the scope's assignments. `trusted-files.ts`: `scriptTokens` reads as the guard (`'keep'` + redirects) and `scanScript` scans each command substitution's script. `approval.ts`: `shellFileWords` follows substitutions. docs/guide/security.md (the rule in one bold sentence with the list; a person's own hook in such a form needs `confirm: true`; the trust's reading), CHANGELOG [Unreleased] Changed (the guard's rule incl. `writes: false`; approvals and trusts bind more, asked once again after the upgrade).

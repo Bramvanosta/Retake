@@ -11,7 +11,7 @@
  * command prints after its output's path, a run's `in … ·`, the time and duration of a history line), with the
  * workspace path; the times of the fixed results (a record's timings, an export's or a step's ms) are kept as printed.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -63,6 +63,7 @@ import { ExportError, RenderCancelledError, RenderError } from '@retake/editor';
 import { INSPECT_KEEP } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { cliPorts } from '../src/workspace.js';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/pipeline-cli.json', import.meta.url));
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
@@ -565,7 +566,7 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', () =>
 
   it('every case matches the fixture', () => {
     const text = `${JSON.stringify(results, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(existsSync(FILE), 'no fixture yet: RETAKE_WRITE_SNAPSHOTS=1 on this file').toBe(true);
     const fixture = JSON.parse(readFileSync(FILE, 'utf8')) as Record<string, Case>;
     expect(Object.keys(results)).toEqual(Object.keys(fixture));

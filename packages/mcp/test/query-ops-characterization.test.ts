@@ -23,7 +23,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir, hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -43,6 +43,7 @@ import type { StudioServer } from '../../ui/src/index.js';
 import { raw } from '@retake/test-support/http';
 import { writeTake } from '@retake/test-support/take';
 import { scratchHome } from '@retake/test-support/home';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/query-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -396,7 +397,7 @@ afterAll(async () => {
 describe.skipIf(!canRun)('the read-only queries of runs, renders, reviews and scenarios through their shells (characterization)', () => {
   it('answer as fixtures/query-ops.json says, through MCP stdio and the Studio', () => {
     const text = `${JSON.stringify({ mcp: mcpAnswers, studio: studioAnswers }, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect(mcpAnswers.map((a) => a.op)).toEqual(MCP.map((c) => c.op));
     expect(studioAnswers.map((a) => a.op)).toEqual(STUDIO.map((c) => c.op));

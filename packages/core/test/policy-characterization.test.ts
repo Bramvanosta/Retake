@@ -11,7 +11,7 @@
  * $RETAKE_FFPROBE, the paths of an agent-written shell command (a project's agent-writable folders, one beside it, `~`,
  * a link into them), and — on a file system that ignores case — a program or a PATH entry spelt in another case.
  *
- * Goldens are written only on request: `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/policy-characterization.test.ts`
+ * Goldens are written only on request: `RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/policy-characterization.test.ts`
  */
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -32,6 +32,7 @@ import {
 } from '@retake/core';
 import type { RenderSettings, WorkPolicy } from '@retake/core';
 import { ffmpegBin, ffprobeBin, nodeFileFacts } from '@retake/core/io';
+import { recordGolden } from '@retake/test-support/golden';
 
 const GOLDEN = fileURLToPath(new URL('./golden/policy-decisions.json', import.meta.url));
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-policy-char-')));
@@ -244,8 +245,8 @@ describe('agent policy decisions (characterization)', () => {
     const got: Record<string, unknown> = { person: decisions(false), agent: decisions(true), afterOff: decisions(false), shell: shell() };
     // Case-folded spellings only where the file system ignores case (the golden is recorded on one).
     if (process.platform === 'darwin') got.caseFolded = caseFolded();
-    if (process.env.RETAKE_UPDATE_GOLDEN === '1') writeFileSync(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
-    if (!existsSync(GOLDEN)) throw new Error(`golden ${GOLDEN} is missing: run \`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/policy-characterization.test.ts\` and read it`);
+    recordGolden(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
+    if (!existsSync(GOLDEN)) throw new Error(`golden ${GOLDEN} is missing: run \`RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/policy-characterization.test.ts\` and read it`);
     const golden = JSON.parse(readFileSync(GOLDEN, 'utf8')) as Record<string, unknown>;
     if (process.platform !== 'darwin') delete golden.caseFolded;
     expect(got).toEqual(golden);

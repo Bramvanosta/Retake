@@ -4,10 +4,10 @@
  * the action badges (exhaustive), the modifier chips, targets in plain words, line ranges and comments kept for L4.3,
  * tolerance of broken scenarios, hostile text kept verbatim, URLs without `user:password@`, YAML aliases bounded.
  *
- * Goldens are written only on request: `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/blocks.test.ts`
+ * Goldens are written only on request: `RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/blocks.test.ts`
  * (then read the diff of test/golden/blocks/).
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -28,6 +28,7 @@ import {
 } from '@retake/core';
 import { loadProject, loadProjectTemplate, fileFacts } from '@retake/core/io';
 import type { EntryBlock, HookBlock, ScenarioBlocks, SceneBlock, StepBlock } from '@retake/core';
+import { recordGolden } from '@retake/test-support/golden';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const GOLDEN = fileURLToPath(new URL('./golden/blocks/', import.meta.url));
@@ -189,11 +190,8 @@ describe('scenarioBlocks on the fixture scenarios (goldens)', async () => {
     }
     const got = outline(b);
     const golden = join(GOLDEN, `${name}.txt`);
-    if (process.env.RETAKE_UPDATE_GOLDEN === '1') {
-      mkdirSync(GOLDEN, { recursive: true });
-      writeFileSync(golden, got);
-    }
-    if (!existsSync(golden)) throw new Error(`golden ${golden} is missing: run \`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/blocks.test.ts\` and read it`);
+    recordGolden(golden, got);
+    if (!existsSync(golden)) throw new Error(`golden ${golden} is missing: run \`RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/blocks.test.ts\` and read it`);
     expect(got).toBe(readFileSync(golden, 'utf8'));
   });
 

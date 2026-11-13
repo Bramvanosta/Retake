@@ -192,11 +192,18 @@ describe('the live channel of a run job', () => {
       await new Promise((r) => setTimeout(r, 100));
       frame(ch, 1);
       const got: LiveFeedFrame[] = [];
-      const t0 = Date.now();
-      const feed = openLiveFeed(info, { signal: ac.signal, onFrame: (f) => got.push(f) });
+      let closedAtFirstFrame: number | undefined;
+      const feed = openLiveFeed(info, {
+        signal: ac.signal,
+        onFrame: (f) => {
+          got.push(f);
+          closedAtFirstFrame ??= closed;
+        },
+      });
       await until('the cached frame', () => got.length === 1, 3000);
-      // Room was made at once — not when the idle sockets time out.
-      expect(Date.now() - t0).toBeLessThan(LIVE_IDLE_MS / 2);
+      // Room was made at once — not when the idle sockets time out: they were opened together and time out together, so
+      // when the feed's first frame came most of them were still open (by order, not by a clock).
+      expect(closedAtFirstFrame).toBeLessThan(LIVE_SOCKETS_MAX);
       // The idle sockets the server did not close to make room close by themselves.
       await until('every idle socket closed', () => closed === LIVE_SOCKETS_MAX, LIVE_IDLE_MS + 3000);
       // As many idle sockets again: the stream stays and still gets frames.

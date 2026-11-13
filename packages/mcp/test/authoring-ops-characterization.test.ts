@@ -31,7 +31,7 @@
  * Playwright, headless), record_save of a real draft (record-ops), the façade's own caller rules (engine record-studio).
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { homedir, hostname, tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
@@ -53,6 +53,7 @@ import type { StudioServer } from '../../ui/src/index.js';
 import { raw } from '@retake/test-support/http';
 import { stubTools } from '../../ui/test/studio-tools.js';
 import { scratchHome } from '@retake/test-support/home';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/authoring-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -541,7 +542,7 @@ afterAll(async () => {
 describe.skipIf(!posix)('authoring, recording, project writes and job_status through their shells (characterization)', () => {
   it('answer as fixtures/authoring-ops.json says, through MCP stdio, the Studio and invoke', () => {
     const text = `${JSON.stringify({ mcp: mcpAnswers, studio: studioAnswers, invoke: invokedAnswers }, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect(mcpAnswers.map((a) => a.op)).toEqual(MCP.map((c) => c.op));
     expect(studioAnswers.map((a) => a.op)).toEqual(STUDIO.map((c) => c.op));

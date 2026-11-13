@@ -5,6 +5,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { Journal, databaseTarget, maskSql, runHooks, transactionControl } from '@retake/hooks';
 import type { HookStep, ProjectConfig } from '@retake/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
+import { postgresForTests, startPostgres } from '@retake/test-support/postgres';
+import type { TestPostgres } from '@retake/test-support/postgres';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
 beforeEach(async () => {
@@ -82,24 +84,35 @@ describe('sql hooks without a server', () => {
 });
 
 /**
- * Real Postgres: set RETAKE_TEST_PG to a connection URL whose role may create tables, e.g.
- * postgres://retake:retake_pw@127.0.0.1:5432/retake_test
+ * Real Postgres, by default wherever it can run (test-support postgres.ts): RETAKE_TEST_PG as given (a connection URL
+ * whose role may create tables, e.g. postgres://retake:retake_pw@127.0.0.1:5432/retake_test), else a throwaway
+ * container when Docker runs and the image is here; skipped otherwise, saying why.
  */
-const PG = process.env.RETAKE_TEST_PG;
+const POSTGRES = postgresForTests('hooks sql.test.ts');
 
-describe.skipIf(!PG)('sql hooks against Postgres', () => {
+describe.skipIf(!POSTGRES.ok)('sql hooks against Postgres', () => {
   const table = `nf_replies_${process.pid}_${Date.now() % 100000}`;
-  const password = PG ? databaseTarget(PG).password : undefined;
+  let server: TestPostgres | undefined;
+  let PG: string;
+  let password: string | undefined;
   let admin: pg.Client;
 
   beforeAll(async () => {
+    server = await startPostgres();
+    PG = server.url;
+    password = databaseTarget(PG).password;
     admin = new pg.Client({ connectionString: PG });
     await admin.connect();
     await admin.query(`CREATE TABLE ${table} (id serial PRIMARY KEY, text text NOT NULL, shown_on date)`);
   });
   afterAll(async () => {
-    await admin.query(`DROP TABLE IF EXISTS ${table}`);
-    await admin.end();
+    // The container goes whatever happened to the table or the connection (a server gone, a failed beforeAll).
+    try {
+      await admin?.query(`DROP TABLE IF EXISTS ${table}`);
+      await admin?.end();
+    } finally {
+      await server?.stop();
+    }
   });
   beforeEach(async () => {
     await admin.query(`TRUNCATE ${table}`);

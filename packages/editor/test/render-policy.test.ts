@@ -644,12 +644,19 @@ describe('the encode ffmpeg (L7.3)', () => {
   });
 
   it('the work\'s ffmpeg by its path: a bare name looked up in the PATH; one the PATH finds through a relative folder is refused with those words (never "none found"); none on the PATH is the bare name', (ctx) => {
-    if (process.env.RETAKE_FFMPEG?.trim() || process.platform === 'win32') return ctx.skip();
-    const files = nodeFileFacts;
-    const lookup = (path: string, has: string) => ({ path, files, exists: (f: string) => f === has });
-    expect(workFfmpeg(PERSON_POLICY, lookup('/no-such-root/tools/bin', '/no-such-root/tools/bin/ffmpeg'))).toBe('/no-such-root/tools/bin/ffmpeg');
-    expect(workFfmpeg(PERSON_POLICY, lookup('/no-such-root/tools/bin', '/elsewhere/ffmpeg'))).toBe('ffmpeg');
-    expect(() => workFfmpeg(PERSON_POLICY, lookup('tools/bin', join(process.cwd(), 'tools/bin/ffmpeg')))).toThrow(/ffmpeg \(ffmpeg\) is found through the relative PATH folder "tools\/bin"/);
+    if (process.platform === 'win32') return ctx.skip();
+    // $RETAKE_FFMPEG comes before PATH: the shell's (the CI tier names a missing one) is set aside for this case.
+    const shell = process.env.RETAKE_FFMPEG;
+    delete process.env.RETAKE_FFMPEG;
+    try {
+      const files = nodeFileFacts;
+      const lookup = (path: string, has: string) => ({ path, files, exists: (f: string) => f === has });
+      expect(workFfmpeg(PERSON_POLICY, lookup('/no-such-root/tools/bin', '/no-such-root/tools/bin/ffmpeg'))).toBe('/no-such-root/tools/bin/ffmpeg');
+      expect(workFfmpeg(PERSON_POLICY, lookup('/no-such-root/tools/bin', '/elsewhere/ffmpeg'))).toBe('ffmpeg');
+      expect(() => workFfmpeg(PERSON_POLICY, lookup('tools/bin', join(process.cwd(), 'tools/bin/ffmpeg')))).toThrow(/ffmpeg \(ffmpeg\) is found through the relative PATH folder "tools\/bin"/);
+    } finally {
+      if (shell !== undefined) process.env.RETAKE_FFMPEG = shell;
+    }
   });
 
   it("an ffmpeg of ours that failed at an encode is not taken again by this process: the next render keeps its path, with the library's, and says why", async () => {

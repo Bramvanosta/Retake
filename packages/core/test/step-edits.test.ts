@@ -25,6 +25,7 @@ import {
   verifyEditText,
 } from '../src/index.js';
 import type { StepEdit } from '../src/index.js';
+import { perCallMs } from '@retake/test-support/timing';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCENARIOS = join(ROOT, 'projects', 'northfield-fixture', 'scenarios');
@@ -259,16 +260,31 @@ describe('layouts the splices handle', () => {
   });
 
   it('1,200 steps: a move across scenes and its verify in well under a second', () => {
-    const lines = ['scenes:'];
-    for (let s = 0; s < 12; s++) {
-      lines.push(`  - id: s${s}`, '    steps:');
-      for (let i = 0; i < 100; i++) lines.push(`      - click: Button ${s}-${i}`);
-    }
-    const t = `${lines.join('\n')}\n`;
-    const t0 = performance.now();
-    const r = move(t, 's11', 99, 's0', 0);
-    expect(verifyEditText(r.text, r.intended)).toBeNull();
-    expect(performance.now() - t0).toBeLessThan(1000);
+    /** 12 scenes of `per` steps. */
+    const text = (per: number) => {
+      const lines = ['scenes:'];
+      for (let s = 0; s < 12; s++) {
+        lines.push(`  - id: s${s}`, '    steps:');
+        for (let i = 0; i < per; i++) lines.push(`      - click: Button ${s}-${i}`);
+      }
+      return `${lines.join('\n')}\n`;
+    };
+    /** A move of the last step to the front and its verify, per call (repeated until a round lasts 20 ms; best of 3). */
+    const timed = (per: number) => {
+      const t = text(per);
+      const r = move(t, 's11', per - 1, 's0', 0);
+      expect(verifyEditText(r.text, r.intended)).toBeNull();
+      return perCallMs(() => {
+        const m = move(t, 's11', per - 1, 's0', 0);
+        verifyEditText(m.text, m.intended);
+      });
+    };
+    const small = timed(100);
+    const large = timed(800);
+    console.log(`move + verify: 1,200 steps ${small.toFixed(1)} ms, 9,600 steps ${large.toFixed(1)} ms`);
+    // Linear in the scenario, whatever the machine's speed: eight times the steps cost about eight times as much, far
+    // from the 64 times a quadratic edit or verify would (each side measured over rounds of 20 ms or more).
+    expect(large / small).toBeLessThan(13);
   });
 });
 

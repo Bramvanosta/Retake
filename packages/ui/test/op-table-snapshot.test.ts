@@ -4,12 +4,13 @@
  * own ops), and the ops' own HTTP statuses (OP_STATUS) — held byte for byte against fixtures/op-table.json. After an
  * intended change: RETAKE_WRITE_SNAPSHOTS=1 on this file, then review the diff.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { OP_STATUS, UI_OPS } from '../src/server/studio.js';
 import { stubTools } from './studio-tools.js';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/op-table.json', import.meta.url));
 
@@ -32,7 +33,7 @@ function opTableText(): string {
 describe("the Studio's operation table (snapshot)", () => {
   it("the allow-list, each op as /v1/call parses it and the ops' own statuses match fixtures/op-table.json byte for byte", () => {
     const text = opTableText();
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect(UI_OPS).toHaveLength(76);
   });

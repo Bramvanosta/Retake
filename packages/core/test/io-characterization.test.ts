@@ -8,7 +8,7 @@
  * of its committed video files. The cases after the first commit (a synthetic sandbox's seed hash, the fixture's videos
  * probed and checked) were recorded against the code before the move and match it.
  *
- * Goldens are written only on request: `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/io-characterization.test.ts`
+ * Goldens are written only on request: `RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/io-characterization.test.ts`
  */
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,6 +38,7 @@ import {
 import type { HookStep } from '@retake/core';
 import { STUDIO_CONFINEMENT } from '@retake/test-support/confinement';
 import { AGENT_CONFINEMENT } from '@retake/core';
+import { recordGolden } from '@retake/test-support/golden';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 const GOLDEN = fileURLToPath(new URL('./golden/io-loaders.json', import.meta.url));
@@ -272,8 +273,8 @@ describe('core loaders and disk probes (characterization)', () => {
   });
 
   it('matches the golden', () => {
-    if (process.env.RETAKE_UPDATE_GOLDEN === '1') writeFileSync(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
-    if (!existsSync(GOLDEN)) throw new Error(`golden ${GOLDEN} is missing: run \`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/io-characterization.test.ts\` and read it`);
+    recordGolden(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
+    if (!existsSync(GOLDEN)) throw new Error(`golden ${GOLDEN} is missing: run \`RETAKE_WRITE_SNAPSHOTS=1 npx vitest run packages/core/test/io-characterization.test.ts\` and read it`);
     expect(got).toEqual(JSON.parse(readFileSync(GOLDEN, 'utf8')));
   });
 });

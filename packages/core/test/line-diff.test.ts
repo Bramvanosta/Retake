@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { LineDiffError, applyHunks, diffLines, hunkOrderProblem, hunkStats, invertHunks, joinLines, lineBreaks, sameHunks, textLines } from '../src/index.js';
 import type { LineHunk } from '../src/index.js';
+import { perCallMs } from '@retake/test-support/timing';
 
 /** A small deterministic generator (mulberry32). */
 function rng(seed: number): () => number {
@@ -136,9 +137,19 @@ describe('diffLines / applyHunks (T9)', () => {
   it('the cap stops the search: past maxChanged changed lines, null', () => {
     const a = Array.from({ length: 3000 }, (_, i) => `line ${i}`);
     const b = a.map((l) => `${l} changed`);
-    const t0 = performance.now();
+    /** A capped search over `n` lines that all changed, per call (repeated until a round lasts 20 ms; best of 3). */
+    const capped = (n: number) => {
+      const x = Array.from({ length: n }, (_, i) => `line ${i}`);
+      const y = x.map((l) => `${l} changed`);
+      expect(diffLines(x, y, { maxChanged: 200 })).toBeNull();
+      return perCallMs(() => diffLines(x, y, { maxChanged: 200 }));
+    };
     expect(diffLines(a, b, { maxChanged: 200 })).toBeNull();
-    expect(performance.now() - t0).toBeLessThan(2000);
+    // The cap bounds the search, whatever the machine's speed: four times the lines cost at most about four times as
+    // much, far from the sixteen times an uncapped search over lines that all changed would.
+    const [n1, n4] = [capped(3000), capped(12_000)];
+    console.log(`capped diff: 3,000 lines ${n1.toFixed(3)} ms, 12,000 lines ${n4.toFixed(3)} ms`);
+    expect(n4 / n1).toBeLessThan(8);
     const small = [...a];
     small[1500] = 'one change';
     expect(diffLines(a, small, { maxChanged: 200 })).toEqual([{ at: 1501, del: ['line 1500'], add: ['one change'] }]);

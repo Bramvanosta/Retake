@@ -18,6 +18,7 @@ import { planEdit } from '@retake/editor/plan';
 import type { EditOverrides, PlanEditInput, PlanInputFile } from '@retake/editor/plan';
 import { FIXTURES, fixtureProject, template } from '@retake/test-support/timeline';
 import { REPO } from '@retake/test-support/repo';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = join(FIXTURES, 'planner-golden.json');
 const TIMELINES = ['catalogue', 'highlights', 'live-quote', 'phone-and-desktop', 'quote-artefacts', 'quote', 'signup-tutorial', 'signup'] as const;
@@ -157,7 +158,7 @@ describe('the planner (golden output)', () => {
       if (dump) writeFileSync(join(dump, `${c.name.replace(/\//g, '__')}.json`), `${JSON.stringify(JSON.parse(text), null, 1)}\n`);
     }
     const text = `${JSON.stringify(now, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(JSON.parse(text)).toEqual(JSON.parse(readFileSync(FILE, 'utf8')));
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect(Object.keys(now)).toHaveLength(CASES.length);

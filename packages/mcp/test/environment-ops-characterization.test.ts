@@ -16,7 +16,7 @@
  * before the move (RETAKE_WRITE_SNAPSHOTS=1 on this file records it again: review the diff); the test also holds that
  * the fixture names nothing of this machine.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -31,6 +31,7 @@ import { RETAKE_VERSION } from '@retake/core';
 import { readWorkerLock } from '@retake/engine';
 import { REPO } from '@retake/test-support/repo';
 import { testChildEnv } from '@retake/test-support/child-env';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/environment-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -360,7 +361,7 @@ afterAll(async () => {
 describe.skipIf(!posix)('the hooks, environment-reset and sandbox operations through MCP stdio (characterization)', () => {
   it('answer as fixtures/environment-ops.json says: approvals answered, declined, never answered or not askable; dry runs; refusals', () => {
     const text = `${JSON.stringify({ mcp: answers }, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect([...new Set(answers.map((a) => a.op))].sort()).toEqual(['env_reset', 'hooks_run', 'sandbox_reset', 'sandbox_status', 'sandbox_up']);
     expect(protocolErrors).toEqual([]);

@@ -264,6 +264,62 @@ describe('plan checks on the fixture plans', () => {
     expect(findings.some((f) => f.code === 'caption-scene-mismatch' && f.message.includes('stays'))).toBe(true);
   });
 
+  it('flags captions that overlap by one frame (in a clip and across the video), not captions that touch', () => {
+    const ctx = ctxOf('quote');
+    const overlaps = (plan: EditPlan) => checkCaptions({ ...ctx, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan) }).filter((f) => f.code === 'caption-overlap');
+    const withCues = (shift: number) => {
+      const plan = structuredClone(ctx.plan);
+      const clip = plan.segments.find((x): x is ClipSegment => x.id === 'request')!;
+      clip.cues = [
+        { from: 100, to: 140 + shift, text: 'A first line.', scene: clip.scene },
+        { from: 140, to: 200, text: 'A second line.', scene: clip.scene },
+      ];
+      return plan;
+    };
+    expect(overlaps(withCues(0))).toEqual([]);
+    expect(overlaps(withCues(1)).map((f) => f.message)).toEqual([expect.stringMatching(/overlap for 1 frames/)]);
+    // Two video-level cues of one scene (no crossfade between them allows any overlap): touching is fine, one frame more
+    // is an overlap.
+    const withCaptions = (shift: number) => {
+      const plan = structuredClone(ctx.plan);
+      const [first, second] = [...plan.captions].sort((x, y) => x.from - y.from);
+      second.scene = first.scene;
+      first.to = second.from + shift;
+      return plan;
+    };
+    expect(overlaps(withCaptions(0))).toEqual([]);
+    expect(overlaps(withCaptions(1)).map((f) => f.message)).toEqual([expect.stringMatching(/both on screen for 0\.0\d s/)]);
+  });
+
+  it('checks the probed video against the plan: a duration off by more than the tolerance, another size', () => {
+    const ctx = ctxOf('quote');
+    const { plan } = ctx;
+    const expected = plan.durationInFrames / plan.fps;
+    const tolerance = Math.max(0.15, 2 / plan.fps);
+    const codes = (probed: { duration_s: number; width: number; height: number }) =>
+      checkRender(ctx, probed)
+        .map((f) => f.code)
+        .filter((c) => c !== 'plan-warning');
+    const size = { width: plan.width, height: plan.height };
+    expect(codes({ duration_s: expected, ...size })).toEqual([]);
+    expect(codes({ duration_s: expected + tolerance - 0.001, ...size })).toEqual([]);
+    expect(codes({ duration_s: expected - tolerance + 0.001, ...size })).toEqual([]);
+    expect(codes({ duration_s: expected + 0.2, ...size })).toEqual(['duration-mismatch']);
+    expect(codes({ duration_s: expected - 0.2, ...size })).toEqual(['duration-mismatch']);
+    const [long] = checkRender(ctx, { duration_s: expected + 0.2, ...size }).filter((f) => f.code === 'duration-mismatch');
+    expect(long).toMatchObject({ severity: 'warning', message: `the video lasts ${(expected + 0.2).toFixed(2)} s but the plan ${expected.toFixed(2)} s` });
+    expect(codes({ duration_s: expected, width: plan.width, height: plan.height + 2 })).toEqual(['size-mismatch']);
+    expect(codes({ duration_s: expected, width: plan.width / 2, height: plan.height / 2 })).toEqual(['size-mismatch']);
+    const [other] = checkRender(ctx, { duration_s: expected, width: 1280, height: 720 }).filter((f) => f.code === 'size-mismatch');
+    expect(other).toMatchObject({ severity: 'warning', message: `the video is 1280×720, the plan ${plan.width}×${plan.height}` });
+    // No probe (the video could not be read): neither check runs.
+    expect(
+      checkRender(ctx)
+        .map((f) => f.code)
+        .filter((c) => c !== 'plan-warning'),
+    ).toEqual([]);
+  });
+
   it('flags a zoom reset at a same-page join', () => {
     const ctx = ctxOf('catalogue');
     const plan = structuredClone(ctx.plan);

@@ -91,14 +91,17 @@ export default defineConfig({
       '@retake/test-support/capture': fileURLToPath(new URL('./packages/test-support/src/capture.ts', import.meta.url)),
       '@retake/test-support/child-env': fileURLToPath(new URL('./packages/test-support/src/child-env.ts', import.meta.url)),
       '@retake/test-support/confinement': fileURLToPath(new URL('./packages/test-support/src/confinement.ts', import.meta.url)),
+      '@retake/test-support/golden': fileURLToPath(new URL('./packages/test-support/src/golden.ts', import.meta.url)),
       '@retake/test-support/home': fileURLToPath(new URL('./packages/test-support/src/home.ts', import.meta.url)),
       '@retake/test-support/http': fileURLToPath(new URL('./packages/test-support/src/http.ts', import.meta.url)),
+      '@retake/test-support/postgres': fileURLToPath(new URL('./packages/test-support/src/postgres.ts', import.meta.url)),
       '@retake/test-support/render': fileURLToPath(new URL('./packages/test-support/src/render.ts', import.meta.url)),
       '@retake/test-support/repo': fileURLToPath(new URL('./packages/test-support/src/repo.ts', import.meta.url)),
       '@retake/test-support/review': fileURLToPath(new URL('./packages/test-support/src/review.ts', import.meta.url)),
       '@retake/test-support/runs': fileURLToPath(new URL('./packages/test-support/src/runs.ts', import.meta.url)),
       '@retake/test-support/site': fileURLToPath(new URL('./packages/test-support/src/site.ts', import.meta.url)),
       '@retake/test-support/take': fileURLToPath(new URL('./packages/test-support/src/take.ts', import.meta.url)),
+      '@retake/test-support/timing': fileURLToPath(new URL('./packages/test-support/src/timing.ts', import.meta.url)),
       '@retake/test-support/timeline': fileURLToPath(new URL('./packages/test-support/src/timeline.ts', import.meta.url)),
       '@retake/test-support/workspace': fileURLToPath(new URL('./packages/test-support/src/workspace.ts', import.meta.url)),
     },
@@ -109,7 +112,8 @@ export default defineConfig({
     hookTimeout: 120_000,
     // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
     env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome, RETAKE_TEST_CAPTURES: capturesRoot },
-    setupFiles: ['./vitest.setup.ts'],
+    // `node scripts/coverage.mjs` sets RETAKE_COVERAGE_RAW: every worker then writes its V8 coverage there.
+    setupFiles: ['./vitest.setup.ts', ...(process.env.RETAKE_COVERAGE_RAW?.trim() ? ['./scripts/coverage-setup.mjs'] : [])],
     // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR); warns when the run
     // changed Chromium's files in the account's ~/Library (L5.16 Library hygiene).
     globalSetup: ['./vitest.teardown.mjs'],

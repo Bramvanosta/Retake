@@ -44,12 +44,13 @@ pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
 pnpm lint                            # Biome's lint against scripts/lint-baseline.json (may only shrink); pnpm format / format:check
 pnpm typecheck                       # = tsc -b, then the files under packages/*/test type-checked (tsconfig.test.json, nothing emitted; the CI's guards run it; `pnpm build` and `pnpm test` do not)
-pnpm test                            # = vitest run, full suite (~20 min on the Mac; run `pnpm build` first; 104 skip by default: slow, captures first, installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed)
+pnpm test                            # = vitest run, full suite (~20 min on the Mac; run `pnpm build` first; some skip by default: slow, captures first, installed Chrome, desktop app, app bundle, updater, Docker, old Node, headed; the Postgres tests run when Docker and postgres:17-alpine are here, never pulling)
                                      # export RETAKE_HOME to a scratch folder outside the checkout for every command (vitest gives a test run a temp one; retake ui refuses a Retake home inside the workspace)
                                      # never export RETAKE_CAPTURES_DIR for a suite: vitest gives each test file its own markers folder
                                      # the suite pins renders to the software path (RETAKE_RENDER_*; children: packages/test-support/src/child-env.ts)
-pnpm test:pg                         # the 7 Postgres tests on a throwaway retake-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
-pnpm test:slow                       # catalogue capture, MCP loops, theme, plugin, phase-3 and Studio acceptances, every browser launch site sandboxed (launch-options.test.ts) (~13 min)
+pnpm test:ci                         # the deterministic tier the CI runs (~4 min on the Mac): scripts/test-ci.json's `ci` files, without browsers, ffmpeg, Docker or gates; a new test file goes under `ci` or under `out` with its reason (test-ci-tier.test.ts)
+pnpm test:pg                         # the Postgres tests on throwaway retake-pg-test-* containers (~5 s; fails instead of skipping; --all: whole suite with Postgres, Docker and slow tests)
+pnpm test:slow                       # catalogue capture, MCP loops, theme, plugin, phase-3 and Studio acceptances (~13 min)
 RETAKE_TEST_CAPTURES_FIRST=1 npx vitest run packages/ui/test/captures-first-acceptance.test.ts   # a take beside a render, measured from the Studio (~10 min, a quiet Mac only)
 RETAKE_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts packages/cli/test/sandbox-docker.test.ts   # Docker sandboxes (~65 s)
 npx vitest run packages/editor/test/planner-real.test.ts    # one file
@@ -64,7 +65,9 @@ node packages/cli/dist/bin.js components preview --all --stale     # regenerate 
 node scripts/requirements.mjs [--lot L1.5]                    # regenerate docs/REQUIREMENTS.md / list a lot
 node scripts/requirements.mjs --untested 1                    # fails while a phase-1 requirement has no test
 node scripts/requirements.mjs --check-cites                   # fails when an evidence string quotes a missing test title
-node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests: no lost title, expect or test id vs a git ref
+node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests: no lost title (it.each / it.for too), expect (soft too) or test id, no weaker matcher, vs a git ref
+node scripts/coverage.mjs [files]                             # line coverage on demand, no dependency (--files <re>: least covered; --json <file>)
+RETAKE_WRITE_SNAPSHOTS=1 npx vitest run <golden test>          # every golden (JSON, text, PNG): records, then fails — review the diff and rerun without it
 node scripts/audit/rules.mjs . --check | --write-baseline   # the import-rules ratchet (packages/core/test/import-rules.test.ts; baseline scripts/audit/baseline.json, each group with a reason)
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)

@@ -3,10 +3,11 @@
  * annotations, in order — held byte for byte against fixtures/tool-list.json: a change to what Claude sees of a tool
  * shows in the diff of that file. After an intended change: RETAKE_WRITE_SNAPSHOTS=1 on this file, then review the diff.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { TOOLS, protocolTool } from '../src/index.js';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/tool-list.json', import.meta.url));
 
@@ -25,7 +26,7 @@ function toolListText(): string {
 describe('the MCP tool list (snapshot)', () => {
   it('names, titles, descriptions, input schemas and annotations match fixtures/tool-list.json byte for byte', () => {
     const text = toolListText();
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect(TOOLS).toHaveLength(45);
   });

@@ -6,7 +6,7 @@
  * engine's operations (L7.17): each call's answer through `retake mcp` over stdio (from the sources, the SDK's client)
  * and through the Studio's `POST /v1/call/<op>` (no worker), each shell on its own copy of a fixture workspace (the
  * fixture project, its own templates/, brand files copied from the starters and the built-in library, a workspace
- * card), normalised — the workspace, repository and home paths, ISO stamps, job ids, library keys and sha256s by order
+ * card), normalised — the workspace, repository and home paths, ISO stamps, a theme file's day, job ids, library keys and sha256s by order
  * of appearance, base64 images, pids, the host name, the repository's address, Node's and Retake's versions — and held
  * against fixtures/theme-ops.json, which was recorded on the commit before the move (RETAKE_WRITE_SNAPSHOTS=1 on this file
  * records it again: review the diff). The refusals are in it: the brand files' (a starter's name, an agent-writable
@@ -20,7 +20,7 @@
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, cp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,7 @@ import type { StudioServer } from '../../ui/src/index.js';
 import { raw } from '@retake/test-support/http';
 import { stubTools } from '../../ui/test/studio-tools.js';
 import { scratchHome } from '@retake/test-support/home';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/theme-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -245,6 +246,8 @@ function normalise(v: unknown, o: { paths: Array<[string, string]>; ids: Map<str
     t = t.split(RETAKE_REPOSITORY).join('<repository>');
     t = t.split(`/blob/v${RETAKE_VERSION}/`).join('/blob/v<version>/').split(RETAKE_VERSION).join('<version>');
     t = t.replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/g, '<at>');
+    // The day a theme file was made on (its header comment): today's date, not the code's.
+    t = t.replace(/\bmade from brand inputs on \d{4}-\d{2}-\d{2}\b/g, 'made from brand inputs on <date>');
     t = t.replace(/\bj_[0-9A-HJKMNP-TV-Z]{26}\b/g, byOrder('job'));
     t = t.replace(/\b[0-9a-f]{64}\b/g, byOrder('sha'));
     t = t.replace(/\b[0-9a-f]{32}\b/g, byOrder('key'));
@@ -376,7 +379,7 @@ afterAll(async () => {
 describe('the theme, component and library operations through their shells (characterization)', () => {
   it('answer as fixtures/theme-ops.json says, through MCP stdio, the Studio and invoke', () => {
     const text = `${JSON.stringify({ mcp: mcpAnswers, studio: studioAnswers, callers: callerAnswers }, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     const mcp = [
       'template_list',

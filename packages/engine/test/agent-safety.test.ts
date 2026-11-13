@@ -345,17 +345,31 @@ describe("production across projects: another project's production / read-only h
 
   it('the names of one check are resolved together, under one deadline', async () => {
     const asked: string[] = [];
+    // Together, shown by the lookups themselves rather than by a clock: each answers only once every name was asked
+    // (one after the other, the first would wait for the others until the deadline and the check would fail), and the
+    // most lookups in flight at once is all five.
+    let inFlight = 0;
+    let most = 0;
+    const waiting: Array<() => void> = [];
     const before = setProtectedHostResolver({
-      lookup: (name) => (asked.push(name), new Promise((r) => setTimeout(() => r(['192.0.2.50']), 400))),
-      timeoutMs: 2000,
+      lookup: (name) => {
+        asked.push(name);
+        most = Math.max(most, ++inFlight);
+        return new Promise((r) => {
+          waiting.push(() => {
+            inFlight--;
+            r(['192.0.2.50']);
+          });
+          if (waiting.length === 5) for (const go of waiting.splice(0)) go();
+        });
+      },
+      timeoutMs: 10_000,
     });
     try {
-      const started = Date.now();
       const pages = Object.fromEntries(['a', 'b', 'c', 'd'].map((k) => [k, `http://${k}.slow.example.test:4999/`]));
       expect((await mcp.projects.create({ name: 'Many', slug: 'many', environments: { staging: pages, preview: { e: 'http://e.slow.example.test:4999/' } } })).slug).toBe('many');
       expect([...asked].sort()).toEqual(['a', 'b', 'c', 'd', 'e'].map((k) => `${k}.slow.example.test`));
-      // One after the other would take 5 × 400 ms.
-      expect(Date.now() - started).toBeLessThan(1600);
+      expect(most).toBe(5);
     } finally {
       setProtectedHostResolver(before);
     }

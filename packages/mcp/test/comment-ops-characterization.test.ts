@@ -23,7 +23,7 @@
  */
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { homedir, hostname, tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +48,7 @@ import { raw } from '@retake/test-support/http';
 import { stubTools } from '../../ui/test/studio-tools.js';
 import { TOOLS } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/comment-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -426,7 +427,7 @@ afterAll(async () => {
 describe.skipIf(!canRun)('the comment operations through their shells (characterization)', () => {
   it('answer as fixtures/comment-ops.json says, through MCP stdio, the Studio and invoke', () => {
     const text = `${JSON.stringify({ mcp: mcpAnswers, studio: studioAnswers, busy: busyAnswer, callers: callerAnswers }, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect([...new Set(mcpAnswers.map((a) => a.op))].sort()).toEqual(['comment_reply', 'comment_resolve', 'comments_list']);
     const studio = [

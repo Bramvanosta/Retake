@@ -4,10 +4,10 @@
  * the window and the document, and the kit's answers on a fixed page — in a top document, in a same-origin frame and
  * for the recorder's passive copy, installed the way a capture installs it (an init script) and the way a re-install
  * does (evaluated in a loaded page). The golden (test/golden/kit-page.json) holds what the kit gave before it was built
- * from modules (recorded from the kit of 6e25104, `kit/kit.ts`); it is written only on request (RETAKE_UPDATE_GOLDEN=1)
+ * from modules (recorded from the kit of 6e25104, `kit/kit.ts`); it is written only on request (RETAKE_WRITE_SNAPSHOTS=1)
  * and looked at when it is.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
@@ -16,6 +16,7 @@ import { kitConfigFor, kitSource } from '../src/index.js';
 import type { KitConfig } from '../src/index.js';
 import { startServer } from '@retake/test-support/capture';
 import type { TestServer } from '@retake/test-support/capture';
+import { recordGolden } from '@retake/test-support/golden';
 
 const GOLDEN = fileURLToPath(new URL('./golden/kit-page.json', import.meta.url));
 
@@ -420,10 +421,8 @@ function stable(snap: Record<string, unknown>): Record<string, unknown> {
 describe('what the page receives from the kit', () => {
   it('the same globals, API, look, patches, listeners and answers as the kit before modules', async () => {
     const now = stable(await snapshotOf());
-    if (process.env.RETAKE_UPDATE_GOLDEN === '1' || !existsSync(GOLDEN)) {
-      expect(process.env.RETAKE_UPDATE_GOLDEN, `${GOLDEN} is missing: written now; run again with RETAKE_UPDATE_GOLDEN=1 to accept it`).toBe('1');
-      writeFileSync(GOLDEN, JSON.stringify(now, null, 1) + '\n');
-    }
+    recordGolden(GOLDEN, JSON.stringify(now, null, 1) + '\n');
+    expect(existsSync(GOLDEN), `${GOLDEN} is missing: run with RETAKE_WRITE_SNAPSHOTS=1, then review it`).toBe(true);
     const golden = JSON.parse(readFileSync(GOLDEN, 'utf8')) as Record<string, unknown>;
     for (const key of Object.keys(golden)) expect(now[key], key).toEqual(golden[key]);
     expect(Object.keys(now).sort()).toEqual(Object.keys(golden).sort());

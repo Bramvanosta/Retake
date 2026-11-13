@@ -16,6 +16,7 @@ import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
 import type { Timeline } from '@retake/core';
 import { FIXTURES, fixtureProject, synthTimeline, template } from '@retake/test-support/timeline';
 import { REPO } from '@retake/test-support/repo';
+import { perCallMs } from '@retake/test-support/timing';
 
 let registry: ComponentRegistry;
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;
@@ -228,8 +229,9 @@ describe('caption_component in the planner (L4.5)', () => {
 });
 
 describe('a 4-minute plan (critique B13: measured)', () => {
-  it('its model is built in a few milliseconds and stays small', async () => {
-    const entries = Array.from({ length: 8 }, (_, k) => ({
+  /** A take of `scenes` 30-second scenes of 12 clicks each (8 scenes: 4 minutes). */
+  const take = (scenes: number) => {
+    const entries = Array.from({ length: scenes }, (_, k) => ({
       id: `s${k}`,
       t_start: k * 30,
       t_end: k * 30 + 30,
@@ -238,17 +240,37 @@ describe('a 4-minute plan (critique B13: measured)', () => {
       caption: { text: `Scene ${k}` },
       steps: Array.from({ length: 12 }, (_, i) => ({ action: 'click' as const, t_start: k * 30 + 2 + i * 2.2, t_end: k * 30 + 3 + i * 2.2, ...(i === 5 ? { mark: `m${k}` } : {}) })),
     }));
-    const t = synthTimeline({ entries, duration: 240 });
+    return synthTimeline({ entries, duration: scenes * 30 });
+  };
+  /** A build per call (repeated until a round lasts 20 ms; the fastest of 3 rounds): a time a ratio can compare. */
+  const fastest = (p: EditPlan, t: Timeline) => perCallMs(() => timelineOf(p, { timeline: t }));
+
+  it('its model is built in a few milliseconds and stays small', async () => {
+    const t = take(8);
     const p = await plan(t);
     expect(p.durationInFrames).toBeGreaterThan(200 * 30);
-    const t0 = performance.now();
     const m = timelineOf(p, { timeline: t });
-    const ms = performance.now() - t0;
+    const ms = fastest(p, t);
     const size = JSON.stringify(m).length;
-    console.log(`4-minute plan: ${p.durationInFrames} frames, plan ${JSON.stringify(p).length} B, model ${size} B, timelineOf ${ms.toFixed(1)} ms`);
     expect(m.steps).toHaveLength(clips(p).reduce((n, c) => n + c.steps.length, 0));
     expect(m.steps.filter((x) => x.step >= 0)).toHaveLength(96);
-    expect(ms).toBeLessThan(50);
     expect(size).toBeLessThan(60_000);
+    // Linear in the take: an 8-minute plan's model is about twice the 4-minute one's, step for step.
+    const t2 = take(16);
+    const p2 = await plan(t2);
+    const m2 = timelineOf(p2, { timeline: t2 });
+    const size2 = JSON.stringify(m2).length;
+    const ms2 = fastest(p2, t2);
+    console.log(`4-minute plan: ${p.durationInFrames} frames, plan ${JSON.stringify(p).length} B, model ${size} B, timelineOf ${ms.toFixed(3)} ms; 8 minutes: model ${size2} B, ${ms2.toFixed(3)} ms`);
+    expect(m2.steps.filter((x) => x.step >= 0)).toHaveLength(192);
+    expect(size2 / size).toBeGreaterThan(1.8);
+    expect(size2 / size).toBeLessThan(2.2);
+    // And its time linear too, whatever the machine's speed: four times the take (16 minutes) costs about four times as
+    // much, far from the sixteen times a quadratic build would.
+    const t4 = take(32);
+    const p4 = await plan(t4);
+    const ms4 = fastest(p4, t4);
+    console.log(`timelineOf: 4 minutes ${ms.toFixed(3)} ms, 16 minutes ${ms4.toFixed(3)} ms`);
+    expect(ms4 / ms).toBeLessThan(8);
   });
 });

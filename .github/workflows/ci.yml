@@ -5,9 +5,11 @@
 #    - the repository's own guards: one version, the import-rules ratchet, every phase-1 requirement tested, every
 #      cited test title present, the test files type-checked (tsconfig.test.json), the lint ratchet (scripts/lint.mjs:
 #      Biome's linter held to scripts/lint-baseline.json).
-#    The test suite does not run here: on a shared runner (three cores, no GPU) it took about fifty minutes and some
-#    timing tests failed on every run, a different set each time. It runs on the Mac (`pnpm test`) until it is made
-#    faster and steadier (BACKLOG BL-163).
+#    - the deterministic tier of the tests (`pnpm test:ci`, scripts/test-ci.mjs): the files scripts/test-ci.json lists
+#      under `ci` — no browser, no ffmpeg, no Docker, no Postgres, no timing calibrated on the Mac —, run without
+#      those tools whatever the runner has. The rest of the suite (captures, renders, the Studio in a browser, the
+#      gated tiers) runs on the Mac (`pnpm test`): on a shared runner (three cores, no GPU) the whole suite took about
+#      fifty minutes and some timing tests failed on every run (BACKLOG BL-163).
 #  - desktop: the desktop shell's rules crate (apps/desktop/core, `cargo test`), on the Rust of
 #    apps/desktop/rust-toolchain.toml.
 #
@@ -31,7 +33,7 @@ concurrency:
 jobs:
   checks:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
@@ -63,6 +65,8 @@ jobs:
           node scripts/requirements.mjs --check-cites
           npx tsc -p tsconfig.test.json
           node scripts/lint.mjs
+      - name: The deterministic tests
+        run: pnpm test:ci
 
   desktop:
     runs-on: macos-15

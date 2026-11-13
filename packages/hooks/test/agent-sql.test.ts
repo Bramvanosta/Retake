@@ -13,6 +13,8 @@ import type { HookStep } from '@retake/core';
 import { Journal, hookFiles, hookFingerprint, runHooks } from '@retake/hooks';
 import type { HookApprovalRequest } from '@retake/hooks';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
+import { postgresForTests, startPostgres } from '@retake/test-support/postgres';
+import type { TestPostgres } from '@retake/test-support/postgres';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
 beforeEach(async () => {
@@ -155,20 +157,30 @@ describe("an agent's sql hooks under trust mcp", () => {
   });
 });
 
-/** Real Postgres (`pnpm test:pg`): the statement runs only once a person approved it. */
-const PG = process.env.RETAKE_TEST_PG;
+/**
+ * Real Postgres, by default wherever it can run (test-support postgres.ts: RETAKE_TEST_PG, else a throwaway container;
+ * skipped otherwise, saying why): the statement runs only once a person approved it.
+ */
+const POSTGRES = postgresForTests('hooks agent-sql.test.ts');
 
-describe.skipIf(!PG)("an agent's sql hooks under trust mcp, against Postgres", () => {
+describe.skipIf(!POSTGRES.ok)("an agent's sql hooks under trust mcp, against Postgres", () => {
   const table = `nf_agent_${process.pid}_${Date.now() % 100000}`;
+  let server: TestPostgres | undefined;
   let admin: pg.Client;
   beforeAll(async () => {
-    admin = new pg.Client({ connectionString: PG });
+    server = await startPostgres();
+    admin = new pg.Client({ connectionString: server.url });
     await admin.connect();
     await admin.query(`CREATE TABLE ${table} (id serial PRIMARY KEY, text text NOT NULL)`);
   });
   afterAll(async () => {
-    await admin.query(`DROP TABLE IF EXISTS ${table}`);
-    await admin.end();
+    // The container goes whatever happened to the table or the connection (a server gone, a failed beforeAll).
+    try {
+      await admin?.query(`DROP TABLE IF EXISTS ${table}`);
+      await admin?.end();
+    } finally {
+      await server?.stop();
+    }
   });
   beforeEach(async () => {
     await admin.query(`TRUNCATE ${table}`);

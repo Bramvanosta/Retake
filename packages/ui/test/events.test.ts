@@ -15,10 +15,10 @@ import type { ClientRequest } from 'node:http';
 import { cp, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FileJobQueue, indexFile, newJobId } from '@retake/engine';
 import { scaffoldDir } from '@retake/components';
-import { EVENT_STREAMS_MAX, startStudioServer } from '../src/index.js';
+import { EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, startStudioServer } from '../src/index.js';
 import type { LibraryViewAnswer, StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { raw } from '@retake/test-support/http';
@@ -93,6 +93,8 @@ let ws: string;
 let studio: StudioServer;
 const retakeHome = scratchHome();
 const P = 'northfield-fixture';
+/** The Studio's event poll in this file (the default is EVENT_POLL_MS). */
+const POLL_MS = 200;
 const auth = () => ({ authorization: `Bearer ${studio.token}` });
 const json = { 'content-type': 'application/json' };
 const call = (s: StudioServer, op: string, args: unknown = {}) => raw(s.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${s.token}`, ...json }, JSON.stringify(args));
@@ -112,7 +114,7 @@ beforeAll(async () => {
     join(ws, '.retake', 'history.jsonl'),
     `${JSON.stringify({ v: 1, at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, submitted_by: 'cli', state: 'succeeded', run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' }, counted: { captures: 1, dry_runs: 0, renders: 0 } })}\n`,
   );
-  studio = await startStudioServer({ root: ws, pollMs: 200 });
+  studio = await startStudioServer({ root: ws, pollMs: POLL_MS });
 });
 
 afterAll(async () => {
@@ -133,15 +135,21 @@ describe('/v1/events', () => {
 
   it('hello, then an outside README edit → workspace {readme} within 2 s, a queued job → jobs; never an op', async () => {
     const calls = studio.calls;
+    // Picked up by the poll, counted in polls rather than on a clock a busy machine stretches: the change is in the
+    // answer of the poll running when the file is written, or else of the first one that starts after it — never a
+    // later one (at the default EVENT_POLL_MS that is the 2 s of the title). Polls are counted as they start.
+    expect(2 * EVENT_POLL_MS).toBe(2000);
+    const polls = vi.spyOn(Live.prototype as unknown as { poll(): Promise<void> }, 'poll');
     const s = await stream(studio.port, { ...auth(), 'sec-fetch-site': 'same-origin' });
     try {
       expect(s.status).toBe(200);
       expect(await s.next('hello')).toMatchObject({ api: 1, index: true });
-      const t = Date.now();
       const changed = s.next('workspace');
       await writeFile(join(ws, 'projects', P, 'README.md'), '# Northfield\n\nChanged in another editor.\n');
+      const startedAfter = polls.mock.calls.length;
       expect(await changed).toEqual({ projects: [P], readme: [P], files: [] });
-      expect(Date.now() - t).toBeLessThan(2000);
+      expect(polls.mock.calls.length - startedAfter).toBeLessThanOrEqual(1);
+      expect(polls.mock.calls.length).toBeGreaterThan(0);
       const jobs = s.next('jobs');
       const q = new FileJobQueue(ws);
       const id = newJobId(Date.now());
@@ -161,6 +169,7 @@ describe('/v1/events', () => {
       expect(await jobs).toEqual({ changed: [id], projects: [P], held: null });
       expect(studio.calls).toBe(calls);
     } finally {
+      polls.mockRestore();
       s.close();
     }
     expect(await until(() => studio.streams === 0)).toBe(true);

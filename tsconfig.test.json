@@ -54,14 +54,17 @@
       "@retake/test-support/capture": ["./packages/test-support/src/capture.ts"],
       "@retake/test-support/child-env": ["./packages/test-support/src/child-env.ts"],
       "@retake/test-support/confinement": ["./packages/test-support/src/confinement.ts"],
+      "@retake/test-support/golden": ["./packages/test-support/src/golden.ts"],
       "@retake/test-support/home": ["./packages/test-support/src/home.ts"],
       "@retake/test-support/http": ["./packages/test-support/src/http.ts"],
+      "@retake/test-support/postgres": ["./packages/test-support/src/postgres.ts"],
       "@retake/test-support/render": ["./packages/test-support/src/render.ts"],
       "@retake/test-support/repo": ["./packages/test-support/src/repo.ts"],
       "@retake/test-support/review": ["./packages/test-support/src/review.ts"],
       "@retake/test-support/runs": ["./packages/test-support/src/runs.ts"],
       "@retake/test-support/site": ["./packages/test-support/src/site.ts"],
       "@retake/test-support/take": ["./packages/test-support/src/take.ts"],
+      "@retake/test-support/timing": ["./packages/test-support/src/timing.ts"],
       "@retake/test-support/timeline": ["./packages/test-support/src/timeline.ts"],
       "@retake/test-support/workspace": ["./packages/test-support/src/workspace.ts"]
     }

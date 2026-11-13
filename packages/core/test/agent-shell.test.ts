@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AGENT_SHELL_MAX_CHARS, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, agentWritablePath } from '@retake/core';
 import { nodeFileFacts } from '@retake/core/io';
+import { perCallMs } from '@retake/test-support/timing';
 
 const ws = realpathSync(mkdtempSync(join(tmpdir(), 'retake-agent-shell-')));
 const projectDir = join(ws, 'projects', 'p');
@@ -69,12 +70,17 @@ describe('agent-written shell commands: the grammar', () => {
 
   it('its length first: a longer text is refused without being read (linear, whatever it holds)', () => {
     const long = `echo ${'['.repeat(AGENT_SHELL_MAX_CHARS)}`;
-    const t0 = Date.now();
     expect(problems(long)).toEqual([`${long.length.toLocaleString('en-US')} characters (at most 4,000)`]);
     // At the limit, a text of special characters is read in one pass too.
     expect(problems('['.repeat(AGENT_SHELL_MAX_CHARS))[0]).toMatch(/^the character `\[`/);
     expect(problems(`a ${'b '.repeat(1_990)}c`)).toEqual([]);
-    expect(Date.now() - t0).toBeLessThan(1_000);
+    // Not read: a text 250 times longer is refused about as fast, whatever the machine's speed (per call, each side
+    // repeated until a round lasts 20 ms; best of 3). Read, it would cost about 250 times as much.
+    const huge = `echo ${'['.repeat(AGENT_SHELL_MAX_CHARS * 250)}`;
+    expect(problems(huge)).toHaveLength(1);
+    const ratio = perCallMs(() => problems(huge)) / perCallMs(() => problems(long));
+    console.log(`length refusal: 250 times longer, ${ratio.toFixed(2)} times the time`);
+    expect(ratio).toBeLessThan(5);
   });
 });
 

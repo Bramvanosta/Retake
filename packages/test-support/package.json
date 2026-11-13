@@ -9,8 +9,10 @@
     "./capture": "./src/capture.ts",
     "./child-env": "./src/child-env.ts",
     "./confinement": "./src/confinement.ts",
+    "./golden": "./src/golden.ts",
     "./home": "./src/home.ts",
     "./http": "./src/http.ts",
+    "./postgres": "./src/postgres.ts",
     "./render": "./src/render.ts",
     "./repo": "./src/repo.ts",
     "./review": "./src/review.ts",
@@ -18,6 +20,7 @@
     "./site": "./src/site.ts",
     "./take": "./src/take.ts",
     "./timeline": "./src/timeline.ts",
+    "./timing": "./src/timing.ts",
     "./workspace": "./src/workspace.ts"
   }
 }

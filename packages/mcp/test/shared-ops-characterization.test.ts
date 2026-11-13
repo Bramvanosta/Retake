@@ -12,7 +12,7 @@
  * stale-engine.test.ts), a long poll (stdio-runs.test.ts), a worker of another copy (engine-info-other-copy.test.ts).
  */
 import { mkdtemp, readdir, realpath, rm } from 'node:fs/promises';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,7 @@ import { startStudioServer } from '../../ui/src/index.js';
 import type { StudioServer } from '../../ui/src/index.js';
 import { raw } from '@retake/test-support/http';
 import { scratchHome } from '@retake/test-support/home';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/shared-ops.json', import.meta.url));
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -229,7 +230,7 @@ afterAll(async () => {
 describe('the eleven shared operations through both shells (characterization)', () => {
   it('answer as fixtures/shared-ops.json says, through MCP stdio and the Studio', () => {
     const text = `${JSON.stringify({ mcp: mcpAnswers, studio: studioAnswers }, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(text).toBe(readFileSync(FILE, 'utf8'));
     expect(mcpAnswers.map((a) => a.op)).toEqual(CALLS.filter((c) => c.only !== 'studio').map((c) => c.op));
     expect(studioAnswers.map((a) => a.op)).toEqual(CALLS.filter((c) => c.only !== 'mcp').map((c) => c.op));

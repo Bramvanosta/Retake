@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -30,7 +31,8 @@ const opened = async (): Promise<OpenedWorkspace> => {
 };
 
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
-const PORT = 4971;
+/** The page server's port: one the system picks (beforeAll), never a fixed number another session may hold. */
+let PORT = 0;
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
 
 let ws: string;
@@ -39,6 +41,9 @@ let server: Server;
 const retakeHome = scratchHome();
 
 beforeAll(async () => {
+  server = createServer((_q, r) => r.end('<p>page</p>'));
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  PORT = (server.address() as AddressInfo).port;
   ws = await realpath(await mkdtemp(join(tmpdir(), 'retake-job-programs-')));
   retakeHome.use(join(ws, '.home'));
   marker = join(ws, 'started');
@@ -64,8 +69,6 @@ beforeAll(async () => {
     ].join('\n'),
   );
   await writeFile(join(project, 'scenarios', 'short.yaml'), SHORT);
-  server = createServer((_q, r) => r.end('<p>page</p>'));
-  await new Promise<void>((ok) => server.listen(PORT, '127.0.0.1', ok));
 });
 
 afterAll(async () => {

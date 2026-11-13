@@ -24,7 +24,7 @@
  * CLI runs): no U8 lot starts without it green on the commit before it. Cases marked `pins:` hold today's output where it looks wrong (listed in the lot's notes), unfixed.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { homedir, hostname, tmpdir, userInfo } from 'node:os';
 import { join, relative } from 'node:path';
@@ -273,6 +273,7 @@ import { MemoryRenderer } from '../../engine/src/render/memory-renderer.js';
 import type { MemoryRendererCall } from '../../engine/src/render/memory-renderer.js';
 import { syntheticRunRecord } from '@retake/test-support/render';
 import { scratchHome } from '@retake/test-support/home';
+import { recordGolden } from '@retake/test-support/golden';
 
 const FILE = fileURLToPath(new URL('./fixtures/operations-cli.json', import.meta.url));
 const REPO = fileURLToPath(new URL('../../..', import.meta.url)).replace(/\/$/, '');
@@ -855,7 +856,7 @@ describe('the commands U8 moves, held against fixtures/operations-cli.json (U8.0
 
   it('every case matches the fixture', () => {
     const text = `${JSON.stringify(results, null, 1)}\n`;
-    if (process.env.RETAKE_WRITE_SNAPSHOTS === '1') writeFileSync(FILE, text);
+    recordGolden(FILE, text);
     expect(existsSync(FILE), 'no fixture yet: RETAKE_WRITE_SNAPSHOTS=1 on this file').toBe(true);
     const fixture = JSON.parse(readFileSync(FILE, 'utf8')) as Record<string, Case>;
     expect(Object.keys(results)).toEqual(Object.keys(fixture));
