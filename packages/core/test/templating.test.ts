@@ -76,6 +76,12 @@ describe('interpolate', () => {
     expect(secretForms('ab')).toEqual([]);
   });
 
+  it('the 3-character minimum: a 3-character secret has its forms and is redacted, a 2-character one neither', () => {
+    expect(secretForms('a&c')).toEqual(['a&c', 'a%26c', 'a&amp;c']);
+    expect(secretForms('abc')).toEqual(['abc']);
+    expect(redact('ab abc a&c', ['ab', 'abc', 'a&c'])).toBe('ab *** ***');
+  });
+
   it('secretForms: as Chrome writes a URL path and query, and as a GET form submits it (L1.2 review: S6)', () => {
     // Measured in Chromium: the path encodes `^ | { } \`` and spaces, keeps `'`; the query encodes `'` and spaces, keeps
     // `{ | ^ \``; a GET form encodes everything but `*-._` and writes spaces as `+`.

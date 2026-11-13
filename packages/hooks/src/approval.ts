@@ -51,19 +51,21 @@ function isFile(file: string): boolean {
   }
 }
 
-/** Words of a shell command that may name a file: each word, and the value of `--opt=value`. */
-function shellFileWords(run: string): string[] {
+/** Words of a shell command that may name a file: each word, and the value of `--opt=value` (also in its substitutions). */
+function shellFileWords(run: string, depth = 0): string[] {
   const out: string[] = [];
-  for (const { args } of shellCommands(shellWords(run))) {
+  const scripts: string[] = [];
+  for (const { args } of shellCommands(shellWords(run, depth < 8 ? (script) => scripts.push(script) : undefined))) {
     args.forEach((w, i) => {
       const nested = nestedShellScript(args, i);
-      if (nested !== undefined) out.push(...shellFileWords(nested));
+      if (nested !== undefined) out.push(...shellFileWords(nested, depth + 1));
       if (i === 0 && !w.includes('/')) return; // a command looked up on PATH
       out.push(w);
       const eq = w.indexOf('=');
       if (w.startsWith('-') && eq > 0) out.push(w.slice(eq + 1));
     });
   }
+  for (const script of scripts) out.push(...shellFileWords(script, depth + 1));
   return out.filter((w) => w && !w.includes('{{') && !w.startsWith('-') && !isAbsolute(w) && !w.startsWith('~'));
 }
 

@@ -12,6 +12,21 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- When Retake decides whether a shell hook is destructive (and so needs `confirm: true`), it reads the command with its
+  quoting resolved (`$'…'` included) and every script the command makes a program run: command and process
+  substitutions, a shell's `-c` script (the shells docs/guide/security.md lists, `-ec` / `-lc` too), `eval`, `trap`, `alias`, `env -S`, `watch`,
+  `su -c`, `sudo -s`, `xargs`, `parallel`, `find -exec`, and what a shell reads on its standard input — psql given
+  destructive SQL in any of them too. Whenever the script a program will run is not exactly in the command (a command
+  word computed or expanded when it runs, `curl … | sh`, `bash <(…)`, `sh "$SCRIPT"`, a computed `-c` script, an
+  `echo` / `printf` whose output is not exact), the hook counts as destructive. A hook of yours written that way now
+  needs `confirm: true` (or the script written out); declared `writes: false`, it now counts as writing on a read-only
+  environment.
+- The files bound to an approval of work submitted through MCP or the Studio, and to `retake hooks trust`, are read the
+  same way: a file named inside a command or process substitution, with `$'…'` quoting, or in the script of
+  `sh -ec` / `bash -lc` is bound too. After the upgrade you may be asked once again: `retake run` asks about a trusted
+  hook that runs a script named that way (naming it), and in a job approved but not yet run, a hook that names such a
+  file is refused when it runs (submit the job again to be asked). A person's hook run through MCP that names, that
+  way, a file in a folder an agent can write is now refused, like the others.
 - `retake run` (and `retake hooks run <scenario>:setup|teardown`) lists, as they will run, the shell hooks of a
   scenario whose hooks an agent wrote last (through MCP or the Studio) and runs them only on your yes — asked in a
   terminal, `--yes` in a script, refused otherwise; hooks you wrote or changed yourself run as before, and

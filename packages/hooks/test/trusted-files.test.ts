@@ -73,6 +73,13 @@ describe('the files a trust binds (hookTrustFiles)', () => {
     expect(await keys({ shell: 'bash -c "node hooks/x.js tools/data.json"' })).toEqual({ code: ['hooks/x.js'], data: ['tools/data.json'] });
   });
 
+  it('read as the guard reads it: ANSI-C quoting, command substitutions and sh -ec are followed', async () => {
+    expect(await keys({ shell: "sh $'tools/prep\\x2esh'" })).toEqual({ code: ['tools/prep.sh'], data: [] });
+    expect(await keys({ shell: 'X=$(cat tools/data.json) && echo "`cat tools/q.sql`"' })).toEqual({ code: [], data: ['tools/data.json', 'tools/q.sql'] });
+    expect(await keys({ shell: 'echo "$(sh tools/prep.sh)"' })).toEqual({ code: ['tools/prep.sh'], data: [] });
+    expect(await keys({ shell: "bash -ec 'node hooks/x.js'" })).toEqual({ code: ['hooks/x.js'], data: [] });
+  });
+
   it('data: bound only when it exists, never under Retake’s own folders; code: sql / js files, missing ones unreadable', async () => {
     expect(await keys({ shell: 'cp runs/r1/out.json tools/data.json missing.txt' })).toEqual({ code: [], data: ['tools/data.json'] });
     expect(await files({ sql: { file: 'tools/q.sql', rollback: { file: 'gone.sql' } } } as HookStep)).toEqual({

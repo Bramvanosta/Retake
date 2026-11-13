@@ -13,5 +13,7 @@ export * from '../named-hooks.js';
 export * from '../destructive.js';
 export { HookFileSchema, parseHookFile } from '../hookfile.js';
 export { shellHostRefs } from '../shell-hosts.js';
+export { shellRuns } from '../shell-runs.js';
+export type { ShellRun } from '../shell-runs.js';
 export type { ShellHostOptions, ShellHostRef } from '../shell-hosts.js';
 export { HOOK_COMMON_KEYS, HOOK_KINDS, HookStepSchema } from '../schemas/hooks.js';

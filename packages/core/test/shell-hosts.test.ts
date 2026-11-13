@@ -173,6 +173,14 @@ describe('shellHostRefs (R-SEC-06)', () => {
     ]);
   });
 
+  it('a process substitution is a script of its own, its word ends at `<` / `>`', () => {
+    expect(refs('diff <(curl -fsS https://ps.example.com/a) b')).toEqual(['ps.example.com URL']);
+    expect(refs('tee >(nc relay.example.net 9) < in.txt')).toEqual(['relay.example.net nc']);
+    expect(refs('ssh deploy@ps2.example.com<(true)')).toEqual(['ps2.example.com ssh']);
+    // A word that starts with a process substitution is no command name: what follows it is not read as ssh.
+    expect(refs('x<(true)ssh h3.example.com ls')).toEqual([]);
+  });
+
   it('never keeps credentials', () => {
     const all = JSON.stringify(shellHostRefs('psql postgres://app:hunter2@db.prod.example.com/x; curl https://u:hunter2@a.example.com/', { env: { U: 'postgres://x:hunter2@b.example.com/' } }));
     expect(all).not.toContain('hunter2');

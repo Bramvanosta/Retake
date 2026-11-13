@@ -150,6 +150,24 @@ describe('site jobs without any network', () => {
     expect(() => siteDir(ws, '../../etc')).toThrow(/never a path/);
   });
 
+  it('a question that fails (the approver throws): refused with the error as its outcome and message, nothing queued', async () => {
+    const before = (await engine.jobs.list({})).length;
+    const failing: Approver = {
+      approve: async () => ({ approved: true }),
+      approveSite: async () => {
+        throw new Error('the form could not be shown');
+      },
+    };
+    const e = await refusal(engine.templates.fromSite({ url: 'https://brand.test/' }, { approver: failing }));
+    expect(e).toMatchObject({
+      code: 'refused',
+      message: expect.stringContaining('the question failed (the form could not be shown)'),
+      fix: expect.stringMatching(/theme from-site https:\/\/brand\.test\/$/),
+      details: { url: 'https://brand.test/', host: 'brand.test', outcome: 'error' },
+    });
+    expect((await engine.jobs.list({})).length).toBe(before);
+  });
+
   it('the extraction folder is made new by the worker: a planted folder or a linked parent is refused before any page opens', async () => {
     const ctx = (input: SiteJobInput) => ({
       ...enginePorts(),

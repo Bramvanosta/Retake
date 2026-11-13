@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Journal, runHooks } from '@retake/hooks';
 import type { HookStep } from '@retake/core';
+import { addSecret, redactDeep, redactText } from '../src/secrets.js';
+import type { HookContext } from '../src/types.js';
 import { makeContext, makeProject, startApi, tempProject } from './helpers.js';
 
 const TOKEN = 'nf-staging-token-8f3a1c';
@@ -111,5 +113,26 @@ describe('secrets', () => {
     const res = await runHooks([{ shell: 'curl -H "x-key: {{keychain:northfield/staging-api}}" {{console}}' }], ctx, { phase: 'setup', journal });
     expect(res.results[0]).toMatchObject({ status: 'dry', description: `shell "curl -H "x-key: ***" ${api.base}"` });
     expect(logText()).toContain('would run shell');
+  });
+});
+
+describe('redaction of overlapping secrets', () => {
+  it('the longer secret is masked whole, whatever order they were registered in; redactDeep too', () => {
+    for (const order of [
+      ['abc', 'abcdef'],
+      ['abcdef', 'abc'],
+    ]) {
+      const ctx = {} as HookContext;
+      for (const v of order) addSecret(ctx, v);
+      expect(redactText(ctx, 'x abcdef y abc z'), order.join(',')).toBe('x *** y *** z');
+      expect(redactDeep(ctx, { a: ['x abcdef y'], b: { c: 'abcdef' }, n: 1 })).toEqual({ a: ['x *** y'], b: { c: '***' }, n: 1 });
+    }
+  });
+
+  it('a secret under 3 characters is not registered (it would mangle every log)', () => {
+    const ctx = {} as HookContext;
+    addSecret(ctx, 'ab');
+    addSecret(ctx, 'xyz');
+    expect(redactText(ctx, 'ab xyz')).toBe('ab ***');
   });
 });

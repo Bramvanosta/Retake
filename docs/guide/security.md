@@ -123,7 +123,23 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   of `read_only.hosts`.
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
-  validation and refused at run time without it (`retake hooks run --yes` approves explicitly).
+  validation and refused at run time without it (`retake hooks run --yes` approves explicitly). A shell command is read
+  with its quoting resolved (`'…'`, `"…"`, `$'…'`, `$"…"`, backslashes), and every script it makes a program run is
+  read too, eight levels deep: command and process substitutions, the `-c` script of a shell (`sh`, `bash`, `zsh`,
+  `dash`, `ksh`, `ash`, `mksh`, `yash`, `fish`, `tcsh`, `csh`, `busybox sh`, and a name ending in one such as `rbash` or
+  `bash5`; also `-ec`, `-lc`, after other options), `eval`, `trap`, an `alias` value, `env -S`, `watch`, `su -c`,
+  `sudo -s` / `-i`, `xargs` and `parallel` running a shell, `find -exec` / `-execdir` / `-ok`, and what a shell reads
+  on its standard input. **Whenever the script a program will run is not exactly in the command, the command counts as
+  destructive.** A script is exact only as a literal string (a `-c`, `eval`, `trap`… argument), a literal heredoc or
+  here-string, or the output of an `echo` without backslashes or a `printf` with one literal format, no directive but
+  `%%` and ANSI-C escapes; everything else counts — a command word computed or expanded when it runs (`$CMD`, `$(…)`,
+  `` `…` ``, `<(…)`, a glob, a brace expansion, after assignments, keywords such as `function`, `coproc`, `time -p`
+  and wrappers such as `sudo`, `env`, `timeout`), a shell reading a script piped from another program (`curl … | sh`,
+  also after a line break, inside `( … )` or a compound command, through `/dev/stdin`, a file descriptor or `|&`), a
+  script from a process substitution (`bash <(…)`, `source <(…)`), a script file named by a computed path
+  (`sh "$SCRIPT"`), and a `-c` script, `xargs` / `find -exec` command or here-string that is computed or receives the
+  file names or input lines (`{}`). A hook of yours written in such a form needs `confirm: true` (or the script
+  written out). A computed argument (`echo "$X"`, `curl "$URL"`) does not count.
 - **Everything is journaled.** Each executed hook and its rollback is recorded in `runs/<id>/hooks-journal.json`
   (captures) or `.retake/journals/<id>.json` (`retake hooks run`, `retake env reset`); `retake env reset`
   replays whatever is still pending in both. Journal entries are signed with the key of your Retake home
@@ -190,7 +206,9 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   That trust also binds the bytes of the files those hooks read. Code is bound strictly — an sql or js file and its
   rollback's, and in a shell command the script it runs: the command itself when written with a slash (`./seed.sh`),
   the script given to `sh`, `bash`, `zsh`, `dash`, `node`, `deno`, `bun`, `tsx`, `python`, `python3`, `ruby`, `perl`,
-  `php`, `source` or `.`, psql's `-f`, and what `<` reads; one that changed, one the hooks newly run, or one that cannot
+  `php`, `source` or `.`, psql's `-f`, and what `<` reads; the command is read with its `$'…'` quoting resolved, and the
+  scripts of its command substitutions and of `sh -c` (also `-ec`, `-lc`) are read the same way; one that changed, one
+  the hooks newly run, or one that cannot
   be read asks again. Every other file a shell command names (and its `env` values) is data, bound when it exists:
   one that changed or cannot be read asks again, one that appeared since does not. A word is looked for in the hook's
   working folder and in every folder an earlier `cd` of the command names; templates are rendered with the vars. When

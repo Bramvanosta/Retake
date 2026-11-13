@@ -307,6 +307,17 @@ describe('ports', () => {
     ]);
   });
 
+  it('a URL that is not http(s) or does not parse names no port; https without a port is 443', () => {
+    const manifest = {
+      version: 1,
+      provider: 'process',
+      services: {
+        db: { command: 'db', url: 'postgres://localhost:5432/demo', pages: { feed: 'ws://localhost:4610/x', bad: 'http://exa mple/', shop: 'https://shop.example.test/' } },
+      },
+    } as unknown as SandboxManifest;
+    expect(sandboxPorts(manifest)).toEqual([{ port: 443, service: 'db', what: ['page shop'] }]);
+  });
+
   it('probes a port and names the program that listens on it (lsof)', async () => {
     const { server, port } = await serve((_q, r) => r.end('ok'));
     try {

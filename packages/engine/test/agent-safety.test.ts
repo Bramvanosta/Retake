@@ -445,6 +445,17 @@ describe('approvals are signed with the Retake home key, for their job', () => {
       expect((await verifiedApprovals(forged, { jobId, root: ws, keyFile })).rejected).toBe(1);
     }
   });
+
+  it('a malformed signature (short, not hex) is rejected without throwing; the well-signed one beside it still counts', async () => {
+    const keyFile = join(ws, 'sign-home', 'approvals.key');
+    const two = { ...input, approvals: [input.approvals![0]!, { ...input.approvals![0]!, fingerprint: 'c'.repeat(64) }] };
+    const signed = await signApprovals(two, { jobId, root: ws, keyFile });
+    const [ok, other] = signed.approvals!;
+    for (const sig of ['zz', other!.sig!.slice(0, 63), 'g'.repeat(64)]) {
+      const forged = { ...signed, approvals: [ok!, { ...other!, sig }] };
+      expect(await verifiedApprovals(forged, { jobId, root: ws, keyFile }), sig).toEqual({ approvals: [ok], rejected: 1 });
+    }
+  });
 });
 
 describe("a claim takes its job's approvals once (L5.14, review B M1)", () => {

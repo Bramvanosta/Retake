@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { homeKey } from '../src/io/index.js';
+import { homeKey, homeSign, homeSigned } from '../src/io/index.js';
 
 const DIST = fileURLToPath(new URL('../dist/io/index.js', import.meta.url));
 let base: string;
@@ -70,5 +70,18 @@ describe('the home key (review A L2)', () => {
     await homeKey(join(home, 'approvals.key'));
     expect((await stat(home)).mode & 0o777).toBe(0o700);
     expect((await stat(join(home, 'approvals.key'))).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe('homeSigned: a malformed signature is no signature', () => {
+  it('a non-hex, a short, an odd-length, an upper-case or a non-string signature is false, without throwing', () => {
+    const key = Buffer.alloc(32, 7);
+    const good = homeSign(key, 'text');
+    expect(homeSigned(key, 'text', good)).toBe(true);
+    for (const sig of ['zz', good.slice(0, 63), `${good.slice(0, 63)}z`, good.slice(0, 62), `${good}00`, good.toUpperCase(), '', 42, null, undefined]) {
+      expect(() => homeSigned(key, 'text', sig), String(sig)).not.toThrow();
+      expect(homeSigned(key, 'text', sig), String(sig)).toBe(false);
+    }
+    expect(homeSigned(undefined, 'text', good)).toBe(false);
   });
 });

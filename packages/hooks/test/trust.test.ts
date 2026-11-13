@@ -233,6 +233,13 @@ describe('trust mcp: rollbacks and referenced files', () => {
     expect(changed.results[0]).toMatchObject({ status: 'refused' });
   });
 
+  it('a file named inside a command or process substitution is bound too (its words read as a script)', async () => {
+    await mkdir(join(tmp.dir, 'scripts'), { recursive: true });
+    for (const f of ['a.sql', 'b.txt', 'c.sh']) await writeFile(join(tmp.dir, 'scripts', f), f);
+    const hook: HookStep = { name: 'seed', shell: { run: 'psql -c "$(cat ./scripts/a.sql)" && echo `cat ./scripts/b.txt` && diff <(sh ./scripts/c.sh) x' }, writes: false };
+    expect(Object.keys(hookFiles(hook, { projectDir: tmp.dir }).files).sort()).toEqual(['./scripts/a.sql', './scripts/b.txt', './scripts/c.sh']);
+  });
+
   it('a hook written by the agent may not set a loader variable — in its env, as a NAME= word before the program or an env / export argument, its rollback too; nothing runs', async () => {
     const confirm = vi.fn(() => true);
     const marker = join(tmp.dir, 'ran');

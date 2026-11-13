@@ -7,7 +7,8 @@
  * it computes) are not visible here.
  */
 import { normalizeHost } from './hosts.js';
-import { commandName, heredocs } from './shell-words.js';
+import { DYN, REDIRECT_ALONE, REDIRECT_ATTACHED, SHELLS, commandName, commandWordAt, heredocs, lexCommand, substitutions } from './shell-words.js';
+import type { ShellToken } from './shell-words.js';
 
 export interface ShellHostRef {
   /** Normalized host ('' when `unresolved`). Never a URL: messages may show it. */
@@ -116,26 +117,6 @@ const PG_ARG_OPTS: Record<string, [string, Set<string>]> = {
       '--exclude-table-data-and-children',
     ]),
   ],
-};
-const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh']);
-/** Words skipped before the command name: shell keywords and grouping. */
-const PREFIX_WORDS = new Set(['{', '}', '!', 'if', 'then', 'else', 'elif', 'do', 'while', 'until', 'time']);
-/** Wrappers that run the rest of the line as a command, with the options that take a value. */
-const WRAPPERS: Record<string, Set<string>> = {
-  sudo: new Set(['-u', '-g', '-h', '-C', '-D', '-p', '-r', '-t', '-U', '-T']),
-  doas: new Set(['-u', '-C']),
-  exec: new Set(['-a']),
-  nice: new Set(['-n']),
-  nohup: new Set(),
-  command: new Set(),
-  builtin: new Set(),
-  setsid: new Set(),
-  env: new Set(['-u', '-C', '-S', '--unset', '--chdir']),
-  timeout: new Set(['-s', '-k', '--signal', '--kill-after']),
-  gtimeout: new Set(['-s', '-k', '--signal', '--kill-after']),
-  xargs: new Set(['-a', '-d', '-E', '-I', '-L', '-n', '-P', '-s', '--arg-file', '--delimiter', '--max-args', '--max-procs', '--max-chars', '--process-slot-var']),
-  watch: new Set(['-n', '--interval']),
-  stdbuf: new Set(['-i', '-o', '-e']),
 };
 const DECLARE = new Set(['export', 'readonly', 'declare', 'typeset', 'local']);
 /** ssh-family options that take a value (the destination is the first other operand). */
@@ -471,17 +452,7 @@ const URL_IN_TEXT = /[a-z][a-z0-9+.-]*:\/\/[^\s'"`<>(){}\\,;]+/gi;
 const FILE_EXTENSION =
   /\.(json|jsonl|ndjson|txt|xml|csv|tsv|pem|crt|cer|der|p12|pfx|key|netrc|log|html?|sql|ya?ml|cfg|conf|ini|out|tmp|bin|dat|gz|tgz|tar|bz2|xz|js|mjs|cjs|ts|env|lock|pdf|png|jpe?g|gif|webp|svg)$/i;
 
-/** Stands for a part of a word computed when the command runs. */
-const DYN = '\uE000';
-
-interface Tok {
-  text: string;
-  op?: true;
-  /** A `NAME=value` (or `NAME+=value`) word written as such (unquoted name). */
-  assign?: true;
-  /** Variables expanded into this word. */
-  vars?: string[];
-}
+type Tok = ShellToken;
 
 /** What the script has done to its variables so far. */
 interface Scope {
@@ -515,251 +486,10 @@ function envValue(name: string, s: Scan, scoped: Map<string, string | undefined>
   return s.vars?.[name] ?? s.env?.[name];
 }
 
-/** Index after the `)` matching the `(` at `open` (quotes and nesting followed roughly). */
-function closeParen(s: string, open: number): number {
-  let depth = 0;
-  for (let i = open; i < s.length; i++) {
-    const c = s[i];
-    if (c === '\\') i++;
-    else if (c === "'") {
-      const e = s.indexOf("'", i + 1);
-      i = e < 0 ? s.length : e;
-    } else if (c === '"') {
-      let j = i + 1;
-      while (j < s.length && s[j] !== '"') j += s[j] === '\\' ? 2 : 1;
-      i = j;
-    } else if (c === '(') depth++;
-    else if (c === ')' && --depth === 0) return i + 1;
-  }
-  return s.length;
-}
-
-/** Index of the backtick closing the one at `open` (or the end). */
-function closeBacktick(s: string, open: number): number {
-  let j = open + 1;
-  while (j < s.length && s[j] !== '`') j += s[j] === '\\' ? 2 : 1;
-  return Math.min(j, s.length);
-}
-
-/** The command inside backticks, with the shell's backslash escapes removed. */
-function backtickScript(s: string, open: number, close: number): string {
-  return s.slice(open + 1, close).replace(/\\([\\`$])/g, '$1');
-}
-
-/**
- * The command substitutions (`$(…)`, backticks) of text the shell expands without splitting it into words (an
- * unquoted heredoc body, the word of `${X:-word}`): each one goes to `sub`.
- */
-function substitutions(text: string, sub: ((script: string) => void) | undefined): void {
-  if (!sub) return;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '\\') i++;
-    else if (ch === '$' && text[i + 1] === '(') {
-      const end = closeParen(text, i + 1);
-      if (text[i + 2] !== '(') sub(text.slice(i + 2, end - 1)); // $((…)) is arithmetic
-      i = end - 1;
-    } else if (ch === '`') {
-      const end = closeBacktick(text, i);
-      sub(backtickScript(text, i, end));
-      i = end;
-    }
-  }
-}
-
-const ANSI_ESCAPES: Record<string, string> = {
-  n: '\n',
-  t: '\t',
-  r: '\r',
-  a: '\x07',
-  b: '\b',
-  e: '\x1b',
-  E: '\x1b',
-  f: '\f',
-  v: '\v',
-  '\\': '\\',
-  "'": "'",
-  '"': '"',
-  '?': '?',
-};
-
-/** `$'…'` (ANSI-C quoting) starting at cmd[i] (`$`): [value, index of the closing quote]. */
-function ansiC(cmd: string, i: number): [string, number] {
-  let out = '';
-  let j = i + 2;
-  while (j < cmd.length && cmd[j] !== "'") {
-    if (cmd[j] !== '\\' || j + 1 >= cmd.length) {
-      out += cmd[j++];
-      continue;
-    }
-    const e = cmd[j + 1];
-    const m = /^(?:x([0-9a-fA-F]{1,2})|u([0-9a-fA-F]{1,4})|U([0-9a-fA-F]{1,8})|([0-7]{1,3}))/.exec(cmd.slice(j + 1, j + 10));
-    if (ANSI_ESCAPES[e] !== undefined) {
-      out += ANSI_ESCAPES[e];
-      j += 2;
-    } else if (m) {
-      const code = parseInt(m[1] ?? m[2] ?? m[3] ?? m[4], m[4] !== undefined ? 8 : 16);
-      out += code <= 0x10ffff ? String.fromCodePoint(code) : '';
-      j += 1 + m[0].length;
-    } else {
-      out += `\\${e}`;
-      j += 2;
-    }
-  }
-  return [out, j];
-}
-
-/**
- * The words of ONE command of `cmd` from `from`, and the control operator ending it, with `$NAME` / `${NAME…}`
- * expanded like sh does (field splitting outside double quotes, nothing inside single quotes) from the scope as it is
- * now; command substitutions become DYN and their text goes to `sub` (the caller scans it as a script). One command
- * at a time, so an assignment is seen by the commands after it.
- */
+/** The tokens of ONE command of `cmd` from `from`, its variables expanded from the scope as it is now (lexCommand). */
 function tokenize(cmd: string, from: number, s: Scan, sub?: (script: string) => void): { toks: Tok[]; next: number } {
-  const out: Tok[] = [];
-  let cur = '';
-  let inWord = false;
-  let quoted = false;
-  let assign = false;
-  let used: string[] = [];
-  const flush = () => {
-    if (inWord) out.push({ text: cur, ...(assign ? { assign: true as const } : {}), ...(used.length ? { vars: used } : {}) });
-    cur = '';
-    inWord = false;
-    quoted = false;
-    assign = false;
-    used = [];
-  };
-  const value = (name: string): string | undefined => {
-    const v = lookup(name, s);
-    if (v !== DYN) used.push(`$${name}`);
-    return v;
-  };
-  /** The expansion at cmd[i] (`$`): [value, index after it]; null when `$` is literal. */
-  const expansion = (i: number): [string, number] | null => {
-    const next = cmd[i + 1];
-    if (next === '(') {
-      const end = closeParen(cmd, i + 1);
-      if (cmd[i + 2] !== '(') sub?.(cmd.slice(i + 2, end - 1)); // $((…)) is arithmetic
-      return [DYN, end];
-    }
-    if (next === '{') {
-      const end = cmd.indexOf('}', i + 2);
-      if (end < 0) return [DYN, cmd.length];
-      const body = cmd.slice(i + 2, end);
-      const m = /^([A-Za-z_]\w*)(?:(:?[-=?+])([\s\S]*))?$/.exec(body);
-      if (!m) {
-        substitutions(body, sub);
-        return [DYN, end + 1];
-      }
-      const v = value(m[1]);
-      if (!m[2]) return [v ?? '', end + 1];
-      substitutions(m[3], sub);
-      if (v?.includes(DYN)) return [DYN, end + 1];
-      const set = m[2].startsWith(':') ? (v ?? '') !== '' : v !== undefined;
-      const word = /[$`]/.test(m[3]) ? DYN : m[3];
-      if (m[2].endsWith('+')) return [set ? word : '', end + 1];
-      return [set ? v! : m[2].endsWith('?') ? '' : word, end + 1];
-    }
-    const name = /^[A-Za-z_]\w*/.exec(cmd.slice(i + 1, i + 257));
-    if (name) return [value(name[0]) ?? '', i + 1 + name[0].length];
-    if (next === '"') return ['', i + 1]; // $"…": a translatable string, read as "…"
-    if (next !== undefined && /[1-9@*]/.test(next)) return [DYN, i + 2]; // positional parameters (function arguments)
-    if (next !== undefined && /[0#?$!-]/.test(next)) return ['', i + 2];
-    return null;
-  };
-  const addUnquoted = (v: string) => {
-    const from = used;
-    v.split(/[ \t\n]+/).forEach((part, k) => {
-      if (k > 0) {
-        flush();
-        used = [...from]; // the words a split expansion makes came from it too
-      }
-      if (part) {
-        cur += part;
-        inWord = true;
-      }
-    });
-  };
-  let x: [string, number] | null;
-  for (let i = from; i < cmd.length; i++) {
-    const c = cmd[i];
-    if (c === "'") {
-      const end = cmd.indexOf("'", i + 1);
-      const stop = end < 0 ? cmd.length : end;
-      cur += cmd.slice(i + 1, stop);
-      inWord = quoted = true;
-      i = stop;
-    } else if (c === '$' && cmd[i + 1] === "'") {
-      const [v, end] = ansiC(cmd, i);
-      cur += v;
-      inWord = quoted = true;
-      i = end;
-    } else if (c === '"') {
-      let j = i + 1;
-      while (j < cmd.length && cmd[j] !== '"') {
-        if (cmd[j] === '\\' && j + 1 < cmd.length && '"\\$`\n'.includes(cmd[j + 1])) {
-          if (cmd[j + 1] !== '\n') cur += cmd[j + 1];
-          j += 2;
-        } else if (cmd[j] === '$' && (x = expansion(j))) {
-          cur += x[0];
-          j = x[1];
-        } else if (cmd[j] === '`') {
-          const e = closeBacktick(cmd, j);
-          sub?.(backtickScript(cmd, j, e));
-          cur += DYN;
-          j = e + 1;
-        } else cur += cmd[j++];
-      }
-      inWord = quoted = true;
-      i = j;
-    } else if (c === '\\') {
-      if (i + 1 < cmd.length && cmd[i + 1] !== '\n') {
-        cur += cmd[i + 1];
-        inWord = quoted = true;
-      }
-      i++;
-    } else if (c === '$' && (x = expansion(i))) {
-      if (x[0] === DYN) {
-        cur += DYN;
-        inWord = true;
-      } else addUnquoted(x[0]);
-      i = x[1] - 1;
-    } else if (c === '`') {
-      const e = closeBacktick(cmd, i);
-      sub?.(backtickScript(cmd, i, e));
-      cur += DYN;
-      inWord = true;
-      i = e;
-    } else if (c === '#' && !inWord) {
-      const end = cmd.indexOf('\n', i);
-      i = (end < 0 ? cmd.length : end) - 1;
-    } else if (c === ' ' || c === '\t') {
-      flush();
-    } else if (c === '&' && /[<>]$/.test(cur)) {
-      cur += c; // 2>&1
-    } else if (c === '\n' || c === ';' || c === '&' || c === '|' || c === '(' || c === ')') {
-      flush();
-      const two = cmd.slice(i, i + 2);
-      if (two === '&&' || two === '||' || two === ';;') {
-        out.push({ text: two, op: true });
-        return { toks: out, next: i + 2 };
-      }
-      out.push({ text: c, op: true });
-      return { toks: out, next: i + 1 };
-    } else {
-      if (c === '=' && !assign && !quoted && /^[A-Za-z_]\w*\+?$/.test(cur)) assign = true;
-      cur += c;
-      inWord = true;
-    }
-  }
-  flush();
-  return { toks: out, next: cmd.length };
+  return lexCommand(cmd, from, { dollar: (name) => lookup(name, s), ...(sub ? { sub } : {}) });
 }
-
-/** A redirection with its target in the next word (`>`, `2>>`, `<`, `<<<`), or attached to it (`>out.txt`, `2>&1`). */
-const REDIRECT_ALONE = /^(\d*|&)(>>?|>\||<<?<?|<>|>&|<&)$/;
-const REDIRECT_ATTACHED = /^(\d*|&)(>>?|>\||<<?-?|<>|>&|<&)./;
 
 interface Cmd {
   /** Its words, without redirections (files, not hosts). */
@@ -1054,35 +784,8 @@ function scanScript(script: string, s: Scan): void {
 /** Skip assignments, keywords and wrappers (sudo, env, exec, timeout…): the command name and its arguments. */
 function commandAt(cmd: Tok[], s: Scan): { name: string; args: Tok[]; scoped: Map<string, string | undefined> } | null {
   const scoped = new Map<string, string | undefined>();
-  let i = 0;
-  while (i < cmd.length) {
-    const t = cmd[i];
-    if (t.assign) {
-      assignment(t.text, s, scoped);
-      i++;
-      continue;
-    }
-    const name = commandName(t.text);
-    if (PREFIX_WORDS.has(name)) {
-      i++;
-      continue;
-    }
-    const wrapper = WRAPPERS[name];
-    if (wrapper) {
-      i++;
-      while (i < cmd.length && cmd[i].text.startsWith('-')) i += wrapper.has(cmd[i].text) ? 2 : 1;
-      if (name === 'env') {
-        while (i < cmd.length && /^[A-Za-z_]\w*=/.test(cmd[i].text)) {
-          assignment(cmd[i].text, s, scoped);
-          i++;
-        }
-      }
-      if (name === 'timeout' || name === 'gtimeout') i++; // the duration
-      continue;
-    }
-    return { name, args: cmd.slice(i + 1), scoped };
-  }
-  return null;
+  const i = commandWordAt(cmd, (text) => assignment(text, s, scoped));
+  return i < 0 ? null : { name: commandName((cmd[i] as Tok).text), args: cmd.slice(i + 1), scoped };
 }
 
 /** A computed word in a connection position (a database name, a repository…): refused when it runs. */

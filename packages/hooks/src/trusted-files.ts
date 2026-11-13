@@ -25,7 +25,7 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { commandName, nestedShellScript } from '@retake/core/base';
+import { commandName, lexShell, nestedShellScript } from '@retake/core/base';
 import { trustedFileChanges, UNREADABLE_FILE } from '@retake/core/hooks';
 import type { HookContext, HookFileChange, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 import { PROJECT_DIRS, STATE_DIR } from '@retake/core/project';
@@ -179,88 +179,23 @@ class Collector {
 /** A token of a script: a word (quoting resolved), a control operator, or a redirect operator. */
 type Token = { word: string } | { op: string } | { redirect: string };
 
-const CONTROL = new Set([';', '&', '|', '(', ')', '\n']);
-
 /**
  * The tokens of one script, as the shell reads them: quotes and backslashes resolved into words, `#` comments dropped;
  * an unquoted `;`, `&`, `|`, `&&`, `||`, `(`, `)` or line break is a control operator, an unquoted `<`, `>`, `>>`,
  * `>|`, `>&`, `<>`, `<<`, `<<<`, `&>` or `&>>` a redirect (a file descriptor's digits before it dropped), even glued to
- * a word (`sh<x`). A quoted or escaped `>` (`'>'`, `">"`, `\>`) is part of a word, never an operator.
+ * a word (`sh<x`). A quoted or escaped `>` (`'>'`, `">"`, `\>`) is part of a word, never an operator. `$` reads as the
+ * destructive-hook guard reads it (core lexShell, `dollar: 'keep'`): `$'…'` / `$"…"` quoting resolved, an expansion
+ * or a substitution kept as written, each command substitution's script given to `sub`.
  */
-export function scriptTokens(cmd: string): Token[] {
-  const out: Token[] = [];
-  let cur = '';
-  let inWord = false;
-  /** Whether every character of `cur` so far was an unquoted digit (a file descriptor before a redirect). */
-  let digits = true;
-  const flush = () => {
-    if (inWord) out.push({ word: cur });
-    cur = '';
-    inWord = false;
-    digits = true;
-  };
-  const add = (ch: string, quoted: boolean) => {
-    cur += ch;
-    inWord = true;
-    if (quoted || !/[0-9]/.test(ch)) digits = false;
-  };
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i] as string;
-    if (c === "'") {
-      const end = cmd.indexOf("'", i + 1);
-      const stop = end < 0 ? cmd.length : end;
-      for (const ch of cmd.slice(i + 1, stop)) add(ch, true);
-      inWord = true;
-      digits = false;
-      i = stop;
-    } else if (c === '"') {
-      let j = i + 1;
-      while (j < cmd.length && cmd[j] !== '"') {
-        if (cmd[j] === '\\' && j + 1 < cmd.length && '"\\$`\n'.includes(cmd[j + 1] as string)) j++;
-        add(cmd[j] as string, true);
-        j++;
-      }
-      inWord = true;
-      digits = false;
-      i = j;
-    } else if (c === '\\') {
-      if (i + 1 < cmd.length && cmd[i + 1] !== '\n') add(cmd[i + 1] as string, true);
-      inWord = true;
-      digits = false;
-      i++;
-    } else if (c === '#' && !inWord) {
-      const end = cmd.indexOf('\n', i);
-      i = (end < 0 ? cmd.length : end) - 1;
-    } else if (c === ' ' || c === '\t') {
-      flush();
-    } else if (c === '<' || c === '>' || (c === '&' && cmd[i + 1] === '>')) {
-      // A redirect: the digits of a file descriptor before it are part of it, any other word before it ends.
-      if (inWord && digits) {
-        cur = '';
-        inWord = false;
-      } else flush();
-      const op = /^(?:&>>|&>|>>|>\||>&|<<<|<<|<>|<|>)/.exec(cmd.slice(i))?.[0] ?? c;
-      out.push({ redirect: op });
-      i += op.length - 1;
-      digits = true;
-    } else if (CONTROL.has(c)) {
-      flush();
-      const two = cmd.slice(i, i + 2);
-      if (two === '&&' || two === '||' || two === ';;') {
-        out.push({ op: two });
-        i++;
-      } else out.push({ op: c });
-    } else add(c, false);
-  }
-  flush();
-  return out;
+export function scriptTokens(cmd: string, sub?: (script: string) => void): Token[] {
+  return lexShell(cmd, { dollar: 'keep', redirects: true, ...(sub ? { sub } : {}) }).map((t) => (t.op ? { op: t.text } : t.redirect ? { redirect: t.text } : { word: t.text }));
 }
 
 /** The commands of a script: their words, and their redirects with their targets. */
-function scriptCommands(script: string): Array<{ args: string[]; redirects: Array<{ op: string; target: string | undefined }> }> {
+function scriptCommands(script: string, sub?: (script: string) => void): Array<{ args: string[]; redirects: Array<{ op: string; target: string | undefined }> }> {
   const out: Array<{ args: string[]; redirects: Array<{ op: string; target: string | undefined }> }> = [];
   let cmd = { args: [] as string[], redirects: [] as Array<{ op: string; target: string | undefined }> };
-  const tokens = scriptTokens(script);
+  const tokens = scriptTokens(script, sub);
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i] as Token;
     if ('op' in t) {
@@ -298,7 +233,8 @@ async function folders(raw: string, dirs: readonly string[], vars: Record<string
 /** Every file one shell script names, sorted into code and data (see the module comment). */
 async function scanScript(script: string, start: readonly string[], c: Collector, writes = true): Promise<void> {
   const dirs = [...start];
-  for (const { args, redirects } of scriptCommands(script)) {
+  const subs: string[] = [];
+  for (const { args, redirects } of scriptCommands(script, (inner) => subs.push(inner))) {
     // Redirects: a `<` target is code; an output's target is written, not read; a here-document's word is no file.
     for (const { op, target } of redirects) {
       if (target === undefined) continue;
@@ -380,6 +316,8 @@ async function scanScript(script: string, start: readonly string[], c: Collector
       c.word(a, dirs, false);
     }
   }
+  // A command substitution runs its script: the files it names are read too (the folders known so far).
+  for (const inner of subs) await scanScript(inner, dirs, c, writes);
 }
 
 /** The files `hook` reads, as a person's trust binds them (see the module comment). */

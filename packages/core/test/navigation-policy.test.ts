@@ -91,6 +91,12 @@ describe('navigationProblem: the scheme rule', () => {
     expect(navigationProblem(url)).toBeNull();
   });
 
+  it('a password without a user name is sign-in details too (`http://:pw@host/`, `//:pw@host/`)', () => {
+    expect(navigationProblem('http://:pw@localhost:4402/x')).toMatch(/holds sign-in details/);
+    expect(navigationProblem('//:pw@localhost:4402/x')).toMatch(/holds sign-in details/);
+    expect(navigationProblem('http://:pw@localhost:4402/x')).not.toMatch(/pw/);
+  });
+
   it('a message never shows the sign-in details, and writes hidden characters out', () => {
     expect(navigationProblem('https://admin:s3cret@shop.example.test/x')).not.toMatch(/admin|s3cret/);
     expect(navigationProblem('//admin:s3cret@shop.example.test/x')).not.toMatch(/admin|s3cret/);

@@ -372,7 +372,7 @@ export const CORE_CONTEXTS = [
   { name: 'language', files: ['steps', 'targets', 'pages', 'tutorial', 'video', 'scenario-template', 'schemas/steps', 'schemas/settings'] },
   { name: 'environment', files: ['env', 'hosts', 'access', 'display', 'clock', 'writes', 'auth', 'checks/auth'] },
   { name: 'policy', files: ['agent-policy', 'ip-class'] },
-  { name: 'hooks', files: ['hookfile', 'hook-run', 'hook-writes', 'named-hooks', 'destructive', 'shell-hosts', 'checks/hooks', 'schemas/hooks'] },
+  { name: 'hooks', files: ['hookfile', 'hook-run', 'hook-writes', 'named-hooks', 'destructive', 'shell-hosts', 'shell-runs', 'checks/hooks', 'schemas/hooks'] },
   { name: 'project', files: ['workspace', 'project', 'layout', 'checks/project', 'schemas/project'] },
   { name: 'sandbox', files: ['sandbox', 'sandbox-error', 'checks/sandbox', 'schemas/sandbox'] },
   {
