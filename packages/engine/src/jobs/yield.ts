@@ -94,7 +94,7 @@ export class QosYield {
     readonly root: number,
     readonly opts: { group?: boolean; rewalkMs?: number; self?: boolean; deps?: Partial<QosDeps> } = {},
   ) {
-    this.deps = { table: opts.deps?.table ?? qosTable, apply: opts.deps?.apply ?? taskpolicy, now: opts.deps?.now ?? Date.now };
+    this.deps = { table: opts.deps?.table ?? qosTable, apply: opts.deps?.apply ?? taskpolicy, now: opts.deps?.now ?? (() => performance.now()) };
     this.usable = opts.self === true ? root === process.pid : signalablePid(root);
   }
 

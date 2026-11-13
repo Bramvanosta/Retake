@@ -60,7 +60,7 @@ function drawingRenderer(): Renderer {
   };
 }
 
-const worker = (reviewer: Reviewer) => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer: drawingRenderer(), reviewer } });
+const worker = (reviewer: Reviewer) => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { renderer: drawingRenderer(), reviewer } });
 
 beforeAll(async () => {
   if (!can) return;

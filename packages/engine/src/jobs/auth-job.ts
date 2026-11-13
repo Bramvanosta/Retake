@@ -8,6 +8,8 @@
  * L4.4: a headed window run by the worker closes after AUTH_HEADED_MAX_ENV minutes (default 30) — the single worker is
  * held while it is open, and a click in the Studio opens it — and `cancelSignIn` stops one (an `auth_login` job only).
  */
+import { noDisplay } from '../env.js';
+import type { EngineEnv } from '../env.js';
 import { readdir } from 'node:fs/promises';
 import { SLUG_RE } from '@retake/core/model';
 import { resolveEnvironment } from '@retake/core/environment';
@@ -31,7 +33,7 @@ export const AUTH_HEADED_MAX_ENV = 'RETAKE_SIGNIN_MAX_MIN';
 export const AUTH_HEADED_MAX_MS = 30 * 60_000;
 
 /** The longest headed sign-in of a job (ms): RETAKE_SIGNIN_MAX_MIN (minutes, more than 0 to 1440), else 30 min. */
-export function headedSignInMaxMs(env: NodeJS.ProcessEnv = process.env): number {
+export function headedSignInMaxMs(env: EngineEnv): number {
   const raw = env[AUTH_HEADED_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return AUTH_HEADED_MAX_MS;
   const n = Number(raw);
@@ -131,7 +133,7 @@ export async function submitAuthLoginJob(ctx: SubmitContext, req: AuthLoginSubmi
   } catch (e) {
     throw loginError(e);
   }
-  if (mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (mode === 'headed' && noDisplay(ctx.env)) {
     throw new EngineError('unavailable', 'a headed sign-in opens a browser window and this machine has no display (DISPLAY / WAYLAND_DISPLAY are not set)', {
       fix: loginCommandLine(ctx.cli, { ...req, mode: 'auto' }),
     });
@@ -184,7 +186,7 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
   let maxMs = AUTH_HEADED_MAX_MS;
   if (input.mode === 'headed') {
     try {
-      maxMs = headedSignInMaxMs();
+      maxMs = headedSignInMaxMs(ctx.env);
     } catch (e) {
       ctx.event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });
     }
@@ -198,6 +200,8 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
     {
       interrupts,
       sessions: ctx.capture.sessions,
+      env: ctx.env,
+      secrets: ctx.secrets,
       log: (level, message) => {
         if (level !== 'debug') ctx.event({ type: 'log', level, message });
       },

@@ -7,6 +7,7 @@
  * (runs/<id>/run.json `queued`) and queues the input. The worker re-checks the hash, runs, and finalises a reserved
  * run.json that an early exit left `queued` (cancelled before it started, a refused or failed start).
  */
+import type { EngineEnv } from '../env.js';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -181,6 +182,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
             via: agentChannel(ctx.client),
             hooks: ctx.hooks,
             pages: ctx.capture.hookPages,
+            secrets: ctx.secrets,
           },
         ).catch((e: unknown) => {
           throw toEngineError(e);
@@ -403,7 +405,7 @@ export interface RunJobContext extends EnginePorts {
 export const PAUSE_MAX_ENV = 'RETAKE_PAUSE_MAX_MIN';
 
 /** The longest pause (ms): RETAKE_PAUSE_MAX_MIN when set (minutes, more than 0 to 1440), else undefined (30 min). */
-export function pauseMaxMs(env: NodeJS.ProcessEnv = process.env): number | undefined {
+export function pauseMaxMs(env: EngineEnv): number | undefined {
   const raw = env[PAUSE_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return undefined;
   const n = Number(raw);
@@ -478,6 +480,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       {
         policy: ctx.ws.policy,
         capture: ctx.capture,
+        secrets: ctx.secrets,
         hooks: ctx.hooks,
         sandboxes: ctx.sandboxes,
         runId: input.run_id,

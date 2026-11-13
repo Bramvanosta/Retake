@@ -403,7 +403,7 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
       const text = await readFile(file, 'utf8');
       expect(text).not.toContain(first.server.token);
       expect(text).not.toContain('#c=');
-      const tokenFile = await studioTokenFile(dir);
+      const tokenFile = await studioTokenFile(dir, process.env);
       expect(tokenFile.startsWith(join(process.env.RETAKE_HOME!, 'ui'))).toBe(true);
       expect((await stat(tokenFile)).mode & 0o777).toBe(0o600);
       expect(await readStudioToken(tokenFile, dir)).toMatchObject({ pid: process.pid, port: first.port, token: first.server.token });

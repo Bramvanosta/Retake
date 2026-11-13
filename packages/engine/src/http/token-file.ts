@@ -13,6 +13,7 @@
  * Whoever holds it reaches the 45 MCP tools of the workspace a server serves and answers its approval forms (as any
  * MCP client of `retake mcp` over stdio does): it is a secret of the person, like their shell.
  */
+import type { EngineEnv } from '../env.js';
 import { chmod, link, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -24,7 +25,7 @@ import { newSecret } from './token.js';
 export const MCP_HTTP_TOKEN_FILE = 'mcp-http.token';
 
 /** `<Retake home>/mcp-http.token`. */
-export function mcpHttpTokenFile(env: NodeJS.ProcessEnv = process.env): string {
+export function mcpHttpTokenFile(env: EngineEnv): string {
   return join(retakeHome(env), MCP_HTTP_TOKEN_FILE);
 }
 

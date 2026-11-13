@@ -6,6 +6,7 @@
  * TypeScript through tsx with the packages' `source` export condition. From an app bundle the worker gets the bundle's
  * module lookup guard first (core bundleNodeArgs: `--require <Resources>/node/guard.cjs`, L5.16).
  */
+import type { EngineEnv } from '../env.js';
 import { spawn } from 'node:child_process';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { existsSync, openSync, closeSync } from 'node:fs';
@@ -23,10 +24,10 @@ export interface WorkerSpawnOptions {
   /** Exit after this long without a job (ms; default the worker's own, 60 s). */
   idleExitMs?: number;
   /**
-   * The worker's environment (default this process's). The Studio passes a clean one (L4.2, critique B5): the PATH
-   * sanitised like `retake mcp`'s, no package-manager or LLM variables, RETAKE_HOME kept.
+   * The worker's environment: its starter's (the engine's ports env; for every client but the CLI a clean one, L4.2,
+   * critique B5: the PATH sanitised like `retake mcp`'s, no package-manager or LLM variables, RETAKE_HOME kept).
    */
-  env?: NodeJS.ProcessEnv;
+  env: EngineEnv;
   /** The client starting it, recorded in the worker lock (`started_by`). */
   startedBy?: string;
   /** Tests: the process starter (default node's spawn). */
@@ -60,7 +61,7 @@ function entryArgs(): string[] {
 }
 
 /** The command line of a worker for `root`: the engine's worker-main entry, built or from the sources. */
-export function workerCommand(root: string, opts: WorkerSpawnOptions = {}): { command: string; args: string[] } {
+export function workerCommand(root: string, opts: Pick<WorkerSpawnOptions, 'idleExitMs' | 'startedBy'> = {}): { command: string; args: string[] } {
   const args = entryArgs();
   args.push('--root', root);
   if (opts.idleExitMs !== undefined) args.push('--idle-exit', String(opts.idleExitMs));
@@ -81,12 +82,12 @@ export function jobProcessCommand(root: string, job: { id: string; kind: string;
 }
 
 /** Start a detached worker for `root` (its output appended to workers/worker.log); returns its pid. */
-export async function spawnWorker(root: string, opts: WorkerSpawnOptions = {}): Promise<number | undefined> {
+export async function spawnWorker(root: string, opts: WorkerSpawnOptions): Promise<number | undefined> {
   await mkdir(workersDir(root), { recursive: true });
   const { command, args } = workerCommand(root, opts);
   const log = openSync(join(workersDir(root), 'worker.log'), 'a');
   try {
-    const child = (opts.spawn ?? spawn)(command, args, { cwd: root, detached: true, stdio: ['ignore', log, log], env: opts.env ?? process.env });
+    const child = (opts.spawn ?? spawn)(command, args, { cwd: root, detached: true, stdio: ['ignore', log, log], env: opts.env });
     child.on('error', () => undefined);
     child.unref();
     return child.pid;
@@ -110,7 +111,7 @@ export function otherCopyWarning(other: { version: string; engine?: string }): s
  * one itself once idle), else a new one. Two clients starting one at the same time is harmless: the second worker finds
  * the lock held and exits.
  */
-export async function ensureWorker(root: string, opts: WorkerSpawnOptions = {}): Promise<{ pid?: number; spawned: boolean; other?: { version: string; engine?: string } }> {
+export async function ensureWorker(root: string, opts: WorkerSpawnOptions): Promise<{ pid?: number; spawned: boolean; other?: { version: string; engine?: string } }> {
   const live = await liveWorker(root);
   // L5.16c (critique M6): a live worker of another copy of Retake runs this job with its own tools — said by the submit.
   const other = otherCopy(live, { engine: engineLocation(), version: RETAKE_VERSION });

@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -6,7 +7,7 @@ import { AccessError, ConfigError, ScenarioError } from '@retake/core';
 import { HookSecurityError } from '@retake/hooks';
 import { CancelledError } from '@retake/runner-web';
 import { SandboxError } from '@retake/sandbox';
-import { EngineError, LocalStorage, MemoryWorkspace, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
+import { EngineError, LocalStorage, MemoryWorkspace, checkRef, createEngine, memoryJobQueues, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { REPO } from '@retake/test-support/repo';
 import { fixtureWorkspace, memoryFixtureWorkspace } from '@retake/test-support/workspace';
@@ -15,9 +16,10 @@ import { scratchHome } from '@retake/test-support/home';
 let ws: string;
 let home: string;
 let engine: Engine;
-/** The fixture workspace in memory (L7.38: a MemoryWorkspace — the engine's reads and store on one Map, no folder). */
+/** The fixture workspace in memory (L7.38: a MemoryWorkspace — the engine's reads and store on one Map, no folder), its jobs in a memory queue. */
 const MEM = join(sep, 'retake-memory', 'engine');
 let memory: Engine;
+const memoryQueues = memoryJobQueues();
 const retakeHome = scratchHome();
 
 beforeAll(async () => {
@@ -28,7 +30,7 @@ beforeAll(async () => {
   engine = await createEngine({ root: ws, client: 'test' });
   const mem = new MemoryWorkspace();
   await memoryFixtureWorkspace(mem, MEM);
-  memory = await createEngine({ root: MEM, client: 'test', autoStartWorker: false, ports: mem.ports() });
+  memory = await createEngine({ root: MEM, client: 'test', autoStartWorker: false, ports: { ...mem.ports(), queues: memoryQueues } });
 });
 
 afterAll(async () => {
@@ -133,6 +135,16 @@ describe('engine: projects', () => {
     expect(text).not.toContain('NORTHFIELD_SUPPLIER_PASSWORD'); // login steps are not returned at all
     expect(text).not.toContain(home);
     expect(p.config).not.toHaveProperty('auth');
+  });
+
+  it('runs on the memory queue entirely: a job submitted lands in the queue its ports made, read back through the engine; nothing of the disk is made', async () => {
+    const sub = await memory.hooks.submit({ project: 'northfield-fixture', source: 'quote:setup', dry: true });
+    expect(memory.queue).toBe(memoryQueues.of(MEM));
+    expect(await memoryQueues.of(MEM)?.ids()).toEqual([sub.job.id]);
+    expect((await memory.jobs.get(sub.job.id)).state).toBe('queued');
+    expect((await memory.jobs.list({ project: 'northfield-fixture' })).map((j) => j.id)).toEqual([sub.job.id]);
+    expect(memory.jobFiles.record(sub.job.id)).toBe(join(MEM, '.retake', 'jobs', sub.job.id, 'job.json'));
+    expect(existsSync(join(sep, 'retake-memory'))).toBe(false);
   });
 
   it('refuses paths where a slug is expected', async () => {

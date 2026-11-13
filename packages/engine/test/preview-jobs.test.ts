@@ -268,7 +268,7 @@ describe.skipIf(!canRender)('preview jobs on the in-memory renderer', () => {
       const sub = await engine.templates.preview({ project: 'demo' });
       await engine.jobs.cancel(sub.job.id);
       const renderer = new MemoryRenderer();
-      await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
+      await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { renderer } });
       const job: JobRecord = await engine.jobs.get(sub.job.id);
       expect(job.state).toBe('cancelled');
       // Closed by the worker without a render: nothing reached the renderer.

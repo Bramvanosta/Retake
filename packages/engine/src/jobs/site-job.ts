@@ -23,6 +23,7 @@
  * `untrusted`; every string goes under it. The job's own warnings are shown as the tool's text only when they are one
  * of the tool's sentences (`isSiteWarning`); anything else in a job.json goes under `untrusted`.
  */
+import type { EngineEnv } from '../env.js';
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
@@ -296,8 +297,8 @@ export interface SiteJobContext extends EnginePorts {
 }
 
 /** Whether the job carries a verified (signed) human approval of exactly its URL. */
-export async function siteApproved(input: SiteJobInput, jobId: string, root: string): Promise<boolean> {
-  const { approvals } = await verifiedApprovals(input, { jobId, root });
+export async function siteApproved(input: SiteJobInput, jobId: string, root: string, env: EngineEnv): Promise<boolean> {
+  const { approvals } = await verifiedApprovals(input, { jobId, root, env });
   const want = siteApprovalFingerprint(input.url);
   return approvals.some((a) => a.fingerprint === want);
 }
@@ -411,7 +412,7 @@ export function siteView(ws: OpenedWorkspace, siteId: string, url: SiteUrl, raw:
 /** Execute a `site` job: the approval and the URL checked again, the extraction, the draft, the pruning. */
 export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult> {
   const { input } = ctx;
-  if (!(await siteApproved(input, ctx.jobId, ctx.ws.root))) {
+  if (!(await siteApproved(input, ctx.jobId, ctx.ws.root, ctx.env))) {
     throw new EngineError(
       'refused',
       `refused without running: a site job runs only with a human's approval of its exact URL, signed when it was submitted — this one has none (a job file not written by a submit, or edited since)`,

@@ -177,7 +177,7 @@ describe('approvals are bound to their job (L5.14), on the in-memory hook runner
   let mengine: Engine;
   /** How many times the mark hook ran (marks.log's length on the hooks package). */
   const marks = () => hooks.executed.filter((e) => e.name === 'mark' && e.phase !== 'rollback').length;
-  const mwork = (at = root) => runWorker({ root: at, idleExitMs: 300, pollMs: 50, log: (m) => logs.push(m), ports: { hooks } });
+  const mwork = (at = root) => runWorker({ root: at, idleExitMs: 300, pollMs: 50, log: (m) => logs.push(m), heavyInProcess: true, ports: { hooks } });
 
   beforeAll(async () => {
     mengine = await createEngine({ root, client: 'mcp', autoStartWorker: false, ports: { hooks } });

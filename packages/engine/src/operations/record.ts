@@ -37,6 +37,7 @@
  * page and typed text (target names, typed text, scene ids made from page paths, write labels, the check's failure)
  * stays under `untrusted`, which the HTTP layer caps and the app renders as text only.
  */
+import { noDisplay } from '../env.js';
 import { z } from 'zod';
 import { SLUG_RE } from '@retake/core/model';
 import { JOB_ID_RE, RECORD_ID_RE } from '@retake/core/ids';
@@ -256,7 +257,7 @@ async function recordOptions(engine: Engine, slug: string): Promise<RecordOption
   ]);
   let maxMs: number;
   try {
-    maxMs = recordMaxMs() ?? 30 * 60_000;
+    maxMs = recordMaxMs(engine.envVars) ?? 30 * 60_000;
   } catch {
     maxMs = 30 * 60_000;
   }
@@ -307,7 +308,7 @@ async function recordOptions(engine: Engine, slug: string): Promise<RecordOption
     // when the window opens, from the same clock).
     default_name: defaultRecordName(loaded, dateOf(engine.clock)),
     max_minutes: maxMinutes,
-    display: !(process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY),
+    display: !noDisplay(engine.envVars),
     notes: RECORD_NOTES,
     open: busy && busy.input.kind === 'record' ? { job: busy.id, project: busy.input.project, rec_id: busy.input.rec_id, state: busy.state === 'queued' ? 'queued' : 'running' } : null,
     recent,

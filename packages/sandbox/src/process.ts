@@ -61,12 +61,16 @@ export function serviceHash(svc: SandboxService): string {
  * an MCP client) only core childEnv's allow-list of it (the shell's own variables and project.yaml `pass_env:`) —,
  * sandbox.yaml's `env` (templated) and RETAKE_SANDBOX.
  */
-export async function serviceEnv(ctx: Pick<ProviderContext, 'project' | 'sandbox' | 'policy'>, svc: SandboxService, base: NodeJS.ProcessEnv = process.env): Promise<NodeJS.ProcessEnv> {
+export async function serviceEnv(
+  ctx: Pick<ProviderContext, 'project' | 'sandbox' | 'policy' | 'resolveSecret'>,
+  svc: SandboxService,
+  base: NodeJS.ProcessEnv = process.env,
+): Promise<NodeJS.ProcessEnv> {
   const out: NodeJS.ProcessEnv = {};
   const inherited = policyChildEnv(ctx.policy, base, { pass: ctx.project.config.pass_env, files: nodeFileFacts }) ?? base;
   for (const [k, v] of Object.entries(inherited)) if (v !== undefined && !DROPPED_ENV.test(k) && !DROPPED_EXACT.has(k)) out[k] = v;
   if (svc.env) {
-    const { resolver } = await prefetchSecrets(svc.env);
+    const { resolver } = await prefetchSecrets(svc.env, ctx.resolveSecret);
     const pages = resolveEnvironment(ctx.project, ctx.sandbox.env).pages;
     Object.assign(out, interpolateDeep(svc.env, { pages, vars: ctx.project.config.vars ?? {}, secrets: resolver }));
   }

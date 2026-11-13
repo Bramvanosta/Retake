@@ -2,6 +2,7 @@
  * The engine façade's types: its options, the Engine interface (one member per sub-API) and the views its methods
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
+import type { EngineEnv } from '../env.js';
 import type { ComponentKind, RunMode } from '@retake/core/model';
 import type { RecordAnnotationChange } from '@retake/core/run';
 import type { InspectJobInput } from '../jobs/job-input.js';
@@ -214,6 +215,11 @@ export interface Engine {
    * name). Read-only, like `caller`.
    */
   readonly clock: Clock;
+  /**
+   * The environment variables its composition root read (env.ts: this process's for the product, a test's own): what
+   * an operation reads of them (record_options' time limit and display). Read-only, like `clock`.
+   */
+  readonly envVars: EngineEnv;
   readonly workspace: OpenedWorkspace;
   /** `retake -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
   readonly cli: string;

@@ -138,7 +138,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
   it(
     "a render waits while a take films, then runs in a job process of the worker's build (no refusal, no hand-over)",
     async () => {
-      const take = film({ root, source: 'cli', owner: me });
+      const take = film({ root, source: 'cli', owner: me, env: process.env });
       const sub = await engine.renders.submit({ project: 'demo', scenario: 'held', overrides: { scale: 0.5 } });
       logs.length = 0;
       const worker = work();
@@ -183,7 +183,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
       const browser = JSON.parse(await readFile(queue.files.browser(sub.job.id), 'utf8')) as RecordedBrowser;
       const before = priorities(child);
       expect(before.has(browser.pid)).toBe(true);
-      const take = film({ root, source: 'job', owner: me });
+      const take = film({ root, source: 'job', owner: me, env: process.env });
       const held = await waitFor(
         'every process at background priority',
         async () => {
@@ -223,7 +223,7 @@ describe.skipIf(!canRender)('captures first with a real render job (L5.14a)', ()
         const j = await queue.get(sub.job.id);
         return j?.state === 'running' && j.progress?.phase === 'rendering';
       });
-      const take = film({ root, source: 'job', owner: me });
+      const take = film({ root, source: 'job', owner: me, env: process.env });
       await waitFor('held', async () => existsSync(queue.files.yield(sub.job.id)), 10_000);
       await engine.jobs.cancel(sub.job.id);
       expect(await worker).toBe(0);

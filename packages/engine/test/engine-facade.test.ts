@@ -57,7 +57,8 @@ const SHAPE: Array<string | [string, string[]]> = [
   // Read-only members, set last: the frozen caller (L7.13) and the Clock port of its composition root (L7.18; the system
   // clock is a plain object of one method, so it reads as a sub-API here).
   'caller',
-  ['clock', ['now']],
+  'envVars',
+  ['clock', ['now', 'monotonic']],
 ];
 
 describe('the engine façade', () => {

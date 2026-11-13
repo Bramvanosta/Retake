@@ -78,10 +78,10 @@ function shellQuote(s: string): string {
 
 /**
  * The context of an engine for a client: its caller, its workspace (opened with the caller's agent policy) and the
- * shared parts. `queueOf` builds the workspace's job queue and names its files (createEngine, the composition root,
- * builds the file queue): the context holds the queue as its port.
+ * shared parts. The workspace's job queue and the paths of its files come from the ports' queue factory (the file
+ * queue for the product, a memory one a test hands): the context holds the queue as its port.
  */
-export async function engineContext(opts: EngineOptions, ports: EnginePorts, queueOf: (root: string, cli: string) => { queue: JobQueue; files: JobFiles }): Promise<EngineContext> {
+export async function engineContext(opts: EngineOptions, ports: EnginePorts): Promise<EngineContext> {
   const caller = callerOf(opts.client);
   // The agent's checks and wording of this caller (caller.ts).
   const agent = agentChecks(caller);
@@ -95,7 +95,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
   const studio = `retake -C ${shellQuote(ws.root)}`;
   const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^retake /, `${studio} `);
 
-  const { queue, files: jobFiles } = queueOf(ws.root, studio);
+  const { queue, files: jobFiles } = ports.queues(ws.root, studio, ports.clock, ports.env);
   const commentIndex = new CommentIndex();
   const submitCtx: SubmitContext = { ws, queue, cli: studio, client: opts.client, ...ports };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
@@ -108,10 +108,10 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
     if (opts.autoStartWorker === false) return undefined;
     // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the Studio's
     // later jobs too); the Studio passes its own (the same cleaner).
-    const env = workerEnvOf(opts, caller, ws);
+    const env = workerEnvOf(opts, caller, ws, ports.env);
     return ensureWorker(ws.root, {
       ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
-      ...(env ? { env } : {}),
+      env: env ?? ports.env,
       ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
       startedBy: opts.client,
     });
@@ -150,7 +150,8 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts, que
   });
   // The sessions of a parsed scenario on an environment: the Run screen's panel (auth.forScenario) and the capture's
   // sessions_ack rule (on the scenario and environment the run submit settled).
-  const sessionsOf: EngineContext['sessionsOf'] = (p, name, scenario, o) => scenarioSessions({ opts, caller, ws, loginCommand, sessions: ports.capture.sessions }, p, name, scenario, o);
+  const sessionsOf: EngineContext['sessionsOf'] = (p, name, scenario, o) =>
+    scenarioSessions({ opts, caller, ws, loginCommand, sessions: ports.capture.sessions, vars: ports.env }, p, name, scenario, o);
   // The admission rules (admission.ts) of the runs, renders and exports this caller submits: the Studio's and MCP's,
   // worded for its channel.
   const admitted = admits(caller)

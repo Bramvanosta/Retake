@@ -6,6 +6,7 @@
  * /emulator/v1/projects/<p>/accounts, GET …/accounts:batchGet?maxResults=-1, POST …/accounts:batchCreate), all with
  * `Bearer owner`, and two test routes: add an account (the seed, a take) and count the reset hook's calls.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -112,7 +113,7 @@ describe('a reset puts back a Firebase Auth emulator and runs reset.hooks (hotfi
     await writeFile(join(dir, 'project.yaml'), ['name: Reset extras', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  sandbox: sandbox/sandbox.yaml', ''].join('\n'));
     await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), manifest(port));
     await writeFile(join(dir, 'sandbox', 'emulator.cjs'), EMULATOR);
-    const sb = openSandbox(await loadProject(dir), 'sandbox', PERSON_POLICY);
+    const sb = openSandbox(await loadProject(dir), 'sandbox', PERSON_POLICY, resolveSecretRef);
     try {
       const up = await sb.up();
       expect(up.reset).toMatchObject({ seed: { steps: 1 }, firebase_auth: { accounts: 1 }, hooks: { steps: 1 } });

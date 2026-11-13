@@ -178,7 +178,7 @@ describe.skipIf(!can)('export jobs on the in-memory renderer: the engine around 
         duringVideo: (req) => new Promise<void>((done) => (req.signal?.aborted ? done() : req.signal?.addEventListener('abort', () => done(), { once: true }))),
       });
       const sub = await engine.exports.submit({ project: 'demo', render_id: 'quote-v1', formats: ['square_1x1', 'webm'] });
-      const worker = runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
+      const worker = runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { renderer } });
       await waitFor('the re-render rendering', async () => {
         const j = await queue.get(sub.job.id);
         return j?.state === 'running' && j.progress?.phase === 'square_1x1' && renderer.calls.some((c) => c.op === 'video') && existsSync(queue.files.browser(sub.job.id));
@@ -207,7 +207,7 @@ describe.skipIf(!can)('export jobs on the in-memory renderer: the engine around 
     async () => {
       const reviewer = new MemoryReviewer();
       const renderer = new MemoryRenderer();
-      const mwork = () => runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { reviewer, renderer } });
+      const mwork = () => runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { reviewer, renderer } });
       const renders = join(ws.project.dir, 'renders');
       const good = JSON.parse(await readFile(join(renders, 'quote-v1.json'), 'utf8')) as RenderRecord;
       await copyFile(good.file, join(outside, 'master.mp4'));
@@ -262,7 +262,7 @@ describe('a review job on the in-memory reviewer: the engine around it (L7.11)',
           })
         : undefined,
   });
-  const mwork = () => runWorker({ root: mws.root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { reviewer } });
+  const mwork = () => runWorker({ root: mws.root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports: { reviewer } });
 
   beforeAll(async () => {
     mws = await workspace();

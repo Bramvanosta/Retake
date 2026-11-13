@@ -66,7 +66,15 @@ export interface ProviderContext {
   signal?: AbortSignal;
   seedTrust?: SeedTrust;
   recordSeedRun?: SeedRecorder;
+  /**
+   * What the sandbox's secret references (sandbox.yaml's service env, exec steps' env, a Postgres URL, the mailbox
+   * headers) are resolved with: its opener's (the engine's Secrets port). Required: never read on the way.
+   */
+  resolveSecret: SecretRefResolver;
 }
+
+/** Resolves one secret reference (`env:VAR`, `keychain:service/account`) to its value. */
+export type SecretRefResolver = (ref: string) => Promise<string>;
 
 export interface UpResult {
   /** Services started by this call (each one healthy). */

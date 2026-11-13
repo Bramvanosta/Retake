@@ -4,6 +4,9 @@
  * the persona's login steps, headless. Native errors with the CLI's messages (LoginOptionError says which ones are
  * usage errors); what it tells its client goes through `SignInPorts`. Nothing here ever receives a credential.
  */
+import type { Secrets } from './secrets/secrets.js';
+import { noDisplay } from './env.js';
+import type { EngineEnv } from './env.js';
 import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
 import type { LoadedProject, ResolvedEnvironment } from '@retake/core/model';
 import type { ResolvedPersona } from '@retake/core/environment';
@@ -81,6 +84,10 @@ export interface SignInPorts {
   onOpen?(url: string): void;
   /** What signs it in: the capture runner's sessions (its composition root's). */
   sessions: Pick<CaptureSessions, 'signIn'>;
+  /** The environment its composition root read (env.ts): whether a window has a display. */
+  env: EngineEnv;
+  /** What the login steps' secrets are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
 }
 
 export type SignInOutcome = { interrupted: true } | { interrupted: false; result: SignInResult };
@@ -97,7 +104,7 @@ export async function signInPersona(
   opts: { mode: 'headed' | 'auto'; page?: string; url?: string; policy: WorkPolicy },
   ports: SignInPorts,
 ): Promise<SignInOutcome> {
-  if (opts.mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (opts.mode === 'headed' && noDisplay(ports.env)) {
     throw new LoginOptionError(
       `retake login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ": add --auto to use the persona's login steps" : ''}`,
       false,
@@ -107,6 +114,7 @@ export async function signInPersona(
   let result: SignInResult;
   try {
     result = await ports.sessions.signIn({
+      resolveSecret: (ref) => ports.secrets.resolve(ref),
       project,
       policy: opts.policy,
       env,

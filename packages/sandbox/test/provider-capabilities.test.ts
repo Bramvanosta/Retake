@@ -7,6 +7,7 @@
  * (packages/engine/test/sandbox-contract.ts: the package on a process sandbox, and on a docker-compose one with
  * RETAKE_TEST_DOCKER=1).
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { describe, expect, it } from 'vitest';
 import { PERSON_POLICY, SandboxError, sandboxPaths } from '@retake/core';
 import type { LoadedProject, LoadedSandbox } from '@retake/core';
@@ -27,6 +28,7 @@ const ctxOf = (s: LoadedSandbox): ProviderContext => ({
   state: emptyState('sandbox', s.manifest.provider),
   save: () => undefined,
   log: () => undefined,
+  resolveSecret: resolveSecretRef,
 });
 
 describe('the providers declare their capabilities (X8)', () => {

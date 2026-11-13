@@ -18,11 +18,9 @@ import { jobClass } from './job-input.js';
 import { stampOf } from '../clock.js';
 import type { InterruptPort } from '../interrupts.js';
 import { enginePorts } from '../ports.js';
-import { editorRenderer } from '../render/editor-renderer.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
 import { selfIdentity } from './proc.js';
-import { FileJobQueue } from './queue.js';
 import { recordDigest } from './signing.js';
 import { createJobRunner, shellQuote } from './run-job-record.js';
 import type { JobRecord } from './types.js';
@@ -61,7 +59,8 @@ export function passedBuildDirs(raw: string | undefined): string[] | undefined {
 /** Run the job; resolves with the exit code. */
 export async function runJobChild(o: JobChildOptions): Promise<number> {
   // A job process is a composition root: the product's ports (a test's cannot reach a process).
-  const { clock, stores, reads, hooks, reviewer, capture, sandboxes } = enginePorts();
+  const ports = enginePorts();
+  const { clock, reads, capture } = ports;
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} job process ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   const stamp = buildStamp(o.dirs ?? buildDirs());
@@ -78,7 +77,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     return 1;
   }
   const cli = `retake -C ${shellQuote(root)}`;
-  const queue = new FileJobQueue(root, cli, clock);
+  const { queue, files } = ports.queues(root, cli, clock, ports.env);
   const stored = await queue.stored(o.id).catch(() => undefined);
   const claim = await queue.claimOf(o.id).catch(() => undefined);
   if (
@@ -169,26 +168,19 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     root,
     ws,
     queue,
-    files: queue.files,
+    files,
     cli,
     build: o.build,
     worker: { ...self, host },
     self,
     supervisor: { pid: claim.pid, ...(claim.started_at ? { started_at: claim.started_at } : {}), host },
     log,
-    clock,
-    stores,
-    reads,
-    hooks,
-    reviewer,
-    capture,
-    sandboxes,
+    // A job process is a composition root: its job runs on the product's ports (the editor's renderer among them).
+    ...ports,
     interrupts,
     slot,
     done,
     writeOrExit,
-    // A job process is a composition root: its jobs render with the editor's driver.
-    renderer: editorRenderer(),
     abortedBecause: () => orphan,
   });
   try {

@@ -7,6 +7,7 @@
  * `retake sandbox init` (files, ports, project.yaml edited in place, existing files, validation) and core
  * addSandboxEntry.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { existsSync } from 'node:fs';
@@ -143,6 +144,7 @@ function ctxOf(project: LoadedProject): ProviderContext & { logs: string[] } {
   const sandbox = project.sandboxes!.sandbox;
   const logs: string[] = [];
   const ctx = {
+    resolveSecret: resolveSecretRef,
     project,
     policy,
     sandbox,
@@ -619,7 +621,7 @@ describe('the compose provider on a fake docker', () => {
     expect(await provider.address(ctx, port)).toBe('127.0.0.1');
     // The mailbox clear: DELETE on the published address.
     seen.length = 0;
-    expect(await clearMailbox(project, project.sandboxes!.sandbox, (p) => provider.address(ctx, p))).toBe('cleared');
+    expect(await clearMailbox(project, project.sandboxes!.sandbox, resolveSecretRef, (p) => provider.address(ctx, p))).toBe('cleared');
     expect(seen).toEqual([`v4 DELETE /api/v1/messages host=localhost:${port}`]);
   });
 
@@ -817,7 +819,7 @@ describe('the compose provider on a fake docker', () => {
 
   it('a docker-compose sandbox without docker says how to get it (status, up)', async () => {
     const project = await composeProjectDir('nodocker', ['services:', '  app: {url: "http://localhost:47398", pages: {app: "http://localhost:47398"}}']);
-    const sb = openSandbox(project, undefined, policy);
+    const sb = openSandbox(project, undefined, policy, resolveSecretRef);
     const exec: DockerExec = async () => ({ code: null, stdout: '', stderr: '', ms: 0, error: 'spawn docker ENOENT' });
     const provider = new ComposeProvider({ policy, exec, docker: '/nowhere/docker' });
     await expect(provider.status(ctxOf(project))).rejects.toThrow(/sandbox sandbox: docker-compose sandboxes need Docker with Compose v2\.17 or later: \/nowhere\/docker could not be run/);
@@ -843,7 +845,7 @@ describe('snapshot helpers', () => {
     ]);
     process.env.RETAKE_TEST_SNAP_PW = 'from-env-pass';
     try {
-      const t = await snapshotTarget(project, project.sandboxes!.sandbox);
+      const t = await snapshotTarget(project, project.sandboxes!.sandbox, resolveSecretRef);
       expect(t).toEqual({
         key: 'second',
         url: 'postgres://demo:from-env-pass@localhost:47401/shop',

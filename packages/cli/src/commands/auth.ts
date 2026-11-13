@@ -86,6 +86,8 @@ export async function signInPersona(
       {
         interrupts: { open: (o) => onInterrupt(ui, o) },
         sessions: cliPorts.capture.sessions,
+        env: cliPorts.env,
+        secrets: cliPorts.secrets,
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onOpen: (url) =>
           ui.line(

@@ -44,7 +44,7 @@ export async function heavyGate(ui: Ui, o: HeavyGateOptions): Promise<HeavyGate>
   if (o.noWait) return NO_GATE;
   const pollMs = o.pollMs ?? 1000;
   let ancestors: Promise<ReadonlySet<number>> | undefined;
-  const watch = new FilmingWatch({ root: o.root, ...(o.env ? { env: o.env } : {}), ignorePids: () => (ancestors ??= ancestorPids()) });
+  const watch = new FilmingWatch({ root: o.root, env: o.env ?? process.env, ignorePids: () => (ancestors ??= ancestorPids()) });
   let st = await watch.scan();
   let waited = false;
   if (st.holding) {

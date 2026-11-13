@@ -66,12 +66,12 @@ async function recoverOrphans(w: Worker): Promise<void> {
     }
     const pid = stored.worker.pid;
     w.log(`job ${id}: its job process (pid ${pid}) outlived its worker: waiting for it to end`);
-    const until = Date.now() + w.orphanGraceMs;
-    while (Date.now() < until && (await isAlive(stored.worker))) await new Promise((r) => setTimeout(r, 200));
+    const until = w.clock.monotonic() + w.orphanGraceMs;
+    while (w.clock.monotonic() < until && (await isAlive(stored.worker))) await new Promise((r) => setTimeout(r, 200));
     if (await isAlive(stored.worker)) {
       signalTree(pid, 'SIGTERM', undefined, w.processes.kill);
-      const t = Date.now() + 5_000;
-      while (Date.now() < t && (await isAlive(stored.worker))) await new Promise((r) => setTimeout(r, 200));
+      const t = w.clock.monotonic() + 5_000;
+      while (w.clock.monotonic() < t && (await isAlive(stored.worker))) await new Promise((r) => setTimeout(r, 200));
       if (await isAlive(stored.worker)) await killTree(pid, w.processes.kill);
     }
     const after = await w.queue.stored(id);
@@ -82,6 +82,6 @@ async function recoverOrphans(w: Worker): Promise<void> {
 /** What earlier workers left, before this worker's first claim: their orphaned job processes, then the approvals and rollbacks done with. */
 export async function recoverLeftovers(w: Worker): Promise<void> {
   await recoverOrphans(w);
-  await pruneUsedApprovals(process.env, w.clock.now()).catch(() => undefined);
+  await pruneUsedApprovals(w.ports.env, w.clock.now()).catch(() => undefined);
   await w.hooks.journals.pruneDone().catch(() => undefined);
 }

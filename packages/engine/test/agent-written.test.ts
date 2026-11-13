@@ -345,10 +345,10 @@ describe('a person’s trust (retake hooks trust)', () => {
     const view = await hooksTrustView(ws, project, 'settle', { files: fileFacts(PERSON_POLICY), hooks: HOOKS });
     expect(view.hooks.map((h) => h.run.shown)).toEqual(['touch a']);
     const clock = new ManualClock(Date.parse('2026-11-12T10:00:00.000Z'));
-    await expect(trustScenarioHooks(project, view, callerOf('mcp'), clock)).rejects.toThrow('only a person in a terminal');
-    await expect(trustScenarioHooks(project, view, callerOf('ui'), clock)).rejects.toThrow('only a person in a terminal');
+    await expect(trustScenarioHooks(project, view, callerOf('mcp'), { clock, stores: enginePorts().stores })).rejects.toThrow('only a person in a terminal');
+    await expect(trustScenarioHooks(project, view, callerOf('ui'), { clock, stores: enginePorts().stores })).rejects.toThrow('only a person in a terminal');
     expect(await author('settle')).toMatchObject({ agent: true });
-    await trustScenarioHooks(project, view, callerOf('cli'), clock);
+    await trustScenarioHooks(project, view, callerOf('cli'), { clock, stores: enginePorts().stores });
     expect(await author('settle')).toEqual({ agent: false, why: 'record' });
   });
 });
@@ -390,7 +390,7 @@ describe('a person’s trust binds the files its hooks read (L7.39)', () => {
   const asked = async (name: string, phases?: Array<'setup' | 'teardown' | 'step'>) => (await check(name, phases)).ask;
   async function trust(name: string) {
     const view = await hooksTrustView(ws, project, name, { files: fileFacts(PERSON_POLICY), hooks: HOOKS });
-    await trustScenarioHooks(project, view, callerOf('cli'), new ManualClock(Date.parse('2026-11-13T10:00:00.000Z')));
+    await trustScenarioHooks(project, view, callerOf('cli'), { clock: new ManualClock(Date.parse('2026-11-13T10:00:00.000Z')), stores: enginePorts().stores });
     return view;
   }
 

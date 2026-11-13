@@ -108,7 +108,7 @@ const libraryPorts = (test: LibraryStandIns): WorkerPortsGiven => ({
 });
 
 async function work(test: LibraryStandIns, id: string): Promise<JobRecord> {
-  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: libraryPorts(test) });
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports: libraryPorts(test) });
   return engine.jobs.get(id);
 }
 

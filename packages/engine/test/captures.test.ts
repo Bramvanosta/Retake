@@ -262,7 +262,7 @@ describe('the owner of a marker (L5.14)', () => {
     const mod = join(REPO, 'packages/engine/src/jobs/captures.ts');
     const proc = join(REPO, 'packages/engine/src/jobs/proc.ts');
     const script = `const { FilmingMarker } = await import(${JSON.stringify(mod)}); const { selfIdentity } = await import(${JSON.stringify(proc)});
-      const m = FilmingMarker.open({ root: ${JSON.stringify(wsA)}, source: 'cli', owner: await selfIdentity(), beatMs: 100 }); process.stdout.write(m.name + '\\n'); ${code}`;
+      const m = FilmingMarker.open({ env: process.env, root: ${JSON.stringify(wsA)}, source: 'cli', owner: await selfIdentity(), beatMs: 100 }); process.stdout.write(m.name + '\\n'); ${code}`;
     const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', '--input-type=module', '-e', script], { cwd: REPO, env, stdio: ['ignore', 'pipe', 'inherit'] });
     children.push(child);
     let out = '';

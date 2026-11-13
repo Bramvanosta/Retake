@@ -13,7 +13,6 @@ import { agentChecks, callerOf } from './caller.js';
 import type { EngineClient } from './caller.js';
 import { thumbnail } from './reviews.js';
 import { usageCounts } from './history.js';
-import { FileJobQueue } from './jobs/queue.js';
 import { enginePorts } from './ports.js';
 import { authApi } from './facade/auth-api.js';
 import { commentsApi } from './facade/comments-api.js';
@@ -63,12 +62,9 @@ export function agentTrust(client: EngineClient): boolean {
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
   // The façade's composition root: the ports a test hands, else the product's (the MCP server and the Studio hand none).
   const ports = enginePorts(opts.ports);
-  const ctx = await engineContext(opts, ports, (root, cli) => {
-    const queue = new FileJobQueue(root, cli, ports.clock);
-    return { queue, files: queue.files };
-  });
+  const ctx = await engineContext(opts, ports);
   const { ws, queue, jobFiles, studio } = ctx;
-  const engine: Omit<Engine, 'caller' | 'clock'> = {
+  const engine: Omit<Engine, 'caller' | 'clock' | 'envVars'> = {
     root: ws.root,
     queue,
     jobFiles,
@@ -98,5 +94,6 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   // Who drives this engine: the context's frozen caller, a read-only member (not writable, not configurable); and its
   // clock (L7.18: the Clock port its composition root chose), read-only the same way.
   Object.defineProperty(engine, 'caller', { value: ctx.caller, enumerable: true, writable: false, configurable: false });
+  Object.defineProperty(engine, 'envVars', { value: ports.env, enumerable: true, writable: false, configurable: false });
   return Object.defineProperty(engine, 'clock', { value: ports.clock, enumerable: true, writable: false, configurable: false }) as Engine;
 }

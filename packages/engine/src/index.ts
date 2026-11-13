@@ -151,7 +151,7 @@ export type {
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
 export type { InterruptOptions, InterruptPort, InterruptScope } from './interrupts.js';
-export { RunOptionError, SandboxTakeError, checkAllowWrites, checkSandboxEnv, executeRun, pickSandboxEnv, prepareRun, writesSummary } from './execute-run.js';
+export { RunOptionError, SandboxTakeError, checkAllowWrites, checkHeadedDisplay, checkSandboxEnv, executeRun, pickSandboxEnv, prepareRun, writesSummary } from './execute-run.js';
 export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
 // The pipeline calls a shell makes itself (renderWork / stillWork / exportWork: through the in-process functions below).
 export { defaultStillFile, editorErrorOf, findRenderOf, findRunOf, planWork, reviewWork } from './pipeline.js';
@@ -188,8 +188,13 @@ export type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, Jo
 export { jobProject } from './jobs/queue-core.js';
 export { FileJobQueue, JobFiles } from './jobs/queue.js';
 export { jobsDir, stateDir } from './workspace-state.js';
-export { MemoryJobQueue } from './jobs/memory-queue.js';
+export { MemoryJobQueue, memoryJobQueues } from './jobs/memory-queue.js';
+export { MemorySecrets } from './secrets/memory-secrets.js';
+export type { Secrets } from './secrets/secrets.js';
+export { noDisplay } from './env.js';
+export type { EngineEnv } from './env.js';
 export type { MemoryJobQueueOptions } from './jobs/memory-queue.js';
+export type { JobQueues, WorkspaceQueue } from './jobs/job-queue.js';
 export { WORKER_CLIENT_RE, WorkerLock, liveWorker, otherCopy, readWorkerLock, workerLockFile, workersDir } from './jobs/lock.js';
 export type { WorkerLockRecord } from './jobs/lock.js';
 export { buildDirs, buildStamp } from './jobs/build.js';

@@ -252,7 +252,7 @@ export async function saveScenarioText(
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
   if (scenario) {
     const before = current?.utf8 ? parseScenario(current.text, { files: opts.files, file: path, project, template: await templateOf(project, opts) }).scenario : undefined;
-    await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario, before: before ?? null, caller: opts.scope.caller, clock: opts.scope.clock });
+    await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario, before: before ?? null, caller: opts.scope.caller, clock: opts.scope.clock, stores: opts.scope.stores });
   }
   if (!project.scenarios.includes(name)) project.scenarios = [...project.scenarios, name].sort();
   return { name, file: res.ref, path: res.path, hash: res.sha256, created: !current, warnings: issues };
@@ -370,7 +370,8 @@ export async function editScenario(
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
   rememberVersion(p.base.path, res.sha256);
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
-  if (p.scenario) await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario: p.scenario, before: p.before ?? null, caller: o.scope.caller, clock: o.scope.clock });
+  if (p.scenario)
+    await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario: p.scenario, before: p.before ?? null, caller: o.scope.caller, clock: o.scope.clock, stores: o.scope.stores });
   return { name, file: p.base.file, path: res.path, hash: res.sha256, label: p.label, select: p.select, warnings: p.warnings, notices: p.notices, ...(p.change ? { change: p.change } : {}) };
 }
 

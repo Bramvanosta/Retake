@@ -127,6 +127,30 @@ describe('a MemoryWorkspace: one Map for the reads and the store', () => {
     expect((await engine.templates.list()).templates.map((t) => t.name)).toEqual(['default', 'editorial', 'motion']);
   });
 
+  it("a scenario saved through an engine on a MemoryWorkspace records its write in the Map (the stores' appendRecord): nothing of the disk is made, nothing is said on stderr", async () => {
+    const mem = new MemoryWorkspace();
+    const root = join(sep, 'retake-memory', 'record');
+    mem.seed(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
+    await memoryCopy(mem, STARTER_TEMPLATES_DIR);
+    const said: string[] = [];
+    const write = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array, ...rest: never[]) => {
+      said.push(String(chunk));
+      return write(chunk, ...rest);
+    }) as typeof process.stderr.write;
+    try {
+      const engine = await createEngine({ root, client: 'mcp', autoStartWorker: false, ports: { ...mem.ports(), clock: new ManualClock('2026-05-06T07:08:09.000Z') } });
+      await engine.projects.create({ name: 'Acme', environments: { local: { app: 'http://127.0.0.1:4999' } } });
+      await engine.scenarios.save('acme', 'first', 'video: first\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - click: Go\n', { ifMatch: null });
+    } finally {
+      process.stderr.write = write;
+    }
+    expect(said.filter((l) => l.includes('scenario writes'))).toEqual([]);
+    const record = mem.stores.files().get(join(root, 'projects', 'acme', '.retake', 'scenario-writes.jsonl'));
+    expect(JSON.parse(String(record))).toMatchObject({ v: 1, at: '2026-05-06T07:08:09.000Z', path: 'scenarios/first.yaml', by: { client: 'mcp', trust: 'mcp' } });
+    expect(existsSync(join(sep, 'retake-memory'))).toBe(false);
+  });
+
   it('a link is refused where the store has written: one Map never holds a file and a link of one name', () => {
     const mem = new MemoryWorkspace().seed('/m/p/README.md', '# x\n');
     expect(() => mem.link('/m/p/README.md', '../x')).toThrow('MemoryWorkspace.link: /m/p/README.md holds files: a link cannot be put in their place');

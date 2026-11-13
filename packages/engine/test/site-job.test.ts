@@ -144,6 +144,7 @@ describe('site jobs without any network', () => {
       const signed = await signApprovals({ version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url, submitted_by: 'mcp', approvals: approval(url) } as SiteJobInput, {
         jobId: JOB,
         root: ws.root,
+        env: process.env,
       });
       await expect(executeSiteJob(ctx(signed)), url).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(why) });
     }
@@ -185,7 +186,7 @@ describe('site jobs without any network', () => {
     await mkdir(siteDir(ws, id), { recursive: true });
     const signed = await signApprovals(
       { version: JOB_INPUT_VERSION, kind: 'site', site_id: id, url: 'https://brand.test/', submitted_by: 'mcp', approvals: approval('https://brand.test/') } as SiteJobInput,
-      { jobId: JOB, root: ws.root },
+      { jobId: JOB, root: ws.root, env: process.env },
     );
     await expect(executeSiteJob(ctx(signed))).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/exists already: an extraction's folder is made by the extraction itself/) });
     expect(await readdir(siteDir(ws, id))).toEqual([]);
@@ -392,7 +393,7 @@ describe('site jobs on the in-memory capture runner', () => {
     const extracted: string[] = [];
     const capture = new MemoryCaptureRunner({ site: memorySite((o) => (extracted.push(o.url), emptySiteReport(o.url))) });
     for (const j of [bare, unsigned, signedA, signedB, mismatched]) {
-      await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture } });
+      await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture } });
       const done = await engine.jobs.get(j.id);
       expect(done.state, j.id).toBe('failed');
       expect(done.error, j.id).toMatchObject({ code: 'refused', message: expect.stringMatching(/refused without running: a site job runs only with a human's approval/) });
@@ -413,7 +414,7 @@ describe('site jobs on the in-memory capture runner', () => {
         throw new Error('unreachable');
       }),
     });
-    const workInMemory = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture } });
+    const workInMemory = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture } });
     const sub = await engine.templates.fromSite({ url: 'https://hostile.test/hang' }, { approver: approver({ approved: true }) });
     const worker = workInMemory();
     // Wait until the page is being read.

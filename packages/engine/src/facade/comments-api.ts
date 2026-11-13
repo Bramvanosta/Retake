@@ -17,7 +17,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
   const { caller, ws, scope, project, commentIndex } = ctx;
   // Who an entry is written by: the channel, never a person; anything but the CLI and the Studio counts as the MCP
   // (fail-safe). The name of a person channel is this process's (the page never names an author).
-  const commentAuthor = (): CommentAuthor => (caller.channel === 'mcp' ? { via: 'mcp', name: MCP_AUTHOR_NAME } : { via: caller.channel, name: defaultAuthorName() });
+  const commentAuthor = (): CommentAuthor => (caller.channel === 'mcp' ? { via: 'mcp', name: MCP_AUTHOR_NAME } : { via: caller.channel, name: defaultAuthorName(ctx.ports.env) });
   return {
     list: async (slug, req) => listComments(await project(slug), req),
     get: async (slug, id) => getComment(await project(slug), id),

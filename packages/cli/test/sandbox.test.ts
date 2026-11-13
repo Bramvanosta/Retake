@@ -6,6 +6,7 @@
  * the usage errors of --sandbox, and doctor's line. The Retake home is a temp folder (RETAKE_HOME). Skipped when
  * Chromium is not available.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -124,7 +125,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   afterAll(async () => {
     try {
-      await openSandbox(await loadProject(dir), undefined, PERSON_POLICY).down();
+      await openSandbox(await loadProject(dir), undefined, PERSON_POLICY, resolveSecretRef).down();
     } catch {
       /* not started */
     }

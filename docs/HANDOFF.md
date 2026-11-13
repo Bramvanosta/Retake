@@ -75,6 +75,47 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.41)
+- **L7.41 done (2026-11-13; branch `claude/arch-l7`)** — the ports bag holds the job queue, the renderer, the
+  environment and a Secrets port; the worker's in-process heavy mode is explicit; the Clock port has a monotonic side;
+  the scenario-writes record goes through the stores port. Closes A-M2, A-M3, A-S12, A-N9, A-N10 and the lead's
+  `/retake-memory` mkdir bug.
+  - Code: `EnginePorts` + `queues` (JobQueues: root, cli, clock, env → `{ queue, files }`; `memoryJobQueues()` shares
+    one map per root), `renderer`, `env` (env.ts `EngineEnv`, `noDisplay`), `secrets` (secrets/: port, `systemSecrets`,
+    `MemorySecrets`); `portsOf`; `JobBase extends EnginePorts`; engine/worker/job process/CLI call the factory;
+    `cliPorts.renderer` in the 5 CLI sites. Worker: `WorkerOptions.heavyInProcess`; `HEAVY_JOB_PORTS` is
+    `Record<keyof WorkerPorts, boolean>` (reads, queues, env, secrets added); a heavy port handed without the option is
+    refused before anything is opened. `Clock.monotonic()` (system: performance.now; ManualClock: moves with advance
+    only); worker loop/heavy/slots/record/recovery, jobs.wait, in-process and record `ms` on it; project-lock,
+    render-frames, memory-renderer, yield on `performance.now()` (append-log kept on Date.now: its test moves it). ~22 engine files read `env` from the bag
+    (signing, captures, approvals used, display checks, time limits, token files, config snippet, author name, worker
+    env); `Engine.envVars`. Core: no secret is filled in without a resolver (`defaultSecrets` gone), `prefetchSecrets`
+    knows its refs only, runner-web `RunSecrets` and hooks `secretResolver` have no environment fallback;
+    `HookContext.resolveSecret`, `CaptureRequest.resolveSecret` and `CaptureSessions.signIn` take the port's resolver.
+    `ProjectStores.appendRecord` (disk: owner-only, O_NOFOLLOW, torn line closed, fsync; memory: the Map).
+    Ratchet: `PORT_ROOTS` editorRenderer / FileJobQueue / systemSecrets (QUEUE_ROOTS = ports.ts + queue.ts), new rule
+    `env-read` (ENV_HOMES ports.ts, worker-main.ts), `PORT_FILES` + secrets.ts, reads.ts. Baseline 115 → 108 (−12
+    clock-read, +5 env-read with two reasons). Docs: DESIGN §1 (core's env defaults: two), DESIGN worker ports,
+    target-architecture ports list (Secrets, WorkspaceReads; ProgressSink struck).
+  - Tests: new secrets.test.ts + secrets-contract.ts (both adapters), worker-ports (typed list, refusal, runWorker
+    refused with memory reads, nothing on disk), clock (monotonic; a worker's idle exit on a ManualClock), engine.test
+    (createEngine entirely on the memory queue), workspace-reads (memory scenario record in the Map, no stderr, no
+    `/retake-memory`), project-store-contract appendRecord, import-rules (env-read, editorRenderer roots, new queue
+    roots), hooks secrets (context resolver, dry run), capture-runner (run handed the port's resolver). Migrated: 17
+    files to `heavyInProcess: true` (those handing heavy ports), env/signing args in ~15 test files, 3 tests that pinned
+    the old env fallback (core templating, scenario-template, runner-web secrets) now hand a resolver (titles kept).
+  - Mutations: 14, all red (list below); each restored (`cmp`, `touch`), then `tsc -b --force`.
+  - Gates: `tsc -b`, `pnpm typecheck`, `pnpm lint` (541, none new), `pnpm format:check`, `rules.mjs --check` (108),
+    `requirements.mjs --check-cites` on a scratch copy with the edits applied: exit 0. `test-guard.mjs`: exit 1 on two
+    **renamed** titles whose old wording became false (explained below); no expect count went down.
+  - Goldens: `fixtures/operations-cli.json` and `fixtures/pipeline-cli.json` unchanged. Their harnesses follow the
+    seams: operations-cli mocks the engine's `editor-renderer.ts` (what `cliPorts.renderer` is made of; a delegating
+    renderer, since cliPorts is built at load) instead of the `@retake/engine` export; pipeline-cli takes the run's
+    `resolveSecret` out of the recorded runScenario options as it already took `hookRunner` (and asserts each run was
+    handed one).
+  - Not done: the 47 test files on the file queue (L7.53); the scenario-writes record's reader (`hooksWrittenBy`) still reads the disk (a memory workspace
+    reads "missing", as before).
+
 ## State (after L7.43)
 - **L7.43 done (2026-11-13; branch `claude/arch-l7`)** — the tests run in the CI (a deterministic tier) and the test
   tooling holds without a reader's memory.

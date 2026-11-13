@@ -6,6 +6,7 @@
  * multi-call binary picks its role from argv[0]: OrbStack's `docker`). An account's `{{compose_env:NAME}}` password:
  * the value of the sandbox's compose env file.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -58,6 +59,7 @@ async function project(name: string, manifest: string[], files: Record<string, s
 
 function ctxOf(p: LoadedProject): ProviderContext {
   return {
+    resolveSecret: resolveSecretRef,
     project: p,
     policy: PERSON_POLICY,
     sandbox: p.sandboxes!.stage,

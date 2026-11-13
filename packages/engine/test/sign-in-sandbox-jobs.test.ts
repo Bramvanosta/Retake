@@ -5,6 +5,7 @@
  * step runs only with a human approval of its fingerprint (trust `mcp`), taken at submit — a job queued without one
  * fails before the seed changes anything it should not. Plus the job history (history.jsonl) and the usage counters.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -172,7 +173,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
   afterAll(async () => {
     for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
     try {
-      await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY).down();
+      await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY, resolveSecretRef).down();
     } catch {
       /* never started */
     }
@@ -241,7 +242,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(done.error?.message).toContain('without a human approval');
     await w.exited;
     // L7.28: the same for an up that seeds (sandbox-work.ts hands the job's seedTrust on): down first, so the data is gone.
-    await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY).down();
+    await openSandbox(await loadProject('s', ws), undefined, PERSON_POLICY, resolveSecretRef).down();
     const up = await queue.enqueue({ version: 1, kind: 'sandbox_up', project: 's', submitted_by: 'test' });
     const w2 = startWorker();
     const upDone = await finished(up.id);

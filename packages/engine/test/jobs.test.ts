@@ -145,7 +145,7 @@ describe('FileJobQueue', () => {
     await q.cancel(take.id, 'test');
     expect(await q.position(r1.id)).toEqual({ ahead: 0 });
     // A take filming on this Mac (a marker of another workspace, or a terminal) holds them too.
-    const m = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: join(ws, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
     try {
       expect(await q.position(r1.id)).toEqual({ ahead: 0, held_by: 'take' });
       expect(await q.position(dry.id)).toEqual({ ahead: 0 });
@@ -457,7 +457,7 @@ describe('captures first in the job views (L5.14b)', () => {
     expect(heldWorkWords(watch.held()!)).toBe('a review waits for a take to finish (in this workspace)');
     await q.cancel(take.id, 'test');
     // A take filming elsewhere on this Mac (a marker of another workspace): "elsewhere", nothing of it named.
-    const m = FilmingMarker.open({ root: join(ws, 'q-yield-other'), source: 'cli', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: join(ws, 'q-yield-other'), source: 'cli', owner: await selfIdentity() })!;
     try {
       const held = (await q.list({ kinds: ['review'] }))[0]!;
       expect(held.yield).toEqual({ state: 'waiting', cause: 'elsewhere' });

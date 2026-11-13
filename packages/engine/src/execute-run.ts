@@ -4,6 +4,9 @@
  * scenario's warnings and notes, the sandbox take or check, the capture runner's run). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
+import type { Secrets } from './secrets/secrets.js';
+import { noDisplay } from './env.js';
+import type { EngineEnv } from './env.js';
 import { GUIDE, sandboxErrorKind } from '@retake/core/base';
 import { resolveEnvironment, resolveRunAccess } from '@retake/core/environment';
 import { sandboxNames, sandboxOf } from '@retake/core/sandbox';
@@ -126,6 +129,11 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  * mailbox receives. The file is read once (its sha256 is `scenario.sha256`, checked against `expectSha256` when given):
  * the sandbox's pick and the validation work on the same bytes.
  */
+/** A headed run (the CLI's `--headed`) needs a display: refused when its environment has none (env.ts noDisplay). */
+export function checkHeadedDisplay(req: Pick<RunRequest, 'headed'>, vars: EngineEnv): void {
+  if (req.headed && noDisplay(vars)) throw new Error('--headed needs a display, and none is available (DISPLAY / WAYLAND_DISPLAY are not set)');
+}
+
 export async function prepareRun(ws: OpenedWorkspace, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
   if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
   const src = await ws.reads.readScenarioSource(project, scenarioRef, {
@@ -141,9 +149,6 @@ export async function prepareRun(ws: OpenedWorkspace, project: LoadedProject, sc
   } catch (e) {
     // Phase 1 only takes the cursor ripple colour from the template: capture with the defaults.
     templateWarning = `${errorMessage(e)} — capturing with the default cursor colours`;
-  }
-  if (req.headed && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    throw new Error('--headed needs a display, and none is available (DISPLAY / WAYLAND_DISPLAY are not set)');
   }
   return { ws, project, scenario, ...(template ? { template } : {}), ...(templateWarning ? { templateWarning } : {}), ...(sandboxEnv ? { sandboxEnv } : {}) };
 }
@@ -167,6 +172,8 @@ export interface ExecuteRunOptions {
   policy: WorkPolicy;
   /** What films the run (its composition root's capture runner, capture/runner.ts). */
   capture: CaptureRunner;
+  /** What its secret references are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
   /** What the run's setup, teardown and hook steps run through (its composition root's hook runner). */
   hooks: HookRunner;
   /** What takes a sandbox's take (`sandbox: true`) or checks a sandbox environment (its composition root's Sandboxes port). */
@@ -267,6 +274,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
 
   try {
     return await opts.capture.run({
+      resolveSecret: (ref) => opts.secrets.resolve(ref),
       policy: opts.policy,
       project,
       scenario,

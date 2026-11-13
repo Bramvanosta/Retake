@@ -6,6 +6,7 @@
  * the real `docker compose config` (RETAKE_TEST_DOCKER=1; the docker CLI and its daemon, no image needed) what it
  * read: the file's tag wins over the shell's, the subfolder's file is the one read.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -49,7 +50,16 @@ async function project(name: string, manifest: string[], files: Record<string, s
 
 function ctxOf(p: LoadedProject): ProviderContext {
   const sandbox = p.sandboxes!.stage;
-  return { project: p, policy, sandbox, paths: sandboxPaths(p.dir, 'stage'), state: emptyState('stage', 'docker-compose'), save: () => undefined, log: () => undefined };
+  return {
+    project: p,
+    policy,
+    sandbox,
+    paths: sandboxPaths(p.dir, 'stage'),
+    state: emptyState('stage', 'docker-compose'),
+    save: () => undefined,
+    log: () => undefined,
+    resolveSecret: resolveSecretRef,
+  };
 }
 
 describe('env file of a docker-compose sandbox (L5.8)', () => {

@@ -14,6 +14,7 @@
  * When the replay ends before the page could be inspected (a preflight or sign-in failure, a refused scenario), the job
  * still succeeds and reports the run's error under `untrusted` (and which persona must sign in); a cancel cancels it.
  */
+import type { Secrets } from '../secrets/secrets.js';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -324,6 +325,8 @@ export interface InspectionOptions {
   frames: Pick<FrameTools, 'marks'>;
   /** What replays the scenario (its composition root's capture runner, capture/runner.ts). */
   capture: CaptureRunner;
+  /** What its secret references are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
   /** Its hook runner, handed to every run (an inspection skips the scenario's hooks: nothing runs through it). */
   hooks: HookRunner;
   /** Who stands behind the replayed scenario (`mcp`: agent trust in the runner). */
@@ -342,6 +345,7 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
   let report: InspectReport | null = null;
   let signIn: InspectionRun['signIn'] = null;
   const record = await o.capture.run({
+    resolveSecret: (ref) => o.secrets.resolve(ref),
     policy: o.policy,
     project: prepared.project,
     scenario: prepared.scenario,
@@ -444,6 +448,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
     images: input.images,
     frames: ctx.reviewer.frames,
     capture: ctx.capture,
+    secrets: ctx.secrets,
     hooks: ctx.hooks,
     hookTrust: ENGINE_TRUST,
     signal: ctx.signal,

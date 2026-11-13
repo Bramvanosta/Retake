@@ -5,7 +5,9 @@
  * is chosen at the composition roots (ports.ts `enginePorts`): the disk's (`diskProjectStores`, project-store.ts) for
  * the product. A store is rooted at a folder; its refs are relative to it, and nothing is written outside it.
  */
+import { statePath } from '@retake/core/project';
 import type { Caller } from '../caller.js';
+import { EngineError } from '../errors.js';
 import type { Clock } from '../clock.js';
 import type { WriteResult } from '../storage.js';
 import type { JournalWhat } from './journal.js';
@@ -90,6 +92,19 @@ export interface ProjectStores {
   at(root: string, scope: StoreScope, o?: { project?: string; label?: StoreLabel }): ProjectStore;
   /** A folder to read (a project's README), refused outside it like a store. */
   folder(root: string): ProjectFolder;
+  /**
+   * Append one line to the record `name` of the project folder `projectDir`'s state folder (recordPath: agent-written.ts'
+   * scenario writes and a person's trust): created owner-only with its folder, never through a symbolic link, a torn
+   * last line closed first, synced before it returns. A name that is not a plain file name is refused. Not journaled:
+   * the record follows writes the journal already holds.
+   */
+  appendRecord(projectDir: string, name: string, line: string): Promise<void>;
+}
+
+/** `<projectDir>/.retake/<name>`: a record of a project's state folder; `invalid` for a name that is not a plain file name. */
+export function recordPath(projectDir: string, name: string): string {
+  if (!/^[A-Za-z0-9][\w.-]*$/.test(name) || name.includes('..')) throw new EngineError('invalid', `not a record of a project's state folder: ${JSON.stringify(name.slice(0, 80))}`);
+  return statePath(projectDir, undefined, name);
 }
 
 /** How a refusal names the folder of a store with a label of its own (default: the project folder). */

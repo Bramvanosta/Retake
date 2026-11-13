@@ -1,13 +1,11 @@
 /**
- * The jobs worker's ports (L7.29, P6): the engine's (ports.ts EnginePorts) and the four only a worker has — what render,
- * export and preview jobs render with, the window a `record` job opens for a person, the free space a library preview
- * job reads, and the job processes of its heavy slot (their command line, the signals sent to them, their background
- * priority, the build stamp the worker compares while idle). `workerPorts` is where those four's defaults are written
+ * The jobs worker's ports: the engine's (ports.ts EnginePorts) and the three only a worker has — the window a `record`
+ * job opens for a person, the free space a library preview job reads, and the job processes of its heavy slot (their
+ * command line, the signals sent to them, their background priority, the build stamp the worker compares while idle).
+ * `workerPorts` is where those three's defaults are written
  * (the product's adapters; the engine's are ports.ts enginePorts', which runWorker hands it). A composition root (worker-main through runWorker, an in-process test) hands any of them in
  * `WorkerOptions.ports`; the worker record and the job runner hold no test hook.
  */
-import { editorRenderer } from '../render/editor-renderer.js';
-import type { Renderer } from '../render/renderer.js';
 import type { RecordPorts } from '../record.js';
 import { freeBytesOf } from '../library.js';
 import type { EnginePorts } from '../ports.js';
@@ -50,10 +48,8 @@ export interface JobProcesses {
   buildStamp(): string;
 }
 
-/** Every port a jobs worker runs with. */
+/** Every port a jobs worker runs with: the engine's (its renderer among them) and the worker's own. */
 export interface WorkerPorts extends EnginePorts {
-  /** What render, export and preview jobs render with (render/renderer.ts; default the editor's driver). */
-  renderer: Renderer;
   recordWindow: RecordWindow;
   /** What a library preview job's disk gate reads. */
   freeBytes: FreeBytes;
@@ -64,18 +60,46 @@ export interface WorkerPorts extends EnginePorts {
 export type WorkerPortsGiven = Partial<Omit<WorkerPorts, 'processes'>> & { processes?: Partial<JobProcesses> };
 
 /**
- * The ports a heavy job reads in its job process. Handed any of them (an object, which cannot reach a job process),
- * the worker runs heavy jobs in its own process, one job at a time, as before L5.14 (no capture beside them, no yield);
- * the record window and the job processes are the worker's own and change nothing of that.
+ * Which ports a heavy job reads (true) — in its job process, which is a composition root of its own and cannot be
+ * handed an object, so it reads the product's. Every port of the bag is listed (typed over WorkerPorts, so a port
+ * added to EnginePorts must be said here): the record window and the job processes are the worker's own, and the
+ * environment reaches the job process (the heavy slot starts it with the worker's ports env: worker-heavy.ts).
  */
-const HEAVY_JOB_PORTS = ['clock', 'stores', 'hooks', 'reviewer', 'capture', 'sandboxes', 'renderer', 'freeBytes'] as const satisfies ReadonlyArray<keyof WorkerPorts>;
+export const HEAVY_JOB_PORTS = {
+  clock: true,
+  stores: true,
+  reads: true,
+  hooks: true,
+  reviewer: true,
+  capture: true,
+  sandboxes: true,
+  queues: true,
+  renderer: true,
+  env: false,
+  secrets: true,
+  freeBytes: true,
+  recordWindow: false,
+  processes: false,
+} as const satisfies Record<keyof WorkerPorts, boolean>;
 
-/** The engine's ports and the worker's given, the product's for the others; and whether heavy jobs then run in this process. */
-export function workerPorts(engine: EnginePorts, given: WorkerPortsGiven = {}, dirs: ReturnType<typeof buildDirs>): { ports: WorkerPorts; heavyInProcess: boolean } {
+/** The heavy-job ports a composition root handed (HEAVY_JOB_PORTS), by name. */
+export function heavyPortsGiven(given: WorkerPortsGiven): string[] {
+  return (Object.keys(HEAVY_JOB_PORTS) as (keyof WorkerPorts)[]).filter((k) => HEAVY_JOB_PORTS[k] && given[k] !== undefined);
+}
+
+/**
+ * The engine's ports and the worker's given, the product's for the others. `heavyInProcess` (WorkerOptions) is the
+ * mode, stated by the root: a worker handed a port a heavy job reads without it is refused — its heavy jobs would run
+ * in a job process on the product's ports, beside a worker on others (two workspaces, two queues, two clocks).
+ */
+export function workerPorts(engine: EnginePorts, given: WorkerPortsGiven = {}, dirs: ReturnType<typeof buildDirs>, heavyInProcess = false): WorkerPorts {
+  const handed = heavyPortsGiven(given);
+  if (handed.length > 0 && !heavyInProcess) {
+    throw new Error(`a jobs worker handed its own ${handed.join(', ')} must run its heavy jobs in its own process (heavyInProcess): a job process reads the product's ports`);
+  }
   const p = given.processes ?? {};
-  const ports: WorkerPorts = {
+  return {
     ...engine,
-    renderer: given.renderer ?? editorRenderer(),
     recordWindow: given.recordWindow ?? {},
     freeBytes: given.freeBytes ?? freeBytesOf,
     processes: {
@@ -85,5 +109,4 @@ export function workerPorts(engine: EnginePorts, given: WorkerPortsGiven = {}, d
       buildStamp: p.buildStamp ?? (() => buildStamp(dirs)),
     },
   };
-  return { ports, heavyInProcess: HEAVY_JOB_PORTS.some((k) => given[k] !== undefined) };
 }

@@ -37,7 +37,6 @@ import { buildDirs } from './build.js';
 import { heldFile } from './captures.js';
 import { WorkerLock } from './lock.js';
 import { selfIdentity } from './proc.js';
-import { FileJobQueue } from './queue.js';
 import { shellQuote } from './run-job-record.js';
 import type { Workspace } from './run-job-record.js';
 import { drain, handOver, serve } from './worker-loop.js';
@@ -67,16 +66,18 @@ async function openForWorker(root: string, reads: WorkspaceReads, log: (message:
 export async function runWorker(o: WorkerOptions): Promise<number> {
   // The worker process's composition root: the ports its jobs run with (a test's, else the product's).
   const engine = enginePorts(o.ports);
-  const { clock, stores, reads, hooks, reviewer, capture, sandboxes } = engine;
+  const heavyInProcess = o.heavyInProcess ?? false;
+  const dirs = buildDirs();
+  // Checked before anything is opened: a test's ports with heavy jobs on the product's is refused (worker-ports.ts).
+  const ports = workerPorts(engine, o.ports, dirs, heavyInProcess);
+  const { clock, stores, reads, hooks, reviewer, capture, sandboxes } = ports;
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
   const ws = await openForWorker(root, reads, log);
   if (!ws) return 1;
   const cli = `retake -C ${shellQuote(root)}`;
-  // The worker process's composition root: the one queue this worker reads and writes.
-  const queue = new FileJobQueue(root, cli, clock);
-  const dirs = buildDirs();
-  const { ports, heavyInProcess } = workerPorts(engine, o.ports, dirs);
+  // The worker process's composition root: the one queue this worker reads and writes (its ports' factory).
+  const { queue, files } = ports.queues(root, cli, clock, ports.env);
   const build = ports.processes.buildStamp();
   const lock = await WorkerLock.acquire(root, build, clock, log, o.startedBy);
   if (!lock) {
@@ -92,6 +93,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     o,
     log,
     root,
+    ports,
     clock,
     stores,
     reads,
@@ -100,7 +102,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     ws,
     cli,
     queue,
-    files: queue.files,
+    files,
     dirs,
     build,
     lock,
@@ -108,7 +110,6 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     captureRunner: capture,
     sandboxes,
     os: { processTableSync },
-    renderer: ports.renderer,
     recordWindow: ports.recordWindow,
     freeBytes: ports.freeBytes,
     processes: ports.processes,

@@ -17,7 +17,8 @@
  * paths under its label (`<project>/scenarios/quote.yaml`, `<templates_dir>/mine`), never an absolute path.
  */
 import { randomBytes } from 'node:crypto';
-import { copyFile, mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { copyFile, mkdir, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { errorKindOf } from '@retake/core/base';
 import type { TakeLock } from '@retake/core/io';
@@ -29,7 +30,7 @@ import { LocalStorage, sha256Hex, WRITE_LOCK_WAIT_MS } from '../storage.js';
 import type { WriteResult } from '../storage.js';
 import { JOURNAL_FILES_MAX, appendJournal, journalPath } from './journal.js';
 import type { JournalPlace, JournalWhat, JournalWrite } from './journal.js';
-import { FOLDER_NOUNS } from './store.js';
+import { FOLDER_NOUNS, recordPath } from './store.js';
 import type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreLabel, StoreScope, StoreWriteOptions } from './store.js';
 
 export type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreScope, StoreWriteOptions } from './store.js';
@@ -198,11 +199,35 @@ class DiskProjectStore implements ProjectStore {
   }
 }
 
+/** Appending only, created owner-only, never through a symbolic link; read too, for its last byte (as the journal's). */
+const RECORD_FLAGS = constants.O_RDWR | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW;
+
+/** Append one line, a torn last line (no line break: a crash mid-write) closed first, synced to disk before returning. */
+async function appendRecordLine(projectDir: string, name: string, line: string): Promise<void> {
+  const file = recordPath(projectDir, name);
+  await mkdir(dirname(file), { recursive: true });
+  const fh = await open(file, RECORD_FLAGS, 0o600);
+  try {
+    const { size } = await fh.stat();
+    let head = '';
+    if (size > 0) {
+      const last = Buffer.alloc(1);
+      await fh.read(last, 0, 1, size - 1);
+      if (last[0] !== 0x0a) head = '\n';
+    }
+    await fh.write(head + line);
+    await fh.sync();
+  } finally {
+    await fh.close();
+  }
+}
+
 /** The ProjectStore port on the disk: the product's adapter (chosen at the composition roots, ports.ts). */
 export const diskProjectStores: ProjectStores = {
   of: (project, scope) => new DiskProjectStore(project.dir, scope, project.slug),
   at: (root, scope, o = {}) => new DiskProjectStore(root, scope, o.project, o.label),
   folder: (root): ProjectFolder => new LocalStorage(root),
+  appendRecord: appendRecordLine,
 };
 
 /** The scope of a person's own `retake` command: its writes are journaled as the CLI's (`cli`, trust `author`). */

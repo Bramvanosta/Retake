@@ -43,9 +43,11 @@ else `start`. `retake.yaml` (optional) may set `projects_dir`, `templates_dir`, 
 
 Two entries (L6.9). `@retake/core` is the domain — the scenario language, schemas, validation, the agent policy's
 rules and lists — with no I/O (it imports no I/O module: the import-rules ratchet's R1) and no environment read, but
-three listed defaults: `defaultSecrets` (`{{env:VAR}}` filled in without a resolver), `expandHome` (`~` is `$HOME`) and
+two listed defaults: `expandHome` (`~` is `$HOME`) and
 `unsafeTestResolve` (the site test resolver's variable, which the site job's input schema reads); the clock and ids are
-allowed (`ids.ts`, `newRunId`, a schema file found from `import.meta.url`). `@retake/core/io` (`src/io/`) is its side
+allowed (`ids.ts`, `newRunId`, a schema file found from `import.meta.url`). A secret reference (`{{env:VAR}}`,
+`{{keychain:…}}`) is filled in only by a resolver its caller hands (the engine's Secrets port; core io
+`prefetchSecrets`): without one it is refused, never read from the environment on the way. `@retake/core/io` (`src/io/`) is its side
 that touches the machine: the readers below (workspace, projects, scenarios, themes, sandboxes), the app bundle and the
 media tools (`bundle.ts`, `media-tools.ts`), the Retake home and its signing key, secret references, atomic file writes,
 the media probes, the Node implementations of the ports below, and the environment the domain is given (this process's
@@ -6594,9 +6596,10 @@ previews and site extractions are background work, a take is not (BL-116). Built
   `rendererTest` with `ports.renderer`; L7.29 `previewTest` with `ports.renderer` — a preview backend is a renderer of
   its own, editor-renderer.ts `withPreviewBackend` — and `ports.freeBytes`, `recordTest` with `ports.recordWindow`,
   `jobProcessTest` with `ports.processes`: a job process's command line, the signal sender, the QoS table, the build
-  stamp) the worker record holds no test hook. Given a port a heavy job reads (the engine's, the renderer, the free
-  space) heavy jobs run in the worker, one job at a time, as before; the window and the job processes alone change
-  nothing of that. What a job of each kind does is its handler's (jobs/job-handlers.ts `JOB_HANDLERS`, a table typed by
+  stamp) the worker record holds no test hook. Heavy jobs run in the worker, one job at a time, as before the job
+  processes, when its root says so (`heavyInProcess`); a worker handed a port a heavy job reads (worker-ports.ts
+  `HEAVY_JOB_PORTS`, typed over every port: the engine's, the free space) without it is refused — a job process
+  reads the product's ports; the window and the job processes are not such ports. What a job of each kind does is its handler's (jobs/job-handlers.ts `JOB_HANDLERS`, a table typed by
   the job kind: no default branch).
 - **Signals** (jobs/signal.ts, review B L1): every signal to a job process or its tree, and the root of every QoS hold,
   goes through one guard — never a pid that is not an integer above 1 (a failed spawn's -1: `kill(-1)` reaches every

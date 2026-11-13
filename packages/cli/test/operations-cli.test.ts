@@ -12,7 +12,7 @@
  * one's env, kind, paths and capabilities; up / down / reset / status / logs answer fixed results and journal a seed
  * step as the caller's), @retake/runner-web's `exportCapture` writes a small fake package (its folder and settings from the
  * runner's own `rawPackageDir` / `rawSettings`; `rawExportRun`, the gate, stays real), and the engine's `editorRenderer`
- * is the memory renderer (no bundle, no browser: 1 × 1 previews). The planner (`planEdit`), the hook runner (harmless
+ * (what `cliPorts.renderer` is made of) is the memory renderer (no bundle, no browser: 1 × 1 previews). The planner (`planEdit`), the hook runner (harmless
  * `shell: echo …` hooks, run for real in the temp workspace), the hook journals, the sandbox scaffold (`initSandbox`),
  * the component registry, validation and scaffold are the real code.
  *
@@ -164,8 +164,8 @@ vi.mock('../../engine/src/sandboxes/package-sandboxes.ts', async (importOriginal
   }
   return {
     ...real,
-    packageSandboxes: () => {
-      const sandboxes = real.packageSandboxes();
+    packageSandboxes: (secrets: Parameters<typeof real.packageSandboxes>[0]) => {
+      const sandboxes = real.packageSandboxes(secrets);
       return {
         // The real open (its refusals: no sandbox, an unknown env), then the fake handle.
         open: async (project: Project, env: string | undefined, policy: Parameters<typeof sandboxes.open>[2]) => fakeSandbox(project, await sandboxes.open(project, env, policy)),
@@ -262,9 +262,20 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
   };
 });
 
-vi.mock('@retake/engine', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@retake/engine')>();
-  return { ...real, editorRenderer: () => fakes.renderer };
+// The renderer as the CLI's composition root builds it (engine ports.ts imports it by this path: cliPorts.renderer).
+vi.mock('../../engine/src/render/editor-renderer.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../engine/src/render/editor-renderer.ts')>();
+  // cliPorts is made when the CLI loads, before the memory renderer below: each call goes to it when it is made.
+  type R = ReturnType<typeof real.editorRenderer>;
+  const now = (): R => fakes.renderer as R;
+  return {
+    ...real,
+    editorRenderer: (): R => ({
+      video: (req) => now().video(req),
+      stills: (req) => now().stills(req),
+      previews: { bundle: (o) => now().previews.bundle(o), open: (bundle, o) => now().previews.open(bundle, o) },
+    }),
+  };
 });
 
 import { RETAKE_VERSION } from '@retake/core';

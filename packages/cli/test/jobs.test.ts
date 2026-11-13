@@ -96,7 +96,7 @@ describe('retake jobs', () => {
     const { hostname } = await import('node:os');
     const q = new FileJobQueue(ws);
     const review = await q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: 'quote-v2', fps: 1, submitted_by: 'test' } as never);
-    const m = FilmingMarker.open({ root: join(ws, 'another-workspace'), source: 'cli', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: join(ws, 'another-workspace'), source: 'cli', owner: await selfIdentity() })!;
     try {
       const list = await retake('jobs');
       expect(list.out).toMatch(new RegExp(`^${review.id}  queued +northfield-fixture · review quote-v2 · waiting for a take to finish \\(elsewhere on this Mac\\)`, 'm'));

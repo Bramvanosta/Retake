@@ -8,6 +8,7 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
+import type { Secrets } from './secrets/secrets.js';
 import { showHiddenCharsLine } from '@retake/core/base';
 import { hookApprovalReason, hookKind } from '@retake/core/hooks';
 import { agentTrustProblems, navigationTrustProblems } from '@retake/core/scenario';
@@ -193,11 +194,12 @@ function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase, 
 export async function preflightHooks(
   project: LoadedProject,
   lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean }>,
-  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel; hooks: HookRunner; pages: HookPages },
+  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel; hooks: HookRunner; pages: HookPages; secrets: Secrets },
 ): Promise<Preflight> {
   const runner = o.hooks;
   const { ctx, access } = await createHookContext(project, {
     policy: o.policy,
+    secrets: o.secrets,
     env: o.env,
     dry: true,
     trust: ENGINE_TRUST,

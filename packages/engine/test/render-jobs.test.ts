@@ -168,7 +168,7 @@ describe.skipIf(!canRender)('render jobs', () => {
       // itself (the Remotion driver's `.<id>.partial-*.mp4`, removed by it: render-worker-process.test's cancel and
       // SIGKILL mid-render, a real browser); "no partial file" here is the in-memory renderer's own cleanup.
       const renderer = new MemoryRenderer({ duringVideo: (req) => new Promise<void>((done) => (req.signal?.aborted ? done() : req.signal?.addEventListener('abort', () => done(), { once: true }))) });
-      const worker = runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer } });
+      const worker = runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { renderer } });
       for (let i = 0; i < 600; i++) {
         const j = await queue.get(sub.job.id);
         if (j?.state === 'running' && j.progress?.phase === 'rendering') break;

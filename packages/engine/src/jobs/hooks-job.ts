@@ -99,6 +99,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
         journalFile: preflightJournal(project),
         hooks: ctx.hooks,
         pages: ctx.capture.hookPages,
+        secrets: ctx.secrets,
       });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
@@ -141,6 +142,7 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
         journalFile: preflightJournal(project),
         hooks: ctx.hooks,
         pages: ctx.capture.hookPages,
+        secrets: ctx.secrets,
       });
       if (pre.refused.length) throw refusedError(pre, fix);
       approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client, ctx.clock);
@@ -198,6 +200,7 @@ function jobHookOptions(ctx: HooksJobContext<HooksJobInput | EnvResetJobInput>):
     policy: ctx.ws.policy,
     hooks: ctx.hooks,
     pages: ctx.capture.hookPages,
+    secrets: ctx.secrets,
     trust: ENGINE_TRUST,
     confirm: approvalChecker(input.approvals),
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),

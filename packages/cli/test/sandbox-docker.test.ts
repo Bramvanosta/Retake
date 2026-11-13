@@ -11,6 +11,7 @@
  * inline part); the image prints no PDF (no Chromium); `retake sandbox reset` empties Mailpit (DELETE all); logs show
  * the relay; `down --volumes` leaves nothing with the project's label.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -132,7 +133,7 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
 
   afterAll(async () => {
     try {
-      if (dir) await openSandbox(await loadProject(dir), ENV, policy).down({ volumes: true });
+      if (dir) await openSandbox(await loadProject(dir), ENV, policy, resolveSecretRef).down({ volumes: true });
     } catch {
       /* not started */
     }

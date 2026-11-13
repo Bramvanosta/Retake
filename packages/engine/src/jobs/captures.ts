@@ -24,6 +24,7 @@
  *   rewritten file, a renamed one, nor one removed as stale and written again restarts it while that owner runs (review
  *   A L2, B L4). A paused take does not count.
  */
+import type { EngineEnv } from '../env.js';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync, writeSync } from 'node:fs';
@@ -78,7 +79,7 @@ function darwinUserTemp(): string | null {
  * Where the markers of this user live (before the folder's own checks), and whether RETAKE_CAPTURES_DIR named it;
  * `refused` under a test run without RETAKE_CAPTURES_DIR (review B M2: the per-user folder is then never made nor read).
  */
-export function capturesLocation(env: NodeJS.ProcessEnv = process.env): { dir: string; override: boolean; problem?: string; refused?: boolean } {
+export function capturesLocation(env: EngineEnv): { dir: string; override: boolean; problem?: string; refused?: boolean } {
   const named = env.RETAKE_CAPTURES_DIR?.trim();
   if (named && isAbsolute(named)) return { dir: named, override: true };
   const dir = defaultDir(env);
@@ -92,12 +93,12 @@ export function capturesLocation(env: NodeJS.ProcessEnv = process.env): { dir: s
 }
 
 /** A test run (vitest, or a RETAKE_TEST_* variable in this environment or the process's): never the per-user folder. */
-function underTest(env: NodeJS.ProcessEnv): boolean {
+function underTest(env: EngineEnv): boolean {
   for (const e of [env, process.env]) if (e.VITEST || Object.keys(e).some((k) => k.startsWith('RETAKE_TEST_'))) return true;
   return false;
 }
 
-function defaultDir(env: NodeJS.ProcessEnv): string {
+function defaultDir(env: EngineEnv): string {
   const t = process.platform === 'darwin' ? darwinUserTemp() : null;
   return t ? join(t, 'retake-captures') : join(retakeHome(env), 'captures');
 }
@@ -106,7 +107,7 @@ function defaultDir(env: NodeJS.ProcessEnv): string {
  * The markers' folder, made 0700 when missing — or null with the reason when it cannot be trusted: not a directory, a
  * link, another user's, or open to the group / others (then nothing holds and nothing is written).
  */
-export function capturesDir(env: NodeJS.ProcessEnv = process.env): { dir: string | null; problem?: string } {
+export function capturesDir(env: EngineEnv): { dir: string | null; problem?: string } {
   const loc = capturesLocation(env);
   if (loc.refused) return { dir: null, ...(loc.problem ? { problem: loc.problem } : {}) };
   try {
@@ -180,7 +181,7 @@ export class FilmingMarker {
    * Write a marker for a take of the workspace `root` owned by `owner` (this process: selfIdentity), synchronously —
    * heavy work is held from this call on; null when the folder cannot be used.
    */
-  static open(opts: { root: string; source: 'job' | 'cli'; owner: ProcessIdentity; env?: NodeJS.ProcessEnv; beatMs?: number }): FilmingMarker | null {
+  static open(opts: { root: string; source: 'job' | 'cli'; owner: ProcessIdentity; env: EngineEnv; beatMs?: number }): FilmingMarker | null {
     const { dir } = capturesDir(opts.env);
     if (!dir) return null;
     const owner = opts.owner;
@@ -281,7 +282,8 @@ export interface FilmingState {
 export interface FilmingWatchOptions {
   /** The workspace whose takes are "here" (none: every take is elsewhere). */
   root?: string;
-  env?: NodeJS.ProcessEnv;
+  /** The environment its composition root read (env.ts): the captures folder, the cap. */
+  env: EngineEnv;
   /** Markers of these owner pids do not hold (a hook of the take itself: its own `retake render`). */
   ignorePids?: () => Promise<ReadonlySet<number>> | ReadonlySet<number>;
   now?: () => number;
@@ -303,13 +305,13 @@ interface Owner {
 }
 
 /** The cap in minutes: RETAKE_CAPTURE_HOLD_MAX_MIN (1 min … 24 h), else HOLD_MAX_MIN. */
-export function capMinutes(env: NodeJS.ProcessEnv = process.env): number {
+export function capMinutes(env: EngineEnv): number {
   const raw = env.RETAKE_CAPTURE_HOLD_MAX_MIN?.trim();
   const n = raw ? Number(raw) : HOLD_MAX_MIN;
   return Number.isFinite(n) && n > 0 ? Math.min(n, 24 * 60) : HOLD_MAX_MIN;
 }
 
-function capMs(env: NodeJS.ProcessEnv): number {
+function capMs(env: EngineEnv): number {
   return capMinutes(env) * 60_000;
 }
 
@@ -329,7 +331,7 @@ export class FilmingWatch {
   private readonly starts = new Map<string, number | null>();
   private wsId: string | undefined;
 
-  constructor(private readonly o: FilmingWatchOptions = {}) {}
+  constructor(private readonly o: FilmingWatchOptions) {}
 
   private here(ws: string): boolean {
     if (!this.o.root) return false;
@@ -347,7 +349,7 @@ export class FilmingWatch {
   }
 
   async scan(): Promise<FilmingState> {
-    const env = this.o.env ?? process.env;
+    const env = this.o.env;
     const now = (this.o.now ?? Date.now)();
     const { dir, problem } = capturesDir(env);
     const out: FilmingState = { takes: [], holding: false, newlyCapped: [], ...(problem ? { problem } : {}) };
@@ -468,11 +470,11 @@ export class TakeBeside {
       onFirst?: (where: 'here' | 'elsewhere') => void;
       /** Heavy work of the workspace's worker runs slowed now (default: its held file says so). */
       slowed?: () => boolean;
-      env?: NodeJS.ProcessEnv;
+      env: EngineEnv;
       everyMs?: number;
     },
   ) {
-    this.watch = new FilmingWatch({ root: o.root, ...(o.env ? { env: o.env } : {}) });
+    this.watch = new FilmingWatch({ root: o.root, env: o.env });
   }
 
   start(): void {

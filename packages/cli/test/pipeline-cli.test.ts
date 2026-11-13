@@ -31,6 +31,8 @@ const fakes = vi.hoisted(() => ({
   volatile: [] as string[],
   /** The hook runner each run was handed (L7.12: the CLI's, cliPorts.hooks; kept out of the recorded options). */
   hookRunners: [] as unknown[],
+  /** The secret resolvers the runs were handed (the CLI's Secrets port), apart from the recorded options like the hook runner. */
+  resolvers: [] as unknown[],
 }));
 
 vi.mock('@retake/editor', async (importOriginal) => {
@@ -53,7 +55,8 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
     ...real,
     runScenario: (o: Record<string, unknown>) => {
       fakes.hookRunners.push(o.hookRunner);
-      const { hookRunner: _handed, ...rest } = o;
+      fakes.resolvers.push(o.resolveSecret);
+      const { hookRunner: _handed, resolveSecret: _resolver, ...rest } = o;
       return fakes.runScenario(rest);
     },
   };
@@ -562,6 +565,21 @@ describe('the pipeline commands, held against fixtures/pipeline-cli.json', () =>
   it("every run and inspection was handed the CLI's hook runner (L7.12)", () => {
     expect(fakes.hookRunners.length).toBeGreaterThan(0);
     for (const h of fakes.hookRunners) expect(h).toBe(cliPorts.hooks);
+    // Each run's secrets are resolved through the CLI's Secrets port: its resolver asks cliPorts.secrets, nothing else.
+    expect(fakes.resolvers).toHaveLength(fakes.hookRunners.length);
+  });
+
+  it("every run's secrets are resolved through the CLI's Secrets port", async () => {
+    const asked: string[] = [];
+    const real = cliPorts.secrets.resolve;
+    cliPorts.secrets.resolve = async (ref) => (asked.push(ref), `resolved ${ref}`);
+    try {
+      for (const r of fakes.resolvers as Array<(ref: string) => Promise<string>>) expect(await r('env:RETAKE_PIPELINE_PROBE')).toBe('resolved env:RETAKE_PIPELINE_PROBE');
+    } finally {
+      cliPorts.secrets.resolve = real;
+    }
+    expect(fakes.resolvers.length).toBeGreaterThan(0);
+    expect(asked).toEqual(fakes.resolvers.map(() => 'env:RETAKE_PIPELINE_PROBE'));
   });
 
   it('every case matches the fixture', () => {

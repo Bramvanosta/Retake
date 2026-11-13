@@ -32,7 +32,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
   const out = openSync(join(workersDir(w.root), 'worker.log'), 'a');
   let child;
   try {
-    child = spawn(command, args, { cwd: w.root, detached: true, stdio: ['ignore', out, out], env: { ...process.env, RETAKE_JOB_BUILD_DIRS: JSON.stringify(w.dirs) } });
+    child = spawn(command, args, { cwd: w.root, detached: true, stdio: ['ignore', out, out], env: { ...w.ports.env, RETAKE_JOB_BUILD_DIRS: JSON.stringify(w.dirs) } });
   } finally {
     closeSync(out);
   }
@@ -44,7 +44,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
     kind: stored.kind,
     pid,
     exit: Promise.resolve(),
-    qos: new QosYield(pid, { group: true, deps: w.processes.qos }),
+    qos: new QosYield(pid, { group: true, deps: { now: () => w.clock.monotonic(), ...w.processes.qos } }),
   };
   h.exit = new Promise<void>((r) => {
     child.on('exit', (code, signal) => {
@@ -107,7 +107,7 @@ export async function scanFilming(w: Worker): Promise<void> {
     w.filmingCause = st.cause;
     const capped = st.takes.filter((t) => t.capped && !t.paused);
     w.filmingCapped = capped.length ? (capped.some((t) => t.here) ? 'here' : 'elsewhere') : undefined;
-    for (const _ of st.newlyCapped) w.log(`a take has held heavy work for over ${capMinutes()} min: heavy work goes on`);
+    for (const _ of st.newlyCapped) w.log(`a take has held heavy work for over ${capMinutes(w.ports.env)} min: heavy work goes on`);
   } catch (e) {
     w.log(`the filming markers could not be read (${(e as Error).message}): heavy work is not held`);
     w.filmingLive = false;
@@ -138,8 +138,8 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
     // The cap reached (a take still films, but has held heavy work for over the cap): said on the job, not only logged.
     if (w.filmingCapped && !h.pastCap) {
       h.pastCap = true;
-      await w.queue.setYield(h.id, { state: 'past_cap', since: stampOf(w.clock), cause: w.filmingCapped, cap_min: capMinutes() }).catch(() => undefined);
-      w.log(`job ${h.id}: a take has held heavy work for over ${capMinutes()} min: this job goes on at normal priority`);
+      await w.queue.setYield(h.id, { state: 'past_cap', since: stampOf(w.clock), cause: w.filmingCapped, cap_min: capMinutes(w.ports.env) }).catch(() => undefined);
+      w.log(`job ${h.id}: a take has held heavy work for over ${capMinutes(w.ports.env)} min: this job goes on at normal priority`);
     } else if (!w.filmingCapped && h.pastCap) {
       h.pastCap = false;
       await w.queue.setYield(h.id, null).catch(() => undefined);
@@ -147,8 +147,8 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
   }
   // Critique M3: a cancelled job ends itself (teardown, clean-ups) — at background priority during a take; its tree
   // is killed only when it has not ended `cancelGraceMs` after the cancel.
-  if (h.cancelSeen === undefined && (await w.queue.cancelOf(h.id)) !== undefined) h.cancelSeen = Date.now();
-  if (h.cancelSeen !== undefined && !h.killed && Date.now() - h.cancelSeen >= w.cancelGraceMs) {
+  if (h.cancelSeen === undefined && (await w.queue.cancelOf(h.id)) !== undefined) h.cancelSeen = w.clock.monotonic();
+  if (h.cancelSeen !== undefined && !h.killed && w.clock.monotonic() - h.cancelSeen >= w.cancelGraceMs) {
     h.killed = 'cancel';
     w.log(`job ${h.id}: still running ${Math.round(w.cancelGraceMs / 1000)} s after its cancel: killing its job process`);
     await killTree(h.pid, w.processes.kill);

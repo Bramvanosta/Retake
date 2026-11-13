@@ -2,6 +2,7 @@
  * What is known of personas' saved sessions, without opening a browser (`retake auth status`, `retake doctor`, the MCP
  * `auth_status` tool). Moved from the CLI (L3.1); `check` (a live, headless check) stays in the CLI: it opens Chromium.
  */
+import type { EngineEnv } from './env.js';
 import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -148,12 +149,12 @@ export async function scenarioPersonaStates(
   sc: Scenario,
   command: LoginCommandOf,
   sessions: PersonaStateReads,
-  opts: { env?: string; hooks: boolean; workerEnv?: NodeJS.ProcessEnv },
+  opts: { env?: string; hooks: boolean; workerEnv: EngineEnv },
 ): Promise<{ env: string; personas: ScenarioPersona[]; issues: string[] }> {
   const env = resolveEnvironment(project, opts.env ?? sc.env);
   const personas = resolvePersonas(project, env.name, { home: retakeHome() });
   const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until: null, hooks: opts.hooks, ...(project.config.hooks ? { projectHooks: project.config.hooks } : {}) });
-  const workerEnv = opts.workerEnv ?? process.env;
+  const workerEnv = opts.workerEnv;
   const out: ScenarioPersona[] = [];
   const issues = plan.issues.map((i) => i.message);
   for (const name of plan.used) {

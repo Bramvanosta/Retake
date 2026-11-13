@@ -94,7 +94,7 @@ export async function takeProjectLock(
 ): Promise<TakeLock> {
   const file = join(await toolDir(projectDir, 'locks'), name);
   const ref = relative(projectDir, file);
-  const deadline = Date.now() + o.waitMs;
+  const deadline = performance.now() + o.waitMs;
   const first = o.retryMs ?? LOCK_RETRY_MS;
   let delay = first;
   /** The holder found alive in this wait (its pid and start time, as its lock says them). */
@@ -116,7 +116,7 @@ export async function takeProjectLock(
         alive = holderKey(readLock(file));
       }
     }
-    if (Date.now() >= deadline) throw o.busy(ref, readLock(file));
+    if (performance.now() >= deadline) throw o.busy(ref, readLock(file));
     await sleep(delay);
     delay = Math.min(Math.round(delay * 1.5), Math.max(LOCK_RETRY_MAX_MS, first));
   }

@@ -1,4 +1,5 @@
 /** The sessions a run of a scenario signs in and a persona's state as a client sees it (the façade's auth and admission). */
+import type { EngineEnv } from '../env.js';
 import type { LoadedProject, RunMode, Scenario } from '@retake/core/model';
 import { personaStateView, scenarioPersonaStates } from '../auth.js';
 import type { PersonaState } from '../auth.js';
@@ -16,6 +17,8 @@ export interface SessionsDeps {
   loginCommand: (p: { project: string; env: string; persona?: string }) => string;
   /** What a persona's state is read through (its lock and its last status): the engine's capture runner. */
   sessions: Pick<CaptureSessions, 'lock' | 'status'>;
+  /** The environment its engine's composition root read (env.ts): where a worker's environment comes from. */
+  vars: EngineEnv;
 }
 
 /**
@@ -25,7 +28,7 @@ export interface SessionsDeps {
 export async function scenarioSessions(d: SessionsDeps, p: LoadedProject, name: string, scenario: Scenario, o: { env?: string; mode?: RunMode }): Promise<ScenarioSessions> {
   const { opts, caller, ws, loginCommand, sessions } = d;
   // The secrets of the login steps are looked for where the worker this client starts finds them.
-  const workerEnv = workerEnvOf(opts, caller, ws) ?? process.env;
+  const workerEnv = workerEnvOf(opts, caller, ws, d.vars) ?? d.vars;
   const r = await scenarioPersonaStates(p, scenario, loginCommand, sessions, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
   return {
     project: p.slug,

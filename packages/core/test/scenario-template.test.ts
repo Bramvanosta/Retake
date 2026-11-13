@@ -101,9 +101,10 @@ describe('templateSceneEntry (R-RUN-16)', () => {
   });
 
   it('resolves secret references in steps through the context, and names the string of an unknown key', () => {
-    process.env.RETAKE_TEST_PASSWORD = 'S3cret-pw-42';
     const scene: Scene = { id: 'login', steps: [{ type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } }] };
-    expect(templateSceneEntry(scene, 0, ctx).steps[0]).toEqual({ type: { into: { label: 'Password' }, text: 'S3cret-pw-42' } });
+    const resolved = { ...ctx, secrets: (ref: string) => (ref === 'env:RETAKE_TEST_PASSWORD' ? 'S3cret-pw-42' : undefined) };
+    expect(templateSceneEntry(scene, 0, resolved).steps[0]).toEqual({ type: { into: { label: 'Password' }, text: 'S3cret-pw-42' } });
+    expect(() => templateSceneEntry(scene, 0, ctx)).toThrow(/^scenes\[0\]\.steps\[0\]\.type\.text: \{\{env:RETAKE_TEST_PASSWORD\}\} is a secret reference and no secret resolver/);
     const viaResolver = templateSceneEntry({ id: 'kc', steps: [{ type: { text: '{{keychain:demo-test/agent}}' } }] }, 0, {
       ...ctx,
       secrets: (ref) => (ref === 'keychain:demo-test/agent' ? 'kc-value-1' : undefined),

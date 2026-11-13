@@ -7,6 +7,7 @@
  * gives through these paths stays with the real runner: inspect-jobs.test.ts, worker-process.test.ts,
  * run-live-pause.test.ts and the CLI's run tests.
  */
+import { MemorySecrets } from '../src/index.js';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -69,6 +70,7 @@ describe('the in-memory capture runner', () => {
     const project = await projectOf('fail');
     const { makeScenario } = await import('@retake/test-support/capture');
     const rec = await runner.run({
+      resolveSecret: (ref) => new MemorySecrets().resolve(ref),
       policy: PERSON_POLICY,
       project,
       scenario: makeScenario('fail', { scenes: [{ id: 'one', page: 'app', open: '/', steps: [{ hold: 0.05 }, { click: 'Go' }, { hold: 0.05 }] }] }),
@@ -109,7 +111,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
     const capture = new Ordered();
     const hooks = new MemoryHookRunner();
     const before = process.listenerCount('SIGTERM');
-    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture, hooks } });
+    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture, hooks } });
     expect(listening).toEqual([before, before + 1]);
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
@@ -144,10 +146,15 @@ describe('what the engine hands the capture runner (in memory)', () => {
     const hooks = new MemoryHookRunner();
     const progress: string[] = [];
     const ports: RunPorts = { issues: () => undefined, note: () => undefined, sandboxLog: () => undefined, progress: (e) => void progress.push(e.type), interrupts: signalInterrupts() };
-    const rec = await runInProcess(prepared, { dry: true, until: 'discover.0' }, { policy: w.policy, capture, hooks, sandboxes: new MemorySandboxes(), clock: systemClock }, ports);
+    const secrets = new MemorySecrets({ 'env:SHOP_TOKEN': 's3cret' });
+    const rec = await runInProcess(prepared, { dry: true, until: 'discover.0' }, { policy: w.policy, capture, hooks, sandboxes: new MemorySandboxes(), secrets, clock: systemClock }, ports);
     expect(rec.status).toBe('succeeded');
     const [req] = requests(capture);
     expect(req!.hookRunner).toBe(hooks);
+    // The run's secrets are resolved by the Secrets port it was handed (never the runner's own lookup).
+    expect(await req!.resolveSecret('env:SHOP_TOKEN')).toBe('s3cret');
+    await expect(req!.resolveSecret('env:NOT_HANDED')).rejects.toThrow('environment variable NOT_HANDED is not set');
+    expect(secrets.asked).toEqual(['env:SHOP_TOKEN', 'env:NOT_HANDED']);
     expect(req!.runId).toBeUndefined();
     expect(req!.hookTrust).toBeUndefined();
     expect(req!.policy.agentFolders).toBeNull();
@@ -165,7 +172,7 @@ describe('what the engine hands the capture runner (in memory)', () => {
     const sub = await engine.inspect.submit({ project: 'northfield-fixture', scenario: 'quote', until: 'discover.1', images: 'none' });
     const capture = new MemoryCaptureRunner();
     const hooks = new MemoryHookRunner();
-    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture, hooks } });
+    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture, hooks } });
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
     const r = job.result as InspectJobResult;

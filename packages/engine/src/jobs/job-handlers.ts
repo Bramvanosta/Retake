@@ -7,15 +7,9 @@
  */
 import type { JobInput, JobKind } from './job-input.js';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
-import type { Clock } from '../clock.js';
-import type { CaptureRunner } from '../capture/runner.js';
-import type { HookRunner } from '../hook-run/runner.js';
 import type { InterruptPort } from '../interrupts.js';
+import type { EnginePorts } from '../ports.js';
 import type { Renderer } from '../render/renderer.js';
-import type { Reviewer } from '../review/reviewer.js';
-import type { Sandboxes } from '../sandboxes/sandboxes.js';
-import type { ProjectStores } from '../store/store.js';
-import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import type { openWorkspace } from '../workspace.js';
 import { executeAuthLoginJob, signInStoppedText } from './auth-job.js';
 import { executeEnvResetJob, executeHooksJob } from './hooks-job.js';
@@ -32,21 +26,14 @@ import type { FreeBytes, RecordWindow } from './worker-ports.js';
 /** The input of a job of kind `K`. */
 export type JobOfKind<K extends JobKind> = Extract<JobInput, { kind: K }>;
 
-/** What every kind's execute function is handed (trust `mcp`: only the approvals taken at submit count). */
-export interface JobBase {
+/** What every kind's execute function is handed (trust `mcp`: only the approvals taken at submit count): the runner's ports among them. */
+export interface JobBase extends EnginePorts {
   ws: Awaited<ReturnType<typeof openWorkspace>>;
   cli: string;
   queue: JobQueue;
   /** The job's cancel. */
   signal: AbortSignal;
   event: (e: JobEventBody) => void;
-  clock: Clock;
-  stores: ProjectStores;
-  reads: WorkspaceReads;
-  hooks: HookRunner;
-  reviewer: Reviewer;
-  capture: CaptureRunner;
-  sandboxes: Sandboxes;
 }
 
 /** What a handler runs with: the base context and the parts of runJob a kind uses. */
@@ -93,7 +80,7 @@ const succeeded = (result: JobResult, progress?: true): JobOutcome => ({ result,
 const runHandler: JobHandler<'run'> = async (job, run) => {
   const { id, base, log } = run;
   try {
-    const max = pauseMaxMs();
+    const max = pauseMaxMs(base.env);
     if (max !== undefined) run.pause.maxMs = max;
   } catch (e) {
     base.event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });

@@ -162,9 +162,12 @@ export class RunSecrets {
     }
   }
 
-  /** The synchronous lookup of TemplateContext.secrets: a prefetched value, else the environment; each one registered. */
+  /**
+   * The synchronous lookup of TemplateContext.secrets: a prefetched value only (another reference is unresolved —
+   * interpolate refuses it —, never read from the environment on the way); each one registered.
+   */
   readonly resolver: SecretResolver = (ref) => {
-    const v = this.cache.get(ref) ?? (ref.startsWith('env:') ? process.env[ref.slice(4)] : undefined);
+    const v = this.cache.get(ref);
     if (v !== undefined) this.register(v);
     return v;
   };

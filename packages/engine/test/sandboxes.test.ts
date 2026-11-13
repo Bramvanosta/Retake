@@ -25,7 +25,7 @@ import { checkSandboxEnv } from '../src/execute-run.js';
 import { sandboxStatus } from '../src/sandbox.js';
 import type { ProjectFolder } from '../src/store/store.js';
 import { EngineError } from '../src/errors.js';
-import { createEngine } from '../src/index.js';
+import { createEngine, enginePorts } from '../src/index.js';
 import { sandboxContract } from './sandbox-contract.js';
 import type { SandboxSubject } from './sandbox-contract.js';
 
@@ -186,7 +186,7 @@ describe.skipIf(!posix)('the sandbox package, a process sandbox', () => {
       'package process',
       'process',
       async () => processWorkspace(await scratch('pp')),
-      () => packageSandboxes(),
+      () => packageSandboxes(enginePorts().secrets),
       ['app', 'api'],
       2,
     ),
@@ -208,7 +208,7 @@ describe.skipIf(!DOCKER)('the sandbox package, a docker-compose sandbox (RETAKE_
       'package compose',
       'docker-compose',
       async () => composeWorkspace(await scratch('pc'), `${PREFIX}package`),
-      () => packageSandboxes(),
+      () => packageSandboxes(enginePorts().secrets),
       ['web'],
       1,
     ),
@@ -236,7 +236,7 @@ describe('what each adapter says beyond the contract', () => {
   it('an interrupted up stops what it started and says so (code interrupted), on the fake as the package does', async () => {
     // A signal aborted before up: nothing starts, in the words of the process provider (the fake said `… up: interrupted`
     // until this case ran on the package too).
-    const adapters: Array<[string, Sandboxes]> = [['memory', new MemorySandboxes()], ...(posix ? ([['package', packageSandboxes()]] as Array<[string, Sandboxes]>) : [])];
+    const adapters: Array<[string, Sandboxes]> = [['memory', new MemorySandboxes()], ...(posix ? ([['package', packageSandboxes(enginePorts().secrets)]] as Array<[string, Sandboxes]>) : [])];
     for (const [name, sandboxes] of adapters) {
       const { project } = await processWorkspace(await scratch(`abort-${name}`));
       const sb = await sandboxes.open(project, undefined, PERSON_POLICY);
@@ -256,7 +256,7 @@ describe('what each adapter says beyond the contract', () => {
     const { bare } = await processWorkspace(await scratch('class'));
     const sb = await import('@retake/sandbox');
     expect(sb.SandboxError).toBe(SandboxError);
-    const err = await packageSandboxes()
+    const err = await packageSandboxes(enginePorts().secrets)
       .open(bare, undefined, PERSON_POLICY)
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(sb.SandboxError);

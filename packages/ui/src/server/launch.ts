@@ -91,7 +91,7 @@ async function running(root: string, file: string, tokenFile: string, holder?: D
     if (late) return reuse(late);
     if (!(await holderAlive(existing))) return null;
   }
-  throw new EngineError('busy', `a Studio server (pid ${existing.pid}) serves this workspace, but its token is not in this Retake home (${studioTokenDir()})`, {
+  throw new EngineError('busy', `a Studio server (pid ${existing.pid}) serves this workspace, but its token is not in this Retake home (${studioTokenDir(process.env)})`, {
     fix: `run retake ui with the RETAKE_HOME that server was started with, or ${stop}`,
   });
 }
@@ -101,7 +101,7 @@ async function running(root: string, file: string, tokenFile: string, holder?: D
  * there): an agent reads and writes files in the workspace, and the token drives the person's Studio.
  */
 async function assertTokenOutside(root: string): Promise<void> {
-  const dir = studioTokenDir();
+  const dir = studioTokenDir(process.env);
   const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [resolve(root)]);
   const inside = folders.find((f) => isUnder(dir, f, nodeFileFacts) || isUnder(realPathOf(dir, nodeFileFacts), f, nodeFileFacts));
   if (inside) {
@@ -114,7 +114,7 @@ async function assertTokenOutside(root: string): Promise<void> {
 export async function launchStudio(o: StudioServerOptions): Promise<Launched> {
   await assertTokenOutside(o.root);
   const file = discoveryFile(o.root);
-  const tokenFile = await studioTokenFile(o.root);
+  const tokenFile = await studioTokenFile(o.root, process.env);
   const found = await running(o.root, file, tokenFile);
   if (found) return found;
   const server = await startStudioServer(o);

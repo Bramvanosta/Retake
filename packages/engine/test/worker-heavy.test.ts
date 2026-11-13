@@ -229,7 +229,11 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     const job = await review(queue, 'approved-v1');
     // A job carrying a signed approval (as a submit writes it), so that its claim takes it.
     const stored = (await queue.stored(job.id))!;
-    const input = await signApprovals({ ...stored.input, approvals: [{ fingerprint: 'a'.repeat(64), by: 'human-cli', at: new Date().toISOString() }] } as never, { jobId: job.id, root });
+    const input = await signApprovals({ ...stored.input, approvals: [{ fingerprint: 'a'.repeat(64), by: 'human-cli', at: new Date().toISOString() }] } as never, {
+      jobId: job.id,
+      root,
+      env: process.env,
+    });
     await writeFile(join(queue.files.job(job.id), 'job.json'), JSON.stringify({ ...stored, input }));
     const used = join(base, '.home', APPROVALS_USED_DIR, job.id);
     const seen: boolean[] = [];
@@ -307,7 +311,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     let m: ReturnType<typeof FilmingMarker.open> = null;
     try {
       await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
-      m = FilmingMarker.open({ root: join(base, 'cap-elsewhere'), source: 'cli', owner: await selfIdentity() });
+      m = FilmingMarker.open({ env: process.env, root: join(base, 'cap-elsewhere'), source: 'cli', owner: await selfIdentity() });
       await waitFor('slowed', async () => (await queue.get(job.id))?.yield?.state === 'background');
       // Review A H1: while it holds heavy work the worker keeps one file a take outside it reads.
       await waitFor('the held file', () => existsSync(heldFile(root)));
@@ -401,7 +405,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     };
     const worker = work(root, { [job.id]: 'term' }, { ports: { processes: { qos: { table: slowTable, apply: async () => undefined } } } });
     await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
-    const take = FilmingMarker.open({ root: join(base, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
+    const take = FilmingMarker.open({ env: process.env, root: join(base, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
     try {
       await waitFor('held', () => existsSync(queue.files.yield(job.id)));
       const mine = process.listeners('SIGTERM').filter((l) => !before.includes(l));
@@ -652,7 +656,7 @@ describe("the order of the worker's side effects (characterization of runWorker,
     const before = process.listeners('SIGTERM');
     const p = work(root, { [job.id]: 'term' });
     await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
-    const take = FilmingMarker.open({ root: join(base, 'held-stop-elsewhere'), source: 'cli', owner: await selfIdentity() })!;
+    const take = FilmingMarker.open({ env: process.env, root: join(base, 'held-stop-elsewhere'), source: 'cli', owner: await selfIdentity() })!;
     try {
       await waitFor('the held file', () => existsSync(heldFile(root)));
       (process.listeners('SIGTERM').filter((l) => !before.includes(l))[0] as (s: string) => void)('SIGTERM');

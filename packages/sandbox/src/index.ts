@@ -23,6 +23,7 @@ export type {
   SandboxProgress,
   SeedRecorder,
   SeedRunResult,
+  SecretRefResolver,
   SeedTrust,
   ServiceLogFile,
   ServiceStatus,

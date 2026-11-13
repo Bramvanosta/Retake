@@ -34,6 +34,8 @@ export interface DriverHooks {
 export interface SetupDeps extends DriverHooks {
   /** What the run runs under (RunOptions.policy): its hooks get it too. */
   policy: WorkPolicy;
+  /** What the hooks' secret references are resolved with (RunOptions.resolveSecret: the engine's Secrets port). */
+  resolveSecret?: (ref: string) => Promise<string>;
   project: LoadedProject;
   env: { name: string; pages: Record<string, string> };
   /** The run's access: a read-only run refuses hooks that write (each one again, on its templated content). */
@@ -78,6 +80,7 @@ export async function openHooks(runner: CaptureHookRunner, d: SetupDeps): Promis
     // really execute: the dry run then sees the same prepared data as a capture.
     dryRun: false,
     log: (level, msg) => d.log(level, msg),
+    ...(d.resolveSecret ? { resolveSecret: d.resolveSecret } : {}),
     access: d.access,
     // js hooks run where the driver says (the browser's: a guarded tab of their own, kept for the run, never a capture tab).
     ...(d.evalInPage ? { evalInPage: d.evalInPage } : {}),

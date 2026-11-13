@@ -98,7 +98,7 @@ describe('heavyGate (L5.14a)', () => {
   });
 
   it('waits with one line on stderr while a take films, starts once it ends; stdout untouched', async () => {
-    const take = FilmingMarker.open({ root: ws, source: 'job', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: ws, source: 'job', owner: me })!;
     const { io, ui: u } = ui();
     setTimeout(() => take.closeSync(), 600);
     const t0 = Date.now();
@@ -111,7 +111,7 @@ describe('heavyGate (L5.14a)', () => {
   });
 
   it('L5.14b: a take past the cap (RETAKE_CAPTURE_HOLD_MAX_MIN) holds no more, and that is said: the command starts', async () => {
-    const take = FilmingMarker.open({ root: ws, source: 'job', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: ws, source: 'job', owner: me })!;
     try {
       const { io, ui: u } = ui();
       const t0 = Date.now();
@@ -128,7 +128,7 @@ describe('heavyGate (L5.14a)', () => {
   });
 
   it('--no-wait: neither waits nor yields', async () => {
-    const take = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'job', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: join(ws, 'elsewhere'), source: 'job', owner: me })!;
     const { io, ui: u } = ui();
     const calls: string[] = [];
     const qos = { held: false, hold: async () => void calls.push('hold'), release: async () => void calls.push('release') };
@@ -156,13 +156,13 @@ describe('heavyGate (L5.14a)', () => {
       },
     };
     const gate = await heavyGate(u, { root: ws, what: 'rendering', pollMs: 50, qos });
-    const take = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'cli', owner: me })!;
+    const take = FilmingMarker.open({ env: process.env, root: join(ws, 'elsewhere'), source: 'cli', owner: me })!;
     await new Promise((r) => setTimeout(r, 400));
     expect(calls).toEqual(['hold']);
     take.closeSync();
     await new Promise((r) => setTimeout(r, 400));
     expect(calls).toEqual(['hold', 'release']);
-    const again = FilmingMarker.open({ root: ws, source: 'cli', owner: me })!;
+    const again = FilmingMarker.open({ env: process.env, root: ws, source: 'cli', owner: me })!;
     await new Promise((r) => setTimeout(r, 400));
     await gate.dispose();
     again.closeSync();
@@ -176,7 +176,7 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     const sib = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
     children.push(sib);
     const start = await processStart(sib.pid!);
-    const { dir } = capturesDir();
+    const { dir } = capturesDir(process.env);
     const name = `k_${ulid()}.json`;
     const file = join(dir!, name);
     const write = () =>
@@ -314,7 +314,7 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     const proc = join(REPO, 'packages/engine/src/jobs/proc.ts');
     const script = `const { FilmingMarker } = await import(${JSON.stringify(mod)}); const { selfIdentity } = await import(${JSON.stringify(proc)});
       const { spawn } = await import('node:child_process');
-      const m = FilmingMarker.open({ root: ${JSON.stringify(join(ws, 'other'))}, source: 'cli', owner: await selfIdentity(), beatMs: 200 });
+      const m = FilmingMarker.open({ env: process.env, root: ${JSON.stringify(join(ws, 'other'))}, source: 'cli', owner: await selfIdentity(), beatMs: 200 });
       if (!m) { process.stdout.write('{"error":"no marker"}'); process.exit(1); }
       const c = spawn(process.execPath, [${JSON.stringify(BIN)}, '-C', ${JSON.stringify(ws)}, 'export-capture', 'demo', '20260101-120000-held'], { stdio: ['ignore', 'ignore', 'pipe'] });
       let err = ''; c.stderr.on('data', (d) => (err += d));

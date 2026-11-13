@@ -35,7 +35,7 @@ import { conflictError, refOfIn, resolveIn, sha256Hex } from '../storage.js';
 import type { WriteResult } from '../storage.js';
 import { JOURNAL_FILES_MAX, journalLine, journalPath } from './journal.js';
 import type { JournalEntry, JournalPlace, JournalWhat, JournalWrite } from './journal.js';
-import { FOLDER_NOUNS } from './store.js';
+import { FOLDER_NOUNS, recordPath } from './store.js';
 import type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreLabel, StoreScope, StoreWriteOptions, StoredText } from './store.js';
 
 const outcomeOf = (e: unknown): string => errorKindOf(e) ?? (e instanceof EngineError ? e.code : 'internal');
@@ -237,6 +237,15 @@ export class MemoryProjectStores implements ProjectStores {
 
   folder(root: string): ProjectFolder {
     return new MemoryFolder(this.#memory, root);
+  }
+
+  /** The record's line in the Map (the disk's rules: a torn last line closed first; a folder in the file's place refused). */
+  async appendRecord(projectDir: string, name: string, line: string): Promise<void> {
+    const path = normalize(recordPath(projectDir, name));
+    if ([...this.#memory.files.keys()].some((k) => k.startsWith(under(path)))) throw Object.assign(new Error(`EISDIR: illegal operation on a directory, open '${path}'`), { code: 'EISDIR' });
+    const before = this.#memory.files.get(path) ?? Buffer.alloc(0);
+    const head = before.length > 0 && before[before.length - 1] !== 0x0a ? '\n' : '';
+    this.#memory.files.set(path, Buffer.concat([before, Buffer.from(head + line)]));
   }
 
   /** Put a file in place without a journal line (a test's starting state); `path` is absolute. */

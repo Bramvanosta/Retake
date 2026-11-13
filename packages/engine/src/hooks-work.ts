@@ -14,6 +14,7 @@
  *   (the CLI) prints what it did before its browsers close: `onStart`, `listed` (what a replay is about to run, before
  *   it runs), `onRollbacks`, `onReset`, `onResults`. The jobs pass none and map the outcome returned.
  */
+import type { Secrets } from './secrets/secrets.js';
 import type { HookStep, LoadedProject, ResolvedEnvironment } from '@retake/core/model';
 import type { RunAccess } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
@@ -42,6 +43,8 @@ export interface HookWorkOptions {
   hooks: HookRunner;
   /** The js hooks' browsers (the capture runner's hook pages). */
   pages: HookPages;
+  /** What the hooks' secret references are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
   env?: string;
   /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (the CLI's `--allow-writes`). */
   allowWrites?: boolean;
@@ -87,6 +90,7 @@ async function inHookContext<T>(
   try {
     made = await createHookContext(project, {
       policy: o.policy,
+      secrets: o.secrets,
       ...(o.env !== undefined ? { env: o.env } : {}),
       allowWrites: o.allowWrites === true,
       dry: o.dry,

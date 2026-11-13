@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AccessError, DEFAULT_CAPTURE, PERSON_POLICY } from '@retake/core';
 import type { HookStep, LoadedProject } from '@retake/core';
-import { HooksSourceError, envResetWork, hooksRunWork, rollbackWork, systemClock, callerOf, diskWorkspaceReads } from '../src/index.js';
+import { HooksSourceError, envResetWork, hooksRunWork, rollbackWork, systemClock, callerOf, diskWorkspaceReads, enginePorts } from '../src/index.js';
 import type { WorkspaceReads } from '../src/index.js';
 import type { HookWorkOptions } from '../src/index.js';
 import { MemoryHookRunner } from '../src/hook-run/memory-hooks.js';
@@ -57,6 +57,7 @@ function base(hooks: MemoryHookRunner, pages = new MemoryHookPages(), more: Part
   return {
     policy: PERSON_POLICY,
     reads: diskWorkspaceReads,
+    secrets: enginePorts().secrets,
     hooks,
     pages,
     env: 'test',

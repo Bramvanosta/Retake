@@ -86,7 +86,7 @@ export async function runInProcess(p: PreparedRun, req: RunRequest, opts: Execut
 export async function inspectInProcess(o: InspectionOptions & { root: string; clock: Clock; pruneUnlessOpenIn?: JobQueueView }): Promise<InspectionRun> {
   const { root, clock, pruneUnlessOpenIn, ...inspection } = o;
   const { project } = o.prepared;
-  const started = Date.now();
+  const started = clock.monotonic();
   const run = await runInspection(inspection);
   if (pruneUnlessOpenIn) await pruneInspections(project, INSPECT_KEEP, [o.id], pruneUnlessOpenIn);
   const r = run.report;
@@ -97,7 +97,7 @@ export async function inspectInProcess(o: InspectionOptions & { root: string; cl
       project: project.slug,
       submitted_by: IN_PROCESS,
       state: run.record.status === 'cancelled' ? 'cancelled' : 'succeeded',
-      ms: Date.now() - started,
+      ms: Math.round(clock.monotonic() - started),
       inspect: { id: o.id, source: o.prepared.source.kind, status: r ? r.status : 'failed', reported: r !== null },
       counted: rendered(0),
     },

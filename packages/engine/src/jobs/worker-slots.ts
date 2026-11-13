@@ -1,9 +1,10 @@
 /**
  * The two slots of a jobs worker (worker.ts, L5.14) and the claims of one turn of its loop: the capture slot first — it
  * runs one capture-class job at a time in this process (createJobRunner, run-job-record.ts) — then the heavy slot
- * (worker-heavy.ts: a job process of its own). Handed a port a heavy job reads (worker-ports.ts), the capture slot
+ * (worker-heavy.ts: a job process of its own). With heavyInProcess (WorkerOptions, worker-ports.ts), the capture slot
  * runs heavy jobs too, one at a time.
  */
+import { portsOf } from '../ports.js';
 import { jobClass } from './job-input.js';
 import { pick } from './pick.js';
 import { createJobRunner } from './run-job-record.js';
@@ -26,20 +27,13 @@ export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void
     worker: w.worker,
     self: w.self,
     log: w.log,
-    clock: w.clock,
-    stores: w.stores,
-    reads: w.reads,
-    hooks: w.hooks,
-    reviewer: w.reviewer,
-    capture: w.captureRunner,
-    sandboxes: w.sandboxes,
+    // The worker is a composition root: its jobs run on its ports (a heavy job run in this process renders with its
+    // renderer, a library preview reads its free space port, a `record` job opens its window port).
+    ...portsOf(w.ports),
     interrupts: interruptPort(w),
     slot: w.slot,
     done: w.done,
     writeOrExit: (rec) => writeOrExit(w, rec),
-    // The worker is a composition root: a heavy job it runs in this process renders with its renderer port, a library
-    // preview reads its free space port, a `record` job opens its window port.
-    renderer: w.renderer,
     recordWindow: w.recordWindow,
     freeBytes: w.freeBytes,
     // A take of this worker started, paused, resumed or stopped filming: its hold follows now, not at the next poll.
@@ -62,7 +56,7 @@ function startCapture(w: Worker, stored: JobRecord): void {
     promise: run.finally(() => {
       w.capture = undefined;
       w.ended++;
-      w.idleSince = Date.now();
+      w.idleSince = w.clock.monotonic();
       w.wake.fn?.();
     }),
   };

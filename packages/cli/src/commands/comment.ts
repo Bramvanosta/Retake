@@ -42,7 +42,7 @@ export interface CommentWriteOptions {
 }
 
 function author(given: string | undefined): CommentAuthor {
-  if (given === undefined) return { via: 'cli', name: defaultAuthorName() };
+  if (given === undefined) return { via: 'cli', name: defaultAuthorName(cliPorts.env) };
   const name = commentAuthorName(given);
   if (!name) throw new UsageError('--author: a printable name of 1 to 80 characters');
   return { via: 'cli', name };

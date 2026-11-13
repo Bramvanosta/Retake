@@ -34,8 +34,9 @@ export interface TemplateContext {
   /** Any extra root objects ({{response.json.id}} in rollbacks…). */
   extra?: Record<string, unknown>;
   /**
-   * Synchronous secret lookup for {{env:X}} / {{keychain:a/b}}. Defaults to env-only resolution;
-   * keychain refs require a resolver that was pre-filled with `prefetchSecrets`.
+   * Synchronous secret lookup for {{env:X}} / {{keychain:a/b}}: a resolver pre-filled by its caller (core io
+   * `prefetchSecrets`, the engine's Secrets port). Required for a secret reference: without one, a reference is refused,
+   * never read from this process's environment.
    */
   secrets?: SecretResolver;
   /** Collects the secret values that were substituted (for log redaction). */
@@ -67,16 +68,11 @@ function availableKeys(ctx: TemplateContext): string[] {
   return keys;
 }
 
-/** What a secret reference reads without a resolver: `env:VAR` from this process's environment, nothing else. */
-export function defaultSecrets(ref: string): string | undefined {
-  if (ref.startsWith('env:')) return process.env[ref.slice(4)];
-  return undefined;
-}
-
 function lookup(expr: string, ctx: TemplateContext): unknown {
   if (/^(env|keychain|secret|compose_env):/.test(expr)) {
     const ref = expr.startsWith('secret:') ? expr.slice(7) : expr;
-    const v = (ctx.secrets ?? defaultSecrets)(ref);
+    if (!ctx.secrets) throw new TemplateError(`{{${expr}}} is a secret reference and no secret resolver was handed here: secrets are resolved by the command that runs this, never read on the way`);
+    const v = ctx.secrets(ref);
     if (v === undefined) {
       throw new TemplateError(
         ref.startsWith('env:')

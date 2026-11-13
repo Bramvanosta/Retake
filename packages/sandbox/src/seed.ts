@@ -186,6 +186,8 @@ export async function runSeed(
       opts.log(level === 'error' ? 'debug' : level, msg);
       pctx.progress?.note(msg);
     },
+    // The seed hooks' secrets: its opener's resolver (ProviderContext.resolveSecret), as the services' are.
+    resolveSecret: pctx.resolveSecret,
     // Ctrl-C stops a running shell step's process group; a second one kills it (Sandbox.killStartedSync).
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.running ? { running: opts.running } : {}),
@@ -280,12 +282,17 @@ export async function runSeed(
  * own services publish a port (docker-compose: 127.0.0.1…): a mailbox on a loopback host name is reached there, never
  * where `localhost` resolves first. Throws SandboxError on failure.
  */
-export async function clearMailbox(project: LoadedProject, sandbox: LoadedSandbox, address?: (port: number) => Promise<string | undefined>): Promise<'cleared' | 'kept' | 'none' | 'not-mailpit'> {
+export async function clearMailbox(
+  project: LoadedProject,
+  sandbox: LoadedSandbox,
+  resolveSecret: (ref: string) => Promise<string>,
+  address?: (port: number) => Promise<string | undefined>,
+): Promise<'cleared' | 'kept' | 'none' | 'not-mailpit'> {
   const m = sandbox.manifest.mailbox;
   if (!m) return 'none';
   if (m.clear === false) return 'kept';
   if (m.provider !== 'mailpit') return 'not-mailpit';
-  const headers = m.headers ? (interpolateDeep(m.headers, { vars: project.config.vars ?? {}, secrets: (await prefetchSecrets(m.headers)).resolver }) as Record<string, string>) : {};
+  const headers = m.headers ? (interpolateDeep(m.headers, { vars: project.config.vars ?? {}, secrets: (await prefetchSecrets(m.headers, resolveSecret)).resolver }) as Record<string, string>) : {};
   const url = `${m.url.replace(/\/+$/, '')}/api/v1/messages`;
   const port = m.external || !address ? null : portOf(m.url, false);
   const known = port === null ? undefined : await address!(port);

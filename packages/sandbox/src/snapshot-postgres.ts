@@ -86,8 +86,8 @@ export interface SnapshotState {
 }
 
 /** A Postgres URL with its secrets resolved ({{env:…}} / {{keychain:…}} in the password). */
-export async function resolveDatabaseUrl(project: Pick<LoadedProject, 'config'>, url: string): Promise<string> {
-  const { resolver } = await prefetchSecrets(url);
+export async function resolveDatabaseUrl(project: Pick<LoadedProject, 'config'>, url: string, resolveSecret: (ref: string) => Promise<string>): Promise<string> {
+  const { resolver } = await prefetchSecrets(url, resolveSecret);
   return interpolateDeep(url, { vars: project.config.vars ?? {}, secrets: resolver });
 }
 
@@ -116,13 +116,17 @@ export function describeDatabase(t: Pick<SnapshotTarget, 'database' | 'host' | '
 }
 
 /** The database a snapshot reset works on: `reset.snapshot.database` (a key of `databases`), default the first. */
-export async function snapshotTarget(project: Pick<LoadedProject, 'config'>, sandbox: Pick<LoadedSandbox, 'env' | 'manifest'>): Promise<SnapshotTarget> {
+export async function snapshotTarget(
+  project: Pick<LoadedProject, 'config'>,
+  sandbox: Pick<LoadedSandbox, 'env' | 'manifest'>,
+  resolveSecret: (ref: string) => Promise<string>,
+): Promise<SnapshotTarget> {
   const dbs = sandbox.manifest.databases ?? {};
   const key = sandbox.manifest.reset?.snapshot?.database ?? Object.keys(dbs)[0];
   if (key === undefined || !Object.hasOwn(dbs, key)) {
     throw new SandboxError(`sandbox ${sandbox.env}: a snapshot reset needs a Postgres database in sandbox.yaml \`databases\``);
   }
-  const url = await resolveDatabaseUrl(project, dbs[key].url);
+  const url = await resolveDatabaseUrl(project, dbs[key].url, resolveSecret);
   const endpoint = pgEndpoint(url, `sandbox ${sandbox.env}: database ${key}`);
   if (!endpoint.database) throw new SandboxError(`sandbox ${sandbox.env}: database ${key}: its URL names no database (postgres://…/<db>)`);
   if (['postgres', 'template0', 'template1'].includes(endpoint.database.toLowerCase())) {

@@ -70,7 +70,7 @@ function work(drive: (page: Page) => Promise<void>): Promise<number> {
  */
 function workInMemory(during: NonNullable<MemoryRecordOptions['during']>): Promise<number> {
   const capture = new MemoryCaptureRunner({ record: memoryRecord({ events: oneButtonPress({ pageKey: 'shop', button: 'Request a quote' }), during }) });
-  return runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture, recordWindow: { headless: true, drive: async () => undefined } } });
+  return runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture, recordWindow: { headless: true, drive: async () => undefined } } });
 }
 
 /** Resolves once `signal` is aborted. */

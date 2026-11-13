@@ -107,7 +107,7 @@ describe('the import-rules ratchet', () => {
     expect(hits({ 'packages/ui/src/app/gone.ts': ['@retake/core'] }, join(tmpdir(), 'retake-import-rules-none'))).toEqual(['R5 packages/ui/src/app/gone.ts → @retake/core']);
   });
 
-  it('core outside its io side reads the environment in three listed defaults only (docs/DESIGN.md §1): defaultSecrets, expandHome, unsafeTestResolve', () => {
+  it('core outside its io side reads the environment in two listed defaults only (docs/DESIGN.md §1): expandHome, unsafeTestResolve', () => {
     const scanned = lib.scan(ROOT);
     const reads = scanned.files
       .filter((f: { rel: string }) => f.rel.startsWith('packages/core/src/') && !f.rel.startsWith(lib.CORE_IO_DIR))
@@ -122,7 +122,7 @@ describe('the import-rules ratchet', () => {
             .find(Boolean) ?? `line ${i + 1}`;
         return lines.flatMap((line, i) => (/\bprocess\.(?:env|platform|cwd|argv|execPath|getBuiltinModule)\b/.test(line) && !/^\s*(?:\*|\/\/)/.test(line) ? [`${f.rel} ${fn(i)}`] : []));
       });
-    expect(reads.sort()).toEqual(['packages/core/src/site.ts unsafeTestResolve', 'packages/core/src/templating.ts defaultSecrets', 'packages/core/src/util.ts expandHome']);
+    expect(reads.sort()).toEqual(['packages/core/src/site.ts unsafeTestResolve', 'packages/core/src/util.ts expandHome']);
   });
 
   it('R1 sees every form of an import of the io side read from a source (scan): static, bare folder, re-export, require(), import(), import = require()', () => {
@@ -256,15 +256,13 @@ describe('the import-rules ratchet', () => {
     // Inside the engine too: a module is handed the queue (the JobQueue port), it does not build one.
     expect(wiring('packages/engine/src/jobs/a.ts', 'const q = new FileJobQueue(root, cli, clock);')).toEqual(['queue packages/engine/src/jobs/a.ts → new FileJobQueue']);
     expect(wiring('packages/engine/src/index-db/index-db.ts', 'const q = new FileJobQueue(ws.root, cli, clock);')).toEqual(['queue packages/engine/src/index-db/index-db.ts → new FileJobQueue']);
-    // The composition roots: the engine, the worker, the job process, the CLI's workspaceQueue, and the adapter's own withOwnMemory().
-    for (const root of [
-      'packages/engine/src/engine.ts',
-      'packages/engine/src/jobs/worker.ts',
-      'packages/engine/src/jobs/job-child.ts',
-      'packages/engine/src/jobs/queue.ts',
-      'packages/cli/src/workspace.ts',
-    ]) {
+    // The ports bag's default factory and the adapter's own withOwnMemory(); the composition roots call the factory their ports hold.
+    expect(lib.PORT_ROOTS.FileJobQueue).toEqual(['packages/engine/src/jobs/queue.ts', 'packages/engine/src/ports.ts']);
+    for (const root of ['packages/engine/src/ports.ts', 'packages/engine/src/jobs/queue.ts']) {
       expect(wiring(root, "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root, cli, clock);"), root).toEqual([]);
+    }
+    for (const root of ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/cli/src/workspace.ts']) {
+      expect(wiring(root, "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root, cli, clock);"), root).toEqual([`queue ${root} → new FileJobQueue`]);
     }
     // A CLI command is handed the CLI's one queue (workspaceQueue), it does not build its own.
     expect(wiring('packages/cli/src/commands/a.ts', "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(ws.root, cli, clock);")).toEqual([
@@ -275,7 +273,7 @@ describe('the import-rules ratchet', () => {
 
   it('flags a file job queue built without a clock anywhere but in the adapter itself, the composition roots included', () => {
     const bare = "import { FileJobQueue as Q } from '@retake/engine';\nconst a = new Q(root);\nconst b = new Q(root, cli);";
-    for (const root of ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/cli/src/workspace.ts']) {
+    for (const root of ['packages/engine/src/ports.ts']) {
       expect(wiring(root, bare), root).toEqual([`queue ${root} → new FileJobQueue without a clock`]);
       expect(wiring(root, "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(root, cli, ports.clock);"), root).toEqual([]);
     }
@@ -288,8 +286,8 @@ describe('the import-rules ratchet', () => {
     expect(wiring('packages/engine/src/jobs/queue.ts', 'class FileJobQueue {}\nconst q = new FileJobQueue(this.root, cli);')).toEqual([]);
     // A third argument that says none is no clock: the adapter's default would apply.
     expect(
-      wiring('packages/engine/src/engine.ts', "import { FileJobQueue } from './jobs/queue.js';\nconst a = new FileJobQueue(root, cli, undefined);\nconst b = new FileJobQueue(root, cli, void 0);"),
-    ).toEqual(['queue packages/engine/src/engine.ts → new FileJobQueue without a clock']);
+      wiring('packages/engine/src/ports.ts', "import { FileJobQueue } from './jobs/queue.js';\nconst a = new FileJobQueue(root, cli, undefined);\nconst b = new FileJobQueue(root, cli, void 0);"),
+    ).toEqual(['queue packages/engine/src/ports.ts → new FileJobQueue without a clock']);
     // A type position is not a construction.
     expect(wiring('packages/engine/src/engine.ts', "import type { FileJobQueue } from './jobs/queue.js';\nlet q: FileJobQueue;")).toEqual([]);
   });
@@ -604,6 +602,71 @@ describe('the import-rules ratchet', () => {
       const bound = [...reader.matchAll(/\b(\w+On)\(disk/g)].map((m) => m[1]);
       expect(bound.length).toBeGreaterThan(10);
       for (const n of bound) expect(lib.WORKSPACE_LOADERS, n).toContain(n);
+    });
+  });
+
+  it("the editor's renderer is named at its roots only (the ports bag and its own file): a CLI command takes cliPorts.renderer", () => {
+    const ports = (rel: string, text: string): string[] =>
+      lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: { rule: string; file: string; spec: string }) => `${h.rule} ${h.file} → ${h.spec}`);
+    expect(lib.PORT_ROOTS.editorRenderer).toEqual(['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts']);
+    expect(ports('packages/cli/src/commands/render.ts', "import { editorRenderer } from '@retake/engine';\nconst r = editorRenderer();")).toEqual([
+      'loader-use packages/cli/src/commands/render.ts → editorRenderer outside a root',
+    ]);
+    expect(ports('packages/engine/src/jobs/job-child.ts', "import { editorRenderer } from '../render/editor-renderer.js';\nconst r = editorRenderer();")).toEqual([
+      'loader-use packages/engine/src/jobs/job-child.ts → editorRenderer outside a root',
+    ]);
+    expect(ports('packages/engine/src/ports.ts', "import { editorRenderer } from './render/editor-renderer.js';\nconst r = editorRenderer();")).toEqual([]);
+    expect(ratchetOfRepo().filter((e) => e.includes('editorRenderer'))).toEqual([]);
+  });
+
+  describe('secret-resolve: the engine resolves a secret through its Secrets port only', () => {
+    const at = (rel: string, text: string): string[] =>
+      (lib.secretResolveHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; spec: string }>).map((h) => `${h.file} → ${h.spec}`);
+
+    it("flags core io's secret resolvers in the engine outside the product's adapter: imported, aliased, off a namespace, re-exported; not types, not other packages", () => {
+      expect(lib.SECRETS_HOME).toBe('packages/engine/src/secrets/system-secrets.ts');
+      const f = 'packages/engine/src/jobs/x.ts';
+      expect(at(f, "import { resolveSecretRef } from '@retake/core/io';\nawait resolveSecretRef('env:X');")).toEqual([`${f} → resolveSecretRef`]);
+      expect(at(f, "import { prefetchSecrets as p } from '@retake/core/io';")).toEqual([`${f} → prefetchSecrets`]);
+      expect(at(f, "import * as io from '@retake/core/io';\nio.resolveSecretRef('env:X');\nio['prefetchSecrets']({});")).toEqual([`${f} → resolveSecretRef`, `${f} → prefetchSecrets`]);
+      expect(at(f, "export { resolveSecretRef } from '@retake/core/io';")).toEqual([`${f} → resolveSecretRef re-exported`]);
+      expect(at(f, "import type { SecretResolver } from '@retake/core/io';")).toEqual([]);
+      expect(at(lib.SECRETS_HOME, "import { resolveSecretRef } from '@retake/core/io';")).toEqual([]);
+      expect(at('packages/hooks/src/secrets.ts', "import { resolveSecretRef } from '@retake/core/io';")).toEqual([]);
+      expect(ratchetOfRepo().filter((e) => e.startsWith('secret-resolve '))).toEqual([]);
+    });
+  });
+
+  describe('env-read: the engine reads the environment its composition root hands it', () => {
+    const at = (rel: string, text: string): string[] =>
+      (lib.envReadHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);
+
+    it('counts each process.env read in packages/engine/src outside its homes: a member, the whole value, a default parameter, process["env"]; not a comment, a string or another package', () => {
+      expect(lib.ENV_HOMES).toEqual(['packages/engine/src/ports.ts', 'packages/engine/src/worker-main.ts']);
+      const f = 'packages/engine/src/jobs/x.ts';
+      expect(at(f, 'export const a = process.env.RETAKE_HOME;')).toEqual([`${f} → 1`]);
+      expect(at(f, "export function b(env = process.env) { return { ...process.env, x: process['env'].Y, env }; }")).toEqual([`${f} → 3`]);
+      expect(at(f, "// process.env.X is read by the ports\nexport const s = 'process.env';")).toEqual([]);
+      // Through parentheses and casts, and `env` taken out of `process` by a pattern.
+      expect(at(f, 'export const a = (process).env.X;\nexport const b = (process as NodeJS.Process).env;')).toEqual([`${f} → 2`]);
+      expect(at(f, 'const { env } = process;\nconst { env: e, argv } = process;\nlet x;\n({ env: x } = process);\nconst { argv: only } = process;')).toEqual([`${f} → 3`]);
+      expect(at('packages/engine/src/ports.ts', 'export const e = process.env;')).toEqual([]);
+      expect(at('packages/cli/src/a.ts', 'export const e = process.env;')).toEqual([]);
+      expect(at('packages/engine/test/a.test.ts', 'export const e = process.env;')).toEqual([]);
+    });
+
+    it("holds today: the reads left are the baseline's (the queue adapters' test defaults, this process's own guard and ps)", () => {
+      expect(
+        ratchetOfRepo()
+          .filter((e) => e.startsWith('env-read '))
+          .sort(),
+      ).toEqual([
+        'env-read packages/engine/src/jobs/captures.ts → 1 read of process.env',
+        'env-read packages/engine/src/jobs/memory-queue.ts → 1 read of process.env',
+        'env-read packages/engine/src/jobs/queue.ts → 1 read of process.env',
+        'env-read packages/engine/src/jobs/worker-recovery.ts → 1 read of process.env',
+        'env-read packages/engine/src/jobs/yield.ts → 1 read of process.env',
+      ]);
     });
   });
 
@@ -1524,7 +1587,8 @@ describe('the import-rules ratchet', () => {
       ),
     ).toEqual([]);
     expect(wiring('packages/engine/src/jobs/b.ts', 'const Q = FileJobQueue;')).toEqual(['queue packages/engine/src/jobs/b.ts → FileJobQueue as a value']);
-    expect(wiring('packages/engine/src/engine.ts', 'const Q = FileJobQueue;')).toEqual([]);
+    expect(wiring('packages/engine/src/ports.ts', 'const Q = FileJobQueue;')).toEqual([]);
+    expect(wiring('packages/engine/src/engine.ts', 'const Q = FileJobQueue;')).toEqual(['queue packages/engine/src/engine.ts → FileJobQueue as a value']);
   });
 
   it('flags a module-level let / var of core, the engine or an adapter that holds the policy work runs under, and nothing else', () => {

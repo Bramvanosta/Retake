@@ -249,7 +249,7 @@ async function workUntil(id: string, test: { backend?: PreviewBackend; freeBytes
   // The worker's ports (L7.29): the backend draws the previews of its renderer, the free space its disk gate sees.
   const ports = { ...(test.backend ? { renderer: withPreviewBackend(editorRenderer(), test.backend) } : {}), freeBytes: test.freeBytes };
   for (let i = 0; i < 10 && ['queued', 'running'].includes((await studio.engine.jobs.get(id)).state); i++) {
-    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports });
+    await runWorker({ root: ws, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports });
   }
 }
 

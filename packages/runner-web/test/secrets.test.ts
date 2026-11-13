@@ -49,13 +49,16 @@ describe('RunSecrets (R-RUN-17)', () => {
     await expect(new RunSecrets(async () => Promise.reject(new Error('keychain item x/y not found'))).prefetch('{{keychain:x/y}}')).rejects.toThrow('not found');
   });
 
-  it('registers what the environment resolver returns; redacts every form, longest first, and only values', () => {
+  it('registers what the environment resolver returns; redacts every form, longest first, and only values', async () => {
     process.env.RETAKE_TEST_SECRET_A = 'p@ss wörd"<x>';
     process.env.RETAKE_TEST_SECRET_B = 'p@ss';
     try {
       const secrets = new RunSecrets();
       const untouched = { url: 'https://x.example/?q=p@ss' };
       expect(secrets.redactDeep(untouched)).toBe(untouched); // nothing registered: the same value, no copy
+      // Only a prefetched reference resolves: the sync lookup never reads the environment on the way.
+      expect(secrets.resolver('env:RETAKE_TEST_SECRET_A')).toBeUndefined();
+      await secrets.prefetch({ a: '{{env:RETAKE_TEST_SECRET_A}}', b: ['{{env:RETAKE_TEST_SECRET_B}}'] });
       expect(secrets.resolver('env:RETAKE_TEST_SECRET_A')).toBe('p@ss wörd"<x>');
       expect(secrets.resolver('env:RETAKE_TEST_SECRET_B')).toBe('p@ss');
       expect(secrets.contains('type p@ss wörd"<x> now')).toBe(true);

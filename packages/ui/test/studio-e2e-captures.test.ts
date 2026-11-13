@@ -119,7 +119,7 @@ describe.skipIf(!canRun)('captures first in the Studio (L5.14)', () => {
 
     // A take films in another workspace (its marker names no workspace): the render waits for it.
     const other = join(ws, 'elsewhere-workspace');
-    const marker = FilmingMarker.open({ root: other, source: 'cli', owner: await selfIdentity() });
+    const marker = FilmingMarker.open({ env: process.env, root: other, source: 'cli', owner: await selfIdentity() });
     expect(marker).not.toBeNull();
     try {
       await expect.poll(() => job.innerText(), POLL).toContain('v1 · queued — waiting for a take to finish (elsewhere on this Mac)');

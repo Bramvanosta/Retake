@@ -4,6 +4,7 @@
  * descendants that left the group), the take lock (busy, stale), the state file, ports (probe, lsof owner), health
  * checks (refused → 503 → 200, text, timeout, abort, a process gone), commands and the environment of a service.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync, utimesSync } from 'node:fs';
@@ -419,7 +420,7 @@ describe('a service: command and environment', () => {
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
     try {
       const env = await serviceEnv(
-        { project, sandbox, policy },
+        { project, sandbox, policy, resolveSecret: resolveSecretRef },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}', REGION: '{{vars.region}}', NODE_ENV: 'development' } },
         {
           PATH: '/usr/bin',
@@ -449,6 +450,26 @@ describe('a service: command and environment', () => {
     }
   });
 
+  it("resolves sandbox.yaml's secret references through the context's resolver only (its opener's Secrets port), never this process's environment", async () => {
+    const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } } } } as unknown as LoadedProject;
+    const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
+    process.env.RETAKE_TEST_SECRET = 'from-the-process';
+    const asked: string[] = [];
+    const resolveSecret = async (ref: string): Promise<string> => {
+      asked.push(ref);
+      if (ref === 'env:RETAKE_TEST_SECRET') return 'from-the-port';
+      throw new Error(`environment variable ${ref.slice(4)} is not set`);
+    };
+    try {
+      const env = await serviceEnv({ project, sandbox, policy, resolveSecret }, { env: { TOKEN: '{{env:RETAKE_TEST_SECRET}}' } }, { PATH: '/usr/bin' });
+      expect(env.TOKEN).toBe('from-the-port');
+      await expect(serviceEnv({ project, sandbox, policy, resolveSecret }, { env: { HOME_DIR: '{{env:HOME}}' } }, { PATH: '/usr/bin' })).rejects.toThrow('environment variable HOME is not set');
+      expect(asked).toEqual(['env:RETAKE_TEST_SECRET', 'env:HOME']);
+    } finally {
+      delete process.env.RETAKE_TEST_SECRET;
+    }
+  });
+
   it("under the agent policy gets only core childEnv's allow-list of it and project.yaml pass_env, plus sandbox.yaml's env", async () => {
     const project = {
       slug: 'p',
@@ -461,7 +482,7 @@ describe('a service: command and environment', () => {
     policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
       const env = await serviceEnv(
-        { project, sandbox, policy },
+        { project, sandbox, policy, resolveSecret: resolveSecretRef },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}' } },
         {
           PATH: `/usr/bin:${join(tmp, 'bin')}`,

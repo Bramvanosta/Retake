@@ -367,8 +367,8 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       const rec = await q.enqueue(input as never);
       const signed = (rec.input as { approvals?: Array<{ sig?: string }> }).approvals!;
       expect(signed[0]!.sig).toMatch(/^[0-9a-f]{64}$/);
-      expect((await verifiedApprovals(rec.input, { jobId: rec.id, root })).approvals).toHaveLength(1);
-      expect((await verifiedApprovals(rec.input, { jobId: newJobId(Date.now()), root })).rejected).toBe(1);
+      expect((await verifiedApprovals(rec.input, { jobId: rec.id, root, env: process.env })).approvals).toHaveLength(1);
+      expect((await verifiedApprovals(rec.input, { jobId: newJobId(Date.now()), root, env: process.env })).rejected).toBe(1);
       expect((await q.stored(rec.id))?.input).toEqual(rec.input);
       // A job without approvals carries none.
       expect('approvals' in (await q.enqueue(RUN_INPUT)).input).toBe(false);

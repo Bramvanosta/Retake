@@ -73,20 +73,8 @@
   },
   {
    "rule": "clock-read",
-   "reason": "Elapsed time and deadlines (a scheduler, not a stamp): the worker's idle and build-check timers, waits, grace periods (a cancel's before the kill, an orphan's before recovery), a history line's `ms` (a recording's too), the journal's warn rate limit, the in-memory renderer's render time. Never written as a time; `performance.now()` would do (BACKLOG).",
+   "reason": "The journal's warn rate limit (append-log.ts logWarner): a process-wide helper with no clock in reach, compared with itself, never written; its test moves Date.now.",
    "entries": [
-    "packages/engine/src/facade/jobs-api.ts → 3 wall-clock reads",
-    "packages/engine/src/in-process.ts → 2 wall-clock reads",
-    "packages/engine/src/jobs/worker-heavy.ts → 2 wall-clock reads",
-    "packages/engine/src/jobs/worker-loop.ts → 7 wall-clock reads",
-    "packages/engine/src/jobs/worker-record.ts → 1 wall-clock read",
-    "packages/engine/src/jobs/worker-recovery.ts → 4 wall-clock reads",
-    "packages/engine/src/jobs/worker-slots.ts → 1 wall-clock read",
-    "packages/engine/src/jobs/yield.ts → 1 wall-clock read",
-    "packages/engine/src/project-lock.ts → 2 wall-clock reads",
-    "packages/engine/src/record.ts → 2 wall-clock reads",
-    "packages/engine/src/render-frames.ts → 4 wall-clock reads",
-    "packages/engine/src/render/memory-renderer.ts → 2 wall-clock reads",
     "packages/engine/src/store/append-log.ts → 1 wall-clock read"
    ]
   },
@@ -158,6 +146,23 @@
     "packages/ui/src/server/theme-ops.ts → 1 operation defined",
     "packages/ui/src/server/unsaved.ts → 1 operation defined",
     "packages/ui/src/server/update-ops.ts → 2 operations defined"
+   ]
+  },
+  {
+   "rule": "env-read",
+   "reason": "Test defaults of the job queue adapters' constructors (the roots hand theirs through the ports' queue factory, as with their clock).",
+   "entries": [
+    "packages/engine/src/jobs/memory-queue.ts → 1 read of process.env",
+    "packages/engine/src/jobs/queue.ts → 1 read of process.env"
+   ]
+  },
+  {
+   "rule": "env-read",
+   "reason": "This process's own environment, on purpose: the captures folder's test-run guard reads it beside the environment handed (a test that hands a clean one still never uses the per-user folder); the two `ps` runs get it with the C locale (a subprocess inherits this process's environment; yield.ts parses the start times `ps` prints in this process's time zone).",
+   "entries": [
+    "packages/engine/src/jobs/captures.ts → 1 read of process.env",
+    "packages/engine/src/jobs/worker-recovery.ts → 1 read of process.env",
+    "packages/engine/src/jobs/yield.ts → 1 read of process.env"
    ]
   },
   {

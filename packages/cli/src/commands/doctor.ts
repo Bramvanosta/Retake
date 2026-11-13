@@ -236,7 +236,7 @@ function listProbe(dir: string): string[] | null {
 async function sandboxProbe(project: LoadedProject, env: string, policy: WorkPolicy): Promise<SandboxProbe> {
   const { openSandbox } = await import('@retake/sandbox');
   try {
-    const st = await openSandbox(project, env, policy).status();
+    const st = await openSandbox(project, env, policy, (ref) => cliPorts.secrets.resolve(ref)).status();
     const problems = st.services
       .filter((x) => !x.orphan && (x.state !== 'running' || x.healthy === false))
       .map((x) => `${x.name}: ${x.state === 'stopped' ? 'not running' : x.state === 'starting' ? 'starting' : `not healthy (${x.health})`}`);
@@ -253,7 +253,7 @@ async function capturesProbe(root: string): Promise<CapturesProbe> {
   const exists = existsSync(loc.dir);
   // Nothing is made: an absent folder is read as "no take yet" (capturesDir would make it).
   const usable = exists ? e.capturesDir(process.env) : { dir: null, ...(loc.problem ? { problem: loc.problem } : {}) };
-  const st = usable.dir ? await new e.FilmingWatch({ root }).scan() : { takes: [] };
+  const st = usable.dir ? await new e.FilmingWatch({ root, env: process.env }).scan() : { takes: [] };
   const takes = [];
   for (const t of st.takes) {
     const cmd = await new Promise<string>((r) => execFile('ps', ['-ww', '-o', 'command=', '-p', String(t.pid)], { timeout: 5000, encoding: 'utf8' }, (err, out) => r(err ? '' : String(out))));

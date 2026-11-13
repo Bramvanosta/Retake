@@ -16,6 +16,7 @@ import {
   listingContext,
   reserveListedRun,
   checkAllowWrites,
+  checkHeadedDisplay,
   prepareRun,
   runInProcess,
   selfIdentity,
@@ -88,6 +89,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   try {
     const ws = await openWorkspace(global);
     prepared = await prepareRun(ws, await openProject(ws, projectArg), scenarioArg, opts);
+    checkHeadedDisplay(opts, cliPorts.env);
   } catch (e) {
     if (e instanceof RunOptionError) throw new UsageError(e.message);
     return fail(errorMessage(e));
@@ -163,9 +165,10 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
   let beside: TakeBeside | undefined;
   const onFilming = (state: FilmingEvent): FilmingReport | undefined => {
     if (state === 'start' && !marker) {
-      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner });
+      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner, env: cliPorts.env });
       beside = new TakeBeside({
         root: ws.root,
+        env: cliPorts.env,
         own: () => marker?.name,
         onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`),
       });
@@ -191,6 +194,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
       {
         policy: ws.policy,
         capture: cliPorts.capture,
+        secrets: cliPorts.secrets,
         hooks: cliPorts.hooks,
         sandboxes: cliPorts.sandboxes,
         // The fix of an expired session names this workspace when the command line did (-C).

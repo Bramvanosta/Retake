@@ -49,6 +49,7 @@ import { planWork, renderWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
 import type { Reviewer } from '../review/reviewer.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import { portsOf } from '../ports.js';
 import type { EnginePorts } from '../ports.js';
 
 export interface RenderRequest {
@@ -414,13 +415,7 @@ export async function reviewInline(
     const r = await run({
       ws: ctx.ws,
       cli: ctx.cli,
-      clock: ctx.clock,
-      stores: ctx.stores,
-      reads: ctx.reads,
-      hooks: ctx.hooks,
-      reviewer: ctx.reviewer,
-      capture: ctx.capture,
-      sandboxes: ctx.sandboxes,
+      ...portsOf(ctx),
       input: { version: JOB_INPUT_VERSION, kind: 'review', project: ctx.input.project, render_id: renderId, fps, submitted_by: ctx.input.submitted_by },
       signal: ctx.signal,
       event: ctx.event,

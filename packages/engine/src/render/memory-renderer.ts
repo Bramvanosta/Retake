@@ -69,7 +69,7 @@ export class MemoryRenderer implements Renderer {
 
   async video(req: RenderVideoRequest): Promise<RenderVideoResult> {
     this.calls.push({ op: 'video', req });
-    const started = Date.now();
+    const started = performance.now();
     const [first, last] = req.frameRange ?? [0, req.plan.durationInFrames - 1];
     const total = last - first + 1;
     const emit = req.onProgress ?? (() => undefined);
@@ -96,7 +96,7 @@ export class MemoryRenderer implements Renderer {
       bundle: { hash: 'memory', cached: false, ms: 0 },
       browser: { path: null, source: 'none' },
       bundle_ms: 0,
-      render_ms: Date.now() - started,
+      render_ms: performance.now() - started,
       warnings: [...(this.#o.warnings ?? [])],
       renderPath: {
         gl: { asked: 'software', source: 'option', resolved: 'software', used: 'software' },

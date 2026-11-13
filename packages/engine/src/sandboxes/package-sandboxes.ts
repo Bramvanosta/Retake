@@ -6,6 +6,7 @@
  * (ports.ts enginePorts).
  */
 import { sandbox } from '../lazy.js';
+import type { Secrets } from '../secrets/secrets.js';
 import type { SandboxHandle, Sandboxes } from './sandboxes.js';
 
 type SandboxPackage = Awaited<ReturnType<typeof sandbox>>;
@@ -14,9 +15,10 @@ type SandboxPackage = Awaited<ReturnType<typeof sandbox>>;
 type Assignable<A extends B, B> = [A, B];
 type SandboxHandleChecks = Assignable<InstanceType<SandboxPackage['Sandbox']>, SandboxHandle>;
 
-export function packageSandboxes(): Sandboxes {
+/** `secrets`: what the sandboxes' secret references are resolved with (the bag's Secrets port, handed to each sandbox). */
+export function packageSandboxes(secrets: Secrets): Sandboxes {
   return {
-    open: async (project, env, policy): Promise<SandboxHandle> => (await sandbox()).openSandbox(project, env, policy),
+    open: async (project, env, policy): Promise<SandboxHandle> => (await sandbox()).openSandbox(project, env, policy, (ref) => secrets.resolve(ref)),
     init: async (project, o) => (await sandbox()).initSandbox(project, o),
   };
 }

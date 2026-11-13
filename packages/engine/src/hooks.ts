@@ -5,6 +5,7 @@
  * them for `hooks` and `env_reset` jobs (trust `mcp`, approvals from the job). Nothing here prints or installs signal
  * handlers: the caller logs through `log` and handles interrupts.
  */
+import type { Secrets } from './secrets/secrets.js';
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
@@ -164,6 +165,8 @@ export function hooksAccess(project: LoadedProject, env: ReturnType<typeof resol
 export interface HookContextOptions {
   /** What the work runs under (core WorkPolicy): the hooks' shell environment and js-hook browser. */
   policy: WorkPolicy;
+  /** What the hooks' secret references are resolved with (its composition root's Secrets port: required). */
+  secrets: Secrets;
   env?: string;
   /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (CLI only). */
   allowWrites?: boolean;
@@ -254,6 +257,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     access,
     accessOf,
     log: o.log,
+    resolveSecret: (ref) => o.secrets.resolve(ref),
     ...(o.confirm ? { confirmDestructive: o.confirm } : {}),
     ...(o.trust ? { trust: o.trust } : {}),
     // Trust `mcp`: a scenario's vars are the agent's — a project hook rendered with them counts as the agent's too.

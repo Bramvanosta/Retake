@@ -8,6 +8,7 @@
  * the trust rule that hands the persona's own origins (engine hooks.ts, hooks-pages.test.ts); the preflight of a
  * recording (record.ts, record.test.ts); a run (capture-runner-contract.ts).
  */
+import { enginePorts } from '../src/index.js';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -101,7 +102,17 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
         const stop = new AbortController();
         stop.abort();
         const env = resolveEnvironment(c.project, 'test');
-        const e = await named(c.runner.sessions.signIn({ project: c.project, policy: PERSON_POLICY, env, persona: c.persona('ada'), mode: 'auto', signal: stop.signal }));
+        const e = await named(
+          c.runner.sessions.signIn({
+            resolveSecret: (ref) => enginePorts().secrets.resolve(ref),
+            project: c.project,
+            policy: PERSON_POLICY,
+            env,
+            persona: c.persona('ada'),
+            mode: 'auto',
+            signal: stop.signal,
+          }),
+        );
         expect(e?.name).toBe('CancelledError');
       });
 
@@ -110,7 +121,15 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
         if (!c.browser) return t.skip();
         const env = resolveEnvironment(c.project, 'test');
         const opened: string[] = [];
-        const r = await c.runner.sessions.signIn({ project: c.project, policy: PERSON_POLICY, env, persona: c.persona('ada'), mode: 'auto', onOpen: (u) => opened.push(u) });
+        const r = await c.runner.sessions.signIn({
+          resolveSecret: (ref) => enginePorts().secrets.resolve(ref),
+          project: c.project,
+          policy: PERSON_POLICY,
+          env,
+          persona: c.persona('ada'),
+          mode: 'auto',
+          onOpen: (u) => opened.push(u),
+        });
         expect(r.persona).toBe('ada');
         expect(r.check.status).toBe('valid');
         expect(opened).toHaveLength(1);
@@ -122,7 +141,7 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
         if (!c.browser) return t.skip();
         const env = resolveEnvironment(c.project, 'test');
         const ada = c.persona('ada');
-        await c.runner.sessions.signIn({ project: c.project, policy: PERSON_POLICY, env, persona: ada, mode: 'auto' });
+        await c.runner.sessions.signIn({ resolveSecret: (ref) => enginePorts().secrets.resolve(ref), project: c.project, policy: PERSON_POLICY, env, persona: ada, mode: 'auto' });
         const browser = await c.runner.hookPages.open({
           policy: PERSON_POLICY,
           project: c.project,

@@ -19,6 +19,7 @@
  * text and page text never enter job.json, the job's events or the worker log); scene ids (made from page paths), the
  * draft's issues and the check's failure are under `untrusted`. scenario_record reads draft.yaml from the folder.
  */
+import { noDisplay } from '../env.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { SLUG_RE } from '@retake/core/model';
@@ -105,7 +106,7 @@ export async function submitRecordJob(
     page: start.page,
     path: start.path,
   });
-  if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (noDisplay(ctx.env)) {
     throw new EngineError('unavailable', 'a recording opens a browser window for a person and this machine has no display (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen', {
       fix,
     });
@@ -233,8 +234,10 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
       {
         queue: ctx.queue,
         clock: ctx.clock,
+        env: ctx.env,
         stores: ctx.stores,
         capture: ctx.capture,
+        secrets: ctx.secrets,
         hooks: ctx.hooks,
         // Messages of the engine and the runner: counts and enums, never page text or a typed value.
         log: (level, message) => {

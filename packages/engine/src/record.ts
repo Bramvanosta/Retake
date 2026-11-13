@@ -29,6 +29,9 @@
  * - a recording the Studio started (`submittedBy: 'ui'`, L4.8) is never saved here (`not_saved: 'studio'`): the person
  *   arranges the draft and saves it from the Record screen (record-studio.ts).
  */
+import type { Secrets } from './secrets/secrets.js';
+import { noDisplay } from './env.js';
+import type { EngineEnv } from './env.js';
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
@@ -139,7 +142,7 @@ export function fileSha256(file: string): Promise<string> {
 }
 
 /** The longest recording (ms): RETAKE_RECORD_MAX_MIN when set (minutes), else undefined (the runner's 30 min). */
-export function recordMaxMs(env: NodeJS.ProcessEnv = process.env): number | undefined {
+export function recordMaxMs(env: EngineEnv): number | undefined {
   const raw = env[RECORD_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return undefined;
   const n = Number(raw);
@@ -190,10 +193,14 @@ export interface RecordPorts {
   queue: JobQueueView;
   /** What the recording is stamped with (its composition root's clock). */
   clock: Clock;
+  /** The environment its composition root read (env.ts): the time limit a person set, whether a window has a display. */
+  env: EngineEnv;
   /** What the draft scenario is saved through. */
   stores: ProjectStores;
   /** What opens the window, checks and signs the persona in, and replays the draft (its composition root's). */
   capture: CaptureRunner;
+  /** What its secret references are resolved with (its composition root's Secrets port). */
+  secrets: Secrets;
   /** What the check replay's hooks would run through (a dry replay: none run). */
   hooks: HookRunner;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
@@ -364,7 +371,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
   }
   log('info', `persona ${persona.name}: session ${status} — signing in with its login steps (headless)`);
   try {
-    const r = await sessions.signIn({ project, policy, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
+    const r = await sessions.signIn({ resolveSecret: (ref) => ports.secrets.resolve(ref), project, policy, env, persona, mode: 'auto', log, ...(ports.signal ? { signal: ports.signal } : {}) });
     if (r.check.status !== 'valid' && r.check.status !== 'unchecked') {
       throw new EngineError('refused', `persona ${persona.name} could not be signed in by its login steps (${r.check.detail}): sign it in by hand — ${command}`, { fix: command });
     }
@@ -377,8 +384,8 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
 
 /** Record a scenario (see the module comment). EngineError on a refusal before the window opens, or on a cancel. */
 export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject, req: RecordRequest, ports: RecordPorts): Promise<RecordOutcome> {
-  // The history line's `ms` is elapsed time (the system's); the record's `started_at` is a stamp of the ports' clock.
-  const started = Date.now();
+  // The history line's `ms` is elapsed time (the ports' clock's monotonic side); the record's `started_at` is a stamp of its wall side.
+  const started = ports.clock.monotonic();
   const startedAt = stampOf(ports.clock);
   const log = ports.log ?? (() => undefined);
   const start = recordStart(project, req);
@@ -390,12 +397,12 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   } catch (e) {
     throw toEngineError(e);
   }
-  const maxMs = recordMaxMs();
+  const maxMs = recordMaxMs(ports.env);
   const name = req.name ?? defaultRecordName(project, dateOf(ports.clock));
   const warnings: string[] = [];
   if (scenarioTaken(project, name)) warnings.push(`scenario ${name} exists: the draft is kept in the recording's folder only (not saved)`);
 
-  if (!ports.drive && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (!ports.drive && noDisplay(ports.env)) {
     throw new EngineError('unavailable', 'a recording opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set): record on a machine with a screen');
   }
   ports.onPhase?.('preflight');
@@ -578,7 +585,7 @@ async function history(
       project: project.slug,
       submitted_by: req.submittedBy ?? 'cli',
       state,
-      ms: Date.now() - started,
+      ms: Math.round(clock.monotonic() - started),
       record: { id, steps, saved },
       counted: { captures: 0, dry_runs: 0, renders: 0 },
     },
@@ -619,6 +626,7 @@ async function checkReplay(o: {
   let record: RunRecord;
   try {
     record = await ports.capture.run({
+      resolveSecret: (ref) => ports.secrets.resolve(ref),
       policy: o.policy,
       project,
       scenario: loaded,

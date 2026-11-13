@@ -116,6 +116,7 @@ function workInMemory(capture: MemoryCaptureRunner): Promise<number> {
     idleExitMs: 0,
     pollMs: 50,
     log: (m) => logs.push(m),
+    heavyInProcess: true,
     ports: { capture, recordWindow: { headless: true, windowSize: { width: 1400, height: 1000 }, drive: async () => undefined } },
   });
 }

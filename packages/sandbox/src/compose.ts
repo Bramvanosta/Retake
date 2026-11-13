@@ -696,7 +696,7 @@ export class ComposeProvider implements Provider {
   private async waitDatabases(ctx: ProviderContext, timeoutS: number): Promise<void> {
     for (const [key, db] of Object.entries(ctx.sandbox.manifest.databases ?? {})) {
       if (!/^postgres(ql)?:/i.test(db.url)) continue;
-      const url = await resolveDatabaseUrl(ctx.project, db.url);
+      const url = await resolveDatabaseUrl(ctx.project, db.url, ctx.resolveSecret);
       const named = pgEndpoint(url, `${this.where(ctx)}: database ${key}`);
       // A port the project publishes, named by a host name: on the address Docker publishes it on, never `localhost`.
       const address = db.external || isIP(named.host) ? undefined : this.addresses.get(named.port);
@@ -958,7 +958,7 @@ export class ComposeProvider implements Provider {
     await this.docker(ctx);
     const ref = this.ref(ctx);
     const values = { command: step.command, env: step.env ?? {} };
-    const { resolver } = await prefetchSecrets(values);
+    const { resolver } = await prefetchSecrets(values, ctx.resolveSecret);
     const resolved: string[] = [];
     const secrets = (key: string) => {
       const v = resolver(key);

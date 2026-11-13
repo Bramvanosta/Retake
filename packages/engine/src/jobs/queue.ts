@@ -27,6 +27,7 @@
  * events.jsonl by byte range; the Project board: job.json's stat); the port (job-queue.ts) has none, and reads a
  * submit's own files (a render's edit snapshot) itself (jobFile).
  */
+import type { EngineEnv } from '../env.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -40,7 +41,7 @@ import type { Clock } from '../clock.js';
 import { EngineError } from '../errors.js';
 import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { jobsDir } from '../workspace-state.js';
-import type { JobFileRead, TakeHold } from './job-queue.js';
+import type { JobFilePaths, JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
 
@@ -50,7 +51,7 @@ function jobFolder(dir: string, id: JobId): string {
 }
 
 /** The file queue's paths: a job's folder and the files the code beside the queue reads or writes itself. */
-export class JobFiles {
+export class JobFiles implements JobFilePaths {
   /** `dir`: <workspace>/.retake/jobs. */
   constructor(readonly dir: string) {}
 
@@ -194,15 +195,15 @@ export class FileJobQueue extends StoredJobQueue {
    * are stamped with — the composition roots always pass theirs (the import-rules ratchet's `queue` check), the
    * default is for tests.
    */
-  constructor(root: string, cli = 'retake', clock: Clock = systemClock) {
+  constructor(root: string, cli = 'retake', clock: Clock = systemClock, env: EngineEnv = process.env) {
     const files = new JobFiles(jobsDir(root));
-    super(root, cli, new FileEntries(files), clock);
+    super(root, cli, new FileEntries(files), clock, env);
     this.files = files;
   }
 
   /** A new file queue on the same folder and clock: no finished job seen yet, a marker watch of its own. */
   withOwnMemory(cli = 'retake'): FileJobQueue {
-    return new FileJobQueue(this.root, cli, this.clock);
+    return new FileJobQueue(this.root, cli, this.clock, this.env);
   }
 
   /**
@@ -235,7 +236,7 @@ export class FileJobQueue extends StoredJobQueue {
   /** A filming marker of this user (captures.ts: `here` when its workspace is this one). */
   protected async filming(): Promise<TakeHold> {
     const { FilmingWatch } = await import('./captures.js');
-    this.watch ??= new FilmingWatch({ root: this.root });
+    this.watch ??= new FilmingWatch({ root: this.root, env: this.env });
     const st = await this.watch.scan().catch(() => undefined);
     return st?.holding ? (st.cause ?? 'elsewhere') : undefined;
   }

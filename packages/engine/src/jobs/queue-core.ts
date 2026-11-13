@@ -10,6 +10,7 @@
  * jobFile. Readers never write: what a dead worker cannot write is derived when reading (queue.ts says how the next
  * worker persists it).
  */
+import type { EngineEnv } from '../env.js';
 import { parseJobId } from '@retake/core/ids';
 import { JobInputSchema, isFilming, jobClass } from './job-input.js';
 import type { JobId } from '@retake/core/ids';
@@ -83,6 +84,8 @@ export abstract class StoredJobQueue implements JobQueue {
     protected readonly entries: JobEntries,
     /** What the queue stamps its records and markers with (the composition root's clock). */
     protected readonly clock: Clock,
+    /** The environment its composition root read (env.ts): the Retake home whose key signs the approvals, the captures folder. */
+    protected readonly env: EngineEnv,
   ) {}
 
   /** A filming marker of this user that holds heavy work (`here`: its workspace is this one), else undefined. */
@@ -110,7 +113,7 @@ export abstract class StoredJobQueue implements JobQueue {
     }
     const id = newJobId(this.clock.now());
     // Its approvals are signed for this job (signing.ts): the worker honours no approval a submit did not write for it.
-    const signed = await signApprovals(parsed.data, { jobId: id, root: this.root });
+    const signed = await signApprovals(parsed.data, { jobId: id, root: this.root, env: this.env });
     await this.entries.make(id);
     for (const [name, text] of Object.entries(opts.files ?? {})) await this.entries.add(id, checkJobFile(name), text);
     const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: stampOf(this.clock) };

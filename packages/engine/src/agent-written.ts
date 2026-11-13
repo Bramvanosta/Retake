@@ -36,8 +36,8 @@
  * parsed scenario, or — with no line to decide — a project outside the projects folder of every workspace looked at.
  */
 import { createHash } from 'node:crypto';
-import { constants, createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
-import { mkdir, open, realpath, rmdir } from 'node:fs/promises';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import { realpath, rmdir } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { canonicalJson, interpolate } from '@retake/core/base';
@@ -54,6 +54,7 @@ import { stampOf } from './clock.js';
 import { EngineError } from './errors.js';
 import type { Clock } from './clock.js';
 import type { HookRunner } from './hook-run/runner.js';
+import type { ProjectStores } from './store/store.js';
 import { journalFile } from './store/journal.js';
 import type { JournalBy } from './store/journal.js';
 
@@ -70,27 +71,6 @@ export function scenarioHookSurface(sc: SurfaceOf): string {
 /** The project's record of scenario writes (its state folder: core layout PROJECT_SCENARIO_WRITES_FILE). */
 export function scenarioWritesFile(projectDir: string): string {
   return statePath(projectDir, undefined, PROJECT_SCENARIO_WRITES_FILE);
-}
-
-/** Appending only, created owner-only, never through a symbolic link; read too, for its last byte (as the journal's). */
-const APPEND_FLAGS = constants.O_RDWR | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW;
-
-/** Append one line, a torn last line (no line break: a crash mid-write) closed first, synced to disk before returning. */
-async function appendLine(file: string, line: string): Promise<void> {
-  const fh = await open(file, APPEND_FLAGS, 0o600);
-  try {
-    const { size } = await fh.stat();
-    let head = '';
-    if (size > 0) {
-      const last = Buffer.alloc(1);
-      await fh.read(last, 0, 1, size - 1);
-      if (last[0] !== 0x0a) head = '\n';
-    }
-    await fh.write(head + line);
-    await fh.sync();
-  } finally {
-    await fh.close();
-  }
 }
 
 interface ScenarioWriteLine {
@@ -114,13 +94,14 @@ interface ScenarioWriteLine {
 let lastWarn = Number.NEGATIVE_INFINITY;
 
 /**
- * Add the line of a scenario write that succeeded (engine scenarios.ts, after the project store wrote it). Appended,
- * owner-only, never through a symbolic link, a torn last line closed first, synced (appendLine); a failure never fails
- * the write (it is done): it is said on stderr, and the workspace journal's line of the write still decides for it.
+ * Add the line of a scenario write that succeeded (engine scenarios.ts, after the project store wrote it), through the
+ * write's stores (ProjectStores.appendRecord: owner-only, never through a symbolic link, a torn last line closed first,
+ * synced; a memory workspace's lands in its Map); a failure never fails the write (it is done): it is said on stderr,
+ * and the workspace journal's line of the write still decides for it.
  */
 export async function recordScenarioWrite(
   project: Pick<LoadedProject, 'dir'>,
-  w: { file: string; sha256: string; scenario: SurfaceOf; before?: SurfaceOf | null; caller: Pick<Caller, 'client' | 'channel' | 'trust'>; clock: Clock },
+  w: { file: string; sha256: string; scenario: SurfaceOf; before?: SurfaceOf | null; caller: Pick<Caller, 'client' | 'channel' | 'trust'>; clock: Clock; stores: ProjectStores },
 ): Promise<void> {
   await appendScenarioWrite(project, w).catch((e: unknown) => {
     const now = w.clock.now();
@@ -140,6 +121,7 @@ async function appendScenarioWrite(
     before?: SurfaceOf | null;
     caller: Pick<Caller, 'client' | 'channel' | 'trust'>;
     clock: Clock;
+    stores: ProjectStores;
     files?: TrustedHookFiles;
   },
 ): Promise<void> {
@@ -153,8 +135,7 @@ async function appendScenarioWrite(
     by: { client: w.caller.client, channel: w.caller.channel, trust: w.caller.trust },
     ...(w.files ? { files: w.files } : {}),
   };
-  await mkdir(statePath(project.dir), { recursive: true });
-  await appendLine(scenarioWritesFile(project.dir), `${JSON.stringify(line)}\n`);
+  await w.stores.appendRecord(project.dir, PROJECT_SCENARIO_WRITES_FILE, `${JSON.stringify(line)}\n`);
 }
 
 // ── Reading, closed on failure ───────────────────────────────────────────────
@@ -737,11 +718,20 @@ export async function hooksTrustView(
  * (`view.files`) — in the project holding the file, so a run does not ask again until the hooks or one of those files
  * change. A line that cannot be written is an error (nothing was settled).
  */
-export async function trustScenarioHooks(project: LoadedProject, view: HooksTrustView, caller: Caller, clock: Clock): Promise<void> {
+export async function trustScenarioHooks(project: LoadedProject, view: HooksTrustView, caller: Caller, ports: { clock: Clock; stores: ProjectStores }): Promise<void> {
   if (caller.trust !== 'author' || caller.client !== 'cli') throw new EngineError('refused', 'only a person in a terminal marks hooks as theirs (`retake hooks trust`)');
   const holder = projectOfFile(view.file, project);
   try {
-    await appendScenarioWrite(holder, { file: view.file, sha256: view.sha256, scenario: view.scenario, before: view.scenario, caller, clock, files: { code: view.files.code, data: view.files.data } });
+    await appendScenarioWrite(holder, {
+      file: view.file,
+      sha256: view.sha256,
+      scenario: view.scenario,
+      before: view.scenario,
+      caller,
+      clock: ports.clock,
+      stores: ports.stores,
+      files: { code: view.files.code, data: view.files.data },
+    });
   } catch (e) {
     throw new EngineError('internal', `the project's record of scenario writes (${STATE_DIR}/${PROJECT_SCENARIO_WRITES_FILE}) could not be written: ${(e as Error).message} — nothing was settled`);
   }

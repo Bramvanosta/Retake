@@ -45,7 +45,10 @@ beforeEach(() => void calls.splice(0));
 describe('the ports bag: the hook runner and the reviewer', () => {
   it('defaults to the package adapters and keeps the ones handed; making them loads nothing', () => {
     const p = enginePorts();
-    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'hooks', 'reads', 'reviewer', 'sandboxes', 'stores']);
+    expect(Object.keys(p).sort()).toEqual(['capture', 'clock', 'env', 'hooks', 'queues', 'reads', 'renderer', 'reviewer', 'sandboxes', 'secrets', 'stores']);
+    // The environment is this process's; the queue, the renderer and the secrets are the product's, made lazily.
+    expect(p.env).toBe(process.env);
+    expect([typeof p.queues, typeof p.renderer.video, typeof p.secrets.resolve]).toEqual(['function', 'function', 'function']);
     expect(typeof p.sandboxes.open).toBe('function');
     expect(typeof p.capture.run).toBe('function');
     expect(typeof p.hooks.run).toBe('function');
@@ -188,7 +191,7 @@ describe('the ports bag: the capture runner', () => {
 
 describe('the ports bag: the sandboxes (L7.25)', () => {
   it('the package adapter loads the sandbox package through its loader on a call, and hands its refusal on as it is', async () => {
-    const sb = packageSandboxes();
+    const sb = packageSandboxes(enginePorts().secrets);
     expect(calls).toEqual([]);
     const bare = { slug: 'bare', dir, config: { environments: {} } } as unknown as LoadedProject;
     const err = await sb.open(bare, undefined, PERSON_POLICY).catch((e: unknown) => e);

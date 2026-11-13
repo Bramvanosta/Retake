@@ -34,11 +34,15 @@ import type {
 import type { HookRunner } from '../hook-run/runner.js';
 
 /**
- * A run of a scenario (capture, dry run, or a dry replay with `inspect`): the runner's options without its two test
- * seams (`browser`, `resolveSecret`), and the hook runner its setup, teardown and hook steps run through (required:
- * every run the engine starts hands its composition root's).
+ * A run of a scenario (capture, dry run, or a dry replay with `inspect`): the runner's options without its test seam
+ * (`browser`), the hook runner its setup, teardown and hook steps run through and the resolver of its secrets (both
+ * required: every run the engine starts hands its composition root's).
  */
-export type CaptureRequest = Omit<RunOptions, 'browser' | 'resolveSecret' | 'hookRunner'> & { hookRunner: HookRunner };
+export type CaptureRequest = Omit<RunOptions, 'browser' | 'resolveSecret' | 'hookRunner'> & {
+  hookRunner: HookRunner;
+  /** What the run's secret references are resolved with: its composition root's Secrets port (required: never the runner's own). */
+  resolveSecret: (ref: string) => Promise<string>;
+};
 
 /** A live check of a persona's saved session, the way a run sees it (no window; its test seam `browser` left out). */
 export type SessionCheckOptions = Pick<SignInOptions, 'project' | 'env' | 'persona' | 'log' | 'signal' | 'policy'>;
@@ -47,8 +51,11 @@ export type SessionCheckOptions = Pick<SignInOptions, 'project' | 'env' | 'perso
 export interface CaptureSessions {
   /** checkSavedSession: `unchecked` when the persona declares no check. */
   check(o: SessionCheckOptions): Promise<PersonaCheckResult>;
-  /** A headed window a human signs in to, or the persona's login steps (`auto`, headless); the check made after. */
-  signIn(o: SignInOptions): Promise<SignInResult>;
+  /**
+   * A headed window a human signs in to, or the persona's login steps (`auto`, headless); the check made after. The
+   * login steps' secrets are resolved with `resolveSecret` (its composition root's Secrets port: required).
+   */
+  signIn(o: SignInOptions & { resolveSecret: (ref: string) => Promise<string> }): Promise<SignInResult>;
   /** The master profile's `SingletonLock`: held by a running browser (`live`), left behind (`stale`), or none. */
   lock(profileDir: string): Promise<ProfileLock>;
   /** The persona's last status file, or null. */

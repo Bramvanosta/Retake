@@ -347,6 +347,7 @@ export async function runCapture(opts: RunOptions, driverOf: (run: CaptureRun) =
         });
     } else if (hasHooks) {
       const deps: SetupDeps = {
+        ...(opts.resolveSecret ? { resolveSecret: opts.resolveSecret } : {}),
         policy: opts.policy,
         project,
         env,

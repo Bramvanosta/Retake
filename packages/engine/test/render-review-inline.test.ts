@@ -84,7 +84,7 @@ describe('a render reviewed inline, through the worker (L4.5 part E)', () => {
     expect(queued.renders).toEqual([]);
 
     const renderer = new MemoryRenderer();
-    expect(await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { renderer, reviewer } })).toBe(0);
+    expect(await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { renderer, reviewer } })).toBe(0);
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
     const result = job.result as RenderJobResult;

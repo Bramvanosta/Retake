@@ -128,7 +128,7 @@ export async function sandboxAccounts(ctx: HookContext, value: unknown, env: str
       if (resolved === undefined || resolved === '') throw new HookError(`{{${expr}}}: ${fromFile} is not set (or empty) in the compose env file of sandbox ${env}`);
     } else if (ref !== undefined) {
       secret = true;
-      resolved = ctx.dryRun ? '***' : await resolveSecretRef(ref);
+      resolved = ctx.dryRun ? '***' : await (ctx.resolveSecret ?? resolveSecretRef)(ref);
     }
     if (secret && ctx.dryRun) resolved = '***';
     else if (secret) out.secrets.push(resolved);

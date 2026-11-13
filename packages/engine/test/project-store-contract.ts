@@ -363,5 +363,26 @@ export function projectStoreContract(adapter: string, make: () => Promise<StoreH
         expect(await h.lines()).toEqual([]);
       });
     });
+
+    it("appendRecord(): a line appended to a record of a project's state folder, its folder made; a torn last line closed first; a name that is no plain file name refused; no journal line", async () => {
+      await withStore(async (h) => {
+        const dir = join(h.root, 'projects', 'acme');
+        const file = join(dir, '.retake', 'scenario-writes.jsonl');
+        await h.stores.appendRecord(dir, 'scenario-writes.jsonl', '{"a":1}\n');
+        await h.stores.appendRecord(dir, 'scenario-writes.jsonl', '{"b":2}\n');
+        expect((await h.read(file))?.toString('utf8')).toBe('{"a":1}\n{"b":2}\n');
+        // A crash mid-write left a line without its break: the next append closes it, so only that line is lost.
+        const torn = join(dir, '.retake', 'torn.jsonl');
+        await h.seed(torn, '{"a":1}\n{"tor');
+        await h.stores.appendRecord(dir, 'torn.jsonl', '{"c":3}\n');
+        expect((await h.read(torn))?.toString('utf8')).toBe('{"a":1}\n{"tor\n{"c":3}\n');
+        // Confined to the state folder: a path, a parent or a hidden name is refused, nothing written.
+        for (const bad of ['../x.jsonl', 'a/b.jsonl', '/etc/x', '.hidden', '', 'x..jsonl']) {
+          await expect(h.stores.appendRecord(dir, bad, '{}\n'), bad).rejects.toMatchObject({ name: 'EngineError', code: 'invalid' });
+        }
+        expect(await h.list(join(dir, '.retake'))).toEqual(['scenario-writes.jsonl', 'torn.jsonl']);
+        expect(await h.lines()).toEqual([]);
+      });
+    });
   });
 }

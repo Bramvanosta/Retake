@@ -28,7 +28,20 @@ import { sandboxPaths, shownPath } from './paths.js';
 import type { SandboxPaths } from './paths.js';
 import { ComposeProvider } from './compose.js';
 import { ProcessProvider, tailLines } from './process.js';
-import type { DownResult, Provider, ProviderCapabilities, ProviderContext, SandboxLog, SandboxProgress, SeedRecorder, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type {
+  DownResult,
+  Provider,
+  SecretRefResolver,
+  ProviderCapabilities,
+  ProviderContext,
+  SandboxLog,
+  SandboxProgress,
+  SeedRecorder,
+  SeedTrust,
+  ServiceLogFile,
+  ServiceStatus,
+  UpResult,
+} from './provider.js';
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
@@ -121,13 +134,13 @@ export function providerFor(sandbox: LoadedSandbox, policy: WorkPolicy): Provide
 }
 
 /** The sandbox of environment `env` (default: the first project.yaml declares), for work under `policy` (core WorkPolicy). */
-export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy): Sandbox {
+export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy, resolveSecret: SecretRefResolver): Sandbox {
   const names = sandboxNames(project);
   if (!names.length) throw new SandboxError(`project ${project.slug} has no sandbox: add \`sandboxes: {sandbox: sandbox/sandbox.yaml}\` to project.yaml`);
   const name = env ?? names[0];
   const loaded = project.sandboxes?.[name];
   if (!loaded) throw new SandboxError(`${name} is not a sandbox of project ${project.slug} (sandboxes: ${names.join(', ')})`);
-  return new Sandbox(project, loaded, policy);
+  return new Sandbox(project, loaded, policy, resolveSecret);
 }
 
 export class Sandbox {
@@ -144,6 +157,8 @@ export class Sandbox {
     readonly sandbox: LoadedSandbox,
     /** What the work runs under (core WorkPolicy). */
     readonly policy: WorkPolicy,
+    /** What its secret references are resolved with (its opener's: ProviderContext.resolveSecret). */
+    private readonly resolveSecret: SecretRefResolver,
   ) {
     this.env = sandbox.env;
     this.paths = sandboxPaths(project.dir, sandbox.env);
@@ -177,6 +192,7 @@ export class Sandbox {
       state,
       save: () => writeState(this.paths.state, ctx.state),
       log,
+      resolveSecret: this.resolveSecret,
       signal: opts.signal,
       ...(opts.progress ? { progress: opts.progress } : {}),
       ...(opts.seedTrust ? { seedTrust: opts.seedTrust } : {}),
@@ -222,7 +238,7 @@ export class Sandbox {
     if (!this.provider.capabilities.snapshots) {
       throw new SandboxError(`sandbox ${this.env}: snapshot resets need provider docker-compose (the database must belong to the sandbox): use strategy reseed`);
     }
-    const target = await snapshotTarget(this.project, this.sandbox);
+    const target = await snapshotTarget(this.project, this.sandbox, this.resolveSecret);
     await this.provider.publishedBy(ctx, target.port);
     // A host name: on the address Docker publishes the port on, never `localhost` (another container may publish the
     // same port on ::1); an address is used as written.
@@ -299,7 +315,7 @@ export class Sandbox {
     } finally {
       await snap?.close();
     }
-    const mailbox = await clearMailbox(this.project, this.sandbox, (port) => this.addressOf(ctx, port));
+    const mailbox = await clearMailbox(this.project, this.sandbox, this.resolveSecret, (port) => this.addressOf(ctx, port));
     if (mailbox === 'not-mailpit') ctx.log('info', `sandbox ${this.env}: an http mailbox has no generic way to be emptied — empty it in a seed step`);
     const restarted: string[] = [];
     for (const name of this.sandbox.manifest.reset?.restart ?? []) {

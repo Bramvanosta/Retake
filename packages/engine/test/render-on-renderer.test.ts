@@ -82,7 +82,7 @@ afterAll(async () => {
 async function renderJob(o: MemoryRendererOptions | ((job: JobRecord) => MemoryRendererOptions) = {}): Promise<{ job: JobRecord; input: RenderJobInput; fake: MemoryRenderer }> {
   const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
   const fake = new MemoryRenderer(typeof o === 'function' ? o(sub.job) : o);
-  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { renderer: fake } });
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports: { renderer: fake } });
   return { job: await engine.jobs.get(sub.job.id), input: sub.job.input as RenderJobInput, fake };
 }
 
@@ -132,7 +132,7 @@ describe('render jobs on the renderer the worker was handed', () => {
     const at = '2030-01-02T03:04:05.006Z';
     const before = await historyLines();
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
-    await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports: { renderer: new MemoryRenderer(), clock: new ManualClock(at) } });
+    await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports: { renderer: new MemoryRenderer(), clock: new ManualClock(at) } });
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
     expect([job.started_at, job.finished_at, job.progress?.updated_at]).toEqual([at, at, at]);
@@ -192,7 +192,7 @@ describe('one renderer, and nothing beside it', () => {
       },
     };
     const ports = { renderer: withPreviewBackend(fake, backend), freeBytes: async () => 50_000_000_000 };
-    const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, ports });
+    const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, heavyInProcess: true, ports });
     const states = await engine.components.library({ project: 'demo', template: 'editorial', components: ['studio/card-title'] });
     const library = await engine.components.libraryRender({ project: 'demo', template: 'editorial', items: [{ component: 'studio/card-title', loop: states.items[0].loop.key }] });
     await work();

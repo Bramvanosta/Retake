@@ -55,7 +55,7 @@ describe('captures first through MCP (L5.14b)', () => {
     } as never);
     const quiet = await tool('engine_info', {});
     expect(quiet.data.held).toBeNull();
-    const m = FilmingMarker.open({ root: other, source: 'job', owner: await selfIdentity() })!;
+    const m = FilmingMarker.open({ env: process.env, root: other, source: 'job', owner: await selfIdentity() })!;
     try {
       const st = await tool('job_status', { job_id: job.id });
       expect((st.data as { yield?: unknown }).yield).toEqual({ state: 'waiting', cause: 'elsewhere' });

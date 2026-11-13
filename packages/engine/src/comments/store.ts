@@ -2,6 +2,7 @@
  * The comment store's files (see ../comments.ts): thread files `<project>/comments/<scenario>/<id>.json`, their stills
  * and locks under `<project>/.retake/`, read by id (never a path from a file), written through the project store.
  */
+import type { EngineEnv } from '../env.js';
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { basename, join, relative } from 'node:path';
@@ -55,8 +56,8 @@ export function commentLockFile(projectDir: string, id: string): string {
  * The name of the person at this terminal for `retake comment` (no `--author`): $RETAKE_AUTHOR, else the OS user
  * name (never git config: a subprocess and often a full name), printable, ≤ 80 characters.
  */
-export function defaultAuthorName(): string {
-  const env = process.env.RETAKE_AUTHOR;
+export function defaultAuthorName(vars: EngineEnv): string {
+  const env = vars.RETAKE_AUTHOR;
   if (env !== undefined && env.trim() !== '') {
     const name = commentAuthorName(env);
     if (name) return name;

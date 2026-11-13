@@ -67,6 +67,7 @@ function workOptions(ui: Ui, opts: HookCommandOptions, global: GlobalOptions, po
     policy,
     hooks: cliPorts.hooks,
     pages: cliPorts.capture.hookPages,
+    secrets: cliPorts.secrets,
     ...(opts.env !== undefined ? { env: opts.env } : {}),
     allowWrites: opts.allowWrites === true,
     dry: opts.dry === true,
@@ -358,7 +359,7 @@ export async function hooksTrustCommand(ui: Ui, global: GlobalOptions, projectAr
     }
     if (!yes) throw new CliError(`not trusted: the hooks of scenario ${name} stay asked about (nothing written)`);
   }
-  await trustScenarioHooks(project, view, callerOf('cli'), cliPorts.clock);
+  await trustScenarioHooks(project, view, callerOf('cli'), cliPorts);
   ui.ok(`the hooks of scenario ${name} are yours now: a run asks again once they change`);
   return EXIT.ok;
 }

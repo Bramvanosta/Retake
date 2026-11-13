@@ -12,6 +12,7 @@
  * Not here, because it is not an adapter's: what the engine builds the request from (execute-run.ts, inspect-job.ts:
  * capture-runner.test.ts), and everything a real browser does on a page (runner-web's own tests).
  */
+import { MemorySecrets } from '../src/index.js';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -29,6 +30,9 @@ export interface ContractCapture {
   project: LoadedProject;
 }
 
+/** The contract's secrets (the engine's Secrets port in memory): none the scenarios name. */
+const SECRETS = new MemorySecrets();
+
 const ONE = [{ id: 'one', page: 'app', open: '/', steps: [{ hold: 0.2 }, { hold: 0.2 }, { hold: 0.2 }] }];
 
 /** `make(name)`: an adapter and its project, new each call. */
@@ -36,6 +40,7 @@ export function captureRunnerContract(adapter: string, make: (name: string) => P
   describe.skipIf(o.skip === true)(`the capture runner contract (${adapter})`, () => {
     let n = 0;
     const request = (c: ContractCapture, name: string, scenario: Omit<Scenario, 'video'>, over: Partial<CaptureRequest> = {}): CaptureRequest => ({
+      resolveSecret: (ref) => SECRETS.resolve(ref),
       policy: PERSON_POLICY,
       project: c.project,
       scenario: makeScenario(name, { pacing: FAST, ...scenario }),

@@ -6,6 +6,7 @@
  * hook's `auth: {persona}` reaches that persona's own pages only; a person's own command (trust `author`) any URL. The
  * real browser's side is the capture sessions contract (capture-sessions.test.ts) and the CLI's auth.test.ts.
  */
+import { MemorySecrets } from '../src/index.js';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -45,6 +46,7 @@ async function project(): Promise<LoadedProject> {
 
 async function context(pages: MemoryHookPages, trust?: HookTrust) {
   return createHookContext(await project(), {
+    secrets: new MemorySecrets(),
     policy: PERSON_POLICY,
     env: 'test',
     log: () => undefined,

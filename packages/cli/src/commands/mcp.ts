@@ -26,6 +26,7 @@ import {
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
+import { cliPorts } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface McpCommandOptions {
@@ -57,7 +58,7 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     port = Number(opts.port);
     if (!/^\d+$/.test(opts.port) || port > 65535) throw new UsageError(`--port must be a port number from 0 to 65535, got "${opts.port}"`);
   }
-  const file = mcpHttpTokenFile();
+  const file = mcpHttpTokenFile(cliPorts.env);
   let token;
   try {
     token = await stableToken(file, { rotate: opts.rotateToken === true });
@@ -152,7 +153,7 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
   if (opts.http) return mcpHttp(ui, root, opts);
   const mcp = await import('@retake/mcp');
   if (opts.printConfig) {
-    const input = { root, bin: studioBin() };
+    const input = { root, bin: studioBin(), env: cliPorts.env };
     ui.result(JSON.stringify(mcpConfigJson(input), null, 2));
     ui.line('');
     const repo = pluginMarketplaceRoot(input.bin);

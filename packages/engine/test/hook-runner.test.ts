@@ -140,7 +140,7 @@ describe('the memory hook runner', () => {
     const ws = await projectDir('worker');
     await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
     const runner = new MemoryHookRunner();
-    expect(await runWorker({ root: ws, idleExitMs: 200, pollMs: 50, log: () => undefined, ports: { hooks: runner } })).toBe(0);
+    expect(await runWorker({ root: ws, idleExitMs: 200, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { hooks: runner } })).toBe(0);
     expect(runner.calls).toEqual([{ op: 'journals.pruneDone' }]);
   });
 });

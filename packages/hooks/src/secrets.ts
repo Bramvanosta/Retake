@@ -54,18 +54,32 @@ export function logger(ctx: HookContext): (level: HookLogLevel, msg: string) => 
 const resolved = new WeakMap<HookContext, Map<string, string>>();
 
 /**
- * A synchronous resolver for every secret reference used in `value`. Real runs resolve them
- * (env / keychain, cached per context; `compose_env:NAME` from the compose env file of sandbox `env`) and register the values for redaction; dry runs only check
- * that env variables exist and substitute "***" (no keychain access).
+ * A synchronous resolver for every secret reference used in `value`. Real runs resolve them through the context's
+ * resolver (HookContext.resolveSecret: env / keychain, cached per context; `compose_env:NAME` from the compose env file
+ * of sandbox `env`) and register the values for redaction; dry runs only check that env variables are set and
+ * substitute "***" (no keychain access).
  */
 export async function secretResolver(ctx: HookContext, value: unknown, env: string = ctx.env.name): Promise<SecretResolver> {
   // A sandbox's compose env file (hotfix v0.2.3): read (and each name checked) in a dry run too, never printed.
   const compose = await composeEnvValues(ctx, value, env);
   const fromCompose = (ref: string): string | undefined => compose.get(ref.slice('compose_env:'.length));
+  const resolve = ctx.resolveSecret ?? resolveSecretRef;
   if (ctx.dryRun) {
+    // A dry run checks that each environment variable is set (through the context's resolver: no keychain is read).
+    const setVars = new Set<string>();
+    for (const ref of collectSecretRefs(value)) {
+      if (
+        ref.startsWith('env:') &&
+        (await resolve(ref).then(
+          () => true,
+          () => false,
+        ))
+      )
+        setVars.add(ref);
+    }
     return (ref) => {
       if (ref.startsWith('compose_env:')) return fromCompose(ref) === undefined ? undefined : '***';
-      return ref.startsWith('env:') && process.env[ref.slice(4)] === undefined ? undefined : '***';
+      return ref.startsWith('env:') && !setVars.has(ref) ? undefined : '***';
     };
   }
   for (const v of compose.values()) addSecret(ctx, v);
@@ -76,14 +90,15 @@ export async function secretResolver(ctx: HookContext, value: unknown, env: stri
   }
   for (const ref of collectSecretRefs(value)) {
     if (known.has(ref)) continue;
-    const v = await resolveSecretRef(ref);
+    const v = await resolve(ref);
     known.set(ref, v);
     addSecret(ctx, v);
   }
   const cache = known;
   return (ref) => {
     if (ref.startsWith('compose_env:')) return fromCompose(ref);
-    const v = cache.get(ref) ?? (ref.startsWith('env:') ? process.env[ref.slice(4)] : undefined);
+    // Only the references resolved above: another is unresolved (refused by interpolate), never read on the way.
+    const v = cache.get(ref);
     if (v !== undefined) addSecret(ctx, v);
     return v;
   };

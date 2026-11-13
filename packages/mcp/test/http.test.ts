@@ -78,7 +78,7 @@ beforeAll(async () => {
   await fixtureWorkspace(ws);
   await mkdir(join(ws, 'projects', P, 'hooks'), { recursive: true });
   await writeFile(join(ws, 'projects', P, 'hooks', 'ok.yaml'), '- name: ok\n  shell: {run: "true"}\n  writes: false\n');
-  token = (await stableToken(mcpHttpTokenFile())).token;
+  token = (await stableToken(mcpHttpTokenFile(process.env))).token;
   server = await startMcpHttpServer({ root: ws, port: 0, token, maxSessions: 3 });
 });
 
@@ -360,7 +360,7 @@ describe('MCP over HTTP: the gate, each check with the valid token and a valid i
 
 describe('the stable token (Retake home, 0600)', () => {
   it('created once (0600, atomic), the same at every start; --rotate-token replaces it; a non-private file is refused', async () => {
-    const file = mcpHttpTokenFile();
+    const file = mcpHttpTokenFile(process.env);
     expect(file).toBe(join(home, 'mcp-http.token'));
     expect((await stat(file)).mode & 0o777).toBe(0o600);
     expect((await stableToken(file)).token).toBe(token);

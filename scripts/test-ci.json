@@ -223,6 +223,7 @@
     "packages/engine/test/scenario-theme-take.test.ts",
     "packages/engine/test/scenario-value-edit.test.ts",
     "packages/engine/test/scenario-view.test.ts",
+    "packages/engine/test/secrets.test.ts",
     "packages/engine/test/signal.test.ts",
     "packages/engine/test/site-list.test.ts",
     "packages/engine/test/storage-links.test.ts",

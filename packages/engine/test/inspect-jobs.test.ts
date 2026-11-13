@@ -39,7 +39,7 @@ const retakeHome = scratchHome('NORTHFIELD_SUPPLIER_PASSWORD', 'NORTHFIELD_BUYER
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
 /** The worker on the in-memory capture runner (L7.12): the engine's own logic, nothing replayed in a browser. */
 const workInMemory = async (capture = new MemoryCaptureRunner()) => {
-  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, ports: { capture } });
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined, heavyInProcess: true, ports: { capture } });
   return capture.calls.filter((c) => c.member === 'run');
 };
 

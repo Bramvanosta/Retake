@@ -288,7 +288,7 @@ export class RenderFrames {
         this.stats.probes++;
         const fd = this.reopen(opened);
         try {
-          probe = await probeFd(fd, { ...(this.o.ffprobe ? { ffprobe: this.o.ffprobe } : {}), policy: this.o.policy, signal, timeoutMs: Math.max(1, deadline - Date.now()) });
+          probe = await probeFd(fd, { ...(this.o.ffprobe ? { ffprobe: this.o.ffprobe } : {}), policy: this.o.policy, signal, timeoutMs: Math.max(1, deadline - performance.now()) });
         } finally {
           closeSync(fd);
         }
@@ -360,7 +360,7 @@ export class RenderFrames {
     }
     if (o.session !== undefined && (typeof o.session !== 'string' || !SESSION_RE.test(o.session))) throw new EngineError('invalid', 'a session id is 1 to 64 letters, digits, "-" or "_"');
     const timeoutMs = this.o.timeoutMs ?? RENDER_FRAME_TIMEOUT_MS;
-    const deadline = Date.now() + timeoutMs;
+    const deadline = performance.now() + timeoutMs;
     const ctl = new AbortController();
     const onOuter = () => ctl.abort('cancelled');
     if (o.signal?.aborted) throw new EngineError('cancelled', 'cancelled');
@@ -405,7 +405,7 @@ export class RenderFrames {
           maxPx: RENDER_FRAME_MAX_PX,
           policy: this.o.policy,
           signal: ctl.signal,
-          timeoutMs: Math.max(1, deadline - Date.now()),
+          timeoutMs: Math.max(1, deadline - performance.now()),
           ...(this.o.ffmpeg ? { ffmpeg: this.o.ffmpeg } : {}),
         });
       } catch (e) {
@@ -444,7 +444,7 @@ export class RenderFrames {
     try {
       opened = await this.open(project, req.render_id, req.created_at);
       const { record } = opened;
-      const { probe, frames } = await this.bounds(opened, ctl.signal, Date.now() + timeoutMs);
+      const { probe, frames } = await this.bounds(opened, ctl.signal, performance.now() + timeoutMs);
       const markers: RenderOutlineView['markers'] = [];
       const names: string[] = [];
       for (const m of record.plan.markers ?? []) {

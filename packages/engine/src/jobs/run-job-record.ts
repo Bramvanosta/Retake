@@ -13,7 +13,6 @@ import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
 import { stampOf } from '../clock.js';
 import { toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
-import type { Renderer } from '../render/renderer.js';
 import { openProjectBySlug } from '../projects.js';
 import type { openWorkspace } from '../workspace.js';
 import { FilmingMarker, TakeBeside } from './captures.js';
@@ -25,10 +24,12 @@ import { jobProject } from './queue-core.js';
 import type { JobFiles } from './queue.js';
 import { finaliseReservedRun } from './run-job.js';
 import { appendHistory, runCounted } from '../history.js';
+import { portsOf } from '../ports.js';
 import type { EnginePorts } from '../ports.js';
 import { approvalsOf, verifiedApprovals } from './signing.js';
 import type { JobErrorView, JobEventBody, JobProgress, JobRecord, JobWorkerInfo } from './types.js';
 import { handleJob } from './job-handlers.js';
+import type { JobBase } from './job-handlers.js';
 import type { FreeBytes, RecordWindow } from './worker-ports.js';
 
 export type Workspace = Awaited<ReturnType<typeof openWorkspace>>;
@@ -56,8 +57,6 @@ export interface JobRunnerContext extends EnginePorts {
   done: Set<string>;
   /** Write job.json, or exit: a job whose state cannot be written must not look alive. */
   writeOrExit: (rec: JobRecord) => Promise<void>;
-  /** What render, export and preview jobs render with: the composition root's choice (render/renderer.ts). */
-  renderer: Renderer;
   /** The window a `record` job opens (worker-ports.ts; absent: the product's, a headed window a person drives). */
   recordWindow?: RecordWindow;
   /** What a library preview job reads the free space with (worker-ports.ts; absent: library.ts freeBytesOf). */
@@ -126,7 +125,7 @@ export function unknownInput(input: unknown): string | null {
 
 /** Running claimed jobs with `c` (a worker, or a job process). */
 export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobRecord) => Promise<void> } {
-  const { root, ws, queue, files, cli, build, worker, self, log, interrupts, slot, done, writeOrExit, clock, stores, reads, hooks, reviewer, capture, sandboxes } = c;
+  const { root, ws, queue, files, cli, build, worker, self, log, interrupts, slot, done, writeOrExit, clock, capture } = c;
 
   /** The filming marker of a capture take (L5.14): written at capture time 0, paused with the take, removed at its end. */
   const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => void | FilmingReport; close: () => void } => {
@@ -141,12 +140,13 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     return {
       on: (state) => {
         if (state === 'start' && !marker) {
-          marker = FilmingMarker.open({ root, source: 'job', owner: self });
+          marker = FilmingMarker.open({ root, source: 'job', owner: self, env: c.env });
           if (!marker) log(`job ${id}: no filming marker (the captures folder cannot be used): heavy work elsewhere is not held`);
           c.onFilming?.(true);
           // What films or renders beside the take (run.json perf.machine), and one warning when another take films.
           beside = new TakeBeside({
             root,
+            env: c.env,
             own: () => marker?.name,
             ...(c.heavySlowed ? { slowed: c.heavySlowed } : {}),
             onFirst: (where) =>
@@ -282,11 +282,11 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     try {
       const event = (e: JobEventBody) => append([e]);
       // Only approvals a submit signed count (signing.ts): the others are dropped, their hooks refused.
-      const { approvals, rejected } = await verifiedApprovals(parsed.data, { jobId: id, root });
+      const { approvals, rejected } = await verifiedApprovals(parsed.data, { jobId: id, root, env: c.env });
       if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
       const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
       // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
-      const base = { ws, cli, queue, signal: controller.signal, event, clock, stores, reads, hooks, reviewer, capture, sandboxes };
+      const base: JobBase = { ws, cli, queue, signal: controller.signal, event, ...portsOf(c) };
       const onProgress = (p: JobProgress) => {
         latest = p;
         if (!progressTimer) progressTimer = setTimeout(flushProgress, 500);

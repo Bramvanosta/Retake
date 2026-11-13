@@ -227,6 +227,10 @@ export const CLOCK_HOME = 'packages/engine/src/clock.ts';
 export const STORE_HOME = 'packages/engine/src/store/';
 /** The WorkspaceReads port's folder (workspace-read, L7.38): the one engine folder that names a workspace loader of core io. */
 export const WORKSPACE_READS_HOME = 'packages/engine/src/workspace-reads/';
+/** The product's Secrets adapter: the one engine file that calls core io's secret resolvers (secret-resolve). */
+export const SECRETS_HOME = 'packages/engine/src/secrets/system-secrets.ts';
+/** Core io's secret resolvers (io secrets.ts): on this process's environment unless handed another. */
+export const SECRET_RESOLVERS = ['resolveSecretRef', 'prefetchSecrets'];
 /**
  * core io's workspace loaders (workspace-read): the readers of a workspace, its projects, scenarios, themes and sandboxes
  * (io workspace.ts, project.ts, scenario.ts, template.ts, sandbox.ts), their `…On` forms on a disk, and what binds them
@@ -259,10 +263,11 @@ export const WORKSPACE_LOADERS = [
 ];
 export const STORAGE_FILE = 'packages/engine/src/storage.ts';
 /**
- * Where each product adapter of a port may be named as a value (clock-read, store-new): its own file, the ports bag
- * (packages/engine/src/ports.ts enginePorts: the one place the defaults are written) and the composition roots that
- * call it — createEngine, the jobs worker, the job process, the CLI's cliPorts — and the job queues' defaults (for
- * tests: the roots pass their clock, the queue check holds them to it).
+ * Where each product adapter of a port may be named as a value (clock-read, store-new, workspace-read, loader-use,
+ * queue): its own file, the ports bag (packages/engine/src/ports.ts enginePorts: the one place the defaults are
+ * written) and the composition roots that call it — createEngine, the jobs worker, the job process, the CLI's cliPorts
+ * — and the job queues' defaults (for tests: the roots pass their clock, the queue check holds them to it). The file
+ * queue's entry is the `queue` rule's roots (wiringHits reads it, with its class forms).
  */
 export const PORT_ROOTS = {
   systemClock: [CLOCK_HOME, 'packages/engine/src/ports.ts', 'packages/engine/src/jobs/queue.ts', 'packages/engine/src/jobs/memory-queue.ts'],
@@ -274,6 +279,9 @@ export const PORT_ROOTS = {
   packageReviewer: ['packages/engine/src/review/review-package.ts', 'packages/engine/src/ports.ts'],
   runnerWebCapture: ['packages/engine/src/capture/runner-web-capture.ts', 'packages/engine/src/ports.ts'],
   packageSandboxes: ['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts'],
+  editorRenderer: ['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts'],
+  systemSecrets: ['packages/engine/src/secrets/system-secrets.ts', 'packages/engine/src/ports.ts'],
+  FileJobQueue: ['packages/engine/src/jobs/queue.ts', 'packages/engine/src/ports.ts'],
 };
 /** The check that holds each product adapter of PORT_ROOTS to its roots (its entries: `<name> outside a root`). */
 export const PORT_ROOT_RULE = {
@@ -286,6 +294,9 @@ export const PORT_ROOT_RULE = {
   packageReviewer: 'loader-use',
   runnerWebCapture: 'loader-use',
   packageSandboxes: 'loader-use',
+  editorRenderer: 'loader-use',
+  systemSecrets: 'loader-use',
+  FileJobQueue: 'queue',
 };
 /**
  * The loaders of lazy.ts held to a home (loader-use): each is imported from lazy.ts only in its port's folder, where the
@@ -311,6 +322,8 @@ export const PORT_FILES = [
   'packages/engine/src/review/reviewer.ts',
   'packages/engine/src/capture/runner.ts',
   'packages/engine/src/sandboxes/sandboxes.ts',
+  'packages/engine/src/secrets/secrets.ts',
+  'packages/engine/src/workspace-reads/reads.ts',
 ];
 /**
  * The editor's render entries: its functions that render (a video, stills, an export's formats, component previews)
@@ -330,6 +343,11 @@ export const RENDER_CALLS = [
   'previewDriver',
   'REMOTION_PREVIEW_BACKEND',
 ];
+/**
+ * Where the engine reads this process's environment (env-read): the ports bag (its `env` default, the one the
+ * composition roots hand on) and the job process's and worker's entry (worker-main.ts: their command line's settings).
+ */
+export const ENV_HOMES = ['packages/engine/src/ports.ts', 'packages/engine/src/worker-main.ts'];
 /** The one module that names playwright-core's private browser registry (browser-registry, L7.25). */
 export const BROWSER_REGISTRY_HOME = 'packages/core/src/io/browsers.ts';
 /** The one module that starts the media tools, ffmpeg and ffprobe (media-call, L7.31). */
@@ -510,11 +528,11 @@ export const CHECKS = [
   {
     id: 'queue',
     title:
-      "only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI's workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter's own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)",
+      "only the ports bag builds the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): its default factory in packages/engine/src/ports.ts (the engine, the worker, the job process and the CLI's cliPorts call the factory their ports hold) and the adapter itself, for withOwnMemory; everything else is handed the JobQueue port. And each of them hands it its clock: a `new FileJobQueue(…)` with fewer than three arguments, or a third that is `undefined` or `void 0`, anywhere in packages/*/src outside the adapter's own file is a hit (`without a clock`; its default is for tests; a variable that holds undefined is not seen)",
   },
   {
     id: 'clock-read',
-    title: `the engine stamps what it writes with its Clock port (${CLOCK_HOME}): in packages/engine/src outside it, every wall-clock read is counted per file — \`new Date()\` with no argument, \`Date.now\` (called or passed on as a value, \`Date['now']\` too) and \`Date()\` called as a function — and the pinned files are elapsed time, deadlines, memo lifetimes and file times, never a stamp (entries: each file and its count); and the product's ports are named at the composition roots only: \`systemClock\` and \`enginePorts\` as values anywhere in packages/*/src outside PORT_ROOTS (a default parameter included; import and export declarations are not uses). Also read: a name imported under another (\`{ systemClock as sc }\`), a member of a namespace import (\`k.systemClock\`, \`k['enginePorts']\`) and \`now\` taken out of \`Date\` by a pattern (\`const { now } = Date\`). Not seen: \`globalThis.Date\`, \`Date\` or a port under another name made in the file (\`const D = Date\`, \`const c = systemClock\` then \`c\`: the first is counted, not the uses), a name reached through \`Reflect\`, \`Function.prototype.call\` or a computed key, a namespace from \`await import()\`, and \`performance.now()\`, which is allowed (elapsed time)`,
+    title: `the engine stamps what it writes with its Clock port (${CLOCK_HOME}): in packages/engine/src outside it, every wall-clock read is counted per file — \`new Date()\` with no argument, \`Date.now\` (called or passed on as a value, \`Date['now']\` too) and \`Date()\` called as a function — and the pinned files are memo lifetimes and file times, never a stamp (entries: each file and its count) — elapsed time, deadlines and waits read the port's monotonic side (\`clock.monotonic()\`) or \`performance.now()\`; and the product's ports are named at the composition roots only: \`systemClock\` and \`enginePorts\` as values anywhere in packages/*/src outside PORT_ROOTS (a default parameter included; import and export declarations are not uses). Also read: a name imported under another (\`{ systemClock as sc }\`), a member of a namespace import (\`k.systemClock\`, \`k['enginePorts']\`) and \`now\` taken out of \`Date\` by a pattern (\`const { now } = Date\`). Not seen: \`globalThis.Date\`, \`Date\` or a port under another name made in the file (\`const D = Date\`, \`const c = systemClock\` then \`c\`: the first is counted, not the uses), a name reached through \`Reflect\`, \`Function.prototype.call\` or a computed key, a namespace from \`await import()\`, and \`performance.now()\`, which is allowed (elapsed time)`,
   },
   {
     id: 'store-new',
@@ -526,7 +544,7 @@ export const CHECKS = [
   },
   {
     id: 'loader-use',
-    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\` and \`packageSandboxes\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
+    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer and of the secrets, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\` and \`systemSecrets\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
   },
   {
     id: 'port-types',
@@ -541,6 +559,14 @@ export const CHECKS = [
     id: 'hook-call',
     title:
       "the hooks use cases outside a capture are orchestrated in the engine only (packages/engine/src/hooks-work.ts, U8b: shared by the CLI's `hooks run` / `hooks rollback` / `env reset` and the jobs): in packages/*/src outside packages/engine/src every call of `createHookContext` (by its name, an import alias or a member of a namespace import), of `hooks.run` (on something named `hooks`, also `x.hooks`) and of `journals.rollback|openPending|rollbackPending` (on something named `journals`, also `x.journals`), and in the shells (cli, mcp, ui) of `.rollbackAll` on anything, is counted per file (entries: each file and its count; the adapters replay their own journals). Read through parentheses, a comma (`(0, hooks.run)(…)`), a cast or `!`, and as `.call` / `.apply` / `.bind` of a counted function. Not seen: a destructured member (`const { run } = hooks`), a member or port held in a variable (`const r = hooks.run`, `const h = ports.hooks` then `h.run`), a dynamic import's destructuring (`const { createHookContext } = await import(…)`) or namespace, an import-equals alias (`import c = e.createHookContext`), a key computed at run time",
+  },
+  {
+    id: 'secret-resolve',
+    title: `the engine resolves a secret reference through its Secrets port only (packages/engine/src/secrets/secrets.ts): in packages/engine/src outside ${SECRETS_HOME} (the product's adapter), core io's secret resolvers (${SECRET_RESOLVERS.join(', ')}) imported from \`@retake/core/io\` as a value under their name or an alias, read off a namespace import of it (\`io.resolveSecretRef\`, \`io['prefetchSecrets']\`) or re-exported from it are hits (entries: the file and the name). Not seen: a resolver reached through another module that re-exports it under its own name, a namespace member taken by destructuring or aliased, a key computed at run time; an \`import()\` or \`require()\` of core io is workspace-read's hit`,
+  },
+  {
+    id: 'env-read',
+    title: `the engine reads its environment from the value its composition root hands it (EnginePorts \`env\`, packages/engine/src/env.ts), never \`process.env\` where it is used: in packages/engine/src outside ENV_HOMES (${ENV_HOMES.join(', ')}), every \`process.env\` read is counted per file — \`process.env\` as a value, a member (\`process.env.X\`, \`process.env['X']\`), spread or handed on whole, a default parameter included — and so are \`process['env']\`, \`process\` through parentheses and casts (\`(process).env\`) and \`env\` taken out of it by a pattern (\`const { env } = process\`) (entries: each file and its count). Not seen: \`process\` under another name (\`const p = process\`, \`globalThis.process\`), a key computed at run time, \`process.env\` reached through another module, and everything outside packages/engine/src`,
   },
   {
     id: 'browser-registry',
@@ -816,17 +842,10 @@ export function ruleHits(root, fileImports, rules = RULES) {
 
 const QUEUE_CLASS = 'FileJobQueue';
 /**
- * Where the file job queue may be built: the composition roots — the engine, the worker, the job process, and the CLI's
- * workspaceQueue (its in-process commands read the queue so that their pruning spares the folders of active jobs) —
- * and the adapter's own file (its withOwnMemory() makes one).
+ * Where the file job queue may be built (PORT_ROOTS): the ports bag's default (ports.ts: the engine, the worker, the
+ * job process and the CLI's cliPorts call its factory) and the adapter's own file (its withOwnMemory() makes one).
  */
-const QUEUE_ROOTS = [
-  'packages/engine/src/engine.ts',
-  'packages/engine/src/jobs/worker.ts',
-  'packages/engine/src/jobs/job-child.ts',
-  'packages/engine/src/jobs/queue.ts',
-  'packages/cli/src/workspace.ts',
-];
+const QUEUE_ROOTS = PORT_ROOTS[QUEUE_CLASS];
 /** The file queue's own file: its withOwnMemory() hands its clock on through `this.clock`, its constructor has the default. */
 const QUEUE_ADAPTER = 'packages/engine/src/jobs/queue.ts';
 const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
@@ -1068,7 +1087,8 @@ export function portHits(root, files) {
   const ts = loadTs(root);
   const clock = [];
   const hits = [];
-  const NAMED = Object.keys(PORT_ROOTS);
+  // The file queue's roots are the queue rule's (wiringHits reads its class forms: new, extends, a value).
+  const NAMED = Object.keys(PORT_ROOTS).filter((n) => PORT_ROOT_RULE[n] !== 'queue');
   for (const { rel, text } of files) {
     const reads = rel.startsWith('packages/engine/src/') && rel !== CLOCK_HOME && /\bDate\b/.test(text);
     const named = NAMED.filter((n) => !PORT_ROOTS[n].includes(rel) && text.includes(n));
@@ -1180,11 +1200,25 @@ const CORE_IO = '@retake/core/io';
  * nothing. `[{ rule, file, spec }]`, one per name and file.
  */
 export function workspaceReadHits(root, files) {
+  return coreIoNameHits(root, files, { rule: 'workspace-read', names: WORKSPACE_LOADERS, home: (rel) => rel.startsWith(WORKSPACE_READS_HOME), loads: true });
+}
+
+/**
+ * The secrets' wiring (secret-resolve), read as workspace-read reads its loaders: in packages/engine/src outside
+ * SECRETS_HOME, core io's secret resolvers (SECRET_RESOLVERS) imported as a value (a name, an alias), read off a
+ * namespace import of core io or re-exported from it. An `import()` / `require()` of core io is workspace-read's hit.
+ */
+export function secretResolveHits(root, files) {
+  return coreIoNameHits(root, files, { rule: 'secret-resolve', names: SECRET_RESOLVERS, home: (rel) => rel === SECRETS_HOME, loads: false });
+}
+
+/** Names of `@retake/core/io` used as values in packages/engine/src outside a home (`loads`: an import() or require() of core io is a hit too). */
+function coreIoNameHits(root, files, o) {
   const ts = loadTs(root);
   const hits = [];
-  const LOADERS = new Set(WORKSPACE_LOADERS);
+  const LOADERS = new Set(o.names);
   for (const { rel, text } of files) {
-    if (!rel.startsWith('packages/engine/src/') || rel.startsWith(WORKSPACE_READS_HOME) || !text.includes(CORE_IO)) continue;
+    if (!rel.startsWith('packages/engine/src/') || o.home(rel) || !text.includes(CORE_IO)) continue;
     const sf = parse(ts, rel, text);
     const found = new Set();
     const spaces = new Set();
@@ -1204,7 +1238,7 @@ export function workspaceReadHits(root, files) {
       if (ts.isImportEqualsDeclaration(n) && !n.isTypeOnly && ts.isExternalModuleReference(n.moduleReference) && literal(ts, n.moduleReference.expression) === CORE_IO) spaces.add(n.name.text);
     });
     (function visit(n) {
-      if (ts.isCallExpression(n) && literal(ts, n.arguments[0]) === CORE_IO) {
+      if (o.loads && ts.isCallExpression(n) && literal(ts, n.arguments[0]) === CORE_IO) {
         if (n.expression.kind === ts.SyntaxKind.ImportKeyword) found.add(`import() of ${CORE_IO}`);
         if (ts.isIdentifier(n.expression) && n.expression.text === 'require') found.add(`require() of ${CORE_IO}`);
       }
@@ -1220,7 +1254,7 @@ export function workspaceReadHits(root, files) {
       }
       n.forEachChild(visit);
     })(sf);
-    for (const k of found) hits.push({ rule: 'workspace-read', file: rel, spec: k });
+    for (const k of found) hits.push({ rule: o.rule, file: rel, spec: k });
   }
   return hits;
 }
@@ -1422,7 +1456,42 @@ export function hookCallHits(root, files) {
   return hits;
 }
 
-/** The port files' adapter imports (port-types): every specifier the scan lists (types and `typeof import()` included). */
+/**
+ * The engine's reads of this process's environment outside ENV_HOMES (env-read), read from the syntax tree: in
+ * packages/engine/src, every `process.env` / `process['env']` (a member access on `process`, through parentheses and
+ * casts) and `env` taken out of `process` by a pattern, counted per file (`{count}`). A comment, a string and a type
+ * position are no read.
+ */
+export function envReadHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  for (const { rel, text } of files) {
+    if (!rel.startsWith('packages/engine/src/') || ENV_HOMES.includes(rel) || !text.includes('process')) continue;
+    const sf = parse(ts, rel, text);
+    let count = 0;
+    (function visit(n) {
+      // `process` through parentheses, `as`, `satisfies` and `!`: `(process).env`, `(process as NodeJS.Process).env`.
+      const isProcess = (e) => {
+        while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isNonNullExpression(e) || ts.isTypeAssertionExpression(e)) e = e.expression;
+        return ts.isIdentifier(e) && e.text === 'process';
+      };
+      // `env` taken out of `process` by a pattern: `const { env } = process`, `const { env: e } = process`, `({ env } = process)`.
+      const takesEnv = (pattern) =>
+        (ts.isObjectBindingPattern(pattern) && pattern.elements.some((e) => (e.propertyName ? keyText(ts, e.propertyName) : ts.isIdentifier(e.name) ? e.name.text : undefined) === 'env')) ||
+        (ts.isObjectLiteralExpression(pattern) &&
+          pattern.properties.some((p) => (ts.isShorthandPropertyAssignment(p) ? p.name.text : ts.isPropertyAssignment(p) ? keyText(ts, p.name) : undefined) === 'env'));
+      if (ts.isPropertyAccessExpression(n) && isProcess(n.expression) && n.name.text === 'env') count++;
+      else if (ts.isElementAccessExpression(n) && isProcess(n.expression) && constText(ts, n.argumentExpression) === 'env') count++;
+      else if (ts.isVariableDeclaration(n) && n.initializer && isProcess(n.initializer) && takesEnv(n.name)) count++;
+      else if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && isProcess(n.right) && takesEnv(ts.isParenthesizedExpression(n.left) ? n.left.expression : n.left))
+        count++;
+      if (!ts.isTypeNode(n)) n.forEachChild(visit);
+    })(sf);
+    if (count) hits.push({ rule: 'env-read', file: rel, count });
+  }
+  return hits;
+}
+
 /**
  * The private modules of playwright-core named outside BROWSER_REGISTRY_HOME (browser-registry), read from the syntax
  * tree: in packages/*\/src, every string literal, template (its text parts) or import specifier holding
@@ -1592,6 +1661,7 @@ export function coreRootHits(root, files) {
   return hits;
 }
 
+/** The port files' adapter imports (port-types): every specifier the scan lists (types and `typeof import()` included). */
 export function portTypeHits(fileImports) {
   const hits = [];
   for (const f of PORT_FILES) {
@@ -2150,6 +2220,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
     ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)]),
     ...loaderHits(root, scanned.files),
     ...workspaceReadHits(root, scanned.files),
+    ...secretResolveHits(root, scanned.files),
     ...portTypeHits(scanned.fileImports),
     ...coreContextHits(root, scanned.files),
     ...coreRootHits(root, scanned.files),
@@ -2161,6 +2232,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
   for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
   for (const h of shellOpHits(root, scanned.files)) set.add(h.spec !== undefined ? `shell-op ${h.file} → ${h.spec}` : `shell-op ${h.file} → ${h.count} operation${h.count === 1 ? '' : 's'} defined`);
   for (const h of hookCallHits(root, scanned.files)) set.add(`hook-call ${h.file} → ${h.count} hooks orchestration call${h.count === 1 ? '' : 's'}`);
+  for (const h of envReadHits(root, scanned.files)) set.add(`env-read ${h.file} → ${h.count} read${h.count === 1 ? '' : 's'} of process.env`);
   for (const h of browserRegistryHits(root, scanned.files)) set.add(`browser-registry ${h.file} → ${h.count} private module${h.count === 1 ? '' : 's'} of playwright-core named`);
   for (const h of mediaCallHits(root, scanned.files)) set.add(`media-call ${h.file} → ${h.count} media tool start${h.count === 1 ? '' : 's'}`);
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);

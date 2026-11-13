@@ -247,6 +247,7 @@ describe('a run job paused through the worker, on the in-memory runner', () => {
       idleExitMs: 300,
       pollMs: 50,
       log: () => undefined,
+      heavyInProcess: true,
       ports: { capture: new MemoryCaptureRunner(), hooks: new MemoryHookRunner({ onExecute: async (e) => void (e.phase === 'setup' && (await new Promise((r) => setTimeout(r, 1000)))) }) },
     });
 

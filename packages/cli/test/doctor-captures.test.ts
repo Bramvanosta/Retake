@@ -31,7 +31,7 @@ async function markerOwner(file: string, root: string): Promise<ChildProcess> {
   await mkdir(join(file, '..'), { recursive: true });
   await writeFile(
     file,
-    `import(${JSON.stringify(ENGINE)}).then(async (e) => { e.FilmingMarker.open({ root: ${JSON.stringify(root)}, source: 'cli', owner: await e.selfIdentity() }); process.stdout.write('ready'); setInterval(() => {}, 1000); });\n`,
+    `import(${JSON.stringify(ENGINE)}).then(async (e) => { e.FilmingMarker.open({ env: process.env, root: ${JSON.stringify(root)}, source: 'cli', owner: await e.selfIdentity() }); process.stdout.write('ready'); setInterval(() => {}, 1000); });\n`,
   );
   const c = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'inherit'] });
   children.push(c);

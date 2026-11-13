@@ -2,17 +2,7 @@ import { join, resolve } from 'node:path';
 import { errorsOf, warningsOf } from '@retake/core/base';
 import { bundleInfo } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core/model';
-import {
-  componentCreateShell,
-  componentListEntries,
-  componentPreviewTargets,
-  componentPreviewTheme,
-  componentReadmeWriter,
-  componentValidateShell,
-  editorRenderer,
-  personScope,
-  previewsWork,
-} from '@retake/engine';
+import { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell, personScope, previewsWork } from '@retake/engine';
 import type { ComponentEntry, ComponentRef, OpenedWorkspace, RegistryNoticeView } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -161,7 +151,7 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
       const { theme, template } = await componentPreviewTheme(ws, opts.theme);
       previewTheme = theme;
       [preview] = await previewsWork({
-        renderer: editorRenderer(),
+        renderer: cliPorts.renderer,
         workPolicy: ws.policy,
         readmes: componentReadmes(ws),
         root: ws.root,
@@ -254,7 +244,7 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
   if (!opts.json) ui.line(c.dim(`rendering ${plural(targets.length, 'preview')} with the ${template.name} theme…`));
   const t0 = performance.now();
   const done = await previewsWork({
-    renderer: editorRenderer(),
+    renderer: cliPorts.renderer,
     workPolicy: ws.policy,
     readmes: componentReadmes(ws),
     root: ws.root,

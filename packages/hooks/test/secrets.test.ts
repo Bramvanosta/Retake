@@ -136,3 +136,28 @@ describe('redaction of overlapping secrets', () => {
     expect(redactText(ctx, 'ab xyz')).toBe('ab ***');
   });
 });
+
+describe("secrets through the context's resolver (the engine's Secrets port)", () => {
+  it('a real run resolves through ctx.resolveSecret only, and a dry run checks a variable through it: never this process', async () => {
+    const { secretResolver } = await import('../src/secrets.js');
+    const project = makeProject(tmp.dir, { console: api.base });
+    const asked: string[] = [];
+    const handed: Record<string, string> = { 'env:HANDED_ONLY': 'h4nded' };
+    const resolveSecret = async (ref: string) => {
+      asked.push(ref);
+      if (Object.hasOwn(handed, ref)) return handed[ref]!;
+      throw new Error(`environment variable ${ref.slice(4)} is not set`);
+    };
+    const real = { ...makeContext(project).ctx, resolveSecret };
+    const r = await secretResolver(real, { a: '{{env:HANDED_ONLY}}' });
+    expect(r('env:HANDED_ONLY')).toBe('h4nded');
+    // A reference the value did not name is unresolved, even one this process has (NF_TEST_TOKEN is set).
+    expect(process.env.NF_TEST_TOKEN).toBe(TOKEN);
+    expect(r('env:NF_TEST_TOKEN')).toBeUndefined();
+    await expect(secretResolver(real, { a: '{{env:NF_TEST_TOKEN}}' })).rejects.toThrow('environment variable NF_TEST_TOKEN is not set');
+    const dry = { ...makeContext(project).ctx, dryRun: true, resolveSecret };
+    const d = await secretResolver(dry, { a: '{{env:HANDED_ONLY}}', b: '{{env:NF_TEST_TOKEN}}' });
+    expect([d('env:HANDED_ONLY'), d('env:NF_TEST_TOKEN')]).toEqual(['***', undefined]);
+    expect(asked).toEqual(['env:HANDED_ONLY', 'env:NF_TEST_TOKEN', 'env:HANDED_ONLY', 'env:NF_TEST_TOKEN']);
+  });
+});

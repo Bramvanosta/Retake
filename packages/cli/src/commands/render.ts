@@ -5,7 +5,7 @@ import { editReplannedMessage, scenarioChangedMessage } from '@retake/core/scena
 import { takeWords, untilStep } from '@retake/core/run';
 import { scenarioSinceRun } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core/model';
-import { defaultStillFile, editorErrorOf, editorRenderer, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
+import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
 import type { EditOverrides, RenderProgress, RenderRecord, RunRef } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -256,7 +256,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   try {
     // The render, then its line of the workspace's history (the engine's in-process operation).
     const record = await renderInProcess({
-      renderer: editorRenderer(),
+      renderer: cliPorts.renderer,
       workPolicy: ws.policy,
       project,
       root: ws.root,
@@ -332,7 +332,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   ui.setStatus(ui.c.dim(`  … rendering frame ${frame} of ${scenario}`));
   try {
     // The still, then its line of the workspace's history (a still is a render too).
-    await stillInProcess({ renderer: editorRenderer(), workPolicy: ws.policy, plan, frame, out, root: ws.root, clock: cliPorts.clock, registry, project });
+    await stillInProcess({ renderer: cliPorts.renderer, workPolicy: ws.policy, plan, frame, out, root: ws.root, clock: cliPorts.clock, registry, project });
   } finally {
     ui.clearStatus();
     await gate.dispose();

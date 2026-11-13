@@ -7,6 +7,7 @@
  *
  * A small process sandbox in a temp workspace (a node service answering /health); no worker, no browser.
  */
+import { resolveSecretRef } from '@retake/core/io';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -91,7 +92,7 @@ const project = (): Promise<LoadedProject> => loadProject('s', ws);
 const approvalsOf = (items: readonly ApprovalItem[]): JobApproval[] => items.map((i) => ({ fingerprint: i.fingerprint, by: 'human-elicitation', at: '2026-11-11T10:00:00.000Z' }) as JobApproval);
 /** A reset under trust `mcp` with `approvals`, as a sandbox job runs it (sandbox-job.ts executeSandboxJob). */
 async function agentReset(approvals: readonly JobApproval[]): Promise<string> {
-  sb = openSandbox(await project(), 'sandbox', PERSON_POLICY);
+  sb = openSandbox(await project(), 'sandbox', PERSON_POLICY, resolveSecretRef);
   try {
     await sb.reset({ reseed: true, seedTrust: { trust: 'mcp', confirm: approvalChecker(approvals) } });
     return 'ran';
@@ -119,7 +120,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
 
   afterAll(async () => {
     try {
-      await openSandbox(await project(), 'sandbox', PERSON_POLICY).down();
+      await openSandbox(await project(), 'sandbox', PERSON_POLICY, resolveSecretRef).down();
     } catch {
       /* never started */
     }
@@ -172,7 +173,7 @@ describe.skipIf(!posix)('shell reset hooks of a sandbox need a human under trust
   });
 
   it("a person's own up and reset (no trust): the reset hook runs, as before", async () => {
-    sb = openSandbox(await project(), 'sandbox', PERSON_POLICY);
+    sb = openSandbox(await project(), 'sandbox', PERSON_POLICY, resolveSecretRef);
     const up = await sb.up();
     expect(up.reset).toMatchObject({ hooks: { steps: 2 } });
     expect([await marker('seed-marker.txt'), await marker('reset-marker.txt')]).toEqual([1, 1]);

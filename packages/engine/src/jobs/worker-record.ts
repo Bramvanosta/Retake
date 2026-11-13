@@ -10,7 +10,6 @@
  */
 import { hostname } from 'node:os';
 import type { JobKind } from './job-input.js';
-import type { Renderer } from '../render/renderer.js';
 import type { buildDirs } from './build.js';
 import { FilmingWatch } from './captures.js';
 import type { WorkerLock } from './lock.js';
@@ -28,7 +27,7 @@ import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import type { Sandboxes } from '../sandboxes/sandboxes.js';
 import type { ProcInfo } from '@retake/core/io';
 import type { QosYield } from './yield.js';
-import type { FreeBytes, JobProcesses, RecordWindow, WorkerPortsGiven } from './worker-ports.js';
+import type { FreeBytes, JobProcesses, RecordWindow, WorkerPorts, WorkerPortsGiven } from './worker-ports.js';
 
 /** The OS utilities the worker's signal handler calls synchronously (core/io's; L7.25: was the whole sandbox package). */
 export interface WorkerOs {
@@ -48,12 +47,18 @@ export interface WorkerOptions {
   /** How often the build is compared while idle (ms, default 5 000). */
   buildCheckMs?: number;
   /**
-   * The ports this worker runs with instead of the product's (worker-ports.ts WorkerPorts: the engine's, what render,
-   * export and preview jobs render with, a `record` job's window, a library preview's free space, the heavy slot's job
-   * processes). worker-main hands none. An object cannot reach a job process: with a port a heavy job reads, heavy jobs
-   * run in this process (worker-ports.ts HEAVY_JOB_PORTS).
+   * The ports this worker runs with instead of the product's (worker-ports.ts WorkerPorts: the engine's, a `record`
+   * job's window, a library preview's free space, the heavy slot's job processes). worker-main hands none. An object
+   * cannot reach a job process: a worker handed a port a heavy job reads (worker-ports.ts HEAVY_JOB_PORTS) is refused
+   * unless `heavyInProcess` is set.
    */
   ports?: WorkerPortsGiven;
+  /**
+   * Run heavy jobs in this process, one at a time, as before the job processes (no capture beside them, no yield):
+   * what an in-process test sets, so that its heavy jobs run on the ports it hands. Default false (the product's: a job
+   * process per heavy job, on the product's ports).
+   */
+  heavyInProcess?: boolean;
   /** The client that started this worker (`ui`, `mcp`, …): recorded in the worker lock (`started_by`). */
   startedBy?: string;
   /** How long a cancelled heavy job's process may take to end before its tree is killed (ms, default 30 000). */
@@ -87,6 +92,8 @@ export interface Worker {
   readonly buildCheckMs: number;
   readonly cancelGraceMs: number;
   readonly orphanGraceMs: number;
+  /** Every port this worker runs with (its root's, worker-ports.ts): what its jobs are handed. */
+  readonly ports: WorkerPorts;
   /** What this worker stamps with (its root's clock, ports.ts). */
   readonly clock: Clock;
   /** What its jobs' authored writes go through. */
@@ -113,15 +120,13 @@ export interface Worker {
   readonly sandboxes: Sandboxes;
   /** The OS utilities a second signal uses synchronously (core/io's process table; a test's stand-in). */
   readonly os: WorkerOs;
-  /** What render, export and preview jobs run in this process render with (WorkerPorts.renderer). */
-  readonly renderer: Renderer;
   /** The window a `record` job opens (WorkerPorts.recordWindow). */
   readonly recordWindow: RecordWindow;
   /** What a library preview job run in this process reads the free space with (WorkerPorts.freeBytes). */
   readonly freeBytes: FreeBytes;
   /** The heavy slot's job processes: their command line, the signals sent to them, their QoS; the build stamp. */
   readonly processes: JobProcesses;
-  /** A port a heavy job reads was handed (worker-ports.ts): heavy jobs run in this process, one job at a time, as before L5.14. */
+  /** WorkerOptions.heavyInProcess: heavy jobs run in this process, one job at a time, on this worker's ports. */
   readonly heavyInProcess: boolean;
   /** `filming`: the take films now (runner onFilming: not during its setup / teardown hooks, not while paused — review B M3). */
   capture?: { id: string; filming: boolean; promise: Promise<void> };
@@ -156,6 +161,7 @@ export interface WorkerParts {
   o: WorkerOptions;
   log: (message: string) => void;
   root: string;
+  ports: WorkerPorts;
   clock: Clock;
   stores: ProjectStores;
   reads: WorkspaceReads;
@@ -172,7 +178,6 @@ export interface WorkerParts {
   captureRunner: CaptureRunner;
   sandboxes: Sandboxes;
   os: WorkerOs;
-  renderer: Renderer;
   recordWindow: RecordWindow;
   freeBytes: FreeBytes;
   processes: JobProcesses;
@@ -191,6 +196,7 @@ export function newWorker(p: WorkerParts): Worker {
     buildCheckMs: o.buildCheckMs ?? 5_000,
     cancelGraceMs: o.cancelGraceMs ?? 30_000,
     orphanGraceMs: o.orphanGraceMs ?? 15_000,
+    ports: p.ports,
     clock: p.clock,
     stores: p.stores,
     reads: p.reads,
@@ -208,7 +214,6 @@ export function newWorker(p: WorkerParts): Worker {
     captureRunner: p.captureRunner,
     sandboxes: p.sandboxes,
     os: p.os,
-    renderer: p.renderer,
     recordWindow: p.recordWindow,
     freeBytes: p.freeBytes,
     processes: p.processes,
@@ -222,9 +227,9 @@ export function newWorker(p: WorkerParts): Worker {
     buildChanged: false,
     started: 0,
     ended: 0,
-    idleSince: Date.now(),
+    idleSince: p.clock.monotonic(),
     runJob: async () => undefined,
-    watch: new FilmingWatch({ root: p.root }),
+    watch: new FilmingWatch({ root: p.root, env: p.ports.env }),
     filmingLive: false,
     filmingCause: undefined,
     filmingCapped: undefined,
