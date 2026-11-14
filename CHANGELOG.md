@@ -12,6 +12,19 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- A job is described in the same words everywhere: `retake jobs`, MCP's `job_list` / `job_status` and the Studio. A
+  running review (and a render while it bundles) now shows its percent in `retake jobs`, not its phase alone; the MCP
+  line of an environment reset says `env reset`, names the environment of a run, and counts one logo candidate as
+  `1 logo candidate`.
+- What a hidden character is is written once. Where you approve a text character by character (the hooks a command
+  lists before it runs them) every format or invisible character is now written out as `\u{…}`, the braille blank
+  included; the Studio's "Create with Claude" prompt, a caption or awaited text of a recording, a theme's text value,
+  `retake doctor`'s worker line and the app's update notes refuse or drop those characters too. What a scenario may
+  hold is unchanged.
+- A job file, a history or journal line, the worker lock, a theme's provenance file, an inspection's report and the
+  other files Retake keeps for itself are read through one schema each: one that is not what Retake writes is skipped
+  (a line, a marker), read as none (a job, an inspection's report), or refused with its reason (a theme folder to
+  replace), as a torn file always was.
 - When Retake decides whether a shell hook is destructive (and so needs `confirm: true`), it reads the command with its
   quoting resolved (`$'…'` included) and every script the command makes a program run: command and process
   substitutions, a shell's `-c` script (the shells docs/guide/security.md lists, `-ec` / `-lc` too), `eval`, `trap`, `alias`, `env -S`, `watch`,
@@ -330,6 +343,10 @@ release — for the person about to click Install and Restart.
 - What a jobs worker could not write is said: in its log, a held job's yield state, `held.json`, a job's progress, the
   record of a render browser, the approvals given back with an unclaimed job and its housekeeping; on the job, a
   refused render whose version lock could not be removed.
+- Text from a filmed site, an engine message and a comment (printable text, comment text, author names) now loses
+  every hidden character, not only direction controls and zero-width characters: a soft hyphen, a joiner between
+  letters, a filler or a variation selector no longer reaches a terminal, a model or a stored comment. An emoji
+  sequence keeps its joiner and its presentation selector. A thread written by an earlier version still reads.
 - A hooks journal whose rollback does not have its kind's shape (an http rollback without `request.url`, a shell one
   without `run`, a sql one without `db` or `query`, a js one without `code`, a member of the wrong type) is refused
   when it is read, naming the entry (`entries[1] (#2) has a malformed http rollback: …`), and nothing of it is

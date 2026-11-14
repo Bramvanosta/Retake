@@ -6,7 +6,7 @@
  * the QoS hold's tree).
  */
 import { execFileSync } from 'node:child_process';
-import { processTable } from '@retake/core/io';
+import { processTable, processTree } from '@retake/core/io';
 import type { ProcInfo } from '@retake/core/io';
 
 /** Sends a signal (process.kill; tests record instead). */
@@ -34,17 +34,7 @@ export function signalablePid(pid: unknown): pid is number {
 
 /** The processes of a tree: `root`'s group (when it leads one) and every descendant of `root` by parent pid. */
 export function treeOf<T extends ProcInfo>(table: readonly T[], root: number, opts: { group?: boolean } = {}): T[] {
-  const byParent = new Map<number, T[]>();
-  for (const p of table) byParent.set(p.ppid, [...(byParent.get(p.ppid) ?? []), p]);
-  const seen = new Map<number, T>();
-  const queue = table.filter((p) => p.pid === root || (opts.group === true && p.pgid === root));
-  while (queue.length) {
-    const p = queue.shift()!;
-    if (seen.has(p.pid)) continue;
-    seen.set(p.pid, p);
-    queue.push(...(byParent.get(p.pid) ?? []));
-  }
-  return [...seen.values()];
+  return processTree(table, (p) => p.pid === root || (opts.group === true && p.pgid === root));
 }
 
 /** The signal sender of the product (WorkerPorts.processes.kill's default). */

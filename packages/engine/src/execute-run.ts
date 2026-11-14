@@ -7,7 +7,7 @@
 import type { Secrets } from './secrets/secrets.js';
 import { noDisplay } from './env.js';
 import type { EngineEnv } from './env.js';
-import { GUIDE, sandboxErrorKind } from '@retake/core/base';
+import { GUIDE, sandboxErrorKind, errorMessage } from '@retake/core/base';
 import { resolveEnvironment, resolveRunAccess } from '@retake/core/environment';
 import { sandboxNames, sandboxOf } from '@retake/core/sandbox';
 import { parseScenarioSource, scenarioSourceEnv } from '@retake/core/scenario';
@@ -29,7 +29,7 @@ import type { InterruptPort } from './interrupts.js';
 import type { OpenedWorkspace } from './workspace.js';
 import type { JournalAs } from './store/journal.js';
 import { confinementOf } from './caller.js';
-import { EngineError, errorMessage } from './errors.js';
+import { EngineError } from './errors.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {

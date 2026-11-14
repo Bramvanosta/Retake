@@ -36,7 +36,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parseYaml, bestEffort } from '@retake/core/base';
+import { parseYaml, bestEffort, errorMessage } from '@retake/core/base';
 import { RECORD_ID_RE, newUlidId } from '@retake/core/ids';
 import { PERSONA_NONE, resolveEnvironment, resolvePersonas, resolveRunAccess } from '@retake/core/environment';
 import { projectPath, statePath } from '@retake/core/project';
@@ -363,7 +363,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
   } catch (e) {
     if (isCancel(e) || ports.signal?.aborted) throw new EngineError('cancelled', 'recording cancelled before the window opened');
     status = 'missing';
-    detail = (e as Error).message;
+    detail = errorMessage(e);
   }
   if (status === 'valid' || status === 'unchecked') return;
   if (!persona.login?.length) {
@@ -378,7 +378,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
   } catch (e) {
     if (e instanceof EngineError) throw e;
     if (isCancel(e) || ports.signal?.aborted) throw new EngineError('cancelled', 'recording cancelled before the window opened');
-    throw new EngineError('refused', `persona ${persona.name} could not be signed in by its login steps: ${(e as Error).message} — or sign it in by hand: ${command}`, { fix: command });
+    throw new EngineError('refused', `persona ${persona.name} could not be signed in by its login steps: ${errorMessage(e)} — or sign it in by hand: ${command}`, { fix: command });
   }
 }
 
@@ -645,7 +645,7 @@ async function checkReplay(o: {
       hookRunner: ports.hooks,
     });
   } catch (e) {
-    return { status: isCancel(e) ? 'cancelled' : 'failed', scope, ...(until ? { until } : {}), steps_passed: 0, steps_total: total, untrusted: { error: (e as Error).message } };
+    return { status: isCancel(e) ? 'cancelled' : 'failed', scope, ...(until ? { until } : {}), steps_passed: 0, steps_total: total, untrusted: { error: errorMessage(e) } };
   }
   const checkDir = join(o.dir, 'check');
   await rm(join(checkDir, 'screenshots'), { recursive: true, force: true }).catch(() => undefined);

@@ -7,7 +7,7 @@ import { readdir } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
 import { relativeInside } from '@retake/core/base';
 import { projectPath, projectRef } from '@retake/core/project';
-import { latestTake, orderRuns, takeNeedsTimeline, takeOf } from '@retake/core/run';
+import { isFinishedRunStatus, latestTake, orderRuns, takeNeedsTimeline, takeOf } from '@retake/core/run';
 import { readRunFolder, readRunRecord } from '@retake/core/io';
 import type { LoadedProject, MissingTarget, RunMode, RunStatus } from '@retake/core/model';
 import type { RunId } from '@retake/core/ids';
@@ -49,8 +49,6 @@ export function isReadRun(r: Pick<RunSummary, 'newer' | 'unread'>): boolean {
 export function unreadWords(detail?: string): string {
   return `its run.json does not read as a record${detail !== undefined && detail !== '(root)' ? ` (at ${detail})` : ''}`;
 }
-
-const FINISHED: ReadonlySet<string> = new Set(['succeeded', 'failed', 'cancelled']);
 
 /**
  * A run.json as the engine's lists and views hold it: a record the one reader took (core/io readRunRecord), or one
@@ -222,7 +220,7 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
       return undefined;
     }
   };
-  const finished = FINISHED.has(record.status);
+  const finished = isFinishedRunStatus(record.status);
   const outputs: StoredRef[] = [];
   for (const [name, hash] of [
     ['run.json', false],

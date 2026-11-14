@@ -1,5 +1,5 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
-import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines } from '@retake/core/base';
+import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines, errorMessage } from '@retake/core/base';
 import { COMMENT_ENTRY_ID_RE } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
 import { textEol } from '@retake/core/scenario';
@@ -154,7 +154,7 @@ export async function applyProposal(
     try {
       written = await writeAppended(project, f, r, applyEntryOf(author, entry.id, edited.hash, stampOf(scope.clock)), scope);
     } catch (e) {
-      problems.push(`the apply was written to ${edited.file} but not recorded in the thread (${(e as Error).message.split('\n')[0]}): the thread reads the proposal as applied from the file`);
+      problems.push(`the apply was written to ${edited.file} but not recorded in the thread (${errorMessage(e).split('\n')[0]}): the thread reads the proposal as applied from the file`);
     }
     const thread = written?.thread ?? (await threadView(project.dir, r.thread, r.hash, await renderIndex(project.dir)));
     return {

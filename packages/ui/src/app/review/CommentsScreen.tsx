@@ -22,7 +22,7 @@
  * renders (useRenders) on the project's renders. The page never names an author or a channel: the Studio writes `studio`
  * under the name it was started with — a channel, not a proof of a person.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ThreadAnswer } from '../../server/comment-ops.js';
 import { Txt, When } from '../bits.js';
 import { CHANNEL_NOTE, renderWords } from '../words/comment-words.js';
@@ -40,31 +40,12 @@ import { ThreadList } from './ThreadList.js';
 import type { Filter } from './ThreadList.js';
 import { ThreadPanel } from './ThreadPanel.js';
 import { Callout, EmptyState, InspectorSection, LinkButton, Select } from '../ui-kit/index.js';
+import { useThrottled } from '../throttle.js';
 
 /** A counter that moves at most once per `ms` (re-reads on events: never more than once a second). */
 function useThrottledTick(ms: number): [number, () => void] {
   const [tick, setTick] = useState(0);
-  const last = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    },
-    [],
-  );
-  const bump = useCallback(() => {
-    const wait = ms - (Date.now() - last.current);
-    if (wait <= 0) {
-      last.current = Date.now();
-      setTick((n) => n + 1);
-    } else if (timer.current === null) {
-      timer.current = setTimeout(() => {
-        timer.current = null;
-        last.current = Date.now();
-        setTick((n) => n + 1);
-      }, wait);
-    }
-  }, [ms]);
+  const bump = useThrottled(() => setTick((n) => n + 1), ms);
   return [tick, bump];
 }
 

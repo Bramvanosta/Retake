@@ -21,7 +21,7 @@ import { projectPath } from '@retake/core/project';
 import { isIsoUtcDate } from '@retake/core/comments';
 import type { LoadedProject } from '@retake/core/model';
 import type { RenderVariant } from '@retake/core/ids';
-import { findNamedRender, loadProject } from '@retake/core/io';
+import { findNamedRender, loadProject, pidExists } from '@retake/core/io';
 import { DEFAULT_RULES, ReviewCancelledError } from '@retake/review/checks';
 import type { Finding, ReviewOptions, ReviewProgress, ReviewResult } from '@retake/review/checks';
 import { MEMORY_PNG } from '../render/memory-renderer.js';
@@ -73,16 +73,6 @@ function aside(name: string, id: string): { kind: 'tmp' | 'old'; pid: number } |
   if (!name.startsWith(`${id}.`)) return undefined;
   const m = /^(tmp|old)-(\d+)-[0-9a-f]+$/.exec(name.slice(id.length + 1));
   return m ? { kind: m[1] as 'tmp' | 'old', pid: Number(m[2]) } : undefined;
-}
-
-function pidAlive(pid: number): boolean {
-  if (pid === process.pid) return true;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
-  }
 }
 
 /** `out` written as the review package writes it: its folder must be there. */
@@ -142,7 +132,7 @@ export class MemoryReviewer implements Reviewer {
     }
     for (const name of names.sort().reverse()) {
       const a = aside(name, id);
-      if (!a || pidAlive(a.pid)) continue;
+      if (!a || pidExists(a.pid)) continue;
       const leftover = join(parent, name);
       if (a.kind === 'old' && !existsSync(dir)) await bestEffort(rename(leftover, dir), 'the previous review stays where it was: the new one is written beside it');
       else await rm(leftover, { recursive: true, force: true }).catch(() => undefined);

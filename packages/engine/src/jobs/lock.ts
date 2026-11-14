@@ -8,13 +8,15 @@ import { readFileSync, rmSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { RETAKE_VERSION } from '@retake/core/base';
+import { HIDDEN_CHARS, RETAKE_VERSION } from '@retake/core/base';
 import { breakStale, createExclusive, engineLocation } from '@retake/core/io';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import { stateDir } from '../workspace-state.js';
 import { stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
 
 export interface WorkerLockRecord extends ProcessIdentity {
   host: string;
@@ -36,7 +38,7 @@ export interface WorkerLockRecord extends ProcessIdentity {
 }
 
 /** A recorded engine location: an absolute path, one line, at most 4096 characters (it is shown). */
-const HIDDEN_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/;
+const HIDDEN_RE = new RegExp(`[${HIDDEN_CHARS}]`, 'u');
 function engineOk(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('/') && v.length <= 4096 && !HIDDEN_RE.test(v);
 }
@@ -77,23 +79,22 @@ function readText(file: string): string | null {
   }
 }
 
+/** What makes a lock one: a pid. Every other member that is shown is checked below, and repaired or left out. */
+const WorkerLockSchema = z.object({ pid: z.number() });
+
 function parse(text: string | null): WorkerLockRecord | null {
   if (text === null) return null;
-  try {
-    const v = JSON.parse(text) as WorkerLockRecord;
-    if (typeof v?.pid !== 'number') return null;
-    // A client name only (it is shown: doctor, retake jobs, the Studio's sidebar).
-    if (v.started_by !== undefined && !(typeof v.started_by === 'string' && WORKER_CLIENT_RE.test(v.started_by))) delete v.started_by;
-    if (v.engine !== undefined && !engineOk(v.engine)) delete v.engine;
-    // Review c A-L4: every field that is shown has its shape (a lock is a file anyone of this user can write).
-    if (v.version !== undefined && !(typeof v.version === 'string' && v.version.length <= 40 && LOCK_VERSION_RE.test(v.version))) delete v.version;
-    if (!(typeof v.build === 'string' && LOCK_BUILD_RE.test(v.build))) v.build = '?';
-    if (!(typeof v.since === 'string' && LOCK_SINCE_RE.test(v.since))) v.since = '?';
-    if (!(typeof v.host === 'string' && v.host.length <= 255 && !HIDDEN_RE.test(v.host))) v.host = '?';
-    return v;
-  } catch {
-    return null;
-  }
+  const v = storedJson(WorkerLockSchema, text) as WorkerLockRecord | undefined;
+  if (!v) return null;
+  // A client name only (it is shown: doctor, retake jobs, the Studio's sidebar).
+  if (v.started_by !== undefined && !(typeof v.started_by === 'string' && WORKER_CLIENT_RE.test(v.started_by))) delete v.started_by;
+  if (v.engine !== undefined && !engineOk(v.engine)) delete v.engine;
+  // Review c A-L4: every field that is shown has its shape (a lock is a file anyone of this user can write).
+  if (v.version !== undefined && !(typeof v.version === 'string' && v.version.length <= 40 && LOCK_VERSION_RE.test(v.version))) delete v.version;
+  if (!(typeof v.build === 'string' && LOCK_BUILD_RE.test(v.build))) v.build = '?';
+  if (!(typeof v.since === 'string' && LOCK_SINCE_RE.test(v.since))) v.since = '?';
+  if (!(typeof v.host === 'string' && v.host.length <= 255 && !HIDDEN_RE.test(v.host))) v.host = '?';
+  return v;
 }
 
 /** The lock as written, or null. */

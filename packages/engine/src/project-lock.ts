@@ -5,12 +5,12 @@
  * several (the Studio, `retake mcp`, a terminal) share it: two writers that read the same version can no longer both
  * pass their `if_match` check and rename one after the other (the last rename silently won).
  */
-import { lstat, mkdir, realpath } from 'node:fs/promises';
+import { mkdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { printableText, pathInside } from '@retake/core/base';
+import { pathInside, printableText, sleep } from '@retake/core/base';
 import { STATE_DIR } from '@retake/core/project';
 import { isIsoUtcDate } from '@retake/core/comments';
-import { TakeLock, readLock } from '@retake/core/io';
+import { TakeLock, lstatOrNull, pidExists, readLock, realFolderState } from '@retake/core/io';
 import type { LockRecord } from '@retake/core/io';
 import { EngineError } from './errors.js';
 
@@ -18,36 +18,6 @@ import { EngineError } from './errors.js';
 const LOCK_RETRY_MS = 20;
 /** The longest wait between two tries of a busy lock (ms), unless the first is longer. */
 export const LOCK_RETRY_MAX_MS = 200;
-
-/** Whether a process of this pid exists (a signal 0: no `ps`); a pid reused by another program reads as alive. */
-function pidExists(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-/** lstat, or null when it does not exist. */
-async function lstatOrNull(path: string) {
-  try {
-    return await lstat(path);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT' || (e as NodeJS.ErrnoException).code === 'ENOTDIR') return null;
-    throw e;
-  }
-}
-
-/** A real folder (not a link) at `path`: 'ok', 'missing', or why not. */
-async function realDir(path: string): Promise<'ok' | 'missing' | 'a symbolic link' | 'not a folder'> {
-  const st = await lstatOrNull(path);
-  if (!st) return 'missing';
-  if (st.isSymbolicLink()) return 'a symbolic link';
-  return st.isDirectory() ? 'ok' : 'not a folder';
-}
 
 /**
  * `<project>/.retake/<sub>/`, made of real folders of the project: each level checked before it is created (never
@@ -58,12 +28,12 @@ export async function toolDir(projectDir: string, sub: string): Promise<string> 
   let dir = projectDir;
   for (const part of [STATE_DIR, sub]) {
     dir = join(dir, part);
-    let state = await realDir(dir);
+    let state = await realFolderState(dir);
     if (state === 'missing') {
       await mkdir(dir).catch((e: NodeJS.ErrnoException) => {
         if (e.code !== 'EEXIST') throw e;
       });
-      state = await realDir(dir);
+      state = await realFolderState(dir);
     }
     if (state !== 'ok') throw new EngineError('refused', `${relative(projectDir, dir)}/ is ${state}: remove it (the tool makes it again)`);
   }

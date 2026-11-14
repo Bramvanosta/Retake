@@ -28,6 +28,7 @@ import { STATE_DIR, statePath } from '@retake/core/project';
 import { opChain } from '../admission.js';
 import { EngineError } from '../errors.js';
 import { takeProjectLock } from '../project-lock.js';
+import { errorMessage } from '@retake/core/base';
 
 /** A line log of the workspace's state folder. */
 export interface AppendLog {
@@ -127,7 +128,7 @@ export function logWarner(label: string): (e: unknown) => void {
     lastWarn = now;
     const count = lost === 1 ? '' : ` (${lost} lines lost since the last warning)`;
     lost = 0;
-    process.stderr.write(`retake: ${label} could not be written${count}: ${(e as Error).message}\n`);
+    process.stderr.write(`retake: ${label} could not be written${count}: ${errorMessage(e)}\n`);
   };
 }
 

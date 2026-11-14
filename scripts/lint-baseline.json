@@ -371,11 +371,6 @@
    "packages/ui/test/scenario-edit-ops.test.ts": 1,
    "packages/ui/test/scenario-ops.test.ts": 1
   },
-  "lint/suspicious/noMisleadingCharacterClass": {
-   "packages/core/src/scenario-edit.ts": 1,
-   "packages/ui/src/app/words/comment-words.ts": 1,
-   "packages/ui/src/app/words/library-words.ts": 1
-  },
   "lint/suspicious/noPrototypeBuiltins": {
    "packages/core/src/io/bundle.ts": 1,
    "packages/editor/test/render-gpu.test.ts": 1,

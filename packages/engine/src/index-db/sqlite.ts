@@ -7,6 +7,7 @@
  * the warning whose message names SQLite — any other warning emitted in that window (a DeprecationWarning…) still prints.
  */
 import type { DatabaseSync } from 'node:sqlite';
+import { errorMessage } from '@retake/core/base';
 
 export interface SqliteModule {
   DatabaseSync: typeof DatabaseSync;
@@ -19,7 +20,7 @@ export type SqliteLoader = () => Promise<SqliteModule | null>;
 export const SQLITE_WARNING = /^SQLite is an experimental feature/;
 
 function warningText(warning: unknown): string {
-  return typeof warning === 'string' ? warning : warning instanceof Error ? warning.message : String(warning);
+  return typeof warning === 'string' ? warning : errorMessage(warning);
 }
 
 let loaded: Promise<SqliteModule | null> | undefined;

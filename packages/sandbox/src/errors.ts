@@ -4,9 +4,8 @@ import { SandboxError } from '@retake/core/sandbox';
 export { SandboxError } from '@retake/core/sandbox';
 export type { SandboxErrorCode } from '@retake/core/sandbox';
 
-export function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
+/** core's, re-exported for this package's modules. */
+export { errorMessage } from '@retake/core/base';
 
 /** The abort reason as a SandboxError (code interrupted). */
 export function interrupted(what: string): SandboxError {

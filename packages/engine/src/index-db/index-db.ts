@@ -23,7 +23,7 @@ import { lstat, mkdir, open as openFile, realpath, rm, stat } from 'node:fs/prom
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { LoadedProject } from '@retake/core/model';
-import { HISTORY_VERSION, historyFile } from '../history.js';
+import { historyFile, readHistoryLine } from '../history.js';
 import type { HistoryEntry } from '../history.js';
 import type { JobQueueView } from '../jobs/job-queue.js';
 import { jobProject } from '../jobs/queue-core.js';
@@ -448,12 +448,8 @@ export class WorkspaceIndex {
       const entries: HistoryEntry[] = [];
       for (const line of buf.subarray(0, end).toString('utf8').split('\n')) {
         if (!line.trim()) continue;
-        try {
-          const e = JSON.parse(line) as HistoryEntry;
-          if (e && e.v === HISTORY_VERSION && typeof e.at === 'string' && typeof e.kind === 'string') entries.push(e);
-        } catch {
-          // a torn or foreign line
-        }
+        const e = readHistoryLine(line);
+        if (e) entries.push(e); // else a torn or foreign line
       }
       return { reset, ino, offset: offset + end + 1, entries };
     } finally {
@@ -469,9 +465,12 @@ export class WorkspaceIndex {
         ? this.db.prepare('SELECT seq, entry FROM history ORDER BY at DESC, seq DESC LIMIT ?').all(limit)
         : this.db.prepare('SELECT seq, entry FROM history WHERE project = ? ORDER BY at DESC, seq DESC LIMIT ?').all(o.project, limit)
     ) as Array<{ seq: number; entry: string }>;
-    return rows.map((r) => {
-      const { v: _v, ...e } = JSON.parse(r.entry) as HistoryEntry;
-      return { seq: r.seq, ...e };
+    return rows.flatMap((r) => {
+      // The index's own copy of a line it took (readHistoryLine): one that no longer reads is left out.
+      const entry = readHistoryLine(r.entry);
+      if (!entry) return [];
+      const { v: _v, ...e } = entry;
+      return [{ seq: r.seq, ...e }];
     });
   }
 

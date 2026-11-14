@@ -32,6 +32,7 @@ import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Formats exported when none are named (derived from the master: no re-render): core's one list. */
 export const DEFAULT_JOB_EXPORT_FORMATS: readonly ExportFormatName[] = DEFAULT_EXPORT_FORMAT_NAMES;
@@ -139,7 +140,7 @@ export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFi
     // ".<id>-vertical.partial-<pid>.mp4" (a format) and ".<id>-vertical.partial-…" (a re-render's own temporary files).
     await removePartials(dir, `.${input.render_id}`);
   } catch (e) {
-    log(`job ${job.id}: export leftovers not removed (${(e as Error).message})`);
+    log(`job ${job.id}: export leftovers not removed (${errorMessage(e)})`);
   }
 }
 

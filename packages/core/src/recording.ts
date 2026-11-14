@@ -18,6 +18,7 @@ import { TargetObjectSchema } from './schemas/primitives.js';
 import { normalizeTarget } from './targets.js';
 import type { TargetObject, TargetSpec } from './types.js';
 import type { RecordAnnotations, RecordInsert } from './record-annotations.js';
+import { decodeOrKeep } from './util.js';
 
 export const RECORDING_VERSION = 1;
 
@@ -525,13 +526,7 @@ export function pathUnderPage(path: string, key: string, pages: Record<string, s
 function sceneIdOf(path: string): string {
   const seg = path
     .split('/')
-    .map((s) => {
-      try {
-        return decodeURIComponent(s);
-      } catch {
-        return s;
-      }
-    })
+    .map(decodeOrKeep)
     .find((s) => s && !/^\d+$/.test(s) && !/^[0-9a-f-]{16,}$/i.test(s));
   const slug = (seg ?? '')
     .toLowerCase()

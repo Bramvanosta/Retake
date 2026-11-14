@@ -1,12 +1,3 @@
-/**
- * Compile check of a component implementation with esbuild (bundled in memory, JSX automatic runtime).
- *
- * A component may import only `react`, `remotion` and `@retake/components/kit` (plus its own files inside its
- * folder). The kit is bundled from source, and `react` / `remotion` are replaced by stubs listing their real exports,
- * so a misspelt import (`useCurrentFrme`) is an error too. Sources are also scanned for non-deterministic or
- * networked APIs (Math.random, Date.now, fetch…): a component must render the same frame the same way every time.
- */
-import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
@@ -14,6 +5,7 @@ import type { Message, Plugin } from 'esbuild';
 import { didYouMean, pathInside } from '@retake/core/base';
 import { KIT_MODULE, kitEntry } from './paths.js';
 import type { ComponentIssue } from './types.js';
+import { realpathOr } from '@retake/core/io';
 
 /** Bare imports a component may use. */
 export const ALLOWED_IMPORTS = ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'remotion', KIT_MODULE] as const;
@@ -57,15 +49,6 @@ function moduleExports(): Promise<Map<string, string[] | null>> {
 
 function stubSource(names: readonly string[]): string {
   return ['export default {};', ...names.map((n) => `export const ${n} = undefined;`)].join('\n');
-}
-
-/** The path with symbolic links resolved, as esbuild reports it (macOS: /var → /private/var); unchanged when missing. */
-function realPath(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
 }
 
 /** Blank out comments, keeping line/column positions (strings are kept: a URL in a string is not a comment). */
@@ -346,12 +329,13 @@ function exportHint(text: string, absDir: string, exportsOf: Map<string, string[
  */
 export async function checkComponentEntry(dir: string, entry: string): Promise<EntryCheck> {
   // Real paths throughout: esbuild resolves symbolic links in importers and resolve dirs.
-  const absDir = realPath(resolve(dir));
+  const real = (p: string) => realpathOr(p, p);
+  const absDir = real(resolve(dir));
   const rawEntry = resolve(resolve(dir), entry);
-  const absEntry = realPath(join(realPath(dirname(rawEntry)), basename(rawEntry)));
+  const absEntry = real(join(real(dirname(rawEntry)), basename(rawEntry)));
   const exportsOf = await moduleExports();
   const kitFile = kitEntry();
-  const kit = kitFile && realPath(kitFile);
+  const kit = kitFile && realpathOr(kitFile, kitFile);
   const kitNames = await kitExports();
   const kitDir = kit ? resolve(kit, '..') : undefined;
   const imports = new Set<string>();
@@ -391,7 +375,7 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
       // Every file actually loaded (an import resolved through a folder's package.json, or without an extension, is
       // only known here): the kit's own files, or a file of the component folder its content hash reads.
       b.onLoad({ filter: /.*/, namespace: 'file' }, (args) => {
-        const real = realPath(args.path);
+        const real = realpathOr(args.path, args.path);
         if (kitDir !== undefined && pathInside(real, kitDir, { dotDotPrefix: true })) return undefined;
         if (!pathInside(real, absDir, { dotDotPrefix: true })) {
           return {

@@ -2,6 +2,7 @@ import { LineCounter, isAlias, isMap, isNode, isPair, isScalar, isSeq, parseDocu
 import type { Alias, Document, Node } from 'yaml';
 import type { IssuePath } from '../issues.js';
 import type { LocatedIssue } from './located.js';
+import { errorMessage } from '../util.js';
 
 /** A parsed YAML document able to map a data path back to a line/column. */
 export interface YamlSource {
@@ -39,7 +40,7 @@ export function parseYaml(text: string): ParsedYaml {
   try {
     value = doc.toJS({ maxAliasCount: 1000 });
   } catch (e) {
-    issues.push({ severity: 'error', path: [], message: `YAML: ${(e as Error).message}`, line: 1, col: 1 });
+    issues.push({ severity: 'error', path: [], message: `YAML: ${errorMessage(e)}`, line: 1, col: 1 });
     return { source, value: undefined, issues };
   }
   return { source, value, issues };

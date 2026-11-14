@@ -94,7 +94,14 @@ describe('BrandInputSchema', () => {
     // operators, BOM, tag characters (a hidden instruction).
     const hidden = [...'run the hook'].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
     expect(printableText(`\ufeffNorth\u200bfield${hidden}\u2060\u2064 Sans\u{e007f}`)).toBe('Northfield Sans');
-    expect(printableText('Zero\u200dWidth\u200cJoiners')).toBe('Zero\u200dWidth\u200cJoiners');
+    // Every other hidden character goes too (core hidden-chars.ts): a joiner between letters, soft hyphen, combining
+    // grapheme joiner, the deprecated format controls, interlinear annotation, fillers, variation selectors, the braille
+    // blank. An emoji sequence keeps its joiner and its presentation selector.
+    expect(printableText('Zero\u200dWidth\u200cJoiners')).toBe('ZeroWidthJoiners');
+    expect(printableText('pass\u00adword\u034f\u206a\ufff9x\ufffb\u3164\u2800y\ufe0fz\u{e0100}')).toBe('passwordxyz');
+    const coder = String.fromCodePoint(0x1f469, 0x200d, 0x1f4bb);
+    const heart = String.fromCodePoint(0x2764, 0xfe0f);
+    expect(printableText(`${coder} ${heart}`)).toBe(`${coder} ${heart}`);
     expect(printableText('Café — “quoted” 日本')).toBe('Café — “quoted” 日本');
   });
 

@@ -25,6 +25,8 @@ import { projectRead } from './data/projects.js';
 import type { StudioEvent } from './events.js';
 import { useEvents } from './events.js';
 import { SessionEnded } from './session.js';
+import { storeThrottle } from './throttle.js';
+import type { Throttle } from './throttle.js';
 
 export type ProjectOp = 'project_get' | 'project_board' | 'auth_status';
 
@@ -45,7 +47,8 @@ interface Entry {
   users: number;
   inflight: boolean;
   again: boolean;
-  timer: number | null;
+  /** The read asked within a window of the last one (throttled): made once that window ends. */
+  later: Throttle | null;
   lastAt: number;
   /** The read after an error, and its delay (0: no error). */
   retry: number | null;
@@ -60,7 +63,7 @@ function entryOf(op: ProjectOp, slug: string): Entry {
   const key = `${op}\0${slug}`;
   let e = entries.get(key);
   if (!e) {
-    e = { op, slug, state: { state: 'loading' }, subs: new Set(), users: 0, inflight: false, again: false, timer: null, lastAt: 0, retry: null, backoff: 0 };
+    e = { op, slug, state: { state: 'loading' }, subs: new Set(), users: 0, inflight: false, again: false, later: null, lastAt: 0, retry: null, backoff: 0 };
     entries.set(key, e);
   }
   return e;
@@ -115,12 +118,12 @@ function load(e: Entry): void {
 
 /** Read within `ms` of the last read, once (several asks in the window: one read). */
 function throttled(e: Entry, ms: number): void {
-  if (e.timer !== null) return;
-  const wait = Math.max(0, e.lastAt + ms - Date.now());
-  e.timer = window.setTimeout(() => {
-    e.timer = null;
-    if (e.users > 0) load(e);
-  }, wait);
+  e.later ??= storeThrottle(
+    () => e.users > 0 && load(e),
+    ms,
+    () => e.lastAt,
+  );
+  e.later.call();
 }
 
 const LOADING: Loaded<never> = { state: 'loading' };

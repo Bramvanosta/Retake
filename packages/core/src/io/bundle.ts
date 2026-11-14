@@ -23,6 +23,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { errorMessage } from '../util.js';
 
 /** The manifest file of a bundle (in `Contents/Resources`, or the stage folder). */
 export const BUNDLE_FILE = 'bundle.json';
@@ -99,7 +100,7 @@ export function readBundleManifest(dir: string): BundleInfo {
   try {
     m = JSON.parse(readFileSync(join(root, BUNDLE_FILE), 'utf8')) as BundleManifest;
   } catch (e) {
-    throw new BundleError(`cannot read ${join(root, BUNDLE_FILE)}: ${(e as Error).message}`);
+    throw new BundleError(`cannot read ${join(root, BUNDLE_FILE)}: ${errorMessage(e)}`);
   }
   if (!m || typeof m !== 'object' || m.v !== 1 || !m.paths || typeof m.paths !== 'object') throw new BundleError(`${join(root, BUNDLE_FILE)} is not a version 1 bundle manifest`);
   const paths = {} as BundleInfo['paths'];
@@ -165,7 +166,7 @@ export function bundleInfo(): BundleInfo | null {
     try {
       cached = findBundle(fileURLToPath(import.meta.url));
     } catch (e) {
-      problems.add((e as Error).message);
+      problems.add(errorMessage(e));
       throw e;
     }
   }
@@ -268,7 +269,7 @@ export function prepareBundle(
     if (!existsSync(guardFile)) throw new Error(`${guardFile} is missing`);
     guard(guardFile);
   } catch (e) {
-    problems.add(`the app's module lookup guard does not load (${(e as Error).message.split('\n')[0]}): reinstall Retake`);
+    problems.add(`the app's module lookup guard does not load (${errorMessage(e).split('\n')[0]}): reinstall Retake`);
   }
   const KEY = 'PLAYWRIGHT_BROWSERS_PATH';
   const had = Object.prototype.hasOwnProperty.call(env, KEY);
@@ -278,7 +279,7 @@ export function prepareBundle(
     if (load) load();
     else createRequire(join(b.paths.engine, 'package.json'))('playwright-core');
   } catch (e) {
-    problems.add(`the app's playwright-core does not load (${(e as Error).message.split('\n')[0]}): its browsers are not used — reinstall Retake`);
+    problems.add(`the app's playwright-core does not load (${errorMessage(e).split('\n')[0]}): its browsers are not used — reinstall Retake`);
   } finally {
     if (had) env[KEY] = before;
     else delete env[KEY];

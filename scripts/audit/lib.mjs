@@ -369,6 +369,7 @@ export const CORE_CONTEXTS = [
       'error-kind',
       'formats',
       'canonical-json',
+      'hidden-chars',
       'printable',
       'dates',
       'line-diff',
@@ -613,7 +614,7 @@ export const CHECKS = [
   {
     id: 'record-read',
     title:
-      "a run.json, a timeline.json or a render record (renders/*.json) is read in one place (RECORD_READ_HOME: the readers answer a record or a typed problem), in packages/*/src (entries: each file and how many times it gives a value the type of a run record, a timeline or a render record without the reader (RECORD_READ_TYPES; also inside `Partial<…>`, a union, a list or a `Promise<…>`; a member's type such as `RunRecord['status']` is not one) — the result of `JSON.parse(…)` or of a `readJson(…)` call typed (1) by a cast (`as T`, `as unknown as T`, `<T>…`, through `await`, parentheses and `!`), (2) by a type argument (`readJson<T>(…)`), (3) by the annotation of the variable it initialises, (4) by the declared return type of the function that returns it; (5) any other value cast to one of those types, wherever it came from; (6) a type guard or an assertion function that says a value is one (`v is T`, `asserts v is T`); (7) a call that names one as its type argument (`cast<T>(…)`: a generic cast helper); (8) a parse through a record's or a timeline's schema itself (RECORD_READ_SCHEMAS: `.parse(…)`, `.safeParse(…)` — typed, and past the reader's link, size and version rules); (9) an interface that extends one; and, for each file of RECORD_READ_OWN — the files that read a run folder's or renders/'s file on their own, on purpose, into a shape of their own — every `JSON.parse(…)` it holds, so that such a read is an entry with its reason and one more is a new entry). The types counted include the render record's base types under their own names (RenderBase, StoredRenderBase, RenderFields) and the answers that hold a record (NamedRenderFound, FoundRender, FoundReviewRender). Not seen: a type under an alias or an own interface of the same members (outside RECORD_READ_OWN, that is how a file would read a record out of sight — a render record's members copied into a view of the engine's are such an interface, on purpose); a `JSON.parse(…)` of a record in a file that reads a record on its own and is not in RECORD_READ_OWN, into an untyped value or a shape of its own; a file's own bytes handed to the reader's parsers (parseRunRecord, parseTimeline, parseRenderRecord: the type is the reader's, the link, size and version rules are the caller's); a stored record's plan typed as an edit plan by a member's type (`StoredRender['plan']` is a member's type, not a record); an untyped (`any`) parse result that reaches a record without a cast — behind a helper of another name, or assigned, returned or passed in a later statement; a property or a parameter typed so; and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell)",
+      "a run.json, a timeline.json or a render record (renders/*.json) is read in one place (RECORD_READ_HOME: the readers answer a record or a typed problem), in packages/*/src (entries: each file and how many times it gives a value the type of a run record, a timeline or a render record without the reader (RECORD_READ_TYPES; also inside `Partial<…>`, a union, a list or a `Promise<…>`; a member's type such as `RunRecord['status']` is not one) — the result of `JSON.parse(…)` or of a `readJson(…)` call typed (1) by a cast (`as T`, `as unknown as T`, `<T>…`, through `await`, parentheses and `!`), (2) by a type argument (`readJson<T>(…)`), (3) by the annotation of the variable it initialises, (4) by the declared return type of the function that returns it; (5) any other value cast to one of those types, wherever it came from; (6) a type guard or an assertion function that says a value is one (`v is T`, `asserts v is T`); (7) a call that names one as its type argument (`cast<T>(…)`: a generic cast helper); (8) a parse through a record's or a timeline's schema itself (RECORD_READ_SCHEMAS: `.parse(…)`, `.safeParse(…)` — typed, and past the reader's link, size and version rules); (9) an interface that extends one; and, for each file of RECORD_READ_OWN — the files that read a run folder's or renders/'s file on their own, on purpose, into a shape of their own — every `JSON.parse(…)` it holds, so that such a read is an entry with its reason and one more is a new entry). The types counted include the render record's base types under their own names (RenderBase, StoredRenderBase, RenderFields) and the answers that hold a record (NamedRenderFound, FoundRender, FoundReviewRender). Not seen: a type under an alias or an own interface of the same members (outside RECORD_READ_OWN, that is how a file would read a record out of sight — a render record's members copied into a view of the engine's are such an interface, on purpose); a `JSON.parse(…)` of a record in a file that reads a record on its own and is not in RECORD_READ_OWN, into an untyped value or a shape of its own; a file's own bytes handed to the reader's parsers (parseRunRecord, parseTimeline, parseRenderRecord: the type is the reader's, the link, size and version rules are the caller's); a stored record's plan typed as an edit plan by a member's type (`StoredRender['plan']` is a member's type, not a record); an untyped (`any`) parse result that reaches a record without a cast — behind a helper of another name, or assigned, returned or passed in a later statement; a property or a parameter typed so; and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell). The engine's own stored formats (FORMAT_READ_HOMES: job records, claims and events, history and journal lines, the worker lock, filming markers, a theme's provenance, an inspection's report, the live channel's file and frame header, the Studio's token record, a recording's meta.json) are each read in their one file, through a schema (engine stored-json.ts): a parse result typed as one of them elsewhere — kinds 1 to 4 — is a hit (11); a cast of another value to one, its use as a type argument or in a guard are not counted for them",
   },
 ];
 
@@ -1878,6 +1879,27 @@ export const RECORD_READ_TYPES = [
   'FoundRender',
   'FoundReviewRender',
 ];
+/**
+ * The engine's own stored formats and the one file that reads each (its reader hands stored-json.ts a schema and answers
+ * the type): a `JSON.parse(…)` or `readJson(…)` typed as one of them anywhere else — kinds 1 to 4 — is a hit (11).
+ */
+export const FORMAT_READ_HOMES = {
+  HistoryEntry: 'packages/engine/src/history.ts',
+  Provenance: 'packages/engine/src/brand/create.ts',
+  StudioTokenRecord: 'packages/engine/src/http/discovery.ts',
+  WorkerLockRecord: 'packages/engine/src/jobs/lock.ts',
+  RecordedBrowser: 'packages/engine/src/jobs/render-job.ts',
+  MarkerRecord: 'packages/engine/src/jobs/captures.ts',
+  JobRecord: 'packages/engine/src/jobs/queue-core.ts',
+  ClaimRecord: 'packages/engine/src/jobs/queue-core.ts',
+  JobEvent: 'packages/engine/src/jobs/queue-core.ts',
+  JournalEntry: 'packages/engine/src/store/journal.ts',
+  InspectReport: 'packages/engine/src/jobs/inspect-job.ts',
+  LiveChannelInfo: 'packages/engine/src/jobs/live-channel.ts',
+  LiveFrameHeader: 'packages/engine/src/jobs/live-channel.ts',
+  RecordMeta: 'packages/engine/src/record-files.ts',
+};
+
 /** The calls whose result is a parsed file: `JSON.parse(…)`, and `readJson(…)` under that name (also `x.readJson(…)`). */
 const RECORD_PARSERS = ['readJson'];
 
@@ -1889,14 +1911,15 @@ const RECORD_PARSERS = ['readJson'];
 export function recordReadHits(root, files) {
   const ts = loadTs(root);
   const out = [];
-  const named = (t) => {
+  // Whether a type node names one of `names` (`formats`: the stored formats not read in `rel`).
+  const naming = (t, names) => {
     let yes = false;
     (function visit(n) {
       // A member's type (`RunRecord['status']`), `keyof` and `typeof` name the type without being a record.
       if (yes || ts.isIndexedAccessTypeNode(n) || ts.isTypeOperatorNode(n) || ts.isTypeQueryNode(n)) return;
       // `RunRecord`, `core.RunRecord`, and the type reached without an import: `import('@retake/core').RunRecord`.
       const ref = ts.isTypeReferenceNode(n) ? n.typeName : ts.isImportTypeNode(n) ? n.qualifier : undefined;
-      if (ref && RECORD_READ_TYPES.includes(ts.isIdentifier(ref) ? ref.text : ref.right.text)) {
+      if (ref && names(ts.isIdentifier(ref) ? ref.text : ref.right.text)) {
         yes = true;
         return;
       }
@@ -1904,6 +1927,7 @@ export function recordReadHits(root, files) {
     })(t);
     return yes;
   };
+  const named = (t) => naming(t, (name) => RECORD_READ_TYPES.includes(name));
   const isAssertion = (e) => ts.isAsExpression(e) || (ts.isTypeAssertionExpression?.(e) ?? false);
   // The expression under parentheses, `await`, `!` and casts; `casts`: the types of the casts gone through.
   const bare = (e, casts = []) => {
@@ -1926,8 +1950,30 @@ export function recordReadHits(root, files) {
     return undefined;
   };
   for (const { rel, text } of files) {
-    if (RECORD_READ_HOME.includes(rel)) continue;
+    const formatNamed = (t) => naming(t, (name) => Object.hasOwn(FORMAT_READ_HOMES, name) && FORMAT_READ_HOMES[name] !== rel);
+    // A parse result typed as a stored format outside its reader (kinds 1 to 4 of a record, counted as 11).
+    const formatParse = (n) => {
+      if (isAssertion(n)) {
+        const casts = [];
+        return parser(bare(n, casts)) && casts.some(formatNamed) ? bare(n) : undefined;
+      }
+      if (ts.isCallExpression(n) && parser(n) && (n.typeArguments ?? []).some(formatNamed)) return n;
+      if (ts.isVariableDeclaration(n) && n.type && n.initializer && formatNamed(n.type) && parser(bare(n.initializer))) return bare(n.initializer);
+      if (ts.isReturnStatement(n) && n.expression && parser(bare(n.expression)) && functionOf(n)?.type && formatNamed(functionOf(n).type)) return bare(n.expression);
+      if (ts.isArrowFunction(n) && !ts.isBlock(n.body) && n.type && formatNamed(n.type) && parser(bare(n.body))) return bare(n.body);
+      return undefined;
+    };
     const sf = parse(ts, rel, text);
+    if (RECORD_READ_HOME.includes(rel)) {
+      const hits = [];
+      (function visit(n) {
+        const p = formatParse(n);
+        if (p) hits.push(sf.getLineAndCharacterOfPosition(p.getStart(sf)).line + 1);
+        n.forEachChild(visit);
+      })(sf);
+      if (hits.length) out.push({ file: rel, count: hits.length, lines: hits.sort((x, y) => x - y), kinds: hits.map(() => 11) });
+      continue;
+    }
     const own = RECORD_READ_OWN.includes(rel);
     const schemaName = (e) => (ts.isIdentifier(e) ? RECORD_READ_SCHEMAS.includes(e.text) : ts.isPropertyAccessExpression(e) && RECORD_READ_SCHEMAS.includes(e.name.text));
     const hit = new Map(); // the parse call, or the cast → kind (the first that matched)
@@ -1935,6 +1981,8 @@ export function recordReadHits(root, files) {
       if (!hit.has(n)) hit.set(n, kind);
     };
     (function visit(n) {
+      const format = formatParse(n);
+      if (format) add(format, 11);
       if (isAssertion(n)) {
         const casts = [];
         const inner = bare(n, casts);
@@ -2238,8 +2286,10 @@ export function ratchetEntries(root, scanned = scan(root)) {
   for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   for (const h of recordReadHits(root, scanned.files)) {
     const own = h.kinds.filter((k) => k === 10).length;
+    const formats = h.kinds.filter((k) => k === 11).length;
     if (own) set.add(`record-read ${h.file} → ${own} own read${own === 1 ? '' : 's'} of a run folder's or renders/'s file`);
-    if (h.count > own) set.add(`record-read ${h.file} → ${h.count - own} record${h.count - own === 1 ? '' : 's'} typed without the reader`);
+    if (formats) set.add(`record-read ${h.file} → ${formats} stored format${formats === 1 ? '' : 's'} typed without its reader`);
+    if (h.count > own + formats) set.add(`record-read ${h.file} → ${h.count - own - formats} record${h.count - own - formats === 1 ? '' : 's'} typed without the reader`);
   }
   const tests = testSources(root);
   for (const h of testReachHits(root, tests)) set.add(`test-reach ${h.file} → ${h.spec}`);

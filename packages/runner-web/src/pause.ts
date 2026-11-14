@@ -22,7 +22,7 @@ import type { LogLevel } from './runtime.js';
 import { RIPPLE_S } from './timeline.js';
 import type { CaptureClock } from './timeline.js';
 import { sleep, throwIfAborted, wallNow } from './util.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** The longest pause by default (ms): 30 min. */
 export const PAUSE_MAX_MS = 30 * 60_000;
@@ -144,7 +144,7 @@ export class RunPauser {
             await f.recorder.switchTo(f.page);
             return f.recorder;
           } catch (e) {
-            this.p.log('warn', `after the pause, a recorder could not film its page again: ${(e as Error).message}`);
+            this.p.log('warn', `after the pause, a recorder could not film its page again: ${errorMessage(e)}`);
             return null;
           }
         }),

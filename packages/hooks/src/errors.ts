@@ -61,7 +61,5 @@ export class JournalError extends Error {
   }
 }
 
-export function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  return String(e);
-}
+/** core's, re-exported for this package's modules. */
+export { errorMessage } from '@retake/core/base';

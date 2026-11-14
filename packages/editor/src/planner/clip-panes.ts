@@ -18,6 +18,7 @@ import type { RunCamera, RunCameras } from './cameras.js';
 import type { StepOverlays } from './overlays.js';
 import type { ClipEntry, PlanScope } from './scope.js';
 import { reframeTargets } from './targets.js';
+import { errorMessage } from '@retake/core/base';
 
 export type PlanPanes = (
   e: ClipEntry,
@@ -55,7 +56,7 @@ export function panePlanner(s: PlanScope, camByRun: RunCameras, overlays: Pick<S
     try {
       g = evalLayoutGeometry(spec, rc.params, { aspect: aspectOf(ordered[0]), aspect2: aspectOf(ordered[1] ?? ordered[0]) });
     } catch (err) {
-      warnings.add(`${where}: layout ${rc.id}: ${(err as Error).message}`);
+      warnings.add(`${where}: layout ${rc.id}: ${errorMessage(err)}`);
       return null;
     }
     const outside = geometryOutside(g, variant);

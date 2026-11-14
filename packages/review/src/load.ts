@@ -4,7 +4,7 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { GUIDE, missingOrInvalid } from '@retake/core/base';
+import { GUIDE, errorMessage, missingOrInvalid } from '@retake/core/base';
 import { projectPath } from '@retake/core/project';
 import { previousRender, renderRecordsOf } from '@retake/core/render';
 import { findNamedRender, loadProject, readRendersFolder, readRunRecord, readTimeline } from '@retake/core/io';
@@ -37,7 +37,7 @@ export async function openProject(project: LoadedProject | string, root?: string
   try {
     return await loadProject(project, root);
   } catch (e) {
-    throw new ReviewError(`project "${project}": ${(e as Error).message}`);
+    throw new ReviewError(`project "${project}": ${errorMessage(e)}`);
   }
 }
 

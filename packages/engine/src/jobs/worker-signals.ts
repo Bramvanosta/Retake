@@ -11,6 +11,7 @@ import type { InterruptPort } from '../interrupts.js';
 import { signalTree, signalablePid } from './signal.js';
 import type { Worker } from './worker-record.js';
 import { recordYield } from './worker-heavy.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Listen to SIGINT, SIGTERM and unhandled rejections for `w`; returns what stops listening (once the worker is done). */
 export function handleSignals(w: Worker): () => void {
@@ -57,7 +58,7 @@ export function handleSignals(w: Worker): () => void {
   // crashes the worker (readers then derive `interrupted`).
   const onRejection = (reason: unknown) => {
     if ((reason as NodeJS.ErrnoException | undefined)?.code === 'EPIPE') {
-      log(`ignored a write to a closed pipe after a render (${(reason as Error).message})`);
+      log(`ignored a write to a closed pipe after a render (${errorMessage(reason)})`);
       return;
     }
     throw reason;

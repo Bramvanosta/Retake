@@ -130,3 +130,17 @@ describe('@retake/components/geometry (the renderer-free entry)', () => {
     expect(geometry.fontFileFace('x/semibold/Body-Regular.ttf')).toEqual({ weight: 400, style: 'normal' });
   });
 });
+
+describe('captionOverBand: the caption max-width rule, written once (the planner and the review read it)', () => {
+  const capture = { x: 0, y: 0, w: 1920, h: 1080 };
+  const at = { capture, width: 1920, height: 1080, unit: 1 };
+  const band = (maxWidth: number) => geometry.captionBandBox({ rects: { screen: capture }, width: 1920, height: 1080, unit: 1, position: 'over', maxWidth });
+
+  it('the caption’s own max_width, else the caption component’s default', () => {
+    const yaml = readFileSync(fileURLToPath(new URL('../library/studio/caption-overlay/component.yaml', import.meta.url)), 'utf8');
+    expect(/max_width: \{[^}]*default: (\d+)/.exec(yaml)?.[1]).toBe(String(geometry.CAPTION_BAND_MAX_WIDTH));
+    expect(geometry.captionOverBand({ ...at, params: {} })).toEqual(band(geometry.CAPTION_BAND_MAX_WIDTH));
+    expect(geometry.captionOverBand({ ...at, params: { max_width: 800 } })).toEqual(band(800));
+    expect(geometry.captionOverBand({ ...at, params: { max_width: '800' } }).box.w).toBe(geometry.CAPTION_BAND_MAX_WIDTH);
+  });
+});

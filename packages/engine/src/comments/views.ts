@@ -16,7 +16,8 @@ import { checkScenarioName } from '../refs.js';
 import { latestRenderMembers, readById, renderEntries, renderFileProblem } from '../render-records.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { LocalStorage } from '../storage.js';
-import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, argError, commentRef, commentStillFile, locateThread, lstatOrNull, readThread, realDir } from './store.js';
+import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, argError, commentRef, commentStillFile, locateThread, readThread } from './store.js';
+import { lstatOrNull, realFolderState } from '@retake/core/io';
 import type { ThreadFile } from './store.js';
 
 // ── Views ───────────────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ export async function renderIndex(projectDir: string): Promise<StoredRenderRecor
 /** The thread's still when it is a plain JPEG of the project: a real file (no link, one name — no hard link), ≤ 10 MB, JPEG bytes. */
 export async function stillOf(projectDir: string, id: string): Promise<string | null> {
   for (const dir of [statePath(projectDir), statePath(projectDir, 'comments')]) {
-    if ((await realDir(dir)) !== 'ok') return null;
+    if ((await realFolderState(dir)) !== 'ok') return null;
   }
   const file = commentStillFile(projectDir, id);
   const st = await lstatOrNull(file);
@@ -339,7 +340,7 @@ export async function listCommentsAndUnread(project: LoadedProject, req: Comment
   let unreadAll = false;
   const unreadOf = new Set<string>();
   const root = join(project.dir, COMMENTS_DIR);
-  const rootState = await realDir(root);
+  const rootState = await realFolderState(root);
   const files: ThreadFile[] = [];
   if (rootState === 'ok') {
     let skippedNames = 0;
@@ -471,8 +472,8 @@ export class CommentIndex {
   async ofScenario(projectDir: string, scenario: string): Promise<{ threads: CommentSummary[]; problems: number }> {
     checkScenarioName(scenario);
     const root = join(projectDir, COMMENTS_DIR);
-    if ((await realDir(root)) !== 'ok') return { threads: [], problems: 0 };
-    const state = await realDir(join(root, scenario));
+    if ((await realFolderState(root)) !== 'ok') return { threads: [], problems: 0 };
+    const state = await realFolderState(join(root, scenario));
     const key = `${projectDir}\0${scenario}`;
     if (state !== 'ok') {
       this.memo.delete(key);
@@ -520,7 +521,7 @@ export class CommentIndex {
     if (o.scenario !== undefined) folders = [checkScenarioName(o.scenario)];
     else {
       const root = join(project.dir, COMMENTS_DIR);
-      if ((await realDir(root)) !== 'ok') return out;
+      if ((await realFolderState(root)) !== 'ok') return out;
       folders = (await readdir(root))
         .filter((n) => SLUG_RE.test(n))
         .sort()

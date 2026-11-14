@@ -24,6 +24,7 @@ import { THEME_ARGS, defineTool } from '@retake/engine/contract';
 import type { PreviewLeases, PreviewHeld } from './preview-leases.js';
 import type { PlayerServer } from './player.js';
 import type { PreviewAllowList } from './preview-allow.js';
+import { errorMessage } from '@retake/core/base';
 
 /** The answers of the engine's theme operations the app reads (L7.17: defined with them). */
 export type { SiteListAnswer, ThemeListAnswer } from '@retake/engine/contract';
@@ -121,7 +122,7 @@ export async function themePreview(engine: Engine, a: z.infer<typeof PreviewInpu
     const pub = await player!.publishPreview(spec, { forbid, scope });
     return { ...base, ...heldPart, frame_url: pub.frame_url, plan_url: pub.plan_url, frames: spec.durationInFrames, fps: spec.fps, frame: spec.frame };
   } catch (e) {
-    return { ...base, ...heldPart, preview_error: firstErrorLine(pathFree(e instanceof Error ? e.message : String(e), ws.root)) };
+    return { ...base, ...heldPart, preview_error: firstErrorLine(pathFree(errorMessage(e), ws.root)) };
   }
 }
 

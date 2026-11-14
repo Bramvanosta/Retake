@@ -26,13 +26,13 @@
  *   bundles, in memory only.
  */
 import { createHash } from 'node:crypto';
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Message, Plugin } from 'esbuild';
 import { pathInside } from '@retake/core/base';
-import { readPlainFile } from '@retake/core/io';
+import { readPlainFile, realpathOr } from '@retake/core/io';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { BundleComponent } from '@retake/editor';
 import { UI_TARGETS } from '../bundle.js';
@@ -85,14 +85,6 @@ function playerVersion(): string {
     return (JSON.parse(readFileSync(require.resolve('@remotion/player/package.json'), 'utf8')) as { version: string }).version;
   } catch {
     return 'unknown';
-  }
-}
-
-function realPath(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return resolve(p);
   }
 }
 
@@ -249,7 +241,7 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
   const { kit, geometry } = entries;
   const { build } = await import('esbuild');
   const { unhashedFileProblem, unhashedImportMessage } = await import('@retake/components');
-  const owners: Owner[] = components.map((c) => ({ id: c.id, realDir: realPath(c.dir) })).sort((a, b) => b.realDir.length - a.realDir.length);
+  const owners: Owner[] = components.map((c) => ({ id: c.id, realDir: realpathOr(c.dir, resolve(c.dir)) })).sort((a, b) => b.realDir.length - a.realDir.length);
   const byId = new Map(owners.map((x) => [x.id, x]));
   const entryOwner = new Map(components.map((c) => [c.entry.split(sep).join('/'), c.id]));
   const ownerOf = (file: string): Owner | undefined => owners.find((x) => pathInside(file, x.realDir, { dotDotPrefix: true }));
@@ -274,7 +266,7 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
           }
           owner = byId.get(id);
         } else if (args.namespace === 'file') {
-          owner = ownerOf(realPath(args.importer));
+          owner = ownerOf(realpathOr(args.importer, resolve(args.importer)));
         }
         if (!owner) {
           // The frame, the composition, the kit, or a package's own files.
@@ -304,13 +296,13 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
       b.onLoad({ filter: /.*/, namespace: 'file' }, (args) => {
         const id = (args.pluginData as { component?: string } | undefined)?.component;
         if (id === undefined) {
-          const owner = ownerOf(realPath(args.path));
-          if (owner) return fail(owner, `${named(owner, realPath(args.path))} was reached outside its component's import rules`);
+          const owner = ownerOf(realpathOr(args.path, resolve(args.path)));
+          if (owner) return fail(owner, `${named(owner, realpathOr(args.path, resolve(args.path)))} was reached outside its component's import rules`);
           if (!TRUSTED_EXTENSIONS.has(extname(args.path).toLowerCase())) return { errors: [{ text: `the preview does not bundle ${basename(args.path)}` }] };
           return undefined;
         }
         const owner = byId.get(id)!;
-        const real = realPath(args.path);
+        const real = realpathOr(args.path, resolve(args.path));
         if (!pathInside(real, owner.realDir, { dotDotPrefix: true })) return fail(owner, `${id}: an import leads out of the component folder (a link)`);
         // Only files the component's content hash reads (the allow-list and every cache are keyed by it): never a dot
         // folder, node_modules, previews or dist, whatever the import's words (a folder's package.json may point there).
@@ -359,7 +351,8 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
       let owner = typeof m.detail === 'string' ? byId.get(m.detail) : undefined;
       if (!owner && m.location?.file) {
         const file = m.location.file.replace(/^file:/, '');
-        owner = ownerOf(realPath(isAbsolute(file) ? file : resolve(PACKAGE_DIR, file)));
+        const abs = isAbsolute(file) ? file : resolve(PACKAGE_DIR, file);
+        owner = ownerOf(realpathOr(abs, resolve(abs)));
       }
       if (owner) {
         if (!byOwner.has(owner.id)) byOwner.set(owner.id, m.text.split('\n')[0].split(owner.realDir).join(owner.id).slice(0, 300));

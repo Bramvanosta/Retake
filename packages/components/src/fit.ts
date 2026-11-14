@@ -13,6 +13,7 @@ import { applyParamDefaults, validateParamValue } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';
 import { usableAs } from './registry.js';
 import type { ComponentRegistry } from './registry.js';
+import { errorMessage } from '@retake/core/base';
 
 /** A use as the scenario writes it. */
 export interface ComponentUse {
@@ -39,7 +40,7 @@ export function componentFit(registry: ComponentRegistry, id: string, use: Compo
   try {
     manifest = registry.get(id).manifest;
   } catch (e) {
-    return no((e as Error).message.split('\n')[0].slice(0, 200));
+    return no(errorMessage(e).split('\n')[0].slice(0, 200));
   }
   if (!usableAs(manifest, use.kind)) return no(`${id} is ${/^[aeiou]/.test(manifest.kind) ? 'an' : 'a'} ${manifest.kind} component, not ${/^[aeiou]/.test(use.kind) ? 'an' : 'a'} ${use.kind}`);
   if (use.kind === 'layout' && use.pages !== undefined) {

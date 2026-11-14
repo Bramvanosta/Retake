@@ -18,6 +18,7 @@ import { pathFree } from './renders.js';
 import { themeAssetProblems, themeForWork } from './templates.js';
 import { memoRegistry } from './timeline-view.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Colours being changed in the editor (memory only). */
 export interface ThemePreviewDraft {
@@ -98,7 +99,7 @@ export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequ
   try {
     resolved = registry.resolveTheme(tpl.template);
   } catch (e) {
-    return { answer: { ...base, preview_error: firstErrorLine(pathFree(e instanceof Error ? e.message : String(e), ws.root)) } };
+    return { answer: { ...base, preview_error: firstErrorLine(pathFree(errorMessage(e), ws.root)) } };
   }
   if (typeof a.target === 'string') {
     const k: ComponentKind = a.target === 'clip' ? 'layout' : a.target;
@@ -151,7 +152,7 @@ export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequ
       motion: true,
     });
   } catch (e) {
-    return { answer: { ...base, preview_error: firstErrorLine(pathFree(e instanceof Error ? e.message : String(e), ws.root)) } };
+    return { answer: { ...base, preview_error: firstErrorLine(pathFree(errorMessage(e), ws.root)) } };
   }
   return { built: { base, spec: built.spec, components: built.components, registry, folders: [loaded.dir, comps.PREVIEW_SAMPLES_DIR, p.dir] } };
 }

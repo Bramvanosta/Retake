@@ -13,6 +13,7 @@ import type { StepContext } from '../runtime.js';
 import { clamp, formatBytes, mimeFor } from '../util.js';
 import { approach, clickData } from './click.js';
 import type { ActionResult } from './types.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Default size of a fake dropped file. */
 export const FAKE_FILE_BYTES = 48 * 1024;
@@ -78,7 +79,7 @@ async function loadPayload(ctx: StepContext, args: DropFileArgs): Promise<FilePa
       bytes = await readFile(file);
     } catch (e) {
       if (e instanceof StepError) throw e;
-      throw new StepError(`drop_file: cannot read ${file}: ${(e as Error).message}`);
+      throw new StepError(`drop_file: cannot read ${file}: ${errorMessage(e)}`);
     }
     if (bytes.length > MAX_DROP_BYTES) {
       throw new StepError(`drop_file: ${file} is ${formatBytes(bytes.length)}; files above ${formatBytes(MAX_DROP_BYTES)} cannot be dropped`);

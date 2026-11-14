@@ -6,14 +6,14 @@
  * every component folder bundled and the Remotion version: a render rebuilds only when one of them changed.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { relativeInside, bestEffort } from '@retake/core/base';
 import { COMPONENT_KINDS } from '@retake/core/model';
 import { statePath } from '@retake/core/project';
-import { bundleInfoOrNull } from '@retake/core/io';
+import { bundleInfoOrNull, realTarget, realpathOr } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core/model';
 import {
   HASHED_FILE,
@@ -368,16 +368,6 @@ function abortError(): Error {
   return e;
 }
 
-/** The path with symbolic links resolved (a missing tail is kept as written under its real parent). */
-function realPathOf(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    const parent = dirname(p);
-    return parent === p ? p : join(realPathOf(parent), basename(p));
-  }
-}
-
 /** `file` relative to `dir` (with `/`) when inside it and not `dir` itself, else undefined. */
 function within(dir: string, file: string): string | undefined {
   return relativeInside(file, dir, { self: false, dotDotPrefix: true })?.split(sep).join('/');
@@ -391,8 +381,8 @@ function within(dir: string, file: string): string | undefined {
  * never saw (L4.7 review fix; the compile check and the Studio's player loader refuse the same imports).
  */
 export function bundledFileProblem(file: string, components: readonly Pick<BundleComponent, 'id' | 'dir' | 'scaffold'>[]): string | undefined {
-  const real = realPathOf(file.split('?')[0]);
-  const dirs = components.map((c) => ({ c, dir: realPathOf(c.dir) }));
+  const real = realTarget(file.split('?')[0]);
+  const dirs = components.map((c) => ({ c, dir: realTarget(c.dir) }));
   for (const { c, dir } of dirs) {
     const rel = within(dir, real);
     if (rel === undefined) continue;
@@ -443,14 +433,7 @@ export function componentFilesGuard(components: readonly Pick<BundleComponent, '
  * a module found elsewhere is not found, as it is without the planted folder. Real paths (webpack resolves links).
  */
 export function renderBundleRestriction(roots: readonly string[]): RegExp {
-  const real = (p: string) => {
-    try {
-      return realpathSync(p);
-    } catch {
-      return resolve(p);
-    }
-  };
-  const all = [...new Set(roots.flatMap((r) => [resolve(r), real(r)]))].map((r) => r.replace(/[/\\]+$/, ''));
+  const all = [...new Set(roots.flatMap((r) => [resolve(r), realpathOr(r, resolve(r))]))].map((r) => r.replace(/[/\\]+$/, ''));
   return new RegExp(`^(?:${all.map((r) => r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:[/\\\\]|$)`);
 }
 

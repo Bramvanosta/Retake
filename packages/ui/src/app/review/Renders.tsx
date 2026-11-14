@@ -18,7 +18,7 @@
  *   (L5.12a fixes: never a toggle; its time of day shows when another row reads the same).
  * Every value from the server is a text node (Txt / a kit slot).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
 import { CallError, errorText } from '../api.js';
 import type { Loaded } from '../api.js';
@@ -33,6 +33,7 @@ import { jobVersionNote, jobWords, notShownWords, rendersEventAction, reviewBadg
 import type { ReviewTone, ShownVersion } from '../words/render-words.js';
 import { Button, Callout, Progress, RowCard, RowList, RowListItem, StatusMark } from '../ui-kit/index.js';
 import type { MarkState } from '../ui-kit/index.js';
+import { useThrottled } from '../throttle.js';
 
 /** What a Render click needs: the capture and the file as shown — or why the button is off. */
 export type RenderTarget = { run: string; hash: string; asCaptured?: boolean } | { why: string };
@@ -57,27 +58,7 @@ export function useRenders(slug: string, name: string, onStale?: () => void): Re
   const seen = useRef(new Set<string>());
   const shown = useRef<ReadonlySet<string>>(new Set());
   shown.current = loaded.state === 'ready' ? shownJobsOf(loaded.data) : new Set();
-  const last = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const soon = useCallback(() => {
-    const wait = 1000 - (Date.now() - last.current);
-    if (wait <= 0) {
-      last.current = Date.now();
-      reload();
-    } else if (timer.current === null) {
-      timer.current = setTimeout(() => {
-        timer.current = null;
-        last.current = Date.now();
-        reload();
-      }, wait);
-    }
-  }, [reload]);
-  useEffect(
-    () => () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    },
-    [],
-  );
+  const soon = useThrottled(reload, 1000);
   useEvents((e) => {
     if (rendersEventAction(e, slug, shown.current, seen.current)) soon();
   });

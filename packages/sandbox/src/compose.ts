@@ -27,14 +27,14 @@
 import { spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
-import { interpolateDeep, bestEffort } from '@retake/core/base';
+import { interpolateDeep, bestEffort, sleep } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { policyProgram } from '@retake/core/policy';
 import { DEFAULT_COMPOSE_FILES, envFileKeys, sandboxNames } from '@retake/core/sandbox';
-import { composeEnvFile, prefetchSecrets, programLookup } from '@retake/core/io';
+import { composeEnvFile, prefetchSecrets, programLookup, realpathOr } from '@retake/core/io';
 import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
@@ -50,7 +50,7 @@ import type { DownOptions, DownResult, OwnerUse, Provider, ProviderCapabilities,
 import { pgAnswers, pgEndpoint, resolveDatabaseUrl } from './snapshot-postgres.js';
 
 /** A line of `docker compose up --build` that says the build is over: it creates or starts something. */
-export const STARTING_LINE = /^\s*(?:[✔⠀-⣿]\s*)?(?:Network|Volume|Container)\s+\S+\s+(?:Creat|Recreat|Start|Running|Waiting|Healthy)/;
+export const STARTING_LINE = /^\s*(?:[\u2714\u2800-\u28ff]\s*)?(?:Network|Volume|Container)\s+\S+\s+(?:Creat|Recreat|Start|Running|Waiting|Healthy)/;
 /** Default seconds a compose service has to become healthy (`--wait-timeout`, then the manifest's checks). */
 export const COMPOSE_HEALTH_TIMEOUT_S = 120;
 /** Default seconds of an `exec` seed step. */
@@ -98,14 +98,6 @@ export interface ComposeProjectRef {
   pass?: string[];
 }
 
-function realDir(dir: string): string {
-  try {
-    return realpathSync(dir);
-  } catch {
-    return resolve(dir);
-  }
-}
-
 /**
  * `retake-<project slug>-<environment>-<8 hex of the folder's path>`, lower-case letters, digits, `-` and `_`,
  * at most 63 characters (the slug and environment are shortened, never the hash).
@@ -148,9 +140,9 @@ export function composeProject(
   project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> },
   sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>,
 ): ComposeProjectRef {
-  const sandboxDir = realDir(sandbox.dir);
+  const sandboxDir = realpathOr(sandbox.dir, resolve(sandbox.dir));
   const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(sandboxDir, f));
-  const dir = realDir(dirname(files[0]));
+  const dir = realpathOr(dirname(files[0]), resolve(dirname(files[0])));
   const envFile = composeEnvFile({ dir: sandboxDir, manifest: sandbox.manifest });
   let envKeys: string[] = [];
   if (envFile) {
@@ -173,7 +165,7 @@ export function composeProject(
 
 /** Is `dir` (a container's `working_dir` label) this compose project's folder — or sandbox.yaml's, which it was until v0.2.0? */
 function ownFolder(ref: ComposeProjectRef, dir: string): boolean {
-  const real = realDir(dir);
+  const real = realpathOr(dir, resolve(dir));
   return real === ref.dir || (ref.sandboxDir !== undefined && real === ref.sandboxDir);
 }
 
@@ -378,8 +370,6 @@ export function waitTimeoutS(sandbox: Pick<LoadedSandbox, 'manifest'>): number {
   return given.length ? Math.max(...given) : COMPOSE_HEALTH_TIMEOUT_S;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 function indent(text: string, by = '    '): string {
   return text
     .replace(/\n+$/, '')
@@ -560,7 +550,7 @@ export class ComposeProvider implements Provider {
     const rec = composeRecord(ctx.state);
     const out: ComposeProjectRef[] = [];
     const add = (project: string, dir: string) => {
-      if (project !== ref.name && !out.some((p) => p.name === project)) out.push({ name: project, dir: dir ? realDir(dir) : ref.dir, files: [] });
+      if (project !== ref.name && !out.some((p) => p.name === project)) out.push({ name: project, dir: dir ? realpathOr(dir, resolve(dir)) : ref.dir, files: [] });
     };
     for (const p of rec?.previous ?? []) add(p.project, p.dir);
     if (rec) add(rec.project, rec.dir);

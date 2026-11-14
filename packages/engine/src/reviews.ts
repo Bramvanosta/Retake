@@ -27,6 +27,8 @@ import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord } from './jobs/types.js';
 import type { OpenedWorkspace } from './workspace.js';
 import { bestEffort } from '@retake/core/base';
+import { storedJson } from './stored-json.js';
+import { z } from 'zod';
 
 /** Which images review_get lists for the client to look at: none, the contact sheet pages + marker key frames, or all. */
 export type ReviewImagesMode = 'none' | 'sheets' | 'all';
@@ -96,6 +98,9 @@ function rebuilt(dir: string, p: unknown, sub?: string): string | undefined {
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
+/** What makes a review's report.json one: this version and its findings (the rest is read member by member). */
+const ReviewReportSchema = z.object({ version: z.literal(1), findings: z.array(z.unknown()) });
+
 /** Read a review (report.json, as data) and its newest job. `latest`: the review of the newest render (of `scenario`). */
 export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: string, renderIdArg: string, o: { scenario?: string; images?: ReviewImagesMode } = {}): Promise<ReviewView> {
   checkProjectSlug(slug);
@@ -108,12 +113,9 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   let report: Record<string, unknown> | undefined;
   const reportFile = join(dir, 'report.json');
   if (existsSync(reportFile) && insideFolder(dir, reportFile, nodeFileFacts)) {
-    try {
-      const r = JSON.parse(await readFile(reportFile, 'utf8')) as Record<string, unknown>;
-      if (r && r.version === 1 && Array.isArray(r.findings)) report = r;
-    } catch {
-      report = undefined;
-    }
+    // A report of this version with its findings, else none (the job, if any, is shown).
+    const text = await readFile(reportFile, 'utf8').catch(() => undefined);
+    report = text === undefined ? undefined : (storedJson(ReviewReportSchema, text) as Record<string, unknown> | undefined);
   }
   // The job is shown when it is newer than the report (queued, running, or a failed or cancelled attempt after it).
   const reportAt = str((report?.review as Record<string, unknown> | undefined)?.created_at);

@@ -12,6 +12,7 @@ export * from '../issues.js';
 export * from '../error-kind.js';
 export * from '../formats.js';
 export * from '../canonical-json.js';
+export * from '../hidden-chars.js';
 export * from '../printable.js';
 export * from '../line-diff.js';
 export * from '../path-inside.js';

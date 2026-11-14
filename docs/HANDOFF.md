@@ -75,6 +75,51 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.44)
+- **L7.44 done (2026-11-13; branch `claude/arch-l7`)** — CC-S1, CC-S2, CC-S3, A-S7, A-S8, A-N12 closed: a job's words,
+  the small helpers, "hidden character", the stored formats' reads, "a run is finished" and the caption max-width rule
+  each written once.
+  - Code: engine `operations/job-words.ts` (jobWhat / jobProgress / jobOutcome brief|full, switches with an exhaustive
+    `never`; jobLine and `retake jobs` compose them, the 13-deep ternary gone). Core `hidden-chars.ts` (base:
+    HIDDEN_CHARS, SPACE_LOOKALIKES, BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, PICTOGRAPH_CHARS, EMOJI_CHARS) used by
+    printable.ts, scenario-edit.ts, comments.ts; the Studio's mirror `ui/src/app/words/hidden-chars.ts` (R5: types only)
+    used by comment-words, library-words, YamlTab. Core run-record.ts `RunViewStatus`, `RUN_VIEW_STATUSES`,
+    `isRunViewStatus`, `isFinishedRunStatus` used by runs.ts, index-db/sources.ts, scenario-view.ts, prune.ts,
+    project-board.ts, facade/types.ts; the Studio's `app/run-ended.ts` (TakeStrip, StatusActions). Components geometry
+    `captionOverBand` + `CAPTION_BAND_MAX_WIDTH` (planner frames.ts and review checks.ts). Engine `stored-json.ts`
+    (`storedJson(schema, text)`) and one zod-schema reader per format in its home: history lines (readHistoryLine,
+    also index-db), journal lines (readJournalLine, also memory-store), job.json / claim / markers / events
+    (queue-core.ts), worker lock, filming marker, browser.json, inspect.json, live file + frame header, Studio token,
+    theme provenance. `record-read` check extended: `FORMAT_READ_HOMES` (kind 11: a parse typed as one of those formats
+    outside its home, kinds 1-4). Helpers: core base `errorMessage`, `decodeOrKeep`, `sleep`; core io `realpathOr`,
+    `realTarget`, `processTree` (groupTree and engine treeOf on it), `pidExists`, `lstatOrNull`, `realFolderState`;
+    engine `VersionLedger` (scenarios + theme-edit); cli `interrupt.ts` `stopSignal` (mcp + ui); Studio `app/throttle.ts`
+    (`throttle` + `useThrottled`: Renders, CommentsScreen). 112 `(e as Error).message` casts and 27 inline ternaries in
+    89 files -> `errorMessage`; the 4 package `errorMessage`s re-export core's, execute-run's copy gone.
+  - Tests: new engine job-words (53), stored-formats (13), version-ledger (2); core helpers (8), run-record +2,
+    import-rules +2 (kind 11, format homes) and the index-db parse expectation updated; ui hidden-chars (199: mirror =
+    core, one code-point table x five surfaces, emoji sequences), run-ended (7), throttle (2); components geometry-entry
+    +1. Nearby files run alone, all green (about 60 files: jobs, queue, live-channel, discovery, captures, index-db,
+    inspect-jobs, theme-create/-edit, prune, scenario-view, record-studio, comments, agent-written, run-agent-hooks,
+    planner, review checks, player, run-live, compose, record-session, shell-hosts, app-source...).
+  - Mutations (each caught, restored with cmp + touch, `tsc -b --force`): job words env_reset; finished set without
+    interrupted (core + Studio tests); caption default 1300; Studio mirror without U+2800; showHiddenChars without
+    SPACE_LOOKALIKES; scenario-edit PICTO; job.json state any text; claim fallback removed; live token regex removed;
+    record-read format check off; errorMessage as a cast; processTree without descendants; VersionLedger without LRU;
+    throttle without trailing run; realTarget without parent walk.
+  - Gates: `npx tsc -b`, `pnpm typecheck`, `pnpm lint` (baseline 541 -> 538: the three `noMisleadingCharacterClass`
+    gone), `pnpm format:check`, `rules.mjs --check` (115 entries, none added; `hidden-chars` in CORE_CONTEXTS base),
+    `test-guard` (no decrease), `requirements --check-cites`: all 0.
+  - Published output: CHANGELOG [Unreleased] Changed, three bullets (job words; hidden characters written out; stored
+    files read through a schema).
+  - Not done (on purpose, see Questions): printableText / commentText keep their narrower strip set; the other ad-hoc
+    field classes; browser-side error idioms (Studio app, runner-web kit, Remotion code: core values cannot load
+    there); abortable sleeps (runner-web, memory-run, worker-loop, Studio run-live: each its own abort contract);
+    project-data's store-level throttle; async `realpath().catch()` one-liners, encode-tools, config-snippet; the S2
+    rows the brief did not name (fitRect, subdirs, sig/lsig, frame cache, keyTarget, inspector header); four
+    `JSON.parse ... as Record<string, unknown>` that check every member by hand (record meta.json, record.json, review
+    report.json, update checks).
+
 ## State (after L7.42)
 - **L7.42 done (2026-11-13; branch `claude/arch-l7`)** — hygiene: dead code out and `noUnusedLocals` /
   `noUnusedParameters` on, lot ids out of runtime strings, the four non-hook `use*` renamed, client mistakes as

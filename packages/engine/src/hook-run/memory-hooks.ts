@@ -27,7 +27,7 @@
  */
 import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
-import { canonicalJson, listTemplateTokens } from '@retake/core/base';
+import { canonicalJson, errorMessage, listTemplateTokens } from '@retake/core/base';
 import { AGENT_SQL_REASON, journalsRollback } from '@retake/core/hooks';
 import { projectPath, runPath, statePath } from '@retake/core/project';
 import type { HookKind, HookStep } from '@retake/core/model';
@@ -293,7 +293,7 @@ export class MemoryHookRunner implements HookRunner {
     try {
       kind = hookKindOf(hook);
     } catch (e) {
-      return { result: { ...base, ok: false, status: 'failed', error: e instanceof Error ? e.message : String(e) } };
+      return { result: { ...base, ok: false, status: 'failed', error: errorMessage(e) } };
     }
     const reason = this.#reason(hook, kind, place, ctx, agentWritten);
     const mcp = ctx.trust === 'mcp';

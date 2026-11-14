@@ -28,6 +28,7 @@ import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { cliPorts } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
+import { stopSignal } from '../interrupt.js';
 
 export interface McpCommandOptions {
   printConfig?: boolean;
@@ -35,18 +36,6 @@ export interface McpCommandOptions {
   port?: string;
   rotateToken?: boolean;
   json?: boolean;
-}
-
-function stopSignal(): Promise<NodeJS.Signals> {
-  return new Promise((resolve) => {
-    const stop = (s: NodeJS.Signals) => {
-      process.off('SIGINT', stop);
-      process.off('SIGTERM', stop);
-      resolve(s);
-    };
-    process.on('SIGINT', stop);
-    process.on('SIGTERM', stop);
-  });
 }
 
 /** `--print-config --http` and `--http`: the registration, or the server until Ctrl-C / SIGTERM. */

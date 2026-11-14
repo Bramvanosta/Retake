@@ -12,7 +12,7 @@
  */
 import type { EngineEnv } from '../env.js';
 import { parseJobId } from '@retake/core/ids';
-import { JobInputSchema, isFilming, jobClass } from './job-input.js';
+import { JOB_STATES, JobInputSchema, isFilming, jobClass } from './job-input.js';
 import type { JobId } from '@retake/core/ids';
 import type { JobInput } from './job-input.js';
 import { stampOf } from '../clock.js';
@@ -27,6 +27,26 @@ import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 import { interrupted } from './interrupted.js';
 import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, TakeHold, YieldMark } from './job-queue.js';
 import { bestEffort } from '@retake/core/base';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
+
+/**
+ * What a job.json must be for the queue to hold it: a job of a known kind and state, with its input. The rest (progress,
+ * result, error) is the worker's own writing, read as written.
+ */
+const JobRecordSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  state: z.enum(JOB_STATES),
+  created_at: z.string(),
+  input: z.object({ kind: z.string() }),
+});
+/** A claim: the claiming worker (pid, start time) and when. */
+const ClaimSchema = z.object({ pid: z.number().int(), started_at: z.string().optional(), at: z.string() });
+/** A marker file (cancel, pause, stop, yield.json): a JSON object; each reader takes the members it knows. */
+const MarkerSchema = z.record(z.string(), z.unknown());
+/** A line of events.jsonl: its sequence number, time and type. */
+const JobEventSchema = z.object({ seq: z.number().int(), t: z.string(), type: z.string() });
 
 /** A job's id, checked (never a path): the id itself, else `invalid`. */
 export function checkJobId(id: string): JobId {
@@ -97,14 +117,10 @@ export abstract class StoredJobQueue implements JobQueue {
   /** `fn` under the queue's lock of `key` (JobQueue.exclusive): the adapter's lock. */
   abstract exclusive<T>(key: string, fn: () => Promise<T>): Promise<T>;
 
-  private async json<T>(id: string, name: string): Promise<T | undefined> {
+  /** A job file's text as JSON its schema accepts; undefined when it is missing, torn or not one */
+  private async json(id: string, name: string, schema: z.ZodType): Promise<unknown> {
     const text = await this.entries.read(id, name);
-    if (text === undefined) return undefined;
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      return undefined;
-    }
+    return text === undefined ? undefined : storedJson(schema, text);
   }
 
   async enqueue(input: JobInput, opts: { files?: Record<string, string> } = {}): Promise<JobRecord> {
@@ -123,19 +139,22 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   async stored(id: string): Promise<JobRecord | undefined> {
-    const rec = await this.json<JobRecord>(checkJobId(id), 'job.json');
-    if (!(rec && typeof rec === 'object' && rec.id === id)) return undefined;
+    const rec = (await this.json(checkJobId(id), 'job.json', JobRecordSchema)) as JobRecord | undefined;
+    if (rec?.id !== id) return undefined;
     if (FINISHED_JOB_STATES.has(rec.state)) this.finished.add(id);
     return rec;
   }
 
   async claimOf(id: string): Promise<ClaimRecord | undefined> {
-    return this.json<ClaimRecord>(checkJobId(id), 'claim');
+    const text = await this.entries.read(checkJobId(id), 'claim');
+    if (text === undefined) return undefined;
+    // A claim file that is not a claim is held by no live process (pid 0: isAlive says no) — its job reads as interrupted.
+    return (storedJson(ClaimSchema, text) as ClaimRecord | undefined) ?? { pid: 0, at: '' };
   }
 
   async cancelOf(id: string): Promise<CancelMark | undefined> {
-    const marker = await this.json<{ at?: string; reason?: unknown }>(checkJobId(id), 'cancel');
-    const at = marker?.at ? marker.at : await this.entries.mtime(id, 'cancel');
+    const marker = (await this.json(checkJobId(id), 'cancel', MarkerSchema)) as { at?: unknown; reason?: unknown } | undefined;
+    const at = typeof marker?.at === 'string' && marker.at ? marker.at : await this.entries.mtime(id, 'cancel');
     if (at === undefined) return undefined;
     return { at, ...(marker?.reason === 'discard' ? { reason: 'discard' as const } : {}) };
   }
@@ -183,8 +202,8 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 
   async yieldOf(id: string): Promise<JobYield | undefined> {
-    const y = await this.json<{ state?: unknown; cause?: unknown; since?: unknown; cap_min?: unknown }>(checkJobId(id), 'yield.json');
-    if (!y || typeof y !== 'object' || (y.state !== 'background' && y.state !== 'past_cap')) return undefined;
+    const y = (await this.json(checkJobId(id), 'yield.json', MarkerSchema)) as { state?: unknown; cause?: unknown; since?: unknown; cap_min?: unknown } | undefined;
+    if (!y || (y.state !== 'background' && y.state !== 'past_cap')) return undefined;
     const since = typeof y.since === 'string' && Number.isFinite(Date.parse(y.since)) ? new Date(Date.parse(y.since)).toISOString() : undefined;
     const cap = y.state === 'past_cap' && typeof y.cap_min === 'number' && Number.isInteger(y.cap_min) && y.cap_min > 0 && y.cap_min <= 1440 ? y.cap_min : undefined;
     return { state: y.state, cause: y.cause === 'here' ? 'here' : 'elsewhere', ...(since ? { since } : {}), ...(cap ? { cap_min: cap } : {}) };
@@ -272,7 +291,7 @@ export abstract class StoredJobQueue implements JobQueue {
 
   /** A pause or stop marker: the time it says, else its file's time; undefined when there is none. */
   private async markOf(id: string, name: 'pause' | 'stop'): Promise<JobMark | undefined> {
-    const marker = await this.json<{ at?: unknown }>(checkJobId(id), name);
+    const marker = (await this.json(checkJobId(id), name, MarkerSchema)) as { at?: unknown } | undefined;
     const at = typeof marker?.at === 'string' ? marker.at : await this.entries.mtime(id, name);
     return at === undefined ? undefined : { at };
   }
@@ -338,12 +357,9 @@ export abstract class StoredJobQueue implements JobQueue {
     const out: JobEvent[] = [];
     for (const line of text.split('\n')) {
       if (!line) continue;
-      try {
-        const e = JSON.parse(line) as JobEvent;
-        if (e.seq > (opts.after ?? 0)) out.push(e);
-      } catch {
-        /* a torn last line while it is written */
-      }
+      // A torn last line while it is written, or a line that is no event: skipped.
+      const e = storedJson(JobEventSchema, line) as JobEvent | undefined;
+      if (e && e.seq > (opts.after ?? 0)) out.push(e);
     }
     return opts.limit !== undefined ? out.slice(-opts.limit) : out;
   }

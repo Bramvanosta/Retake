@@ -19,7 +19,7 @@
  *   must have the stored result hash, and the hunks must be the canonical diff of those bytes — else nothing is shown as
  *   exact, previewed or applied.
  */
-import { canonicalJson, applyHunks, diffLines, joinLines, lineBreaks, parseYaml, sameHunks, textLines } from '@retake/core/base';
+import { applyHunks, canonicalJson, diffLines, errorMessage, joinLines, lineBreaks, parseYaml, sameHunks, textLines } from '@retake/core/base';
 import { SCENARIO_EDIT_MAX_CHARS, ScenarioError, filmedChangesOf, textEol } from '@retake/core/scenario';
 import { CommentProposalSchema, PROPOSAL_CHANGED_LINES_MAX, proposalHunksProblem, proposalLineProblem } from '@retake/core/comments';
 import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
@@ -282,7 +282,7 @@ export function rebuildProposal(today: ScenarioText, p: CommentProposal, stage: 
   try {
     lines = applyHunks(base, p.hunks);
   } catch (e) {
-    throw tampered(`does not apply to the file it names (${(e as Error).message})`);
+    throw tampered(`does not apply to the file it names (${errorMessage(e)})`);
   }
   const text = joinLines(lines, eol);
   if (sha256Hex(text) !== p.result_sha256) throw tampered('does not give the text it names (its result hash)');

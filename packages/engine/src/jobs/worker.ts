@@ -46,6 +46,7 @@ import { recoverLeftovers } from './worker-recovery.js';
 import { handleSignals } from './worker-signals.js';
 import { captureJobRunner } from './worker-slots.js';
 import { workerPorts } from './worker-ports.js';
+import { errorMessage } from '@retake/core/base';
 
 export type { WorkerOptions } from './worker-record.js';
 
@@ -56,7 +57,7 @@ async function openForWorker(root: string, reads: WorkspaceReads, log: (message:
     // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
     ws = await openWorkspace({ root, agent: true, reads });
   } catch (e) {
-    log(`no workspace at ${root}: ${(e as Error).message}`);
+    log(`no workspace at ${root}: ${errorMessage(e)}`);
     return undefined;
   }
   return ws;

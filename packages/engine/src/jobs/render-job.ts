@@ -31,7 +31,7 @@ import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
-import { EngineError, toEngineError, errorMessage } from '../errors.js';
+import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
@@ -50,6 +50,9 @@ import type { Reviewer } from '../review/reviewer.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import { portsOf } from '../ports.js';
 import type { EnginePorts } from '../ports.js';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
+import { errorMessage } from '@retake/core/base';
 
 export interface RenderRequest {
   project: string;
@@ -303,6 +306,20 @@ export interface RecordedBrowser extends ProcessIdentity {
   user_data_dir?: string;
 }
 
+/** A browser.json: the browser's pid and start time (both needed to kill it), and its profile when it has one. */
+const RecordedBrowserSchema = z.object({ pid: z.number().int(), started_at: z.string().optional(), user_data_dir: z.string().optional() });
+
+/** A job folder's browser.json, or undefined when there is none or it is not one (nothing to kill then). */
+async function readRecordedBrowser(files: JobFiles, id: string): Promise<RecordedBrowser | undefined> {
+  let text: string;
+  try {
+    text = await readFile(files.browser(id), 'utf8');
+  } catch {
+    return undefined; // none, or not a job's id (no file of it to read)
+  }
+  return storedJson(RecordedBrowserSchema, text) as RecordedBrowser | undefined;
+}
+
 /** A temporary Chromium profile Remotion created (the only folder this cleanup removes). */
 function isTempProfile(dir: string): boolean {
   return dirname(dir) === tmpdir().replace(/\/$/, '') && /^puppeteer_dev_chrome_profile-[A-Za-z0-9]+$/.test(basename(dir));
@@ -339,12 +356,7 @@ export async function removePartials(dir: string, prefix: string): Promise<void>
  * it still runs as the same process (pid AND start time), and its temporary profile removed. Best effort.
  */
 export async function killRecordedBrowser(files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
-  let browser: RecordedBrowser | undefined;
-  try {
-    browser = JSON.parse(await readFile(files.browser(job.id), 'utf8')) as RecordedBrowser;
-  } catch {
-    browser = undefined;
-  }
+  const browser = await readRecordedBrowser(files, job.id);
   // signal.ts's rule (L5.14a fixes): never a pid of 0 / 1 / -1, this process or its own group.
   if (browser && signalablePid(browser.pid) && browser.started_at && (await isAlive(browser))) {
     for (const target of [-browser.pid, browser.pid]) {
@@ -427,7 +439,7 @@ export async function reviewInline(
       ctx.event({ type: 'log', level: 'info', message: `the review of ${renderId} was cancelled: the render is done` });
       return { review: { state: 'cancelled' } };
     }
-    const message = (e as Error).message.slice(0, 2000);
+    const message = errorMessage(e).slice(0, 2000);
     ctx.event({ type: 'log', level: 'warn', message: `the review of ${renderId} did not finish: the render is done (review it again: MCP review, or retake review)` });
     return { review: { state: 'failed' }, error: message };
   }

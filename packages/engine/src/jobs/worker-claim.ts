@@ -2,7 +2,6 @@
  * The open jobs a jobs worker (worker.ts) sees, and the claim of one: re-read, refused at once when its record lies
  * about its kind or its approvals were taken before, given back unrun (its claim and the approvals its claim took).
  */
-import { errorMessage } from '../errors.js';
 import { isFilming } from './job-input.js';
 import { stampOf } from '../clock.js';
 import { buildStamp } from './build.js';
@@ -13,6 +12,7 @@ import type { JobRecord } from './types.js';
 import { approvalsUsedDir, consumeApprovals, restoreApprovals } from './signing.js';
 import { closeJob, persistDerived } from './worker-finish.js';
 import type { Worker } from './worker-record.js';
+import { errorMessage } from '@retake/core/base';
 
 /**
  * The open jobs as `pick` reads them; what a dead worker or job process left is persisted on the way (critique M2:

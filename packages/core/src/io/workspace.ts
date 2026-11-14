@@ -9,7 +9,7 @@ import { FORMAT_VERSIONS } from '../formats.js';
 import { ConfigError, hasErrors, issuesMessage } from '../issues.js';
 import { WorkspaceFileSchema } from '../schemas/project.js';
 import type { WorkspaceConfig } from '../types.js';
-import { expandHome } from '../util.js';
+import { errorMessage, expandHome } from '../util.js';
 import { checkYamlDocument } from '../validation/document.js';
 import { WORKSPACE_FILE } from '../workspace.js';
 import { insideBundle, isRelativeToolPath } from './bundle.js';
@@ -70,7 +70,7 @@ export async function loadWorkspaceConfigOn(disk: WorkspaceDisk, root: string): 
     text = (await disk.readFile(file)).toString('utf8');
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw new ConfigError(`cannot read ${file}: ${(e as Error).message}`, [], file);
+      throw new ConfigError(`cannot read ${file}: ${errorMessage(e)}`, [], file);
     }
     text = '';
   }

@@ -25,6 +25,7 @@ import { checkHooks } from './hooks.js';
 import { RESERVED_PAGE_KEYS, clearTextPassword, machinePath } from './project.js';
 import { checkTokens } from './tokens.js';
 import type { TokenScope } from './tokens.js';
+import { decodeOrKeep, errorMessage } from '../util.js';
 
 /** Compose files read when `compose.files` is absent. */
 export const DEFAULT_COMPOSE_FILES: readonly string[] = ['compose.yaml'];
@@ -319,7 +320,7 @@ function composeServices(files: readonly string[], base: IssuePath, written: boo
     try {
       doc = parseYamlText(text);
     } catch (e) {
-      ctx.error(at, `compose file "${f}" is not valid YAML: ${(e as Error).message.split('\n')[0]}`);
+      ctx.error(at, `compose file "${f}" is not valid YAML: ${errorMessage(e).split('\n')[0]}`);
       complete = false;
       return;
     }
@@ -497,7 +498,7 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
     if (!isObj(db) || typeof db.url !== 'string' || ctx.broken(dp)) continue;
     checkDatabaseUrl(db.url, dp, key, ctx);
     const plain = clearTextPassword(db.url);
-    const password = plain ? decodeURIComponentSafe(plain.password) : null;
+    const password = plain ? decodeOrKeep(plain.password) : null;
     const unmasked = password === null ? null : unmaskedPasswordReason(password);
     const weak = password === null || unmasked ? null : weakPasswordReason(password);
     if (unmasked) ctx.error(dp, unmasked);
@@ -591,14 +592,6 @@ function conflictingServiceEnv(services: Record<string, unknown>): Map<string, s
   const out = new Map<string, string[]>();
   for (const [k, byValue] of seen) if (byValue.size > 1) out.set(k, [...byValue.values()].flat());
   return out;
-}
-
-function decodeURIComponentSafe(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
 }
 
 /** A health path a URL parser would read as another host ("//host/up", "/\\host/up"): it must stay on the service's url. */
@@ -743,7 +736,7 @@ function checkSnapshot(r: Record<string, unknown>, databases: Record<string, unk
     ctx.error(at, `database ${key} is not a Postgres URL (postgres://…): snapshots are Postgres template copies (other databases: strategy reseed)`);
     return;
   }
-  const name = decodeURIComponentSafe(u.pathname.replace(/^\//, ''));
+  const name = decodeOrKeep(u.pathname.replace(/^\//, ''));
   if (!name) ctx.error(['databases', key, 'url'], `database ${key}: the URL names no database (postgres://…/<db>): a snapshot drops and recreates that database`);
   else if (SYSTEM_DATABASES.has(name.toLowerCase())) {
     ctx.error(['databases', key, 'url'], `database ${key} is "${name}": a snapshot reset drops and recreates its database at every take — give the sandbox a database of its own`);

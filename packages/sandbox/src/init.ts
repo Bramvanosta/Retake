@@ -15,6 +15,7 @@ import type { LoadedProject } from '@retake/core/model';
 import type { BundleInfo } from '@retake/core/io';
 import { SandboxError } from './errors.js';
 import { probePort, sandboxPorts } from './ports.js';
+import { errorMessage } from '@retake/core/base';
 
 /** The scaffold's files (next to src/ and dist/). */
 export const SCAFFOLD_DIR = fileURLToPath(new URL('../scaffold/docker-compose/', import.meta.url));
@@ -174,7 +175,7 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
   try {
     after = addSandboxEntry(before, env, `${posixPath(folder)}/sandbox.yaml`);
   } catch (e) {
-    throw new SandboxError(`${(e as Error).message} — the scaffold was written to ${folder}/; add \`sandboxes: {${env}: ${posixPath(folder)}/sandbox.yaml}\` by hand`);
+    throw new SandboxError(`${errorMessage(e)} — the scaffold was written to ${folder}/; add \`sandboxes: {${env}: ${posixPath(folder)}/sandbox.yaml}\` by hand`);
   }
   if (after !== before) await opts.write(projectFile, after, before);
   return { env, dir, manifest, files, ports: { app, db, mailpit }, projectYaml: after === before ? 'kept' : 'added' };

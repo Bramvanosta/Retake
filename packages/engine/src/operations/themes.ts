@@ -56,6 +56,7 @@ import { projectSlug, templateName } from './schema.js';
 import { WAIT_MAX_S, waitJob, waitS } from './wait.js';
 import { plural } from './words.js';
 import { EngineError } from '../errors.js';
+import { errorMessage } from '@retake/core/base';
 
 // ── MCP's theme operations ──────────────────────────────────────────────────
 
@@ -482,7 +483,7 @@ export const siteList = defineOperation({
           };
         }
       } catch (e) {
-        out.url_problem = pathFree(firstErrorLine(e instanceof Error ? e.message : String(e)), engine.workspace.root);
+        out.url_problem = pathFree(firstErrorLine(errorMessage(e)), engine.workspace.root);
       }
     }
     // The command keeps the workspace (`retake -C <root>`): the person copies it into a terminal, like an error's `fix`.

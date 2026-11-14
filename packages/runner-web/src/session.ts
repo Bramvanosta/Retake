@@ -44,7 +44,7 @@ import type {
   ScrollOp,
 } from './kit/types.js';
 import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core/model';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
 
 export interface SessionOptions {
   /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
@@ -226,12 +226,12 @@ export const CURSOR_BINDING = '__retakeCursor';
 export { launchTarget } from './launch.js';
 
 function isContextDestroyed(e: unknown): boolean {
-  const m = e instanceof Error ? e.message : String(e);
+  const m = errorMessage(e);
   return /Execution context was destroyed|Cannot find context with specified id|frame was detached|because of a navigation/i.test(m);
 }
 
 function cleanEvalError(e: unknown): string {
-  const m = e instanceof Error ? e.message : String(e);
+  const m = errorMessage(e);
   return m
     .replace(/^page\.evaluate: /, '')
     .replace(/^Error: /, '')
@@ -959,7 +959,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
     });
   } catch (e) {
     if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
-    const m = e instanceof Error ? e.message : String(e);
+    const m = errorMessage(e);
     const hint = /ProcessSingleton|profile.*in use|SingletonLock/i.test(m) ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)` : '';
     throw new RunnerError(`could not launch Chromium${spec.name ? ` (persona ${spec.name})` : ''}${hint}: ${m.split('\n')[0]}`, { cause: e });
   }
@@ -1039,7 +1039,7 @@ export async function armFileGuard(context: BrowserContext, persona = ''): Promi
 }
 
 function errorText(e: unknown): string {
-  return (e instanceof Error ? e.message : String(e)).split('\n')[0];
+  return errorMessage(e).split('\n')[0];
 }
 
 async function closeRealm(r: Realm): Promise<void> {
@@ -1067,7 +1067,7 @@ export async function applyStorageState(context: BrowserContext, from: StorageSt
     try {
       state = JSON.parse(await readFile(from, 'utf8')) as StorageStateFile;
     } catch (e) {
-      throw new RunnerError(`cannot read storage_state ${from}: ${(e as Error).message}`);
+      throw new RunnerError(`cannot read storage_state ${from}: ${errorMessage(e)}`);
     }
   } else state = from;
   if (state.cookies?.length) await context.addCookies(state.cookies);
@@ -1082,7 +1082,7 @@ export async function applyStorageState(context: BrowserContext, from: StorageSt
   try {
     await restoreIndexedDb(context, state.origins ?? []);
   } catch (e) {
-    throw new RunnerError(`the saved session's IndexedDB could not be restored: ${(e as Error).message.split('\n')[0]}`, { cause: e });
+    throw new RunnerError(`the saved session's IndexedDB could not be restored: ${errorMessage(e).split('\n')[0]}`, { cause: e });
   }
 }
 

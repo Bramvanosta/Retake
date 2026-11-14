@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative } from 'node:path';
-import { expandHome, RETAKE_VERSION } from '@retake/core/base';
+import { expandHome, RETAKE_VERSION, HIDDEN_CHARS } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { agentArgsProblems, agentProgramProblem, workspaceFolders } from '@retake/core/policy';
 import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, defaultRetakeHome, statePath } from '@retake/core/project';
@@ -995,9 +995,9 @@ export function pastePath(p: string): string {
   return plain(t) ? t : zshQuote(t);
 }
 
-/** A worker lock's text shown in this terminal (review c A-L4): controls and invisible characters out, capped. */
-function lockText(s: string): string {
-  return s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '?').slice(0, 300);
+/** A worker lock's text shown in this terminal (review c A-L4): each hidden character (core hidden-chars.ts) as `?`, capped. */
+export function lockText(s: string): string {
+  return s.replace(new RegExp(`[${HIDDEN_CHARS}]`, 'gu'), '?').slice(0, 300);
 }
 
 /**

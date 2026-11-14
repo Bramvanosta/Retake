@@ -35,6 +35,9 @@ import { START_TOLERANCE_MS, processTable, readPlainFile, retakeHome, signalStat
 import type { ProcessIdentity } from './proc.js';
 import { processStart } from './proc.js';
 import { stateDir } from '../workspace-state.js';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
+import { errorMessage } from '@retake/core/base';
 
 /** How often an owner rewrites its marker's time (ms). */
 export const BEAT_MS = 2_000;
@@ -60,6 +63,14 @@ export interface MarkerRecord {
   source: 'job' | 'cli';
   /** The take is paused (L4.4): it films nothing, so it holds nothing. */
   paused?: boolean;
+}
+
+/** What makes a marker one: a version, and a pid that can be a process's. */
+const MarkerSchema = z.object({ v: z.number().min(1), pid: z.number().int().positive(), started_at: z.unknown().optional() });
+
+/** A marker file's text as a marker, or undefined when it is not one (skipped, as a removed one). */
+export function readMarker(text: string): MarkerRecord | undefined {
+  return storedJson(MarkerSchema, text) as MarkerRecord | undefined;
 }
 
 let darwinTemp: string | null | undefined;
@@ -118,7 +129,7 @@ export function capturesDir(env: EngineEnv): { dir: string | null; problem?: str
     if (uid !== undefined && st.uid !== uid) return { dir: null, problem: `the captures folder ${loc.dir} belongs to another user: captures first is off` };
     if ((st.mode & 0o077) !== 0) return { dir: null, problem: `the captures folder ${loc.dir} is open to other users (mode ${(st.mode & 0o777).toString(8)}): captures first is off` };
   } catch (e) {
-    return { dir: null, problem: `the captures folder ${loc.dir} cannot be used (${(e as Error).message}): captures first is off` };
+    return { dir: null, problem: `the captures folder ${loc.dir} cannot be used (${errorMessage(e)}): captures first is off` };
   }
   return { dir: loc.dir, ...(loc.problem ? { problem: loc.problem } : {}) };
 }
@@ -377,13 +388,8 @@ export class FilmingWatch {
       // No link followed, never blocked by a FIFO, never a large file read whole (review A L1).
       const read = readPlainFile(file, MARKER_MAX_BYTES, { verify: (st) => ((mtime = st.mtimeMs), true) });
       if (!read.ok) continue; // removed meanwhile, or not a marker
-      let rec: MarkerRecord;
-      try {
-        rec = JSON.parse(read.bytes.toString('utf8')) as MarkerRecord;
-      } catch {
-        continue;
-      }
-      if (!rec || typeof rec !== 'object' || !(typeof rec.v === 'number' && rec.v >= 1) || !Number.isInteger(rec.pid) || rec.pid <= 0) continue;
+      const rec = readMarker(read.bytes.toString('utf8'));
+      if (!rec) continue;
       // A time in the future is no fresher than one in the past (review A L2: a forged or skewed marker goes stale too).
       const stale = !(Math.abs(now - mtime) <= staleMs);
       let alive = !stale && sig(rec.pid) === 'alive';

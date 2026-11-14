@@ -9,7 +9,7 @@
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
 import type { Secrets } from './secrets/secrets.js';
-import { showHiddenCharsLine } from '@retake/core/base';
+import { showHiddenCharsLine, errorMessage } from '@retake/core/base';
 import { hookApprovalReason, hookKind } from '@retake/core/hooks';
 import { agentTrustProblems, navigationTrustProblems } from '@retake/core/scenario';
 import type { WorkPolicy } from '@retake/core/policy';
@@ -345,7 +345,7 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
   try {
     outcome = await approver.approve(req);
   } catch (e) {
-    outcome = { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+    outcome = { approved: false, reason: 'error', message: errorMessage(e) };
   }
   if (!outcome.approved) {
     const why =
@@ -397,7 +397,7 @@ export async function takeSiteApproval(req: SiteApprovalRequest, approver: Appro
   try {
     outcome = await approver.approveSite(req);
   } catch (e) {
-    outcome = { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+    outcome = { approved: false, reason: 'error', message: errorMessage(e) };
   }
   if (!outcome.approved) {
     throw new EngineError('refused', `the site extraction of ${req.href} was not started: ${outcomeText(outcome)}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
@@ -498,7 +498,7 @@ export async function takePruneApproval(req: PruneApprovalRequest, approver: App
   try {
     outcome = await approver.approvePrune(req);
   } catch (e) {
-    outcome = { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+    outcome = { approved: false, reason: 'error', message: errorMessage(e) };
   }
   if (!outcome.approved) {
     throw new EngineError('refused', `nothing was deleted: ${outcomeText(outcome)} — ${what}. Do not retry on your own: ask the user, or let them run it in a terminal`, {

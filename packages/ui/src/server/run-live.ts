@@ -44,7 +44,7 @@ import type { JobState } from '@retake/engine';
 import { ERROR_STATUS, EngineError, FINISHED_JOB_STATES, RunFolder, openLiveFeed, openProjectBySlug, readLiveChannel, readPlainRange, securityHeaders, toEngineError } from '@retake/engine';
 import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
 import { sseText } from './live.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, decodeOrKeep } from '@retake/core/base';
 
 /** Run streams served at once, at most. */
 export const RUN_LIVE_STREAMS_MAX = 2;
@@ -233,12 +233,7 @@ export const URL_MASK = '•••';
  * e-mail address, a long hex string (a UUID), a JWT, a long run of letters with digits (base64url).
  */
 function secretSegment(raw: string): boolean {
-  let v = raw;
-  try {
-    v = decodeURIComponent(raw);
-  } catch {
-    /* kept as written */
-  }
+  const v = decodeOrKeep(raw);
   if (/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(v)) return true;
   if (v.length < 16) return false;
   if (/^[0-9a-f]{32,}$/i.test(v.replace(/-/g, ''))) return true;

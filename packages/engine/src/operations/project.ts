@@ -1,13 +1,8 @@
-/**
- * The project operations (moved from the MCP server's tools/project.ts): engine_info, project_list, project_get,
- * project_update_readme, which the shells share (L7.13); project_create and project_prune, MCP's (L7.18).
- */
-import { realpathSync } from 'node:fs';
 import { z } from 'zod';
 import { pathInside } from '@retake/core/base';
 import { zThemeName } from '@retake/core/ids';
 import { sandboxAdvice, sandboxAdviceText } from '@retake/core/sandbox';
-import { engineLocation, staleEngine } from '@retake/core/io';
+import { engineLocation, realpathOr, staleEngine } from '@retake/core/io';
 import { heldWork, heldWorkWords } from '../jobs/held.js';
 import { otherCopy } from '../jobs/lock.js';
 import { README_MAX_CHARS } from '../projects.js';
@@ -17,20 +12,6 @@ import { defineOperation } from './define.js';
 import type { ToolAnnotations } from './define.js';
 import { envName, ifMatch, projectSlug } from './schema.js';
 import { plural } from './words.js';
-
-/**
- * The real path of `x` (macOS /tmp → /private/tmp; the case as given), or `x` itself when it does not resolve. Kept
- * instead of core's realPathOf (the native call: the case as stored on disk, a missing tail joined to its real parent)
- * so that engine_info's "started outside the workspace" answers exactly as before; core test/path-inside.test.ts pins
- * them.
- */
-function realOrSame(x: string): string {
-  try {
-    return realpathSync(x);
-  } catch {
-    return x;
-  }
-}
 
 export const engineInfo = defineOperation({
   name: 'engine_info',
@@ -51,7 +32,7 @@ export const engineInfo = defineOperation({
     // L5.14: what a filming take holds of this workspace's jobs (fixed words and a kind: no other workspace named).
     const held = heldWork(await engine.jobs.list({ states: ['queued', 'running'], limit: 50 }));
     const startedIn = process.cwd();
-    const elsewhere = !pathInside(startedIn, info.root, { real: realOrSame, dotDotPrefix: true });
+    const elsewhere = !pathInside(startedIn, info.root, { real: (x: string) => realpathOr(x, x), dotDotPrefix: true });
     // Hotfix v0.2.5 (field point 20): an engine updated under this process (the app updated, the checkout rebuilt).
     const stale = staleEngine(info.version);
     return {

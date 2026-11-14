@@ -47,6 +47,7 @@ import { launchCredentials, launchOptions, refuseUnsandboxed } from './launch.js
 import { DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
 import { armWriteGuard, enableServiceWorkerRequests } from './write-guard.js';
+import { decodeOrKeep, errorMessage } from '@retake/core/base';
 
 type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
 
@@ -235,13 +236,7 @@ class SecretMemory {
  * (`single-origin-2024`) is none of these.
  */
 export function looksLikeSecretSegment(raw: string): boolean {
-  let s = raw;
-  try {
-    s = decodeURIComponent(raw);
-  } catch {
-    s = raw;
-  }
-  s = s.trim();
+  const s = decodeOrKeep(raw).trim();
   if (/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(s)) return true;
   if (s.length < 16) return false;
   if (/^[0-9a-f]{32,}$/i.test(s.replace(/-/g, ''))) return true;
@@ -665,7 +660,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     throw new CancelledError('recording cancelled: nothing was kept');
   }
   if (driveError) throw driveError;
-  if (streamError) throw new RunnerError(`the recording's events could not be written: ${(streamError as Error).message}`);
+  if (streamError) throw new RunnerError(`the recording's events could not be written: ${errorMessage(streamError)}`);
   if (dropped.new_page) warnings.push(`${dropped.new_page} tab(s) or popup(s) opened during the recording: what happened there is not recorded`);
   if (dropped.frame) warnings.push('actions inside a frame are not recorded');
   if (dropped.sign_in) warnings.push(`${dropped.sign_in} action(s) on a sign-in page were not recorded`);

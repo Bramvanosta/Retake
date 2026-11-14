@@ -12,7 +12,8 @@
  */
 import { parse as parseYamlText } from 'yaml';
 import { z } from 'zod';
-import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './printable.js';
+import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, stripHidden } from './hidden-chars.js';
+import { printableText } from './printable.js';
 import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, renderIdOf } from './id-grammar.js';
 import { newUlidId, zRenderId, zRunId } from './ids.js';
 import { hunkOrderProblem, hunkStats } from './line-diff.js';
@@ -41,22 +42,23 @@ export const COMMENT_TEXT_MAX = 2000;
 /** Longest author name. */
 export const COMMENT_AUTHOR_MAX = 80;
 
-/** Control characters but the line feed (C0, DEL, C1), bidi controls and invisible format characters (core brand.ts). */
-const FORBIDDEN_CLASS = `[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`;
-const FORBIDDEN_TEXT = new RegExp(FORBIDDEN_CLASS, 'u');
-const FORBIDDEN_TEXT_G = new RegExp(`${FORBIDDEN_CLASS}+`, 'gu');
+/** The line feed: the one hidden character a comment keeps. */
+const KEEP_LF: ReadonlySet<string> = new Set(['\n']);
+/**
+ * What a stored comment may not hold, as earlier versions wrote them: controls but the line feed (C0, DEL, C1), bidi
+ * controls and invisible format characters. A thread written before commentText stripped the whole hidden class still
+ * reads; what is written now holds none of it.
+ */
+const FORBIDDEN_TEXT = new RegExp(`[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`, 'u');
 
 /**
- * A comment, reply or note as stored: line breaks normalised to `\n` (kept), tabs as spaces, other control characters
- * (C0, DEL, C1), bidi controls and invisible format characters (zero-width space, word joiner, BOM, tag characters)
- * removed, trailing spaces of each line and blank lines at both ends trimmed. The one sanitiser of the CLI's and the
- * MCP's input; the length is checked after it (`commentTextProblem`).
+ * A comment, reply or note as stored: line breaks normalised to `\n` (kept), tabs as spaces, every other hidden
+ * character (hidden-chars.ts: controls, bidi and format characters, zero widths, tags, fillers…; an emoji sequence's
+ * joiner and selector kept) removed, trailing spaces of each line and blank lines at both ends trimmed. The one
+ * sanitiser of the CLI's and the MCP's input; the length is checked after it (`commentTextProblem`).
  */
 export function commentText(s: string): string {
-  return s
-    .replace(/\r\n?/g, '\n')
-    .replace(/\t/g, ' ')
-    .replace(FORBIDDEN_TEXT_G, '')
+  return stripHidden(s.replace(/\r\n?/g, '\n').replace(/\t/g, ' '), { keep: KEEP_LF, spaced: false })
     .split('\n')
     .map((l) => l.replace(/\s+$/, ''))
     .join('\n')
@@ -71,7 +73,7 @@ export function commentTextProblem(text: string, o: { what?: string; required?: 
   return null;
 }
 
-/** An author name as stored (core printableText: control and bidi characters out, spaces collapsed), or null when empty / too long. */
+/** An author name as stored (core printableText: hidden characters out, spaces collapsed), or null when empty / too long. */
 export function commentAuthorName(s: string): string | null {
   const name = printableText(s);
   return name && name.length <= COMMENT_AUTHOR_MAX ? name : null;
@@ -181,6 +183,15 @@ const storedText = (max: number) =>
     .refine((s) => !FORBIDDEN_TEXT.test(s), 'control, bidi or invisible characters (only line breaks are kept)');
 const anchorString = z.string().min(1).max(200);
 
+const FORBIDDEN_NAME = new RegExp(`[\\u0000-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`, 'u');
+/**
+ * A stored author name, as earlier versions wrote them: no control, bidi or invisible format character, single spaces,
+ * none at either end. A thread written before commentAuthorName stripped the whole hidden class still reads.
+ */
+function storedNameOk(s: string): boolean {
+  return !FORBIDDEN_NAME.test(s) && s.replace(/\s+/g, ' ').trim() === s;
+}
+
 /** The channels an entry is written through (CommentAuthorSchema.via). */
 export const COMMENT_VIAS = ['cli', 'studio', 'mcp'] as const;
 export type CommentVia = (typeof COMMENT_VIAS)[number];
@@ -192,11 +203,7 @@ export const CommentAuthorSchema = z.strictObject({
    * it (BL-106: person presence).
    */
   via: z.enum(COMMENT_VIAS),
-  name: z
-    .string()
-    .min(1)
-    .max(COMMENT_AUTHOR_MAX)
-    .refine((s) => printableText(s) === s, 'a printable name (no control or bidi characters, single spaces)'),
+  name: z.string().min(1).max(COMMENT_AUTHOR_MAX).refine(storedNameOk, 'a printable name (no control or bidi characters, single spaces)'),
 });
 export type CommentAuthor = z.output<typeof CommentAuthorSchema>;
 

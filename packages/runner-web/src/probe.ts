@@ -9,6 +9,7 @@ import type { BrowserSandbox } from './launch.js';
 import { DEFAULT_BROWSER_ARGS, gpuInfoOf } from './session.js';
 import type { GpuInfo, SystemInfoReply } from './session.js';
 import { wallNow } from './util.js';
+import { errorMessage } from '@retake/core/base';
 
 /** What `retake doctor` learns about the browser the runner would launch. */
 export interface ChromiumProbe {
@@ -79,7 +80,7 @@ export async function probeChromium(browser: BrowserConfig | undefined, opts: { 
       /* an older browser: no GPU line */
     }
   } catch (e) {
-    out.error = (e instanceof Error ? e.message : String(e)).split('\n')[0];
+    out.error = errorMessage(e).split('\n')[0];
   } finally {
     await b?.close().catch(() => undefined);
   }

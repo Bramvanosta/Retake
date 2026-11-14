@@ -53,6 +53,7 @@ import { readFacts, sampleColors, scrollToY } from './page-script.js';
 import type { LogoCandidate, PageFacts, SampledColors } from './page-script.js';
 import { ProxyRefusalError, SiteProxy } from './proxy.js';
 import type { ProxyRefusal, SiteProxyOptions, SiteProxyStats } from './proxy.js';
+import { errorMessage } from '@retake/core/base';
 
 export const SITE_REPORT_VERSION = 1;
 export const SITE_REPORT_FILE = 'site.json';
@@ -328,7 +329,11 @@ export function imageMime(b: Buffer): string | null {
   if (b.length >= 6 && /^GIF8[79]a/.test(b.toString('latin1', 0, 6))) return 'image/gif';
   if (b.length >= 4 && b.readUInt32BE(0) === 0x00000100) return 'image/x-icon';
   if (b.length >= 12 && b.toString('latin1', 4, 12) === 'ftypavif') return 'image/avif';
-  const head = b.subarray(0, 512).toString('utf8').replace(/^﻿/, '').trimStart();
+  const head = b
+    .subarray(0, 512)
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .trimStart();
   if (/^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) return 'image/svg+xml';
   return null;
 }
@@ -526,7 +531,7 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
       resp = await bounded(page.goto(pre.final, { waitUntil: 'load', timeout: 20_000 }), 25_000, 'the page load', stop.signal);
     } catch (e) {
       if (stop.signal.aborted) throw e;
-      const m = (e as Error).message.split('\n')[0];
+      const m = errorMessage(e).split('\n')[0];
       if (!/Timeout|did not answer/i.test(m) || page.url() === 'about:blank') throw new RunnerError(m.replace(/^page\.goto: /, ''));
       report.warnings.push('the page did not finish loading in 20 s: read as it was');
     }
@@ -705,7 +710,7 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
         `the page redirects to another host (its URL is the last of untrusted.redirect_chain): only ${o.host} and its www / apex sibling are read — that URL is extracted only once the user approves it (template_from_site with it)`,
       );
     }
-    report.untrusted.error = (why instanceof ProxyRefusalError ? why.message : ((why as Error).message ?? String(why))).split('\n')[0].slice(0, 500);
+    report.untrusted.error = (why instanceof ProxyRefusalError ? why.message : errorMessage(why)).split('\n')[0].slice(0, 500);
     log(`site extraction of ${o.host} failed: ${report.untrusted.error}`);
   } finally {
     clearTimeout(deadline);

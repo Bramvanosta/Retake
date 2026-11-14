@@ -24,7 +24,7 @@ import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate, runMediaTool } from '@retake/core/io';
-import { pathInside } from '@retake/core/base';
+import { errorMessage, pathInside } from '@retake/core/base';
 import type { LoadedTemplate, RenderSettings, WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo } from '@retake/core/render';
@@ -343,7 +343,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
         ...(o.gpuInfo ? { gpuInfo: o.gpuInfo } : {}),
       });
     } catch (e) {
-      throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${(e as Error).message.split('\n')[0]}`);
+      throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${errorMessage(e).split('\n')[0]}`);
     }
     const puppeteer = opened.puppeteer;
     let guard: NetworkGuard | undefined;
@@ -359,7 +359,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
           guard = await armNetworkGuard(puppeteer, { assetPrefix: o.assetPrefix, bundlePort: port });
           remotion = { port, onDownload: (src: string) => guard!.onDownload(src) };
         } catch (e) {
-          throw new RenderError(`the previews cannot run with their network guard: ${(e as Error).message}`);
+          throw new RenderError(`the previews cannot run with their network guard: ${errorMessage(e)}`);
         }
       }
     } catch (e) {
@@ -622,7 +622,7 @@ async function previewSession<J extends SessionJob, R>(
         results.push({ job: item.job, value: await each({ renderer, scratch, workPolicy: opts.workPolicy }, item, i) });
       } catch (e) {
         if (errorKindOf(e) === 'cancelled' || opts.signal?.aborted) throw new RenderCancelledError();
-        if (isDiskFullError(e)) throw new RenderDiskFullError(`preview of ${item.job.target.id}: ${(e as Error).message}`);
+        if (isDiskFullError(e)) throw new RenderDiskFullError(`preview of ${item.job.target.id}: ${errorMessage(e)}`);
         fail(item.job, e, 'its preview failed', 'render');
         if (i < built.length - 1) {
           for (const w of renderer.warnings()) warnings.add(w);
@@ -639,8 +639,8 @@ async function previewSession<J extends SessionJob, R>(
   } catch (e) {
     if (e instanceof RenderError) throw e;
     if (opts.signal?.aborted || errorKindOf(e) === 'cancelled') throw new RenderCancelledError();
-    if (isDiskFullError(e)) throw new RenderDiskFullError(`component previews: ${(e as Error).message}`);
-    throw new RenderError(`component previews failed: ${(e as Error).message}`);
+    if (isDiskFullError(e)) throw new RenderDiskFullError(`component previews: ${errorMessage(e)}`);
+    throw new RenderError(`component previews failed: ${errorMessage(e)}`);
   } finally {
     await renderer?.close().catch(() => undefined);
     await server.close();
@@ -707,7 +707,7 @@ async function writeReadmeOf(target: PreviewComponentTarget, meta: PreviewMeta, 
     await readmes.write(file, mergePreviewReadme(existing ?? undefined, previewReadmeBlock(target.manifest, meta)), existing);
   } catch (e) {
     if (isDiskFullError(e)) throw e;
-    throw new RenderError(`preview of ${target.id}: its ${PREVIEW_FILE} and ${PREVIEW_META_FILE} were written, its README.md was not — ${(e as Error).message}`);
+    throw new RenderError(`preview of ${target.id}: its ${PREVIEW_FILE} and ${PREVIEW_META_FILE} were written, its README.md was not — ${errorMessage(e)}`);
   }
   return file;
 }

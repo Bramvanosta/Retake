@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { printableText, bestEffort } from '@retake/core/base';
+import { printableText, bestEffort, errorMessage } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
 import {
   captionRegion,
@@ -58,6 +58,7 @@ import type { DiffFrame, Finding, ReviewDiff, ReviewFiles, ReviewOptions, Review
 import { ReviewCancelledError } from './types.js';
 import { summaryLine } from './report-lines.js';
 import { reviewImages, safeName } from './images.js';
+import { pidExists } from '@retake/core/io';
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
 const MAX_DIFF_PAIRS = 30;
@@ -105,16 +106,6 @@ function aside(name: string, id: string): { kind: 'tmp' | 'old'; pid: number } |
   return m ? { kind: m[1] as 'tmp' | 'old', pid: Number(m[2]) } : undefined;
 }
 
-function pidAlive(pid: number): boolean {
-  if (pid === process.pid) return true;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-
 /**
  * Put a review folder back in order after a review that died (a killed process): the previous review set aside for the
  * swap comes back when no review took its place, and the temporary folders of dead processes are removed. A review
@@ -131,7 +122,7 @@ export async function recoverReviewDir(finalDir: string): Promise<void> {
   }
   for (const name of names.sort().reverse()) {
     const a = aside(name, id);
-    if (!a || pidAlive(a.pid)) continue;
+    if (!a || pidExists(a.pid)) continue;
     const dir = join(parent, name);
     if (a.kind === 'old' && !existsSync(finalDir)) await bestEffort(rename(dir, finalDir), 'the previous review stays where it was: the new one is written beside it');
     else await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -197,7 +188,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     try {
       registry = await loadComponentRegistry({ root: project.root });
     } catch (e) {
-      notes.push({ severity: 'info', code: 'registry-unavailable', message: `component registry not loaded (${(e as Error).message}): text slot limits not checked` });
+      notes.push({ severity: 'info', code: 'registry-unavailable', message: `component registry not loaded (${errorMessage(e)}): text slot limits not checked` });
     }
   }
   const { timeline } = await renderTimeline(project, record);
@@ -326,7 +317,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
         notes.push({
           severity: 'info',
           code: 'capture-unreadable',
-          message: `the capture ${captureFile} could not be read (${(e as Error).message}): scene starts checked on the rendered frames only`,
+          message: `the capture ${captureFile} could not be read (${errorMessage(e)}): scene starts checked on the rendered frames only`,
         });
       }
     } else {
@@ -380,7 +371,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
       } catch (e) {
         check();
         diff = { ...base, compared: 0, changed_frames: [] };
-        notes.push({ severity: 'info', code: 'previous-unreadable', message: `the previous render ${previous.id} could not be read (${(e as Error).message}): plan diff only` });
+        notes.push({ severity: 'info', code: 'previous-unreadable', message: `the previous render ${previous.id} could not be read (${errorMessage(e)}): plan diff only` });
       }
     }
 

@@ -9,6 +9,7 @@ import { hostMatches, normalizeAllowEntry, normalizeHost, networkHost } from './
 import type { ResolvedEnvironment, TimelineWrite, WriteMockSpec, WriteRuleSpec } from './types.js';
 import { GUIDE } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
+import { errorMessage } from './util.js';
 
 /** Methods that never write (never stopped). */
 export const READ_METHODS: readonly string[] = ['GET', 'HEAD', 'OPTIONS'];
@@ -223,7 +224,7 @@ export function requestPatternError(source: string): string | null {
     parseRequestPattern(source);
     return null;
   } catch (e) {
-    return (e as Error).message;
+    return errorMessage(e);
   }
 }
 

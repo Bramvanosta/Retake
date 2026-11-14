@@ -18,6 +18,8 @@ import { readPlainFile } from '@retake/core/io';
 import type { RecordAnnotations } from '@retake/core/run';
 import type { JobClient } from './jobs/job-input.js';
 import type { ProcessIdentity } from './jobs/proc.js';
+import { storedJson } from './stored-json.js';
+import { z } from 'zod';
 
 export const RECORD_META_FILE = 'meta.json';
 export const RECORD_STUDIO_FILE = 'studio.json';
@@ -61,57 +63,47 @@ export async function writeRecordMeta(dir: string, meta: RecordMeta): Promise<vo
   await chmod(file, 0o600);
 }
 
-const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
+/** A text of 1 to `max` characters. */
+const text = (max: number) => z.string().min(1).max(max);
 
-/** meta.json checked field by field (null: missing, a link, too large, or not a meta file of this recording). */
+/** A meta.json of this version, each member of its shape (the reader then checks it names this recording). */
+const RecordMetaSchema = z.object({
+  v: z.literal(1),
+  rec_id: z.string().regex(RECORD_ID_RE),
+  job_id: z.string().regex(JOB_ID_RE).nullable(),
+  submitted_by: z.enum(JOB_CLIENTS),
+  name: text(100).regex(SLUG_RE),
+  env: text(100),
+  persona: text(100).nullable(),
+  access: z.enum(['read-only', 'read-write']),
+  page: text(100),
+  path: text(2048),
+  started_at: text(40).refine(isIsoUtcDate),
+  max_ms: z.number().int().positive().nullable(),
+  owner: z.object({ pid: z.number().int().positive(), started_at: text(40).optional() }),
+});
+
+/** meta.json read through its schema (null: missing, a link, too large, or not a meta file of this recording). */
 export function readRecordMeta(dir: string, id: string): RecordMeta | null {
   const r = readPlainFile(join(dir, RECORD_META_FILE), RECORD_META_MAX_BYTES);
   if (!r.ok) return null;
-  let m: Record<string, unknown>;
-  try {
-    m = JSON.parse(r.bytes.toString('utf8')) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-  if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
-  const owner = m.owner as Record<string, unknown> | undefined;
-  const ok =
-    m.v === 1 &&
-    m.rec_id === id &&
-    RECORD_ID_RE.test(id) &&
-    (m.job_id === null || (typeof m.job_id === 'string' && JOB_ID_RE.test(m.job_id))) &&
-    (JOB_CLIENTS as readonly unknown[]).includes(m.submitted_by) &&
-    str(m.name, 100) &&
-    SLUG_RE.test(m.name) &&
-    str(m.env, 100) &&
-    (m.persona === null || str(m.persona, 100)) &&
-    (m.access === 'read-only' || m.access === 'read-write') &&
-    str(m.page, 100) &&
-    str(m.path, 2048) &&
-    str(m.started_at, 40) &&
-    isIsoUtcDate(m.started_at) &&
-    (m.max_ms === null || (typeof m.max_ms === 'number' && Number.isInteger(m.max_ms) && m.max_ms > 0)) &&
-    !!owner &&
-    typeof owner === 'object' &&
-    typeof owner.pid === 'number' &&
-    Number.isInteger(owner.pid) &&
-    owner.pid > 0 &&
-    (owner.started_at === undefined || str(owner.started_at, 40));
-  if (!ok) return null;
+  const m = storedJson(RecordMetaSchema, r.bytes.toString('utf8')) as RecordMeta | undefined;
+  if (!m || m.rec_id !== id) return null;
+  // Its members only, as this version holds them.
   return {
     v: 1,
     rec_id: id,
-    job_id: m.job_id as string | null,
-    submitted_by: m.submitted_by as JobClient,
-    name: m.name as string,
-    env: m.env as string,
-    persona: m.persona as string | null,
-    access: m.access as RecordMeta['access'],
-    page: m.page as string,
-    path: m.path as string,
-    started_at: m.started_at as string,
-    max_ms: m.max_ms as number | null,
-    owner: { pid: owner!.pid as number, ...(owner!.started_at !== undefined ? { started_at: owner!.started_at as string } : {}) },
+    job_id: m.job_id,
+    submitted_by: m.submitted_by,
+    name: m.name,
+    env: m.env,
+    persona: m.persona,
+    access: m.access,
+    page: m.page,
+    path: m.path,
+    started_at: m.started_at,
+    max_ms: m.max_ms,
+    owner: { pid: m.owner.pid, ...(m.owner.started_at !== undefined ? { started_at: m.owner.started_at } : {}) },
   };
 }
 

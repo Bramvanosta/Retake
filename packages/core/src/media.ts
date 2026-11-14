@@ -11,6 +11,7 @@
  */
 import { MEDIA_COMPONENTS, MEDIA_FILE_KINDS } from './types.js';
 import type { BBox, MediaFileFields, MediaFileKind, OverlayAnchor, OverlaySpec } from './types.js';
+import { errorMessage } from './util.js';
 
 /** Video containers the renderer reads. */
 export const VIDEO_FILE_EXTENSIONS = ['.mp4', '.m4v', '.mov', '.webm'];
@@ -166,7 +167,7 @@ export function readLottieMeta(text: string): LottieMeta {
   try {
     j = JSON.parse(text) as Record<string, unknown>;
   } catch (e) {
-    throw new Error(`not a JSON file (${(e as Error).message})`);
+    throw new Error(`not a JSON file (${errorMessage(e)})`);
   }
   if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('not a Lottie animation: the JSON is not an object');
   const num = (k: string) => (typeof j[k] === 'number' && Number.isFinite(j[k]) ? (j[k] as number) : undefined);

@@ -9,6 +9,7 @@ import { FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from '..
 import type { PlanLayout, ResolvedComponent } from '../plan-types.js';
 import type { Candidate } from '../resolve.js';
 import type { PlanScope } from './scope.js';
+import { errorMessage } from '@retake/core/base';
 
 export interface PlanLayouts {
   /** The video's frame: the render override's, the scenario's, else the project's. */
@@ -48,7 +49,7 @@ export function planLayouts(s: PlanScope): PlanLayouts {
       try {
         geometry = evalLayoutGeometry(spec, rc.params, { aspect: cssW / cssH });
       } catch (e) {
-        warnings.add(`${where}: layout ${rc.id}: ${(e as Error).message}: default geometry used`);
+        warnings.add(`${where}: layout ${rc.id}: ${errorMessage(e)}: default geometry used`);
       }
       if (geometry) {
         const outside = geometryOutside(geometry, variant);

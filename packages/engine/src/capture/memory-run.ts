@@ -14,7 +14,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { FORMAT_VERSIONS } from '@retake/core/base';
+import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';
 import { isCaptureScene } from '@retake/core/model';
 import { parseRunId } from '@retake/core/ids';
 import { listSteps, resolveStepRef, sceneId } from '@retake/core/language';
@@ -164,7 +164,7 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
     } else if (hasHooks) {
       // A hook runner that cannot load: the run fails with the runner's words (runner-web hooks-bridge.ts loadHookRunner).
       await req.hookRunner.load().catch((e: unknown) => {
-        throw new Error(`this scenario has hooks (setup, teardown or hook steps) but @retake/hooks could not be loaded: ${e instanceof Error ? e.message : String(e)}`);
+        throw new Error(`this scenario has hooks (setup, teardown or hook steps) but @retake/hooks could not be loaded: ${errorMessage(e)}`);
       });
       const journal = await req.hookRunner.journals.open(join(dir, 'hooks-journal.json'));
       const ctx: HookContext = {

@@ -19,6 +19,7 @@ import type { StudioEvent } from '../events.js';
 import { NEW_THEME_NAME, okNewThemeName } from '../id-words.js';
 import { KIND_ORDER, KIND_WORDS, NEW_THEME_TOO_LONG, isKind, okId, okTheme } from './library-words.js';
 import type { Kind } from './library-words.js';
+import { hasHidden } from '../hidden-chars.js';
 
 /** core HEX_COLOR_RE (mirrored: the app imports no runtime code from core; a test pins them equal). */
 export const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -128,7 +129,7 @@ export function textProblem(field: string, v: string): string | null {
   const max = TEXT_MAX[field] ?? 200;
   if (v.length > max) return `at most ${max} characters`;
   if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(v)) return 'one line, no control character';
-  if (/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/.test(v)) return 'no invisible or direction character';
+  if (hasHidden(v)) return 'no invisible or direction character';
   if (v.trim() === '') return 'give a value (or remove it)';
   return null;
 }

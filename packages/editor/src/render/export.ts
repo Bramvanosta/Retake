@@ -6,10 +6,10 @@
  * upscaled, with a warning, unless it was captured at scale 2). Outputs go to `<project>/exports/<render-id>/` with a
  * `manifest.json` describing each file (format, method, size, duration, codecs, the ffprobe of the file).
  */
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
-import { GUIDE, missingOrInvalid, printableText, bestEffort } from '@retake/core/base';
+import { GUIDE, missingOrInvalid, printableText, bestEffort, errorMessage } from '@retake/core/base';
 import { isThemeName } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
 import { insideFolder, isTemplatePath } from '@retake/core/scenario';
@@ -24,6 +24,7 @@ import {
   loadProject,
   nodeFileFacts,
   projectTemplateFolderId,
+  realpathOr,
   runMediaTool,
   stderrLines,
   templateFolderId,
@@ -180,21 +181,12 @@ export async function exportThemeRef(project: LoadedProject, record: Pick<NamedR
       'the theme folder this render was made with is not one the project names today (its project.yaml template:, a theme of the workspace or a starter): through MCP a re-render uses only those — re-render it from a terminal, or render the scenario again',
     ]);
   }
-  const dir = starter !== undefined ? join(STARTER_TEMPLATES_DIR, starter) : resolve(realpathOf(project.root), ...folder.split('/'));
+  const dir = starter !== undefined ? join(STARTER_TEMPLATES_DIR, starter) : resolve(realpathOr(project.root, resolve(project.root)), ...folder.split('/'));
   // The folder rule both ways: the folder found is the one the record names (a starter's name that is no name, a path
   // of another spelling: refused, never another folder).
   if (templateFolderId(dir, project.root) !== folder)
     throw new RenderError(`the theme folder this render was made with cannot be found from the workspace (${printableText(folder)}): re-render the scenario`);
   return dir;
-}
-
-/** A folder's real path, or the path as given when it cannot be read. */
-function realpathOf(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return resolve(p);
-  }
 }
 
 /**
@@ -520,7 +512,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       emit({ format, stage: 'done', progress: 1, message: file });
     } catch (e) {
       await rm(tmp, { force: true }).catch(() => undefined);
-      const message = (e as Error).message;
+      const message = errorMessage(e);
       failures.push({ format, error: message });
       emit({ format, stage: 'failed', progress: 1, message });
       if (opts.signal?.aborted || (e instanceof RenderError && /cancel/i.test(message))) break;

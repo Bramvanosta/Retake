@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { isLoopbackHost, normalizeHost } from '@retake/core/environment';
 import { HookError } from './errors.js';
+import { errorMessage } from '@retake/core/base';
 
 export interface DatabaseTarget {
   /** Hostname, or the socket directory for unix-socket connections. */
@@ -27,7 +28,7 @@ export function databaseTarget(connectionString: string): DatabaseTarget {
   try {
     client = new pg.Client({ connectionString });
   } catch (e) {
-    throw new HookError(`invalid database connection URL: ${(e as Error).message}`);
+    throw new HookError(`invalid database connection URL: ${errorMessage(e)}`);
   }
   const host = client.host ?? 'localhost';
   return {

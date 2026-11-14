@@ -99,7 +99,18 @@ export type { RunThumb, RunThumbsOptions, RunThumbsView, ThumbMissingReason, Thu
 export { ScenarioViews, VIEW_ISSUES_MAX, VIEW_RUNS_MAX, VIEW_STEPS_MAX } from './scenario-view.js';
 export { BOARD_RUNS_WINDOW, BOARD_SCENARIOS_MAX, BOARD_TITLE_MAX, FILE_FACTS_TTL_MS, ProjectBoards } from './project-board.js';
 export type { BoardRun, BoardScenario, ProjectBoardContext, ProjectBoardView, RunPoster } from './project-board.js';
-export type { EditAbility, SceneFacts, ScenarioActions, ScenarioEnvironmentFacts, ScenarioRunChoice, ScenarioSource, ScenarioView, ScenarioViewContext, StepBinding } from './scenario-view.js';
+export type {
+  EditAbility,
+  SceneFacts,
+  ScenarioActions,
+  ScenarioEnvironmentFacts,
+  ScenarioRunChoice,
+  ScenarioSource,
+  ScenarioView,
+  ScenarioViewContext,
+  StepBinding,
+  ViewRunStatus,
+} from './scenario-view.js';
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, agentTrust, createEngine } from './engine.js';
@@ -185,6 +196,7 @@ export type { EditOverrides, ExportFormat, ExportProgress, ExportResult, FoundRe
 export { newJobId } from './jobs/ids.js';
 export type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, JobQueueView, TakeHold, YieldMark } from './jobs/job-queue.js';
 export { jobProject } from './jobs/queue-core.js';
+export { jobOutcome, jobProgress, jobWhat } from './operations/job-words.js';
 export { FileJobQueue, JobFiles } from './jobs/queue.js';
 export { jobsDir, stateDir } from './workspace-state.js';
 export { MemoryJobQueue, memoryJobQueues } from './jobs/memory-queue.js';

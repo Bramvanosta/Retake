@@ -144,6 +144,33 @@ export const CAPTION_BAND_INSET = 40;
 /** Horizontal padding inside the band (design px). */
 export const CAPTION_BAND_PAD_X = 34;
 
+/** The widest band when a caption's params name none (studio/caption-overlay's `max_width` default, design px). */
+export const CAPTION_BAND_MAX_WIDTH = 1400;
+
+/**
+ * The band of a caption drawn over the screen (`position: over`) in a clip: captionBandBox with the caption's own
+ * `max_width` (else CAPTION_BAND_MAX_WIDTH). The planner (what the band hides) and the review (where the caption is
+ * measured) both read it here.
+ */
+export function captionOverBand(
+  i: Omit<CaptionBandInput, 'rects' | 'position' | 'maxWidth'> & { params: Readonly<Record<string, unknown>>; capture: { x: number; y: number; w: number; h: number } },
+): {
+  box: { x: number; y: number; w: number; h: number };
+  over: boolean;
+} {
+  const maxWidth = typeof i.params.max_width === 'number' ? i.params.max_width : CAPTION_BAND_MAX_WIDTH;
+  return captionBandBox({
+    rects: { screen: i.capture },
+    ...(i.area ? { area: i.area } : {}),
+    width: i.width,
+    height: i.height,
+    unit: i.unit,
+    position: 'over',
+    maxWidth,
+    ...(i.variant ? { variant: i.variant } : {}),
+  });
+}
+
 /**
  * Where studio/caption-overlay draws its band: `box` = the widest band (it shrinks to its text, centred in it, bottom
  * aligned); `over` tells whether it lies over the capture. Over the capture when asked and the capture is wide enough

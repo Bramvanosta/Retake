@@ -25,7 +25,7 @@
  */
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { canonicalJson, parseYaml } from '@retake/core/base';
+import { canonicalJson, errorMessage, parseYaml } from '@retake/core/base';
 import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, isRenderId } from '@retake/core/ids';
 import { projectPath, scenarioRef } from '@retake/core/project';
 import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retake/core/scenario';
@@ -207,7 +207,7 @@ const ffprobeKey = (policy: WorkPolicy): string => {
   try {
     return ffprobeBin(policy);
   } catch (e) {
-    return `refused: ${(e as Error).message}`;
+    return `refused: ${errorMessage(e)}`;
   }
 };
 

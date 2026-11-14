@@ -1,5 +1,5 @@
 import { join, resolve } from 'node:path';
-import { errorsOf, warningsOf } from '@retake/core/base';
+import { errorMessage, errorsOf, warningsOf } from '@retake/core/base';
 import { bundleInfo } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core/model';
 import { componentCreateShell, componentListEntries, componentPreviewTargets, componentPreviewTheme, componentReadmeWriter, componentValidateShell, personScope, previewsWork } from '@retake/engine';
@@ -159,7 +159,7 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
         targets: [{ id: created.manifest.id, dir: created.dir, entry: created.entry, manifest: created.manifest }],
       });
     } catch (e) {
-      previewError = (e as Error).message.split('\n')[0];
+      previewError = errorMessage(e).split('\n')[0];
     }
   }
   if (opts.json) {

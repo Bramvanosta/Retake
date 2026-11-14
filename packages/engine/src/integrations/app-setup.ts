@@ -46,8 +46,10 @@ import {
 } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
-import { isUnder } from '@retake/core/base';
+import { errorMessage, isUnder } from '@retake/core/base';
 import { nodeFileFacts } from '@retake/core/io';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
 
 /** A refusal of a setup step: `reason` is a stable word the Studio keys its words by. */
 export class SetupError extends Error {
@@ -363,11 +365,14 @@ export interface UpdateChecks {
   checked: number | null;
   failed: { failure: string; version: string } | null;
 }
+/** The app's update-check file of this version (each member is then read on its own: an odd one reads as none). */
+const UpdateChecksSchema = z.object({ version: z.literal(1) });
+
 export function readUpdateChecks(home: string): UpdateChecks {
   const none: UpdateChecks = { checked: null, failed: null };
   try {
-    const v = JSON.parse(readFileSync(join(home, UPDATES_FILE), 'utf8')) as Record<string, unknown> | null;
-    if (!v || typeof v !== 'object' || Array.isArray(v) || v.version !== 1) return none;
+    const v = storedJson(UpdateChecksSchema, readFileSync(join(home, UPDATES_FILE), 'utf8')) as Record<string, unknown> | undefined;
+    if (!v) return none;
     const checked = typeof v.checked === 'number' && Number.isSafeInteger(v.checked) && v.checked >= 0 ? v.checked : null;
     const f = v.failed as Record<string, unknown> | null | undefined;
     const failed =
@@ -479,7 +484,7 @@ export function planDesktopEntry(text: string | null, entry: Record<string, unkn
   try {
     doc = JSON.parse(text);
   } catch (e) {
-    throw new SetupError('unparsable', `Claude Desktop's config is not valid JSON (${(e as Error).message}): it is left as it is — fix it, or add the entry by hand`);
+    throw new SetupError('unparsable', `Claude Desktop's config is not valid JSON (${errorMessage(e)}): it is left as it is — fix it, or add the entry by hand`);
   }
   if (!isPlainObject(doc)) throw new SetupError('not_object', "Claude Desktop's config is not a JSON object: it is left as it is");
   const servers = doc.mcpServers;

@@ -41,6 +41,8 @@ import type { JobQueueView } from './job-queue.js';
 import type { JobFiles } from './queue.js';
 import { EngineError } from '../errors.js';
 import { bestEffort } from '@retake/core/base';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
 
 export const LIVE_FILE_VERSION = 1;
 export const LIVE_PATH = '/v1/frames';
@@ -68,6 +70,33 @@ export interface LiveChannelInfo {
   /** The worker holding the job's claim. */
   pid: number;
   started_at?: string;
+}
+
+/** A live file of this version: for a run id, a port, a token of the shape this module writes and the claiming pid. */
+const LiveChannelSchema = z.object({
+  v: z.literal(LIVE_FILE_VERSION),
+  job: z.string(),
+  run: z.string().refine(isRunId),
+  port: z.number().int().min(1).max(65535),
+  token: z.string().regex(TOKEN_RE),
+  pid: z.number().int(),
+  started_at: z.string().optional(),
+});
+
+/** A record header: version 1, a frame of a size the feed takes (≤ 4096 px a side), its time and page. */
+const LiveFrameHeaderSchema = z.object({
+  v: z.literal(1),
+  kind: z.literal('frame'),
+  seq: z.number().int(),
+  w: z.number().int().min(1).max(4096),
+  h: z.number().int().min(1).max(4096),
+  at: z.number(),
+  page: z.string().max(200).optional(),
+});
+
+/** A record header's text as a header, or undefined when it is not one (the feed then ends: `bad record header`). */
+export function liveFrameHeaderOf(text: string): LiveFrameHeader | undefined {
+  return storedJson(LiveFrameHeaderSchema, text) as LiveFrameHeader | undefined;
 }
 
 /** A record header. */
@@ -279,32 +308,12 @@ export async function readLiveChannel(queue: Pick<JobQueueView, 'claimOf'>, file
   const r = readPlainRange(file, 0, LIVE_FILE_MAX, { verify: (st) => (uid === undefined || st.uid === uid) && (st.mode & 0o077) === 0 && st.size <= LIVE_FILE_MAX });
   if (!r.ok) return null;
   const text = r.bytes.toString('utf8');
-  let v: Partial<LiveChannelInfo>;
-  try {
-    v = JSON.parse(text) as Partial<LiveChannelInfo>;
-  } catch {
-    return null;
-  }
-  if (
-    !v ||
-    typeof v !== 'object' ||
-    v.v !== LIVE_FILE_VERSION ||
-    v.job !== jobId ||
-    !isRunId(v.run) ||
-    !Number.isInteger(v.port) ||
-    (v.port as number) < 1 ||
-    (v.port as number) > 65535 ||
-    typeof v.token !== 'string' ||
-    !TOKEN_RE.test(v.token) ||
-    !Number.isInteger(v.pid) ||
-    (v.started_at !== undefined && typeof v.started_at !== 'string')
-  ) {
-    return null;
-  }
+  const v = storedJson(LiveChannelSchema, text) as LiveChannelInfo | undefined;
+  if (!v || v.job !== jobId) return null;
   const claim = await bestEffort(queue.claimOf(jobId), 'a claim that cannot be read is no live worker: no channel');
   if (!claim || claim.pid !== v.pid || (claim.started_at ?? null) !== (v.started_at ?? null)) return null;
   if (!(await bestEffort(isAlive(claim), 'a worker whose liveness cannot be told is not trusted with a channel', false))) return null;
-  return { v: LIVE_FILE_VERSION, port: v.port as number, token: v.token, job: jobId, run: v.run, pid: v.pid as number, ...(v.started_at ? { started_at: v.started_at } : {}) };
+  return { v: LIVE_FILE_VERSION, port: v.port, token: v.token, job: jobId, run: v.run, pid: v.pid, ...(v.started_at ? { started_at: v.started_at } : {}) };
 }
 
 export interface LiveFeedFrame {
@@ -341,27 +350,10 @@ export function openLiveFeed(info: Pick<LiveChannelInfo, 'port' | 'token'>, o: {
           const bl = buf.readUInt32BE(4 + hl);
           if (bl === 0 || bl > LIVE_FRAME_MAX_BYTES) return fail('frame too large');
           if (buf.length < 8 + hl + bl) return;
-          let header: LiveFrameHeader;
-          try {
-            header = JSON.parse(buf.subarray(4, 4 + hl).toString('utf8')) as LiveFrameHeader;
-          } catch {
-            return fail('bad record header');
-          }
+          const header = liveFrameHeaderOf(buf.subarray(4, 4 + hl).toString('utf8'));
           const data = Buffer.from(buf.subarray(8 + hl, 8 + hl + bl));
           buf = buf.subarray(8 + hl + bl);
-          const okHeader =
-            header?.v === 1 &&
-            header.kind === 'frame' &&
-            Number.isInteger(header.seq) &&
-            Number.isInteger(header.w) &&
-            Number.isInteger(header.h) &&
-            header.w > 0 &&
-            header.h > 0 &&
-            header.w <= 4096 &&
-            header.h <= 4096 &&
-            typeof header.at === 'number' &&
-            (header.page === undefined || (typeof header.page === 'string' && header.page.length <= 200));
-          if (!okHeader) return fail('bad record header');
+          if (!header) return fail('bad record header');
           if (data[0] !== 0xff || data[1] !== 0xd8 || data[2] !== 0xff) return fail('not a JPEG');
           try {
             o.onFrame({ header, data });

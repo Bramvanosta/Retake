@@ -23,7 +23,7 @@
  */
 import { createServer } from 'node:net';
 import type { CdpConnection, RenderBrowserHandle } from './library.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** What a guarded render may load. */
 export interface NetworkAllowList {
@@ -142,7 +142,7 @@ export async function armNetworkGuard(browser: RenderBrowserHandle, allow: Netwo
     await conn.send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
   } catch (e) {
     conn.off('Fetch.requestPaused', onPaused);
-    throw new Error(`the render browser refused the network guard: ${(e as Error).message}`);
+    throw new Error(`the render browser refused the network guard: ${errorMessage(e)}`);
   }
   return {
     allow,

@@ -14,7 +14,7 @@
  */
 export { AUTO_COVER_MIN_SHARE, autoFit, insetPhoneEdge } from './kit/frame-geometry.js';
 export type { MediaFitMode } from './kit/frame-geometry.js';
-export { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines } from './kit/devices.js';
+export { CAPTION_BAND_MAX_WIDTH, CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, captionOverBand } from './kit/devices.js';
 export type { CaptionBandInput } from './kit/devices.js';
 export { estimateTextWidth, fitText } from './kit/fit-text.js';
 export type { TextFont, TextMeasurer } from './kit/fit-text.js';

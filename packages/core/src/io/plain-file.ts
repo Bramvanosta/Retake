@@ -1,5 +1,6 @@
 import { closeSync, constants as fsConstants, fstatSync, openSync, readSync } from 'node:fs';
 import type { Stats } from 'node:fs';
+import { lstat } from 'node:fs/promises';
 import { plainFileVerdict } from '../file-facts.js';
 import type { PlainFileRead } from '../file-facts.js';
 
@@ -54,4 +55,23 @@ export function readPlainFile(file: string, max: number, o: { verify?: (st: Stat
   } finally {
     if (fd !== undefined) closeSync(fd);
   }
+}
+
+/** lstat, or null when nothing is there (ENOENT, ENOTDIR); any other failure is thrown. */
+export async function lstatOrNull(path: string): Promise<Stats | null> {
+  try {
+    return await lstat(path);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return null;
+    throw e;
+  }
+}
+
+/** A real folder (not a link) at `path`: 'ok', 'missing', or why not. */
+export async function realFolderState(path: string): Promise<'ok' | 'missing' | 'a symbolic link' | 'not a folder'> {
+  const st = await lstatOrNull(path);
+  if (!st) return 'missing';
+  if (st.isSymbolicLink()) return 'a symbolic link';
+  return st.isDirectory() ? 'ok' : 'not a folder';
 }

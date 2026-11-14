@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
-import { collectSandboxRefs, collectSecretRefs } from '@retake/core/base';
+import { collectSandboxRefs, collectSecretRefs, errorMessage } from '@retake/core/base';
 import { projectFileProblem, secretRefsProblem } from '@retake/core/scenario';
 import { nodeFileFacts } from '@retake/core/io';
 import { HookError, HookSecurityError } from '../errors.js';
@@ -86,7 +86,7 @@ export async function readProjectFile(projectDir: string, rel: string, what: str
     return await readFile(abs, 'utf8');
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    throw new HookError(code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${(e as Error).message}`);
+    throw new HookError(code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${errorMessage(e)}`);
   }
 }
 
@@ -118,7 +118,7 @@ async function readTrustedFile(ctx: HookContext, baseDir: string, rel: string, w
     bytes = await readFile(abs);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    throw new HookError(code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${(e as Error).message}`);
+    throw new HookError(code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${errorMessage(e)}`);
   }
   const key = relative(ctx.project.dir, abs).split(sep).join('/');
   const code = ctx.trustedFiles?.code ?? {};

@@ -24,7 +24,7 @@ import { selfIdentity } from './proc.js';
 import { recordDigest } from './signing.js';
 import { createJobRunner, shellQuote } from './run-job-record.js';
 import type { JobRecord } from './types.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** Exit codes of a job process that did not run its job. */
 export const JOB_EXIT = { buildChanged: 3, refused: 4 } as const;
@@ -74,7 +74,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
     ws = await openWorkspace({ root, agent: true, reads });
   } catch (e) {
-    log(`job ${o.id}: no workspace at ${root}: ${(e as Error).message}`);
+    log(`job ${o.id}: no workspace at ${root}: ${errorMessage(e)}`);
     return 1;
   }
   const cli = `retake -C ${shellQuote(root)}`;
@@ -124,7 +124,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   // As in the worker (critique L14): Remotion's encoder pipe may reject with EPIPE after a failed render.
   const onRejection = (reason: unknown) => {
     if ((reason as NodeJS.ErrnoException | undefined)?.code === 'EPIPE') {
-      log(`ignored a write to a closed pipe after a render (${(reason as Error).message})`);
+      log(`ignored a write to a closed pipe after a render (${errorMessage(reason)})`);
       return;
     }
     throw reason;
@@ -161,7 +161,7 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     try {
       await queue.write(rec);
     } catch (e) {
-      log(`cannot write the state of job ${rec.id} (${(e as Error).message}): exiting`);
+      log(`cannot write the state of job ${rec.id} (${errorMessage(e)}): exiting`);
       process.exit(1);
     }
   };

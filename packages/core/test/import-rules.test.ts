@@ -2104,6 +2104,33 @@ describe('the import-rules ratchet', () => {
       return lines.map((_, i) => (h ? (h.kinds[h.lines.indexOf(i + 1)] ?? 0) : 0));
     };
 
+    it('11. a parse result typed as a stored format of the engine outside its one reader (kinds 1 to 4 only)', () => {
+      const lines = [
+        'const a = JSON.parse(text) as JobRecord;',
+        'const b = (await readJson(file)) as Partial<HistoryEntry> | undefined;',
+        'const c: WorkerLockRecord = JSON.parse(text);',
+        'const d = JSON.parse<JournalEntry>(text);',
+        'function e(): InspectReport { return JSON.parse(text); }',
+        'const f = { id } as JobRecord;', // a value of its own made into one: not a parse
+        'const g = new Map<string, JobRecord>();', // a type argument of another call: not a parse
+        'const h = storedJson(JobRecordSchema, text) as JobRecord | undefined;', // through a schema: not a parse
+      ];
+      expect(kinds(lines, 'packages/engine/src/a.ts')).toEqual([11, 11, 11, 11, 11, 0, 0, 0]);
+      // In the format's own file the cast is its reader's; another format there is still a hit.
+      expect(kinds(['const a = JSON.parse(text) as JobRecord;', 'const b = JSON.parse(text) as HistoryEntry;'], 'packages/engine/src/jobs/queue-core.ts')).toEqual([0, 11]);
+      // A record's home is skipped for the records, not for the formats.
+      expect(kinds(['const a = JSON.parse(text) as RunRecord;', 'const b = JSON.parse(text) as ClaimRecord;'], 'packages/core/src/run-record.ts')).toEqual([0, 11]);
+    });
+
+    it('each stored format has its home: the file declares or imports the type and reads through a schema', () => {
+      for (const [name, home] of Object.entries(lib.FORMAT_READ_HOMES as Record<string, string>)) {
+        const text = readFileSync(join(ROOT, home), 'utf8');
+        expect(text, `${name} in ${home}`).toMatch(new RegExp(`\\b${name}\\b`));
+        expect(text, home).toContain('storedJson(');
+      }
+      expect(lib.CHECKS.find((c: { id: string }) => c.id === 'record-read')?.title).toContain('FORMAT_READ_HOMES');
+    });
+
     it('1. a parsed value cast to a record or a timeline, through await, parentheses, ! and `as unknown`', () => {
       expect(
         kinds(
@@ -2306,10 +2333,12 @@ describe('the import-rules ratchet', () => {
         }
         return out;
       };
-      // The search index: its parses are history.jsonl's lines and the index's history rows; renders/ comes from the reader
-      // (the names as renderEntries lists them, each file read under the listing's rules).
+      // The search index: it parses nothing itself — history.jsonl's lines and its own history rows go through the
+      // history's one reader (readHistoryLine); renders/ comes from the reader (the names as renderEntries lists them,
+      // each file read under the listing's rules).
       const index = src('packages/engine/src/index-db/index-db.ts');
-      expect(parsesIn(index)).toEqual(['readHistory', 'history']);
+      expect(parsesIn(index)).toEqual([]);
+      expect(index.match(/readHistoryLine\((line|r\.entry)\)/g)).toHaveLength(2);
       expect(index).toMatch(/await renderEntries\(dir, \(name\) => \(names\.push\(name\), false\)\)/);
       expect(index).toMatch(/const entry = await readListedRender\(projectPath\(dir, 'renders'\), name\)/);
       expect(index).toMatch(/renderOfFile\(entry\)/);

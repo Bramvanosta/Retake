@@ -3,7 +3,7 @@
  * and locks under `<project>/.retake/`, read by id (never a path from a file), written through the project store.
  */
 import type { EngineEnv } from '../env.js';
-import { lstat, readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { basename, join } from 'node:path';
 import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
@@ -15,6 +15,7 @@ import type { TakeLock } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { sha256Hex } from '../storage.js';
+import { lstatOrNull, realFolderState } from '@retake/core/io';
 
 /**
  * A thread file larger than this is not read, and an entry that would make it larger is refused (500 entries of 2000
@@ -90,24 +91,6 @@ export function cleanText(raw: unknown, what: string, argument: string, required
   return text;
 }
 
-/** lstat, or null when it does not exist. */
-export async function lstatOrNull(path: string) {
-  try {
-    return await lstat(path);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT' || (e as NodeJS.ErrnoException).code === 'ENOTDIR') return null;
-    throw e;
-  }
-}
-
-/** A real folder (not a link) at `path`: 'ok', 'missing', or why not. */
-export async function realDir(path: string): Promise<'ok' | 'missing' | 'a symbolic link' | 'not a folder'> {
-  const st = await lstatOrNull(path);
-  if (!st) return 'missing';
-  if (st.isSymbolicLink()) return 'a symbolic link';
-  return st.isDirectory() ? 'ok' : 'not a folder';
-}
-
 /** A small regular file of the project read whole (null: missing, a link, too large or not a file). */
 export async function readPlainFile(path: string, max: number): Promise<Buffer | null> {
   const st = await lstatOrNull(path);
@@ -122,7 +105,7 @@ export async function readPlainFile(path: string, max: number): Promise<Buffer |
 /** The comments/ folder name that differs from `scenario` only by case (a case-insensitive disk would mix them), if any. */
 export async function caseVariantFolder(projectDir: string, scenario: string): Promise<string | undefined> {
   const root = join(projectDir, COMMENTS_DIR);
-  if ((await realDir(root)) !== 'ok') return undefined;
+  if ((await realFolderState(root)) !== 'ok') return undefined;
   const lower = scenario.toLowerCase();
   return (await readdir(root)).find((n) => n !== scenario && n.toLowerCase() === lower);
 }
@@ -145,7 +128,7 @@ export async function readThread(projectDir: string, f: ThreadFile): Promise<Rea
     [join(projectDir, COMMENTS_DIR), `${COMMENTS_DIR}/`],
     [join(projectDir, COMMENTS_DIR, f.scenario), `${COMMENTS_DIR}/${f.scenario}/`],
   ] as const) {
-    const state = await realDir(dir);
+    const state = await realFolderState(dir);
     if (state !== 'ok') return { ok: false, problem: `${label} is ${state === 'missing' ? 'missing' : state}` };
   }
   const st = await lstatOrNull(f.path);
@@ -177,7 +160,7 @@ export async function readThread(projectDir: string, f: ThreadFile): Promise<Rea
 export async function locateThread(projectDir: string, id: string): Promise<ThreadFile> {
   checkCommentId(id);
   const root = join(projectDir, COMMENTS_DIR);
-  const state = await realDir(root);
+  const state = await realFolderState(root);
   if (state === 'missing') throw new EngineError('not_found', `comment ${id} not found (the project has no comments yet)`);
   if (state !== 'ok') throw new EngineError('refused', `${COMMENTS_DIR}/ is ${state}: not read`);
   const found: string[] = [];

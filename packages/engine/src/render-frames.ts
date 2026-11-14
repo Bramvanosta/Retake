@@ -39,6 +39,7 @@ import { renderForWork } from './renders.js';
 import type { RenderForWork } from './renders.js';
 import type { Semaphore } from './run-thumbs.js';
 import type { FrameTools } from './review/reviewer.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Long side of a viewer frame, at most. */
 export const RENDER_FRAME_MAX_PX = 1280;
@@ -410,7 +411,7 @@ export class RenderFrames {
         });
       } catch (e) {
         if (ctl.signal.aborted) throw this.abortError(ctl.signal, record.id);
-        throw new EngineError('internal', `frame ${req.frame} of render ${record.id} could not be read: ${(e as Error).message.split('\n')[0]}`);
+        throw new EngineError('internal', `frame ${req.frame} of render ${record.id} could not be read: ${errorMessage(e).split('\n')[0]}`);
       } finally {
         release();
       }

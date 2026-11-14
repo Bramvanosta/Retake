@@ -23,6 +23,7 @@ import type { LiveRun } from './shoot-data.js';
 import { modeWord } from '../words/shoot-words.js';
 import { Button, Callout, LinkButton, Progress, Select, StatusMark, TerminalCommands } from '../ui-kit/index.js';
 import type { MarkState } from '../ui-kit/index.js';
+import { runEnded } from '../run-ended.js';
 
 export type { LiveRun };
 
@@ -34,7 +35,6 @@ export interface RunLocation {
   fileDefault?: string;
 }
 
-const FINISHED_RUN = new Set(['succeeded', 'failed', 'cancelled', 'interrupted', 'unknown']);
 const RUN_MARK: Record<string, MarkState> = { succeeded: 'ok', failed: 'fail', interrupted: 'fail', cancelled: 'warn', running: 'running', queued: 'waiting' };
 
 /** What run_status says of a finished run (its error is text the site controls). */
@@ -202,7 +202,7 @@ export function TakeStrip({
 }) {
   const last = useLastStart(slug, name);
   const submitted = last && 'run_id' in last ? v.runs.find((r) => r.id === last.run_id) : undefined;
-  const ended = submitted && FINISHED_RUN.has(submitted.status) && v.running?.id !== submitted.id ? submitted : undefined;
+  const ended = submitted && runEnded(submitted.status) && v.running?.id !== submitted.id ? submitted : undefined;
   const refusedFixNode = last && 'error' in last && last.fix ? [...v.run_blockers.dry, ...v.run_blockers.capture].find((b) => b.fix === last.fix)?.fix_node : undefined;
   const s = v.source;
   return (

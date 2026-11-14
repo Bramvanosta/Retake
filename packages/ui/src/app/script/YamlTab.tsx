@@ -35,6 +35,7 @@ import { IssueLines } from './StepEditing.js';
 import { DiskBanner, KeptText, TextConflict } from './TextEditing.js';
 import { YamlView } from './YamlView.js';
 import { Button, Callout, InspectorSection, Kbd, StatusMark, TextArea } from '../ui-kit/index.js';
+import { HIDDEN_CHARS } from '../hidden-chars.js';
 
 /** The largest scenario the Studio writes (core SCENARIO_EDIT_MAX_CHARS: MCP scenario_save's cap), final line break included. */
 export const YAML_MAX = 500_000;
@@ -44,14 +45,14 @@ const diskOf = (v: Pick<View, 'text' | 'hash'>): Disk => ({ text: crlfToLf(v.tex
 /** What a save writes: the text with a final line break and the file's own line breaks. */
 const fileText = (text: string, eol: Disk['eol']) => toEol(text.endsWith('\n') || text === '' ? text : `${text}\n`, eol);
 
-// The class of core's input rules (scenario-edit.ts, review A L2): controls (tab left out), format and default-ignorable
-// characters (direction controls, zero-width, soft hyphen, variation selectors, tags…), line / paragraph separators,
-// the Hangul fillers and the braille blank — as property escapes and code points, never literal characters here.
-const HIDDEN = /(?!\t)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u{115f}\u{1160}\u{2800}\u{3164}\u{ffa0}]/u;
+// The class of core's input rules (hidden-chars.ts HIDDEN_CHARS, review A L2), a tab left out: controls, format and
+// default-ignorable characters (direction controls, zero-width, soft hyphen, variation selectors, tags…), line /
+// paragraph separators, the Hangul fillers and the braille blank.
+const HIDDEN = new RegExp(`(?!\\t)[${HIDDEN_CHARS}]`, 'u');
 const hex = (c: string) => `U+${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`;
 
 /** Lines of `text` holding a hidden character, at most 20: "line 7 (U+202E)". */
-function hiddenLines(text: string): string[] {
+export function hiddenLines(text: string): string[] {
   const out: string[] = [];
   text.split('\n').forEach((l, i) => {
     if (out.length >= 20) return;

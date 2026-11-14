@@ -37,6 +37,7 @@ import { storeOf } from './store/store.js';
 import type { StoreScope } from './store/store.js';
 import { confinementOf } from './caller.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
+import { VersionLedger } from './version-ledger.js';
 
 export interface ScenarioText {
   name: string;
@@ -74,24 +75,11 @@ function caseTwin(project: LoadedProject, ref: string): string | null {
 
 // The versions of each scenario file this process showed (getScenario) or wrote (review A L3): undo / redo `restore`
 // only these — an earlier version the person had on disk may hold a hidden character today's file no longer has.
-const VERSIONS_PER_FILE = 128;
-const VERSION_FILES = 256;
-const versions = new Map<string, string[]>();
-
-function rememberVersion(path: string, hash: string): void {
-  const list = versions.get(path) ?? [];
-  versions.delete(path);
-  const at = list.indexOf(hash);
-  if (at !== -1) list.splice(at, 1);
-  list.push(hash);
-  if (list.length > VERSIONS_PER_FILE) list.shift();
-  versions.set(path, list);
-  if (versions.size > VERSION_FILES) versions.delete(versions.keys().next().value!);
-}
+const versions = new VersionLedger();
 
 /** Whether this process showed or wrote that version of the file (`path`: getScenario's). */
 export function knownScenarioVersion(path: string, hash: string): boolean {
-  return versions.get(path)?.includes(hash) ?? false;
+  return versions.knows(path, hash);
 }
 
 /** The file of a scenario name: scenarios/<name>.yaml, else an existing scenarios/<name>.yml. */
@@ -113,7 +101,7 @@ export async function getScenario(project: LoadedProject, name: string): Promise
   }
   const path = storage.resolve(ref);
   const [realScenarios, real, realProject] = await Promise.all([realpath(projectPath(project.dir, 'scenarios')), realpath(path), realpath(project.dir)]);
-  rememberVersion(path, read.sha256);
+  versions.remember(path, read.sha256);
   return {
     name,
     file: ref,
@@ -248,7 +236,7 @@ export async function saveScenarioText(
   }
   const text = yaml.endsWith('\n') ? yaml : `${yaml}\n`;
   const res = await store.writeText(ref, text, { ifMatch: opts.ifMatch ?? null, what: 'scenario' });
-  rememberVersion(path, res.sha256);
+  versions.remember(path, res.sha256);
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
   if (scenario) {
     const before = current?.utf8 ? parseScenario(current.text, { files: opts.files, file: path, project, template: await templateOf(project, opts) }).scenario : undefined;
@@ -368,7 +356,7 @@ export async function editScenario(
 ): Promise<ScenarioEditResult> {
   const p = await prepareScenarioEdit(project, name, req, o);
   const res = await storeOf(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
-  rememberVersion(p.base.path, res.sha256);
+  versions.remember(p.base.path, res.sha256);
   // L7.27: the project's record of what this write did to the scenario's hook surface, and who made it.
   if (p.scenario)
     await recordScenarioWrite(project, { file: res.path, sha256: res.sha256, scenario: p.scenario, before: p.before ?? null, caller: o.scope.caller, clock: o.scope.clock, stores: o.scope.stores });

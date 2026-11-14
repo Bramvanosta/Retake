@@ -48,8 +48,8 @@ import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../words/shoot
 import { Blocker, Button, LinkButton, Sheet, StatusMark } from '../ui-kit/index.js';
 import { PRIORITY, useShellCommand } from './command-bus.js';
 import type { ScenarioContext } from './modes.js';
+import { runEnded } from '../run-ended.js';
 
-const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted', 'unknown']);
 /** The Project screen's routes: a selection there is read once it settled (critique H2). */
 const SETTLE_ROUTES = new Set<Route['name']>(['project', 'group', 'location']);
 const SETTLE_MS = 300;
@@ -193,7 +193,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
     : pend
       ? { status: 'queued', mode: pend.mode }
       : null;
-  const lastTake = data?.runs.find((r) => FINISHED.has(r.status));
+  const lastTake = data?.runs.find((r) => runEnded(r.status));
   const state = runInfo ? shootState(runInfo) : lastTake ? shootState(lastTake) : 'idle';
   const word = SHOOT_STATES[state].word(runInfo?.mode ?? lastTake?.mode ?? 'dry');
   const detail = runLive

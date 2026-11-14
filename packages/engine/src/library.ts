@@ -43,7 +43,7 @@ import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { editor } from './lazy.js';
 import type { OpenedWorkspace } from './workspace.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, printableText } from '@retake/core/base';
 
 /** Bump when the cache layout or what a key covers changes (every key changes). */
 export const LIBRARY_PREVIEW_FORMAT = 1;
@@ -404,10 +404,7 @@ export async function dropLibraryEntry(cacheDir: string, key: string): Promise<v
 
 /** A failure's reason as kept: one line of printable text, capped. */
 export function libraryReason(reason: string): string {
-  const flat = reason
-    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]+/g, ' ')
-    .replace(/ {2,}/g, ' ')
-    .trim();
+  const flat = printableText(reason);
   return flat.length > LIBRARY_REASON_MAX ? `${flat.slice(0, LIBRARY_REASON_MAX - 1)}…` : flat;
 }
 

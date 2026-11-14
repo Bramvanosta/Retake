@@ -8,6 +8,7 @@ import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
 import { checkTokens } from './tokens.js';
 import type { TokenScope } from './tokens.js';
+import { errorMessage } from '../util.js';
 
 const LEGACY_KEYS = ['profile', 'storage_state'] as const;
 /** A field whose literal text is a password (a login `type` into it should use a secret reference). */
@@ -72,7 +73,7 @@ function checkPatterns(v: unknown, path: IssuePath, pages: Readonly<Record<strin
       try {
         re = new RegExp(p.regex, flags);
       } catch (e) {
-        ctx.error([...pp, 'regex'], `invalid regular expression: ${(e as Error).message}`);
+        ctx.error([...pp, 'regex'], `invalid regular expression: ${errorMessage(e)}`);
         return;
       }
       if (/[gy]/.test(flags)) {

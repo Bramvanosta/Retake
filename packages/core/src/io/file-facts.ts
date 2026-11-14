@@ -4,6 +4,7 @@
  */
 import { accessSync, closeSync, constants as fsConstants, openSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import type { ProgramPolicyOptions } from '../agent-policy.js';
 import type { DiskEntryKind, FileFacts, FileKind, WorkspaceDisk } from '../file-facts.js';
 import { readPlainFile } from './plain-file.js';
@@ -17,13 +18,27 @@ function kind(p: string): FileKind | undefined {
   }
 }
 
-function realpath(p: string): string | undefined {
+/** `p` with its links resolved, or `fallback` when it cannot be (missing, unreadable): the one realpath-or-else. */
+export function realpathOr<T>(p: string, fallback: T): string | T {
   try {
     return realpathSync(p);
   } catch {
-    return undefined;
+    return fallback;
   }
 }
+
+/**
+ * `p` with the part of it that exists resolved (links, /var → /private/var): where a file not made yet will really lie
+ * — a missing tail kept as written under its real parent.
+ */
+export function realTarget(p: string): string {
+  const real = realpathOr(p, undefined);
+  if (real !== undefined) return real;
+  const parent = dirname(p);
+  return parent === p ? p : join(realTarget(parent), basename(p));
+}
+
+const realpath = (p: string): string | undefined => realpathOr(p, undefined);
 
 function nativeRealpath(p: string): string | undefined {
   try {

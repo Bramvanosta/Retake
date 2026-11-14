@@ -15,6 +15,8 @@ import { stampOf } from './clock.js';
 import type { Clock } from './clock.js';
 import { appendLogLine, logFile, logWarner, readLogLines } from './store/append-log.js';
 import type { AppendLog } from './store/append-log.js';
+import { storedJson } from './stored-json.js';
+import { z } from 'zod';
 
 export const HISTORY_VERSION = 1;
 
@@ -83,17 +85,28 @@ export async function appendHistory(root: string, entry: Omit<HistoryEntry, 'v' 
   }
 }
 
+/**
+ * What a history line must hold to be one (the members its readers rely on): this version, its time and kind, and its
+ * counters when it has them (each read as a number, a missing or odd one as 0).
+ */
+const HistoryLineSchema = z.object({
+  v: z.literal(HISTORY_VERSION),
+  at: z.string(),
+  kind: z.string(),
+  counted: z.record(z.string(), z.unknown()).optional(),
+});
+
+/** One line of the history as an entry, or undefined: a torn, foreign or other-version line (skipped by every reader). */
+export function readHistoryLine(line: string): HistoryEntry | undefined {
+  return storedJson(HistoryLineSchema, line) as HistoryEntry | undefined;
+}
+
 /** The counters of the whole history (a torn or foreign line is skipped). */
 export async function usageCounts(root: string): Promise<UsageCounts> {
   const out: UsageCounts = { captures: 0, dry_runs: 0, renders: 0, entries: 0 };
   for (const line of await readLogLines(historyFile(root))) {
-    let e: Partial<HistoryEntry>;
-    try {
-      e = JSON.parse(line) as Partial<HistoryEntry>;
-    } catch {
-      continue;
-    }
-    if (e.v !== HISTORY_VERSION || !e.counted) continue;
+    const e = readHistoryLine(line);
+    if (!e?.counted) continue;
     out.entries++;
     out.since ??= e.at;
     out.captures += Number(e.counted.captures) || 0;

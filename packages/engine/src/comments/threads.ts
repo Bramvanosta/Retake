@@ -58,6 +58,7 @@ import type { WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import { parseTimeline } from '@retake/core/run';
 import type { WorkspaceReads } from '../workspace-reads/reads.js';
+import { errorMessage } from '@retake/core/base';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 
@@ -167,7 +168,7 @@ export async function writeStill(
     await rename(tmp, final);
     return final;
   } catch (e) {
-    warnings.push(`no still for comment ${id}: ${(e as Error).message.split('\n')[0]}`);
+    warnings.push(`no still for comment ${id}: ${errorMessage(e).split('\n')[0]}`);
     return null;
   } finally {
     await rm(tmp, { force: true }).catch(() => undefined);

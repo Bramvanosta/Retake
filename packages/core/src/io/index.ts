@@ -39,10 +39,12 @@ export {
   parseBootTime,
   parseLstart,
   parseProcessTable,
+  pidExists,
   processStart,
   processStartSync,
   processTable,
   processTableSync,
+  processTree,
   signalState,
   stopGroup,
 } from './proc.js';

@@ -28,6 +28,7 @@ import { pickTarget, plainTarget } from './targets.js';
 import type { ActionName, HookKind, HookStep, ScenePages, ValidationIssue } from './types.js';
 import { parseYaml } from './validation/yaml-source.js';
 import type { YamlSource } from './validation/yaml-source.js';
+import { errorMessage } from './util.js';
 
 // ── Model ───────────────────────────────────────────────────────────────────
 
@@ -1064,6 +1065,6 @@ export function scenarioBlocks(text: string, o: ScenarioBlocksOptions = {}): Sce
     attachIssues(out, issues);
     return out;
   } catch (e) {
-    return empty([{ severity: 'error', path: [], message: `the scenario could not be read as blocks: ${e instanceof Error ? e.message : String(e)}` }]);
+    return empty([{ severity: 'error', path: [], message: `the scenario could not be read as blocks: ${errorMessage(e)}` }]);
   }
 }

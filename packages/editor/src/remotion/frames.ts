@@ -3,7 +3,7 @@
  * music volume. Shared by the Remotion composition and the tests (and later by the Studio preview).
  */
 import type { ComponentKind } from '@retake/core/model';
-import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@retake/components/geometry';
+import { captionOverBand, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@retake/components/geometry';
 import type { LayoutRects, LoupePlacement } from '@retake/components/geometry';
 import { mapSourceRect } from '../layout.js';
 import { insetRectAt, layoutPaneRectsAt, mapPaneRect, paneCaptureAt, paneSource } from '../panes.js';
@@ -312,17 +312,7 @@ export function trackBoxAt(use: Pick<OverlayUse, 'track' | 'anchor'>, local: num
 export function captionBandOver(plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant'>, clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout'>): Rect | undefined {
   const params = clip.caption?.params ?? {};
   if (!clip.caption || clip.cues.length === 0 || params.position !== 'over') return undefined;
-  const maxWidth = typeof params.max_width === 'number' ? params.max_width : 1400;
-  const band = captionBandBox({
-    rects: { screen: clip.layout.capture },
-    area: clip.layout.caption,
-    width: plan.width,
-    height: plan.height,
-    unit: plan.unit,
-    position: 'over',
-    maxWidth,
-    variant: plan.variant,
-  });
+  const band = captionOverBand({ params, capture: clip.layout.capture, area: clip.layout.caption, width: plan.width, height: plan.height, unit: plan.unit, variant: plan.variant });
   return band.over ? band.box : undefined;
 }
 

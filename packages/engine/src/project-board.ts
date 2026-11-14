@@ -32,6 +32,7 @@ import { basename, join, resolve } from 'node:path';
 import { SLUG_RE } from '@retake/core/model';
 import { isRunId, isThemeName, parseRenderId } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
+import { isFinishedRunStatus, isRunViewStatus } from '@retake/core/run';
 import { SCENARIO_COMPARE_MAX_BYTES, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@retake/core/scenario';
 import { orderRenders } from '@retake/core/render';
 import type { LoadedProject, RunStatus } from '@retake/core/model';
@@ -52,7 +53,7 @@ import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from './scenarios.js';
 import type { OpenedWorkspace } from './workspace.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */
 export const BOARD_SCENARIOS_MAX = 200;
@@ -79,8 +80,11 @@ const iso = (v: unknown): string | undefined => (typeof v === 'string' && v.leng
 /** Validations at once on a cold read. */
 const BOARD_CONCURRENCY = 4;
 
-const KNOWN: ReadonlySet<string> = new Set(['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted']);
-const FINISHED: ReadonlySet<string> = new Set(['succeeded', 'failed', 'cancelled', 'interrupted', 'unknown']);
+/**
+ * A run whose run.json the board holds once read without a stat: finished, or a status Retake never writes (`unknown`:
+ * nothing Retake runs moves it on).
+ */
+const settled = (status: ViewRunStatus): boolean => status === 'unknown' || isFinishedRunStatus(status);
 
 /** A run as the board tells it. */
 export interface BoardRun {
@@ -480,7 +484,7 @@ export class ProjectBoards {
     try {
       text = await getScenario(p, name);
     } catch (e) {
-      return { file: { parsed: false, ok: false, errors: 1, warnings: 0, unreadable: true }, content: empty, error: failureWords(e instanceof Error ? e.message : String(e)) };
+      return { file: { parsed: false, ok: false, errors: 1, warnings: 0, unreadable: true }, content: empty, error: failureWords(errorMessage(e)) };
     }
     remember(this.paths, `${p.dir}\0${name}`, text.path, FILE_MEMO_MAX);
     let fileSig = '';
@@ -526,7 +530,7 @@ export class ProjectBoards {
   // ── Runs ────────────────────────────────────────────────────────────────
 
   private statusOf(raw: string): ViewRunStatus {
-    return KNOWN.has(raw) ? (raw as ViewRunStatus) : 'unknown';
+    return isRunViewStatus(raw) ? raw : 'unknown';
   }
 
   private boardRun(id: string, r: RunRecordOnDisk, status: ViewRunStatus, job: string | undefined): BoardRun {
@@ -554,7 +558,7 @@ export class ProjectBoards {
     const file = projectPath(projectDir, 'runs', id, 'run.json');
     const key = `${projectDir}\0${id}`;
     const held = this.runs.get(key);
-    if (held && !check && (held.record === null || FINISHED.has(this.statusOf(held.record.status)))) return held.record;
+    if (held && !check && (held.record === null || settled(this.statusOf(held.record.status)))) return held.record;
     const sig = await lsig(file);
     if (held && held.sig === sig) return held.record;
     this.stats.runs++;

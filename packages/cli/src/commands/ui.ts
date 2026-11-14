@@ -34,6 +34,7 @@ import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import type { GlobalOptions } from '../workspace.js';
 import { workspaceRoot } from './mcp.js';
+import { stopSignal } from '../interrupt.js';
 
 export interface UiCommandOptions {
   port?: string;
@@ -193,18 +194,6 @@ export async function openBrowser(url: string, o: OpenerOptions = {}): Promise<b
       child.unref();
       resolve(true);
     });
-  });
-}
-
-function stopSignal(): Promise<string> {
-  return new Promise((resolve) => {
-    const stop = (s: NodeJS.Signals) => {
-      process.off('SIGINT', stop);
-      process.off('SIGTERM', stop);
-      resolve(s);
-    };
-    process.on('SIGINT', stop);
-    process.on('SIGTERM', stop);
   });
 }
 

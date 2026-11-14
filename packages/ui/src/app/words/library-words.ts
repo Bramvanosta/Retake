@@ -13,6 +13,7 @@ import type { ThemeEditInput } from '../data/themes.js';
 import type { StudioEvent } from '../events.js';
 import { APP_NAME } from '../brand.js';
 import { ANY_THEME_NAME, ANY_THEME_NAME_MAX, NEW_THEME_NAME, NEW_THEME_NAME_MAX, PROJECT_SLUG, okNewThemeName } from '../id-words.js';
+import { HIDDEN_CHARS } from '../hidden-chars.js';
 
 /** The kinds in the library's order (core COMPONENT_KINDS). */
 export const KIND_ORDER = ['intro', 'outro', 'card', 'interstitial', 'caption', 'layout', 'overlay', 'transition'] as const;
@@ -244,11 +245,12 @@ export function idProblem(id: string, taken: Iterable<string>): string | null {
 export const PROMPT_WORDS_MAX = 600;
 
 /**
- * Characters never kept in the prompt (review A L1): controls, every format character (`\p{Cf}`: direction marks and
- * overrides, zero widths, the invisible tag characters U+E0000 to U+E007F that smuggle hidden text), line / paragraph
- * separators, variation selectors, the combining grapheme joiner and the Hangul fillers (blank-looking letters).
+ * Characters never kept in the prompt (review A L1): core's hidden class (hidden-chars.ts) — controls, every format and
+ * default-ignorable character (direction marks and overrides, zero widths, the invisible tag characters U+E0000 to
+ * U+E007F that smuggle hidden text, variation selectors, the combining grapheme joiner), line / paragraph separators, the
+ * Hangul fillers and the braille blank (blank-looking letters).
  */
-const PROMPT_HIDDEN = /[\p{Cc}\p{Cf}\u2028-\u202e\u2060-\u206f\u{E0000}-\u{E007F}\ufe00-\ufe0f\u{E0100}-\u{E01EF}\u034f\u115f\u1160\u3164\uffa0]/gu;
+const PROMPT_HIDDEN = new RegExp(`[${HIDDEN_CHARS}]`, 'gu');
 
 /**
  * The person's words as they go into the prompt: hidden characters removed (PROMPT_HIDDEN: a pasted right-to-left

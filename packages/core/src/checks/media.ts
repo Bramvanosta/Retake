@@ -13,6 +13,7 @@ import type { LottieMeta, VideoProbe } from '../media.js';
 import type { MediaFileKind } from '../types.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
+import { errorMessage } from '../util.js';
 
 const DOC = 'docs/BRING-YOUR-OWN-MOTION.md';
 
@@ -121,7 +122,7 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
     try {
       out.lottie = readLottieMeta(files.readText(abs));
     } catch (e) {
-      ctx.error([...p, kind], `"${path}": ${(e as Error).message}`);
+      ctx.error([...p, kind], `"${path}": ${errorMessage(e)}`);
       return out;
     }
     if (out.lottie.external_images > 0) {

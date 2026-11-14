@@ -28,6 +28,7 @@ import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import { errorMessage } from '@retake/core/base';
 
 export interface ReviewRequest {
   project: string;
@@ -97,7 +98,7 @@ export async function cleanupInterruptedReview(ws: OpenedWorkspace, job: JobReco
   try {
     await reviewer.recover(await reviewDirOf(ws, job.input));
   } catch (e) {
-    log(`job ${job.id}: review leftovers not removed (${(e as Error).message})`);
+    log(`job ${job.id}: review leftovers not removed (${errorMessage(e)})`);
   }
 }
 

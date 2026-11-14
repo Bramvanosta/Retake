@@ -36,7 +36,7 @@
  * elements the frame's first script (boot.ts) does not see being made.
  */
 import { randomBytes, createHash } from 'node:crypto';
-import { closeSync, constants as fsConstants, createReadStream, fstatSync, lstatSync, openSync, realpathSync } from 'node:fs';
+import { closeSync, constants as fsConstants, createReadStream, fstatSync, lstatSync, openSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { basename, extname, resolve } from 'node:path';
@@ -46,6 +46,7 @@ import type { ComponentPreviewSpec, EditPlan } from '@retake/editor';
 import type { PlayerBundle } from '../player/bundle-player.js';
 import { isPreviewDisplayText } from '../player/protocol.js';
 import { pathInside } from '@retake/core/base';
+import { realpathOr } from '@retake/core/io';
 
 /** Files registered per scope (a plan has a few dozen). */
 export const PLAYER_FILES_MAX = 4096;
@@ -227,14 +228,6 @@ export interface PlayerServer {
 const newCap = () => newSecret();
 const newId = () => randomBytes(16).toString('base64url');
 
-function realOrUndefined(p: string): string | undefined {
-  try {
-    return realpathSync(p);
-  } catch {
-    return undefined;
-  }
-}
-
 /** The file's name as served: its base name in URL-safe characters (the content type comes from its extension). */
 export function servedName(file: string): string {
   const ext = extname(file)
@@ -312,11 +305,11 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
   const register = (file: string, within: readonly string[], scope = DEFAULT_SCOPE): string | undefined => {
     const sc = scopeNamed(scope);
     if (!sc) return undefined;
-    const real = realOrUndefined(file);
+    const real = realpathOr(file, undefined);
     if (!real) return undefined;
     if (
       !within.some((d) => {
-        const r = realOrUndefined(d);
+        const r = realpathOr(d, undefined);
         return r !== undefined && pathInside(real, r, { self: false, dotDotPrefix: true });
       })
     )

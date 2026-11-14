@@ -28,11 +28,11 @@ import { isRunId } from '@retake/core/ids';
 import { environmentAccess, resolveEnvironment } from '@retake/core/environment';
 import { projectPath } from '@retake/core/project';
 import { filmedChanges, parseScenario, matchRunSteps, movedSteps, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core/scenario';
-import { orderRuns, parseRunRecord } from '@retake/core/run';
+import { isFinishedRunStatus, isRunViewStatus, orderRuns, parseRunRecord } from '@retake/core/run';
 import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { ScenarioBlocks, ScenarioIdentity, SceneBlock } from '@retake/core/scenario';
-import type { StoredRunRecord } from '@retake/core/run';
+import type { StoredRunRecord, RunViewStatus, UnknownRunStatus } from '@retake/core/run';
 import type { AgentChannel } from './caller.js';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
@@ -63,7 +63,7 @@ const TEXT_TTL_MS = 60_000;
 const MEMO_MAX = 16;
 
 /** A run's status as the picker shows it: run.json's when it is one the runner writes, else `unknown` (review A #4). */
-export type ViewRunStatus = RunSummary['status'] | 'interrupted' | 'unknown';
+export type ViewRunStatus = RunViewStatus | UnknownRunStatus | 'unknown';
 
 /**
  * The run a scenario's Pause and Stop act on (L5.11a fixes, review A-L4 / B-M5): the newest queued or running run with a
@@ -74,8 +74,6 @@ export function runningOf<T extends { status: string; job?: string | null }>(run
   const going = runs.filter((r) => r.status === 'queued' || r.status === 'running');
   return going.find((r) => typeof r.job === 'string') ?? going[0] ?? null;
 }
-
-const KNOWN_STATUSES: ReadonlySet<string> = new Set(['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted']);
 
 /** A run of the scenario as the picker shows it. */
 export interface ScenarioRunChoice {
@@ -308,8 +306,6 @@ function remember<K, V>(map: Map<K, V>, key: K, value: V, max = MEMO_MAX): V {
   return value;
 }
 
-const FINISHED: ReadonlySet<string> = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
-
 /** The URL a scene opens: a path or a relative `open` against the page's base; any other `open` as written. */
 function joinUrl(base: string | undefined, open: string): string | undefined {
   if (/^[a-z][a-z0-9+.-]*:/i.test(open)) return stripUrlUserinfo(open);
@@ -355,10 +351,10 @@ export class ScenarioViews {
       if (!data || !data.record) throw new EngineError('not_found', `run "${o.run}" not found in ${slug} (scenario_blocks lists the runs of a scenario)`);
       if (data.record.scenario !== name) throw new EngineError('invalid', `run ${o.run} is a run of scenario ${data.record.scenario}, not ${name}`);
       picked = runs.find((r) => r.id === o.run) ?? (await this.choiceOf(p.dir, o.run, data.record));
-      if (!FINISHED.has(picked.status)) throw new EngineError('invalid', `run ${o.run} has not finished: its pictures come once it has`);
+      if (!isFinishedRunStatus(picked.status)) throw new EngineError('invalid', `run ${o.run} has not finished: its pictures come once it has`);
     } else {
       // A complete run whose steps can be matched first (review B L6: a newer run without a snapshot only "cannot tell").
-      picked = runs.find((r) => r.complete && r.snapshot) ?? runs.find((r) => r.complete) ?? runs.find((r) => FINISHED.has(r.status) && r.pictures !== null);
+      picked = runs.find((r) => r.complete && r.snapshot) ?? runs.find((r) => r.complete) ?? runs.find((r) => isFinishedRunStatus(r.status) && r.pictures !== null);
       if (picked) data = await this.ctx.runs.get(p.dir, picked.id);
     }
     if (picked && data) {
@@ -366,7 +362,7 @@ export class ScenarioViews {
       const choice = picked;
       // Newer finished runs that stopped early or left no picture (review B H1: a run that failed before its first
       // step — the site down — has no picture and must still be named).
-      const newer = runs.filter((r) => r.id > choice.id && FINISHED.has(r.status) && !r.complete && (r.partial !== undefined || r.pictures === null));
+      const newer = runs.filter((r) => r.id > choice.id && isFinishedRunStatus(r.status) && !r.complete && (r.partial !== undefined || r.pictures === null));
       source = {
         run: choice.id,
         mode: choice.mode,
@@ -586,7 +582,7 @@ export class ScenarioViews {
       return '-';
     }
     const watch = new Set(names);
-    for (const r of memo?.runs ?? []) if (!FINISHED.has(r.status)) watch.add(r.id);
+    for (const r of memo?.runs ?? []) if (!isFinishedRunStatus(r.status)) watch.add(r.id);
     const parts = await Promise.all([...watch].sort().map(async (id) => `${id}=${await lsig(join(dir, id))}/${await lsig(join(dir, id, 'run.json'))}`));
     return [await lsig(dir), ...parts].join('|');
   }
@@ -646,8 +642,8 @@ export class ScenarioViews {
 
   private async choice(projectDir: string, r: RunSummary, raw: ViewRunStatus): Promise<ScenarioRunChoice> {
     // run.json is a file anyone may write: a status the runner never writes is `unknown`, never shown as written.
-    const status: ViewRunStatus = KNOWN_STATUSES.has(raw) ? raw : 'unknown';
-    const finished = FINISHED.has(status);
+    const status: ViewRunStatus = isRunViewStatus(raw) ? raw : 'unknown';
+    const finished = isFinishedRunStatus(status);
     const { pictures, snapshot, failedAt, take } = await this.factsOf(projectDir, r.id, r.mode, finished, status === 'failed', r.mode === 'capture' && status === 'succeeded');
     let partial: string | undefined;
     if (status === 'cancelled') partial = 'cancelled';

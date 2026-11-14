@@ -9,6 +9,7 @@ import { readFfprobeJson, videoFileArgs, videoProbeFromJson } from '../ffprobe.j
 import { MediaToolError, runMediaToolSync, stderrLines } from './media-run.js';
 import { MediaProbeError } from '../media.js';
 import type { VideoProbe } from '../media.js';
+import { errorMessage } from '../util.js';
 
 const probeCache = new Map<string, VideoProbe | MediaProbeError>();
 
@@ -53,7 +54,7 @@ export function probeVideoFile(file: string, policy: WorkPolicy): VideoProbe {
     try {
       result = videoProbeFromJson(readFfprobeJson(stdout ?? ''));
     } catch (e) {
-      result = e instanceof MediaProbeError ? e : new MediaProbeError(`ffprobe output not understood (${(e as Error).message})`, 'unreadable');
+      result = e instanceof MediaProbeError ? e : new MediaProbeError(`ffprobe output not understood (${errorMessage(e)})`, 'unreadable');
     }
   }
   probeCache.set(key, result);

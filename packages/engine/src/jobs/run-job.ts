@@ -11,7 +11,7 @@ import type { EngineEnv } from '../env.js';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { FORMAT_VERSIONS } from '@retake/core/base';
+import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';
 import { listSteps, resolveStepRef } from '@retake/core/language';
 import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core/environment';
 import { usedNamedHooks } from '@retake/core/hooks';
@@ -369,7 +369,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
     try {
       job = await ctx.queue.enqueue(input);
     } catch (e) {
-      await finaliseReservedRun(dir, 'failed', `not queued: ${(e as Error).message}`, ctx.clock);
+      await finaliseReservedRun(dir, 'failed', `not queued: ${errorMessage(e)}`, ctx.clock);
       throw e;
     }
     return { job, runId, dir };

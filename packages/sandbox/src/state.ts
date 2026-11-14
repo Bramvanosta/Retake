@@ -8,6 +8,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { SandboxProvider, SandboxResetStrategy } from '@retake/core/model';
 import type { Member } from './proc.js';
+import { errorMessage } from '@retake/core/base';
 
 export const STATE_VERSION = 1;
 
@@ -71,7 +72,7 @@ export function readState(file: string, env: string, provider: SandboxProvider):
     text = readFileSync(file, 'utf8');
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { state: emptyState(env, provider) };
-    return { state: emptyState(env, provider), note: `cannot read ${file}: ${(e as Error).message} — starting from an empty state` };
+    return { state: emptyState(env, provider), note: `cannot read ${file}: ${errorMessage(e)} — starting from an empty state` };
   }
   let v: unknown;
   try {

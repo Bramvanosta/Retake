@@ -42,6 +42,7 @@ import { sha256Hex } from './storage.js';
 import type { StoreScope } from './store/store.js';
 import { checkTemplateName } from './templates.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { VersionLedger } from './version-ledger.js';
 
 /** The Retake package (the repository or its install folder): its themes are shipped files, never edited. */
 const PACKAGE_DIR = resolve(STARTER_TEMPLATES_DIR, '..');
@@ -64,24 +65,11 @@ interface ThemeLocation {
 }
 
 // The versions of each template.yaml this process showed (view) or wrote: undo / redo restore only these (critique B14).
-const VERSIONS_PER_FILE = 128;
-const VERSION_FILES = 256;
-const versions = new Map<string, string[]>();
-
-function rememberVersion(realFile: string, hash: string): void {
-  const list = versions.get(realFile) ?? [];
-  versions.delete(realFile);
-  const at = list.indexOf(hash);
-  if (at !== -1) list.splice(at, 1);
-  list.push(hash);
-  if (list.length > VERSIONS_PER_FILE) list.shift();
-  versions.set(realFile, list);
-  if (versions.size > VERSION_FILES) versions.delete(versions.keys().next().value!);
-}
+const versions = new VersionLedger();
 
 /** Whether this process showed or wrote that version of a theme's template.yaml (its real path). */
 export function knownThemeVersion(realFile: string, hash: string): boolean {
-  return versions.get(realFile)?.includes(hash) ?? false;
+  return versions.knows(realFile, hash);
 }
 
 /** The theme `name` of the workspace (a listed name, never a path) and whether the Studio may edit it. */
@@ -340,7 +328,7 @@ export async function templateView(ws: OpenedWorkspace, name: string): Promise<T
   const read = readThemeText(loc);
   const blocker = textBlocker(name, read);
   const editable: ThemeEditable = loc.editable !== true ? loc.editable : blocker ? { why: blocker } : true;
-  if (read.sha256) rememberVersion(loc.realFile, read.sha256);
+  if (read.sha256) versions.remember(loc.realFile, read.sha256);
   const value = read.utf8 ? parseYaml(read.text).value : undefined;
   const root = isObj(value) ? value : {};
   const fields: ThemeEditView['fields'] = {};
@@ -566,8 +554,8 @@ export async function editTemplate(ws: OpenedWorkspace, name: string, req: Theme
   const realRoot = realPathOf(resolve(ws.root), nodeFileFacts);
   const ref = relative(realRoot, loc.realFile).split(sep).join('/');
   const res = await o.scope.stores.at(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
-  rememberVersion(loc.realFile, base.sha256);
-  rememberVersion(loc.realFile, res.sha256);
+  versions.remember(loc.realFile, base.sha256);
+  versions.remember(loc.realFile, res.sha256);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);
   return { name, sha256: res.sha256, label, removed, ...extra, warnings };
 }

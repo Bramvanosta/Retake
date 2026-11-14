@@ -81,7 +81,27 @@ const FEATURES: Record<string, string[]> = {
 };
 
 /** The shared foundations: the root's modules (main.tsx, the entry, apart). A new root module fails until listed here. */
-const FOUNDATIONS = ['Thumb', 'api', 'best-effort', 'bits', 'brand', 'drafts', 'events', 'id-words', 'other-copy', 'project-data', 'route', 'session', 'sse', 'thumbs', 'tokens', 'unsaved-report'];
+const FOUNDATIONS = [
+  'Thumb',
+  'api',
+  'best-effort',
+  'bits',
+  'brand',
+  'drafts',
+  'events',
+  'hidden-chars',
+  'id-words',
+  'other-copy',
+  'project-data',
+  'route',
+  'run-ended',
+  'session',
+  'sse',
+  'throttle',
+  'thumbs',
+  'tokens',
+  'unsaved-report',
+];
 
 type Part = 'data' | 'ui-kit' | 'shell' | 'words' | 'root' | 'entry' | string;
 const partOf = (mod: string): Part => {

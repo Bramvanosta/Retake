@@ -2,6 +2,7 @@ import type { BBox, NormalizedStep, Pacing, PointSpec, ScrollArgs } from '@retak
 import { distance } from './motion.js';
 import type { Acted, StepContext } from './runtime.js';
 import { KEEP_NEAR_PX, cursorCovers } from './scene-cursor.js';
+import { errorMessage } from '@retake/core/base';
 
 /**
  * Parking (R-CHO-18, R-CHO-21), opt-in per step with `park`: after a scroll to a target the cursor rests next to it,
@@ -91,7 +92,7 @@ export async function parkCursor(ctx: StepContext, plan: ParkPlan, acted: Acted 
       }
     }
   } catch (e) {
-    rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: park failed (${e instanceof Error ? e.message : String(e)}); keeping the cursor`);
+    rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: park failed (${errorMessage(e)}); keeping the cursor`);
     return rec;
   }
   if (!to || distance(from, to) < 1) return rec;

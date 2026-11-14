@@ -13,6 +13,7 @@
 import type { FrameCommentAnchor } from '@retake/core/model';
 import type { KeyTarget } from './timeline-words.js';
 import { renderVersionWords } from '../id-words.js';
+import { EMOJI_CHARS, HIDDEN_CHARS, PICTOGRAPH_CHARS, SPACE_LOOKALIKES } from '../hidden-chars.js';
 
 export type Via = 'cli' | 'studio' | 'mcp';
 
@@ -446,10 +447,10 @@ export const REWRITE_NOTE_PCT = 25;
  */
 export type LinePiece = { kind: 'text'; text: string } | { kind: 'space'; count: number } | { kind: 'tab' } | { kind: 'char'; code: string };
 
-/** Core's hidden class (scenario-edit.ts HIDDEN_G), and every space separator but U+0020. */
-const UNSEEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Zs}\p{Default_Ignorable_Code_Point}ᅟᅠ⠀ㅤﾠ]/u;
-const PICTO = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\u{fe0f}]/u;
-const EMOJI = /\p{Emoji}/u;
+/** Core's hidden class, and every space separator but U+0020 (hidden-chars.ts). */
+const UNSEEN = new RegExp(`[${HIDDEN_CHARS}${SPACE_LOOKALIKES}]`, 'u');
+const PICTO = new RegExp(`[${PICTOGRAPH_CHARS}]`, 'u');
+const EMOJI = new RegExp(`[${EMOJI_CHARS}]`, 'u');
 
 /** "U+202E" of a character (code point, at least 4 hex digits). */
 export function codeOf(c: string): string {
@@ -502,7 +503,7 @@ export function linePieces(line: string): LinePiece[] {
       const prev = chars[i - 1] ?? '';
       const next = chars[i + 1] ?? '';
       // An emoji sequence: a variation selector after an emoji, a joiner between two pictographs.
-      const sequence = ((c === '️' || c === '︎') && i > 0 && EMOJI.test(prev)) || (c === '‍' && PICTO.test(prev) && PICTO.test(next));
+      const sequence = ((c === '\ufe0f' || c === '\ufe0e') && i > 0 && EMOJI.test(prev)) || (c === '\u200d' && PICTO.test(prev) && PICTO.test(next));
       if (!sequence) {
         flush();
         out.push({ kind: 'char', code: codeOf(c) });

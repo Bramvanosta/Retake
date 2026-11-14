@@ -33,7 +33,7 @@ import { errorKindOf } from '@retake/core/base';
 import { EngineError } from '../errors.js';
 import { conflictError, refOfIn, resolveIn, sha256Hex } from '../storage.js';
 import type { WriteResult } from '../storage.js';
-import { JOURNAL_FILES_MAX, journalLine, journalPath } from './journal.js';
+import { JOURNAL_FILES_MAX, journalLine, journalPath, readJournalLine } from './journal.js';
 import type { JournalEntry, JournalPlace, JournalWhat, JournalWrite } from './journal.js';
 import { FOLDER_NOUNS, recordPath } from './store.js';
 import type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreLabel, StoreScope, StoreWriteOptions, StoredText } from './store.js';
@@ -265,6 +265,6 @@ export class MemoryProjectStores implements ProjectStores {
 
   /** The journal's entries, oldest first (journalLines, parsed). */
   journal(workspace?: string): JournalEntry[] {
-    return this.journalLines(workspace).map((l) => JSON.parse(l) as JournalEntry);
+    return this.journalLines(workspace).flatMap((l) => readJournalLine(l) ?? []);
   }
 }

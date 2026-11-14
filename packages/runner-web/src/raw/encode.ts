@@ -19,6 +19,7 @@ import { cfrSchedule, materialize, runFfmpeg } from '../encode.js';
 import { EncodeError } from '../errors.js';
 import type { FrameIndexEntry } from '../recorder.js';
 import { gridFrameOf, type RawClipPlan, type RawSource } from './plan.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Codec settings of the clips. */
 export const RAW_ENCODING = {
@@ -230,7 +231,7 @@ export async function probeVideo(file: string, opts: { ffprobe?: string; count?:
   try {
     clip = clipProbeFromJson(readFfprobeJson(r.stdout), opts.count === true);
   } catch (e) {
-    throw new EncodeError(`ffprobe output of ${file} unreadable: ${(e as Error).message}`);
+    throw new EncodeError(`ffprobe output of ${file} unreadable: ${errorMessage(e)}`);
   }
   if (!clip) throw new EncodeError(`${file} has no video stream`);
   return clip;

@@ -45,7 +45,9 @@ import type { EnginePorts } from '../ports.js';
 import type { FrameTools } from '../review/reviewer.js';
 import type { CaptureRunner } from '../capture/runner.js';
 import type { HookRunner } from '../hook-run/runner.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -231,7 +233,7 @@ export async function prepareInspect(ws: OpenedWorkspace, project: LoadedProject
           check: { project, env: env.name, files: ws.reads.fileFacts(ws.policy) },
         });
       } catch (e) {
-        throw new EngineError('invalid', (e as Error).message);
+        throw new EngineError('invalid', errorMessage(e));
       }
       return { project, scenario, env: env.name, source };
     }
@@ -465,17 +467,32 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
   return inspectResult(input.inspect_id, dir, run);
 }
 
+/**
+ * What an inspect.json must hold for its readers (inspect_get, the Studio): this version, its status, its screenshot
+ * (its path is set from the folder below), its elements, counts and untrusted block. A file that is not one reads as no
+ * report (the folder's other files still answer).
+ */
+const InspectReportSchema = z.object({
+  version: z.literal(1),
+  status: z.enum(['ok', 'landed_elsewhere', 'failed']),
+  screenshot: z.string().nullable(),
+  elements: z.array(z.unknown()),
+  counts: z.record(z.string(), z.unknown()),
+  untrusted: z.record(z.string(), z.unknown()),
+});
+
+/** inspect.json as a report, or null when there is none or it is not one. */
+export async function readInspectReport(file: string): Promise<InspectReport | null> {
+  const text = await readFile(file, 'utf8').catch(() => undefined);
+  return text === undefined ? null : ((storedJson(InspectReportSchema, text) as InspectReport | undefined) ?? null);
+}
+
 /** An inspection's report, read back from its folder (page text stays under `untrusted`). */
 export async function readInspection(ws: OpenedWorkspace, slug: string, id: string): Promise<{ dir: string; report: InspectReport | null; marked: string | null }> {
   checkProjectSlug(slug);
   const project = await openProjectBySlug(ws, slug);
   const dir = inspectDir(project, id);
-  let report: InspectReport | null = null;
-  try {
-    report = JSON.parse(await readFile(join(dir, 'inspect.json'), 'utf8')) as InspectReport;
-  } catch {
-    report = null;
-  }
+  const report = await readInspectReport(join(dir, 'inspect.json'));
   const marked = existsSync(join(dir, 'marked.jpg')) ? join(dir, 'marked.jpg') : null;
   // Paths as this folder has them (inspect.json is a file of the project: never trusted to point elsewhere).
   if (report) {

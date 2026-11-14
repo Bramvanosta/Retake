@@ -31,6 +31,7 @@ import type {
   RunPerfCpu,
   RunSandbox,
   RunSessionStatus,
+  RunStatus,
   Timeline,
   TimelineEvent,
 } from './types.js';
@@ -160,7 +161,8 @@ export type UnknownRunStatus = string & { readonly [unknownRunStatus]: true };
 /** A stored record whose status is a text Retake never writes: shown as `unknown`, never taken for a capture. */
 export type UnknownStatusRun = StoredRunBase & { readonly status: UnknownRunStatus; readonly finished_at?: string; readonly error?: RunError } & InFlight;
 
-const KNOWN_STATUS: ReadonlySet<string> = new Set(['queued', 'running', 'succeeded', 'failed', 'cancelled']);
+const STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
+const KNOWN_STATUS: ReadonlySet<string> = new Set(STATUSES);
 /**
  * Whether a record read from a disk is in one of the five states (else: its status is a text Retake never writes).
  * After it the union of states narrows on `status` as usual — a comparison with a text cannot tell the two apart by
@@ -168,6 +170,31 @@ const KNOWN_STATUS: ReadonlySet<string> = new Set(['queued', 'running', 'succeed
  */
 export function isKnownRun(record: StoredRunRecord | UnknownStatusRun): record is StoredRunRecord {
   return KNOWN_STATUS.has(record.status);
+}
+
+/**
+ * A run's status as the views show it: its stored status, or `interrupted` — the overlay of a run whose job's worker
+ * died (never written to run.json). The views say `unknown` for any other text (engine ViewRunStatus).
+ */
+export type RunViewStatus = RunStatus | 'interrupted';
+
+/** Every RunViewStatus, in the order a run goes through them. */
+export const RUN_VIEW_STATUSES: readonly RunViewStatus[] = [...STATUSES, 'interrupted'];
+
+const VIEW_STATUS: ReadonlySet<string> = new Set(RUN_VIEW_STATUSES);
+const FINISHED_STATUS: ReadonlySet<string> = new Set<RunViewStatus>(['succeeded', 'failed', 'cancelled', 'interrupted']);
+
+/** Whether `status` (stored, overlaid or any text read from a disk) is one of the RunViewStatus words. */
+export function isRunViewStatus(status: string): status is RunViewStatus {
+  return VIEW_STATUS.has(status);
+}
+
+/**
+ * Whether a run with this status has finished: succeeded, failed, cancelled or interrupted. A text Retake never writes
+ * (`unknown` in the views) is not finished — nothing says it is over.
+ */
+export function isFinishedRunStatus(status: string): boolean {
+  return FINISHED_STATUS.has(status);
 }
 
 /** Progress events streamed by runners (CLI prints them, MCP stores them). */
@@ -287,7 +314,6 @@ export function isFilmName(name: string): boolean {
   return name !== '' && name !== '.' && name !== '..' && !/[\\/]/.test(name);
 }
 
-const STATUSES = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 const isStatus = (s: string): s is (typeof STATUSES)[number] => KNOWN_STATUS.has(s);
 
 // ── The lenient read of the members that decide nothing ──────────────────────

@@ -4,7 +4,6 @@
  */
 import { errorMessage } from '../errors.js';
 import { execFile } from 'node:child_process';
-import { realpathSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { stampOf } from '../clock.js';
 import { isAlive, processStart } from './proc.js';
@@ -16,6 +15,7 @@ import { pruneUsedApprovals } from './signing.js';
 import { closeJob, persistDerived } from './worker-finish.js';
 import type { Worker } from './worker-record.js';
 import { bestEffort } from '@retake/core/base';
+import { realpathOr } from '@retake/core/io';
 
 /** A process's command line (`ps -ww`, with a time limit), or null. */
 function commandLine(pid: number): Promise<string | null> {
@@ -37,12 +37,7 @@ async function provenJobProcess(id: string, root: string, w: JobWorkerInfo | und
   if (start === null || !Number.isFinite(recorded) || Math.abs(start - recorded) > 2000) return false;
   const cmd = await commandLine(w.pid);
   if (!cmd || !/\/worker-main\.(?:js|ts) /.test(cmd) || !cmd.includes(` --job ${id} --kind `)) return false;
-  let real = root;
-  try {
-    real = realpathSync(root);
-  } catch {
-    /* the workspace as named */
-  }
+  const real = realpathOr(root, root); // else the workspace as named
   return cmd.includes(` --root ${root} --build `) || cmd.includes(` --root ${real} --build `);
 }
 

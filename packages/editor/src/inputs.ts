@@ -13,6 +13,7 @@ import { probeVideoFile } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { PlanInputFile } from './planner/input.js';
+import { errorMessage } from '@retake/core/base';
 
 const DATA_RE = /\.(csv|tsv)$/i;
 
@@ -104,7 +105,7 @@ async function readInputFile(ref: string, file: string, work: WorkPolicy): Promi
       return { file, width: v.width, height: v.height, video: v };
     } catch (e) {
       const reason = (e as { reason?: string }).reason;
-      return reason === 'unreadable' && /not found/.test((e as Error).message) ? { file, missing: true } : { file, error: (e as Error).message };
+      return reason === 'unreadable' && /not found/.test(errorMessage(e)) ? { file, missing: true } : { file, error: errorMessage(e) };
     }
   }
   const bytes = await readFile(file);
@@ -114,7 +115,7 @@ async function readInputFile(ref: string, file: string, work: WorkPolicy): Promi
       const l = readLottieMeta(bytes.toString('utf8'));
       return { file, width: l.width, height: l.height, lottie: l };
     } catch (e) {
-      return { file, error: (e as Error).message };
+      return { file, error: errorMessage(e) };
     }
   }
   return { file, ...(imageFileSize(bytes) ?? {}) };

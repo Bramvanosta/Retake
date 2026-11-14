@@ -32,6 +32,8 @@ import { EngineError } from '../errors.js';
 import { isAlive } from '../jobs/proc.js';
 import { stateDir } from '../workspace-state.js';
 import { privateFileProblem, readPrivateText, replacePrivateFile } from './token-file.js';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
 
 /** The version this build writes; a record of version 1 was written by an older Retake (with its token, never read). */
 export const DISCOVERY_VERSION = 2;
@@ -225,27 +227,24 @@ const tokenFix = (file: string) => `remove ${file} (no Studio server uses it saf
 export async function readStudioToken(file: string, root: string): Promise<StudioTokenRecord | null> {
   const text = await readPrivateText(file, tokenFix(file));
   if (text === null) return null;
-  let v: unknown;
-  try {
-    v = JSON.parse(text);
-  } catch {
-    return null;
-  }
-  const r = v as Partial<StudioTokenRecord> | null;
-  const ok =
-    !!r &&
-    typeof r === 'object' &&
-    r.version === 1 &&
-    r.root === (await realRoot(root)) &&
-    Number.isInteger(r.pid) &&
-    (r.pid as number) > 0 &&
-    (r.started_at === undefined || typeof r.started_at === 'string') &&
-    Number.isInteger(r.port) &&
-    (r.port as number) > 0 &&
-    (r.port as number) <= 65535 &&
-    typeof r.token === 'string' &&
-    TOKEN_RE.test(r.token);
-  return ok ? { version: 1, root: r.root as string, pid: r.pid as number, ...(r.started_at ? { started_at: r.started_at } : {}), port: r.port as number, token: r.token as string } : null;
+  const r = tokenRecordOf(text);
+  return r && r.root === (await realRoot(root)) ? r : null;
+}
+
+/** A token record's members: a version 1 record, a pid, a port and a token of the shape this module writes. */
+const StudioTokenSchema = z.object({
+  version: z.literal(1),
+  root: z.string(),
+  pid: z.number().int().positive(),
+  started_at: z.string().optional(),
+  port: z.number().int().min(1).max(65535),
+  token: z.string().regex(TOKEN_RE),
+});
+
+/** A token file's text as a record (its members only, nothing else the file holds), or null when it is not one. */
+function tokenRecordOf(text: string): StudioTokenRecord | null {
+  const r = storedJson(StudioTokenSchema, text) as StudioTokenRecord | undefined;
+  return r ? { version: 1, root: r.root, pid: r.pid, ...(r.started_at ? { started_at: r.started_at } : {}), port: r.port, token: r.token } : null;
 }
 
 /** The token record of the server `serving` (pid, start time, port) of `root`, for `file` (0600, atomically replaced). */
@@ -266,8 +265,8 @@ export async function releaseStudioToken(file: string, record: StudioTokenRecord
     const st = await lstat(file);
     const uid = process.getuid?.();
     if (!st.isFile() || (uid !== undefined && st.uid !== uid)) return;
-    const current = JSON.parse(await readFile(file, 'utf8')) as Partial<StudioTokenRecord>;
-    if (current.token === record.token && sameServing(current as StudioTokenRecord, record)) await unlink(file);
+    const current = tokenRecordOf(await readFile(file, 'utf8'));
+    if (current && current.token === record.token && sameServing(current, record)) await unlink(file);
   } catch {
     // gone already, or unreadable: nothing of ours to remove
   }

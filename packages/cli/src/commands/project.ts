@@ -219,7 +219,7 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
         const loaded = await openProject(ws, p.dir);
         return { ...p, scenarios: loaded.scenarios, environments: Object.keys(loaded.config.environments), error: undefined };
       } catch (e) {
-        return { ...p, scenarios: [] as string[], environments: [] as string[], error: (e as Error).message.split('\n')[0] };
+        return { ...p, scenarios: [] as string[], environments: [] as string[], error: errorMessage(e).split('\n')[0] };
       }
     }),
   );

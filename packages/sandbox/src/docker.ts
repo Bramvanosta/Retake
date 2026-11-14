@@ -15,6 +15,7 @@ import { policyChildEnv } from '@retake/core/policy';
 import { nodeFileFacts } from '@retake/core/io';
 import type { WorkPolicy } from '@retake/core/policy';
 import { SandboxError } from './errors.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Oldest Compose this provider runs (`up --wait-timeout`). */
 export const MIN_COMPOSE_VERSION: readonly number[] = [2, 17, 0];
@@ -144,7 +145,7 @@ export function runDocker(bin: string, args: string[], opts: DockerRunOptions & 
         stdio: ['ignore', 'pipe', 'pipe'],
       });
     } catch (e) {
-      return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: (e as Error).message });
+      return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: errorMessage(e) });
     }
     opts.onSpawn?.(child);
     let stdout = '';

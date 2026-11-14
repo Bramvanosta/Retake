@@ -14,6 +14,7 @@ import type { CaptureRunner } from './capture/runner.js';
 import { editor } from './lazy.js';
 import type { OpenedWorkspace } from './workspace.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
+import { errorMessage } from '@retake/core/base';
 
 /** The package's settings a caller may set (undefined: project.yaml `raw`, else the defaults). */
 export type RawExportSettings = Pick<ExportCaptureOptions, 'format' | 'fps' | 'cursor' | 'layer' | 'selects' | 'cuts' | 'out'>;
@@ -38,7 +39,7 @@ async function runTemplate(project: LoadedProject, timeline: Timeline, ws: Pick<
   try {
     return { template: await ws.reads.loadProjectTemplate(project, timeline.video?.template, { files: ws.reads.fileFacts(ws.policy) }) };
   } catch (e) {
-    return { note: `the run's template could not be loaded (${e instanceof Error ? e.message : String(e)}): the cursor layer uses the default look` };
+    return { note: `the run's template could not be loaded (${errorMessage(e)}): the cursor layer uses the default look` };
   }
 }
 

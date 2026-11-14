@@ -12,6 +12,7 @@
  */
 import { execFile, execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { sleep } from '../util.js';
 
 const PS_ENV = { ...process.env, LC_ALL: 'C', LANG: 'C' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -100,6 +101,11 @@ export function signalState(target: number): 'alive' | 'gone' | 'foreign' {
   }
 }
 
+/** Whether a process of this pid exists (a signal 0: no `ps`): this one, or one alive (another user's too); a pid reused by another program reads as alive. */
+export function pidExists(pid: number): boolean {
+  return pid === process.pid || signalState(pid) !== 'gone';
+}
+
 /** Send a signal; false when the target is gone (or not ours). */
 export function send(target: number, signal: NodeJS.Signals): boolean {
   try {
@@ -185,12 +191,12 @@ export async function identify(pid: number, startedAt: string, known: Known = {}
   return live.some((m) => recorded.some((r) => r.pid === m.pid && Math.abs(r.start - m.start) <= START_TOLERANCE_MS)) ? 'ours' : 'reused';
 }
 
-/** The members of a process group and all their descendants (children that left the group: setsid, a detached browser). */
-export function groupTree(table: readonly ProcInfo[], pgid: number): ProcInfo[] {
-  const byParent = new Map<number, ProcInfo[]>();
+/** The processes of `table` that `root` picks and every descendant of them by parent pid: the one tree walk. */
+export function processTree<T extends ProcInfo>(table: readonly T[], root: (p: T) => boolean): T[] {
+  const byParent = new Map<number, T[]>();
   for (const p of table) byParent.set(p.ppid, [...(byParent.get(p.ppid) ?? []), p]);
-  const seen = new Map<number, ProcInfo>();
-  const queue = table.filter((p) => p.pgid === pgid);
+  const seen = new Map<number, T>();
+  const queue = table.filter(root);
   while (queue.length) {
     const p = queue.shift()!;
     if (seen.has(p.pid)) continue;
@@ -200,7 +206,10 @@ export function groupTree(table: readonly ProcInfo[], pgid: number): ProcInfo[] 
   return [...seen.values()];
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** The members of a process group and all their descendants (children that left the group: setsid, a detached browser). */
+export function groupTree(table: readonly ProcInfo[], pgid: number): ProcInfo[] {
+  return processTree(table, (p) => p.pgid === pgid);
+}
 
 /** Wait until `kill(target, 0)` fails, at most `ms`; true when it is gone. */
 async function waitGone(target: number, ms: number): Promise<boolean> {

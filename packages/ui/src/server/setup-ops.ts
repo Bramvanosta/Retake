@@ -29,7 +29,7 @@ import { execFile } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { RETAKE_VERSION, bestEffort } from '@retake/core/base';
+import { RETAKE_VERSION, bestEffort, errorMessage } from '@retake/core/base';
 import { bundleInfoOrNull, bundleNodeArgs, retakeHome } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import type { UpdateState } from './update-ops.js';
@@ -149,7 +149,7 @@ export class SetupState {
     try {
       this.chosen = { dir: checkCliFolder(dir, { uid: ctx.uid, workspace, ...(ctx.bundle ? { sealed: ctx.bundle.sealed } : {}) }) };
     } catch (e) {
-      this.chosen = e instanceof SetupError ? { error: e.message, reason: e.reason } : { error: (e as Error).message, reason: 'invalid' };
+      this.chosen = e instanceof SetupError ? { error: e.message, reason: e.reason } : { error: errorMessage(e), reason: 'invalid' };
     }
   }
 
@@ -346,7 +346,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
         current = plan.current;
       } catch (e) {
         desktopState = 'unreadable';
-        problem = (e as Error).message;
+        problem = errorMessage(e);
       }
       // `ps` only when asked (the step in view, the window focused), at most every PS_EVERY_MS.
       if (a.processes && (!state.ps || state.now() - state.ps.at >= PS_EVERY_MS)) await readRunning(ctx, state);

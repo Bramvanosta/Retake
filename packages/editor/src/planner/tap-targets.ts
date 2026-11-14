@@ -5,6 +5,7 @@ import type { EditPlan, PlanLayout, ResolvedComponent } from '../plan-types.js';
 import { round } from '../util.js';
 import { ANCHOR_OVERLAY_WINDOW_S } from './rules.js';
 import type { Draft, PlanScope } from './scope.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Tap targets of transitions (L2.9): the outgoing segment's (or its last overlay's) manifest anchor. */
 export function planTapTargets(s: PlanScope, drafts: Draft[]): void {
@@ -25,7 +26,7 @@ export function planTapTargets(s: PlanScope, drafts: Draft[]): void {
       });
       return { x: round(r.x * unit, 2), y: round(r.y * unit, 2), w: round(r.w * unit, 2), h: round(r.h * unit, 2) };
     } catch (e) {
-      warnings.add(`${where}: the ${anchorKey} of ${rc.id} cannot be evaluated: ${(e as Error).message}`);
+      warnings.add(`${where}: the ${anchorKey} of ${rc.id} cannot be evaluated: ${errorMessage(e)}`);
       return undefined;
     }
   };

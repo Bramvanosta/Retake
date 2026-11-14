@@ -7,8 +7,8 @@ import { resolve } from 'node:path';
 import { isJobId } from '@retake/core/ids';
 import { JOB_STATES } from '@retake/engine';
 import type { JobState } from '@retake/engine';
-import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject, yieldWords } from '@retake/engine';
-import type { Engine, JobRecord } from '@retake/engine';
+import { EngineError, FINISHED_JOB_STATES, createEngine, jobOutcome, jobProgress, jobProject, jobWhat, yieldWords } from '@retake/engine';
+import type { Engine } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -45,78 +45,6 @@ async function engineCall<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/** "run quote (dry) → 20261017-142233-quote", "hooks catalogue:setup", "sign-in of supplier (headed)"… */
-export function jobWhat(j: JobRecord): string {
-  const i = j.input;
-  const on = 'env' in i && i.env ? ` on ${i.env}` : '';
-  switch (i.kind) {
-    case 'render':
-      return `render ${i.scenario} (run ${i.run_id}${i.template ? `, theme ${i.template}` : ''}) → ${i.render_id}`;
-    case 'review':
-      return `review ${i.render_id}${i.fps === 2 ? ' (2 fps)' : ''}`;
-    case 'export':
-      return `export ${i.render_id} → ${i.formats.join(', ')}`;
-    case 'run':
-      return `run ${i.scenario} (${i.mode})${on} → ${i.run_id}`;
-    case 'hooks':
-      return `hooks ${i.source}${i.dry ? ' (dry)' : ''}${on}`;
-    case 'env_reset':
-      return `env reset${i.dry ? ' (dry)' : ''}${on}`;
-    case 'auth_login':
-      return `sign-in of ${i.persona ?? 'the persona'} (${i.mode})${on}`;
-    case 'sandbox_up':
-      return `sandbox up${on}`;
-    case 'sandbox_reset':
-      return `sandbox reset${i.reseed ? ' (reseed)' : ''}${on}`;
-    case 'preview':
-      return `preview of ${i.target.kind === 'component' ? i.target.component : i.target.kind === 'library' ? `${i.target.items.length} library component${i.target.items.length === 1 ? '' : 's'}` : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`;
-    case 'inspect':
-      return `inspect ${i.source.kind === 'page' ? `page ${i.source.page} ${i.source.path}` : `scenario ${i.source.scenario}${i.source.until ? ` until ${i.source.until}` : ''}`}${on} → ${i.inspect_id}`;
-    case 'record':
-      return `record ${i.scenario ?? 'a scenario'} from page ${i.source.page} ${i.source.path}${on} → ${i.rec_id}`;
-    case 'site':
-      return `site extraction of ${i.url} → ${i.site_id}`;
-  }
-}
-
-/** What a finished job produced, in a few words. */
-export function jobOutcome(j: JobRecord): string {
-  const r = j.result;
-  if (!r) return '';
-  switch (r.kind) {
-    case 'run':
-      return `run ${r.status} · ${r.steps_done}/${r.steps_total} steps`;
-    case 'hooks':
-    case 'env_reset':
-      return r.ok ? 'ok' : 'with failures';
-    case 'auth_login':
-      return r.signed_in ? `signed in (${r.status})` : `not signed in (${r.status})`;
-    case 'render':
-      return `${r.duration_s} s ${r.width}×${r.height} → ${r.file}`;
-    case 'review':
-      return `${r.clean ? 'clean' : `${r.counts.error} errors, ${r.counts.warning} warnings`} → ${r.dir}`;
-    case 'export':
-      return `${r.outputs.length} files${r.failed.length ? `, ${r.failed.length} failed` : ''} → ${r.dir}`;
-    case 'preview':
-      return `${r.images.length} image${r.images.length === 1 ? '' : 's'} (${r.theme} theme) → ${r.dir}`;
-    case 'inspect':
-      return `${r.reported ? `${r.status}${r.counts ? `, ${r.counts.listed} elements listed` : ''}` : `not inspected (replay ${r.run_status})`} → ${r.dir}`;
-    case 'record':
-      return r.not_saved === 'nothing_recorded' ? 'nothing recorded' : `${r.stats.steps} steps${r.saved ? ` → ${r.saved.file}` : ` (not saved: ${r.not_saved})`} · check ${r.check.status}`;
-    case 'site':
-      return `${r.status === 'ok' ? `${r.candidates.length} logo candidate${r.candidates.length === 1 ? '' : 's'}${r.palette ? `, accent ${r.palette.roles.accent ?? 'none'}` : ''}` : 'the page could not be read'} → ${r.dir}`;
-    default:
-      return r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed';
-  }
-}
-
-/** A running job's progress: percent for a render, steps for a run. */
-function progressText(p: NonNullable<JobRecord['progress']>): string {
-  if (p.steps_total === 0 && !p.current && p.phase) return p.phase;
-  if (p.fraction !== undefined) return `${Math.round(p.fraction * 100)} %${p.phase ? ` · ${p.phase}` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}`;
-  return `${p.steps_done}/${p.steps_total} steps${p.current ? ` · ${p.current.scene}.${p.current.step} ${p.current.action}` : p.phase ? ` · ${p.phase}` : ''}`;
-}
-
 function stateText(ui: Ui, s: JobState): string {
   const c = ui.c;
   const w = s.padEnd(11);
@@ -148,13 +76,13 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
   const now = Date.now();
   for (const j of jobs) {
     const p = j.progress;
-    const progress = j.state === 'running' && p ? ` · ${progressText(p)}` : '';
-    const outcome = jobOutcome(j);
+    const progress = j.state === 'running' && p ? ` · ${jobProgress(p)}` : '';
+    const outcome = j.result ? jobOutcome(j.result, 'full') : '';
     const cancel = j.cancel_requested_at && (j.state === 'running' || j.state === 'queued') ? c.yellow(' · cancel requested') : '';
     // L5.14: a heavy job a filming take holds (waiting to start, or slowed while it runs).
     const held = j.yield ? c.yellow(` · ${yieldWords(j.yield)}`) : '';
     ui.result(
-      `${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j)}${held}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`,
+      `${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j.input)}${held}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`,
     );
   }
   ui.line(
@@ -178,7 +106,7 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   const c = ui.c;
   const row = (k: string, v: string) => ui.result(`  ${c.dim(k.padEnd(9))} ${v}`);
   ui.result(`${c.bold(job.id)} ${stateText(ui, job.state).trimEnd()}`);
-  row('what', `${jobProject(job.input) ?? 'workspace'} · ${jobWhat(job)}`);
+  row('what', `${jobProject(job.input) ?? 'workspace'} · ${jobWhat(job.input)}`);
   const approvals = 'approvals' in job.input ? (job.input.approvals ?? []) : [];
   row('by', `${job.input.submitted_by}${approvals.length ? ` · ${approvals.length} ${job.input.kind === 'site' ? 'URL' : 'hook'} approval${approvals.length === 1 ? '' : 's'} given at submit` : ''}`);
   row('created', job.created_at);
@@ -196,8 +124,8 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
     );
   if (job.yield?.state === 'background') row('held', `${yieldWords(job.yield)}${job.yield.since ? ` since ${job.yield.since}` : ''}`);
   const p = job.progress;
-  if (p && job.state === 'running') row('progress', progressText(p));
-  const outcome = jobOutcome(job);
+  if (p && job.state === 'running') row('progress', jobProgress(p));
+  const outcome = job.result ? jobOutcome(job.result, 'full') : '';
   if (outcome) row('result', outcome);
   if (job.cancel_requested_at && (job.state === 'running' || job.state === 'queued')) row('cancel', `requested at ${job.cancel_requested_at} (teardown and rollbacks run first)`);
   if (job.error) {
@@ -217,7 +145,7 @@ export async function jobsCancelCommand(ui: Ui, global: GlobalOptions, id: strin
     return EXIT.ok;
   }
   const job = await engineCall(() => engine.jobs.cancel(id));
-  if (job.state === 'cancelled') ui.ok(`${id} cancelled (${jobWhat(job)})`);
-  else ui.ok(`${id}: cancel requested (${jobWhat(job)}) — its teardown and rollbacks run first; retake jobs status ${id} follows it`);
+  if (job.state === 'cancelled') ui.ok(`${id} cancelled (${jobWhat(job.input)})`);
+  else ui.ok(`${id}: cancel requested (${jobWhat(job.input)}) — its teardown and rollbacks run first; retake jobs status ${id} follows it`);
   return EXIT.ok;
 }

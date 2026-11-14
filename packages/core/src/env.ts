@@ -2,6 +2,7 @@ import { normalizeDisplay } from './display.js';
 import type { EnvironmentAccess, EnvironmentSettings, LoadedProject, ResolvedEnvironment } from './types.js';
 import { GUIDE, missingOrInvalid } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
+import { decodeOrKeep } from './util.js';
 
 export class EnvironmentError extends Error {
   constructor(message: string) {
@@ -151,14 +152,7 @@ export function withoutCredentials(url: string): { url: string; credentials?: Pa
     return { url };
   }
   if ((u.protocol !== 'http:' && u.protocol !== 'https:') || (!u.username && !u.password)) return { url };
-  const decode = (v: string) => {
-    try {
-      return decodeURIComponent(v);
-    } catch {
-      return v;
-    }
-  };
-  const credentials = { origin: u.origin, username: decode(u.username), password: decode(u.password) };
+  const credentials = { origin: u.origin, username: decodeOrKeep(u.username), password: decodeOrKeep(u.password) };
   // The authority's last `@` ends the details; what follows it is kept as written (a base path, no trailing slash added).
   let clean = url.replace(/^([\u0000-\u0020]*[a-z][a-z0-9+.-]*:[\\/]{2})[^/\\?#]*@/i, '$1');
   try {

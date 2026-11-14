@@ -22,6 +22,7 @@ import { executeRunJob, pauseMaxMs } from './run-job.js';
 import { executeSandboxJob } from './sandbox-job.js';
 import type { JobErrorView, JobEventBody, JobProgress, JobResult } from './types.js';
 import type { FreeBytes, RecordWindow } from './worker-ports.js';
+import { errorMessage } from '@retake/core/base';
 
 /** The input of a job of kind `K`. */
 export type JobOfKind<K extends JobKind> = Extract<JobInput, { kind: K }>;
@@ -83,14 +84,14 @@ const runHandler: JobHandler<'run'> = async (job, run) => {
     const max = pauseMaxMs(base.env);
     if (max !== undefined) run.pause.maxMs = max;
   } catch (e) {
-    base.event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });
+    base.event({ type: 'log', level: 'warn', message: `${errorMessage(e)}: the default (30 min) applies` });
   }
   // The live picture's channel (L4.4): a loopback listener and live.json, for as long as the job runs.
   let channel: LiveChannel | null = null;
   try {
     channel = await openLiveChannel({ files: run.files, jobId: id, runId: job.run_id, worker: run.self });
   } catch (e) {
-    log(`job ${id}: no live picture (${(e as Error).message})`);
+    log(`job ${id}: no live picture (${errorMessage(e)})`);
   }
   // L5.14: a filming take holds heavy work of every workspace while it films (captures.ts).
   const film = job.mode === 'capture' ? run.filming() : undefined;

@@ -78,6 +78,8 @@ import { saveScenarioText } from './scenarios.js';
 import type { StoreScope } from './store/store.js';
 import { sha256Hex } from './storage.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
+import { storedJson } from './stored-json.js';
+import { z } from 'zod';
 
 /** The largest events.jsonl read (bytes): a 30-minute recording is far below it. */
 export const RECORD_EVENTS_MAX_BYTES = 64 * 1024 * 1024;
@@ -269,17 +271,15 @@ interface RecordJson {
   actions: number | null;
 }
 
+/** A record.json: an object (each member the view uses is then read on its own: an odd one reads as none). */
+const RecordJsonSchema = z.record(z.string(), z.unknown());
+
 /** record.json's fields the view uses (each checked; null when there is none or it is not readable). */
 function readRecordJson(dir: string): RecordJson | null {
   const r = readPlainFile(join(dir, 'record.json'), RECORD_JSON_MAX_BYTES);
   if (!r.ok) return null;
-  let j: Record<string, unknown>;
-  try {
-    j = JSON.parse(r.bytes.toString('utf8')) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-  if (!j || typeof j !== 'object') return null;
+  const j = storedJson(RecordJsonSchema, r.bytes.toString('utf8')) as Record<string, unknown> | undefined;
+  if (!j) return null;
   return {
     events_sha256: typeof j.events_sha256 === 'string' && /^[0-9a-f]{64}$/.test(j.events_sha256) ? j.events_sha256 : null,
     saved: typeof j.saved === 'string' && /^scenarios\/[\w-]{1,100}\.yaml$/.test(j.saved) ? j.saved : null,

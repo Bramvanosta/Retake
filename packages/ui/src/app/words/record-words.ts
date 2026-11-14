@@ -9,6 +9,7 @@
 import type { DraftSource, RecordInsert, RecordInsertAt, SecretFieldKind } from '@retake/core/run';
 import type { JobClient } from '@retake/engine';
 import type { RecordCheckView, RecordState } from '@retake/engine';
+import { hasHidden } from '../hidden-chars.js';
 
 /** Quick inserts' defaults (core RECORD_HOLD_S.default) and caps; the zoom's factor comes with the view (the theme's max_zoom). */
 export const HOLD_DEFAULT_S = 2;
@@ -263,8 +264,8 @@ export function textProblem(text: string, max: number): string | null {
   if (!text.trim()) return 'It is empty.';
   if (text.length > max) return `At most ${max} characters.`;
   if (text.includes('{{')) return 'It may not hold "{{" (a scenario would read it as a template).';
-  // Line breaks, tabs, controls, format characters (zero-width, direction controls) and the BOM: one line of visible text.
-  if (/[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/.test(text)) return 'One line of visible text only (no line break, tab or hidden character).';
+  // Line breaks, tabs and every hidden character (core's class; an emoji sequence's joiner and selector kept): one line of visible text.
+  if (hasHidden(text)) return 'One line of visible text only (no line break, tab or hidden character).';
   return null;
 }
 

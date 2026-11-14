@@ -9,13 +9,14 @@ import { appendHistory } from '../history.js';
 import { historyOf } from './run-job-record.js';
 import type { JobRecord } from './types.js';
 import type { Worker } from './worker-record.js';
+import { errorMessage } from '@retake/core/base';
 
 /** Write job.json, or exit: a job whose state cannot be written must not look alive. */
 export async function writeOrExit(w: Worker, rec: JobRecord): Promise<void> {
   try {
     await w.queue.write(rec);
   } catch (e) {
-    w.log(`cannot write the state of job ${rec.id} (${(e as Error).message}): exiting`);
+    w.log(`cannot write the state of job ${rec.id} (${errorMessage(e)}): exiting`);
     w.lock?.release();
     process.exit(1);
   }
@@ -30,13 +31,13 @@ export async function closeJob(w: Worker, final: JobRecord, opts: { cleanup?: bo
       { type: 'result', ...(final.error ? { error: final.error } : {}) },
     ]);
   } catch (e) {
-    w.log(`job ${final.id}: events not written (${(e as Error).message})`);
+    w.log(`job ${final.id}: events not written (${errorMessage(e)})`);
   }
   w.done.add(final.id);
   try {
     await appendHistory(w.root, historyOf(final), w.clock);
   } catch (e) {
-    w.log(`job ${final.id}: no history line (${(e as Error).message})`);
+    w.log(`job ${final.id}: no history line (${errorMessage(e)})`);
   }
   if (opts.cleanup) await cleanupDead(w, final);
   w.log(`job ${final.id}: ${final.state} (${final.error?.message.split('\n')[0] ?? ''})`);

@@ -52,6 +52,7 @@ import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWo
 
 import type { LoadedProject } from '@retake/core/model';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
+import { errorMessage } from '@retake/core/base';
 
 /**
  * One server-sent event: `data` is one line of JSON with U+2028 / U+2029 escaped (review A M1: JSON.stringify leaves
@@ -119,7 +120,7 @@ export class Live {
     try {
       index = await WorkspaceIndex.open(o.ws, { queue: o.queue.withOwnMemory(), ...(o.sqlite ? { loader: o.sqlite } : {}) });
     } catch (e) {
-      o.log?.(`retake ui: the workspace index could not be opened (${e instanceof Error ? e.message : String(e)}): activity and search are off`);
+      o.log?.(`retake ui: the workspace index could not be opened (${errorMessage(e)}): activity and search are off`);
     }
     const live = new Live(o, index);
     const why = { corrupt: 'the file was damaged', schema: 'another version wrote it', not_a_file: 'it was not a regular file' } as const;
@@ -144,7 +145,7 @@ export class Live {
   refresh(): Promise<void> {
     if (this.closed) return Promise.resolve();
     return (this.refreshing ??= this.poll()
-      .catch((e: unknown) => this.o.log?.(`retake ui: a workspace poll failed: ${e instanceof Error ? e.message : String(e)}`))
+      .catch((e: unknown) => this.o.log?.(`retake ui: a workspace poll failed: ${errorMessage(e)}`))
       .finally(() => {
         this.refreshing = undefined;
       }));

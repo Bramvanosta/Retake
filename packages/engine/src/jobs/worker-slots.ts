@@ -14,6 +14,7 @@ import { writeOrExit } from './worker-finish.js';
 import { startHeavy } from './worker-heavy.js';
 import type { Worker } from './worker-record.js';
 import { interruptPort } from './worker-signals.js';
+import { errorMessage } from '@retake/core/base';
 
 /** How the capture slot runs a claimed job: this worker's runner (its job.json, events, history line). */
 export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void> {
@@ -48,7 +49,7 @@ export function captureJobRunner(w: Worker): (stored: JobRecord) => Promise<void
 /** Run a claimed job in the capture slot (this process); the slot empties when it ends. */
 function startCapture(w: Worker, stored: JobRecord): void {
   w.started++;
-  const run = w.runJob(stored).catch((e: unknown) => w.log(`job ${stored.id}: ${(e as Error).message}`));
+  const run = w.runJob(stored).catch((e: unknown) => w.log(`job ${stored.id}: ${errorMessage(e)}`));
   w.capture = {
     id: stored.id,
     // Not filming yet: its setup hooks run first (runner onFilming says when it films).

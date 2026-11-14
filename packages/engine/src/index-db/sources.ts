@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { historyFile } from '../history.js';
 import { SLUG_RE } from '@retake/core/model';
 import { projectPath } from '@retake/core/project';
+import { isFinishedRunStatus } from '@retake/core/run';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';
@@ -179,8 +180,6 @@ export interface RunChange {
   change: 'new' | 'status' | 'progress' | 'removed';
 }
 
-const FINISHED_RUN = new Set(['succeeded', 'failed', 'cancelled']);
-
 /** The run.json signatures a `runs:<slug>` signature holds (`<id>=<sig>` parts: the unfinished runs it watched). */
 function watchedRuns(sig: string | undefined): Map<string, string> {
   const out = new Map<string, string>();
@@ -198,13 +197,13 @@ export function runChanges(project: string, before: readonly RunRow[], after: re
   const sigsBefore = watchedRuns(prevSig);
   const sigsAfter = watchedRuns(nextSig);
   const out: RunChange[] = [];
-  const row = (r: RunRow, change: RunChange['change']): RunChange => ({ project, run: r.id, scenario: r.scenario, status: r.status, finished: FINISHED_RUN.has(r.status ?? ''), change });
+  const row = (r: RunRow, change: RunChange['change']): RunChange => ({ project, run: r.id, scenario: r.scenario, status: r.status, finished: isFinishedRunStatus(r.status ?? ''), change });
   for (const r of after) {
     const o = old.get(r.id);
     if (!o) out.push(row(r, 'new'));
     else if (o.status !== r.status) out.push(row(r, 'status'));
-    else if (!FINISHED_RUN.has(r.status ?? '') && sigsBefore.has(r.id) && sigsAfter.has(r.id) && sigsBefore.get(r.id) !== sigsAfter.get(r.id)) out.push(row(r, 'progress'));
+    else if (!isFinishedRunStatus(r.status ?? '') && sigsBefore.has(r.id) && sigsAfter.has(r.id) && sigsBefore.get(r.id) !== sigsAfter.get(r.id)) out.push(row(r, 'progress'));
   }
-  for (const o of before) if (!now.has(o.id)) out.push({ ...row(o, 'removed'), finished: FINISHED_RUN.has(o.status ?? '') });
+  for (const o of before) if (!now.has(o.id)) out.push({ ...row(o, 'removed'), finished: isFinishedRunStatus(o.status ?? '') });
   return out.sort((a, b) => (a.run < b.run ? -1 : a.run > b.run ? 1 : 0));
 }

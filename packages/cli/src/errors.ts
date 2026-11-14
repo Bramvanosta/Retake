@@ -1,4 +1,4 @@
-import { errorKindOf } from '@retake/core/base';
+import { errorKindOf, errorMessage } from '@retake/core/base';
 
 /** Process exit codes of `retake`. */
 export const EXIT = {
@@ -32,9 +32,8 @@ export class UsageError extends CliError {
   }
 }
 
-export function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
+/** core's, re-exported for this package's modules. */
+export { errorMessage } from '@retake/core/base';
 
 /**
  * The message of an error and, when it carries one (an EngineError: the refusal beside an old Studio, a busy lock…), its

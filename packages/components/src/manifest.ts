@@ -6,7 +6,7 @@
  * JSON Schema and its defaults, preview samples) and returns positioned issues.
  */
 import { z } from 'zod';
-import { brokenUnder, checkYamlDocument, didYouMean, hasErrors, locatedIssue } from '@retake/core/base';
+import { brokenUnder, checkYamlDocument, didYouMean, errorMessage, hasErrors, locatedIssue } from '@retake/core/base';
 import { COMPONENT_KINDS, componentIdSchema, keyString } from '@retake/core/model';
 import type { LocatedIssue } from '@retake/core/base';
 import type { ComponentKind } from '@retake/core/model';
@@ -279,7 +279,7 @@ function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: Read
       ids = expressionIdentifiers(v);
     } catch (e) {
       syntaxOk = false;
-      out.push(locatedIssue('error', [key, ...path], `invalid expression "${v}": ${(e as Error).message}`));
+      out.push(locatedIssue('error', [key, ...path], `invalid expression "${v}": ${errorMessage(e)}`));
       return;
     }
     for (const id of ids) {
@@ -328,7 +328,7 @@ function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: Read
   try {
     e = evalLayoutGeometry(g, defaults);
   } catch (err) {
-    out.push(locatedIssue('error', [key], `the geometry cannot be evaluated with the param defaults: ${(err as Error).message}`));
+    out.push(locatedIssue('error', [key], `the geometry cannot be evaluated with the param defaults: ${errorMessage(err)}`));
     return;
   }
   const dynamic = geometryIsDynamic(g);
@@ -377,7 +377,7 @@ function checkAnchor(spec: AnchorSpec, key: string, variant: 'landscape' | 'vert
       ids = expressionIdentifiers(v);
     } catch (e) {
       ok = false;
-      out.push(locatedIssue('error', [key, ...path], `invalid expression "${v}": ${(e as Error).message}`));
+      out.push(locatedIssue('error', [key, ...path], `invalid expression "${v}": ${errorMessage(e)}`));
       return;
     }
     for (const id of ids) {
@@ -400,7 +400,7 @@ function checkAnchor(spec: AnchorSpec, key: string, variant: 'landscape' | 'vert
     else if (!rectInside(r, space))
       out.push(locatedIssue('error', [key], `anchor {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}} leaves the ${space.width}×${space.height} design space (param defaults)`));
   } catch (e) {
-    out.push(locatedIssue('error', [key], `the anchor cannot be evaluated with the param defaults: ${(e as Error).message}`));
+    out.push(locatedIssue('error', [key], `the anchor cannot be evaluated with the param defaults: ${errorMessage(e)}`));
   }
   return out;
 }

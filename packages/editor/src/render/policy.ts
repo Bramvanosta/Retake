@@ -23,20 +23,20 @@
  *   video once more in software with libx264, from scratch.
  */
 import { availableParallelism, cpus as osCpus } from 'node:os';
-import { realpathSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { RENDER_CONCURRENCY_MAX, RENDER_ENV, RenderSettingsError, renderSettingsFromEnv } from '@retake/core/model';
 import { agentProgram, programProblem, sandboxSwitchOff } from '@retake/core/policy';
 import { gpuInfoOf } from '@retake/core/render';
 import type { RenderEncoderSetting, RenderFfmpegSetting, RenderGlSetting, RenderSettings } from '@retake/core/model';
 import type { ProgramPolicyOptions, WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo, SystemInfoReply } from '@retake/core/render';
-import { bundleInfoOrNull, ffmpegBin, programLookup, retakeHome } from '@retake/core/io';
+import { bundleInfoOrNull, ffmpegBin, programLookup, realTarget, retakeHome } from '@retake/core/io';
 import { ENCODE_TOOLS_DIR, EncodeToolsError, encodeFolder, fileId, ownEncodeFailedEarlier, ownFfmpeg, probeFrameEncode } from './encode-tools.js';
 import type { OwnFfmpeg } from './encode-tools.js';
 import { compositorDir, rendererLibrary } from './library.js';
 import type { RenderBrowserHandle } from './library.js';
 import { RenderCancelledError, RenderError, isDiskFullError } from './types.js';
+import { errorMessage } from '@retake/core/base';
 
 /** How the render browser draws: ANGLE (the GPU: Metal on macOS) or Chromium's software raster (no `--use-gl`). */
 export type RenderGl = 'angle' | 'software';
@@ -418,16 +418,6 @@ export function workFfmpeg(work: WorkPolicy, lookup: ProgramPolicyOptions = prog
   return found.program;
 }
 
-/** `p` with the part of it that exists resolved (links, /var → /private/var): where a file not made yet will really lie. */
-function realTarget(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    const parent = dirname(p);
-    return parent === p ? p : join(realTarget(parent), basename(p));
-  }
-}
-
 /** The encoder and rate of a frame encode, as the library writes them for `remotionEncoding` (pure). */
 export function frameEncodeCodecArgs(encoder: RenderEncoder, s: FrameSize): string[] {
   return encoder === 'libx264' ? ['-c:v', 'libx264', '-crf', String(RENDER_CRF)] : ['-c:v', 'h264_videotoolbox', '-b:v', `${videotoolboxMbps(s)}M`, '-g', String(gopFrames(s.fps))];
@@ -753,7 +743,7 @@ export async function probeRenderPath(o: {
   try {
     policy = renderPolicy(o.workPolicy);
   } catch (e) {
-    return { error: (e as Error).message };
+    return { error: errorMessage(e) };
   }
   const out: RenderPathProbe = { policy, gl: policy.gl.resolved };
   if (policy.gl.resolved === 'angle') {
@@ -799,7 +789,7 @@ export async function probeRenderPath(o: {
     // VideoToolbox through our ffmpeg where the library's does not encode it: the line says what renders do.
     if (c.encoder === 'h264_videotoolbox' && c.ffmpeg.used === 'own' && out.videotoolbox && !out.videotoolbox.ok) out.videotoolbox = { ok: true };
   } catch (e) {
-    out.error = (e as Error).message;
+    out.error = errorMessage(e);
   }
   return out;
 }

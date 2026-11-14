@@ -10,7 +10,21 @@
  * member that decides nothing can never make a record unreadable, which is what the lenient rows below pin.
  */
 import { describe, expect, it } from 'vitest';
-import { RunRecordSchema, closeReservedRun, finishRun, isKnownRun, parseRunId, parseRunRecord, parseTimeline, parseTimelineHead, queuedRun, startedRun } from '../src/index.js';
+import {
+  RUN_VIEW_STATUSES,
+  RunRecordSchema,
+  closeReservedRun,
+  finishRun,
+  isFinishedRunStatus,
+  isKnownRun,
+  isRunViewStatus,
+  parseRunId,
+  parseRunRecord,
+  parseTimeline,
+  parseTimelineHead,
+  queuedRun,
+  startedRun,
+} from '../src/index.js';
 import type { RunRead, RunRecord, RunningRun, StoredRunRecord, UnknownStatusRun } from '../src/index.js';
 import { STATES, recordFixture, recordText, stateIds } from './fixtures/records/build.js';
 
@@ -428,5 +442,28 @@ describe('parseTimelineHead', () => {
       return r.ok ? 'ok' : `${r.problem} at ${'detail' in r ? r.detail : ''}`;
     };
     expect([whole(noRun), whole({ ...head, capture: {} }), whole(noEvents), whole({ ...head, scenes: 'none' }), whole(head)]).toEqual(['ok', 'ok', 'invalid at events', 'invalid at scenes', 'ok']);
+  });
+});
+
+describe('a run is finished: one rule (isFinishedRunStatus) and one view-status union (RunViewStatus)', () => {
+  it.each([
+    ['queued', true, false],
+    ['running', true, false],
+    ['succeeded', true, true],
+    ['failed', true, true],
+    ['cancelled', true, true],
+    // The overlay of a run whose job's worker died: finished, never written to run.json.
+    ['interrupted', true, true],
+    // A text Retake never writes: shown as unknown, and nothing says it is over.
+    ['unknown', false, false],
+    ['paused', false, false],
+    ['', false, false],
+  ])('%s: a view status %s, finished %s', (status, view, finished) => {
+    expect(isRunViewStatus(status)).toBe(view);
+    expect(isFinishedRunStatus(status)).toBe(finished);
+  });
+
+  it('the union lists every stored status and interrupted', () => {
+    expect(RUN_VIEW_STATUSES).toEqual(['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted']);
   });
 });

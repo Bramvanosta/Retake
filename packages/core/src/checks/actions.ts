@@ -4,6 +4,7 @@ import { hasLocator, isPoint, pickTarget } from '../targets.js';
 import type { NormalizedStep, TargetObject } from '../types.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
+import { errorMessage } from '../util.js';
 
 const LOCATOR_KEYS = 'text, contains, role, label, aria, placeholder, css or testid';
 
@@ -153,7 +154,7 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
         try {
           new RegExp(m[1], m[2]);
         } catch (e) {
-          ctx.error([...ap, 'subject'], `invalid regular expression ${a.subject}: ${(e as Error).message}`);
+          ctx.error([...ap, 'subject'], `invalid regular expression ${a.subject}: ${errorMessage(e)}`);
         }
       }
       return typeof a.as === 'string' ? { artefact: { kind: 'email', name: a.as, path: [...ap, 'as'] } } : {};
@@ -164,7 +165,7 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
         try {
           new RegExp(m ? m[1] : a.pattern, m ? m[2] : '');
         } catch (e) {
-          ctx.error([...ap, 'pattern'], `invalid regular expression ${a.pattern}: ${(e as Error).message}`);
+          ctx.error([...ap, 'pattern'], `invalid regular expression ${a.pattern}: ${errorMessage(e)}`);
         }
       }
       return typeof a.as === 'string' ? { artefact: { kind: 'text', name: a.as, path: [...ap, 'as'] } } : {};

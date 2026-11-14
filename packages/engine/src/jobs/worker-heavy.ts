@@ -5,7 +5,6 @@
  * its end written here only when its job process died before it wrote it (one writer). The takes it yields to are read
  * here too: the filming markers of this user (captures.ts).
  */
-import { errorMessage } from '../errors.js';
 import { spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -24,6 +23,7 @@ import { unclaimJob } from './worker-claim.js';
 import { closeJob } from './worker-finish.js';
 import type { HeavyChild, Worker } from './worker-record.js';
 import type { YieldMark } from './job-queue.js';
+import { errorMessage } from '@retake/core/base';
 
 /**
  * Record the heavy job's yield (what the Studio and job_status show of it). A write that fails is logged: the job goes

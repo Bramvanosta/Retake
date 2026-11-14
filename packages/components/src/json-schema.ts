@@ -6,7 +6,7 @@
  * (anything else is an error rather than being silently ignored), and — like every Retake format — objects are
  * CLOSED unless they set `additionalProperties`: an unknown param is a typo until proven otherwise.
  */
-import { describeValue, didYouMean } from '@retake/core/base';
+import { describeValue, didYouMean, errorMessage } from '@retake/core/base';
 import type { LocatedIssue } from '@retake/core/base';
 
 export type JsonSchemaNode = Record<string, unknown>;
@@ -196,7 +196,7 @@ function checkNode(node: unknown, path: Path, out: LocatedIssue[]): void {
       try {
         new RegExp(node.pattern, 'u');
       } catch (e) {
-        out.push(err([...path, 'pattern'], `invalid regular expression: ${(e as Error).message}`));
+        out.push(err([...path, 'pattern'], `invalid regular expression: ${errorMessage(e)}`));
       }
     }
   }

@@ -142,6 +142,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   findRenderOf, `engine/jobs/record-job.ts` settleDiscardAtJobEnd); the jobs' log handlers print `errorMessage(e)`
   (now one engine helper in `errors.ts`, execute-run's local copy gone; also `record-job.ts` and the jobs' older
   `e.message` log lines in the same files).
+| L7.44 | One rule, one place (final audits CC-S1, CC-S2, CC-S3, A-S7, A-S8, A-N12) | done | A job's words once (engine job-words.ts, switches; CLI and MCP compose them); helpers once (core errorMessage — 139 idioms —, decodeOrKeep, sleep, realpathOr / realTarget, processTree, pidExists, lstatOrNull; VersionLedger; stopSignal; Studio useThrottled); "hidden character" once (core hidden-chars.ts, Studio mirror held by a test, five surfaces on one code-point table); stored formats read through one zod schema each (stored-json.ts; `record-read` counts a typed parse outside FORMAT_READ_HOMES); core isFinishedRunStatus + RunViewStatus; geometry captionOverBand |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1253,6 +1254,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.42 — Hygiene (M; decided 2026-11-13)
 - **Goal:** no dead code (the compiler now refuses unused locals and parameters), client mistakes reported as refusals, and every swallowed rejection either says why or surfaces the failure.
 - **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.42)". No requirement change.
+
+### L7.44 — One rule, one place (M; decided 2026-11-13)
+- **Goal:** a job's words, the small helpers, "hidden character", the stored formats' reads and "a run is finished" each written once
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.44)". hidden-character rule, job words, helpers and stored-format readers each in one place; final audits CC-S1, CC-S2, CC-S3, A-S7, A-S8, A-N12 closed
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

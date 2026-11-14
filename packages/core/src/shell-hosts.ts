@@ -9,6 +9,7 @@
 import { normalizeHost } from './hosts.js';
 import { DYN, REDIRECT_ALONE, REDIRECT_ATTACHED, SHELLS, commandName, commandWordAt, heredocs, lexCommand, substitutions } from './shell-words.js';
 import type { ShellToken } from './shell-words.js';
+import { decodeOrKeep } from './util.js';
 
 export interface ShellHostRef {
   /** Normalized host ('' when `unresolved`). Never a URL: messages may show it. */
@@ -520,11 +521,7 @@ class Collector {
 
   add(host: string, via: string, envKey?: string): void {
     let h = host.trim();
-    try {
-      if (h.includes('%')) h = decodeURIComponent(h);
-    } catch {
-      /* keep it as written */
-    }
+    if (h.includes('%')) h = decodeOrKeep(h);
     if (h.includes(DYN) || h.includes('{{')) {
       if (!this.refs.some((r) => r.unresolved && r.via === via)) this.refs.push({ host: '', via, unresolved: true, ...(envKey ? { envKey } : {}) });
       return;
@@ -554,7 +551,7 @@ class Collector {
       if (rest.includes('?')) {
         for (const kv of query.split('&')) {
           const [k, v = ''] = kv.split('=');
-          if (k === 'host' || k === 'hostaddr') this.addList(safeDecode(v), via, envKey);
+          if (k === 'host' || k === 'hostaddr') this.addList(decodeOrKeep(v), via, envKey);
         }
       }
     }
@@ -572,14 +569,6 @@ class Collector {
   /** URLs anywhere in a text (inline code). */
   addUrlsIn(text: string, via: string): void {
     for (const m of text.matchAll(URL_IN_TEXT)) this.addUrl(m[0], via);
-  }
-}
-
-function safeDecode(s: string): string {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
   }
 }
 

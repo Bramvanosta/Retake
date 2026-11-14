@@ -40,7 +40,7 @@ import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { realpath, rmdir } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { canonicalJson, interpolate } from '@retake/core/base';
+import { canonicalJson, errorMessage, interpolate } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { hookStepNames, sqlSource, usedNamedHooks } from '@retake/core/hooks';
 import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, projectPath, statePath } from '@retake/core/project';
@@ -107,7 +107,7 @@ export async function recordScenarioWrite(
     const now = w.clock.now();
     if (now - lastWarn < 60_000) return;
     lastWarn = now;
-    process.stderr.write(`retake: the project's record of scenario writes (${STATE_DIR}/${PROJECT_SCENARIO_WRITES_FILE}) could not be written: ${(e as Error).message}\n`);
+    process.stderr.write(`retake: the project's record of scenario writes (${STATE_DIR}/${PROJECT_SCENARIO_WRITES_FILE}) could not be written: ${errorMessage(e)}\n`);
   });
 }
 
@@ -157,7 +157,7 @@ async function jsonLines(file: string): Promise<{ lines: unknown[] } | { missing
     }
     return { lines: out };
   } catch (e) {
-    return { unreadable: `${file}: ${(e as Error).message}` };
+    return { unreadable: `${file}: ${errorMessage(e)}` };
   }
 }
 
@@ -257,7 +257,7 @@ export async function hooksWrittenBy(
       try {
         now = await o.files();
       } catch (e) {
-        return { agent: true, unknown: `the files its hooks read cannot be listed (${(e as Error).message})` };
+        return { agent: true, unknown: `the files its hooks read cannot be listed (${errorMessage(e)})` };
       }
       o.trusted?.(trust.files);
       const changes = trustedFileChanges(trust.files, now);
@@ -733,6 +733,6 @@ export async function trustScenarioHooks(project: LoadedProject, view: HooksTrus
       files: { code: view.files.code, data: view.files.data },
     });
   } catch (e) {
-    throw new EngineError('internal', `the project's record of scenario writes (${STATE_DIR}/${PROJECT_SCENARIO_WRITES_FILE}) could not be written: ${(e as Error).message} — nothing was settled`);
+    throw new EngineError('internal', `the project's record of scenario writes (${STATE_DIR}/${PROJECT_SCENARIO_WRITES_FILE}) could not be written: ${errorMessage(e)} — nothing was settled`);
   }
 }

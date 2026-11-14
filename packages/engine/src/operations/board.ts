@@ -16,6 +16,7 @@ import { READ } from './annotations.js';
 import { defineOperation } from './define.js';
 import { studioProject as project } from './studio-schema.js';
 import { plural } from './words.js';
+import { errorMessage } from '@retake/core/base';
 
 const OverviewInput = z.strictObject({});
 const BoardInput = z.strictObject({ project });
@@ -44,7 +45,7 @@ export const projectsOverview = defineOperation({
           const [view, runs] = await Promise.all([engine.projects.get(p.slug), engine.runs.list(p.slug, { limit: 1 })]);
           return { slug: p.slug, environments: view.environments.map((e) => ({ name: e.name, production: e.production, access: e.access, sandbox: e.sandbox })), last_run: runs[0] ?? null };
         } catch (e) {
-          return { slug: p.slug, environments: [], last_run: null, error: firstErrorLine(e instanceof Error ? e.message : String(e)) };
+          return { slug: p.slug, environments: [], last_run: null, error: firstErrorLine(errorMessage(e)) };
         }
       }),
     );

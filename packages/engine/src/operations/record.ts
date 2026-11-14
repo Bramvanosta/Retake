@@ -53,6 +53,7 @@ import type { RecordListItem, RecordState, RecordView } from '../record-studio.j
 import { pathFree } from '../renders.js';
 import { defineOperation } from './define.js';
 import { scenarioKey } from './studio-jobs.js';
+import { errorMessage } from '@retake/core/base';
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -271,7 +272,7 @@ async function recordOptions(engine: Engine, slug: string): Promise<RecordOption
       def = { page: start.page, path: start.path, persona: start.persona?.name ?? null };
       access = resolveRunAccess(start.env, { allowWrites: false, project: loaded }).mode;
     } catch (x) {
-      problem = x instanceof Error ? x.message : String(x);
+      problem = errorMessage(x);
     }
     const states = new Map(auth.personas.filter((p) => p.env === e.name).map((p) => [p.persona, p]));
     return {

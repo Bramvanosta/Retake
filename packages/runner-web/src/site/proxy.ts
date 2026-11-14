@@ -22,6 +22,7 @@ import type { Server, Socket } from 'node:net';
 import { classifyAddress } from '@retake/core/policy';
 import type { AddressClass } from '@retake/core/policy';
 import type { SiteTestTarget } from '@retake/core/theme';
+import { errorMessage } from '@retake/core/base';
 
 export interface SiteProxyCaps {
   /** Bytes one tunnel carries (both ways). */
@@ -132,7 +133,7 @@ export class SiteProxy {
     try {
       all = await this.resolver(h);
     } catch (e) {
-      throw new ProxyRefusalError('dns', `${h} does not resolve (${(e as NodeJS.ErrnoException).code ?? (e as Error).message})`);
+      throw new ProxyRefusalError('dns', `${h} does not resolve (${(e as NodeJS.ErrnoException).code ?? errorMessage(e)})`);
     }
     if (!all.length) throw new ProxyRefusalError('dns', `${h} has no address`);
     for (const a of all) {
@@ -206,7 +207,7 @@ export class SiteProxy {
       target = await this.checkedAddress(host);
     } catch (e) {
       if (e instanceof ProxyRefusalError) return this.refuse(c, e.reason, host, e.message);
-      return this.refuse(c, 'dns', host, (e as Error).message);
+      return this.refuse(c, 'dns', host, errorMessage(e));
     } finally {
       this.pending--;
     }

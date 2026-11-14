@@ -10,7 +10,7 @@ import type { StreamFrame } from './stream.js';
 import type { HoldKind } from './hold.js';
 import type { CaptureClock } from './timeline.js';
 import { pad, round3 } from './util.js';
-import { bestEffort } from '@retake/core/base';
+import { bestEffort, errorMessage } from '@retake/core/base';
 
 /** One captured frame: file name inside frames/ and capture time in seconds. */
 export interface FrameIndexEntry {
@@ -417,7 +417,7 @@ export class ScreencastRecorder {
       })
       .catch((e: unknown) => {
         this.writeErrors++;
-        this.opts.onError?.(`frame ${entry.file} could not be written: ${(e as Error).message}`);
+        this.opts.onError?.(`frame ${entry.file} could not be written: ${errorMessage(e)}`);
       })
       .finally(() => this.pending.delete(write));
     this.pending.add(write);

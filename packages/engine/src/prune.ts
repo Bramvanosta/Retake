@@ -54,10 +54,10 @@ import type { PruneAlone, PruneKeep, PruneNewer, PruneRenderFile, PruneSaid } fr
 import type { RenderNot, RenderSaid } from '@retake/core/render';
 import { RENDER_RECORD_MAX, RUN_RECORD_MAX, readRendersFolder, readRunFolder } from '@retake/core/io';
 import { listCommentsAndUnread } from './comments/views.js';
-import { FORMAT_VERSIONS, newerFormatMessage } from '@retake/core/base';
+import { FORMAT_VERSIONS, errorMessage, newerFormatMessage } from '@retake/core/base';
 import { isMadeRunId, parseRenderId, runIdOfScenario } from '@retake/core/ids';
 import { projectPath, projectRef } from '@retake/core/project';
-import { orderRuns, pruneKeeper, pruneKeptWords } from '@retake/core/run';
+import { isFinishedRunStatus, orderRuns, pruneKeeper, pruneKeptWords } from '@retake/core/run';
 import { completeRender, renderKeeper, renderNotWords, renderOfFile, renderSaidOf } from '@retake/core/render';
 import { EngineError } from './errors.js';
 
@@ -207,8 +207,6 @@ async function renderSaid(file: string): Promise<RenderSaid | 'too-big' | null> 
   }
 }
 
-const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
-
 /** See the module comment. */
 export async function pruneProject(project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
   const keepRenders = req.keep_renders ?? DEFAULT_KEEP_RENDERS;
@@ -341,7 +339,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     // (A scenario that is no text — a run.json the reader does not take — is carried as the file holds it, as ever.)
     const r = { ...run, scenario: run.scenario as string };
     // What kept a take before the rule looked at what its folder holds …
-    const kept = unreadRun(r) || !FINISHED.has(r.status) || busy(r.id) || usedRuns.has(r.id) || r.keep.includes('last-capture');
+    const kept = unreadRun(r) || !isFinishedRunStatus(r.status) || busy(r.id) || usedRuns.has(r.id) || r.keep.includes('last-capture');
     // … and what keeps it now beside that: said, when it is the only reason.
     const why = r.keep.find((k): k is Exclude<PruneKeep, 'last-capture'> => k !== 'last-capture');
     if (kept || why) {
@@ -410,7 +408,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   if (!dry) {
     for (const it of items) {
       for (const p of it.paths) {
-        await rm(p, { recursive: true, force: true }).catch((e: unknown) => problems.push(`${p}: ${(e as Error).message}`));
+        await rm(p, { recursive: true, force: true }).catch((e: unknown) => problems.push(`${p}: ${errorMessage(e)}`));
       }
     }
   }

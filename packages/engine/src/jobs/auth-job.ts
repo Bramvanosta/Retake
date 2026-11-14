@@ -26,6 +26,7 @@ import type { SubmitContext } from './run-job.js';
 import type { AuthLoginJobResult, JobEventBody, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import { errorMessage } from '@retake/core/base';
 
 /** The environment variable that changes how long a headed sign-in window of a job may stay open (minutes). */
 export const AUTH_HEADED_MAX_ENV = 'RETAKE_SIGNIN_MAX_MIN';
@@ -188,7 +189,7 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
     try {
       maxMs = headedSignInMaxMs(ctx.env);
     } catch (e) {
-      ctx.event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });
+      ctx.event({ type: 'log', level: 'warn', message: `${errorMessage(e)}: the default (30 min) applies` });
     }
   }
   const interrupts = input.mode === 'headed' ? withTimeLimit(ctx.interrupts, maxMs, () => (timedOut = true)) : ctx.interrupts;

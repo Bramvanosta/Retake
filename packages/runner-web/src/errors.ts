@@ -104,10 +104,8 @@ export function isCancelled(e: unknown): boolean {
   return e instanceof CancelledError || (e instanceof Error && e.name === 'AbortError');
 }
 
-export function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  return String(e);
-}
+/** core's, re-exported for this package's modules. */
+export { errorMessage } from '@retake/core/base';
 
 /** Text for "nearby visible texts" lists in error messages. */
 export function formatNear(near: string[] | undefined): string {

@@ -13,6 +13,7 @@ import type { WorkspaceDisk } from '../file-facts.js';
 import { issuesMessage } from '../issues.js';
 import { SANDBOX_SEED_DIR, SandboxConfigError, parseSandboxYaml, sandboxAuth } from '../sandbox.js';
 import type { LoadedSandbox, ProjectConfig, SandboxManifest } from '../types.js';
+import { errorMessage } from '../util.js';
 
 /**
  * Read the manifests of project.yaml `sandboxes:` (paths relative to the project dir) on a disk. Throws
@@ -29,7 +30,7 @@ export async function loadSandboxesOn(disk: WorkspaceDisk, projectDir: string, c
     try {
       text = (await disk.readFile(file)).toString('utf8');
     } catch (e) {
-      const why = (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'not found' : `cannot be read: ${(e as Error).message}`;
+      const why = (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'not found' : `cannot be read: ${errorMessage(e)}`;
       throw new SandboxConfigError(`sandbox ${env}: ${file} ${why} (project.yaml sandboxes.${env})`, [], file, env);
     }
     const { manifest, issues } = parseSandboxYaml(text, file, { env, project: { config }, files: disk.facts });
@@ -55,7 +56,7 @@ export async function accountsComposeEnvOn(disk: WorkspaceDisk, dir: string, man
   try {
     values = envFileValues((await disk.readFile(envFile)).toString('utf8'));
   } catch (e) {
-    throw fail(`the compose env file ${envFile} cannot be read: ${(e as Error).message}`);
+    throw fail(`the compose env file ${envFile} cannot be read: ${errorMessage(e)}`);
   }
   const out: Record<string, string> = {};
   for (const n of names) {

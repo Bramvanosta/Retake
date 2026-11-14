@@ -24,6 +24,8 @@ import { stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
 import { appendLogLine, logFile, logLinesFromEnd, logWarner, readLogLines } from './append-log.js';
 import type { AppendLog } from './append-log.js';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
 
 export const JOURNAL_VERSION = 1;
 
@@ -222,20 +224,22 @@ export interface JournalQuery {
   limit?: number;
 }
 
+/** What makes a journal line an entry: this version, an operation and a time. */
+const JournalLineSchema = z.object({ v: z.literal(JOURNAL_VERSION), op: z.string(), at: z.string() });
+
+/** One line of the journal as an entry, or undefined: a torn, foreign or other-version line (skipped by its readers). */
+export function readJournalLine(line: string): JournalEntry | undefined {
+  return line.trim() ? (storedJson(JournalLineSchema, line) as JournalEntry | undefined) : undefined;
+}
+
 /** One line as an entry when it is one of this version that passes the query, else undefined. */
 function entryOf(line: string, q: JournalQuery): JournalEntry | undefined {
-  if (!line.trim()) return undefined;
-  let e: Partial<JournalEntry>;
-  try {
-    e = JSON.parse(line) as Partial<JournalEntry>;
-  } catch {
-    return undefined;
-  }
-  if (e === null || typeof e !== 'object' || e.v !== JOURNAL_VERSION || typeof e.op !== 'string' || typeof e.at !== 'string') return undefined;
+  const e = readJournalLine(line);
+  if (!e) return undefined;
   if (q.project !== undefined && e.project !== q.project) return undefined;
   if (q.op === 'hook' && e.op !== 'hook') return undefined;
   if (q.op === 'write' && e.op === 'hook') return undefined;
-  return e as JournalEntry;
+  return e;
 }
 
 /**

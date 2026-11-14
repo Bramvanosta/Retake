@@ -22,6 +22,7 @@ import { EngineError } from '@retake/engine';
 import { defineTool } from '@retake/engine/contract';
 import type { ToolOutput } from '@retake/engine/contract';
 import type { DesktopPipe } from './desktop.js';
+import { hasHidden } from '@retake/core/base';
 
 export const UPDATE_STATES = ['off', 'idle', 'updated', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;
 export type UpdateStateName = (typeof UPDATE_STATES)[number];
@@ -41,7 +42,8 @@ export const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const versionOk = (v: unknown): v is string => typeof v === 'string' && v.length <= 64 && VERSION_RE.test(v);
 const bytesOk = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const checkedOk = (v: unknown): v is number | null => v === null || (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0);
-const BAD_NOTE_CHARS = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
+/** The line feed: the one hidden character an update's notes keep. */
+const NOTE_KEEPS: ReadonlySet<string> = new Set(['\n']);
 
 export type UpdateLine =
   | { type: 'update'; state: 'off'; current: string; reason: (typeof UPDATE_OFF_REASONS)[number] }
@@ -81,7 +83,7 @@ export function parseUpdateLine(o: Record<string, unknown>): UpdateLine | null {
     case 'checking':
       return { type: 'update', state, current };
     case 'available':
-      if (!versionOk(o.version) || !checkedOk(o.checked) || typeof o.notes !== 'string' || [...o.notes].length > UPDATE_NOTES_MAX + 1 || BAD_NOTE_CHARS.test(o.notes)) return null;
+      if (!versionOk(o.version) || !checkedOk(o.checked) || typeof o.notes !== 'string' || [...o.notes].length > UPDATE_NOTES_MAX + 1 || hasHidden(o.notes, NOTE_KEEPS)) return null;
       return { type: 'update', state, current, version: o.version, notes: o.notes, checked: o.checked };
     case 'downloading':
       // BL-167: the bytes received so far, of the size the server announced (null: none).

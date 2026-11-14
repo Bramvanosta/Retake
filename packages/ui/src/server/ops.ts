@@ -49,6 +49,7 @@ import type { PlayerServer } from './player.js';
 import { COMPONENT_HASH_RE } from './preview-allow.js';
 import type { PreviewAllowList } from './preview-allow.js';
 import type { ComponentRegistry } from '@retake/components/geometry';
+import { errorMessage } from '@retake/core/base';
 
 const ActivityInput = z.strictObject({
   project: project.optional().describe('Only this project.'),
@@ -192,7 +193,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
         return { summary: head, data: data };
       } catch (e) {
         // The tracks still show; the preview says why it cannot (the player's words: asset ids, never a path).
-        const data: TimelineViewAnswer = { ...v, ...text, ...heldPart, preview_error: firstErrorLine(e instanceof Error ? e.message : String(e)) };
+        const data: TimelineViewAnswer = { ...v, ...text, ...heldPart, preview_error: firstErrorLine(errorMessage(e)) };
         return { summary: `${head}, no preview`, data: data };
       }
     },

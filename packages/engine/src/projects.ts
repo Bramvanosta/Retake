@@ -1,6 +1,6 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
 import { join } from 'node:path';
-import { pathInside } from '@retake/core/base';
+import { pathInside, errorMessage } from '@retake/core/base';
 import { environmentAccess, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
 import { PROJECT_FILE, README_FILE, readmeEnvironmentsDrift } from '@retake/core/project';
 import { retakeHome } from '@retake/core/io';
@@ -70,7 +70,7 @@ export async function listProjectSummaries(ws: OpenedWorkspace): Promise<Project
         const loaded = await openProject(ws, p.dir);
         return { ...p, scenarios: loaded.scenarios, environments: Object.keys(loaded.config.environments) };
       } catch (e) {
-        return { ...p, scenarios: [], environments: [], error: firstErrorLine((e as Error).message) };
+        return { ...p, scenarios: [], environments: [], error: firstErrorLine(errorMessage(e)) };
       }
     }),
   );

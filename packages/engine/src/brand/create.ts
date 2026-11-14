@@ -34,6 +34,8 @@ import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../tem
 import { BRAND_TOTAL_MAX_BYTES, checkImage, fontCopyName, readBrandFile, sniffFont, standardWeight } from './files.js';
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
 import type { OpenedWorkspace } from '../workspace.js';
+import { storedJson } from '../stored-json.js';
+import { z } from 'zod';
 
 /** The provenance file of a theme this tool made (hidden: the loader and listTemplates ignore it). */
 export const THEME_PROVENANCE_FILE = '.retake-theme.json';
@@ -145,6 +147,24 @@ async function walk(dir: string, rel = ''): Promise<{ files: string[]; odd: stri
   return out;
 }
 
+/** What makes a provenance file this tool's: made by it, with the hash of every file it wrote. */
+const ProvenanceSchema = z.object({ made_by: z.literal('retake'), files: z.record(z.string(), z.string()), trust: z.string().optional() });
+
+/**
+ * A theme folder's provenance file: its record, `unreadable` (none, or not JSON — read as not this tool's), or
+ * `foreign` (JSON this tool did not write).
+ */
+async function readProvenance(dir: string): Promise<Provenance | 'unreadable' | 'foreign'> {
+  let text: string;
+  try {
+    text = await readFile(join(dir, THEME_PROVENANCE_FILE), 'utf8');
+    JSON.parse(text);
+  } catch {
+    return 'unreadable';
+  }
+  return (storedJson(ProvenanceSchema, text) as Provenance | undefined) ?? 'foreign';
+}
+
 /**
  * Why a theme folder may not be replaced, or null: it must be this tool's, every file as written, none added — and,
  * for a replace through MCP (`trust` mcp), made through MCP too (a theme a human made with `retake theme create` is
@@ -153,14 +173,10 @@ async function walk(dir: string, rel = ''): Promise<{ files: string[]; odd: stri
 export async function replaceProblem(dir: string, trust: BrandTrust = 'author'): Promise<string | null> {
   const st = await lstat(dir);
   if (!st.isDirectory()) return `${dir} is not a folder (a link or a file)`;
-  let prov: Provenance;
   const provFile = THEME_PROVENANCE_FILE;
-  try {
-    prov = JSON.parse(await readFile(join(dir, THEME_PROVENANCE_FILE), 'utf8')) as Provenance;
-  } catch {
-    return `${dir} was not made by this tool (no readable ${THEME_PROVENANCE_FILE})`;
-  }
-  if (!madeByTool(prov) || !prov.files || typeof prov.files !== 'object') return `${dir}: ${provFile} is not this tool's`;
+  const prov = await readProvenance(dir);
+  if (prov === 'unreadable') return `${dir} was not made by this tool (no readable ${THEME_PROVENANCE_FILE})`;
+  if (prov === 'foreign') return `${dir}: ${provFile} is not this tool's`;
   if (trust === 'mcp' && prov.trust !== 'mcp') return `${dir} was made by a human with retake theme create: through MCP only a theme made through MCP is replaced`;
   const { files, odd } = await walk(dir);
   if (odd.length) return `${dir} holds links or special files (${odd.join(', ')})`;
@@ -179,11 +195,6 @@ export async function replaceProblem(dir: string, trust: BrandTrust = 'author'):
   return null;
 }
 
-/** Whether a provenance record is this tool's. */
-function madeByTool(prov: Partial<Provenance> | null | undefined): boolean {
-  return prov?.made_by === 'retake';
-}
-
 /** Remove this tool's build / swap folders left by a crash (see the module comment); anything else stays. */
 export async function removeStale(templatesDir: string, now: number): Promise<void> {
   for (const e of await entries(templatesDir)) {
@@ -194,10 +205,8 @@ export async function removeStale(templatesDir: string, now: number): Promise<vo
     try {
       const st = await lstat(p);
       if (!st.isDirectory() || now - st.mtimeMs <= STALE_MS) continue;
-      if ((await readdir(p)).length) {
-        const prov = JSON.parse(await readFile(join(p, THEME_PROVENANCE_FILE), 'utf8')) as Partial<Provenance> | null;
-        if (!madeByTool(prov)) continue;
-      }
+      // Not this tool's (no readable provenance file, or another's): left alone.
+      if ((await readdir(p)).length && typeof (await readProvenance(p)) === 'string') continue;
       await rm(p, { recursive: true, force: true });
     } catch {
       /* gone meanwhile, or not this tool's (no readable provenance file): left alone */

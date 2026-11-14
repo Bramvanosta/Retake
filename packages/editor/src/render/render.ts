@@ -50,7 +50,7 @@ import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia } from './probe.js';
 import type { RenderAttempt, RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
-import { errorKindOf } from '@retake/core/base';
+import { errorKindOf, errorMessage } from '@retake/core/base';
 import { formatRenderId } from '@retake/core/ids';
 import { finishedRender, renderAttempt } from '@retake/core/render';
 import type { RenderFields } from '@retake/core/render';
@@ -247,7 +247,7 @@ async function openSession(opts: {
     });
   } catch (e) {
     await server.close();
-    throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${(e as Error).message.split('\n')[0]}`);
+    throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${errorMessage(e).split('\n')[0]}`);
   }
   const { puppeteer, gl, gpu } = opened;
   warnings.push(...opened.warnings);
@@ -268,7 +268,7 @@ async function openSession(opts: {
       remotion = { port, onDownload: (src: string) => guard!.onDownload(src) };
     } catch (e) {
       await close();
-      throw new RenderError(`the render cannot run with its network guard: ${(e as Error).message}`);
+      throw new RenderError(`the render cannot run with its network guard: ${errorMessage(e)}`);
     }
   }
   return {
@@ -542,7 +542,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
         n === 1 && ff?.used === 'own' ? ownEncodeFailure(e, { ...(ff.version ? { version: ff.version } : {}), ...(ff.binariesDirectory ? { folder: ff.binariesDirectory } : {}) }) : null;
       if (ownReason) throw new GpuPathFailed(ownReason, { gpu: false, own: ff?.path ?? '' });
       if (e instanceof RenderError) throw e;
-      throw new RenderError(`render failed: ${(e as Error).message}`);
+      throw new RenderError(`render failed: ${errorMessage(e)}`);
     } finally {
       opts.signal?.removeEventListener('abort', onAbort);
       await session.close();
@@ -787,7 +787,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     try {
       reservedLock = versionLockFile(dir, opts.reserved.scenario, opts.reserved.version);
     } catch (e) {
-      throw new RenderError(`the reserved render version of ${opts.reserved.scenario} cannot be used: ${(e as Error).message}`);
+      throw new RenderError(`the reserved render version of ${opts.reserved.scenario} cannot be used: ${errorMessage(e)}`);
     }
   }
   const reservedRelease = () => (reservedLock ? rm(reservedLock, { force: true }) : Promise.resolve());
@@ -939,11 +939,11 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     // What was tried (the GPU path, its fallback and why). Never written to a disk: it rides on the error.
     const record: RenderAttempt = renderAttempt(fields, {
       status: cancelled ? 'cancelled' : 'failed',
-      error: (e as Error).message,
+      error: errorMessage(e),
       ...(said.renderPath && typeof said.renderPath === 'object' ? { policy: said.renderPath } : {}),
     });
     if (cancelled) throw new RenderCancelledError(record);
-    throw new RenderError((e as Error).message, record);
+    throw new RenderError(errorMessage(e), record);
   } finally {
     await release();
   }
@@ -1066,7 +1066,7 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
   } catch (e) {
     if (e instanceof RenderError) throw e;
     if (session.guard && guardedPageFailure(e)) throw new RenderError(`still failed: ${guardedPageFailed()}`);
-    throw new RenderError(`still failed: ${(e as Error).message}`);
+    throw new RenderError(`still failed: ${errorMessage(e)}`);
   } finally {
     await session.close();
   }

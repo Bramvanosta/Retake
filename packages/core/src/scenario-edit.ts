@@ -23,6 +23,7 @@
  */
 import { isDeepStrictEqual } from 'node:util';
 import { canonicalJson } from './canonical-json.js';
+import { HIDDEN_CHARS, inEmojiSequence } from './hidden-chars.js';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
 import { parseYaml } from './validation/yaml-source.js';
@@ -38,13 +39,10 @@ export const SCENARIO_EDIT_MAX_CHARS = 500_000;
  */
 export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'delete_step', 'duplicate_step', 'set_step', 'insert_step', 'set_field'] as const;
 
-// Characters the Studio never adds (see the header): controls, format and default-ignorable characters, line /
-// paragraph separators, the Hangul fillers and the braille blank; tab, line feed and a CR LF's carriage return are left
-// out in hiddenChars, a BOM is allowed at offset 0 only.
-const HIDDEN_G = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u115f\u1160\u2800\u3164\uffa0]/gu;
-const PICTO = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\u{fe0f}]/u;
-/** What a variation selector U+FE0E / U+FE0F may follow (text or emoji presentation: "1", a heart). */
-const EMOJI = /\p{Emoji}/u;
+// Characters the Studio never adds (see the header): hidden-chars.ts HIDDEN_CHARS; tab, line feed and a CR LF's carriage
+// return are left out in hiddenChars, a BOM is allowed at offset 0 only, and an emoji sequence keeps its joiner and its
+// presentation selector.
+const HIDDEN_G = new RegExp(`[${HIDDEN_CHARS}]`, 'gu');
 
 const NAMES: Record<string, string> = {
   '\r': 'a carriage return without a line feed',
@@ -80,16 +78,7 @@ function hiddenChars(text: string): Array<{ c: string; at: number }> {
     const at = m.index;
     if (m[0] === '\t' || m[0] === '\n' || (m[0] === '\r' && text[at + 1] === '\n')) continue;
     if (m[0] === '\ufeff' && at === 0) continue;
-    if ((m[0] === '\ufe0f' || m[0] === '\ufe0e') && at > 0) {
-      const low = text.charCodeAt(at - 1) >= 0xdc00 && text.charCodeAt(at - 1) <= 0xdfff;
-      if (EMOJI.test(String.fromCodePoint(text.codePointAt(low ? at - 2 : at - 1) ?? 0))) continue;
-    }
-    if (m[0] === '\u200d' && at > 0) {
-      const low = text.charCodeAt(at - 1) >= 0xdc00 && text.charCodeAt(at - 1) <= 0xdfff;
-      const prev = String.fromCodePoint(text.codePointAt(low ? at - 2 : at - 1) ?? 0);
-      const next = String.fromCodePoint(text.codePointAt(at + 1) ?? 0);
-      if (PICTO.test(prev) && PICTO.test(next)) continue;
-    }
+    if (inEmojiSequence(text, at)) continue;
     out.push({ c: m[0], at });
   }
   return out;

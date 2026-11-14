@@ -58,3 +58,16 @@ export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void>; on
     },
   };
 }
+
+/** The first Ctrl-C (SIGINT) or SIGTERM a long-running server command waits for (`retake mcp --http`, `retake ui`). */
+export function stopSignal(): Promise<NodeJS.Signals> {
+  return new Promise((resolve) => {
+    const stop = (s: NodeJS.Signals) => {
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+      resolve(s);
+    };
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+  });
+}

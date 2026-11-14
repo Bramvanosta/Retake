@@ -7,7 +7,7 @@ import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@re
 import type { Timeline, TimelineLoadingUi, TimelineWrite } from '@retake/core/model';
 import type { DisplayEntry } from '@retake/core/environment';
 import type { StoredRunRecord, UnknownStatusRun } from '@retake/core/run';
-import { BUTTON_LABEL_MIN, CAPTION_BAND_PAD_X, buttonColors, captionBandBox, captionMaxLines, fitText, insetPhoneEdge } from '@retake/components/geometry';
+import { BUTTON_LABEL_MIN, CAPTION_BAND_PAD_X, buttonColors, captionMaxLines, captionOverBand, fitText, insetPhoneEdge } from '@retake/components/geometry';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@retake/components/geometry';
 import {
   CLEAR_LOOKAHEAD_S,
@@ -252,17 +252,7 @@ export function captionRegion(
 ): { rect: { x: number; y: number; w: number; h: number }; over: boolean; inset: number } | undefined {
   const params = clip.caption?.params ?? {};
   if (params.position === 'over') {
-    const maxWidth = typeof params.max_width === 'number' ? params.max_width : 1400;
-    const band = captionBandBox({
-      rects: { screen: clip.layout.capture },
-      area: clip.layout.caption,
-      width: plan.width,
-      height: plan.height,
-      unit: plan.unit,
-      position: 'over',
-      maxWidth,
-      variant: plan.variant,
-    });
+    const band = captionOverBand({ params, capture: clip.layout.capture, area: clip.layout.caption, width: plan.width, height: plan.height, unit: plan.unit, variant: plan.variant });
     return { rect: band.box, over: band.over, inset: CAPTION_BAND_PAD_X * plan.unit };
   }
   const area = clip.layout.caption;

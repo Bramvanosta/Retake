@@ -8,7 +8,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { errorsOf, formatPath, suggestion } from '@retake/core/base';
+import { errorMessage, errorsOf, formatPath, suggestion } from '@retake/core/base';
 import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core/model';
 import { normalizeComponentRef, resolveThemeComponents } from '@retake/core/theme';
 import { loadWorkspaceConfig } from '@retake/core/io';
@@ -255,7 +255,7 @@ class Registry implements ComponentRegistry {
       } catch (e) {
         out[kind] = null;
         const from = c.source === 'theme' ? `components.${kind}` : c.source === 'legacy' ? 'a legacy template field' : 'the built-in default';
-        failures.push(`${kind} (${from}): ${(e as Error).message.replace(/\n/g, '\n    ')}`);
+        failures.push(`${kind} (${from}): ${errorMessage(e).replace(/\n/g, '\n    ')}`);
       }
     }
     if (failures.length > 0) {

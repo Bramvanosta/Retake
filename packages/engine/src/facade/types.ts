@@ -4,7 +4,7 @@
  */
 import type { EngineEnv } from '../env.js';
 import type { ComponentKind, RunMode } from '@retake/core/model';
-import type { RecordAnnotationChange } from '@retake/core/run';
+import type { RecordAnnotationChange, RunViewStatus, UnknownRunStatus } from '@retake/core/run';
 import type { InspectJobInput } from '../jobs/job-input.js';
 import type { PersonaStateView } from '../auth.js';
 import type { CreateProjectRequest, ProjectSummary, ProjectView } from '../projects.js';
@@ -102,12 +102,12 @@ export interface RunJobView {
 
 /** A run of a list, its status overlaid like run_status's: interrupted (its worker died), cancelled / failed before it started. */
 export interface RunListItem extends Omit<RunSummary, 'status'> {
-  status: RunSummary['status'] | 'interrupted';
+  status: RunViewStatus | UnknownRunStatus;
 }
 
 /** A run's status with the state of its job (when a client submitted it) overlaid: interrupted, cancelled before it started. */
 export interface RunStatusWithJob extends Omit<RunStatusView, 'status'> {
-  status: RunStatusView['status'] | 'interrupted';
+  status: RunViewStatus | UnknownRunStatus;
   job?: RunJobView;
 }
 

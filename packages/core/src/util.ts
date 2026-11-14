@@ -31,3 +31,22 @@ export function seededRandom(seed: string): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/** What a thrown value says: an Error's message, anything else as text (a throw need not be an Error). */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/** decodeURIComponent, or `s` as written when it is no valid percent-encoding (a stray `%`). */
+export function decodeOrKeep(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/** A promise that settles after `ms` (no cancel: the abortable waits keep their own rules for an abort). */
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

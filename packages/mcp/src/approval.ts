@@ -9,6 +9,7 @@ import { approvalFormText, pruneApprovalFormText } from '@retake/engine';
 import type { ApprovalOutcome, ApprovalRequest, Approver, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
+import { errorMessage } from '@retake/core/base';
 
 /** How long a human has to answer (ms): 10 min; RETAKE_MCP_APPROVAL_TIMEOUT_MS overrides it. */
 export const APPROVAL_TIMEOUT_MS = 10 * 60_000;
@@ -90,7 +91,7 @@ async function ask(elicit: NonNullable<CallContext['elicit']>, form: ElicitForm,
     return { approved: false, reason: answer.action === 'decline' ? 'declined' : 'cancelled' };
   } catch (e) {
     if (isTimeoutError(e)) return { approved: false, reason: 'timeout' };
-    return { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+    return { approved: false, reason: 'error', message: errorMessage(e) };
   }
 }
 

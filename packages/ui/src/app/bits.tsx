@@ -6,9 +6,10 @@
  * Callout, EmptyState, Progress), always with a word: colour is never the only cue.
  */
 import type { ReactNode } from 'react';
+import { BIDI_CONTROL_CHARS } from './hidden-chars.js';
 
-/** U+202A–U+202E and U+2066–U+2069: the controls that make text display in another order than it is stored. */
-const BIDI_CONTROLS = /[\u202A-\u202E\u2066-\u2069]/g;
+/** The direction controls (core hidden-chars.ts BIDI_CONTROL_CHARS): they make text display in another order than it is stored. */
+const BIDI_CONTROLS = new RegExp(`[${BIDI_CONTROL_CHARS}]`, 'gu');
 
 export function visibleControls(text: string): string {
   return text.replace(BIDI_CONTROLS, (c) => `[U+${c.charCodeAt(0).toString(16).toUpperCase()}]`);
