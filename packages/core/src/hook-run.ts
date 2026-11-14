@@ -389,3 +389,31 @@ export interface CaptureHookRunner {
     open(file: string): Promise<HookJournal>;
   };
 }
+
+/** Where a hook stands when its approval is asked for and checked: the fingerprint's input besides the hook. */
+export interface HookPlace {
+  phase: HookPhase;
+  /** Position in its list (0-based). */
+  index: number;
+  /** The environment it runs on. */
+  env: string;
+  /** The project files it references, project-relative ref → sha256 (`approval.files`). */
+  files?: Record<string, string>;
+}
+
+/**
+ * What runs a sandbox's seed steps and reset hooks, handed to the sandbox by its opener (the engine's HookRunner port): a
+ * capture's part, the fingerprint an approval of a seed step is bound to, and the pending rollbacks a reset makes stale
+ * (marked superseded on the sandbox's environment, in every journal of the project). The sandbox package runs no hook
+ * itself.
+ */
+export interface SandboxHookRunner extends CaptureHookRunner {
+  readonly approval: {
+    /** The fingerprint a human approval of `hook` at `place` is bound to. */
+    fingerprint(hook: HookStep, place: HookPlace): Promise<string>;
+  };
+  readonly journals: CaptureHookRunner['journals'] & {
+    /** Mark every pending rollback recorded on environment `env` superseded by `by`: the journals changed and how many each. */
+    supersede(projectDir: string, env: string, by: string): Promise<Array<{ file: string; count: number }>>;
+  };
+}

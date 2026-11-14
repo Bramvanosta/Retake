@@ -17,6 +17,7 @@
  *   the sandbox's port on [::1] (OrbStack allows it next to 127.0.0.1) is refused by up (K2, K3).
  */
 import { resolveSecretRef } from '@retake/core/io';
+import { packageHooks } from './hook-runner.js';
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -175,7 +176,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     await writeFile(res.manifest, manifest);
     const project = await loadProject(dir);
     expect(project.sandboxes!.sandbox.issues).toEqual([]);
-    const sb = openSandbox(project, undefined, policy, resolveSecretRef);
+    const sb = openSandbox(project, undefined, policy, resolveSecretRef, packageHooks);
     const url = `postgres://demo:pg-sandbox-${res.ports.db}@localhost:${res.ports.db}/app`;
     const count = async () => Number((await query(url, 'SELECT count(*) AS n FROM demo_customers'))[0].n);
     const times: string[] = [];
@@ -220,7 +221,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     // A seed change (a file of seed/) makes the snapshot stale: the seed runs and the snapshot is taken again.
     const seedFile = join(res.dir, 'seed', '01-demo-data.sql');
     await writeFile(seedFile, `${await readFile(seedFile, 'utf8')}INSERT INTO demo_customers (name, city) VALUES ('Late Addition', 'Riverton');\n`);
-    const changed = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef);
+    const changed = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
     expect((await changed.status()).seed?.current).toBe(false);
     const r3 = await changed.reset({ log });
     expect(r3).toMatchObject({ restored: false, snapshot: { action: 'taken' } });
@@ -250,7 +251,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const dir = await newProject('repair');
     const res = await initSandbox(await loadProject(dir), { write: plainWrite, basePort: await freeBase(3) });
     await writeFile(res.manifest, (await readFile(res.manifest, 'utf8')).replace('  files: [compose.yaml]', `  files: [compose.yaml]\n  project: ${name}`));
-    const sb = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef);
+    const sb = openSandbox(await loadProject(dir), undefined, policy, resolveSecretRef, packageHooks);
     const url = `postgres://demo:pg-sandbox-${res.ports.db}@localhost:${res.ports.db}/app`;
     const admin = url.replace(/\/app$/, '/postgres');
     const count = async () => Number((await query(url, 'SELECT count(*) AS n FROM demo_customers'))[0].n);
@@ -290,7 +291,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const base = await readFile(file, 'utf8');
     const withSeed = async (step: string) => {
       await writeFile(file, `${base}seed:\n  - exec: {service: web, command: ${step}}\n`);
-      return openSandbox(await loadProject(web.dir), undefined, policy, resolveSecretRef);
+      return openSandbox(await loadProject(web.dir), undefined, policy, resolveSecretRef, packageHooks);
     };
     const sleeping = () =>
       docker(['compose', '-p', name, 'exec', '-T', 'web', 'ps'])
@@ -314,7 +315,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
       expect(Date.now() - t0).toBeLessThan(30_000);
       expect(sleeping()).toEqual([]);
     } finally {
-      await openSandbox(await loadProject(web.dir), undefined, policy, resolveSecretRef).down({ volumes: true });
+      await openSandbox(await loadProject(web.dir), undefined, policy, resolveSecretRef, packageHooks).down({ volumes: true });
     }
     expect(labelled('container', name)).toEqual([]);
   });
@@ -324,7 +325,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const port = await freeBase(1);
     const project = await webSandbox('starting', name, port, ['test: ["CMD", "false"]', 'interval: 60s', 'timeout: 2s', 'retries: 3', 'start_period: 120s'], 5);
     const t0 = Date.now();
-    const err = await openSandbox(project, undefined, policy, resolveSecretRef)
+    const err = await openSandbox(project, undefined, policy, resolveSecretRef, packageHooks)
       .up({ log })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SandboxError);
@@ -333,7 +334,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     expect(Date.now() - t0).toBeLessThan(60_000);
     // Stopped (its logs kept), not removed.
     expect(docker(['ps', '-a', '--filter', `label=com.docker.compose.project=${name}`, '--format', '{{.State}}']).trim()).toBe('exited');
-    await openSandbox(project, undefined, policy, resolveSecretRef).down({ volumes: true });
+    await openSandbox(project, undefined, policy, resolveSecretRef, packageHooks).down({ volumes: true });
     expect(labelled('container', name)).toEqual([]);
   });
 
@@ -349,7 +350,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
       });
     const local = await listen('127.0.0.1');
     expect(local).not.toBeNull();
-    const err = await openSandbox(project, undefined, policy, resolveSecretRef)
+    const err = await openSandbox(project, undefined, policy, resolveSecretRef, packageHooks)
       .up({ log })
       .catch((e: unknown) => e);
     local!.close();
@@ -357,7 +358,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     expect((err as Error).message).toMatch(new RegExp(`port ${port} \\(service web, published\\) is in use by another program \\(node, pid ${process.pid}\\)`));
     expect(labelled('container', name)).toEqual([]);
 
-    const sb = openSandbox(project, undefined, policy, resolveSecretRef);
+    const sb = openSandbox(project, undefined, policy, resolveSecretRef, packageHooks);
     await sb.up({ log });
     const wildcard = await listen('0.0.0.0');
     if (wildcard) {
@@ -381,15 +382,15 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
     const health = ['test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/hostname"]', 'interval: 1s', 'timeout: 2s', 'retries: 30'];
     const a = await webSandbox('checkout-a', name, port, health, 60);
     const b = await webSandbox('checkout-b', name, port, health, 60);
-    const sb = openSandbox(a, undefined, policy, resolveSecretRef);
+    const sb = openSandbox(a, undefined, policy, resolveSecretRef, packageHooks);
     const intruder = `${PREFIX}intruder-${rand()}`;
     try {
       await sb.up({ log });
       const other = new RegExp(`compose project ${name} belongs to another folder`);
-      await expect(openSandbox(b, undefined, policy, resolveSecretRef).status()).rejects.toThrow(other);
-      await expect(openSandbox(b, undefined, policy, resolveSecretRef).reset()).rejects.toThrow(other);
-      await expect(openSandbox(b, undefined, policy, resolveSecretRef).logs()).rejects.toThrow(other);
-      await expect(openSandbox(b, undefined, policy, resolveSecretRef).down()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy, resolveSecretRef, packageHooks).status()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy, resolveSecretRef, packageHooks).reset()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy, resolveSecretRef, packageHooks).logs()).rejects.toThrow(other);
+      await expect(openSandbox(b, undefined, policy, resolveSecretRef, packageHooks).down()).rejects.toThrow(other);
       expect(labelled('container', name).length).toBe(1);
       // Another container on the same port, on [::1] (localhost resolves there first).
       let started = true;

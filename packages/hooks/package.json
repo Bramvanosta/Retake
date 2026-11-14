@@ -15,6 +15,11 @@
       "source": "./src/describe-entry.ts",
       "types": "./dist/describe-entry.d.ts",
       "default": "./dist/describe-entry.js"
+    },
+    "./db-url": {
+      "source": "./src/db-url.ts",
+      "types": "./dist/db-url.d.ts",
+      "default": "./dist/db-url.js"
     }
   },
   "files": [

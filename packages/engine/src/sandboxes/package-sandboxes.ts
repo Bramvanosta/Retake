@@ -6,6 +6,7 @@
  * (ports.ts enginePorts).
  */
 import { sandbox } from '../lazy.js';
+import type { HookRunner } from '../hook-run/runner.js';
 import type { Secrets } from '../secrets/secrets.js';
 import type { SandboxHandle, Sandboxes } from './sandboxes.js';
 
@@ -15,10 +16,13 @@ type SandboxPackage = Awaited<ReturnType<typeof sandbox>>;
 type Assignable<A extends B, B> = [A, B];
 export type SandboxHandleChecks = Assignable<InstanceType<SandboxPackage['Sandbox']>, SandboxHandle>;
 
-/** `secrets`: what the sandboxes' secret references are resolved with (the bag's Secrets port, handed to each sandbox). */
-export function packageSandboxes(secrets: Secrets): Sandboxes {
+/**
+ * `secrets`: what the sandboxes' secret references are resolved with (the bag's Secrets port); `hooks`: what runs their
+ * seed steps and reset hooks (the bag's HookRunner port). Both handed to each sandbox.
+ */
+export function packageSandboxes(secrets: Secrets, hooks: HookRunner): Sandboxes {
   return {
-    open: async (project, env, policy): Promise<SandboxHandle> => (await sandbox()).openSandbox(project, env, policy, (ref) => secrets.resolve(ref)),
+    open: async (project, env, policy): Promise<SandboxHandle> => (await sandbox()).openSandbox(project, env, policy, (ref) => secrets.resolve(ref), hooks),
     init: async (project, o) => (await sandbox()).initSandbox(project, o),
   };
 }

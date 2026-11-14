@@ -1,6 +1,6 @@
 /**
- * A sandbox's seed and the reset around it: the seed steps (hook phase `seed`: http / sql / shell run by
- * @retake/hooks — relative to sandbox.yaml, on the sandbox's own databases, never asked to confirm a destructive
+ * A sandbox's seed and the reset around it: the seed steps (hook phase `seed`: http / sql / shell run by the hook
+ * runner its opener hands it, ProviderContext.hookRunner — relative to sandbox.yaml, on the sandbox's own databases, never asked to confirm a destructive
  * step, nothing rolled back — and `exec` steps run by the provider), then the mailbox emptied (Mailpit), and the pending
  * rollbacks recorded on the sandbox's environment marked superseded (replaying them would act on the new data).
  *
@@ -14,10 +14,10 @@ import { isIP } from 'node:net';
 import { interpolateDeep, redact, secretForms } from '@retake/core/base';
 import { isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, resolveEnvironment, runAccess } from '@retake/core/environment';
 import { shellHostRefs } from '@retake/core/hooks';
+import type { HookContext, HookResult, SandboxHookRunner } from '@retake/core/hooks';
 import { prefetchSecrets } from '@retake/core/io';
 import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core/model';
-import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@retake/hooks';
-import type { HookContext, HookResult } from '@retake/hooks';
+import { databaseTarget } from '@retake/hooks/db-url';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { pinnedAddress, pinnedRequest } from './health.js';
 import type { Provider, ProviderContext, SandboxLog } from './provider.js';
@@ -222,7 +222,8 @@ export async function runSeed(
       // A reset hook (L7.8) is bound to its own phase and its position within reset.hooks: its approval is never a seed
       // step's, nor a seed step's its.
       const place = opts.what ? { phase: 'reset' as const, index: at } : { phase: 'seed' as const, index };
-      return confirm(description, reason, { ...request, index, fingerprint: hookFingerprint(request.hook, { ...place, env: request.env, ...(request.files ? { files: request.files } : {}) }) });
+      const fingerprint = await pctx.hookRunner.approval.fingerprint(request.hook, { ...place, env: request.env, ...(request.files ? { files: request.files } : {}) });
+      return confirm(description, reason, { ...request, index, fingerprint });
     };
   }
   // sql steps reach the sandbox's own databases on the address Docker publishes them on (never `localhost`: another
@@ -231,7 +232,7 @@ export async function runSeed(
   if (addresses.size) ctx.connectAddress = (host, port) => (isIP(host.replace(/^\[|\]$/g, '')) ? undefined : addresses.get(port));
   const journalFile = opts.what ? paths.resetJournal : paths.seedJournal;
   rmSync(journalFile, { force: true });
-  const journal = await Journal.open(journalFile);
+  const journal = await pctx.hookRunner.journals.open(journalFile);
   let batch: HookStep[] = [];
   let done = 0;
   const flush = async () => {
@@ -239,7 +240,7 @@ export async function runSeed(
     offset = done;
     const kinds = [...new Set(batch.map((b) => (b as { name?: string }).name ?? Object.keys(b as object).find((k) => k !== 'name') ?? 'step'))].join(', ');
     pctx.progress?.step(`${word} ${done + 1}${batch.length > 1 ? `–${done + batch.length}` : ''}/${steps.length}`, kinds);
-    const res = await runHooks(batch, ctx, { phase: 'seed', journal });
+    const res = await pctx.hookRunner.run(batch, ctx, { phase: 'seed', journal });
     if (!res.ok && opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if (!res.ok) {
       const bad = res.results.find((r) => !r.ok) ?? res.results[res.results.length - 1];
@@ -313,9 +314,9 @@ export async function clearMailbox(
   return 'cleared';
 }
 
-/** After a reset: pending rollbacks recorded on the sandbox's environment will never be replayed. */
-export async function supersede(projectDir: string, env: string, by: string, log: SandboxLog): Promise<number> {
-  const changed = await supersedePendingJournals(projectDir, env, by);
+/** After a reset: pending rollbacks recorded on the sandbox's environment will never be replayed (`hooks`: the opener's runner). */
+export async function supersede(hooks: SandboxHookRunner, projectDir: string, env: string, by: string, log: SandboxLog): Promise<number> {
+  const changed = await hooks.journals.supersede(projectDir, env, by);
   const n = changed.reduce((s, c) => s + c.count, 0);
   if (n) log('info', `${n} pending rollback${n === 1 ? '' : 's'} of earlier runs on ${env} will not be replayed (the reset rebuilt that data)`);
   return n;

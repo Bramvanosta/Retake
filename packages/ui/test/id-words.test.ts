@@ -24,6 +24,7 @@ import {
   NEW_THEME_NAME_MAX as CORE_NEW_MAX,
   NEW_THEME_NAME_RE,
   PROJECT_SLUG_RE,
+  SLUG_RE,
   RENDER_ID_MAX as CORE_RENDER_MAX,
   RENDER_ID_RE,
   RENDER_VERSION_MAX,
@@ -46,6 +47,7 @@ import {
   RENDER_ID_MAX,
   RUN_ID,
   RUN_ID_MAX,
+  SCENARIO_NAME,
   okNewThemeName,
   okRenderIdShape,
   renderVersionWords,
@@ -144,6 +146,7 @@ describe("the app's mirror of the id grammar", () => {
       'RENDER_ID_MAX',
       'RUN_ID',
       'RUN_ID_MAX',
+      'SCENARIO_NAME',
       'okNewThemeName',
       'okRenderIdShape',
       'renderVersionWords',
@@ -156,6 +159,8 @@ describe("the app's mirror of the id grammar", () => {
     expect([renderWords, versionWords]).toEqual([renderVersionWords, renderVersionWords]);
     expect(ROUTE_RENDER_ID).toBe(RENDER_ID);
     expect(PROJECT_SLUG.source).toBe(PROJECT_SLUG_RE.source);
+    expect([SCENARIO_NAME.source, SCENARIO_NAME.flags]).toEqual([SLUG_RE.source, SLUG_RE.flags]);
+    expect(SCENARIO_NAME.source).toBe('^[A-Za-z0-9][A-Za-z0-9_-]*$');
   });
 
   it("⚑ a new theme's name: the app answers as core, at most 60 characters", () => {

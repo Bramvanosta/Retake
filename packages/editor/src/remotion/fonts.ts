@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { cancelRender, continueRender, delayRender } from './host.js';
-import type { ThemeFontFace } from '@retake/components';
+import type { ThemeFontFace } from '@retake/components/geometry';
 import { usePreviewMode } from './preview-mode.js';
 
 const loaded = new Map<string, Promise<void>>();

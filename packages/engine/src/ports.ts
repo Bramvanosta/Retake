@@ -72,14 +72,15 @@ export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
   // The one place the engine reads this process's environment (the import-rules ratchet's `env-read` check).
   const env = given.env ?? process.env;
   const secrets = given.secrets ?? systemSecrets(env);
+  const hooks = given.hooks ?? packageHookRunner();
   return {
     clock: given.clock ?? systemClock,
     stores: given.stores ?? diskProjectStores,
     reads: given.reads ?? diskWorkspaceReads,
-    hooks: given.hooks ?? packageHookRunner(),
+    hooks,
     reviewer: given.reviewer ?? packageReviewer(),
     capture: given.capture ?? runnerWebCapture(),
-    sandboxes: given.sandboxes ?? packageSandboxes(secrets),
+    sandboxes: given.sandboxes ?? packageSandboxes(secrets, hooks),
     queues: given.queues ?? fileJobQueues,
     renderer: given.renderer ?? editorRenderer(),
     env,

@@ -7,8 +7,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
-import type { TextFont, TextMeasurer } from '@retake/components';
-import { estimateTextWidth } from '@retake/components';
+import type { TextFont, TextMeasurer } from '@retake/components/geometry';
+import { estimateTextWidth } from '@retake/components/geometry';
 
 /** Advance widths of one font face. */
 export interface FontFace {

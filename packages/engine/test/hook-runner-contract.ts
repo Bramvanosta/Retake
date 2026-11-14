@@ -162,6 +162,20 @@ export function hookRunnerContract(adapter: string, make: (name: string) => Prom
       expect(await c.ran()).toEqual(['one', 'two', 'rb-two', 'rb-one']);
     });
 
+    it('supersede marks the pending rollbacks of one environment, in every journal of the project: never replayed', async () => {
+      const c = await make('supersede');
+      const env = c.ctx().env.name;
+      const file = await c.runner.journals.standaloneFile(c.dir, '20261111-100700-hooks-supersede');
+      const journal = await c.runner.journals.open(file);
+      await c.runner.run([c.ok('s', { rollback: true })], c.ctx(), { phase: 'setup', journal });
+      expect(await c.runner.journals.supersede(c.dir, `${env}-other`, 'reset-0')).toEqual([]);
+      expect(await c.runner.journals.supersede(c.dir, env, 'reset-1')).toEqual([{ file, count: 1 }]);
+      expect((await c.runner.journals.open(file)).pending()).toEqual([]);
+      expect(await c.runner.journals.supersede(c.dir, env, 'reset-2')).toEqual([]);
+      expect(await c.runner.journals.rollbackPending(c.dir, c.ctx())).toEqual([]);
+      expect(await c.ran()).toEqual(['s']);
+    });
+
     it('a signal stops the hooks that remain (a setup rolls back what it did)', async () => {
       const c = await make('signal');
       const journal = await c.runner.journals.open(await c.runner.journals.standaloneFile(c.dir, '20261111-100700-hooks-signal'));

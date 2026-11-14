@@ -57,10 +57,38 @@
    ]
   },
   {
+   "rule": "R6",
+   "reason": "Shell sources outside the commands, tools and the Studio server (seen since the rule reads every shell source): the MCP HTTP port holder (a lock file and the process that holds a port), the Studio's esbuild bundler of its app and the player's bundle of the compositions (component files read to bundle them) — until the engine serves those reads.",
+   "entries": [
+    "packages/mcp/src/port-holder.ts → node:child_process",
+    "packages/mcp/src/port-holder.ts → node:fs",
+    "packages/ui/src/bundle.ts → node:fs/promises",
+    "packages/ui/src/player/bundle-player.ts → node:fs"
+   ]
+  },
+  {
    "rule": "R11",
    "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 1 file → specifier pair on 2026-11-12 (L7.11: hooks and review/thumbs went through their ports; L7.12: the runner package through the capture runner's; L7.25: the sandbox package through the Sandboxes port, its OS utilities from core/io): components 1.",
    "entries": [
     "packages/engine/src/components.ts → @retake/components"
+   ]
+  },
+  {
+   "rule": "R14",
+   "reason": "The editor renders with the components (their registry, the kit its compositions draw with, a preview's samples), the review loads the component registry itself (the review use case still in the adapter), and the sandbox reads where a database URL connects with the hooks' one reader of it (`@retake/hooks/db-url`: pg's parser, it never connects; not a domain entry because it loads pg).",
+   "entries": [
+    "packages/editor/src/preview.ts → @retake/components",
+    "packages/editor/src/remotion/DemoVideo.tsx → @retake/components",
+    "packages/editor/src/remotion/DemoVideo.tsx → @retake/components/kit",
+    "packages/editor/src/remotion/Preview.tsx → @retake/components",
+    "packages/editor/src/remotion/Preview.tsx → @retake/components/kit",
+    "packages/editor/src/render/bundle.ts → @retake/components",
+    "packages/editor/src/render/plan-run.ts → @retake/components",
+    "packages/editor/src/render/preview.ts → @retake/components",
+    "packages/editor/src/render/render.ts → @retake/components",
+    "packages/review/src/review.ts → @retake/components",
+    "packages/sandbox/src/seed.ts → @retake/hooks/db-url",
+    "packages/sandbox/src/snapshot-postgres.ts → @retake/hooks/db-url"
    ]
   },
   {
@@ -195,15 +223,6 @@
     "packages/engine/src/jobs/job-input.ts → 1 hand-written id pattern",
     "packages/engine/src/reviews.ts → 1 hand-written id pattern",
     "packages/engine/src/run-files.ts → 1 hand-written id pattern"
-   ]
-  },
-  {
-   "rule": "id-grammar",
-   "reason": "Hand-written mirrors of the scenario-name and project-slug grammars in the Studio front end, which imports types only: not ids of the module; one home for those two names in the app is later work.",
-   "entries": [
-    "packages/ui/src/app/review/review-words.ts → 1 hand-written id pattern",
-    "packages/ui/src/app/unsaved-report.ts → 2 hand-written id patterns",
-    "packages/ui/src/app/words/record-words.ts → 1 hand-written id pattern"
    ]
   },
   {

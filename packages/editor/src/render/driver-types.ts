@@ -10,7 +10,7 @@
  */
 import type { RenderSettings } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import type { EditPlan } from '../plan-types.js';
 import type { ComponentPreviewSpec } from '../remotion/preview-types.js';
 import type { RenderRecord } from '../render-record.js';

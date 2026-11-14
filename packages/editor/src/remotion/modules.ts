@@ -6,7 +6,7 @@
 import { createContext, useContext } from 'react';
 import type { ComponentType } from 'react';
 import type { ComponentKind } from '@retake/core/model';
-import type { ComponentProps } from '@retake/components';
+import type { ComponentProps } from '@retake/components/geometry';
 import type { ResolvedComponent } from '../plan-types.js';
 import { standInParams } from './frames.js';
 

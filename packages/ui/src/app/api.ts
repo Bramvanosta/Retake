@@ -168,9 +168,69 @@ export function errorText(e: unknown): string {
 
 export type Loaded<T> = { state: 'loading' } | { state: 'error'; error: string; code?: string } | { state: 'ready'; data: T };
 
+interface SharedRead {
+  promise: Promise<unknown>;
+  ctrl: AbortController;
+  /** The callers still waiting for it. */
+  users: number;
+}
+
+/** The reads in flight, by op and arguments. */
+const inFlight = new Map<string, SharedRead>();
+
+const cancelled = () => new CallError(0, { code: 'cancelled', message: 'cancelled' });
+
+/**
+ * One request for identical reads in flight (`key`: the op, its arguments and the caller's own key): a caller joins the
+ * request already running, else `start` makes one; `fresh` (a reload after a write) always makes one, and later
+ * callers join that one. Each caller's `signal` lets it leave (it gets a CallError `cancelled`); the request
+ * itself is aborted once every caller has left. Settled, the read is forgotten: the next one asks the server again.
+ */
+export function sharedRead(key: string, start: (signal: AbortSignal) => Promise<unknown>, signal: AbortSignal, fresh = false): Promise<unknown> {
+  if (signal.aborted) return Promise.reject(cancelled());
+  let entry = fresh ? undefined : inFlight.get(key);
+  if (!entry) {
+    const ctrl = new AbortController();
+    const made: SharedRead = { promise: start(ctrl.signal), ctrl, users: 0 };
+    const forget = () => {
+      if (inFlight.get(key) === made) inFlight.delete(key);
+    };
+    made.promise.then(forget, forget);
+    inFlight.set(key, made);
+    entry = made;
+  }
+  const shared = entry;
+  shared.users++;
+  return new Promise((resolve, reject) => {
+    let waiting = true;
+    const leave = () => {
+      if (!waiting) return false;
+      waiting = false;
+      shared.users--;
+      signal.removeEventListener('abort', onAbort);
+      return true;
+    };
+    function onAbort() {
+      if (!leave()) return;
+      if (shared.users === 0) {
+        if (inFlight.get(key) === shared) inFlight.delete(key);
+        shared.ctrl.abort();
+      }
+      reject(cancelled());
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+    shared.promise.then(
+      (v) => leave() && resolve(v),
+      (e: unknown) => leave() && reject(e),
+    );
+  });
+}
+
 /**
  * One op's answer for a component: loads on mount and when `key` changes, `reload()` refetches (keeping the last data
- * on screen while it does), and a window focus refetches (a cheap fallback to the event stream: events.ts).
+ * on screen while it does), and a window focus refetches (a cheap fallback to the event stream: events.ts). Identical
+ * reads in flight share one request (sharedRead; `key` is part of what is shared, a `reload()` asks the server again); a
+ * reload, a new key and unmounting abort this component's read.
  */
 export function useCall<K extends StudioOp>(op: K, args: OpArgs<K>, key: string): [Loaded<OpResult<K>>, () => void] {
   type T = OpResult<K>;
@@ -178,24 +238,38 @@ export function useCall<K extends StudioOp>(op: K, args: OpArgs<K>, key: string)
   const argsRef = useRef(args);
   argsRef.current = args;
   const seq = useRef(0);
-  const load = useCallback(() => {
-    const n = ++seq.current;
-    (callOp(op, argsRef.current, {}) as Promise<T>).then(
-      (data) => n === seq.current && setV({ state: 'ready', data }),
-      (e: unknown) => {
-        if (n !== seq.current || e instanceof SessionEnded) return;
-        setV({ state: 'error', error: errorText(e), ...(e instanceof CallError ? { code: e.error.code } : {}) });
-      },
-    );
-  }, [op]);
+  const reading = useRef<AbortController | null>(null);
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  const read = useCallback(
+    (fresh: boolean) => {
+      const n = ++seq.current;
+      reading.current?.abort();
+      const ctrl = new AbortController();
+      reading.current = ctrl;
+      const args = argsRef.current;
+      (sharedRead(`${op}\0${JSON.stringify(args)}\0${keyRef.current}`, (signal) => callOp(op, args, { signal }), ctrl.signal, fresh) as Promise<T>).then(
+        (data) => n === seq.current && setV({ state: 'ready', data }),
+        (e: unknown) => {
+          if (n !== seq.current || e instanceof SessionEnded) return;
+          setV({ state: 'error', error: errorText(e), ...(e instanceof CallError ? { code: e.error.code } : {}) });
+        },
+      );
+    },
+    [op],
+  );
+  const load = useCallback(() => read(false), [read]);
+  const reload = useCallback(() => read(true), [read]);
   useEffect(() => {
     setV({ state: 'loading' });
     load();
     window.addEventListener('focus', load);
     return () => {
       seq.current++;
+      reading.current?.abort();
+      reading.current = null;
       window.removeEventListener('focus', load);
     };
   }, [load, key]);
-  return [v, load];
+  return [v, reload];
 }

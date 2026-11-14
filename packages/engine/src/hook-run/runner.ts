@@ -10,11 +10,11 @@
  * re-derived on this side (signed approvals are bound to it).
  */
 import type { HookStep } from '@retake/core/model';
-import type { CaptureHookRunner, HookContext, HookJournal, HookPhase, HookResult, HookRunOptions, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
+import type { HookContext, HookJournal, HookPlace, HookResult, HookRunOptions, SandboxHookRunner, TrustFilesPlace, TrustedHookFiles } from '@retake/core/hooks';
 
 // L7.25: a journal's handle, a run's options and the capture's part of the port are core's (hook-run.ts), shared with
 // runner-web's RunOptions.hookRunner; re-exported here for the engine's modules.
-export type { HookJournal, HookRunOptions } from '@retake/core/hooks';
+export type { HookJournal, HookPlace, HookRunOptions } from '@retake/core/hooks';
 
 export interface PendingHookJournal {
   file: string;
@@ -30,19 +30,11 @@ export interface HookJournalRollback {
   error?: string;
 }
 
-/** Where a hook stands when its approval is asked for and checked (the fingerprint's input besides the hook). */
-export interface HookPlace {
-  phase: HookPhase;
-  /** Position in its list (0-based). */
-  index: number;
-  /** The environment it runs on. */
-  env: string;
-  /** The project files it references, project-relative ref → sha256 (`approval.files`). */
-  files?: Record<string, string>;
-}
-
-/** The port: the capture's part (core CaptureHookRunner, what runner-web's run takes) and the rest the engine uses. */
-export interface HookRunner extends CaptureHookRunner {
+/**
+ * The port: the capture's part (core CaptureHookRunner, what runner-web's run takes), a sandbox's (core
+ * SandboxHookRunner, what the sandbox package is handed) and the rest the engine uses.
+ */
+export interface HookRunner extends SandboxHookRunner {
   /**
    * Load what runs the hooks (the package adapter: the hooks package), so that a caller that must tell a load failure
    * from a hook's — the capture's hooks (runner-web's run, L7.12) — can; resolves at once once loaded. Every other member
@@ -51,7 +43,7 @@ export interface HookRunner extends CaptureHookRunner {
   load(): Promise<void>;
   /** Run one list of hooks in `ctx`: one result per hook attempted, then (a setup that failed) one per rollback. */
   run(hooks: readonly HookStep[], ctx: HookContext, o: HookRunOptions): Promise<{ ok: boolean; results: HookResult[] }>;
-  readonly journals: CaptureHookRunner['journals'] & {
+  readonly journals: SandboxHookRunner['journals'] & {
     open(file: string): Promise<HookJournal>;
     /** The journal file of a standalone hooks run (`.retake/journals/<id>.json`). */
     standaloneFile(projectDir: string, id: string): Promise<string>;

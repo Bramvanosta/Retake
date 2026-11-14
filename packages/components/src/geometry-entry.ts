@@ -35,6 +35,7 @@ export type {
   ArtefactSlotType,
   CaptionCue,
   ComponentManifest,
+  ComponentProps,
   LayoutGeometry,
   LayoutPaneRects,
   LayoutRects,
@@ -42,6 +43,7 @@ export type {
   PictureMedia,
   ProgressChapter,
   ResolvedComponentRef,
+  ThemeFontFace,
   ThemeTokens,
 } from './types.js';
 export type { ComponentRegistry } from './registry.js';

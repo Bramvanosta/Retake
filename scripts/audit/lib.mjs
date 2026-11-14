@@ -478,8 +478,9 @@ export const RULES = [
   },
   {
     id: 'R6',
-    title: 'shells do not touch the file system / processes themselves',
-    files: (f) => ['packages/mcp/src/tools/', 'packages/ui/src/server/', 'packages/cli/src/commands/'].some((p) => f.startsWith(p)),
+    title:
+      'shells do not touch the file system / processes themselves: in every source of a shell package (packages/{cli,mcp,ui}/src: commands, tools, the Studio server, its player and bundler, a port holder), an import of node:fs, node:fs/promises or node:child_process is a hit',
+    files: (f) => SHELLS.some((p) => f.startsWith(`packages/${p}/src/`)),
     bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s),
   },
   {
@@ -523,6 +524,16 @@ export const RULES = [
       'a relative import never leaves its package (another package is imported by its name, so that the layer rules, which read names, see it: `../../sandbox/dist/index.js` would compile and be invisible to R2, R4 and R11)',
     files: () => true,
     bad: (s, f) => s.startsWith('.') && !path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).startsWith(`packages/${pkgOf(f)}/`),
+  },
+  {
+    id: 'R14',
+    title:
+      "an adapter imports another adapter's domain entries only (DOMAIN_ENTRIES: pure, no adapter code): in an adapter package's sources an import of another adapter package by its root or any other entry, in any form — a type import, a type re-export, a value — is a hit; an adapter that needs another's work is handed it by its opener through a port (a sandbox's hooks run on the hook runner it is handed, as a capture's do)",
+    files: (f) => ADAPTERS.includes(pkgOf(f)),
+    bad: (s, f) => {
+      const p = retake(s);
+      return !!p && ADAPTERS.includes(p) && p !== pkgOf(f) && !DOMAIN_ENTRIES.includes(s);
+    },
   },
 ];
 

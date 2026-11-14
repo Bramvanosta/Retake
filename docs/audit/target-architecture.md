@@ -69,7 +69,13 @@ component loader is the 1 entry left); everywhere else it names an adapter throu
 types are free, or through a name a home hands on (the render folder's `editor-calls.ts`: planning, the lookups, the
 renders folder's versions, the theme hashes, a media probe, what previews are made of, the editor's errors). A value
 reached through another engine file is not seen, and the loader itself holds no static import. A relative import never leaves its package (R13, no entry): another
-package is reached by its name, which is what these rules read. The rules read every import and export declaration of a
+package is reached by its name, which is what these rules read. An adapter reaches another adapter through its domain
+entries only, types included (R14): one that needs another's work is handed it by its opener through a port — a
+sandbox's seed steps and reset hooks run on the hook runner it is handed (`ProviderContext.hookRunner`, core
+`SandboxHookRunner`), as a capture's hooks do; the baseline lists the editor's use of the components (their registry
+and kit), the review's registry load and the sandbox's reading of a database URL (`@retake/hooks/db-url`, pg's parser).
+A shell touches no file and starts no process itself in any of its sources (R6: commands, tools, the Studio server,
+its player and bundler, a port holder alike). The rules read every import and export declaration of a
 file, a namespace re-export (`export * as ns from`) included, and `.cts` sources. The review's pure modules — what `@retake/review/checks` reaches — import the components
 through their geometry entry only, types included (R12, no entry; R7 keeps the same files free of I/O and renderer
 imports; both read one file at a time, the entry's walk test is the transitive proof). For the renderer the ratchet holds two lines of it: the engine loads the

@@ -221,9 +221,8 @@ function listProbe(dir: string): string[] | null {
 
 /** A sandbox of the project as `retake sandbox status` sees it (no lock, nothing started). */
 async function sandboxProbe(project: LoadedProject, env: string, policy: WorkPolicy): Promise<SandboxProbe> {
-  const { openSandbox } = await import('@retake/sandbox');
   try {
-    const st = await openSandbox(project, env, policy, (ref) => cliPorts.secrets.resolve(ref)).status();
+    const st = await (await cliPorts.sandboxes.open(project, env, policy)).status();
     const problems = st.services
       .filter((x) => !x.orphan && (x.state !== 'running' || x.healthy === false))
       .map((x) => `${x.name}: ${x.state === 'stopped' ? 'not running' : x.state === 'starting' ? 'starting' : `not healthy (${x.health})`}`);

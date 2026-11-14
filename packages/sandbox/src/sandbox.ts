@@ -20,6 +20,7 @@ import { isIP } from 'node:net';
 import { sandboxNames } from '@retake/core/sandbox';
 import { seedHash } from '@retake/core/io';
 import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy } from '@retake/core/model';
+import type { SandboxHookRunner } from '@retake/core/hooks';
 import type { WorkPolicy } from '@retake/core/policy';
 import { SandboxError, interrupted } from './errors.js';
 import { TakeLock, lockAlive, readLock } from './lock.js';
@@ -135,13 +136,13 @@ export function providerFor(sandbox: LoadedSandbox, policy: WorkPolicy): Provide
 }
 
 /** The sandbox of environment `env` (default: the first project.yaml declares), for work under `policy` (core WorkPolicy). */
-export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy, resolveSecret: SecretRefResolver): Sandbox {
+export function openSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy, resolveSecret: SecretRefResolver, hooks: SandboxHookRunner): Sandbox {
   const names = sandboxNames(project);
   if (!names.length) throw new SandboxError(`project ${project.slug} has no sandbox: add \`sandboxes: {sandbox: sandbox/sandbox.yaml}\` to project.yaml`);
   const name = env ?? names[0];
   const loaded = project.sandboxes?.[name];
   if (!loaded) throw new SandboxError(`${name} is not a sandbox of project ${project.slug} (sandboxes: ${names.join(', ')})`);
-  return new Sandbox(project, loaded, policy, resolveSecret);
+  return new Sandbox(project, loaded, policy, resolveSecret, hooks);
 }
 
 export class Sandbox {
@@ -160,6 +161,8 @@ export class Sandbox {
     readonly policy: WorkPolicy,
     /** What its secret references are resolved with (its opener's: ProviderContext.resolveSecret). */
     private readonly resolveSecret: SecretRefResolver,
+    /** What runs its seed steps and reset hooks (its opener's: ProviderContext.hookRunner). */
+    private readonly hookRunner: SandboxHookRunner,
   ) {
     this.env = sandbox.env;
     this.paths = sandboxPaths(project.dir, sandbox.env);
@@ -194,6 +197,7 @@ export class Sandbox {
       save: () => writeState(this.paths.state, ctx.state),
       log,
       resolveSecret: this.resolveSecret,
+      hookRunner: this.hookRunner,
       signal: opts.signal,
       ...(opts.progress ? { progress: opts.progress } : {}),
       ...(opts.seedTrust ? { seedTrust: opts.seedTrust } : {}),
@@ -277,7 +281,7 @@ export class Sandbox {
           snapshot = { action: 'restored', ms: r.ms, database: snap.target.database };
           ctx.log('info', `sandbox ${this.env}: snapshot of ${describeDatabase(snap.target)} restored in ${r.ms} ms`);
           // The data is back: the pending rollbacks of earlier runs would act on data that is gone.
-          superseded = await supersede(this.project.dir, this.env, by, ctx.log);
+          superseded = await supersede(this.hookRunner, this.project.dir, this.env, by, ctx.log);
         }
       }
       if (!snapshot) {
@@ -300,7 +304,7 @@ export class Sandbox {
           const n = await fa.save(hash);
           ctx.log('info', `sandbox ${this.env}: ${n} account(s) of the Firebase Auth emulator saved after the seed`);
         }
-        superseded = await supersede(this.project.dir, this.env, by, ctx.log);
+        superseded = await supersede(this.hookRunner, this.project.dir, this.env, by, ctx.log);
         if (snap) {
           if (ctx.signal?.aborted) throw interrupted(`sandbox ${this.env} seed`);
           ctx.progress?.step('snapshot', `taking a snapshot of ${describeDatabase(snap.target)}`);

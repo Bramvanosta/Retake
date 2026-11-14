@@ -11,7 +11,7 @@ import { basename, dirname, join, relative } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@retake/components';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import { printableText, bestEffort, errorMessage } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
 import {

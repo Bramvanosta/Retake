@@ -32,7 +32,7 @@ import type { ErrorKind } from '@retake/core/base';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { H264Encoder, NamedRenderFound } from '@retake/core/io';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
 import { PlanTrustError } from './plan-run.js';

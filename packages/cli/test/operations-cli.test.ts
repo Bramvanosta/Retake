@@ -164,8 +164,8 @@ vi.mock('../../engine/src/sandboxes/package-sandboxes.ts', async (importOriginal
   }
   return {
     ...real,
-    packageSandboxes: (secrets: Parameters<typeof real.packageSandboxes>[0]) => {
-      const sandboxes = real.packageSandboxes(secrets);
+    packageSandboxes: (...args: Parameters<typeof real.packageSandboxes>) => {
+      const sandboxes = real.packageSandboxes(...args);
       return {
         // The real open (its refusals: no sandbox, an unknown env), then the fake handle.
         open: async (project: Project, env: string | undefined, policy: Parameters<typeof sandboxes.open>[2]) => fakeSandbox(project, await sandboxes.open(project, env, policy)),

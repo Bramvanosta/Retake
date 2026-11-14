@@ -31,7 +31,7 @@ import type { LoadedProject, LoadedTemplate, Scenario, Timeline, WorkFileFacts }
 import type { WorkPolicy } from '@retake/core/policy';
 import type { NamedProblem, Read, RunFolderFacts } from '@retake/core/run';
 import { loadComponentRegistry } from '@retake/components';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
 import { planEdit } from '../plan.js';
 import { musicFile, musicSpecOf } from '../planner/music.js';

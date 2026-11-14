@@ -22,6 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import { MailboxClient, inlineCids } from '@retake/runner-web';
 import { dockerEnv, findDocker, openSandbox, probePort } from '@retake/sandbox';
+import { packageHookRunner } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { PERSON_POLICY } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
@@ -133,7 +134,7 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DO
 
   afterAll(async () => {
     try {
-      if (dir) await openSandbox(await loadProject(dir), ENV, policy, resolveSecretRef).down({ volumes: true });
+      if (dir) await openSandbox(await loadProject(dir), ENV, policy, resolveSecretRef, packageHookRunner()).down({ volumes: true });
     } catch {
       /* not started */
     }

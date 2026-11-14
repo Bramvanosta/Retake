@@ -44,6 +44,7 @@ export function packageHookRunner(): HookRunner {
       },
       rollbackPending: async (projectDir, ctx) => (await hooks()).rollbackPendingJournals(projectDir, ctx),
       pruneDone: async () => (await hooks()).pruneDoneRollbacks(),
+      supersede: async (projectDir, env, by) => (await hooks()).supersedePendingJournals(projectDir, env, by),
     },
     approval: {
       fingerprint: async (hook, place) => (await hooks()).hookFingerprint(hook, place),

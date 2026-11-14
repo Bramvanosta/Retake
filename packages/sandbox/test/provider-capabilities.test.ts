@@ -8,6 +8,7 @@
  * RETAKE_TEST_DOCKER=1).
  */
 import { resolveSecretRef } from '@retake/core/io';
+import { packageHooks } from './hook-runner.js';
 import { describe, expect, it } from 'vitest';
 import { PERSON_POLICY, SandboxError, sandboxPaths } from '@retake/core';
 import type { LoadedProject, LoadedSandbox } from '@retake/core';
@@ -29,6 +30,7 @@ const ctxOf = (s: LoadedSandbox): ProviderContext => ({
   save: () => undefined,
   log: () => undefined,
   resolveSecret: resolveSecretRef,
+  hookRunner: packageHooks,
 });
 
 describe('the providers declare their capabilities (X8)', () => {

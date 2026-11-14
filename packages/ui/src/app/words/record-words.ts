@@ -10,6 +10,7 @@ import type { DraftSource, RecordInsert, RecordInsertAt, SecretFieldKind } from 
 import type { JobClient } from '@retake/engine';
 import type { RecordCheckView, RecordState } from '@retake/engine';
 import { hasHidden } from '../hidden-chars.js';
+import { SCENARIO_NAME } from '../id-words.js';
 
 /** Quick inserts' defaults (core RECORD_HOLD_S.default) and caps; the zoom's factor comes with the view (the theme's max_zoom). */
 export const HOLD_DEFAULT_S = 2;
@@ -23,9 +24,6 @@ export const NAME_MAX = 100;
 /** How often the view is read while the recording is live (queued → check), and once it is over (ms). */
 export const LIVE_POLL_MS = 700;
 export const DONE_POLL_MS = 3000;
-
-/** core SLUG_RE: a scenario or mark name. */
-const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 /** States in which the window, the draft or the check is still on its way. */
 export const LIVE_STATES: ReadonlySet<RecordState> = new Set(['queued', 'preflight', 'recording', 'draft', 'check']);
@@ -255,7 +253,7 @@ export function preflightSignIn(v: { job: { error?: { code: string; message: str
 export function nameProblem(name: string, max = NAME_MAX): string | null {
   if (!name) return 'A name is needed.';
   if (name.length > max) return `At most ${max} characters.`;
-  if (!NAME_RE.test(name)) return 'Letters, digits, "-" or "_" only, starting with a letter or digit (no space, no slash).';
+  if (!SCENARIO_NAME.test(name)) return 'Letters, digits, "-" or "_" only, starting with a letter or digit (no space, no slash).';
   return null;
 }
 

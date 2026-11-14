@@ -7,8 +7,7 @@
  */
 import type { ExecStepSpec, LoadedProject, LoadedSandbox, SandboxProvider } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { HookTrust } from '@retake/core/hooks';
-import type { HookApprovalRequest } from '@retake/hooks';
+import type { HookApprovalRequest, HookTrust, SandboxHookRunner } from '@retake/core/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';
 
@@ -71,6 +70,11 @@ export interface ProviderContext {
    * headers) are resolved with: its opener's (the engine's Secrets port). Required: never read on the way.
    */
   resolveSecret: SecretRefResolver;
+  /**
+   * What runs the seed steps and reset hooks, fingerprints their approvals and marks the rollbacks a reset makes stale:
+   * its opener's (the engine's HookRunner port). The sandbox runs no hook itself.
+   */
+  hookRunner: SandboxHookRunner;
 }
 
 /** Resolves one secret reference (`env:VAR`, `keychain:service/account`) to its value. */

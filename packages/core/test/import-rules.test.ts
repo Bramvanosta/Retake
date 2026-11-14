@@ -1,5 +1,5 @@
 /**
- * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R13), file cycles, who builds the
+ * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R14), file cycles, who builds the
  * file job queue, and no module-level variable holding the work's policy, held to the committed baseline
  * (scripts/audit/baseline.json).
  * A new violation fails, and so does a stale baseline entry (the count only goes down, in the commit that lowers it).
@@ -49,9 +49,37 @@ describe('the import-rules ratchet', () => {
       'R3 packages/ui/src/server/a.ts → @retake/mcp',
     ]);
     expect(hits({ 'packages/mcp/src/a.ts': ['@retake/editor', '@retake/engine', '@retake/core'] })).toEqual(['R4 packages/mcp/src/a.ts → @retake/editor']);
-    expect(hits({ 'packages/mcp/src/tools/a.ts': ['node:fs', 'node:path'], 'packages/mcp/src/a.ts': ['node:fs'], 'packages/cli/src/commands/b.ts': ['child_process'] })).toEqual([
+    // R6 reads every source of a shell package, not only its commands, tools and server (a port holder, a bundler).
+    expect(
+      hits({
+        'packages/mcp/src/tools/a.ts': ['node:fs', 'node:path'],
+        'packages/mcp/src/a.ts': ['node:fs'],
+        'packages/cli/src/commands/b.ts': ['child_process'],
+        'packages/ui/src/player/p.ts': ['node:fs/promises', 'node:url'],
+        'packages/engine/src/e.ts': ['node:fs'],
+        'packages/hooks/src/h.ts': ['node:child_process'],
+      }),
+    ).toEqual([
       'R6 packages/mcp/src/tools/a.ts → node:fs',
+      'R6 packages/mcp/src/a.ts → node:fs',
       'R6 packages/cli/src/commands/b.ts → child_process',
+      'R6 packages/ui/src/player/p.ts → node:fs/promises',
+    ]);
+    // R14: an adapter reaches another adapter through its domain entries only — its root, another entry and a type of
+    // either are hits; its own package and core are free.
+    expect(
+      hits({
+        'packages/sandbox/src/s.ts': ['@retake/hooks', '@retake/hooks/describe', '@retake/hooks/db-url', '@retake/sandbox/types', '@retake/core/hooks'],
+        'packages/editor/src/e.ts': ['@retake/components/kit', '@retake/components/geometry', '@retake/editor/plan'],
+        'packages/review/src/r.ts': ['@retake/editor/plan', '@retake/components'],
+        'packages/runner-web/src/w.ts': ['@retake/hooks', '@retake/runner-web/types'],
+      }).filter((h) => h.startsWith('R14 ')),
+    ).toEqual([
+      'R14 packages/sandbox/src/s.ts → @retake/hooks',
+      'R14 packages/sandbox/src/s.ts → @retake/hooks/db-url',
+      'R14 packages/editor/src/e.ts → @retake/components/kit',
+      'R14 packages/review/src/r.ts → @retake/components',
+      'R14 packages/runner-web/src/w.ts → @retake/hooks',
     ]);
     expect(
       hits({
@@ -1546,6 +1574,8 @@ describe('the import-rules ratchet', () => {
       'R11 packages/engine/src/x.ts → @retake/editor',
       'R11 packages/engine/src/x.ts → @retake/hooks',
       'R12 packages/review/src/spans.ts → @retake/components',
+      'R14 packages/review/src/spans.ts → @retake/components',
+      'R14 packages/review/src/spans.ts → @retake/editor',
       'R2 packages/hooks/src/x.ts → @retake/engine',
       'R3 packages/ui/src/server/x.ts → @retake/mcp',
       'R4 packages/ui/src/server/x.ts → @retake/editor/plan',
@@ -2146,9 +2176,6 @@ describe('the import-rules ratchet', () => {
         'packages/engine/src/jobs/job-input.ts',
         'packages/engine/src/reviews.ts',
         'packages/engine/src/run-files.ts',
-        'packages/ui/src/app/review/review-words.ts',
-        'packages/ui/src/app/unsaved-report.ts',
-        'packages/ui/src/app/words/record-words.ts',
       ]);
       const entries = today.filter((e: string) => e.startsWith('id-grammar '));
       expect(entries).toEqual(hits.map((h) => `id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`).sort());

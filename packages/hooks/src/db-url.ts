@@ -1,3 +1,9 @@
+/**
+ * `@retake/hooks/db-url` — where a database connection string connects, read with pg's own parser (host and port
+ * defaults, `?host=/socket/dir`, PGHOST): it never connects. The one reading of a database URL, shared by the hooks'
+ * sql steps and the sandbox package's seed and snapshots (an adapter imports another adapter's domain entries only:
+ * scripts/audit/lib.mjs R14; the sandbox's import of this entry is listed in its baseline — it loads pg).
+ */
 import pg from 'pg';
 import { isLoopbackHost, normalizeHost } from '@retake/core/environment';
 import { HookError } from './errors.js';

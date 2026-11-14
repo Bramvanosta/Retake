@@ -25,7 +25,7 @@ import pg from 'pg';
 import { interpolateDeep } from '@retake/core/base';
 import { prefetchSecrets } from '@retake/core/io';
 import type { LoadedProject, LoadedSandbox } from '@retake/core/model';
-import { databaseTarget, sandboxDatabaseProblem } from '@retake/hooks';
+import { databaseTarget, sandboxDatabaseProblem } from '@retake/hooks/db-url';
 import { SandboxError, errorMessage } from './errors.js';
 
 /** Suffix of the template database (`<db>__ds_snapshot`). */

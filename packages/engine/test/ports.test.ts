@@ -191,7 +191,7 @@ describe('the ports bag: the capture runner', () => {
 
 describe('the ports bag: the sandboxes (L7.25)', () => {
   it('the package adapter loads the sandbox package through its loader on a call, and hands its refusal on as it is', async () => {
-    const sb = packageSandboxes(enginePorts().secrets);
+    const sb = packageSandboxes(enginePorts().secrets, enginePorts().hooks);
     expect(calls).toEqual([]);
     const bare = { slug: 'bare', dir, config: { environments: {} } } as unknown as LoadedProject;
     const err = await sb.open(bare, undefined, PERSON_POLICY).catch((e: unknown) => e);

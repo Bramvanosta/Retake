@@ -21,19 +21,21 @@ import { onUnsavedChange, unsavedItems } from './drafts.js';
 import type { UnsavedItem } from './drafts.js';
 import { SessionEnded } from './session.js';
 import { bestEffort } from './best-effort.js';
+import { PROJECT_SLUG, SCENARIO_NAME } from './id-words.js';
 
 export const RETRY_MS = 5000;
 /** Items one report names at most (the op's cap). */
 export const REPORT_ITEMS_MAX = 16;
 
-/** The names a report may carry (the server's PROJECT_SLUG_RE / SLUG_RE, capped like its other ops). */
-const PROJECT_NAME_RE = /^[a-z0-9][a-z0-9-]{0,99}$/;
-const SCENARIO_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+/** Longest name a report carries (the server's cap of its other ops). */
+const REPORT_NAME_MAX = 100;
+/** A name a report may carry: the server's grammar (id-words.ts) within its cap. */
+const okReportName = (name: string, grammar: RegExp) => name.length <= REPORT_NAME_MAX && grammar.test(name);
 
 /** `item` with only the names the server takes as names (the item itself always stays). */
 export function reportable(item: UnsavedItem): UnsavedItem {
-  const project = item.project !== undefined && PROJECT_NAME_RE.test(item.project) ? item.project : undefined;
-  const scenario = project !== undefined && item.scenario !== undefined && SCENARIO_NAME_RE.test(item.scenario) ? item.scenario : undefined;
+  const project = item.project !== undefined && okReportName(item.project, PROJECT_SLUG) ? item.project : undefined;
+  const scenario = project !== undefined && item.scenario !== undefined && okReportName(item.scenario, SCENARIO_NAME) ? item.scenario : undefined;
   return { kind: item.kind, ...(project !== undefined ? { project } : {}), ...(scenario !== undefined ? { scenario } : {}) };
 }
 

@@ -18,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
 import type { RunRecord } from '@retake/core';
 import { TakeLock, openSandbox, probePort, sandboxPaths } from '@retake/sandbox';
+import { packageHookRunner } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { PERSON_POLICY } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
@@ -125,7 +126,7 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   afterAll(async () => {
     try {
-      await openSandbox(await loadProject(dir), undefined, PERSON_POLICY, resolveSecretRef).down();
+      await openSandbox(await loadProject(dir), undefined, PERSON_POLICY, resolveSecretRef, packageHookRunner()).down();
     } catch {
       /* not started */
     }

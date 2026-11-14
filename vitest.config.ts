@@ -61,6 +61,7 @@ export default defineConfig({
       '@retake/core': pkg('core'),
       // Before '@retake/hooks', as for the kit: the hooks described without running them (a domain entry).
       '@retake/hooks/describe': fileURLToPath(new URL('./packages/hooks/src/describe-entry.ts', import.meta.url)),
+      '@retake/hooks/db-url': fileURLToPath(new URL('./packages/hooks/src/db-url.ts', import.meta.url)),
       '@retake/hooks': pkg('hooks'),
       // Before '@retake/sandbox', as for the kit: a sandbox's vocabulary as types only (a domain entry, L7.25).
       '@retake/sandbox/types': fileURLToPath(new URL('./packages/sandbox/src/types-entry.ts', import.meta.url)),

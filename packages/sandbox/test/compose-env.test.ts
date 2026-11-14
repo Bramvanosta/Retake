@@ -7,6 +7,7 @@
  * read: the file's tag wins over the shell's, the subfolder's file is the one read.
  */
 import { resolveSecretRef } from '@retake/core/io';
+import { packageHooks } from './hook-runner.js';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -59,6 +60,7 @@ function ctxOf(p: LoadedProject): ProviderContext {
     save: () => undefined,
     log: () => undefined,
     resolveSecret: resolveSecretRef,
+    hookRunner: packageHooks,
   };
 }
 

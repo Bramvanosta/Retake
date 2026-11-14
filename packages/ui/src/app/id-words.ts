@@ -33,6 +33,12 @@ export const NEW_THEME_NAME_MAX = 60;
 /** A project slug (core PROJECT_SLUG_RE): the grammar of a new theme's name, the same object (core holds the two equal). */
 export const PROJECT_SLUG = NEW_THEME_NAME;
 
+/**
+ * A scenario's name (core SLUG_RE): also a mark's, a persona's. The grammar of a listed theme's name, but its own object:
+ * the two may part. No length here: each caller holds its own cap.
+ */
+export const SCENARIO_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
 /** Whether `n` is a name a new theme may take (core isNewThemeName): the lower-case grammar, at most 60 characters. */
 export const okNewThemeName = (n: unknown): n is string => typeof n === 'string' && n.length <= NEW_THEME_NAME_MAX && NEW_THEME_NAME.test(n);
 

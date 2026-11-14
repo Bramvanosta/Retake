@@ -8,6 +8,7 @@
  * addSandboxEntry.
  */
 import { resolveSecretRef } from '@retake/core/io';
+import { packageHooks } from './hook-runner.js';
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import { existsSync } from 'node:fs';
@@ -145,6 +146,7 @@ function ctxOf(project: LoadedProject): ProviderContext & { logs: string[] } {
   const logs: string[] = [];
   const ctx = {
     resolveSecret: resolveSecretRef,
+    hookRunner: packageHooks,
     project,
     policy,
     sandbox,
@@ -819,7 +821,7 @@ describe('the compose provider on a fake docker', () => {
 
   it('a docker-compose sandbox without docker says how to get it (status, up)', async () => {
     const project = await composeProjectDir('nodocker', ['services:', '  app: {url: "http://localhost:47398", pages: {app: "http://localhost:47398"}}']);
-    const sb = openSandbox(project, undefined, policy, resolveSecretRef);
+    const sb = openSandbox(project, undefined, policy, resolveSecretRef, packageHooks);
     const exec: DockerExec = async () => ({ code: null, stdout: '', stderr: '', ms: 0, error: 'spawn docker ENOENT' });
     const provider = new ComposeProvider({ policy, exec, docker: '/nowhere/docker' });
     await expect(provider.status(ctxOf(project))).rejects.toThrow(/sandbox sandbox: docker-compose sandboxes need Docker with Compose v2\.17 or later: \/nowhere\/docker could not be run/);

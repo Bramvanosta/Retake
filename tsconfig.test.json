@@ -31,6 +31,7 @@
       "@retake/core/schema": ["./packages/core/src/entries/schema.ts"],
       "@retake/core": ["./packages/core/src/index.ts"],
       "@retake/hooks/describe": ["./packages/hooks/src/describe-entry.ts"],
+      "@retake/hooks/db-url": ["./packages/hooks/src/db-url.ts"],
       "@retake/hooks": ["./packages/hooks/src/index.ts"],
       "@retake/sandbox/types": ["./packages/sandbox/src/types-entry.ts"],
       "@retake/sandbox": ["./packages/sandbox/src/index.ts"],

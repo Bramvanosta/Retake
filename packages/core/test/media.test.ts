@@ -4,7 +4,7 @@
  * ffmpeg; the tests that need it are skipped without ffmpeg).
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -22,7 +22,7 @@ import {
   DEFAULT_TEMPLATE,
   PERSON_POLICY,
 } from '@retake/core';
-import { probeVideoFile, fileFacts } from '@retake/core/io';
+import { PROBE_CACHE_MAX, probeVideoFile, fileFacts } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { colOf, fakeProject, lineOf, tempDir } from './helpers.js';
 
@@ -272,6 +272,37 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
       else process.env.RETAKE_FFPROBE = saved;
     }
     expect(probeVideoFile(file, PERSON_POLICY)).toMatchObject({ codec: 'h264' });
+  });
+
+  it('the cache is bounded: past PROBE_CACHE_MAX answers the least recently used is probed again, a recent one is not', () => {
+    const counts = join(dir, 'probe-count.txt');
+    writeFileSync(counts, '');
+    const counting = join(dir, 'counting-ffprobe');
+    const json = JSON.stringify({ streams: [{ codec_type: 'video', codec_name: 'h264', width: 2, height: 2 }], format: {} });
+    writeFileSync(counting, `#!/bin/sh\necho x >> '${counts}'\necho '${json}'\n`, { mode: 0o755 });
+    const folder = join(dir, 'many');
+    mkdirSync(folder, { recursive: true });
+    const files = Array.from({ length: PROBE_CACHE_MAX + 1 }, (_, i) => join(folder, `v${i}.mp4`));
+    for (const f of files) writeFileSync(f, 'x');
+    const runs = () => readFileSync(counts, 'utf8').split('\n').filter(Boolean).length;
+    const saved = process.env.RETAKE_FFPROBE;
+    process.env.RETAKE_FFPROBE = counting;
+    try {
+      probeVideoFile(files[0]!, PERSON_POLICY);
+      probeVideoFile(files[1]!, PERSON_POLICY);
+      // files[0] used again: files[1] is now the least recently used.
+      probeVideoFile(files[0]!, PERSON_POLICY);
+      for (const f of files.slice(2)) probeVideoFile(f, PERSON_POLICY);
+      expect(runs()).toBe(PROBE_CACHE_MAX + 1);
+      probeVideoFile(files[0]!, PERSON_POLICY);
+      probeVideoFile(files[PROBE_CACHE_MAX]!, PERSON_POLICY);
+      expect(runs()).toBe(PROBE_CACHE_MAX + 1);
+      probeVideoFile(files[1]!, PERSON_POLICY);
+      expect(runs()).toBe(PROBE_CACHE_MAX + 2);
+    } finally {
+      if (saved === undefined) delete process.env.RETAKE_FFPROBE;
+      else process.env.RETAKE_FFPROBE = saved;
+    }
   });
 
   it("a work's ffprobe its policy refuses: the video is reported as one the renderer cannot read, in the refusal's words", () => {

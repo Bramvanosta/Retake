@@ -52,6 +52,7 @@ export interface MemoryHookPlace {
 export type MemoryHookCall =
   | { op: 'run'; phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean; dry: boolean; journal: string }
   | { op: 'journals.open' | 'journals.standaloneFile' | 'journals.find' | 'journals.openPending' | 'journals.rollbackPending' | 'journals.pruneDone'; arg?: string }
+  | { op: 'journals.supersede'; arg: string; env: string; by: string }
   | { op: 'journals.rollback'; files: string[] }
   | { op: 'approval.fingerprint'; hook: HookStep; place: HookPlace }
   | { op: 'approval.files'; hook: HookStep; o: { projectDir: string; baseDir?: string; agentWritten?: boolean } }
@@ -382,6 +383,17 @@ export class MemoryHookRunner implements HookRunner {
     },
     pruneDone: async (): Promise<void> => {
       this.calls.push({ op: 'journals.pruneDone' });
+    },
+    supersede: async (projectDir: string, env: string, by: string): Promise<Array<{ file: string; count: number }>> => {
+      this.calls.push({ op: 'journals.supersede', arg: projectDir, env, by });
+      const at = new Date(0).toISOString();
+      const out: Array<{ file: string; count: number }> = [];
+      for (const { journal } of this.#pending(projectDir)) {
+        const hit = (journal as MemoryHookJournal).pending().filter((e) => e.env === env);
+        for (const e of hit) e.superseded = { at, by };
+        if (hit.length) out.push({ file: (journal as MemoryHookJournal).file, count: hit.length });
+      }
+      return out;
     },
   };
 

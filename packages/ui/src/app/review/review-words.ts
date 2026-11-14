@@ -14,7 +14,7 @@
 import type { RenderReviewSummary, ReviewFindingView } from '@retake/engine';
 import type { StudioEvent } from '../events.js';
 import type { MarkState } from '../ui-kit/index.js';
-import { RUN_ID, RUN_ID_MAX } from '../id-words.js';
+import { PROJECT_SLUG, RUN_ID, RUN_ID_MAX } from '../id-words.js';
 import { reviewBadge, versionWords } from '../words/render-words.js';
 
 export interface CheckFamily {
@@ -118,9 +118,6 @@ export function countWords(c: { error: number; warning: number; info: number }):
 
 /** The quiet line under the families that found something (no number: the review does not record which checks ran). */
 export const NOTHING_ELSE = 'Nothing else found.';
-
-/** A project slug (core PROJECT_SLUG_RE). */
-const PROJECT_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 /**
  * The raw capture's export, as a command to copy (`retake export-capture <project> <run>`): null unless the slug and the

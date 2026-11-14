@@ -358,6 +358,7 @@
     "packages/ui/test/scenario-run.test.ts",
     "packages/ui/test/server.test.ts",
     "packages/ui/test/setup-ops.test.ts",
+    "packages/ui/test/shared-read.test.ts",
     "packages/ui/test/shoot-ops.test.ts",
     "packages/ui/test/shoot-words.test.ts",
     "packages/ui/test/step-edit-app.test.ts",

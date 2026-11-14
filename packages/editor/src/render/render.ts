@@ -15,7 +15,7 @@ import type { LoadedProject, LoadedTemplate, RenderSettings, Timeline } from '@r
 import type { WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo } from '@retake/core/render';
 import { loadComponentRegistry } from '@retake/components';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
 import { startAssetServer } from './asset-server.js';
