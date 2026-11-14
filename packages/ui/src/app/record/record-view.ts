@@ -7,6 +7,7 @@ import { recordOptions, recordView } from '../data/record.js';
 import { recordEventAction, useEvents } from '../events.js';
 import { DONE_POLL_MS, LIVE_POLL_MS, LIVE_STATES, newerView } from '../words/record-words.js';
 import { startedJobs } from './started.js';
+import { bestEffort } from '../best-effort.js';
 
 /** A recording's view, read live: the poll (700 ms live / 3 s after, never while the tab is hidden) and the events. */
 export function useRecordView(
@@ -50,7 +51,7 @@ export function useRecordView(
           // No folder and no job known to this tab (a reload before the window opened): the workspace's open recording.
           if (v.state === 'missing' && !job && !looked.current) {
             looked.current = true;
-            const o = await recordOptions({ project: slug }).catch(() => null);
+            const o = await bestEffort(recordOptions({ project: slug }), 'options that cannot be read: the form shows its defaults', null);
             if (o?.open && o.open.rec_id === rec) {
               startedJobs.set(rec, o.open.job);
               again.current = true;

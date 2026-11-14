@@ -44,6 +44,7 @@ import type {
   ScrollOp,
 } from './kit/types.js';
 import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core/model';
+import { bestEffort } from '@retake/core/base';
 
 export interface SessionOptions {
   /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
@@ -596,7 +597,7 @@ export class BrowserSession {
     let p = this.browserCdp.get(realm);
     if (!p) {
       const browser = realm.context.browser();
-      p = browser ? browser.newBrowserCDPSession().catch(() => null) : Promise.resolve(null);
+      p = browser ? bestEffort(browser.newBrowserCDPSession(), 'a browser without a browser-level session is not measured', null) : Promise.resolve(null);
       this.browserCdp.set(realm, p);
     }
     return p;
@@ -870,9 +871,9 @@ export class BrowserSession {
     await s.send('Emulation.setTouchEmulationEnabled', vp.touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false });
     if (vp.mobile) {
       e.ua ??= await page.evaluate(() => navigator.userAgent).catch(() => undefined);
-      if (e.ua) await s.send('Emulation.setUserAgentOverride', { userAgent: mobileUserAgent(e.ua) }).catch(() => undefined);
+      if (e.ua) await bestEffort(s.send('Emulation.setUserAgentOverride', { userAgent: mobileUserAgent(e.ua) }), "a page closing as it opens keeps the browser's own user agent");
     } else if (e.ua) {
-      await s.send('Emulation.setUserAgentOverride', { userAgent: e.ua }).catch(() => undefined);
+      await bestEffort(s.send('Emulation.setUserAgentOverride', { userAgent: e.ua }), "a page closing as it opens keeps the browser's own user agent");
     }
   }
 
@@ -904,7 +905,7 @@ export class BrowserSession {
   close(): Promise<void> {
     this.closed = true;
     this.closing ??= (async () => {
-      const late = await Promise.all([...this.launching.values()].map((p) => p.catch(() => null)));
+      const late = await Promise.all([...this.launching.values()].map((p) => bestEffort(p, 'a browser that failed to launch has nothing to close', null)));
       for (const r of late) if (r && !this.realms.includes(r)) this.realms.push(r);
       // A read-only run: what the pages send while they unload still meets the guard (write-guard.ts).
       await Promise.all(this.realms.map((r) => unloadPages(r.context)));
@@ -1026,7 +1027,7 @@ export async function armFileGuard(context: BrowserContext, persona = ''): Promi
     const call = /^file:/i.test(e.request.url)
       ? cdp.send('Fetch.failRequest', { requestId: e.requestId, errorReason: 'BlockedByClient' })
       : cdp.send('Fetch.continueRequest', { requestId: e.requestId });
-    call.catch(() => undefined);
+    bestEffort(call, 'a request of a page that is gone goes with it');
   });
   try {
     await cdp.send('Fetch.enable', { patterns: [{ urlPattern: 'file:*' }] });

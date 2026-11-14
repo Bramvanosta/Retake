@@ -32,7 +32,6 @@ const dir = (name: string) => {
   return d;
 };
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // The repository's YAML parser (a dependency of @retake/core), as the core package resolves it.
 const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => any };
 const releaseModule = async () => (await import(pathToFileURL(join(REPO, 'scripts', 'release.mjs')).href)) as any;

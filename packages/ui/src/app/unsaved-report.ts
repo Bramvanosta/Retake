@@ -20,6 +20,7 @@ import { unsavedReport } from './data/desktop.js';
 import { onUnsavedChange, unsavedItems } from './drafts.js';
 import type { UnsavedItem } from './drafts.js';
 import { SessionEnded } from './session.js';
+import { bestEffort } from './best-effort.js';
 
 export const RETRY_MS = 5000;
 /** Items one report names at most (the op's cap). */
@@ -152,7 +153,7 @@ export function startUnsavedReport(deps: ReportDeps = browserDeps()): () => void
       if (last === NOTHING && !inFlight) return;
       gen++;
       last = NOTHING;
-      deps.send({ tab, hidden: true, items: [] }, true).catch(() => undefined);
+      bestEffort(deps.send({ tab, hidden: true, items: [] }, true), "a hidden tab's report is sent again when it shows");
     }),
   );
   // Back from the back-forward cache: the report again.

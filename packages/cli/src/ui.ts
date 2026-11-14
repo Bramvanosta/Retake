@@ -1,4 +1,4 @@
-import { isAbsolute, parse, relative } from 'node:path';
+import { isAbsolute, parse } from 'node:path';
 import pc from 'picocolors';
 import { formatPath, relativeInside } from '@retake/core/base';
 import type { ValidationIssue } from '@retake/core/model';

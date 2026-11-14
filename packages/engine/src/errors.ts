@@ -95,3 +95,8 @@ export function toEngineError(e: unknown): EngineError {
     ...(typeof errorDocs === 'string' ? { docs: docsUrl(errorDocs) } : {}),
   });
 }
+
+/** Any thrown value's message, for a log line: an Error's message, else the value as text (never a throw of its own). */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : thrownText(e);
+}

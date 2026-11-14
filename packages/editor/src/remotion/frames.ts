@@ -7,7 +7,7 @@ import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateB
 import type { LayoutRects, LoupePlacement } from '@retake/components/geometry';
 import { mapSourceRect } from '../layout.js';
 import { insetRectAt, layoutPaneRectsAt, mapPaneRect, paneCaptureAt, paneSource } from '../panes.js';
-import type { ClipSegment, EditPlan, OverlayUse, PlanLayout, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
+import type { ClipSegment, EditPlan, OverlayUse, PlanLayout, Rect, ResolvedComponent } from '../plan-types.js';
 import { clamp } from '../util.js';
 
 /**
@@ -199,9 +199,6 @@ export function musicPlayGain(play: { frames: number; fadeIn: number; fadeOut: n
   return clamp(g, 0, 1);
 }
 
-/** The kinds the composition may need a stand-in for. */
-export type StandInKind = ComponentKind;
-
 /** The stand-in use of a fade that carries no transition component: drawn by the transition scaffold. */
 export function standInTransition(kind: 'crossfade' | 'fade-black'): ResolvedComponent {
   return {
@@ -341,7 +338,7 @@ export function shortcutRow(
   if (use.component.id !== 'studio/overlay-shortcut') return undefined;
   const p = use.component.params;
   const m = shortcutPlateMetrics(typeof p.size === 'number' ? p.size : 62, plan.unit, plan.variant ?? 'landscape');
-  const screen = useScreen(clip, use);
+  const screen = overlayScreen(clip, use);
   const bounds = { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset };
   const band = captionBandOver(plan, clip);
   const bandOn = band && clip.cues.some((c) => c.from < use.from + use.durationInFrames && c.to > use.from);
@@ -364,7 +361,7 @@ export function shortcutSlot(plan: EditPlan, clip: ClipSegment, use: OverlayUse)
   if (use.component.id !== 'studio/overlay-shortcut' || !use.clear || use.clear.length === 0) return preferred;
   const lay = plateOf(plan, use);
   const m = lay.metrics;
-  const screen = useScreen(clip, use);
+  const screen = overlayScreen(clip, use);
   const bounds = screen.w > lay.W + 2 * m.inset ? { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset } : safeAreaRect(plan.width, plan.height, 0.04);
   const band = captionBandOver(plan, clip);
   const bandOn = band && clip.cues.some((c) => c.from < use.from + use.durationInFrames && c.to > use.from);
@@ -399,7 +396,7 @@ export function plateOf(plan: Pick<EditPlan, 'unit' | 'variant' | 'brand'>, use:
  * The capture area an overlay places itself in, at rest (no inset glide): its page's pane in a multi-page clip (an
  * inset page's free-standing overlays: the main page's), else the clip's capture.
  */
-export function useScreen(clip: Pick<ClipSegment, 'layout' | 'panes' | 'inset'>, use: Pick<OverlayUse, 'pane' | 'layer' | 'tutorial'>): Rect {
+export function overlayScreen(clip: Pick<ClipSegment, 'layout' | 'panes' | 'inset'>, use: Pick<OverlayUse, 'pane' | 'layer' | 'tutorial'>): Rect {
   if (use.pane === undefined || !clip.panes?.[use.pane]) return clip.layout.capture;
   if (clip.inset?.pane === use.pane && !staysInInset(use)) return clip.panes[0].layout.capture;
   return clip.panes[use.pane].layout.capture;

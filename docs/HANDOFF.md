@@ -75,6 +75,57 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.42)
+- **L7.42 done (2026-11-13; branch `claude/arch-l7`)** — hygiene: dead code out and `noUnusedLocals` /
+  `noUnusedParameters` on, lot ids out of runtime strings, the four non-hook `use*` renamed, client mistakes as
+  refusals of their kind, swallowed rejections named (`bestEffort`) or surfaced, `ui → mcp` / `runner-web → hooks`
+  as dev dependencies, the Studio's library-watch shim gone.
+  - Code: `tsconfig.base.json` turns on `noUnusedLocals` / `noUnusedParameters` (the test tsconfig extends it): 38 src
+    + 25 test findings fixed (underscore for an intended unused parameter; the two compile-time checks exported:
+    `HookRunnerShared`, `SandboxHandleChecks`); the written-never-read `once` flag (runner-web auth.ts) gone. Dead
+    exports removed (re-verified by `git grep -w` over packages, apps, scripts, skills, templates, projects, fixtures,
+    docs): `loadSandboxes`, `accountsComposeEnv`, `scenarioEnvOf`, `readLottieFile`, `SHELL_ALWAYS_WRITES`,
+    `RECORD_STEP_INSERTS`, `THEME_EDIT_KINDS`, `EnvironmentSpec`, `listCachedBundles`, `previewCommandLine`,
+    `recordLive` (+ its `LIVE_STATES`), `APPROVAL_KEY_FILE`, `openLoginBrowser` (+ runner-web's `LoginOptions`),
+    `NUDGE_HOVER_MS`, `colourDistance`, `ANCHOR_BUILTINS`, `chosenLocation`, `MARK_MAX`, and the 9 types
+    (`BrandColors`, `CommentRender`, `CommentEntryKind`, `RecordInsertValues`, `RecordedEventKind`, `ScenarioEditKind`,
+    `StandInKind`, `ClipTutorialFeature`, `RunLiveRequest`): 30 names; DESIGN.md's four mentions follow
+    (`loadSandboxesOn`, `scenarioSourceEnv`, `shellAlwaysWrites`). `mcp/src/compact.ts` deleted (its test reads
+    `@retake/engine/contract`). The inert `eslint-disable` comments deleted (12 in src, 8 in tests); `fonts.ts` /
+    `modules.ts` carry a `biome-ignore` with the reason. Five runtime strings say "an older run/capture format"
+    instead of L2.13 / L2.1 / L1.2. Renames: `useDuration` → `segmentSeconds`, `useScreen` → `overlayScreen`,
+    `useInScenarioPlan` → `planUseInScenario`, `useRealTime` → `keepRealTime` (it keeps a page on the real time; the
+    audit's `restoreRealTime` would misname it). Six plain `Error`s → `EngineError` (`invalid`: a job of another kind
+    shown as a recording / inspection / site extraction, `keep_renders` < 1, a live channel for a non-run id;
+    `unavailable`: `--headed` without a display). `bestEffort(p, why, fallback?)` in core base (and a copy in the
+    Studio front end, which imports types only: R5) — 90 sites; the swallows that hid a failure are surfaced instead:
+    doctor's project / theme listing (FAIL) and worker probe (WARN, "worker state unknown"), the heavy job's yield
+    (`recordYield`, logged; worker-signals uses it), `held.json`, a job's progress write, the render browser record, the
+    approvals given back at unclaim, the recovery prunes (worker log), a refused render's lock release (job event),
+    the index's and the Studio's in-memory runs scan (a runs/ folder that cannot be read keeps its rows and old
+    signature instead of "every run deleted"), the Postgres snapshot's `ALLOW_CONNECTIONS true` (the take fails after
+    a copy that worked). `@retake/ui → @retake/mcp` and `@retake/runner-web → @retake/hooks` are devDependencies
+    (lockfile updated; runner-web's tsconfig reference to hooks gone). `ui/src/server/library-watch.ts` and its
+    re-export block in `ui/src/index.ts` gone (live.ts and theme-ops.test read the engine).
+  - Tests: new `engine/test/client-mistake-kinds.test.ts` (4), `engine/test/worker-yield-failure.test.ts` (2),
+    `sandbox/test/snapshot-take-connections.test.ts` (3); new cases in `cli/test/doctor.test.ts` (listing failures; the
+    unread worker), `engine/test/render-snapshot.test.ts` (lock not removable), `engine/test/index-db.test.ts`
+    (unreadable runs/), `ui/test/scenario-ops.test.ts` (same without node:sqlite); `ids-characterization` pins
+    `invalid:` for the live channel; `planner-rules` the new token wording; `ui/test/feature-boundaries` lists `best-effort` among the app's foundations. 152
+    touched / nearby test files run one at a time (fresh RETAKE_HOME, RETAKE_DISK_WARN=off): 1,948 passed, 54 skipped,
+    one red that is not this lot's (Questions).
+  - Mutations: 14, all red — each of the six `EngineError`s back to `Error`; doctor projects / themes / worker swallow
+    back; `recordYield` silent; the snapshot's throw off; the render lock event off; index-db `runs = []` on failure;
+    live.ts `read = []` on failure.
+  - Gates: `npx tsc -b`, `pnpm typecheck`, `pnpm lint` (baseline 541 → 466: 75 entries gone, none added),
+    `pnpm format:check`, `node scripts/audit/rules.mjs --check` (115 entries, unchanged), `node scripts/test-guard.mjs`
+    (no decrease), `node scripts/requirements.mjs --check-cites` — all 0.
+  - Not done: the remaining uncommented `.catch(() => …)` are kit probes, CDP acks, body / client / screencast
+    cleanup, stat / readdir / realpath probes (`engine/prune.ts`, `project-board.ts`, `comments/store.ts`,
+    `library.ts`, `record.ts` fileSha256, `cli/commands/validate.ts`) and two in-page functions (no import there). CC-N4's three "variables" are not environment variables (`RETAKE_MCP_HTTP` a regex, `RETAKE_REPOSITORY` the
+    repository URL constant, `RETAKE_VALUE` the hooks' inert placeholder): nothing to document. No dedicated tests
+    for the progress-write / browser-record / recovery-prune / unclaim log lines (they only add a log line).
+
 ## State (after L7.41)
 - **L7.41 done (2026-11-13; branch `claude/arch-l7`)** — the ports bag holds the job queue, the renderer, the
   environment and a Secrets port; the worker's in-process heavy mode is explicit; the Clock port has a monotonic side;

@@ -10,6 +10,7 @@ import { runFfmpeg } from '../encode.js';
 import { errorMessage } from '../errors.js';
 import type { FrameIndexEntry } from '../recorder.js';
 import { fileSlug, pad } from '../util.js';
+import { bestEffort } from '@retake/core/base';
 
 /**
  * capture.step_shots (R-FLD-16): for every step that ran, the last captured frame at or before its end (its page's track
@@ -108,5 +109,5 @@ export async function discardCapture(dir: string, screenshotsDir: string): Promi
     }
   }
   await rm(screenshotsDir, { recursive: true, force: true }).catch(() => undefined);
-  await mkdir(screenshotsDir, { recursive: true }).catch(() => undefined);
+  await bestEffort(mkdir(screenshotsDir, { recursive: true }), 'the screenshot that follows says when the folder is unusable');
 }

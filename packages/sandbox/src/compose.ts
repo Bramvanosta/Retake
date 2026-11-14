@@ -30,7 +30,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
-import { interpolateDeep } from '@retake/core/base';
+import { interpolateDeep, bestEffort } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { policyProgram } from '@retake/core/policy';
 import { DEFAULT_COMPOSE_FILES, envFileKeys, sandboxNames } from '@retake/core/sandbox';
@@ -673,7 +673,7 @@ export class ComposeProvider implements Provider {
 
   /** A message with one service's log tail and where to read more. */
   private async withTail(ctx: ProviderContext, ref: ComposeProjectRef, message: string, service: string): Promise<string> {
-    const tail = await this.logTail(ref, service).catch(() => '');
+    const tail = await bestEffort(this.logTail(ref, service), 'the log tail only adds context to the error being raised', '');
     const more = `(retake sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`;
     return tail ? `${message}\n— last lines of docker compose logs ${service}:\n${indent(tail)}\n${more}` : `${message} ${more}`;
   }
@@ -681,7 +681,7 @@ export class ComposeProvider implements Provider {
   private async failure(ctx: ProviderContext, ref: ComposeProjectRef, head: string, problems: Array<{ service: string; problem: string }>): Promise<string> {
     const parts = [`${head}:`, ...problems.map((p) => `  ${p.service}: ${p.problem}`)];
     for (const p of problems.slice(0, 3)) {
-      const tail = await this.logTail(ref, p.service).catch(() => '');
+      const tail = await bestEffort(this.logTail(ref, p.service), 'the log tail only adds context to the error being raised', '');
       if (tail) parts.push(`— last lines of docker compose logs ${p.service}:\n${indent(tail)}`);
     }
     parts.push(`(retake sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`);

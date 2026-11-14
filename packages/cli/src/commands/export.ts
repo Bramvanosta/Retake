@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { printableText } from '@retake/core/base';
+import { printableText, bestEffort } from '@retake/core/base';
 import { EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import { DEFAULT_JOB_EXPORT_FORMATS, exportInProcess, findRenderOf } from '@retake/engine';
 import type { ExportFormat, ExportProgress } from '@retake/engine';
@@ -66,7 +66,10 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   // `latest` names a FILE of renders/: the export then reads that file (never the id its record says, looked up again).
   // A render named is looked at first only to say what it is (a record renamed by hand); the export finds it again
   // and says why when it cannot be exported.
-  const found = renderArg === 'latest' ? await findRenderOf(project, renderArg, opts.scenario) : await findRenderOf(project, renderArg).catch(() => undefined);
+  const found =
+    renderArg === 'latest'
+      ? await findRenderOf(project, renderArg, opts.scenario)
+      : await bestEffort(findRenderOf(project, renderArg), 'a render that cannot be found is exported by its name as given (the export says why it cannot)');
   const render = renderArg === 'latest' && found ? found.entry.name : renderArg;
   if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
   const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });

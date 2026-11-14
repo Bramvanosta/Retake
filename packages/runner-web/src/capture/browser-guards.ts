@@ -21,6 +21,7 @@ import type { RunSecrets } from '../secrets.js';
 import type { BrowserSession } from '../session.js';
 import type { TimelineBuilder } from '../timeline.js';
 import type { WriteGuardOptions } from '../write-guard.js';
+import { bestEffort } from '@retake/core/base';
 
 /**
  * The write guard of a run (L1.7): each write it sees goes to `timeline.environment.writes` (capture time from capture
@@ -299,7 +300,11 @@ export async function diagnoseSession(
   const realm = page && !page.isClosed() ? session.realmName(page) : undefined;
   const p = prepared.find((x) => x.persona.name === realm);
   if (!p?.persona.check) return failure;
-  const r = await checkPersona(await session.contextOf(p.persona.name), p.persona, { envPages, kitSource: session.source, signal }).catch(() => null);
+  const r = await bestEffort(
+    checkPersona(await session.contextOf(p.persona.name), p.persona, { envPages, kitSource: session.source, signal }),
+    'a check that fails reads as no answer: the persona is checked again at sign-in',
+    null,
+  );
   if (!r || r.status !== 'expired') return failure;
   expire(p.persona.name, r.at ?? '', `${r.detail} (checked after step ${failure.scene}.${failure.step} failed)`);
   const message = `${failure.message} — the session of persona ${p.persona.name} is no longer valid (${secrets.redactText(r.detail)}): sign in again: ${command(p.persona.name)}`;

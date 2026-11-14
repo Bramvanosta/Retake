@@ -6,6 +6,7 @@ import { recordAnnotate, recordDiscard, recordList, recordSave, recordScreenRefu
 import { chainsRecordings } from '../caller.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 /** engine.inspect. */
 export function inspectApi(ctx: EngineContext): Engine['inspect'] {
@@ -51,7 +52,7 @@ export function recordApi(ctx: EngineContext): Engine['record'] {
       };
       let r: Awaited<ReturnType<typeof submitRecordJob>>;
       if (chainsRecordings(caller)) {
-        const next = recordChain.catch(() => undefined).then(once);
+        const next = bestEffort(recordChain, "the previous call's failure is its own caller's: the chain only orders the calls").then(once);
         recordChain = next;
         r = await next;
       } else r = await submitRecordJob(submitCtx, req);

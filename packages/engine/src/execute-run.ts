@@ -29,6 +29,7 @@ import type { InterruptPort } from './interrupts.js';
 import type { OpenedWorkspace } from './workspace.js';
 import type { JournalAs } from './store/journal.js';
 import { confinementOf } from './caller.js';
+import { EngineError, errorMessage } from './errors.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
@@ -63,10 +64,6 @@ export class SandboxTakeError extends Error {
   get errorDocs(): string {
     return GUIDE.sandbox;
   }
-}
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }
 
 export interface RunRequest {
@@ -122,6 +119,11 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
   resolveRunAccess(resolved, { allowWrites: true });
 }
 
+/** A headed run (the CLI's `--headed`) needs a display: refused when its environment has none (env.ts noDisplay). */
+export function checkHeadedDisplay(req: Pick<RunRequest, 'headed'>, vars: EngineEnv): void {
+  if (req.headed && noDisplay(vars)) throw new EngineError('unavailable', '--headed needs a display, and none is available (DISPLAY / WAYLAND_DISPLAY are not set)');
+}
+
 /**
  * Load what a run needs. `sandbox`: no sandbox, or an `env` that is not one, is a RunOptionError before anything is
  * read. The sandbox is picked from the scenario's raw `env:` first, then the scenario is validated once, against the
@@ -129,11 +131,6 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  * mailbox receives. The file is read once (its sha256 is `scenario.sha256`, checked against `expectSha256` when given):
  * the sandbox's pick and the validation work on the same bytes.
  */
-/** A headed run (the CLI's `--headed`) needs a display: refused when its environment has none (env.ts noDisplay). */
-export function checkHeadedDisplay(req: Pick<RunRequest, 'headed'>, vars: EngineEnv): void {
-  if (req.headed && noDisplay(vars)) throw new Error('--headed needs a display, and none is available (DISPLAY / WAYLAND_DISPLAY are not set)');
-}
-
 export async function prepareRun(ws: OpenedWorkspace, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
   if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
   const src = await ws.reads.readScenarioSource(project, scenarioRef, {

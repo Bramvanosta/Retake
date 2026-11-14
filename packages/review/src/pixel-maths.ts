@@ -139,8 +139,6 @@ export function pixel(img: RgbImage, x: number, y: number): Rgb {
   return [img.data[i], img.data[i + 1], img.data[i + 2]];
 }
 
-export const colourDistance = (a: Rgb, b: Rgb) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
-
 /** Bounding box (inclusive) of the pixels of a region matching `pred`, with their count. */
 export function bbox(img: RgbImage, region: RegionRect, pred: (p: Rgb) => boolean): { x0: number; y0: number; x1: number; y1: number; count: number } | undefined {
   const [rx0, ry0, rx1, ry1] = bounds(img, region);

@@ -79,7 +79,7 @@ export function planEditInfo(c: Omit<PlanContext, 'video'>): TimelineVideo {
   if (timeline.video) video = timeline.video;
   else {
     video = input.scenario ? timelineVideo(input.scenario, project.config) : { frame: project.config.frame };
-    notes.add(`timeline.json has no "video" block (run made before L2.1): edit info taken from ${input.scenario ? 'the scenario' : 'the project'}`);
+    notes.add(`timeline.json has no "video" block (an older run format): edit info taken from ${input.scenario ? 'the scenario' : 'the project'}`);
   }
   if (ov.theme !== undefined && ov.theme !== template.name && ov.theme !== t.name) {
     warnings.add(`overrides.theme is "${ov.theme}" but the theme passed to the planner is "${template.name}": the caller loads the override theme`);
@@ -90,7 +90,7 @@ export function planEditInfo(c: Omit<PlanContext, 'video'>): TimelineVideo {
   const literal = literalTokens(timeline, video);
   if (literal.length) {
     warnings.add(
-      `${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`,
+      `${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenarios were templated (an older run format), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`,
     );
   }
   return video;

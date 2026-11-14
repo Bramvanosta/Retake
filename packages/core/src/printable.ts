@@ -17,7 +17,6 @@ export const BIDI_CONTROL_CHARS = '\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\
  */
 export const INVISIBLE_FORMAT_CHARS = '\\u200b\\u2060-\\u2064\\ufeff\\u{e0000}-\\u{e007f}';
 const INVISIBLE_G = new RegExp(`[${INVISIBLE_FORMAT_CHARS}]+`, 'gu');
-// eslint-disable-next-line no-control-regex
 const UNPRINTABLE_G = new RegExp(`[\\u0000-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}]+`, 'gu');
 
 /**
@@ -29,7 +28,6 @@ export function printableText(s: string): string {
 }
 /** Spaces other than U+0020, joiners, fillers and variation selectors: they read as a space or as nothing. */
 const LOOKALIKE_CHARS = '\\u00a0\\u034f\\u115f\\u1160\\u1680\\u180e\\u2000-\\u200a\\u200c\\u200d\\u202f\\u205f\\u3000\\u3164\\ufe00-\\ufe0f\\uffa0\\u{e0100}-\\u{e01ef}';
-// eslint-disable-next-line no-control-regex
 const HIDDEN_G = new RegExp(`[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u2028\\u2029${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}${LOOKALIKE_CHARS}]`, 'gu');
 
 /**

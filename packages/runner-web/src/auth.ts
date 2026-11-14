@@ -10,13 +10,13 @@
  */
 import { constants as fsConstants } from 'node:fs';
 import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm } from 'node:fs/promises';
-import { hostname, tmpdir, homedir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
 import { interpolateAt, resolvePageUrl } from '@retake/core/base';
 import { describeTarget, isAbsoluteUrl, normalizeStep, normalizeTarget, splitPageOpen } from '@retake/core/language';
 import { PERSONA_CHECK_TIMEOUT_S, environmentLoginPatterns, loginCommand, loginMatchers, matchLoginUrl, resolveCheckUrl, urlOriginPath } from '@retake/core/environment';
-import { writeTextAtomic, nodeFileFacts } from '@retake/core/io';
+import { writeTextAtomic } from '@retake/core/io';
 import type { TemplateContext } from '@retake/core/base';
 import type { LoadedProject, LoginStep, NormalizedStep, OpenArgs, PressArgs, RunSessionStatus, Step, TargetObject, TargetSpec, TypeArgs, WaitForArgs } from '@retake/core/model';
 import type { LoginMatcher, ResolvedPersona } from '@retake/core/environment';
@@ -28,7 +28,7 @@ import { STALE_COPY_AGE_MS, SESSION_COPY_PREFIXES, isLiveCopy, registerSessionCo
 import { fileSlug, sleep, throwIfAborted, wallNow } from './util.js';
 import { closePage } from './write-guard.js';
 import { describePending, networkIdle, trackRequests } from './network.js';
-import { useRealTime } from './product-clock.js';
+import { keepRealTime } from './product-clock.js';
 
 type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
 
@@ -403,7 +403,7 @@ export async function checkPersona(context: BrowserContext, persona: ResolvedPer
   try {
     // On the real time even after the product's clock is installed (the check after a failed step): a session is
     // judged by its tokens' real expiry (L1.7).
-    await useRealTime(page);
+    await keepRealTime(page);
     let status: number | undefined;
     page.on('response', (r) => {
       try {
@@ -611,7 +611,7 @@ export async function autoLogin(context: BrowserContext, persona: ResolvedPerson
   let signingIn = true;
   const onSignInPage = (url: string) => signingIn && (matchers.length === 0 || matchers.some((m) => m.test(url)));
   try {
-    await useRealTime(page);
+    await keepRealTime(page);
     await deps.signInTab?.(page, onSignInPage);
   } catch (e) {
     await closePage(page);
@@ -677,10 +677,8 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
       /* a listener error must not break the preflight */
     }
   };
-  let once = false;
   const fail = (p: PreparedSession, why: string, hint: 'once' | 'again' | 'reach') => {
     tell(p, 'failed', why);
-    if (hint === 'once') once = true;
     failures.push(`  ${personaLabel(p.persona)}: ${why}`);
     failures.push(
       hint === 'once'

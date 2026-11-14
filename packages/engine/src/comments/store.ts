@@ -5,16 +5,15 @@
 import type { EngineEnv } from '../env.js';
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { userInfo } from 'node:os';
-import { basename, join, relative } from 'node:path';
+import { basename, join } from 'node:path';
 import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
 import { COMMENT_ID_RE, ulidFileRe } from '@retake/core/ids';
 import { statePath } from '@retake/core/project';
 import { COMMENT_ENTRIES_MAX, CommentThreadSchema, commentAuthorName, commentText, commentTextProblem, newCommentEntryId } from '@retake/core/comments';
-import type { LoadedProject } from '@retake/core/model';
 import type { CommentAuthor, CommentEntry, CommentThread } from '@retake/core/comments';
 import type { TakeLock } from '@retake/core/io';
 import { EngineError } from '../errors.js';
-import { lockHolder, takeProjectLock, toolDir } from '../project-lock.js';
+import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { sha256Hex } from '../storage.js';
 
 /**

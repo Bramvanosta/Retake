@@ -375,6 +375,32 @@ describe('retake doctor (mocked environment)', () => {
     }
   });
 
+  it('projects or themes that cannot be listed: a failure saying why, never "no projects" or "no themes"', async () => {
+    const broken = await mkdtemp(join(tmpdir(), 'studio-doctor-list-'));
+    try {
+      // A file where the folders should be: listing them fails (ENOTDIR).
+      await writeFile(join(broken, 'projects'), 'not a folder\n');
+      await writeFile(join(broken, 'themes'), 'not a folder\n');
+      await writeFile(join(broken, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: themes\n');
+      const io = memoryIo();
+      const code = await doctorCommand(new Ui(io), { root: broken }, { json: true }, macProbes());
+      const list = (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks;
+      expect(code).toBe(EXIT.failure);
+      expect(byName(list, 'Workspace')).toMatchObject({
+        status: 'fail',
+        detail: expect.stringContaining('the projects cannot be listed: ENOTDIR'),
+        hint: expect.stringContaining(join(broken, 'projects')),
+      });
+      expect(byName(list, 'Templates')).toMatchObject({
+        status: 'fail',
+        detail: expect.stringContaining('the themes cannot be listed: ENOTDIR'),
+        hint: expect.stringContaining(join(broken, 'themes')),
+      });
+    } finally {
+      await rm(broken, { recursive: true, force: true });
+    }
+  });
+
   it('a template whose fonts are missing is a failure', async () => {
     const broken = await mkdtemp(join(tmpdir(), 'studio-doctor-tpl-'));
     try {
@@ -563,13 +589,30 @@ describe('retake doctor (this machine)', () => {
     const bare = await checks(macProbes({ execPath: versioned, worker: async () => null }));
     expect(byName(bare.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version'), hint: expect.stringContaining('retake mcp --print-config') });
     expect(byName(bare.checks, 'MCP').detail).toContain('worker idle');
+    // A worker lock that cannot be read: said, never "idle".
+    const unread = await checks(
+      macProbes({
+        exists: (p) => p === alias || existsSync(p),
+        execPath: versioned,
+        worker: async () => {
+          throw new Error('EACCES: permission denied, open worker.lock');
+        },
+      }),
+    );
+    expect(byName(unread.checks, 'MCP')).toMatchObject({
+      status: 'warn',
+      detail: expect.stringContaining("the jobs worker's state cannot be read: EACCES"),
+      hint: expect.stringContaining('can be read'),
+    });
+    expect(byName(unread.checks, 'MCP').detail).toContain('worker state unknown');
+    expect(byName(unread.checks, 'MCP').detail).not.toContain('worker idle');
     // nvm / fnm name their folders v22.16.0: a patch version too.
     const nvm = await checks(macProbes({ execPath: '/Users/me/.nvm/versions/node/v22.16.0/bin/node', worker: async () => null }));
     expect(byName(nvm.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version') });
     // A workspace in a git work tree whose .gitignore misses .retake/.
     await mkdir(join(ws, '.git'), { recursive: true });
     try {
-      const git = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' ? { code: 1, stdout: '', stderr: '' } : null) }));
+      const git = await checks(macProbes({ exec: async (cmd) => (cmd === 'git' ? { code: 1, stdout: '', stderr: '' } : null) }));
       expect(byName(git.checks, 'MCP')).toMatchObject({
         status: 'warn',
         detail: expect.stringContaining('.retake (the job queue and history of this machine) is not ignored by git'),

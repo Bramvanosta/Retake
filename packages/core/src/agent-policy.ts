@@ -35,7 +35,7 @@
  * may pass (policyArgsProblems: an allow-list). Also under it, the
  * environment of the programs a job starts: an allow-list of the worker's (childEnv, project.yaml `pass_env:`).
  */
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { showHiddenChars } from './printable.js';
 import { isUnder } from './client-path.js';
 import { needFiles } from './file-facts.js';

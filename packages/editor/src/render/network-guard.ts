@@ -23,6 +23,7 @@
  */
 import { createServer } from 'node:net';
 import type { CdpConnection, RenderBrowserHandle } from './library.js';
+import { bestEffort } from '@retake/core/base';
 
 /** What a guarded render may load. */
 export interface NetworkAllowList {
@@ -130,10 +131,10 @@ export async function armNetworkGuard(browser: RenderBrowserHandle, allow: Netwo
   const onPaused = (e: unknown) => {
     const ev = e as { requestId: string; request: { url: string } };
     if (allowedRequest(ev.request.url, allow)) {
-      conn.send('Fetch.continueRequest', { requestId: ev.requestId }).catch(() => undefined);
+      bestEffort(conn.send('Fetch.continueRequest', { requestId: ev.requestId }), 'the page may be gone: its request goes with it');
     } else {
       block(ev.request.url);
-      conn.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' }).catch(() => undefined);
+      bestEffort(conn.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' }), 'the page may be gone: its request goes with it');
     }
   };
   conn.on('Fetch.requestPaused', onPaused);

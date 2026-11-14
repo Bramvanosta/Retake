@@ -11,6 +11,7 @@ import { chmod, link, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promi
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { retakeHome } from './home.js';
+import { bestEffort } from '../best-effort.js';
 
 export const HOME_KEY_FILE = 'approvals.key';
 
@@ -32,7 +33,7 @@ export async function readHomeKey(file: string = homeKeyFile()): Promise<Buffer 
 async function tighten(dir: string): Promise<void> {
   if (resolve(dir) === resolve(homedir())) return;
   const st = await stat(dir).catch(() => undefined);
-  if (st && (st.mode & 0o077) !== 0) await chmod(dir, 0o700).catch(() => undefined);
+  if (st && (st.mode & 0o077) !== 0) await bestEffort(chmod(dir, 0o700), 'a folder the person owns but cannot change stays as it is: the key in it is written 0600 whatever its folder');
 }
 
 /**
@@ -63,7 +64,10 @@ export async function homeKey(file: string = homeKeyFile()): Promise<Buffer> {
   } finally {
     await rm(tmp, { force: true }).catch(() => undefined);
   }
-  await chmod(file, 0o600).catch(() => undefined);
+  await bestEffort(
+    chmod(file, 0o600),
+    'the key is created 0600 (its temporary file is written so): this only narrows a key file another process made, and a failure leaves it as that process wrote it',
+  );
   // Made by another process without hard links: being written for a moment.
   for (let i = 0; i < 10; i++) {
     const key = await readHomeKey(file);

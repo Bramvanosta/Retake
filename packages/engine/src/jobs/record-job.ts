@@ -44,6 +44,7 @@ import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, RecordJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
+import { bestEffort } from '@retake/core/base';
 
 export interface RecordSubmitRequest {
   project: string;
@@ -268,7 +269,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
       },
     );
     // A Discard asked during the draft or the check: the folder goes now (B9 / B-L2), even with no Record screen open.
-    if (submittedInStudio(input) && outcome.dir && (await settleDiscardAtJobEnd(project, input.rec_id).catch(() => false))) {
+    if (submittedInStudio(input) && outcome.dir && (await bestEffort(settleDiscardAtJobEnd(project, input.rec_id), 'a discard that cannot settle now is settled on the next listing', false))) {
       return recordResult({ ...outcome, dir: null, draft: null });
     }
     return recordResult(outcome);

@@ -145,7 +145,7 @@ const STUDIO_CALLS: Call[] = [
   { op: 'theme_edit', args: (s) => ({ theme: 'mine', if_match: s.sha, edit: { kind: 'restore', text: 'made: up\n', text_hash: 'ab'.repeat(32) } }) },
   { op: 'theme_edit', args: (s) => ({ theme: 'mine', if_match: s.sha, edit: { kind: 'restore', text: 'made: up\n', text_hash: createHash('sha256').update('made: up\n').digest('hex') } }) },
   { op: 'theme_edit', args: (s) => ({ theme: 'mine', if_match: s.sha, edit: { kind: 'set_field', field: 'colors.accent', from: s.accent, to: '#224466' } }) },
-  { op: 'theme_edit', args: (s) => ({ theme: 'mine', if_match: 'cd'.repeat(32), edit: { kind: 'set_field', field: 'colors.accent', from: '#224466', to: '#224477' } }) },
+  { op: 'theme_edit', args: () => ({ theme: 'mine', if_match: 'cd'.repeat(32), edit: { kind: 'set_field', field: 'colors.accent', from: '#224466', to: '#224477' } }) },
   { op: 'theme_view', args: { theme: 'mine' } },
   { op: 'theme_edit', args: (s) => ({ theme: 'mine', if_match: s.sha, edit: { kind: 'set_component', component: 'card', from: 'studio/card-title', id: 'acme/held', params: 'drop' } }) },
   { op: 'theme_create', args: { name: 'brand-two', colors: ACCENT, logo: 'brand/logo.png' } },

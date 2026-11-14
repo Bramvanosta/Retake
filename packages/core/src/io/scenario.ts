@@ -8,7 +8,7 @@ import type { ScenarioCheckOptions } from '../checks/scenario.js';
 import type { WorkFileFacts, WorkspaceDisk } from '../file-facts.js';
 import { projectPath } from '../layout.js';
 import { relativeInside } from '../path-inside.js';
-import { ScenarioChangedError, ScenarioError, parseScenarioSource, scenarioSourceEnv } from '../scenario.js';
+import { ScenarioChangedError, ScenarioError, parseScenarioSource } from '../scenario.js';
 import type { ScenarioSource } from '../scenario.js';
 import type { LoadedProject, LoadedScenario } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
@@ -87,15 +87,4 @@ export async function loadScenarioOn(disk: WorkspaceDisk, project: LoadedProject
   const { expectSha256, readFile: read, ...check } = opts;
   const src = await readScenarioSourceOn(disk, project, nameOrPath, { ...(expectSha256 !== undefined ? { expectSha256 } : {}), ...(read ? { readFile: read } : {}) });
   return parseScenarioSource(project, src, check);
-}
-
-/**
- * The `env:` a scenario file names, read without validating it (undefined when it names none or cannot be read).
- */
-export async function scenarioEnvOf(project: LoadedProject, nameOrPath: string): Promise<string | undefined> {
-  try {
-    return scenarioSourceEnv((await readScenarioSource(project, nameOrPath)).text);
-  } catch {
-    return undefined; // loadScenario reports it
-  }
 }

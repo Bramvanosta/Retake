@@ -37,7 +37,6 @@ export const SCENARIO_EDIT_MAX_CHARS = 500_000;
  * kinds, with step-edits.ts StepEdit and field-edits.ts FieldEdit).
  */
 export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'delete_step', 'duplicate_step', 'set_step', 'insert_step', 'set_field'] as const;
-export type ScenarioEditKind = (typeof SCENARIO_EDIT_KINDS)[number];
 
 // Characters the Studio never adds (see the header): controls, format and default-ignorable characters, line /
 // paragraph separators, the Hangul fillers and the braille blank; tab, line feed and a CR LF's carriage return are left

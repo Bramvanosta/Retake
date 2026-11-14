@@ -20,7 +20,6 @@ const APP = join(REPO, 'apps', 'desktop');
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-update-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const MAC = process.platform === 'darwin';
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const bundle = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as any;
 
 /** A test key in Tauri's format and a signer (the same format `tauri signer` writes; publish-update.test.ts checks one of the CLI's own). */

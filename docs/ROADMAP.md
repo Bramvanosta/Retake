@@ -134,6 +134,14 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.40 | Security: one shell lexer in core (shell-words.ts) read by the destructive-hook guard, the host scan and the trust scan of a hook's files; the guard follows every script a command makes a program run (substitutions, any shell's `-c`, `eval`, `trap`, `alias`, `env -S`, `watch`, `su`, `sudo -s`, `xargs`, `parallel`, `find -exec`, a shell's standard input) under one rule — a script not exactly in the command counts as destructive —, psql in them too, in linear time; the trust and approvals bind files named the same way; the missing security tests (redaction order and minimum, malformed signatures, the site approval's error path, two policy boundaries, a non-http port, a Windows path) | S | **done** (2026-11-13; R-SEC-04, R-SEC-40; review fix passes V1–V9, V11, R1–R4; 99 mutations red; test-guard no decrease) |
 | L7.43 | Tests in CI and the test tooling (final tests audit T-1, T-6, T-8, T-9, T-11–T-15) | done | `pnpm test:ci` (358 files, ≈ 4 min on the Mac) in ci.yml's checks job, every test file listed in or out with a reason; Postgres tests by default when Docker + image are here; kernel-sandbox check by default; goldens fail after recording; test-guard reads soft / each / matcher downgrades; free ports; `scripts/coverage.mjs`; release checklist of the gated tests |
 | L7.41 | The ports bag complete: the job queue (a factory) and the renderer in `EnginePorts` (createEngine on a memory queue), the CLI on `cliPorts.renderer`; the worker's in-process heavy mode explicit (`heavyInProcess`, the list typed over every port, `reads` added); a `Secrets` port (system, memory, contract suite) handed to runs, sign-ins and hooks, core filling secrets through a resolver only; a monotonic side on the Clock port for the scheduler; the engine's environment a value of the bag (ratchet `env-read`); the scenario-writes record through the stores port | M | **done** (R-ARCH-52 new, R-ARCH-42 text; baseline 115 → 108) |
+| L7.42 | Hygiene: `noUnusedLocals` / `noUnusedParameters` on (63 findings fixed), 30 dead exports, `mcp/src/compact.ts` and the Studio's library-watch shim removed, the inert eslint comments gone; lot ids out of five runtime strings; the four non-hook `use*` renamed; six client mistakes refused as `invalid` / `unavailable` instead of `internal`; `bestEffort(p, why)` at 90 swallowed rejections and the ones that hid a failure surfaced (doctor listings, worker yield / held / progress, render lock, runs index, Postgres snapshot); `ui → mcp`, `runner-web → hooks` as dev dependencies | S | **done** (2026-11-13; lint baseline 541 → 466; 14 mutations red; CHANGELOG [Unreleased] lists the changed outputs) |
+
+- Review fixes (H1–H5): three untrue `bestEffort` reasons reworded (widgets search field, review / project-store
+  folder swap); `WORKSPACE_LOADERS` (scripts/audit/lib.mjs) lists `loadSandboxesOn` / `accountsComposeEnvOn` and no
+  deleted name; DESIGN-phase2.md names the engine's library-watch.ts; the two twins converted (`cli/commands/export.ts`
+  findRenderOf, `engine/jobs/record-job.ts` settleDiscardAtJobEnd); the jobs' log handlers print `errorMessage(e)`
+  (now one engine helper in `errors.ts`, execute-run's local copy gone; also `record-job.ts` and the jobs' older
+  `e.message` log lines in the same files).
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1241,6 +1249,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.41 — The ports bag complete (M; decided 2026-11-13)
 - **Goal:** the job queue, the renderer, secrets, the environment and a monotonic clock are ports the composition root hands the engine; heavy jobs in process are an explicit worker option.
 - **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.41)". Requirement R-ARCH-52; R-ARCH-42 updated.
+
+### L7.42 — Hygiene (M; decided 2026-11-13)
+- **Goal:** no dead code (the compiler now refuses unused locals and parameters), client mistakes reported as refusals, and every swallowed rejection either says why or surfaces the failure.
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.42)". No requirement change.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

@@ -65,7 +65,7 @@ async function place(rel: string, text: string): Promise<void> {
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-journal-trust-'));
   retakeHome.use(join(root, '.home'));
-  server = createServer((req, res) => {
+  server = createServer((_req, res) => {
     res.setHeader('content-type', 'text/html');
     res.end('<!doctype html><title>Placed</title><body><h1>A page</h1></body>');
   });

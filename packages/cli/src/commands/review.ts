@@ -1,7 +1,7 @@
 import type { Finding, ReviewProgress } from '@retake/review/checks';
 import { environmentLine, findRenderOf, findingLine, reviewWork, summaryLine } from '@retake/engine';
 import type { ReviewResult, Reviewer } from '@retake/engine';
-import { printableText } from '@retake/core/base';
+import { printableText, bestEffort } from '@retake/core/base';
 import type { WorkPolicy } from '@retake/core/policy';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -106,7 +106,7 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
     } catch (e) {
       throw new CliError((e as Error).message);
     }
-  } else found = await findRenderOf(project, render).catch(() => undefined);
+  } else found = await bestEffort(findRenderOf(project, render), 'a render that cannot be found is reviewed by its id as given (review says what is missing)');
   const renderId = render === 'latest' && found ? found.entry.name : render;
   if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
   const gate = await heavyGate(ui, { root: ws.root, what: 'reviewing', noWait: opts.wait === false });

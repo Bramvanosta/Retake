@@ -43,6 +43,7 @@ import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { editor } from './lazy.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Bump when the cache layout or what a key covers changes (every key changes). */
 export const LIBRARY_PREVIEW_FORMAT = 1;
@@ -350,7 +351,7 @@ export async function readLibraryImage(ws: Pick<OpenedWorkspace, 'root'>, key: s
   const e = await readLibraryEntry(dir, key, { image: true });
   if (e.state !== 'cached' || !e.image) return null;
   const now = new Date();
-  await lutimes(join(dir, key, LIBRARY_FILES.meta), now, now).catch(() => undefined);
+  await bestEffort(lutimes(join(dir, key, LIBRARY_FILES.meta), now, now), "the entry's last use only orders the cache prune");
   return { kind: e.meta.kind, component: e.meta.component, bytes: e.image };
 }
 
@@ -403,7 +404,6 @@ export async function dropLibraryEntry(cacheDir: string, key: string): Promise<v
 
 /** A failure's reason as kept: one line of printable text, capped. */
 export function libraryReason(reason: string): string {
-  // eslint-disable-next-line no-control-regex
   const flat = reason
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]+/g, ' ')
     .replace(/ {2,}/g, ' ')

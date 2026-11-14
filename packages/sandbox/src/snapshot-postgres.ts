@@ -267,6 +267,7 @@ export class PostgresSnapshot {
     const app = quoteIdent(database);
     const tpl = quoteIdent(template);
     await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS false`);
+    let failed: { error: unknown } | undefined;
     try {
       // The app's pool cannot reconnect while it is copied; the copy needs no other session on it.
       await this.q(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`, [database]);
@@ -275,9 +276,17 @@ export class PostgresSnapshot {
         await this.q(`DROP DATABASE IF EXISTS ${tpl} WITH (FORCE)`);
       }
       await this.q(`CREATE DATABASE ${tpl} TEMPLATE ${app}`);
-    } finally {
-      await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS true`).catch(() => undefined);
+    } catch (e) {
+      failed = { error: e };
     }
+    try {
+      await this.q(`ALTER DATABASE ${app} WITH ALLOW_CONNECTIONS true`);
+    } catch (e) {
+      // A copy that failed throws its own error (the next reset repairs the database first: repair()); after a copy
+      // that worked, a database left refusing connections would fail the app on camera: said, not swallowed.
+      if (!failed) throw new SandboxError(`database ${database} was left refusing connections after its snapshot (${errorMessage(e)}): the next reset lets them in again`);
+    }
+    if (failed) throw failed.error;
     await this.q(`ALTER DATABASE ${tpl} WITH ALLOW_CONNECTIONS false IS_TEMPLATE true`);
     await this.q(`COMMENT ON DATABASE ${tpl} IS ${quoteLiteral(snapshotComment(hash))}`);
     return { owner: db.owner, ms: Date.now() - t0 };

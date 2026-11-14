@@ -1300,16 +1300,6 @@ export interface ReadOnlySettings {
   mocks?: WriteMockSpec[];
 }
 
-/** The long form of an environment in project.yaml (the short form is the page map itself). */
-export interface EnvironmentSpec {
-  /** A production environment: read-only unless `access: read-write`, and then only with `--allow-writes`. */
-  production?: boolean;
-  /** Default: read-only in production, else read-write. */
-  access?: EnvironmentAccess;
-  pages: Record<string, EnvironmentPageSpec>;
-  read_only?: ReadOnlySettings;
-}
-
 /**
  * What project.yaml says about an environment besides its page URLs (`ProjectConfig.environment_settings`, derived
  * by loadProject; only environments that say something are listed).

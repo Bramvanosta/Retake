@@ -60,7 +60,7 @@ export { frameAnchor } from './anchor.js';
 export { reviewImages, safeName } from './images.js';
 export { findingLine, summaryLine } from './report-lines.js';
 export type { FrameAnchorOptions } from './anchor.js';
-export { bbox, colourDistance, compareSignatures, pixel, regionStats, signature, uniformity } from './pixel-maths.js';
+export { bbox, compareSignatures, pixel, regionStats, signature, uniformity } from './pixel-maths.js';
 export type { RegionRect, RegionStats, Rgb, RgbImage } from './pixel-maths.js';
 export { isClip, meanSpeed, outputFrameOf, segmentLabel, segmentSpans, spanAt, stepAt, timecode, transitionAt, transitionSpans } from './spans.js';
 export type { SegmentSpan, TransitionSpan } from './spans.js';

@@ -1,6 +1,4 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
-import { open } from 'node:fs/promises';
-import { relative } from 'node:path';
 import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines } from '@retake/core/base';
 import { COMMENT_ENTRY_ID_RE } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';

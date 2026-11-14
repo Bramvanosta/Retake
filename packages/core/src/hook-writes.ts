@@ -5,7 +5,7 @@
  */
 import { readProjectText, shellDestructiveReason, sqlSource } from './destructive.js';
 import type { DestructiveOptions } from './destructive.js';
-import { AGENT_CONFINEMENT, confinementWords } from './confinement.js';
+import { confinementWords } from './confinement.js';
 import type { Confinement } from './confinement.js';
 import { maskSql } from './sql-text.js';
 import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
@@ -26,9 +26,6 @@ export type HookTrust = 'author' | 'mcp';
 export function shellAlwaysWrites(via?: Confinement): string {
   return `a shell command (${confinementWords(via)} a shell hook always counts as writing: its \`writes: false\` is not trusted)`;
 }
-
-/** shellAlwaysWrites through MCP. */
-export const SHELL_ALWAYS_WRITES = shellAlwaysWrites(AGENT_CONFINEMENT);
 
 /** Statements that only read (SELECT … INTO, SELECT … FOR UPDATE, data-modifying CTEs are caught below). */
 const READ_STATEMENTS = new Set(['SELECT', 'WITH', 'TABLE', 'VALUES', 'SHOW', 'EXPLAIN', 'SET', 'RESET']);

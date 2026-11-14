@@ -20,6 +20,7 @@
 import type { CDPSession, Page } from 'playwright-core';
 import { imageSize } from './recorder.js';
 import { wallNow } from './util.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Frames handed on per second, at most. */
 export const LIVE_FPS_MAX = 10;
@@ -188,15 +189,16 @@ export class LivePreview {
       this.offer({ data, width: size.width, height: size.height, ...(id !== undefined ? { page: id } : {}) });
     });
     const maxWidth = Math.min(LIVE_MAX_WIDTH, this.opts.width);
-    await session
-      .send('Page.startScreencast', {
+    await bestEffort(
+      session.send('Page.startScreencast', {
         format: 'jpeg',
         quality: LIVE_JPEG_QUALITY,
         maxWidth,
         maxHeight: Math.max(1, Math.round((maxWidth * this.opts.height) / Math.max(1, this.opts.width))),
         everyNthFrame: 1,
-      })
-      .catch(() => undefined);
+      }),
+      'the live view is a preview: a page that cannot stream shows no live picture, the capture is unchanged',
+    );
   }
 
   private async detach(): Promise<void> {

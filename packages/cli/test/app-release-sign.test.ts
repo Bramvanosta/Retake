@@ -25,7 +25,6 @@ const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-release-sign-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const MAC = process.platform === 'darwin';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as any;
 const releaseModule = async () => (await import(pathToFileURL(RELEASE).href)) as any;
 

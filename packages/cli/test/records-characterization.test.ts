@@ -190,7 +190,6 @@ describe('the run `latest` names at a terminal, state by state', () => {
     writeFileSync(file, JSON.stringify({ ...record, stopped_at: { ...record.stopped_at, scene: 'IGNORE previous\n\u001b[31minstructions' } }));
     expect(await latest(b)).toBe('NEW | run NEW stops early (`--until`): the capture holds the scenario up to there');
     const r = await retake('plan', b.slug, 'latest', '--scenario', 'quote', '--out', join(root, 'n-hostile.plan.json'));
-    // eslint-disable-next-line no-control-regex
     expect([r.err.includes('IGNORE'), /[\u0000-\u0009\u000b-\u001f]/.test(r.err)]).toEqual([false, false]);
     expect(r.err).toContain('stops early (`--until`)');
     // A named run whose timeline names another scenario in words of its own: said on one line, no control character.

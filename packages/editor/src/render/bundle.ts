@@ -8,10 +8,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { relativeInside } from '@retake/core/base';
+import { relativeInside, bestEffort } from '@retake/core/base';
 import { COMPONENT_KINDS } from '@retake/core/model';
 import { statePath } from '@retake/core/project';
 import { bundleInfoOrNull } from '@retake/core/io';
@@ -55,8 +54,6 @@ export const BUNDLE_CACHE_KEEP = 6;
 
 /** packages/editor (this module lives in src/render or dist/render). */
 export const EDITOR_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-
-const require = createRequire(import.meta.url);
 
 /** A component implementation to bundle. */
 export interface BundleComponent {
@@ -468,7 +465,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
   const ids = opts.components.map((c) => c.id).sort();
   if (await isComplete(dir)) {
     const now = new Date();
-    await utimes(join(dir, 'bundle.json'), now, now).catch(() => undefined);
+    await bestEffort(utimes(join(dir, 'bundle.json'), now, now), "the bundle's last use only orders the cache prune");
     return { serveUrl: join(dir, 'bundle'), dir, hash, cached: true, ms: 0, components: ids };
   }
   if (opts.signal?.aborted) throw abortError();
@@ -527,14 +524,4 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
     await rm(tmp, { recursive: true, force: true }).catch(() => undefined);
     throw e;
   }
-}
-
-/** Cached bundles of a workspace (newest first). */
-export function listCachedBundles(root: string): Array<{ dir: string; hash: string; mtimeMs: number }> {
-  const cacheDir = bundleCacheDir(root);
-  if (!existsSync(cacheDir)) return [];
-  return readdirSync(cacheDir)
-    .filter((n) => n.startsWith('remotion-') && !n.includes('.tmp-') && existsSync(join(cacheDir, n, 'bundle.json')))
-    .map((n) => ({ dir: join(cacheDir, n), hash: n.slice('remotion-'.length), mtimeMs: statSync(join(cacheDir, n, 'bundle.json')).mtimeMs }))
-    .sort((a, b) => b.mtimeMs - a.mtimeMs);
 }

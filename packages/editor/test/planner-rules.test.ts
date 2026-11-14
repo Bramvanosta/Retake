@@ -721,7 +721,7 @@ describe('captions', () => {
     const p = plan(ctx, synthTimeline({ entries: old, duration: 10 }));
     expect(p.captions[0].text).toBe('Hello {{vars.customer}}');
     expect(literal(p)).toEqual([
-      'scene k still shows {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a `vars` value (inserted as written) — fix it and capture again',
+      'scene k still shows {{…}} tokens as written: a run captured before scenarios were templated (an older run format), or a token inside a `vars` value (inserted as written) — fix it and capture again',
     ]);
   });
 });

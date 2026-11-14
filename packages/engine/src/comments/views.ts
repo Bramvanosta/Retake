@@ -1,5 +1,5 @@
 /** The views of comment threads clients read (see ../comments.ts): a thread, a listing, counts and pins. */
-import { open, readdir, rename } from 'node:fs/promises';
+import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { hunkStats } from '@retake/core/base';
 import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';

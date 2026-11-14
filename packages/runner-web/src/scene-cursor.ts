@@ -6,6 +6,7 @@ import { distance } from './motion.js';
 import type { Jitter } from './motion.js';
 import type { Runtime } from './runtime.js';
 import { clamp, wallNow } from './util.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Steps that travel to an element: the cursor should rest near the first one at the scene start. */
 const POINTER_ACTIONS = new Set(['click', 'double_click', 'hover', 'type', 'select', 'pick', 'menu', 'date', 'drag', 'drop_file', 'new_tab']);
@@ -131,9 +132,9 @@ async function findAnchor(rt: Runtime, scene: Scene, waitMs: number): Promise<An
   if (!first) return null;
   const deadline = wallNow() + waitMs;
   for (;;) {
-    const a = await anchorBox(rt, first.step).catch(() => null);
+    const a = await bestEffort(anchorBox(rt, first.step), 'an anchor that cannot be measured: the cursor starts from where it is', null);
     if (a) {
-      const dy = await predictedScroll(rt, first.scrolls).catch(() => null);
+      const dy = await bestEffort(predictedScroll(rt, first.scrolls), 'a scroll that cannot be predicted: the cursor starts from where it is', null);
       if (dy === null) return null;
       const box = { ...a.box, y: a.box.y - dy };
       const point = { x: a.point.x, y: a.point.y - dy };

@@ -26,6 +26,7 @@ import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord } from './jobs/types.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Which images review_get lists for the client to look at: none, the contact sheet pages + marker key frames, or all. */
 export type ReviewImagesMode = 'none' | 'sheets' | 'all';
@@ -327,8 +328,9 @@ export async function reviewImage(ws: OpenedWorkspace, frames: Pick<FrameTools, 
   // Loaded outside the catch below: a reviewer that cannot be loaded fails the call with its own error, not as an image
   // that cannot be decoded.
   await frames.load();
-  let out = await frames.thumb(b, { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 }).catch(() => undefined);
-  if (out && out.data.toString('base64').length > REVIEW_IMAGE_BASE64_MAX) out = await frames.thumb(b, { maxPx: 1100, quality: 70 }).catch(() => undefined);
+  let out = await bestEffort(frames.thumb(b, { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 }), 'a frame that cannot be made is left out of the answer (its path stays)');
+  if (out && out.data.toString('base64').length > REVIEW_IMAGE_BASE64_MAX)
+    out = await bestEffort(frames.thumb(b, { maxPx: 1100, quality: 70 }), 'a frame that cannot be made is left out of the answer (its path stays)');
   if (!out) throw new EngineError('refused', `${image} of the review of ${renderId} cannot be decoded`);
   const base64 = out.data.toString('base64');
   if (base64.length > REVIEW_IMAGE_BASE64_MAX) throw new EngineError('refused', `${image} of the review of ${renderId} stays too large once scaled: not shown`);

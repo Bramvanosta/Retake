@@ -12,7 +12,7 @@
  * older running server's bootstrap answer has none.
  */
 import { resolve } from 'node:path';
-import { isUnder } from '@retake/core/base';
+import { isUnder, bestEffort } from '@retake/core/base';
 import { realPathOf, workspaceFolders } from '@retake/core/policy';
 import { loadWorkspaceConfig, retakeHome, nodeFileFacts } from '@retake/core/io';
 import {
@@ -56,7 +56,7 @@ async function codeFrom(r: StudioTokenRecord, file: string): Promise<{ url: stri
   } catch {
     res = new Response(null, { status: 599 });
   }
-  const body = res.ok ? ((await res.json().catch(() => ({}))) as { url?: unknown; player?: unknown }) : {};
+  const body = res.ok ? ((await bestEffort(res.json(), 'an answer that is no JSON names no URL', {})) as { url?: unknown; player?: unknown }) : {};
   if (typeof body.url !== 'string' || !body.url.startsWith(base)) {
     throw new EngineError('unavailable', `a Studio server (pid ${r.pid}) holds ${file} but does not answer on port ${r.port}`, { fix: `stop that process (kill ${r.pid}), then run retake ui again` });
   }

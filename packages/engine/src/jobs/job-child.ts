@@ -24,6 +24,7 @@ import { selfIdentity } from './proc.js';
 import { recordDigest } from './signing.js';
 import { createJobRunner, shellQuote } from './run-job-record.js';
 import type { JobRecord } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Exit codes of a job process that did not run its job. */
 export const JOB_EXIT = { buildChanged: 3, refused: 4 } as const;
@@ -78,8 +79,8 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   }
   const cli = `retake -C ${shellQuote(root)}`;
   const { queue, files } = ports.queues(root, cli, clock, ports.env);
-  const stored = await queue.stored(o.id).catch(() => undefined);
-  const claim = await queue.claimOf(o.id).catch(() => undefined);
+  const stored = await bestEffort(queue.stored(o.id), 'a job removed meanwhile reads as gone (refused below)');
+  const claim = await bestEffort(queue.claimOf(o.id), 'a claim that cannot be read is no claim of this worker (refused below)');
   if (
     !stored ||
     stored.state !== 'queued' ||

@@ -583,7 +583,7 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
     for (const op of ['thread_reply', 'thread_resolve', 'thread_reopen']) expect(screen).toContain(`'${op}'`);
     const HELPER = /threadWrite\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \} as OpArgs<K>\)/g;
     expect(screen.match(HELPER)?.length).toBe(1);
-    expect(sources.filter(([f, text]) => (code(text).match(HELPER) ?? []).length > 0 || /\bsend\('[A-Za-z]+', 'thread_/.test(code(text))).map(([f]) => f)).toEqual(['review/ThreadPanel.tsx']);
+    expect(sources.filter(([, text]) => (code(text).match(HELPER) ?? []).length > 0 || /\bsend\('[A-Za-z]+', 'thread_/.test(code(text))).map(([f]) => f)).toEqual(['review/ThreadPanel.tsx']);
     for (const c of calls) expect(NAMED.test(c.args), `${c.f}: ${c.op} sends ${c.args}`).toBe(false);
     // Every send(...) of the thread's writes: its argument object names nobody either.
     for (const m of screen.matchAll(/\bsend\('[A-Za-z]+', '(thread_[a-z_]+)', (\{[^}]*\})/g)) expect(NAMED.test(m[2]), `${m[1]}: ${m[2]}`).toBe(false);

@@ -63,7 +63,6 @@ for (const p of pkgs)
   texts[p] = walk(path.join(root, 'packages', p, 'src'))
     .map((f) => fs.readFileSync(f, 'utf8'))
     .join('\n');
-const docFiles = walk(path.join(root, 'docs')).concat([]);
 const md = [];
 (function w(d) {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {

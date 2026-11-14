@@ -11,7 +11,7 @@ import type { ResolvedComponent } from '../plan-types.js';
 import { standInParams } from './frames.js';
 
 // Components declare their own params type: the composition hands them the resolved params as a plain record.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: each component's own params type is unknown here, any is the widest props type that admits them all
 export type AnyComponent = ComponentType<ComponentProps<any>>;
 
 export interface ComponentModule {

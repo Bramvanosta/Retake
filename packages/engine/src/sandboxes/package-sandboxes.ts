@@ -13,7 +13,7 @@ type SandboxPackage = Awaited<ReturnType<typeof sandbox>>;
 
 /** The package's Sandbox is a handle of the port, as it is (checked here, where the engine hands it on). */
 type Assignable<A extends B, B> = [A, B];
-type SandboxHandleChecks = Assignable<InstanceType<SandboxPackage['Sandbox']>, SandboxHandle>;
+export type SandboxHandleChecks = Assignable<InstanceType<SandboxPackage['Sandbox']>, SandboxHandle>;
 
 /** `secrets`: what the sandboxes' secret references are resolved with (the bag's Secrets port, handed to each sandbox). */
 export function packageSandboxes(secrets: Secrets): Sandboxes {

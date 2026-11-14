@@ -23,9 +23,11 @@
   ],
   "dependencies": {
     "@retake/core": "workspace:*",
-    "@retake/hooks": "workspace:*",
     "esbuild": "0.28.1",
     "pdfjs-dist": "5.4.296",
     "playwright-core": "1.56.1"
+  },
+  "devDependencies": {
+    "@retake/hooks": "workspace:*"
   }
 }

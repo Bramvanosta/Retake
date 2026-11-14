@@ -81,7 +81,6 @@ export {
   recordAnnotate,
   recordDiscard,
   recordList,
-  recordLive,
   recordSave,
   recordStop,
   recordView,
@@ -397,7 +396,7 @@ export type { ReviewRequest } from './jobs/review-job.js';
 export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine } from './jobs/export-job.js';
 export type { ExportRequest } from './jobs/export-job.js';
 export { REVIEW_IMAGE_BASE64_MAX, REVIEW_IMAGE_MAX_PX, REVIEW_IMAGE_RE, REVIEW_IMAGE_SOURCE_MAX, reviewGet, reviewImage, thumbnail } from './reviews.js';
-export { THEME_PREVIEW_KINDS, executePreviewJob, libraryStatesOf, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';
+export { THEME_PREVIEW_KINDS, executePreviewJob, libraryStatesOf, previewDir, submitPreviewJob } from './jobs/preview-job.js';
 export type { PreviewRequest } from './jobs/preview-job.js';
 export {
   LIBRARY_CACHE_MAX_BYTES,
@@ -601,7 +600,6 @@ export { checkNewProjectHosts, checkWorkspaceProtection, protectedHostOf, setPro
 export type { HostLookup, ProtectedHostHit, WorkspaceProtectedHost } from './protected-hosts.js';
 export {
   APPROVALS_USED_DIR,
-  APPROVAL_KEY_FILE,
   approvalKeyFile,
   approvalsOf,
   approvalsUsedDir,

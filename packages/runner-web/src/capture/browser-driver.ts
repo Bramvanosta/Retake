@@ -55,6 +55,7 @@ import type { FilmingReport } from './options.js';
 import { choppyCause, diskCheck, folderMB, motionWarnings, warnLimitedLoads } from './perf-words.js';
 import { discardCapture, stepShots, videoStepShots } from './step-shots.js';
 import type { WriteGuardOptions } from '../write-guard.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Inspect the page the run shows and hand the report over (inspect.ts). */
 async function inspectNow(req: InspectRequest, rt: Runtime, ctx: InspectContext): Promise<void> {
@@ -585,7 +586,7 @@ class BrowserDriver implements CaptureDriver {
     const r = this.run;
     const { rt } = this;
     const failure = r.failure;
-    await this.notifications?.settled().catch(() => undefined);
+    if (this.notifications) await bestEffort(this.notifications.settled(), 'a notification stream that failed has nothing more to settle');
     await this.session?.close().catch((e: unknown) => r.log('warn', `closing the browser failed: ${errorMessage(e)}`));
     // Artefact images (emails, PDF pages, icons, project documents) are rendered after the capture, in a clean browser.
     if (rt && !(failure !== null && (isCancelled(failure) || failure instanceof LoginPageError))) {

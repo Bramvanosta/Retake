@@ -75,6 +75,7 @@ import { TimelineInspector, useSwitchEditor } from './TimelineInspector.js';
 import { Tracks } from './TimelineTracks.js';
 import { canPlay, cannotPlayWords, frameWords, keyAction, landingOf, previewUrls, segmentWords, targetFrame, timecode, zoomFactor } from '../words/timeline-words.js';
 import type { CodecProbe, KeyTarget } from '../words/timeline-words.js';
+import { bestEffort } from '../best-effort.js';
 
 type Ready = Extract<TimelineViewAnswer, { run_id: string; model: unknown }>;
 /** Frame notes kept (warnings and errors the frame posted). */
@@ -121,7 +122,7 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
   const [lease] = useState(newLease);
   useEffect(
     () => () => {
-      void timelineLeave({ project: slug, lease }).catch(() => undefined);
+      void bestEffort(timelineLeave({ project: slug, lease }), 'the lease expires by itself when the leave is not heard');
     },
     [slug, lease],
   );

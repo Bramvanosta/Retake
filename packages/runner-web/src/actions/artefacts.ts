@@ -20,6 +20,7 @@ import { closePage } from '../write-guard.js';
 import { clickResolved } from './click.js';
 import type { ClickRun } from './click.js';
 import type { ActionResult } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Default seconds of wait_for_email / download. */
 export const ARTEFACT_TIMEOUT_S = 30;
@@ -213,7 +214,7 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
         await new Promise((res) => setTimeout(res, 50));
       }
       if (p.isClosed() || p.url() === 'about:blank' || p.url() === '') return;
-      await p.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => undefined);
+      await bestEffort(p.waitForLoadState('domcontentloaded', { timeout: 5000 }), 'a page that does not load in time is captured as it is');
       await new Promise((res) => setTimeout(res, 300));
       settle({ via: 'tab', page: p });
     })();

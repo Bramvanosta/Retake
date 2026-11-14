@@ -17,7 +17,7 @@ import type { RunRecord, Scenario } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import { exportCapture, rawExportRun, runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { STATES, buildState, stateIds, writeWorkspace } from '../../core/test/fixtures/records/build.js';
+import { buildState, stateIds, writeWorkspace } from '../../core/test/fixtures/records/build.js';
 import type { BuiltState } from '../../core/test/fixtures/records/build.js';
 import { DRY_PAGE } from './pages.js';
 import { FAST, makeScenario, startServer } from '@retake/test-support/capture';

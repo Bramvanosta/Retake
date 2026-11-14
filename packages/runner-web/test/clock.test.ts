@@ -12,7 +12,7 @@ import type { AddressInfo } from 'node:net';
 import { rm } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { kitConfigFor, openSession, runScenario, useRealTime } from '../src/index.js';
+import { kitConfigFor, openSession, runScenario, keepRealTime } from '../src/index.js';
 import type { CursorEffectPayload } from '../src/index.js';
 import { FAST, makeScenario } from '@retake/test-support/capture';
 import { makeProject, readTimeline, tempDir } from './helpers.js';
@@ -217,7 +217,7 @@ describe('the clock in a session (R-ENV-05)', () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const real = await session.page('check');
-      await useRealTime(real);
+      await keepRealTime(real);
       await real.goto(`${A}/framed.html`);
       const clocked = await session.page('main');
       await clocked.goto(`${A}/`);
@@ -230,7 +230,7 @@ describe('the clock in a session (R-ENV-05)', () => {
       expect(await real.frames()[1].evaluate(() => new Date().getUTCFullYear())).toBe(year);
       // Marked after the clock: from then on.
       const late = await session.page('late');
-      await useRealTime(late);
+      await keepRealTime(late);
       await late.goto(`${A}/`);
       expect((await late.evaluate(() => Date.now())) - T).toBeGreaterThan(365 * 86_400_000);
       expect(await clocked.evaluate(() => new Date().getUTCFullYear())).toBe(2020);

@@ -53,8 +53,6 @@ export const TUTORIAL_TIMING = {
 /** Glide between two boxes of an overlay track (output seconds): see remotion/frames.ts `trackBoxAt`. */
 export { TRACK_GLIDE_S };
 
-export type ClipTutorialFeature = Exclude<TutorialFeatureName, 'progress'>;
-
 /** Resolves a tutorial overlay use (the planner's ComponentResolver behind it). */
 export type TutorialResolve = (feature: TutorialFeatureName, state: TutorialFeatureState, slots: Record<string, string>, where: string) => ResolvedComponent | null;
 

@@ -43,7 +43,7 @@ export {
   isMultiPaneGeometry,
   parseGeometryExpression,
 } from './geometry.js';
-export { ANCHOR_BUILTINS, ANCHOR_KEYS, anchorScope, evalAnchor, oneHotName, paramEnums } from './geometry.js';
+export { ANCHOR_KEYS, anchorScope, evalAnchor, oneHotName, paramEnums } from './geometry.js';
 export type { AnchorContext } from './geometry.js';
 export type { GeometryValue } from './geometry.js';
 export {

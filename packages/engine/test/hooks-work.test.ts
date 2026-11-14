@@ -23,7 +23,6 @@ import { MemoryHookPages } from '../src/capture/memory-sessions.js';
 const root = await mkdtemp(join(tmpdir(), 'retake-hooks-work-'));
 afterAll(() => rm(root, { recursive: true, force: true }));
 
-const SETUP: HookStep[] = [{ name: 'seed', shell: { run: 'echo seed', rollback: 'echo unseed' } } as HookStep];
 const RESET: HookStep[] = [{ name: 'wipe', shell: 'echo wipe' } as HookStep];
 
 let n = 0;

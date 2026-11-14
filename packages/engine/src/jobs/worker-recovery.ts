@@ -2,6 +2,7 @@
  * What earlier workers left, recovered by a jobs worker (worker.ts) before its first claim: the job processes a dead
  * worker left (signalled only when provably that job's — review A M1), the approvals and rollbacks no job needs any more.
  */
+import { errorMessage } from '../errors.js';
 import { execFile } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { hostname } from 'node:os';
@@ -14,6 +15,7 @@ import { killTree, signalTree, signalablePid } from './signal.js';
 import { pruneUsedApprovals } from './signing.js';
 import { closeJob, persistDerived } from './worker-finish.js';
 import type { Worker } from './worker-record.js';
+import { bestEffort } from '@retake/core/base';
 
 /** A process's command line (`ps -ww`, with a time limit), or null. */
 function commandLine(pid: number): Promise<string | null> {
@@ -52,7 +54,7 @@ async function provenJobProcess(id: string, root: string, w: JobWorkerInfo | und
  */
 async function recoverOrphans(w: Worker): Promise<void> {
   for (const id of await w.queue.ids()) {
-    const stored = await w.queue.stored(id).catch(() => undefined);
+    const stored = await bestEffort(w.queue.stored(id), 'a job removed meanwhile reads as gone');
     if (!stored || stored.state !== 'running' || !stored.supervisor || !stored.worker) continue;
     if (stored.worker.pid === process.pid || (await isAlive(stored.supervisor))) continue;
     if (!(await isAlive(stored.worker))) continue; // dead too: persisted as interrupted by the first scan
@@ -82,6 +84,7 @@ async function recoverOrphans(w: Worker): Promise<void> {
 /** What earlier workers left, before this worker's first claim: their orphaned job processes, then the approvals and rollbacks done with. */
 export async function recoverLeftovers(w: Worker): Promise<void> {
   await recoverOrphans(w);
-  await pruneUsedApprovals(w.ports.env, w.clock.now()).catch(() => undefined);
-  await w.hooks.journals.pruneDone().catch(() => undefined);
+  // Housekeeping: a failure leaves files that are done with (pruned again by the next worker), said in the worker's log.
+  await pruneUsedApprovals(w.ports.env, w.clock.now()).catch((e: unknown) => w.log(`the used approvals could not be pruned (${errorMessage(e)})`));
+  await w.hooks.journals.pruneDone().catch((e: unknown) => w.log(`the finished rollback journals could not be pruned (${errorMessage(e)})`));
 }

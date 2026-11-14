@@ -358,7 +358,7 @@ export interface ListingContext {
 export function renderForListing(text: string, tpl: ListingContext): RenderedText {
   const unknown: string[] = [];
   const ctx: TemplateContext = { pages: tpl.pages, vars: tpl.vars, run: tpl.run, hooks: {} };
-  const shown = text.replace(TOKEN, (m, raw: string) => {
+  const shown = text.replace(TOKEN, (_m, raw: string) => {
     // Read as core's lookup reads a path (each segment trimmed): `{{ hooks . x . body }}` is `hooks.x.body`.
     const expr = raw.trim().replace(/\s*\.\s*/g, '.');
     if (KEPT.test(expr)) return `{{${expr}}}`;

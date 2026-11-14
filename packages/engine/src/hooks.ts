@@ -9,7 +9,7 @@ import type { Secrets } from './secrets/secrets.js';
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
-import { hasErrors, pathInside, GUIDE } from '@retake/core/base';
+import { hasErrors, pathInside, GUIDE, bestEffort } from '@retake/core/base';
 import { newRunId } from '@retake/core/ids';
 import {
   compileWritePolicy,
@@ -298,7 +298,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     },
   };
   const closeSessions = async () => {
-    for (const s of sessions.values()) await (await s.catch(() => null))?.close();
+    for (const s of sessions.values()) await (await bestEffort(s, 'a session that never opened has nothing to close', null))?.close();
   };
   return { ctx, access, closeSessions };
 }

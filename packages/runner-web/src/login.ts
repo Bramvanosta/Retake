@@ -11,13 +11,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, Page } from 'playwright-core';
-import { resolvePageUrl } from '@retake/core/base';
-import { LEGACY_PERSONA, loginCommand, resolveCheckUrl, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
+import { resolvePageUrl, bestEffort } from '@retake/core/base';
+import { loginCommand, resolveCheckUrl } from '@retake/core/environment';
 import type { TemplateContext } from '@retake/core/base';
 import type { BrowserConfig, LoadedProject } from '@retake/core/model';
 import type { ResolvedPersona } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
-import { retakeHome, writeTextAtomic } from '@retake/core/io';
+import { writeTextAtomic } from '@retake/core/io';
 import { autoLogin, checkPersona, ensurePrivateDir, isProfileDir, prepareSessions, profileLock, readSnapshot, registerSessionCopy, writeSnapshot, writeStatus } from './auth.js';
 import type { PersonaCheckResult, SessionSnapshot, SnapshotMeta } from './auth.js';
 import { projectBrowser } from './config.js';
@@ -267,7 +267,8 @@ async function refuseSessionThatDidNotHold(
   const probe = await checkSavedSession({ ...o, persona: { ...p, check: { url } } });
   if (probe.status !== 'expired') return;
   if (was.snapshot) {
-    if (was.saved) await writeTextAtomic(was.snapshot, `${JSON.stringify(was.saved, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 }).catch(() => undefined);
+    if (was.saved)
+      await bestEffort(writeTextAtomic(was.snapshot, `${JSON.stringify(was.saved, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 }), 'the session check after this one says when the profile is unusable');
     else await rm(was.snapshot, { force: true }).catch(() => undefined);
   }
   if (was.firstProfile && was.master) await rm(was.master, { recursive: true, force: true }).catch(() => undefined);
@@ -389,7 +390,7 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     await profileReleased(pid);
     throw e;
   }
-  let cookies: NonNullable<StorageStateFile['cookies']> = await context.cookies().catch(() => []);
+  let cookies: NonNullable<StorageStateFile['cookies']> = await bestEffort(context.cookies(), 'a closed context has no cookies to keep', []);
   const storage = new Map<string, Array<{ name: string; value: string }>>((applied?.origins ?? []).map((x) => [x.origin, x.localStorage ?? []]));
   // A `storage_state` persona keeps its IndexedDB in the snapshot too (readState says why).
   const withIdb = o.persona.session === 'storage_state';
@@ -451,7 +452,7 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     o.signal?.removeEventListener('abort', onAbort);
     clearInterval(poll);
     open = false;
-    await reading.catch(() => undefined);
+    await bestEffort(reading, "the reader's failure ends with the window: nothing is waiting for it");
     await context.close().catch(() => undefined);
     await profileReleased(pid);
   }
@@ -481,41 +482,4 @@ export async function checkSavedSession(o: Pick<SignInOptions, 'project' | 'env'
   } finally {
     await session.close();
   }
-}
-
-export interface LoginOptions {
-  project: LoadedProject;
-  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
-  policy: WorkPolicy;
-
-  env?: string;
-  /** Environment page key to open (default: the first one). */
-  page?: string;
-  /** Explicit URL (overrides env/page). */
-  url?: string;
-  browser?: BrowserConfig;
-}
-
-/**
- * The legacy single-account form (`auth.profile`): a HEADED browser on the project's profile, to sign in once; resolves
- * when the window is closed. Runs use a copy of the profile.
- */
-export async function openLoginBrowser(opts: LoginOptions): Promise<{ profileDir: string; url: string }> {
-  const env = resolveEnvironment(opts.project, opts.env);
-  const persona = resolvePersonas(opts.project, env.name, { home: retakeHome() }).find((x) => x.legacy && x.name === LEGACY_PERSONA);
-  if (!persona?.profileDir) {
-    throw new RunnerError(`project "${opts.project.slug}" has no auth.profile${env.name ? ` for environment "${env.name}"` : ''}: add one to project.yaml to keep a signed-in browser profile`);
-  }
-  const key = opts.page ?? Object.keys(env.pages)[0];
-  const r = await signIn({
-    project: opts.project,
-    policy: opts.policy,
-    env,
-    persona,
-    mode: 'headed',
-    ...(key !== undefined ? { page: key } : {}),
-    ...(opts.url ? { url: opts.url } : {}),
-    browser: opts.browser,
-  });
-  return { profileDir: persona.profileDir, url: r.url };
 }

@@ -355,7 +355,6 @@ export function scanSvg(bytes: Buffer): SvgScan {
   const decl = /^\s*<\?xml\b([^>]*)>/.exec(text);
   const encoding = decl ? /\bencoding\s*=\s*["']([^"']*)["']/i.exec(decl[1])?.[1] : undefined;
   if (encoding !== undefined && !/^utf-?8$/i.test(encoding.trim())) problems.add('its XML declaration names another encoding than UTF-8');
-  // eslint-disable-next-line no-control-regex
   if (/[\u0001-\u0008\u000b\u000c\u000e-\u001f]/.test(text)) problems.add('it holds a control character');
   const decoded = decodeReferences(text);
   if (decoded.includes('\u0000')) problems.add('a character reference to an invalid character');

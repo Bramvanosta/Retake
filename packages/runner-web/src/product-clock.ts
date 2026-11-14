@@ -9,7 +9,7 @@
  * The time is `epoch + (real now − since)`, or `epoch` when frozen: every document computes it from the same `since`
  * (the runner's wall clock at the anchor), so documents created before and after the anchor, in any browser of the
  * run, agree to the millisecond. Pages that must see the real time (the session check, the automated sign-in) are
- * marked with `useRealTime` before they load anything.
+ * marked with `keepRealTime` before they load anything.
  */
 import type { Page } from 'playwright-core';
 
@@ -22,7 +22,7 @@ export interface ProductClockConfig {
 
 /**
  * The in-page clock (serialised: no closure over module scope). `cfg` installs it in this realm or moves an installed
- * one to `cfg`; `null` makes this realm read the real time for good (a page marked useRealTime). The state lives under
+ * one to `cfg`; `null` makes this realm read the real time for good (a page marked keepRealTime). The state lives under
  * `Symbol.for('retake.clock')` (not enumerable): `off`, the config, the real `Date` (the kit's time source when it
  * is injected after the clock).
  */
@@ -122,13 +122,13 @@ const realTimePages = new WeakSet<Page>();
  * session by its tokens' expiry — never under a product clock far from now. Call before the page loads anything; its
  * documents, frames and workers never get the clock.
  */
-export async function useRealTime(page: Page): Promise<void> {
+export async function keepRealTime(page: Page): Promise<void> {
   realTimePages.add(page);
   await page.addInitScript({ content: REAL_TIME_SCRIPT });
   await Promise.all(page.frames().map((f) => f.evaluate(REAL_TIME_SCRIPT).catch(() => undefined)));
 }
 
-/** A page marked useRealTime. */
+/** A page marked keepRealTime. */
 export function isRealTimePage(page: Page): boolean {
   return realTimePages.has(page);
 }

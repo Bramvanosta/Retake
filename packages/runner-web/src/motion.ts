@@ -12,9 +12,8 @@ export function distance(a: PointSpec, b: PointSpec): number {
 
 /** Default nudge threshold (pacing.nudge_px): below it a move is a "nudge" (repeated clicks on one spot). */
 export const NUDGE_PX = 60;
-/** Default nudge travel time (pacing.nudge_ms) and hover (pacing.nudge_hover_ms). */
+/** Default nudge travel time (pacing.nudge_ms). */
 export const NUDGE_MS = 250;
-export const NUDGE_HOVER_MS = 120;
 /** Shortest nudge, as a fraction of nudge_ms: 0.6 × 250 ms = 150 ms. */
 const NUDGE_MIN_FRACTION = 0.6;
 

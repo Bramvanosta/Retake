@@ -62,7 +62,7 @@ export { extractFrames, probeVideo } from './ffmpeg.js';
 export type { ExtractOptions, VideoInfo } from './ffmpeg.js';
 export { fontFileMeasurer, loadFontFace } from './fonts.js';
 export type { FaceFile, FontFace } from './fonts.js';
-export { bbox, colourDistance, compareSignatures, pixel, readImage, regionStats, signature, uniformity } from './pixels.js';
+export { bbox, compareSignatures, pixel, readImage, regionStats, signature, uniformity } from './pixels.js';
 export type { RegionRect, RegionStats, Rgb, RgbImage } from './pixels.js';
 export { reportMarkdown } from './report.js';
 export { findingLine, summaryLine } from './report-lines.js';

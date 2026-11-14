@@ -25,11 +25,6 @@ const snapshot = () => version;
 
 export const locationKey = (slug: string, name: string) => `${slug}\0${name}`;
 
-/** The tab's choice for a scenario (undefined: the file's own). */
-export function chosenLocation(slug: string, name: string): string | undefined {
-  return chosen.get(locationKey(slug, name));
-}
-
 /** Choose a location (the file's own, or undefined: no choice); a pending "dropped" notice goes with it. */
 export function chooseLocation(slug: string, name: string, env: string | undefined): void {
   const k = locationKey(slug, name);

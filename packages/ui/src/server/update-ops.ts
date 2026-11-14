@@ -41,7 +41,6 @@ export const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const versionOk = (v: unknown): v is string => typeof v === 'string' && v.length <= 64 && VERSION_RE.test(v);
 const bytesOk = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const checkedOk = (v: unknown): v is number | null => v === null || (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0);
-// eslint-disable-next-line no-control-regex
 const BAD_NOTE_CHARS = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 
 export type UpdateLine =

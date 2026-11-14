@@ -1,14 +1,14 @@
 /**
  * The media probes (core media.ts reads their answers): ffprobe of a video file, cached by path, size, modification
- * time and the ffprobe that read it, and the metadata of a Lottie file on the disk.
+ * time and the ffprobe that read it.
  */
-import { readFileSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import type { WorkPolicy } from '../agent-policy.js';
 import { ffprobeBin } from './media-tools.js';
 import { readFfprobeJson, videoFileArgs, videoProbeFromJson } from '../ffprobe.js';
 import { MediaToolError, runMediaToolSync, stderrLines } from './media-run.js';
-import { MediaProbeError, readLottieMeta } from '../media.js';
-import type { LottieMeta, VideoProbe } from '../media.js';
+import { MediaProbeError } from '../media.js';
+import type { VideoProbe } from '../media.js';
 
 const probeCache = new Map<string, VideoProbe | MediaProbeError>();
 
@@ -59,9 +59,4 @@ export function probeVideoFile(file: string, policy: WorkPolicy): VideoProbe {
   probeCache.set(key, result);
   if (result instanceof MediaProbeError) throw result;
   return result;
-}
-
-/** readLottieMeta of a file (throws an Error saying what is wrong). */
-export function readLottieFile(file: string): LottieMeta {
-  return readLottieMeta(readFileSync(file, 'utf8'));
 }

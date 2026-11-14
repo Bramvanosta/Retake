@@ -23,6 +23,7 @@ import { jobErrorLine, jobLine } from './job-lines.js';
 import { envName, projectSlug, scenarioName } from './schema.js';
 import { WAIT_MAX_S, waitJob, waitS } from './wait.js';
 import { plural } from './words.js';
+import { EngineError } from '../errors.js';
 
 type InspectReport = NonNullable<Awaited<ReturnType<Engine['inspect']['get']>>['report']>;
 
@@ -68,7 +69,7 @@ function capElements(data: Record<string, unknown>, elements: unknown[], max = I
  */
 export async function inspectOutput(engine: Engine, job: JobRecord, head: string[] = [], level: Detail = 'compact') {
   const input = job.input;
-  if (input.kind !== 'inspect') throw new Error(`job ${job.id} is not an inspection`);
+  if (input.kind !== 'inspect') throw new EngineError('invalid', `job ${job.id} is not an inspection`);
   const lines = [...head, jobLine(job)];
   const base = { inspect_id: input.inspect_id, project: input.project, ...(input.env ? { env: input.env } : {}), source: sourceText(job), job: { id: job.id, state: job.state } };
   if (job.state === 'queued' || job.state === 'running') {

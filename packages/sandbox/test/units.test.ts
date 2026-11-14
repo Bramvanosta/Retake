@@ -368,7 +368,7 @@ describe('health', () => {
   });
 
   it('waits through refused → 503 → 200 (with the text); times out naming the check, the last failure and the tries', async () => {
-    const { server, port } = await serve((q, r) => {
+    const { server, port } = await serve((_q, r) => {
       calls++;
       if (calls < 3) {
         r.statusCode = 503;

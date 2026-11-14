@@ -20,6 +20,7 @@ import { EngineError } from './errors.js';
 import { RunDataCache, errorScreenshotName, fileSlug, frameAt, gridFrame, seekTime, stepScreenshotName } from './run-data.js';
 import type { PageSource, RunData } from './run-data.js';
 import type { FrameTools } from './review/reviewer.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Keys per call, at most. */
 export const RUN_THUMBS_MAX_KEYS = 24;
@@ -325,8 +326,8 @@ export class RunThumbs {
   /** Runs `fn` after the run's previous video batch (one ffmpeg per run at a time). */
   private oneVideoBatch<T>(runDir: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.runChains.get(runDir) ?? Promise.resolve();
-    const next = prev.catch(() => undefined).then(fn);
-    const tail = next.catch(() => undefined);
+    const next = bestEffort(prev, "the previous call's failure is its own caller's: the chain only orders the calls").then(fn);
+    const tail = bestEffort(next, "the chain's tail never rejects: the caller gets the failure from `next`");
     this.runChains.set(runDir, tail);
     void tail.then(() => {
       if (this.runChains.get(runDir) === tail) this.runChains.delete(runDir);

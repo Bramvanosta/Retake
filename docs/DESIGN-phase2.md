@@ -980,7 +980,7 @@ over 400 entries / 200 MB, drops other versions of the theme first, then the lea
 touches meta.json). A fresh built-in's committed preview.png is the poster in the editorial starter, decided by real
 path (never for a workspace component or a workspace override of a built-in id).
 
-*Studio server* (L4.7 part C; `packages/ui` `server/library-ops.ts`, `theme-ops.ts`, `library-watch.ts`): own ops in
+*Studio server* (L4.7 part C; `packages/ui` `server/library-ops.ts`, `theme-ops.ts`, the engine's `library-watch.ts`): own ops in
 UI_OPS with strict inputs (names and ids by regex, keys by shape, ≤ 12 per call) and path-free answers; agent-writable
 text (a workspace manifest's name and description, a failure's reason, a site page's URL / host / title) under
 `untrusted`. `library_view {project, theme?}` — the engine's states (`components.library`, the worker's key builder),

@@ -35,7 +35,6 @@ const ENABLED = process.env.RETAKE_TEST_UPDATE === '1' && process.platform === '
 const PORT = Number(process.env.RETAKE_TEST_UPDATE_PORT ?? 4990);
 const BIN_NAME = /^name = "([^"]+)"/m.exec(readFileSync(join(REPO, 'apps', 'desktop', 'Cargo.toml'), 'utf8'))![1];
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 let base: string;
 let feed: Server | undefined;

@@ -5,7 +5,7 @@
  * event naming the scenario file saved in place and the run that started with its scenario (critique B1).
  */
 import { request } from 'node:http';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -213,6 +213,33 @@ describe('the workspace event names scenario files and runs (B1)', () => {
       expect(done.data.runs).toEqual([{ project: P, run: id, scenario: 'quote', status: 'succeeded', finished: true, change: 'status' }]);
     } finally {
       w.close();
+      await s2.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('without node:sqlite, a runs/ folder that cannot be read is never "every run deleted": its runs are kept and it is read again', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-ui-scenario-unreadable-'));
+    await fixtureWorkspace(dir);
+    const runs = join(dir, 'projects', P, 'runs');
+    const s2 = await startStudioServer({ root: dir, sqlite: async () => null, pollMs: 100 });
+    const w = watch(s2.port, s2.token);
+    try {
+      await w.until((e) => e.event === 'hello', 'hello');
+      await new Promise((r) => setTimeout(r, 300));
+      await mkdir(join(runs, '20261022-120000-empty'));
+      await chmod(runs, 0o000);
+      await new Promise((r) => setTimeout(r, 600));
+      await chmod(runs, 0o755);
+      const id = '20261022-130000-quote';
+      await writeRun(join(dir, 'projects', P), { id, scenario: 'quote', mode: 'dry', status: 'running', noTimeline: true });
+      // Only the new run is new: the runs known before were never dropped (else they would come back as new too).
+      expect((await w.until(runsOf(id), 'runs event')).data.runs).toEqual([{ project: P, run: id, scenario: 'quote', status: 'running', finished: false, change: 'new' }]);
+      const changes = w.events.filter((e) => e.event === 'workspace' && Array.isArray(e.data.runs)).flatMap((e) => e.data.runs as Array<{ change: string }>);
+      expect(changes.map((c) => c.change)).toEqual(['new']);
+    } finally {
+      w.close();
+      await chmod(runs, 0o755).catch(() => undefined);
       await s2.close();
       await rm(dir, { recursive: true, force: true });
     }

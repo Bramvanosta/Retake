@@ -23,7 +23,6 @@ const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-app-bundle-build-'))
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 const MAC = process.platform === 'darwin';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const bundleModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'bundle.mjs')).href)) as any;
 const signModule = async () => (await import(pathToFileURL(join(APP, 'scripts', 'sign.mjs')).href)) as any;
 

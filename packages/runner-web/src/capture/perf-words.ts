@@ -10,6 +10,7 @@ import type { ScreencastRecorder } from '../recorder.js';
 import type { LogLevel } from '../runtime.js';
 import type { GpuInfo } from '../session.js';
 import type { MotionCapture, TimelineBuilder } from '../timeline.js';
+import { bestEffort } from '@retake/core/base';
 
 /**
  * A hold the recorder ended at its time limit (R-ISS-08): a page load that painted nothing within HOLD_MAX_MS, or a
@@ -85,7 +86,7 @@ export function choppyCause(m: { gpu?: GpuInfo; cpu?: RunPerfCpu; machine: RunPe
 export async function folderMB(dir: string): Promise<number> {
   let bytes = 0;
   const walk = async (d: string): Promise<void> => {
-    for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) {
+    for (const e of await bestEffort(readdir(d, { withFileTypes: true }), 'a folder that cannot be listed adds nothing to the measure', [])) {
       const p = join(d, e.name);
       if (e.isDirectory()) await walk(p);
       else if (e.isFile()) bytes += (await stat(p).catch(() => null))?.size ?? 0;

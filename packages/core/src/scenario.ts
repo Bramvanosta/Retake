@@ -4,7 +4,6 @@ import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
 import type { ScenarioCheckFields, ScenarioCheckOptions } from './checks/scenario.js';
 import type { CheckFiles } from './file-facts.js';
 import { hasErrors, issuesMessage } from './issues.js';
-import { SLUG_RE } from './schemas/primitives.js';
 import { ScenarioSchema } from './schemas/scenario.js';
 import type { LoadedProject, LoadedScenario, Scenario, ValidationIssue } from './types.js';
 import { checkYamlDocument } from './validation/document.js';

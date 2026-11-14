@@ -10,6 +10,7 @@ import { approach, clickData, clickOutside, clickResolved, waitPopupsGone } from
 import type { ClickRun } from './click.js';
 import { SEARCH_MAX_CPS, typeText } from './keyboard.js';
 import type { ActionResult } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Wait for an expected option/item before re-clicking its trigger once (field-tested value). */
 export const RETRY_TRIGGER_AFTER_MS = 3000;
@@ -85,7 +86,7 @@ const SEARCH_FIELD: TargetObject = {
 async function typeSearch(ctx: StepContext, text: string): Promise<void> {
   const { rt } = ctx;
   if (!(await rt.kit.isTextInput(null))) {
-    const input = await resolveTarget(ctx, SEARCH_FIELD, { timeoutMs: 2000 }).catch(() => null);
+    const input = await bestEffort(resolveTarget(ctx, SEARCH_FIELD, { timeoutMs: 2000 }), 'a search field that cannot be resolved reads as none: the step fails below, naming it', null);
     if (!input) throw new StepError(`${ctx.step.action}: no search field in the open popover to type "${text}"`);
     await clickResolved(ctx, input, { expect_popup: false, after_ms: 200, click_role: 'search' });
   }
@@ -225,7 +226,6 @@ export async function select(ctx: StepContext, args: SelectArgs): Promise<Action
 }
 
 export async function pick(ctx: StepContext, args: PickArgs): Promise<ActionResult> {
-  const { rt } = ctx;
   const options = Array.isArray(args.option) ? args.option : [args.option];
   if (!options.length) throw new StepError('pick: `option` is empty');
   const spec: TargetSpec = typeof args.field === 'string' ? { label: args.field } : args.field;

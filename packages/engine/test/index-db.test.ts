@@ -10,7 +10,7 @@
 import { execFile, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { appendFile, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, truncate, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -433,6 +433,37 @@ describe('the workspace index', () => {
         ix3!.close();
       }
     } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a runs/ folder that cannot be read keeps its rows and is read again on the next pass, never indexed as "no runs"', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-index-unreadable-'));
+    const runs = join(dir, 'projects', P, 'runs');
+    try {
+      await fixtureWorkspace(dir);
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY, reads: diskWorkspaceReads }, { queue: new FileJobQueue(dir) });
+      if (!ix) throw new Error('node:sqlite is missing on this Node.js');
+      try {
+        await ix.reconcile();
+        const before = ix.counts().runs;
+        expect(before).toBeGreaterThan(0);
+        // runs/ changes (a new folder), then cannot be listed.
+        await mkdir(join(runs, '20261019-100000-quote'));
+        await chmod(runs, 0o000);
+        const pass = await ix.reconcile();
+        expect(pass.keys).not.toContain(`runs:${P}`);
+        expect(pass.runs).toEqual([]);
+        expect(ix.counts().runs).toBe(before);
+        // Readable again: the next pass reads it (its signature was not taken while it could not be read).
+        await chmod(runs, 0o755);
+        expect((await ix.reconcile()).keys).toContain(`runs:${P}`);
+        expect(ix.counts().runs).toBe(before);
+      } finally {
+        ix.close();
+      }
+    } finally {
+      await chmod(runs, 0o755).catch(() => undefined);
       await rm(dir, { recursive: true, force: true });
     }
   });

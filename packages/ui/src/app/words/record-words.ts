@@ -17,7 +17,6 @@ export const HOLD_MAX_S = 10;
 export const CAPTION_MAX = 200;
 export const KICKER_MAX = 60;
 export const WAIT_TEXT_MAX = 120;
-export const MARK_MAX = 40;
 export const NAME_MAX = 100;
 
 /** How often the view is read while the recording is live (queued → check), and once it is over (ms). */

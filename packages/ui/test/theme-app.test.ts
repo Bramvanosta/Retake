@@ -44,7 +44,7 @@ import {
   switchedBackground,
   textProblem,
   themeEventAction,
-  useInScenarioPlan,
+  planUseInScenario,
   usedByWords,
   zoomProblem,
 } from '../src/app/words/theme-words.js';
@@ -255,11 +255,11 @@ describe('Use in this scenario (critique B1)', () => {
     edit: { blocks: ok ? ({ ok: true } as const) : ({ ok: false, why: 'it holds what agent trust refuses' } as const) },
   });
   it("set_field template with from as written; already; refused with the scenario's why; a hostile name never", () => {
-    expect(useInScenarioPlan(facts(), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'mine' } });
-    expect(useInScenarioPlan(facts('editorial'), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', from: 'editorial', to: 'mine' } });
-    expect(useInScenarioPlan(facts('mine'), 'mine')).toEqual({ already: true });
-    expect(useInScenarioPlan(facts(undefined, false), 'mine')).toEqual({ why: 'it holds what agent trust refuses' });
-    expect(useInScenarioPlan(facts(), '../x')).toEqual({ why: 'not a theme name' });
+    expect(planUseInScenario(facts(), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', to: 'mine' } });
+    expect(planUseInScenario(facts('editorial'), 'mine')).toEqual({ edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', from: 'editorial', to: 'mine' } });
+    expect(planUseInScenario(facts('mine'), 'mine')).toEqual({ already: true });
+    expect(planUseInScenario(facts(undefined, false), 'mine')).toEqual({ why: 'it holds what agent trust refuses' });
+    expect(planUseInScenario(facts(), '../x')).toEqual({ why: 'not a theme name' });
   });
 });
 

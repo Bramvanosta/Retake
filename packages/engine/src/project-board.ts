@@ -52,6 +52,7 @@ import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from './scenarios.js';
 import type { OpenedWorkspace } from './workspace.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */
 export const BOARD_SCENARIOS_MAX = 200;
@@ -290,7 +291,7 @@ export class ProjectBoards {
     const folderIds = (ref: string | undefined): Promise<string | undefined> => {
       if (typeof ref !== 'string') return Promise.resolve(undefined);
       let id = folders.get(ref);
-      if (!id) folders.set(ref, (id = this.ctx.ws.reads.projectTemplateFolderId(p, ref).catch(() => undefined)));
+      if (!id) folders.set(ref, (id = bestEffort(this.ctx.ws.reads.projectTemplateFolderId(p, ref), 'a theme reference that does not resolve has no folder id')));
       return id;
     };
     const out: BoardScenario[] = [];
@@ -712,7 +713,7 @@ export class ProjectBoards {
       let held = this.jobMemo.get(id);
       if (!held || held.sig !== sig) {
         this.stats.jobs++;
-        const stored = sig === '-' ? undefined : await q.stored(id).catch(() => undefined);
+        const stored = sig === '-' ? undefined : await bestEffort(q.stored(id), 'a job removed meanwhile reads as gone');
         held = { sig, rec: stored && JOB_KINDS.has(stored.kind) ? stored : null };
         remember(this.jobMemo, id, held, JOB_MEMO_MAX);
       }

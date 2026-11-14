@@ -36,7 +36,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parseYaml } from '@retake/core/base';
+import { parseYaml, bestEffort } from '@retake/core/base';
 import { RECORD_ID_RE, newUlidId } from '@retake/core/ids';
 import { PERSONA_NONE, resolveEnvironment, resolvePersonas, resolveRunAccess } from '@retake/core/environment';
 import { projectPath, statePath } from '@retake/core/project';
@@ -98,7 +98,7 @@ export async function activeRecords(queue: JobQueueView, slug: string): Promise<
  * RECORD_UNSAVED_KEEP_MS.
  */
 export async function pruneRecords(project: LoadedProject, clock: Clock, keep = RECORD_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
-  const active = queue !== undefined ? await activeRecords(queue, project.slug).catch(() => null) : [];
+  const active = queue !== undefined ? await bestEffort(activeRecords(queue, project.slug), 'jobs that cannot be read: null, and nothing is pruned on a guess', null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
@@ -578,19 +578,22 @@ async function history(
   on = true,
 ): Promise<void> {
   if (!on) return;
-  await appendHistory(
-    ws.root,
-    {
-      kind: 'record',
-      project: project.slug,
-      submitted_by: req.submittedBy ?? 'cli',
-      state,
-      ms: Math.round(clock.monotonic() - started),
-      record: { id, steps, saved },
-      counted: { captures: 0, dry_runs: 0, renders: 0 },
-    },
-    clock,
-  ).catch(() => undefined);
+  await bestEffort(
+    appendHistory(
+      ws.root,
+      {
+        kind: 'record',
+        project: project.slug,
+        submitted_by: req.submittedBy ?? 'cli',
+        state,
+        ms: Math.round(clock.monotonic() - started),
+        record: { id, steps, saved },
+        counted: { captures: 0, dry_runs: 0, renders: 0 },
+      },
+      clock,
+    ),
+    'the history line only feeds the activity list and its counts: the recording itself is saved',
+  );
 }
 
 /** The dry replay of a fresh draft (see the module comment). Never throws: a failure is the check's result. */

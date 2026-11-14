@@ -44,6 +44,7 @@ import type { JobState } from '@retake/engine';
 import { ERROR_STATUS, EngineError, FINISHED_JOB_STATES, RunFolder, openLiveFeed, openProjectBySlug, readLiveChannel, readPlainRange, securityHeaders, toEngineError } from '@retake/engine';
 import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
 import { sseText } from './live.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Run streams served at once, at most. */
 export const RUN_LIVE_STREAMS_MAX = 2;
@@ -85,7 +86,6 @@ export const RunLiveInput = z.strictObject({
   /** The live picture: default on for a dry run, off for a capture (the page asks for it with true). */
   frames: z.boolean().optional(),
 });
-export type RunLiveRequest = z.infer<typeof RunLiveInput>;
 
 export type PictureState = 'off' | 'none' | 'waiting' | 'live' | 'busy' | 'ended';
 
@@ -547,7 +547,7 @@ class RunStream {
     const { engine } = this.live;
     let jobState: JobState | null = null;
     if (this.req.jobId) {
-      const job = await engine.jobs.get(this.req.jobId).catch(() => null);
+      const job = await bestEffort(engine.jobs.get(this.req.jobId), 'a job that cannot be read is followed again on the next tick', null);
       if (job) {
         jobState = job.state;
         const view = { state: job.state, pause_requested: Boolean(job.pause_requested_at), cancel_requested: Boolean(job.cancel_requested_at) };
@@ -563,7 +563,7 @@ class RunStream {
     let runDone = this.sawEnd > 0 || (this.req.jobId !== null && jobDone);
     let status: string | undefined;
     if (jobDone) {
-      const st = await engine.runs.status(this.req.project, this.req.run).catch(() => null);
+      const st = await bestEffort(engine.runs.status(this.req.project, this.req.run), 'a run whose status cannot be read is followed again on the next tick', null);
       status = st?.status;
       if (!this.req.jobId) runDone ||= st === null || st.finished;
     }
@@ -637,7 +637,7 @@ class FrameFeed {
   async run(): Promise<void> {
     const signal = this.ac.signal;
     while (!signal.aborted) {
-      const job = await this.live.engine.jobs.get(this.jobId).catch(() => null);
+      const job = await bestEffort(this.live.engine.jobs.get(this.jobId), 'a job that cannot be read is followed again on the next tick', null);
       if (signal.aborted) return;
       if (!job || FINISHED_JOB_STATES.has(job.state)) {
         this.set('ended');

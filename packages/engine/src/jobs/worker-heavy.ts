@@ -5,6 +5,7 @@
  * its end written here only when its job process died before it wrote it (one writer). The takes it yields to are read
  * here too: the filming markers of this user (captures.ts).
  */
+import { errorMessage } from '../errors.js';
 import { spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -22,6 +23,19 @@ import { QosYield } from './yield.js';
 import { unclaimJob } from './worker-claim.js';
 import { closeJob } from './worker-finish.js';
 import type { HeavyChild, Worker } from './worker-record.js';
+import type { YieldMark } from './job-queue.js';
+
+/**
+ * Record the heavy job's yield (what the Studio and job_status show of it). A write that fails is logged: the job goes
+ * on at the priority it has, its shown yield is stale until the next one.
+ */
+export async function recordYield(w: Pick<Worker, 'queue' | 'log'>, id: string, mark: YieldMark | null): Promise<void> {
+  try {
+    await w.queue.setYield(id, mark);
+  } catch (e) {
+    w.log(`job ${id}: its yield state could not be recorded (${errorMessage(e)}): what it shows may be stale`);
+  }
+}
 
 /** Start a claimed heavy job in its job process (the slot holds it until its exit is seen). */
 export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
@@ -53,7 +67,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
       r();
     });
     child.on('error', (e) => {
-      w.log(`job ${stored.id}: its job process did not start (${e.message})`);
+      w.log(`job ${stored.id}: its job process did not start (${errorMessage(e)})`);
       h.exited ??= { code: 1, signal: null };
       w.wake.fn?.();
       r();
@@ -65,7 +79,7 @@ export async function startHeavy(w: Worker, stored: JobRecord): Promise<void> {
 
 /** A job process ended: its job's end is its own unless it died first (then this worker writes it: one writer). */
 export async function onHeavyExit(w: Worker, h: HeavyChild): Promise<void> {
-  await w.queue.setYield(h.id, null).catch(() => undefined);
+  await recordYield(w, h.id, null);
   if (h.qos.held) await h.qos.release();
   const stored = await w.queue.stored(h.id);
   if (!stored) return;
@@ -109,7 +123,7 @@ export async function scanFilming(w: Worker): Promise<void> {
     w.filmingCapped = capped.length ? (capped.some((t) => t.here) ? 'here' : 'elsewhere') : undefined;
     for (const _ of st.newlyCapped) w.log(`a take has held heavy work for over ${capMinutes(w.ports.env)} min: heavy work goes on`);
   } catch (e) {
-    w.log(`the filming markers could not be read (${(e as Error).message}): heavy work is not held`);
+    w.log(`the filming markers could not be read (${errorMessage(e)}): heavy work is not held`);
     w.filmingLive = false;
     w.filmingCapped = undefined;
   }
@@ -124,25 +138,25 @@ export async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
     if (!h.qos.held) {
       const cause = own ? 'here' : (w.filmingCause ?? 'elsewhere');
       w.log(`job ${h.id}: background priority while a take films (${cause === 'here' ? 'in this workspace' : 'elsewhere on this Mac'})`);
-      await w.queue.setYield(h.id, { state: 'background', since: stampOf(w.clock), cause }).catch(() => undefined);
+      await recordYield(w, h.id, { state: 'background', since: stampOf(w.clock), cause });
       h.pastCap = false;
     }
     await h.qos.hold();
   } else {
     if (h.qos.held) {
       // The yield goes first: whoever sees normal priority again sees it gone (review B H1).
-      await w.queue.setYield(h.id, null).catch(() => undefined);
+      await recordYield(w, h.id, null);
       await h.qos.release();
       w.log(`job ${h.id}: normal priority again`);
     }
     // The cap reached (a take still films, but has held heavy work for over the cap): said on the job, not only logged.
     if (w.filmingCapped && !h.pastCap) {
       h.pastCap = true;
-      await w.queue.setYield(h.id, { state: 'past_cap', since: stampOf(w.clock), cause: w.filmingCapped, cap_min: capMinutes(w.ports.env) }).catch(() => undefined);
+      await recordYield(w, h.id, { state: 'past_cap', since: stampOf(w.clock), cause: w.filmingCapped, cap_min: capMinutes(w.ports.env) });
       w.log(`job ${h.id}: a take has held heavy work for over ${capMinutes(w.ports.env)} min: this job goes on at normal priority`);
     } else if (!w.filmingCapped && h.pastCap) {
       h.pastCap = false;
-      await w.queue.setYield(h.id, null).catch(() => undefined);
+      await recordYield(w, h.id, null);
     }
   }
   // Critique M3: a cancelled job ends itself (teardown, clean-ups) — at background priority during a take; its tree
@@ -160,6 +174,9 @@ export async function syncHeld(w: Worker): Promise<void> {
   const on = w.heavy?.qos.held === true && !w.heavy.exited;
   if (on === w.heldWritten) return;
   w.heldWritten = on;
-  if (on) await writeFile(heldFile(w.root), `${JSON.stringify({ v: 1, state: 'background', since: stampOf(w.clock) })}\n`).catch(() => undefined);
+  if (on)
+    await writeFile(heldFile(w.root), `${JSON.stringify({ v: 1, state: 'background', since: stampOf(w.clock) })}\n`).catch((e: unknown) =>
+      w.log(`held.json could not be written (${errorMessage(e)}): a take filmed outside this worker does not see the hold`),
+    );
   else await rm(heldFile(w.root), { force: true }).catch(() => undefined);
 }

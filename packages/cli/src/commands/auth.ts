@@ -218,7 +218,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
             env: resolveEnvironment(r.project, r.state.env),
             persona: r.persona,
             signal: stop.signal,
-            log: (level, msg) => ui.debug(msg),
+            log: (_level, msg) => ui.debug(msg),
           });
         } catch (e) {
           if (stop.interrupted) return EXIT.interrupted;

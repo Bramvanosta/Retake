@@ -20,6 +20,7 @@ import { errorMessage, isCancelled } from './errors.js';
 import { DocumentChangedError } from './session.js';
 import type { FragileFlag, InventoryContext, InventoryElement, InventoryPopup, KitActionHint, KitInventory, ResolveResult } from './kit/types.js';
 import type { Runtime } from './runtime.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Elements listed by default, and at most. */
 export const INSPECT_LIMIT = 80;
@@ -364,11 +365,7 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
   try {
     // Assigned once installed: a guard whose install timed out is never removed (its handler may never be added).
     guard = await bounded('installing the navigation guard', deadlines.guard_ms, guardNavigation(rt));
-    await bounded(
-      'the page load',
-      callMs,
-      rt.awaitLoaded().catch(() => undefined),
-    );
+    await bounded('the page load', callMs, bestEffort(rt.awaitLoaded(), 'a page still loading is inspected as it is'));
     rt.assertSignedIn();
     const url = (read = rt.page.url());
     // Only a page of the environment is taken (its origin, not merely its host: another local port is another app).
@@ -440,11 +437,14 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
     const changed = e instanceof DocumentChangedError || e instanceof InspectDeadlineError;
     if (changed && read !== null) {
       const from = read;
-      await bounded(
-        'the new document',
-        4_000,
-        rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 }),
-      ).catch(() => undefined);
+      await bestEffort(
+        bounded(
+          'the new document',
+          4_000,
+          rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 }),
+        ),
+        'a document that does not change in time is inspected as it is',
+      );
     }
     const landed = e instanceof LandedElsewhere ? e.url : changed && !isPageOrigin(rt.page.url(), rt.env.pages) ? rt.page.url() : null;
     if (landed !== null) {

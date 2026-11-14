@@ -9,7 +9,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
-import { GUIDE, missingOrInvalid, printableText } from '@retake/core/base';
+import { GUIDE, missingOrInvalid, printableText, bestEffort } from '@retake/core/base';
 import { isThemeName } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
 import { insideFolder, isTemplatePath } from '@retake/core/scenario';
@@ -172,7 +172,7 @@ export async function exportThemeRef(project: LoadedProject, record: Pick<NamedR
   const names = [record.template, ...(starter !== undefined ? [starter] : [])].filter((n) => typeof n === 'string' && isThemeName(n) && !isTemplatePath(n));
   const candidates = [...(typeof project.config.template === 'string' ? [project.config.template] : []), ...names];
   for (const ref of candidates) {
-    const id = await projectTemplateFolderId(project, ref).catch(() => undefined);
+    const id = await bestEffort(projectTemplateFolderId(project, ref), "a theme reference that does not resolve is simply not this render's theme");
     if (id === folder) return ref;
   }
   if (o.trust === 'mcp') {

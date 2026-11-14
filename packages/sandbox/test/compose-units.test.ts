@@ -18,7 +18,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { addSandboxEntry, PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { addSandboxEntry, PERSON_POLICY } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import {

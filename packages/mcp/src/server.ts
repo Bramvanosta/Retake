@@ -14,6 +14,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Readable, Writable } from 'node:stream';
+import { bestEffort } from '@retake/core/base';
 
 /** A tool's annotations and a call's progress are the operation contract's (@retake/engine/contract). */
 import type { Progress, ToolAnnotations } from '@retake/engine/contract';
@@ -129,12 +130,13 @@ function wireServer(o: WireOptions): { server: Server; inFlight: Set<Promise<unk
       token === undefined
         ? undefined
         : progressReporter((p) => {
-            void extra
-              .sendNotification({
+            void bestEffort(
+              extra.sendNotification({
                 method: 'notifications/progress',
                 params: { progressToken: token, progress: p.progress, ...(p.total !== undefined ? { total: p.total } : {}), ...(p.message ? { message: p.message } : {}) },
-              })
-              .catch(() => undefined);
+              }),
+              'a progress notification the client no longer hears is not resent: the result follows',
+            );
           });
     // Form elicitation, when the client declared it (`elicitation: {}` is normalised to `{form: {}}` by the SDK).
     const elicit = server.getClientCapabilities()?.elicitation?.form

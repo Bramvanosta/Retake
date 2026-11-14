@@ -11,6 +11,7 @@ import { wallNow } from '../util.js';
 import { DEAD_CLICK_MS, awaitEffect, checkInBackground, watchEffects } from './effects.js';
 import type { EffectWatch } from './effects.js';
 import type { ActionResult } from './types.js';
+import { bestEffort } from '@retake/core/base';
 
 export type UsedStrategy = Exclude<ClickStrategy, 'auto'>;
 
@@ -114,8 +115,8 @@ export function watchNavigation(page: Page) {
         const gone = new Promise<'dropped'>((resolve) => (wake = () => resolve('dropped')));
         const first = await Promise.race([nav, dl, gone]).catch(() => 'timeout' as const);
         wake = () => undefined;
-        nav.catch(() => undefined);
-        dl.catch(() => undefined);
+        bestEffort(nav, "the click's navigation is awaited where it matters; an unawaited one must not reject unhandled");
+        bestEffort(dl, "the click's download is awaited where it matters; an unawaited one must not reject unhandled");
         if (first === 'download' || downloaded) {
           started = false;
           return;

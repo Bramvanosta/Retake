@@ -45,6 +45,7 @@ import type { EnginePorts } from '../ports.js';
 import type { FrameTools } from '../review/reviewer.js';
 import type { CaptureRunner } from '../capture/runner.js';
 import type { HookRunner } from '../hook-run/runner.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -93,7 +94,7 @@ export async function activeInspections(queue: JobQueueView, slug: string): Prom
  * given the workspace's job queue — the folder of an inspection whose job is still queued or running.
  */
 export async function pruneInspections(project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
-  const active = queue !== undefined ? await activeInspections(queue, project.slug).catch(() => null) : [];
+  const active = queue !== undefined ? await bestEffort(activeInspections(queue, project.slug), 'jobs that cannot be read: null, and nothing is pruned on a guess', null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];

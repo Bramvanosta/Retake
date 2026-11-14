@@ -14,7 +14,7 @@
  *   (its screens for the entry, the parts other features show or call, each listed).
  * - `words/` — the words shared across features (each feature's words that another feature also shows): they
  *   import the foundations, data/ and the kit, and nothing of the features or the shell.
- * - the root — the shared foundations (FOUNDATIONS: the API client and its session, the event stream, Txt, the
+ * - the root — the shared foundations (FOUNDATIONS: the API client and its session, bestEffort, the event stream, Txt, the
  *   routes, the drafts store, the project's store, the pictures, the tokens): they import nothing of the features,
  *   the words or the shell. main.tsx, the entry, mounts the shell and the screens.
  *
@@ -81,7 +81,7 @@ const FEATURES: Record<string, string[]> = {
 };
 
 /** The shared foundations: the root's modules (main.tsx, the entry, apart). A new root module fails until listed here. */
-const FOUNDATIONS = ['Thumb', 'api', 'bits', 'brand', 'drafts', 'events', 'id-words', 'other-copy', 'project-data', 'route', 'session', 'sse', 'thumbs', 'tokens', 'unsaved-report'];
+const FOUNDATIONS = ['Thumb', 'api', 'best-effort', 'bits', 'brand', 'drafts', 'events', 'id-words', 'other-copy', 'project-data', 'route', 'session', 'sse', 'thumbs', 'tokens', 'unsaved-report'];
 
 type Part = 'data' | 'ui-kit' | 'shell' | 'words' | 'root' | 'entry' | string;
 const partOf = (mod: string): Part => {

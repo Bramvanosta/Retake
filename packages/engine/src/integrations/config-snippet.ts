@@ -7,7 +7,7 @@
  */
 import type { EngineEnv } from '../env.js';
 import { existsSync, realpathSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { bundleInfo, bundleInfoOrNull, bundleNodeArgs, clientPath, retakeHome } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 

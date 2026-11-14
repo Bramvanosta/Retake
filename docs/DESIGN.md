@@ -1088,7 +1088,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   included), agree. Dedicated workers get it on Playwright's `worker` event (after their first task may have run);
   shared and service workers keep the real date. Timers, `requestAnimationFrame`, `performance` and
   `Event.timeStamp` stay the browser's (Playwright's `context.clock`, used first, faked them and slowed the product's
-  own frames and timers: ten rAF loops 60 → 30 fps, 100 `setTimeout(0)` 0 → ~500 ms). `useRealTime(page)` (a
+  own frames and timers: ten rAF loops 60 → 30 fps, 100 `setTimeout(0)` 0 → ~500 ms). `keepRealTime(page)` (a
   page-level init script `productClock(null)`: the realm reads the real time for good, the session skips the page and
   its workers) keeps the session check (`checkPersona`, also `diagnoseSession` after a failed step) and the automated
   sign-in tab off the clock. The **kit** still captures its time sources once at the top (`RT`: the globals, still
@@ -1126,7 +1126,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   `127.0.0.1:4401`, `[::1]:4401` and `localhost:4401` are the same server). `databases.<k>.external` and
   `mailbox.external` (sandbox.yaml only, not merged into `environment_settings`): the sandbox does not start it but it
   is the sandbox's alone (§3.8b ownership).
-- **Merge.** `loadProject` → `parseProjectYaml` → `loadSandboxes(dir, config)` (each manifest parsed with the
+- **Merge.** `loadProject` → `parseProjectYaml` → `loadSandboxesOn(disk, dir, config)` (each manifest parsed with the
   pre-merge config; errors throw `SandboxConfigError` — name `ConfigError`, `file` = the manifest, `env`) →
   `mergeSandboxes(config, sandboxes)`: `environments[env]` = the services' pages; `environment_settings[env]` =
   `{display?, sandbox: {file, provider}, mailbox?, databases?}`; `auth[env]` = `sandboxAuth(manifest).auth` (login
@@ -1321,7 +1321,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   without sandboxes or for a non-sandbox `--env`); `prepareSandboxTake` (header line, exit codes); `checkSandboxEnv`
   (a run on a sandbox environment without --sandbox); `sandboxSummary` (the run summary line); `sandboxInitCommand`;
   `--build` / `--volumes` / `--follow` are usage errors on a process sandbox. `run.ts`: the scenario's raw `env:`
-  (core `scenarioEnvOf`, no validation) → `pickSandboxEnv` → the scenario validated once against that environment →
+  (core `scenarioSourceEnv` of the source text, no validation) → `pickSandboxEnv` → the scenario validated once against that environment →
   prepareTake → `runScenario({sandbox: take.info})`, the lock named after the run at `run_start`, released in
   `finally`. Runner: `RunOptions.sandbox` → `environment.sandbox` (a sandbox environment without it: `{name,
   provider}`). Doctor: one `Sandbox <env>` line per sandbox (`DoctorProbes.sandbox`), its personas and hosts left out;
@@ -2247,7 +2247,7 @@ workers/worker.log      what workers print (stderr), appended
   are rolled back): the job ends `cancelled`.
 - **Approvals** (R-MCP-35, `approvals.ts`). Every queued job runs its hooks with **trust `mcp`** (core `HookTrust`;
   hooks `HookContext.trust`, runner `RunOptions.hookTrust`): `confirm: true` is ignored; destructive hooks and every
-  shell hook need an approval; a shell hook always counts as writing (`SHELL_ALWAYS_WRITES`: refused on a read-only
+  shell hook need an approval; a shell hook always counts as writing (`shellAlwaysWrites`: refused on a read-only
   run, by the runner's static check too). At submit, `preflightHooks` dry-runs the hooks the job will execute (a run:
   setup + teardown; hooks: the source; env_reset: the project's reset hooks — never the journal rollbacks) with trust
   `mcp`: nothing executes, secrets are `***`, no browser opens; a refusal fails the submit (`refused`, fix = the
@@ -3133,7 +3133,7 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   (`preflightHooks({via})` → engine `createHookContext({via})` → hooks `HookContext.via`), the worker (`run-job` →
   `executeRun({hookVia})` → runner-web `RunOptions.hookVia` → its agent-trust refusal, `writingHooks({via})`, the hooks'
   context) and the worker's protected-hosts re-check: core `shellAlwaysWrites(via)` ("from the Studio a shell hook
-  always counts as writing…"; `SHELL_ALWAYS_WRITES` = the MCP wording), the hooks' approval refusal ("from the Studio,
+  always counts as writing…"; `shellAlwaysWrites(AGENT_CONFINEMENT)` = the MCP wording), the hooks' approval refusal ("from the Studio,
   "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal"). The rules are the
   same; only the words differ. MCP keeps its wording.
 - Step references (part 4): every step a person reads is 1-based — the rows, the inspector ("Step 3 of scene

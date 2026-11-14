@@ -26,6 +26,7 @@ import { DEFAULT_RULES, ReviewCancelledError } from '@retake/review/checks';
 import type { Finding, ReviewOptions, ReviewProgress, ReviewResult } from '@retake/review/checks';
 import { MEMORY_PNG } from '../render/memory-renderer.js';
 import type { FrameInput, FrameThumb, FrameThumbOptions, FrameTools, FramesAtOptions, MarkBox, MarksOptions, Reviewer, StillOptions } from './reviewer.js';
+import { bestEffort } from '@retake/core/base';
 
 /** A 1 × 1 black JPEG. */
 export const MEMORY_JPEG = Buffer.from(
@@ -143,7 +144,7 @@ export class MemoryReviewer implements Reviewer {
       const a = aside(name, id);
       if (!a || pidAlive(a.pid)) continue;
       const leftover = join(parent, name);
-      if (a.kind === 'old' && !existsSync(dir)) await rename(leftover, dir).catch(() => undefined);
+      if (a.kind === 'old' && !existsSync(dir)) await bestEffort(rename(leftover, dir), 'the previous review stays where it was: the new one is written beside it');
       else await rm(leftover, { recursive: true, force: true }).catch(() => undefined);
     }
   }

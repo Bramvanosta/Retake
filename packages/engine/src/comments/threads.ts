@@ -1,6 +1,6 @@
 /** Creating a thread and appending entries to it: reply, resolve, reopen (see ../comments.ts). */
 import { randomBytes } from 'node:crypto';
-import { open, rename, rm } from 'node:fs/promises';
+import { rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { COMMENTS_DIR, SLUG_RE } from '@retake/core/model';
 import { renderIdOf } from '@retake/core/ids';

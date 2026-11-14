@@ -10,6 +10,7 @@
 import { execFile } from 'node:child_process';
 import { cpus, loadavg } from 'node:os';
 import type { RunPerfCpu } from '@retake/core/model';
+import { bestEffort } from '@retake/core/base';
 
 export const PERF_SAMPLE_MS = 2000;
 
@@ -197,7 +198,10 @@ export class PerfSampler {
   private async sample(skip = false): Promise<void> {
     try {
       if (!skip) this.loads.push(loadavg()[0]);
-      const [chromium, times] = await Promise.all([this.opts.chromium().catch(() => []), psTimes([...this.encoderPids, ...this.productPids])]);
+      const [chromium, times] = await Promise.all([
+        bestEffort(this.opts.chromium(), 'a browser whose processes cannot be listed adds nothing to the measure', []),
+        psTimes([...this.encoderPids, ...this.productPids]),
+      ]);
       if (chromium.length) this.chromiumSeen = true;
       const now = Date.now();
       const filmed = this.opts.filmed?.();

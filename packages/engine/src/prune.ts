@@ -59,6 +59,7 @@ import { isMadeRunId, parseRenderId, runIdOfScenario } from '@retake/core/ids';
 import { projectPath, projectRef } from '@retake/core/project';
 import { orderRuns, pruneKeeper, pruneKeptWords } from '@retake/core/run';
 import { completeRender, renderKeeper, renderNotWords, renderOfFile, renderSaidOf } from '@retake/core/render';
+import { EngineError } from './errors.js';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;
@@ -211,7 +212,7 @@ const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
 /** See the module comment. */
 export async function pruneProject(project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
   const keepRenders = req.keep_renders ?? DEFAULT_KEEP_RENDERS;
-  if (!Number.isInteger(keepRenders) || keepRenders < 1) throw new Error(`keep_renders ${String(req.keep_renders)}: a whole number from 1`);
+  if (!Number.isInteger(keepRenders) || keepRenders < 1) throw new EngineError('invalid', `keep_renders ${String(req.keep_renders)}: a whole number from 1`);
   const dry = req.dry_run !== false;
   const busy = req.busy ?? (() => false);
   const items: PruneItem[] = [];

@@ -22,7 +22,6 @@ import {
   openProjectBySlug,
   openWorkspace,
   personScope,
-  ProjectStore,
   enginePorts,
   diskProjectStores,
   ManualClock,

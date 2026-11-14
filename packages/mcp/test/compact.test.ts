@@ -8,7 +8,7 @@ import type { ReviewView, RunStatusWithJob } from '@retake/engine';
 import { DOCS_BASE_URL, ScenarioError } from '@retake/core';
 import { INSTRUCTIONS, TOOLS, errorResult, okResult } from '../src/index.js';
 import type { ToolDef } from '../src/index.js';
-import { COMPACT_FINDINGS_MAX, COMPACT_WARNINGS_MAX, compactElements, compactReview, compactRunStatus } from '../src/compact.js';
+import { COMPACT_FINDINGS_MAX, COMPACT_WARNINGS_MAX, compactElements, compactReview, compactRunStatus } from '@retake/engine/contract';
 
 const tool = (name: string): ToolDef => TOOLS.find((t) => t.name === name)!;
 
@@ -86,7 +86,7 @@ describe('compact review', () => {
         report_md: '/p/review/quote-v1/report.md',
       },
       images: [],
-      untrusted: { messages: findings.map((f, i) => `message ${i} ${'x'.repeat(i === 0 ? 900 : 10)}`), environment: { name: 'local' } },
+      untrusted: { messages: findings.map((_f, i) => `message ${i} ${'x'.repeat(i === 0 ? 900 : 10)}`), environment: { name: 'local' } },
     } as unknown as ReviewView;
     const c = compactReview(r) as { findings: Array<{ code: string }>; findings_left_out: number; untrusted: { messages: string[] }; files: Record<string, unknown>; duration_s: number };
     expect(c.findings).toHaveLength(1 + COMPACT_FINDINGS_MAX);

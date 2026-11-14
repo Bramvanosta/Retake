@@ -123,7 +123,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
    * Seconds of a full-frame use: the scenario's `duration`, else what the winning candidate sets (a theme's file), else
    * the file's own length (a video part, a Lottie animation), else the kind's default (theme, component, fallback).
    */
-  const useDuration = (
+  const segmentSeconds = (
     rc: ResolvedComponent,
     explicit: number | undefined,
     themeDefault: number | undefined,
@@ -162,7 +162,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
     chain.push(...themeAndBuiltin('intro'));
     const rc = resolver.resolve('intro', chain, 'intro', { named: { title: video.title?.text, kicker: video.title?.kicker }, ctx: slotBase });
     if (rc) {
-      const frames = fr(useDuration(rc, spec?.duration, t.intro.duration, 3.2, 'intro'));
+      const frames = fr(segmentSeconds(rc, spec?.duration, t.intro.duration, 3.2, 'intro'));
       drafts.push({ seg: { ...base('intro', frames, rc), kind: 'intro' } as IntroSegment, content: frames });
     } else notes.add('no intro: the theme has none');
   } else if (video.intro === false && ov.intro === undefined) notes.add('no intro (scenario intro: false)');
@@ -186,7 +186,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
         continue;
       }
       const reading = readingOf(rc);
-      const frames = fr(useDuration(rc, spec.duration, undefined, 2.5, `card "${id}"`, reading));
+      const frames = fr(segmentSeconds(rc, spec.duration, undefined, 2.5, `card "${id}"`, reading));
       drafts.push({ seg: { ...base(id, frames, rc), kind: 'card', ...(reading ? { reading } : {}) } as CardSegment, content: frames });
       continue;
     }
@@ -208,7 +208,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
         continue;
       }
       const reading = readingOf(rc);
-      const frames = fr(useDuration(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`, reading));
+      const frames = fr(segmentSeconds(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`, reading));
       drafts.push({ seg: { ...base(id, frames, rc), kind: 'interstitial', ...(reading ? { reading } : {}) } as CardSegment, content: frames });
       continue;
     }
@@ -317,7 +317,7 @@ export function planSegments(s: PlanScope, from: SegmentInputs): Draft[] {
       ctx: slotBase,
     });
     if (rc) {
-      const frames = fr(useDuration(rc, outro?.duration, t.outro.duration, 3, 'outro'));
+      const frames = fr(segmentSeconds(rc, outro?.duration, t.outro.duration, 3, 'outro'));
       drafts.push({ seg: { ...base('outro', frames, rc), kind: 'outro' } as OutroSegment, content: frames });
     } else notes.add('no outro: the theme has none');
   } else if (video.outro === false && ov.outro === undefined) notes.add('no outro (scenario outro: false)');

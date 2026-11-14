@@ -40,19 +40,6 @@ export { RECORD_OPS, recordPathFree, recordViewAnswer } from './server/record-op
 export { RECORD_WATCH_PER_PROJECT, RECORD_WATCH_PROJECTS_MAX, recordsChanges, recordsWatchScan } from './server/record-watch.js';
 export type { RecordEnvironmentOption, RecordOptionsAnswer, RecordPersonaOption, RecordStartAnswer, RecordViewAnswer } from './server/record-ops.js';
 export type { SiteListAnswer, ThemeListAnswer, ThemeOpsOptions, ThemePreviewAnswer } from './server/theme-ops.js';
-export {
-  WATCH_DEPTH_MAX,
-  WATCH_ENTRIES_MAX,
-  WATCH_FOLDERS_MAX,
-  WATCH_SCAN_BUDGET,
-  componentNamespaceSignatures,
-  libraryChanges,
-  libraryWatchScan,
-  siteSignature,
-  themeSignatures,
-  treeSignature,
-  watchBudget,
-} from './server/library-watch.js';
 export type { OpChain } from './server/op-chain.js';
 export {
   JsonlTail,
@@ -73,7 +60,7 @@ export {
   viewJobEvent,
   viewProgress,
 } from './server/run-live.js';
-export type { LiveItem, PictureState, RunLiveOptions, RunLiveRequest, Scrub } from './server/run-live.js';
+export type { LiveItem, PictureState, RunLiveOptions, Scrub } from './server/run-live.js';
 export { PREVIEW_DISPLAY_PATHS, isPreviewDisplayText } from './player/protocol.js';
 export {
   COMPONENT_PREVIEW_FORMAT,

@@ -20,7 +20,7 @@ import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
 import { copyFile, mkdir, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { errorKindOf } from '@retake/core/base';
+import { errorKindOf, bestEffort } from '@retake/core/base';
 import type { TakeLock } from '@retake/core/io';
 import { callerOf } from '../caller.js';
 import type { Clock } from '../clock.js';
@@ -147,7 +147,11 @@ class DiskProjectStore implements ProjectStore {
         try {
           await rename(tmp, final);
         } catch (e) {
-          if (old) await rename(old, final).catch(() => undefined);
+          if (old)
+            await bestEffort(
+              rename(old, final),
+              "the rename's own error is thrown; when putting the old folder back fails too, it stays aside under its .old- name (a later theme create removes it once stale)",
+            );
           old = undefined;
           throw e;
         }

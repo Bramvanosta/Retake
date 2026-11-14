@@ -55,6 +55,7 @@ import { previewOutput } from './preview.js';
 import { projectSlug, templateName } from './schema.js';
 import { WAIT_MAX_S, waitJob, waitS } from './wait.js';
 import { plural } from './words.js';
+import { EngineError } from '../errors.js';
 
 // ── MCP's theme operations ──────────────────────────────────────────────────
 
@@ -187,7 +188,7 @@ const pct = (x: number) => `${Math.round(x * 100)} %`;
  */
 export async function siteOutput(engine: Engine, job: JobRecord, head: string[] = []) {
   const input = job.input;
-  if (input.kind !== 'site') throw new Error(`job ${job.id} is not a site extraction`);
+  if (input.kind !== 'site') throw new EngineError('invalid', `job ${job.id} is not a site extraction`);
   const lines = [...head, jobLine(job)];
   const base = { site_id: input.site_id, url: input.url, job: { id: job.id, state: job.state } };
   if (job.state === 'queued' || job.state === 'running') {

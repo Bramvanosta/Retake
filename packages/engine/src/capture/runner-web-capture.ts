@@ -30,7 +30,7 @@ function own(rw: RunnerWeb, browser: HookBrowser): Session {
  */
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type Holds<T extends true> = T;
-type HookRunnerShared = [Holds<Same<NonNullable<RunOptions['hookRunner']>, CaptureHookRunner>>, Holds<HookRunner extends CaptureHookRunner ? true : false>];
+export type HookRunnerShared = [Holds<Same<NonNullable<RunOptions['hookRunner']>, CaptureHookRunner>>, Holds<HookRunner extends CaptureHookRunner ? true : false>];
 
 /** A refusal of the package's raw export (RawExportError) as an EngineError of its sentence (core missingOrInvalid). */
 async function refusals<T>(rw: RunnerWeb, work: () => Promise<T>): Promise<T> {

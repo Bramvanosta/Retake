@@ -39,7 +39,7 @@ import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
-import { pathInside } from '@retake/core/base';
+import { pathInside, bestEffort } from '@retake/core/base';
 import { projectPath } from '@retake/core/project';
 import { renderOfFile } from '@retake/core/render';
 import { readListedRender } from '@retake/core/io';
@@ -326,6 +326,9 @@ export class WorkspaceIndex {
     const reads = new Map<string, ProjectRead>();
     const readOf = (slug: string) => reads.get(slug) ?? reads.set(slug, { slug, gone: !next.has(`project:${slug}`) }).get(slug)!;
     let summaries: Map<string, ProjectSummary> | undefined;
+    // A runs/ folder that cannot be read keeps its rows and its old signature: read again on the next pass, never
+    // indexed as "no runs" (which would tell every client its runs were deleted).
+    const unreadable = new Set<string>();
     for (const key of keys) {
       const { kind, project } = sourceKey(key);
       // A scenario file's own key, a scenario's comment folder: nothing to read (the project key re-reads the names).
@@ -337,8 +340,13 @@ export class WorkspaceIndex {
         summaries ??= new Map((await listProjectSummaries(this.ws)).map((s) => [s.slug, s]));
         r.summary = summaries.get(project);
       } else if (kind === 'readme') r.readme = await readmeText(dir);
-      else if (kind === 'runs') r.runs = await listRuns({ dir } as LoadedProject, { limit: RUNS_INDEX_MAX }).catch(() => []);
-      else if (kind === 'renders') r.renders = await readRenders(dir);
+      else if (kind === 'runs') {
+        try {
+          r.runs = await listRuns({ dir } as LoadedProject, { limit: RUNS_INDEX_MAX });
+        } catch {
+          unreadable.add(key);
+        }
+      } else if (kind === 'renders') r.renders = await readRenders(dir);
     }
     const history = keys.includes('history') ? await this.readHistory() : undefined;
     if (this.closed) return { keys: [], runs: [], generation: 0 };
@@ -402,6 +410,7 @@ export class WorkspaceIndex {
       const setSource = db.prepare('INSERT INTO sources(key, sig) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET sig = excluded.sig');
       const delSource = db.prepare('DELETE FROM sources WHERE key = ?');
       for (const k of keys) {
+        if (unreadable.has(k)) continue;
         const v = next.get(k);
         if (v === undefined) delSource.run(k);
         else setSource.run(k, v);
@@ -412,7 +421,7 @@ export class WorkspaceIndex {
       db.exec('ROLLBACK');
       throw e;
     }
-    return { keys, runs, generation: this.generation };
+    return { keys: keys.filter((k) => !unreadable.has(k)), runs, generation: this.generation };
   }
 
   /** history.jsonl from where the last pass stopped (whole lines only); from the start when it shrank or was replaced. */
@@ -480,7 +489,7 @@ export class WorkspaceIndex {
     const once = () => (hold ??= this.queue.takeHold());
     for (const id of (await this.queue.ids()).reverse()) {
       if (this.finishedJobs.has(id)) continue;
-      const stored = await this.queue.stored(id).catch(() => undefined);
+      const stored = await bestEffort(this.queue.stored(id), 'a job removed meanwhile reads as gone');
       if (stored && FINISHED_JOB_STATES.has(stored.state)) this.finishedJobs.add(id);
       if (!stored || (stored.state !== 'queued' && stored.state !== 'running')) continue;
       if (o.project !== undefined && jobProject(stored.input) !== o.project) continue;

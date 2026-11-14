@@ -1,5 +1,5 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { pathInside } from '@retake/core/base';
 import { environmentAccess, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
 import { PROJECT_FILE, README_FILE, readmeEnvironmentsDrift } from '@retake/core/project';

@@ -37,7 +37,7 @@
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pathInside } from '@retake/core/base';
+import { pathInside, bestEffort } from '@retake/core/base';
 import { JOB_ID_RE, RECORD_ID_RE } from '@retake/core/ids';
 import { plainTarget } from '@retake/core/language';
 import { PERSONA_NONE } from '@retake/core/environment';
@@ -97,7 +97,6 @@ const RECORD_DEFAULT_MAX_MS = 30 * 60_000;
  */
 export type RecordState = 'queued' | 'preflight' | 'recording' | 'draft' | 'check' | 'done' | 'interrupted' | 'tampered' | 'nothing_recorded' | 'failed' | 'cancelled' | 'discarded' | 'missing';
 
-const LIVE_STATES: ReadonlySet<RecordState> = new Set(['queued', 'preflight', 'recording', 'draft', 'check']);
 const ANNOTATE_STATES: ReadonlySet<RecordState> = new Set(['recording', 'draft', 'check', 'done', 'interrupted']);
 const FINAL_STATES: ReadonlySet<RecordState> = new Set(['done', 'interrupted']);
 
@@ -1104,7 +1103,7 @@ export async function recordList(ctx: RecordStudioContext, project: LoadedProjec
   const out: RecordListItem[] = [];
   for (const w of wanted) {
     const s = await situation(ctx, project, w.id, w.job);
-    if (await settleDiscard(s).catch(() => false)) continue;
+    if (await bestEffort(settleDiscard(s), 'a discard that cannot settle now is settled on the next listing', false)) continue;
     if (s.state === 'missing') continue;
     const ann = 'annotations' in s.ann ? s.ann.annotations : null;
     const saved = ann?.saved
@@ -1141,9 +1140,4 @@ export function checkAgentCancel(job: JobRecord, client: JobClient): void {
   if (!guardsStudioRecordings(callerOf(client))) return;
   if (job.input.kind !== 'record' || !submittedInStudio(job) || FINISHED_JOB_STATES.has(job.state)) return;
   throw new EngineError('refused', `job ${job.id} is a recording the person started in the Studio: only the Studio stops or discards it (job_cancel would discard their recording)`);
-}
-
-/** Is `live` one of the states where the window may still be open or the draft still change? */
-export function recordLive(state: RecordState): boolean {
-  return LIVE_STATES.has(state);
 }

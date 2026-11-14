@@ -340,10 +340,10 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
     const kit = kitConfigFor(opts.template);
     const data: ClipCursorData[] = plan.clips.map((c) => {
       const { frames, approximated } = cursorFrames(c, s.fps, cursorTrackOf(timeline, c));
-      return { clip: c, file: clipRel(c), frames, clicks: clipClicks(c, s.fps, (t) => clipFrameAt(c, t, s.fps)), approximated };
+      return { clip: c, file: clipRel(c), frames, clicks: clipClicks(c, (t) => clipFrameAt(c, t, s.fps)), approximated };
     });
     const approximated = data.some((d) => d.approximated);
-    if (approximated) notes.push('this run was captured before L2.13: the cursor icon (arrow / hand / text beam), presses and ripples are approximated from the steps');
+    if (approximated) notes.push('this run did not record the cursor icon (an older capture format): the icon (arrow / hand / text beam), presses and ripples are approximated from the steps');
     await writeFile(join(work, 'cursor', 'cursor.json'), cursorJson(plan, data, { run: timeline.run_id, mode: s.cursor }));
     await writeFile(join(work, 'cursor', 'cursor.csv'), cursorCsv(plan, data));
     await writeFile(join(work, 'cursor', 'clicks.csv'), clicksCsv(plan, data));

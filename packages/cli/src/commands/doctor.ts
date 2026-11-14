@@ -1,27 +1,14 @@
 import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, expandHome, RETAKE_VERSION } from '@retake/core/base';
+import { delimiter, dirname, join, relative } from 'node:path';
+import { expandHome, RETAKE_VERSION } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { agentArgsProblems, agentProgramProblem, workspaceFolders } from '@retake/core/policy';
 import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, defaultRetakeHome, statePath } from '@retake/core/project';
 import { sandboxAdvice, sandboxAdviceText, sandboxNames } from '@retake/core/sandbox';
 import { UNSAFE_TEST_RESOLVE_ENV, unsafeTestResolve } from '@retake/core/theme';
-import {
-  findWorkspaceRoot,
-  listProjects,
-  listTemplates,
-  loadTemplate,
-  retakeHome,
-  bundleInfoOrNull,
-  bundleProblems,
-  resolveMediaTools,
-  clientPath,
-  engineLocation,
-  nodeFileFacts,
-  fileFacts,
-} from '@retake/core/io';
+import { listProjects, listTemplates, loadTemplate, retakeHome, bundleInfoOrNull, bundleProblems, resolveMediaTools, clientPath, engineLocation, nodeFileFacts, fileFacts } from '@retake/core/io';
 import {
   CLI_NAME,
   LAUNCHER_REL,
@@ -716,7 +703,18 @@ async function workspaceChecks(p: DoctorProbes, ws: OpenedWorkspace): Promise<Do
 /** The workspace: its root, its marker file, its projects (a WARN without any). */
 async function workspaceCheck(p: DoctorProbes, ws: OpenedWorkspace): Promise<DoctorCheck> {
   const marker = p.exists(join(ws.root, WORKSPACE_FILE)) ? WORKSPACE_FILE : `no ${WORKSPACE_FILE}`;
-  const projects = await listProjects(ws.root).catch(() => []);
+  let projects: Awaited<ReturnType<typeof listProjects>>;
+  try {
+    projects = await listProjects(ws.root);
+  } catch (e) {
+    // The one command that diagnoses the workspace says why its projects cannot be listed (never "no projects").
+    return {
+      status: 'fail',
+      name: 'Workspace',
+      detail: `${ws.root} (${marker}) · the projects cannot be listed: ${firstLine(errorMessage(e))}`,
+      hint: `check that ${ws.projectsDir} is a folder Retake can read`,
+    };
+  }
   const names = projects.map((x) => x.slug);
   const list = names.length ? `: ${names.slice(0, 6).join(', ')}${names.length > 6 ? ', …' : ''}` : '';
   return names.length
@@ -732,7 +730,12 @@ async function workspaceCheck(p: DoctorProbes, ws: OpenedWorkspace): Promise<Doc
 /** The workspace's themes: one line each (fonts present, or what is missing), a WARN when there is none. */
 async function templateChecks(p: DoctorProbes, ws: OpenedWorkspace): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [];
-  const templates = await listTemplates(ws.root).catch(() => []);
+  let templates: Awaited<ReturnType<typeof listTemplates>>;
+  try {
+    templates = await listTemplates(ws.root);
+  } catch (e) {
+    return [{ status: 'fail', name: 'Templates', detail: `the themes cannot be listed: ${firstLine(errorMessage(e))}`, hint: `check that ${ws.templatesDir} is a folder Retake can read` }];
+  }
   if (!templates.length) {
     // The check names `Templates` / `Template <name>` stay (`retake doctor --json` reads them; docs/GLOSSARY.md).
     out.push({
@@ -994,7 +997,6 @@ export function pastePath(p: string): string {
 
 /** A worker lock's text shown in this terminal (review c A-L4): controls and invisible characters out, capped. */
 function lockText(s: string): string {
-  // eslint-disable-next-line no-control-regex
   return s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '?').slice(0, 300);
 }
 
@@ -1159,8 +1161,24 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
       });
     }
   }
-  const worker = p.worker ? await p.worker(ws.root).catch(() => null) : null;
-  parts.push(worker ? `worker running (pid ${worker.pid}${worker.started_by ? `, started by ${lockText(worker.started_by)}` : ''})` : 'worker idle (a client starts it with its first job)');
+  let worker: Awaited<ReturnType<NonNullable<DoctorProbes['worker']>>> = null;
+  let unread = false;
+  try {
+    worker = p.worker ? await p.worker(ws.root) : null;
+  } catch (e) {
+    unread = true;
+    warns.push({
+      detail: `the jobs worker's state cannot be read: ${firstLine(errorMessage(e))}`,
+      hint: `check that ${statePath(ws.root)} can be read; a job submitted now may wait for a worker that is already there`,
+    });
+  }
+  parts.push(
+    worker
+      ? `worker running (pid ${worker.pid}${worker.started_by ? `, started by ${lockText(worker.started_by)}` : ''})`
+      : unread
+        ? 'worker state unknown'
+        : 'worker idle (a client starts it with its first job)',
+  );
   // L5.16c (critique M6): the workspace's worker runs another copy of Retake — jobs submitted here run with its tools.
   const self = p.engine ?? engineLocation(p.bundle ?? null);
   if (worker && ((worker.engine !== undefined && worker.engine !== self) || (worker.version !== undefined && worker.version !== RETAKE_VERSION))) {

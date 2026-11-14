@@ -205,7 +205,7 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
       log: (level, message) => {
         if (level !== 'debug') ctx.event({ type: 'log', level, message });
       },
-      onOpen: (url) =>
+      onOpen: () =>
         ctx.event({
           type: 'log',
           level: 'info',

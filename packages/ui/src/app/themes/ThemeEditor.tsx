@@ -50,13 +50,14 @@ import {
   componentRow,
   kindLabel,
   themeEventAction,
-  useInScenarioPlan,
+  planUseInScenario,
   usedByWords,
   written,
 } from '../words/theme-words.js';
 import type { PreviewTarget, ThemeEdit } from '../words/theme-words.js';
 import { previewUrls } from '../words/timeline-words.js';
 import { Button, Callout, LinkButton, Segmented, Select, Sheet, SourceList, StatusMark, Tag, TextField } from '../ui-kit/index.js';
+import { bestEffort } from '../best-effort.js';
 
 /** A random lease id (22 base64url characters) for theme_preview / timeline_leave. */
 function newLease(): string {
@@ -170,7 +171,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   const [lease] = useState(newLease);
   useEffect(
     () => () => {
-      void timelineLeave({ project: slug, lease }).catch(() => undefined);
+      void bestEffort(timelineLeave({ project: slug, lease }), 'the lease expires by itself when the leave is not heard');
     },
     [slug, lease],
   );
@@ -645,7 +646,7 @@ const UseInScenario = memo(function UseInScenario({ slug, theme, scenarios, onCh
     setSt({ s: 'busy' });
     try {
       const b = await scenarioBlocks({ project: slug, name: scenario });
-      const plan = useInScenarioPlan(b, theme);
+      const plan = planUseInScenario(b, theme);
       if ('already' in plan) return setSt({ s: 'already', scenario });
       if ('why' in plan) return setSt({ s: 'error', message: plan.why });
       const r = await scenarioEdit({ project: slug, name: scenario, hash: b.hash, edit: plan.edit });

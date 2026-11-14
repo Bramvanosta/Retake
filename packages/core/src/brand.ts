@@ -96,7 +96,6 @@ export const BrandColorsSchema = z.strictObject({
   muted: hexColorSchema.optional().describe('Taglines, url (default between text and paper).'),
   dark: hexColorSchema.optional().describe('Night tone of dark cards and interstitials (default derived).'),
 });
-export type BrandColors = z.output<typeof BrandColorsSchema>;
 
 export const BrandBackgroundSchema = z.union([hexColorSchema, z.strictObject({ type: z.enum(['radial', 'linear']), from: hexColorSchema, to: hexColorSchema })]);
 export type BrandBackground = z.output<typeof BrandBackgroundSchema>;

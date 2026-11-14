@@ -18,7 +18,7 @@
  *   `comments` (L4.6) names the scenarios whose comment threads changed (`<slug>/<scenario>`, only when there are
  *   any): a Comments screen and a timeline re-read for their own scenario only.
  *   L4.7 (critique B5): `themes` names the theme folders of templates_dir whose files changed, `components` the
- *   namespaces of components_dir whose component files changed (an in-place rewrite included: library-watch.ts's
+ *   namespaces of components_dir whose component files changed (an in-place rewrite included: the engine's library-watch.ts's
  *   file-level stat walk), `site: true` an extraction written or removed — the library and theme screens re-read on
  *   them (`projects` is then empty: no project changed). L4.8: `records` names the recordings whose own files changed
  *   (`<project>/<rec_id>`: events streamed while the window is open, the annotations, the draft and the check written,
@@ -39,6 +39,8 @@ import {
   WorkspaceIndex,
   diffSources,
   jobProject,
+  libraryChanges,
+  libraryWatchScan,
   listRuns,
   runChanges,
   scanSources,
@@ -49,7 +51,6 @@ import {
 import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
 import type { LoadedProject } from '@retake/core/model';
-import { libraryChanges, libraryWatchScan } from './library-watch.js';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 
 /**
@@ -93,7 +94,7 @@ export class Live {
   private readonly streams = new Set<ServerResponse>();
   private readonly jobs: JobsWatch;
   private sources: SourceMap | undefined;
-  /** L4.7: the library / theme watch as last scanned (library-watch.ts). */
+  /** L4.7: the library / theme watch as last scanned (the engine's library-watch.ts). */
   private libSources: Map<string, string> | undefined;
   /** L4.8: the recordings' files as last scanned (record-watch.ts). */
   private recSources: Map<string, string> | undefined;
@@ -237,7 +238,17 @@ export class Live {
     for (const key of keys) {
       const { kind, project } = sourceKey(key);
       if (kind !== 'runs' || project === undefined) continue;
-      const read = next.has(key) ? await listRuns({ dir: join(this.o.ws.projectsDir, project) } as LoadedProject, { limit: RUNS_INDEX_MAX }).catch(() => []) : [];
+      let read: Awaited<ReturnType<typeof listRuns>> = [];
+      try {
+        if (next.has(key)) read = await listRuns({ dir: join(this.o.ws.projectsDir, project) } as LoadedProject, { limit: RUNS_INDEX_MAX });
+      } catch {
+        // A runs/ folder that cannot be read: its rows and old signature are kept (read again on the next pass), never
+        // "every run deleted".
+        const was = prev?.get(key);
+        if (was === undefined) next.delete(key);
+        else next.set(key, was);
+        continue;
+      }
       const after: RunRow[] = read.filter((r) => !r.newer && !r.unread).map((r) => ({ id: r.id, scenario: r.scenario ?? null, status: r.status ?? null }));
       if (prev) runs.push(...runChanges(project, this.runRows.get(project) ?? [], after, prev.get(key), next.get(key)));
       this.runRows.set(project, after);

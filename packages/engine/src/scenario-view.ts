@@ -32,7 +32,7 @@ import { orderRuns, parseRunRecord } from '@retake/core/run';
 import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { ScenarioBlocks, ScenarioIdentity, SceneBlock } from '@retake/core/scenario';
-import type { RunRecord, StoredRunRecord } from '@retake/core/run';
+import type { StoredRunRecord } from '@retake/core/run';
 import type { AgentChannel } from './caller.js';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';

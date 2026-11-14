@@ -101,7 +101,7 @@ export {
   trackKeysAt,
   transitionWindows,
   urlAt,
-  useScreen,
+  overlayScreen,
 } from './remotion/frames.js';
 export type { TransitionWindow } from './remotion/frames.js';
 export {

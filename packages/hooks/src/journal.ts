@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { canonicalJson } from '@retake/core/base';
+import { canonicalJson, bestEffort } from '@retake/core/base';
 import { readOnlyHookMessage } from '@retake/core/environment';
 import { rollbackWriteReason } from '@retake/core/hooks';
 import { projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core/project';
@@ -333,7 +333,7 @@ export class Journal {
       }
       await writeJson(this.file, this.data);
     };
-    const next = this.writing.catch(() => undefined).then(run);
+    const next = bestEffort(this.writing, "the previous write's failure is its own caller's: the chain only orders the writes").then(run);
     this.writing = next;
     return next.catch((e) => {
       throw new JournalError(`cannot write hooks journal ${this.file}: ${errorMessage(e)}`, this.file);
@@ -382,7 +382,7 @@ export class Journal {
       }
       return results;
     };
-    const next = this.rolling.catch(() => undefined).then(run);
+    const next = bestEffort(this.rolling, "the previous rollback's failure is its own caller's: the chain only orders them").then(run);
     this.rolling = next;
     return next;
   }

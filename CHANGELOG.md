@@ -309,8 +309,27 @@ release — for the person about to click Install and Restart.
   reset hook's database was not checked (the hook simply connected to it).
 - `project_prune`'s description names everything prune keeps (the capture that can still be edited, the last complete
   one, a run folder that is a link, a take of a newer Retake, the files of `renders/` left alone).
+- A few refusals now carry their own error kind instead of `internal` (MCP's `error.code`, the HTTP status of the
+  engine's API and the Studio; the message is unchanged): a headed run where no display is available is
+  `unavailable` (503); `keep_renders` below one, a job shown as a recording, an inspection or a site extraction that is
+  another kind of job, and a live view asked for what is not a run id are `invalid` (400). At a terminal, `retake run
+  --headed` and `retake prune` say the same as before.
+- Messages about runs of an older format say so instead of naming internal milestones: `export-capture`'s cursor line
+  ("icons approximated: the run did not record them"), the raw package's note and `cursor.json`'s `icon_source`
+  ("approximated (the run did not record the cursor icon)"), and the edit plan's notes about a run with no `video`
+  block or with `{{…}}` tokens as written ("an older run format").
 
 ### Fixed
+- `retake doctor` says when the workspace's projects or themes cannot be listed (a `projects` folder that is a file, a
+  folder it may not read): a FAIL line with the reason, instead of "no projects" or "no themes". A jobs worker whose
+  state cannot be read is a WARN of the MCP line ("worker state unknown"), no longer "worker idle".
+- A `runs/` folder that cannot be read for a moment no longer empties the Studio's lists of runs (and no longer tells
+  it every run was deleted): its runs are kept and it is read again on the next pass.
+- A Postgres snapshot that could not let connections back into the app's database after copying it fails the take,
+  saying so, instead of filming an app whose database refuses it (the next reset lets them in again).
+- What a jobs worker could not write is said: in its log, a held job's yield state, `held.json`, a job's progress, the
+  record of a render browser, the approvals given back with an unclaimed job and its housekeeping; on the job, a
+  refused render whose version lock could not be removed.
 - A hooks journal whose rollback does not have its kind's shape (an http rollback without `request.url`, a shell one
   without `run`, a sql one without `db` or `query`, a js one without `code`, a member of the wrong type) is refused
   when it is read, naming the entry (`entries[1] (#2) has a malformed http rollback: …`), and nothing of it is

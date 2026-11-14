@@ -240,7 +240,6 @@ export const RecordedEventSchema = z.union([
   StopEventSchema,
 ]);
 export type RecordedEvent = z.infer<typeof RecordedEventSchema>;
-export type RecordedEventKind = RecordedEvent['kind'];
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The draft generator (L3.4 part 2): a recording's events → a draft scenario. Pure (no I/O, no clock): the CLI, the

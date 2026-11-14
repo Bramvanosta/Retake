@@ -641,9 +641,7 @@ export function claudeEnv(claude: string, env: NodeJS.ProcessEnv, nodeDir?: stri
   return out;
 }
 
-// eslint-disable-next-line no-control-regex
 const ANSI_RE = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b[@-Z\\-_]/g;
-// eslint-disable-next-line no-control-regex
 const CONTROL_RE = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
 
 /** Output made plain text: escape sequences and control characters out (newlines and tabs kept). */

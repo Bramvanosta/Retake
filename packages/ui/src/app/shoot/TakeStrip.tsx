@@ -134,7 +134,7 @@ export function CommentsCount({ slug, name }: { slug: string; name: string }) {
 }
 
 /** The pictures' source: the picker, the source run's mark and words, what the pictures may not show. */
-function Pictures({ v, pick, onPick }: { v: View; pick: string | undefined; onPick: (run: string | undefined) => void }) {
+function Pictures({ v, onPick }: { v: View; onPick: (run: string | undefined) => void }) {
   const s = v.source;
   return (
     <>
@@ -247,7 +247,7 @@ export function TakeStrip({
           <TerminalCommands {...(last.fix ? { fix: last.fix } : {})} {...(refusedFixNode ? { fixNode: refusedFixNode } : {})} />
         </Callout>
       )}
-      <Pictures v={v} pick={pick} onPick={onPick} />
+      <Pictures v={v} onPick={onPick} />
     </section>
   );
 }

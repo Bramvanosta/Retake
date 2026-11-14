@@ -519,7 +519,7 @@ describe('variants (vertical, square) and the theme zoom', () => {
     a.camera = a.srcFrames.map((_, f) => [f < 30 ? 1 : f >= n ? 1 : 1.12, 900, 500] as [number, number, number]);
     // Smooth enough for the camera-jump check: ease the camera in and out linearly.
     a.camera = a.camera.map(
-      (c, f) => [f < 30 ? 1 : f < 130 ? 1 + (0.12 * (f - 30)) / 100 : f < n - 36 ? 1.12 : f < n ? 1.12 - (0.12 * (f - (n - 36) + 1)) / 36 : 1, 900, 500] as [number, number, number],
+      (_c, f) => [f < 30 ? 1 : f < 130 ? 1 + (0.12 * (f - 30)) / 100 : f < n - 36 ? 1.12 : f < n ? 1.12 - (0.12 * (f - (n - 36) + 1)) / 36 : 1, 900, 500] as [number, number, number],
     );
     const c2 = { ...ctx, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan) };
     let f = checkCamera(c2);

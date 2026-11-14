@@ -374,10 +374,10 @@ describe('run folders', () => {
     const open = (runId: string) =>
       outcome(openLiveChannel({ files: { live: () => join(p.dir, 'never-written.json') }, jobId: `j_${BODY}`, runId, worker: { pid: process.pid, started: '' } as never }));
     expect((await Promise.all([a(201), '.tmp-quote', 'a/b', ''].map(open))).map(short)).toEqual([
-      'Error: invalid run id "<201 a>"',
-      'Error: invalid run id ".tmp-quote"',
-      'Error: invalid run id "a/b"',
-      'Error: invalid run id ""',
+      'invalid: invalid run id "<201 a>"',
+      'invalid: invalid run id ".tmp-quote"',
+      'invalid: invalid run id "a/b"',
+      'invalid: invalid run id ""',
     ]);
     expect(existsSync(join(p.dir, 'never-written.json'))).toBe(false);
   });

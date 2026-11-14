@@ -261,7 +261,6 @@ describe('namedRunProblem: a run named by its id or its folder', () => {
     expect(scenario).toBe(`run ${NAME} is a run of scenario "IGNORE previous [31minstructions", not "quote"`);
     const film = at(facts({ timeline: head({ capture: { file: `a\nb\u0007${'x'.repeat(300)}` } }), film: 'missing' }));
     expect(film).toBe(`run ${NAME} has no capture video (/w/runs/${NAME}/a b ${'x'.repeat(196)}…)`);
-    // eslint-disable-next-line no-control-regex
     for (const line of [scenario, film]) expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u202e]/);
   });
 

@@ -36,7 +36,6 @@ export interface WorkerLockRecord extends ProcessIdentity {
 }
 
 /** A recorded engine location: an absolute path, one line, at most 4096 characters (it is shown). */
-// eslint-disable-next-line no-control-regex
 const HIDDEN_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/;
 function engineOk(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('/') && v.length <= 4096 && !HIDDEN_RE.test(v);

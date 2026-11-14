@@ -26,6 +26,7 @@ import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 import { interrupted } from './interrupted.js';
 import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, TakeHold, YieldMark } from './job-queue.js';
+import { bestEffort } from '@retake/core/base';
 
 /** A job's id, checked (never a path): the id itself, else `invalid`. */
 export function checkJobId(id: string): JobId {
@@ -203,7 +204,7 @@ export abstract class StoredJobQueue implements JobQueue {
   async takeHold(): Promise<TakeHold> {
     for (const id of await this.ids()) {
       if (this.finished.has(id)) continue;
-      const s = await this.stored(id).catch(() => undefined);
+      const s = await bestEffort(this.stored(id), 'a job removed meanwhile reads as gone');
       if (s?.state === 'queued' && isFilming(s.input) && (await this.cancelOf(id)) === undefined && (await this.claimOf(id)) === undefined) return 'here';
     }
     return this.filming();

@@ -5,7 +5,6 @@ import { keyString, nonEmpty, positiveSeconds, slugString } from './primitives.j
 
 export const HOOK_KINDS: readonly HookKind[] = ['http', 'sql', 'shell', 'js'];
 
-// eslint-disable-next-line no-control-regex
 const NO_CONTROL = /^[^\u0000-\u001f\u007f-\u009f]*$/;
 /** A name a person reads in a form or a log: no control character (a line break, an escape sequence). */
 const noControl = (what: string) => z.string().regex(NO_CONTROL, `${what}: no control character (a line break, a tab, an escape)`);

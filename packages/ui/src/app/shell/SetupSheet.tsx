@@ -24,6 +24,7 @@ import type { Route } from '../route.js';
 import { Blocker, Button, Callout, Checklist, ChecklistItem, Sheet } from '../ui-kit/index.js';
 import { SETUP_EVENT, cliSentence, cliStep, desktopStep, installedElsewhere, notificationsStep, panelSentence, parseSetupDetail, pathSentence, runningSentence, unavailableSentence } from './setup.js';
 import type { SetupStatus } from './setup.js';
+import { bestEffort } from '../best-effort.js';
 
 type Busy = string | null;
 /** Where the focus goes after the next render: an item (its test id) and, first, one of its buttons (test ids). */
@@ -217,7 +218,7 @@ export function SetupSheet({ route }: { route: Route }) {
     setSaid(null);
     setConfirm(null);
     focusNext.current = null;
-    if (id === 'done' && st?.available) void setupDone().catch(() => undefined);
+    if (id === 'done' && st?.available) void bestEffort(setupDone(), 'the setup sheet is offered again on the next start when this is lost');
     if (route.name === 'setup') location.hash = hrefTo({ name: 'projects' });
   };
 

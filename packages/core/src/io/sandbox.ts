@@ -13,18 +13,12 @@ import type { WorkspaceDisk } from '../file-facts.js';
 import { issuesMessage } from '../issues.js';
 import { SANDBOX_SEED_DIR, SandboxConfigError, parseSandboxYaml, sandboxAuth } from '../sandbox.js';
 import type { LoadedSandbox, ProjectConfig, SandboxManifest } from '../types.js';
-import { nodeWorkspaceDisk } from './file-facts.js';
 
 /**
- * Read the manifests of project.yaml `sandboxes:` (paths relative to the project dir). Throws SandboxConfigError
- * (positioned in the manifest) when one has errors: a broken manifest fails every command of the project, like a broken
- * project.yaml. Undefined when the project declares none.
+ * Read the manifests of project.yaml `sandboxes:` (paths relative to the project dir) on a disk. Throws
+ * SandboxConfigError (positioned in the manifest) when one has errors: a broken manifest fails every command of the
+ * project, like a broken project.yaml. Undefined when the project declares none.
  */
-export async function loadSandboxes(projectDir: string, config: ProjectConfig): Promise<Record<string, LoadedSandbox> | undefined> {
-  return loadSandboxesOn(nodeWorkspaceDisk, projectDir, config);
-}
-
-/** loadSandboxes on a disk. */
 export async function loadSandboxesOn(disk: WorkspaceDisk, projectDir: string, config: ProjectConfig): Promise<Record<string, LoadedSandbox> | undefined> {
   const entries = Object.entries(config.sandboxes ?? {});
   if (entries.length === 0) return undefined;
@@ -47,14 +41,9 @@ export async function loadSandboxesOn(disk: WorkspaceDisk, projectDir: string, c
 }
 
 /**
- * What the accounts' `{{compose_env:NAME}}` references read from the sandbox's compose env file: those names only.
- * Undefined when no account uses one. Throws SandboxConfigError when the file or a name is missing (never the value).
+ * What the accounts' `{{compose_env:NAME}}` references read from the sandbox's compose env file on a disk: those names
+ * only. Undefined when no account uses one. Throws SandboxConfigError when the file or a name is missing (never the value).
  */
-export async function accountsComposeEnv(dir: string, manifest: SandboxManifest, env: string, file: string): Promise<Record<string, string> | undefined> {
-  return accountsComposeEnvOn(nodeWorkspaceDisk, dir, manifest, env, file);
-}
-
-/** accountsComposeEnv on a disk. */
 export async function accountsComposeEnvOn(disk: WorkspaceDisk, dir: string, manifest: SandboxManifest, env: string, file: string): Promise<Record<string, string> | undefined> {
   const names = new Set<string>();
   for (const a of Object.values(manifest.accounts ?? {})) for (const v of [a.username, a.password]) if (composeEnvRef(v) !== undefined) names.add(composeEnvRef(v)!);

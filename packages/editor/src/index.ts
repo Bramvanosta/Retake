@@ -92,7 +92,6 @@ export {
   ensureBundle,
   entrySource,
   geometryFiles,
-  listCachedBundles,
   planComponentIds,
   registryBundleComponents,
   registryModuleSource,

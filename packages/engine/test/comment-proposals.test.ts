@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ScenarioError } from '@retake/core';
 import type { CommentThread } from '@retake/core';
-import { EngineError, createEngine } from '../src/index.js';
+import { createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
 
@@ -92,7 +92,7 @@ async function bytes(scenario: string, id: string): Promise<string[]> {
   return [(await readFile(threadPath(scenario, id))).toString('hex'), (await readFile(scenarioFile(scenario))).toString('hex'), String((await stat(scenarioFile(scenario))).mtimeMs)];
 }
 
-const propose = (scenario: string, id: string, yaml: string, hash: string, engine: Engine = mcp) =>
+const propose = (_scenario: string, id: string, yaml: string, hash: string, engine: Engine = mcp) =>
   engine.comments.reply('w', id, 'Proposed a change.', { proposal: { scenario_yaml: yaml, scenario_hash: hash } });
 
 beforeAll(async () => {

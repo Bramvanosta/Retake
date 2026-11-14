@@ -124,7 +124,7 @@ export function printRawExport(ui: Ui, r: RawExportResult, ms: number): void {
     .map(([k, v]) => `${v} ${k}`)
     .join(', ');
   ui.line(`  markers ${c.dim(counts)}: ${m.markers.fcpxml}, ${m.markers.edl}, ${m.markers.otio}, ${m.markers.csv}`);
-  ui.line(`  cursor  ${m.cursor.data.json}, ${m.cursor.data.csv}, ${m.cursor.data.clicks_csv}${m.cursor.icons === 'approximated' ? c.dim(' (icons approximated: run before L2.13)') : ''}`);
+  ui.line(`  cursor  ${m.cursor.data.json}, ${m.cursor.data.csv}, ${m.cursor.data.clicks_csv}${m.cursor.icons === 'approximated' ? c.dim(' (icons approximated: the run did not record them)') : ''}`);
   for (const w of m.warnings) ui.warn(`  ${w}`);
   ui.line(c.dim(`  manifest ${ui.path(r.manifestFile)} · ${ui.path(r.readme)}`));
 }

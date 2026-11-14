@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => any };
 type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
 type Job = { steps: Step[]; env?: Record<string, string>; permissions?: Record<string, string>; environment?: string; 'runs-on'?: string };

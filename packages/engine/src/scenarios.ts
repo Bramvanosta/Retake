@@ -1,7 +1,7 @@
 /** Scenarios of a project for clients outside the CLI: read with a hash, validate text, save with `if_match`. */
 import { existsSync, readdirSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { basename, join, relative } from 'node:path';
+import { basename, relative } from 'node:path';
 import { hasErrors, issuesMessage, parseYaml, pathInside } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { projectPath, projectRef, scenarioFile, scenarioRef } from '@retake/core/project';

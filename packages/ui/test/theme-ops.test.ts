@@ -10,7 +10,7 @@
  *   the scope's, nothing of this Mac's folders), draft colours in memory only; ⚑ B10: a theme whose intro is its own
  *   image is not previewed; ⚑ a workspace component the preview renders is held until preview_allow; a theme page's
  *   lease ends with timeline_leave (the project's URLs revoked);
- * - the `themes` watch: a theme edit is a change of that theme only (library-watch.ts);
+ * - the `themes` watch: a theme edit is a change of that theme only (the engine's library-watch.ts);
  * - L4.7 part D2: theme_list — ⚑ editable by real path (starters read-only with why, a workspace copy editable, the
  *   project's own folder theme read-only), hex colours only, what uses each, the components by id and kind, the
  *   project's scenarios; path-free.
@@ -24,7 +24,8 @@ import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import type { ComponentPreviewSpec } from '@retake/editor';
 import type { ThemeEditView } from '@retake/engine';
-import { COMPONENT_PREVIEW_FORMAT, UI_OPS, WATCH_SCAN_BUDGET, libraryChanges, libraryWatchScan, startStudioServer } from '../src/index.js';
+import { COMPONENT_PREVIEW_FORMAT, UI_OPS, startStudioServer } from '../src/index.js';
+import { WATCH_SCAN_BUDGET, libraryChanges, libraryWatchScan } from '@retake/engine';
 import type { SiteListAnswer, StudioServer, ThemePreviewAnswer } from '../src/index.js';
 import { fixtureWorkspace } from '@retake/test-support/workspace';
 import { raw } from '@retake/test-support/http';

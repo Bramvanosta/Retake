@@ -13,7 +13,6 @@ import { dirname, join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   JOURNAL_VERSION,
-  ProjectStore,
   appendJournal,
   callerOf,
   createEngine,

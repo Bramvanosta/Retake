@@ -31,6 +31,7 @@ import type { AgentChannel } from './caller.js';
 import type { AdmissionRule } from './catalogue.js';
 import { EngineError } from './errors.js';
 import type { JobQueue } from './jobs/job-queue.js';
+import { bestEffort } from '@retake/core/base';
 
 /** The exports of the workspace queued or running at once that an admitted export still adds to (any client's count). */
 export const EXPORTS_OPEN_MAX = 2;
@@ -99,8 +100,8 @@ export type OpChain = <T>(key: string, fn: () => Promise<T>) => Promise<T>;
 export function opChain(): OpChain {
   const chains = new Map<string, Promise<unknown>>();
   return <T>(key: string, fn: () => Promise<T>): Promise<T> => {
-    const next = (chains.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
-    const tail = next.catch(() => undefined);
+    const next = bestEffort(chains.get(key) ?? Promise.resolve(), "the previous call's failure is its own caller's: the chain only orders the calls").then(fn);
+    const tail = bestEffort(next, "the chain's tail never rejects: the caller gets the failure from `next`");
     chains.set(key, tail);
     void tail.then(() => {
       if (chains.get(key) === tail) chains.delete(key);

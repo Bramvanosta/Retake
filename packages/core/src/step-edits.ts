@@ -319,7 +319,7 @@ function stepAt(ctx: Ctx, at: StepAt): { scene: SceneSteps; span: Span; node: No
 }
 
 /** Removing `span` from `scene`; its last step leaves `steps: []`. */
-function removal(ctx: Ctx, scene: SceneSteps, span: Span): Splice[] {
+function removal(scene: SceneSteps, span: Span): Splice[] {
   const out: Splice[] = [{ at: span.start, remove: span.end - span.start, insert: '' }];
   if (scene.values.length === 1) out.push({ at: scene.colon, remove: 0, insert: ' []' });
   return out;
@@ -409,7 +409,7 @@ function moveStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'move_step' }>): Ste
   const block = blockOf(ctx, span);
   // Index in the destination as it is in the file (the source still in it when moving within the scene).
   const target = same && j >= edit.from.index ? j + 1 : j;
-  const splices = [...removal(ctx, src, span), ...insertion(ctx, dst, target, block, span.dashCol, src.keyCol)];
+  const splices = [...removal(src, span), ...insertion(ctx, dst, target, block, span.dashCol, src.keyCol)];
   const intended = cloneValue(ctx.value);
   const [moved] = (intended.scenes[src.entry] as { steps: unknown[] }).steps.splice(edit.from.index, 1);
   (intended.scenes[dst.entry] as { steps: unknown[] }).steps.splice(j, 0, moved);
@@ -432,7 +432,7 @@ function deleteStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'delete_step' }>):
   if (span.start < span.dashLine || span.end > span.contentEnd) notices.push('Its comment lines went with it.');
   if (left === 0) notices.push(`Scene ${scene.id} has no step now (steps: []).`);
   return {
-    text: finish(ctx, removal(ctx, scene, span)),
+    text: finish(ctx, removal(scene, span)),
     intended,
     label: `Deleted step ${i + 1} of ${scene.id}`,
     select: left === 0 ? null : `${scene.id}.${Math.min(i, left - 1)}`,

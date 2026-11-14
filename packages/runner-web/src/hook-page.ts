@@ -28,6 +28,7 @@ import { LoginPageError, RunnerError, errorMessage } from './errors.js';
 import type { BrowserSession } from './session.js';
 import { UNGUARDED_APIS_SCRIPT } from './write-guard.js';
 import type { GuardedWrite } from './write-guard.js';
+import { bestEffort } from '@retake/core/base';
 
 export interface HookPageOptions {
   /** Its allow-list applies (environment hosts, `allow_hosts`, localhost). */
@@ -176,7 +177,7 @@ class HookTab {
         /* fail closed */
       }
       const done = host || write ? cdp.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' }) : cdp.send('Fetch.continueRequest', { requestId: ev.requestId });
-      done.catch(() => undefined);
+      bestEffort(done, 'the request goes with a page that is gone');
     });
     // Network must be enabled for the service-worker bypass to apply.
     await cdp.send('Network.enable');
@@ -309,7 +310,7 @@ async function hookTab(session: BrowserSession, key: string, o: HookPageOptions)
   if (!byKey) tabs.set(session, (byKey = new Map()));
   const existing = byKey.get(key);
   if (existing) {
-    const tab = await existing.catch(() => null);
+    const tab = await bestEffort(existing, 'a tab that failed to open is opened again', null);
     if (tab && !tab.page.isClosed()) return tab;
   }
   const opening = HookTab.open(session, key, o);

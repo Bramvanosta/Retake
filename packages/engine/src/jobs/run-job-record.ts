@@ -5,13 +5,13 @@
  * handler's (job-handlers.ts, one per kind); runJob holds what every kind shares around it.
  */
 import { rm, writeFile } from 'node:fs/promises';
-import { RETAKE_VERSION } from '@retake/core/base';
+import { RETAKE_VERSION, bestEffort } from '@retake/core/base';
 import { projectPath } from '@retake/core/project';
 import { JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from './job-input.js';
 import type { RenderJobInput, RunJobInput } from './job-input.js';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
 import { stampOf } from '../clock.js';
-import { toEngineError } from '../errors.js';
+import { toEngineError, errorMessage } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
 import type { openWorkspace } from '../workspace.js';
@@ -181,7 +181,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
         try {
           seq = await queue.append(id, seq, events);
         } catch (e) {
-          log(`job ${id}: events not written (${(e as Error).message})`);
+          log(`job ${id}: events not written (${errorMessage(e)})`);
         }
       });
     };
@@ -241,7 +241,9 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       if (closed || !latest) return;
       rec = { ...rec, progress: latest };
       const snapshot = rec;
-      chain = chain.then(() => (closed ? undefined : queue.write(snapshot).catch(() => undefined)));
+      chain = chain.then(() =>
+        closed ? undefined : queue.write(snapshot).catch((e: unknown) => log(`job ${id}: its progress could not be written (${errorMessage(e)}): it shows the last one written`)),
+      );
     };
     // L4.4: a run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
     // gate between steps (a capture does not film the pause).
@@ -294,11 +296,11 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       // A render browser is recorded at once (pid + start time): a worker killed mid-render leaves it running.
       const recordBrowser = (b: { pid: number; user_data_dir?: string }) => {
         chain = chain.then(async () => {
-          const t = await processStart(b.pid).catch(() => null);
+          const t = await bestEffort(processStart(b.pid), 'a process start that cannot be read is recorded without it (recovery then signals nothing)', null);
           await writeFile(
             files.browser(id),
             `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`,
-          ).catch(() => undefined);
+          ).catch((e: unknown) => log(`job ${id}: its render browser could not be recorded (${errorMessage(e)}): a worker that dies now leaves that browser running`));
         });
       };
       const outcome = await handleJob(job, {
@@ -350,7 +352,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       const { releaseRenderLock } = await import('./render-job.js');
       await releaseRenderLock(ws, input);
     } catch (e) {
-      log(`render ${input.render_id}: lock not released (${(e as Error).message})`);
+      log(`render ${input.render_id}: lock not released (${errorMessage(e)})`);
     }
   }
 
@@ -359,7 +361,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       const project = await openProjectBySlug(ws, input.project);
       await finaliseReservedRun(projectPath(project.dir, 'runs', input.run_id), status, message, clock);
     } catch (e) {
-      log(`run ${input.run_id}: not finalised (${(e as Error).message})`);
+      log(`run ${input.run_id}: not finalised (${errorMessage(e)})`);
     }
   }
 

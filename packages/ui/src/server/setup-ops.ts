@@ -29,7 +29,7 @@ import { execFile } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { RETAKE_VERSION } from '@retake/core/base';
+import { RETAKE_VERSION, bestEffort } from '@retake/core/base';
 import { bundleInfoOrNull, bundleNodeArgs, retakeHome } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 import type { UpdateState } from './update-ops.js';
@@ -255,7 +255,7 @@ function installedLink(ctx: SetupContext, home: string, launcher: string): strin
 
 /** Is Claude Desktop running: true / false, null when `ps` could not tell (a fresh read, remembered). */
 async function readRunning(ctx: SetupContext, state: SetupState): Promise<boolean | null> {
-  const list = await ctx.processes().catch(() => null);
+  const list = await bestEffort(ctx.processes(), 'processes that cannot be listed: null, the sheet says it cannot tell', null);
   const running = list === null ? null : claudeDesktopIn(list);
   state.ps = { at: state.now(), running };
   return running;

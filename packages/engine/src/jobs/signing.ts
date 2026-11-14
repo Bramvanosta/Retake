@@ -20,10 +20,9 @@ import { mkdir, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path';
 import { canonicalJson } from '@retake/core/base';
 import { ULID_PREFIXES, isJobId, ulidTime } from '@retake/core/ids';
-import { HOME_KEY_FILE, homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core/io';
+import { homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core/io';
 import type { JobApproval, JobInput } from './job-input.js';
 
-export const APPROVAL_KEY_FILE = HOME_KEY_FILE;
 /** `<RETAKE_HOME>/approvals-used/<job id>`: the jobs whose approvals a worker took (claimed). */
 export const APPROVALS_USED_DIR = 'approvals-used';
 /** A consumed approval's record is kept this long (a job id older than this carries no approval: consumeApprovals). */

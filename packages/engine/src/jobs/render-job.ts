@@ -18,7 +18,6 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { SLUG_RE } from '@retake/core/model';
 import { formatRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
 import { projectPath, projectRef } from '@retake/core/project';
 import { SCENARIO_EDIT_MAX_CHARS } from '@retake/core/scenario';
@@ -32,7 +31,7 @@ import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
-import { EngineError, toEngineError } from '../errors.js';
+import { EngineError, toEngineError, errorMessage } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
@@ -326,7 +325,7 @@ export async function cleanupInterruptedRender(ws: OpenedWorkspace, files: JobFi
     // A worker killed during the inline review (L4.5): the previous review set aside comes back.
     if (input.review) await reviewer.recover(projectPath(project.dir, 'review', input.render_id));
   } catch (e) {
-    log(`job ${job.id}: render leftovers not removed (${(e as Error).message})`);
+    log(`job ${job.id}: render leftovers not removed (${errorMessage(e)})`);
   }
 }
 
@@ -434,6 +433,13 @@ export async function reviewInline(
   }
 }
 
+/** The render's lock released after a refusal before the render; a release that fails is said on the job. */
+async function releaseLockSaying(ctx: Pick<RenderJobContext, 'ws' | 'event'>, input: RenderJobInput): Promise<void> {
+  await releaseRenderLock(ctx.ws, input).catch((e: unknown) =>
+    ctx.event({ type: 'log', level: 'warn', message: `the lock of ${input.render_id} could not be removed (${errorMessage(e)}): its version number stays taken, the next render uses the next one` }),
+  );
+}
+
 /** Execute a `render` job: the timeline check, then the pipeline's render (pipeline.ts: trust `mcp`, network guard) with the reserved id. */
 export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJobResult> {
   const { input } = ctx;
@@ -445,14 +451,14 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
       throw new EngineError('conflict', `the timeline of run ${input.run_id} changed since the render was submitted: submit it again`, { details: { submitted: input.timeline_sha256, current: sha } });
     }
   } catch (e) {
-    await releaseRenderLock(ctx.ws, input).catch(() => undefined);
+    await releaseLockSaying(ctx, input);
     throw e;
   }
   let editText: string | undefined;
   try {
     editText = await renderJobEditText(input, ctx.jobFile);
   } catch (e) {
-    await releaseRenderLock(ctx.ws, input).catch(() => undefined);
+    await releaseLockSaying(ctx, input);
     throw e;
   }
   let last = '';

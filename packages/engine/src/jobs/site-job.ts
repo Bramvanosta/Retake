@@ -27,7 +27,7 @@ import type { EngineEnv } from '../env.js';
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { parseYaml } from '@retake/core/base';
+import { parseYaml, bestEffort } from '@retake/core/base';
 import { SITE_ID_RE, newUlidId } from '@retake/core/ids';
 import { normalizeHost, resolveEnvironment } from '@retake/core/environment';
 import { realPathOf } from '@retake/core/policy';
@@ -219,7 +219,7 @@ async function activeSites(queue: JobQueueView): Promise<string[]> {
  * running in `queue` (the workspace's) are never removed.
  */
 export async function pruneSites(ws: OpenedWorkspace, queue: JobQueueView, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
-  const active = await activeSites(queue).catch(() => null);
+  const active = await bestEffort(activeSites(queue), 'jobs that cannot be read: null, and nothing is pruned on a guess', null);
   if (active === null) return [];
   const spared = new Set([...except, ...active]);
   // Never through a link: .retake/ and site/ must be real folders.
@@ -304,7 +304,7 @@ export async function siteApproved(input: SiteJobInput, jobId: string, root: str
 }
 
 /** A draft brand input and the template.yaml it would make, from an extraction's colours and first candidate, dated by `clock`. */
-export async function siteDraft(ws: OpenedWorkspace, siteId: string, view: Pick<SiteJobResult, 'host' | 'palette' | 'candidates' | 'status'>, clock: Clock): Promise<SiteJobResult['draft']> {
+export async function siteDraft(ws: OpenedWorkspace, view: Pick<SiteJobResult, 'host' | 'palette' | 'candidates' | 'status'>, clock: Clock): Promise<SiteJobResult['draft']> {
   if (view.status !== 'ok' || !view.palette) return null;
   const { roles, swatches } = view.palette;
   const lib = await components();
@@ -448,7 +448,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
   }
   await pruneSites(ctx.ws, ctx.queue, SITE_KEEP, [input.site_id]);
   const view = siteView(ctx.ws, input.site_id, url, report);
-  return { kind: 'site', ...view, warnings: report.warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ctx.ws, input.site_id, view, ctx.clock) };
+  return { kind: 'site', ...view, warnings: report.warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ctx.ws, view, ctx.clock) };
 }
 
 /**
@@ -483,7 +483,7 @@ export async function extractSiteForAuthor(
   await pruneSites(ws, o.queue, SITE_KEEP, [id]);
   const view = siteView(ws, id, url, report);
   const warnings = [...conflicts.map((c) => `${url.host} is ${c}: environments are filmed through runs, not extracted (done anyway: you typed it)`), ...report.warnings];
-  return { kind: 'site', ...view, warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ws, id, view, o.clock) };
+  return { kind: 'site', ...view, warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ws, view, o.clock) };
 }
 
 /** An extraction read back from its folder (site.json as a file of the workspace), with its draft; null report when absent. */
@@ -498,5 +498,5 @@ export async function readSite(ws: OpenedWorkspace, siteId: string, url: string,
   const parsed = parseSiteUrl(url, unsafeTestResolve().map);
   if (!parsed.ok) return { dir, view: null };
   const view = siteView(ws, siteId, parsed.url, raw);
-  return { dir, view: { kind: 'site', ...view, draft: await siteDraft(ws, siteId, view, clock) } };
+  return { dir, view: { kind: 'site', ...view, draft: await siteDraft(ws, view, clock) } };
 }

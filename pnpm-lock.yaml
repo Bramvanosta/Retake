@@ -262,9 +262,6 @@ importers:
       '@retake/core':
         specifier: workspace:*
         version: link:../core
-      '@retake/hooks':
-        specifier: workspace:*
-        version: link:../hooks
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
@@ -274,6 +271,10 @@ importers:
       playwright-core:
         specifier: 1.56.1
         version: 1.56.1
+    devDependencies:
+      '@retake/hooks':
+        specifier: workspace:*
+        version: link:../hooks
 
   packages/sandbox:
     dependencies:
@@ -310,9 +311,6 @@ importers:
       '@retake/engine':
         specifier: workspace:*
         version: link:../engine
-      '@retake/mcp':
-        specifier: workspace:*
-        version: link:../mcp
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
@@ -329,6 +327,9 @@ importers:
         specifier: ^4.1.0
         version: 4.6.5
     devDependencies:
+      '@retake/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@types/react':
         specifier: 19.1.12
         version: 19.1.12

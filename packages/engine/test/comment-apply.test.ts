@@ -101,7 +101,7 @@ function planted(base: string, result: string, o: { id?: string; proposal?: Reco
 }
 
 /** A proposal written through the MCP (all write-time checks); its entry id and the thread's hash. */
-async function proposed(scenario: string, id: string, result: string, base = TEXT): Promise<{ entry: string; hash: string }> {
+async function proposed(_scenario: string, id: string, result: string, base = TEXT): Promise<{ entry: string; hash: string }> {
   const w = await mcp.comments.reply('w', id, 'Proposed a shorter caption.', { proposal: { scenario_yaml: result, scenario_hash: sha(base) } });
   return { entry: w.entry, hash: w.hash };
 }

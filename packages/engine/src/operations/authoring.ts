@@ -25,6 +25,7 @@ import { jobErrorLine, jobLine } from './job-lines.js';
 import { envName, ifMatch, projectSlug, scenarioName } from './schema.js';
 import { WAIT_MAX_S } from './wait.js';
 import { issueLine, plural } from './words.js';
+import { EngineError } from '../errors.js';
 
 export const scenarioSave = defineOperation({
   name: 'scenario_save',
@@ -94,7 +95,7 @@ const formatMs = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)} s` : `
  */
 export async function recordOutput(engine: Engine, job: JobRecord, head: string[] = []) {
   const input = job.input;
-  if (input.kind !== 'record') throw new Error(`job ${job.id} is not a recording`);
+  if (input.kind !== 'record') throw new EngineError('invalid', `job ${job.id} is not a recording`);
   const lines = [...head, jobLine(job)];
   const base = { rec_id: input.rec_id, project: input.project, ...(input.env ? { env: input.env } : {}), page: input.source.page, job: { id: job.id, state: job.state } };
   if (job.state === 'queued' || job.state === 'running') {

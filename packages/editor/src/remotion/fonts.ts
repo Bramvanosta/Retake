@@ -32,6 +32,7 @@ export function useThemeFonts(faces: readonly ThemeFontFace[] | undefined): bool
   const [handle] = useState(() => (list.length > 0 ? delayRender(`loading ${list.length} theme font(s)`) : null));
   const [ready, setReady] = useState(list.length === 0);
   const preview = usePreviewMode();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the faces of a plan never change during a render, so the effect runs once per handle
   useEffect(() => {
     if (handle === null) return;
     let alive = true;
@@ -51,8 +52,6 @@ export function useThemeFonts(faces: readonly ThemeFontFace[] | undefined): bool
     return () => {
       alive = false;
     };
-    // The faces of a plan never change during a render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handle]);
   useEffect(() => {
     if (ready && handle !== null) continueRender(handle);

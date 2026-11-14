@@ -59,6 +59,7 @@ import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJob
 import type { OpenedWorkspace } from '../workspace.js';
 import type { EnginePorts } from '../ports.js';
 import type { FreeBytes } from './worker-ports.js';
+import { bestEffort } from '@retake/core/base';
 
 /** The kinds a theme preview shows, in order (R-MCP-11). */
 export const THEME_PREVIEW_KINDS: readonly ComponentKind[] = ['intro', 'layout', 'card', 'interstitial', 'outro'];
@@ -76,11 +77,6 @@ export interface PreviewRequest {
 /** <workspace>/.retake/previews/<preview_id>/ */
 export function previewDir(ws: OpenedWorkspace, previewId: string): string {
   return statePath(ws.root, 'previews', previewId);
-}
-
-/** The `retake components preview` command a human runs for (about) the same component preview. */
-export function previewCommandLine(cli: string, r: { component: string; template?: string }): string {
-  return [cli, 'components', 'preview', r.component, ...(r.template ? ['--theme', r.template] : []), '--out', '<folder>'].join(' ');
 }
 
 interface PreparedPreview {
@@ -421,7 +417,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     throw e;
   } finally {
     await cleanup();
-    await pruneLibraryCache(cacheDir, { theme }).catch(() => undefined);
+    await bestEffort(pruneLibraryCache(cacheDir, { theme }), 'the cache is pruned again by the next preview');
   }
   const changed = wants.filter((w) => w.key !== null && w.key !== w.expected).length;
   return {

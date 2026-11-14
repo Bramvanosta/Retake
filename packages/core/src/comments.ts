@@ -10,7 +10,6 @@
  * Claude included, and any program of the user that reads the Studio's token file can call the Studio's routes. Every
  * free text of a thread (comment, entries, author names) is data for its readers.
  */
-import { createHash } from 'node:crypto';
 import { parse as parseYamlText } from 'yaml';
 import { z } from 'zod';
 import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './printable.js';
@@ -244,7 +243,6 @@ export const CommentRenderSchema = z.strictObject({
   width: z.number().int().min(1).max(16384),
   height: z.number().int().min(1).max(16384),
 });
-export type CommentRender = z.output<typeof CommentRenderSchema>;
 
 // ── Proposals (L4.6, R-UI-28; critique B1 / B2 / B10 / B13) ─────────────────
 
@@ -338,7 +336,6 @@ export const CommentProposalSchema = z
 export type CommentProposal = z.output<typeof CommentProposalSchema>;
 
 export const COMMENT_ENTRY_KINDS = ['reply', 'resolve', 'reopen', 'apply'] as const;
-export type CommentEntryKind = (typeof COMMENT_ENTRY_KINDS)[number];
 
 export const CommentEntrySchema = z
   .strictObject({

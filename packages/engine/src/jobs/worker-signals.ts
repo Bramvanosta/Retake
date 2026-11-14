@@ -10,10 +10,11 @@
 import type { InterruptPort } from '../interrupts.js';
 import { signalTree, signalablePid } from './signal.js';
 import type { Worker } from './worker-record.js';
+import { recordYield } from './worker-heavy.js';
 
 /** Listen to SIGINT, SIGTERM and unhandled rejections for `w`; returns what stops listening (once the worker is done). */
 export function handleSignals(w: Worker): () => void {
-  const { log, queue, captureRunner, os } = w;
+  const { log, captureRunner, os } = w;
   let signals = 0;
   const onSignal = (sig: NodeJS.Signals) => {
     signals++;
@@ -32,10 +33,7 @@ export function handleSignals(w: Worker): () => void {
       if (h && !h.exited) {
         log(`${sig}: cancelling job ${h.id} in its job process`);
         signalTree(h.pid, 'SIGTERM', undefined, w.processes.kill);
-        void queue
-          .setYield(h.id, null)
-          .catch(() => undefined)
-          .then(() => h.qos.release());
+        void recordYield(w, h.id, null).then(() => h.qos.release());
       }
       w.wake.fn?.();
       return;

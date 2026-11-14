@@ -164,6 +164,42 @@ describe('render job snapshot (critique B5)', () => {
     await engine.jobs.cancel(sub.job.id);
     await writeFile(scenarioFile(), TEXT);
   });
+
+  it('a refused render whose lock cannot be removed says so on the job (its version number stays taken)', async () => {
+    await writeFile(scenarioFile(), TEXT);
+    const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+    const lock = join(dir, 'renders', `.${sub.render_id}.lock`);
+    // A lock that rm cannot remove: a folder with a file in it.
+    await rm(lock, { force: true });
+    await mkdir(lock);
+    await writeFile(join(lock, 'x'), '');
+    const events: Array<{ type: string; level?: string; message?: string }> = [];
+    const input = { ...(sub.job.input as RenderJobInput), timeline_sha256: 'ab'.repeat(32) };
+    const e = await executeRenderJob({
+      ...enginePorts(),
+      ws: engine.workspace,
+      cli: 'retake',
+      input,
+      signal: AbortSignal.abort(),
+      event: (x) => void events.push(x as (typeof events)[number]),
+      progress: () => undefined,
+      browser: () => undefined,
+      renderer: new MemoryRenderer(),
+    }).then(
+      () => new Error('rendered'),
+      (x: Error) => x,
+    );
+    expect(e.message).toMatch(/changed since the render was submitted/);
+    expect(events).toEqual([
+      {
+        type: 'log',
+        level: 'warn',
+        message: expect.stringMatching(new RegExp(`^the lock of ${sub.render_id} could not be removed \\(.+\\): its version number stays taken, the next render uses the next one$`)),
+      },
+    ]);
+    await rm(lock, { recursive: true, force: true });
+    await engine.jobs.cancel(sub.job.id);
+  });
 });
 
 describe('the inline review of a render (critique B12)', () => {

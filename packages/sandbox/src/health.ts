@@ -11,6 +11,7 @@ import { connect, isIP } from 'node:net';
 import { isLoopbackHost } from '@retake/core/environment';
 import type { SandboxService } from '@retake/core/model';
 import { SandboxError, interrupted } from './errors.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Default seconds before a process service counts as not healthy. */
 export const PROCESS_HEALTH_TIMEOUT_S = 60;
@@ -168,7 +169,7 @@ export async function checkOnce(t: HealthTarget, ms = HEALTH_TRY_MS): Promise<st
     } else {
       const res = await fetch(t.url, { redirect: 'manual', signal: AbortSignal.timeout(ms) });
       status = res.status;
-      if (t.text !== undefined && statusOk(status)) body = await res.text().catch(() => '');
+      if (t.text !== undefined && statusOk(status)) body = await bestEffort(res.text(), 'a body that cannot be read does not contain the expected text', '');
       else await res.body?.cancel().catch(() => undefined);
     }
   } catch (e) {

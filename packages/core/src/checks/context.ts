@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { needFiles } from '../file-facts.js';
 import type { CheckFiles } from '../file-facts.js';
 import type { Confinement } from '../confinement.js';

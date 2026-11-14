@@ -86,8 +86,6 @@ export type SetBackgroundEdit = Extract<ThemeEdit, { kind: 'set_background' }>;
 export type SetComponentEdit = Extract<ThemeEdit, { kind: 'set_component' }>;
 export type RestoreEdit = Extract<ThemeEdit, { kind: 'restore' }>;
 
-type View = Pick<ThemeEditView, 'editable' | 'fields' | 'components' | 'background' | 'fonts' | 'images' | 'yaml' | 'sha256'>;
-
 /** A field's value as written (absent: undefined). */
 export function written(view: Pick<ThemeEditView, 'fields'>, field: string): FieldValue | undefined {
   const v = (view.fields as Record<string, unknown>)[field];
@@ -413,7 +411,7 @@ export interface TemplateFieldEdit {
 }
 
 /** "Use in this scenario": the edit, or that it already uses it, or why not. */
-export function useInScenarioPlan(s: ScenarioFacts, theme: string): { edit: TemplateFieldEdit } | { already: true } | { why: string } {
+export function planUseInScenario(s: ScenarioFacts, theme: string): { edit: TemplateFieldEdit } | { already: true } | { why: string } {
   if (!okTheme(theme)) return { why: 'not a theme name' };
   if (!s.blocks.parsed) return { why: 'the scenario does not read as YAML: fix it in its YAML view first' };
   if (!s.edit.blocks.ok) return { why: s.edit.blocks.why };

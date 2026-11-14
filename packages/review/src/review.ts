@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { printableText } from '@retake/core/base';
+import { printableText, bestEffort } from '@retake/core/base';
 import type { EditPlan } from '@retake/editor/plan';
 import {
   captionRegion,
@@ -133,7 +133,7 @@ export async function recoverReviewDir(finalDir: string): Promise<void> {
     const a = aside(name, id);
     if (!a || pidAlive(a.pid)) continue;
     const dir = join(parent, name);
-    if (a.kind === 'old' && !existsSync(finalDir)) await rename(dir, finalDir).catch(() => undefined);
+    if (a.kind === 'old' && !existsSync(finalDir)) await bestEffort(rename(dir, finalDir), 'the previous review stays where it was: the new one is written beside it');
     else await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
@@ -537,7 +537,8 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
     try {
       await rename(tmpDir, finalDir);
     } catch (e) {
-      if (hadOld) await rename(old, finalDir).catch(() => undefined);
+      if (hadOld)
+        await bestEffort(rename(old, finalDir), "the rename's own error is thrown; when putting the old review back fails too, it stays aside under its .old- name (recoverReviewDir brings it back)");
       throw e;
     }
     if (hadOld) await rm(old, { recursive: true, force: true });

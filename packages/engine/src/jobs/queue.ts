@@ -44,6 +44,7 @@ import { jobsDir } from '../workspace-state.js';
 import type { JobFilePaths, JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
+import { bestEffort } from '@retake/core/base';
 
 /** <jobs>/<id>, for JobFiles: from a checked job id only (never a client's text). */
 function jobFolder(dir: string, id: JobId): string {
@@ -237,7 +238,7 @@ export class FileJobQueue extends StoredJobQueue {
   protected async filming(): Promise<TakeHold> {
     const { FilmingWatch } = await import('./captures.js');
     this.watch ??= new FilmingWatch({ root: this.root, env: this.env });
-    const st = await this.watch.scan().catch(() => undefined);
+    const st = await bestEffort(this.watch.scan(), "markers that cannot be read hold nothing (the worker's scan says why in its log)");
     return st?.holding ? (st.cause ?? 'elsewhere') : undefined;
   }
 }

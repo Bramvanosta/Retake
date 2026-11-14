@@ -28,7 +28,7 @@ let tl: Timeline;
 let runDir: string;
 
 beforeAll(async () => {
-  const srv = createServer((req, res) => {
+  const srv = createServer((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     res.end(APP);
   });

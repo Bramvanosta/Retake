@@ -99,9 +99,6 @@ export function themeFieldKind(field: ThemeField): ThemeValueKind {
   return 'text';
 }
 
-/** The edit kinds of `theme_edit` (`restore`: the engine's byte-exact undo / redo of a version it showed or wrote). */
-export const THEME_EDIT_KINDS = ['set_field', 'set_background', 'set_component', 'restore'] as const;
-
 export interface ThemeFieldEdit {
   kind: 'set_field';
   field: string;

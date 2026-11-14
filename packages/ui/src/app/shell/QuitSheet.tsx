@@ -14,8 +14,9 @@ import { Txt } from '../bits.js';
 import { Callout, Sheet } from '../ui-kit/index.js';
 import { QUIT_CLOSE_EVENT, QUIT_EVENT, parseQuitDetail, quitActions } from './quit.js';
 import type { QuitQuestion } from './quit.js';
+import { bestEffort } from '../best-effort.js';
 
-const sendShown = (id: string) => void desktopAnswer({ id, shown: true }).catch(() => undefined);
+const sendShown = (id: string) => void bestEffort(desktopAnswer({ id, shown: true }), 'the desktop shell asks again when the answer is lost');
 
 /** An answer in flight (`busy`: the action chosen) or the last one failed. */
 type Sent = { id: string; busy: 'proceed' | 'cancel' | null; failed: boolean };

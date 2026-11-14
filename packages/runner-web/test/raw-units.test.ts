@@ -390,7 +390,7 @@ describe('clip plan on real timelines (R-RAW-01)', () => {
   });
 
   /** A one-scene capture: still 1–2 s, then `events`; the scene ends at `end`; screencast frames at `frames`. */
-  const synthetic = (events: TimelineEvent[], end: number, frames: number[]): Timeline =>
+  const synthetic = (events: TimelineEvent[], end: number, _frames: number[]): Timeline =>
     ({
       run_id: 'r',
       mode: 'capture',
@@ -737,7 +737,7 @@ describe('cursor model (R-RAW-02)', () => {
       clip: c,
       file: `clips/${c.name}.mp4`,
       frames: cursorFrames(c, 30, { samples: tl.cursor }).frames,
-      clicks: clipClicks(c, 30, (t) => clipFrameAt(c, t, 30)),
+      clicks: clipClicks(c, (t) => clipFrameAt(c, t, 30)),
       approximated: true,
     }));
     const all = data.flatMap((d) => d.clicks);

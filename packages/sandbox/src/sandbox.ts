@@ -49,6 +49,7 @@ import type { SnapshotState } from './snapshot-postgres.js';
 import { readState, writeState } from './state.js';
 import { FirebaseAuthSnapshot } from './firebase-auth.js';
 import type { SandboxState } from './state.js';
+import { bestEffort } from '@retake/core/base';
 
 /** Logs above this size are cut (kept as `<log>.1`) before a take: a sandbox may stay up for days. */
 export const LOG_CAP_BYTES = 20 * 1024 * 1024;
@@ -217,7 +218,7 @@ export class Sandbox {
       if (ctx.signal?.aborted) throw interrupted(`sandbox ${this.env} ${what}`);
       return out;
     } catch (e) {
-      const stopped = await this.provider.stopStarted({ ...ctx, signal: undefined }).catch(() => []);
+      const stopped = await bestEffort(this.provider.stopStarted({ ...ctx, signal: undefined }), 'the stop is best effort on a sandbox that failed to start: its own error is the one reported', []);
       if (stopped.length) ctx.log('warn', `stopped what this command had started: ${stopped.join(', ')}`);
       throw e;
     }

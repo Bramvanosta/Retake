@@ -39,7 +39,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { closeSync, constants as fsConstants, createReadStream, fstatSync, lstatSync, openSync, realpathSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
-import { basename, extname, relative, resolve } from 'node:path';
+import { basename, extname, resolve } from 'node:path';
 import { checkRequest, listenLoopback, newSecret, secretEquals } from '@retake/engine';
 import type { RouteSpec } from '@retake/engine';
 import type { ComponentPreviewSpec, EditPlan } from '@retake/editor';

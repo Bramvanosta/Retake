@@ -285,7 +285,7 @@ describe('rollback journal entries are signed (L5.14)', () => {
     process.env.RETAKE_TEST_TERMINAL_ONLY = 'from-the-terminal';
     let yes: Awaited<ReturnType<typeof rollbackJournals>>;
     try {
-      yes = await rollbackJournals(list, makeContext(project, { replayUnsigned: (e, file) => (asked.push(file), true) }).ctx);
+      yes = await rollbackJournals(list, makeContext(project, { replayUnsigned: (_e, file) => (asked.push(file), true) }).ctx);
     } finally {
       delete process.env.RETAKE_TEST_TERMINAL_ONLY;
     }
