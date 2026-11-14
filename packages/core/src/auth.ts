@@ -44,6 +44,24 @@ export function authFor(config: Pick<ProjectConfig, 'auth'>, env: string): AuthC
   return isObject(v) ? v : undefined;
 }
 
+/**
+ * The legacy single-account profile / storage state of an environment (`auth` global, or keyed by environment name),
+ * as absolute paths (`~` expanded, relative to the project folder). Runs use personas (resolvePersonas: the legacy
+ * form is persona "default"); kept for `retake login`, hooks and `retake doctor`.
+ */
+export function resolveAuth(project: Pick<LoadedProject, 'config' | 'dir'>, envName: string): { profileDir?: string; storageState?: string } {
+  const cfg = authFor(project.config, envName);
+  if (!cfg) return {};
+  const inProject = (p: string): string => {
+    const e = expandHome(p);
+    return isAbsolute(e) ? e : resolve(project.dir, e);
+  };
+  return {
+    profileDir: cfg.profile ? inProject(cfg.profile) : undefined,
+    storageState: cfg.storage_state ? inProject(cfg.storage_state) : undefined,
+  };
+}
+
 /** `wait_for_email {to: persona:<name>}` (L5.6): the persona a recipient names, else null. */
 export function mailPersona(to: string | undefined): string | null {
   const m = /^persona:\s*(\S+)\s*$/.exec(to ?? '');

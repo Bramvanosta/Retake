@@ -9,7 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BundleInfo } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, memoryIo } from '../src/index.js';
-import { agentJobsCheck, doctorCommand, systemProbes } from '../src/commands/doctor.js';
+import { agentJobsCheck } from '@retake/engine/doctor';
+import { doctorCommand, systemProbes } from '../src/commands/doctor.js';
 import type { DoctorCheck, DoctorProbes, ExecResult } from '../src/commands/doctor.js';
 import { Ui } from '../src/ui.js';
 

@@ -21,6 +21,11 @@
       "types": "./dist/contract.d.ts",
       "default": "./dist/contract.js"
     },
+    "./doctor": {
+      "source": "./src/doctor-entry.ts",
+      "types": "./dist/doctor-entry.d.ts",
+      "default": "./dist/doctor-entry.js"
+    },
     "./integrations": {
       "source": "./src/integrations.ts",
       "types": "./dist/integrations.d.ts",

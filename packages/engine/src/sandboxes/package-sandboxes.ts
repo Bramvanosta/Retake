@@ -24,5 +24,6 @@ export function packageSandboxes(secrets: Secrets, hooks: HookRunner): Sandboxes
   return {
     open: async (project, env, policy): Promise<SandboxHandle> => (await sandbox()).openSandbox(project, env, policy, (ref) => secrets.resolve(ref), hooks),
     init: async (project, o) => (await sandbox()).initSandbox(project, o),
+    dockerPlaces: async (home) => (await sandbox()).dockerPlaces(home),
   };
 }

@@ -1,29 +1,18 @@
-import { readFile } from 'node:fs/promises';
-import { ConfigError, errorsOf, warningsOf } from '@retake/core/base';
-import { SandboxConfigError } from '@retake/core/sandbox';
-import { ScenarioError, parseScenario } from '@retake/core/scenario';
-import { fileFacts, loadProjectTemplate, loadScenario } from '@retake/core/io';
-import type { LoadedProject, Template, ValidationIssue, WorkFileFacts } from '@retake/core/model';
-import { EXIT, errorMessage } from '../errors.js';
+import { errorsOf, warningsOf } from '@retake/core/base';
+import { projectLoadReport, validateProjectFiles } from '@retake/engine';
+import type { FileValidation, OpenedWorkspace } from '@retake/engine';
+import type { ValidationIssue } from '@retake/core/model';
+import { EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ValidateOptions {
   env?: string;
   until?: string;
   json?: boolean;
-}
-
-interface FileReport {
-  kind: 'project' | 'sandbox' | 'template' | 'scenario';
-  name: string;
-  file?: string;
-  issues: ValidationIssue[];
-  /** A failure that is not a list of issues (file not found, unreadable…). */
-  error?: string;
 }
 
 export function printIssues(ui: Ui, issues: readonly ValidationIssue[], file?: string): void {
@@ -36,65 +25,16 @@ export function printIssues(ui: Ui, issues: readonly ValidationIssue[], file?: s
  * any error.
  */
 export async function validateCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenarioArg: string | undefined, opts: ValidateOptions): Promise<ExitCode> {
-  const reports: FileReport[] = [];
-  let project: LoadedProject;
-  let files: WorkFileFacts;
+  let ws: OpenedWorkspace;
   try {
-    const ws = await openWorkspace(global);
-    files = fileFacts(ws.policy);
-    project = await openProject(ws, projectArg);
+    ws = await openWorkspace(global);
   } catch (e) {
-    const issues = e instanceof ConfigError ? e.issues : [];
-    // A broken sandbox.yaml (L1.8) is reported under its own file.
-    const sandbox = e instanceof SandboxConfigError ? e.env : undefined;
-    reports.push({
-      kind: sandbox !== undefined ? 'sandbox' : 'project',
-      name: sandbox ?? projectArg,
-      file: e instanceof ConfigError ? e.file : undefined,
-      issues,
-      ...(issues.length ? {} : { error: errorMessage(e) }),
-    });
-    return finish(ui, reports, opts);
+    return finish(ui, [projectLoadReport(projectArg, e)], opts);
   }
-  reports.push({ kind: 'project', name: project.slug, file: project.file, issues: project.issues ?? [] });
-  for (const s of Object.values(project.sandboxes ?? {})) reports.push({ kind: 'sandbox', name: s.env, file: s.file, issues: s.issues });
-
-  let template: Template | undefined;
-  try {
-    template = (await loadProjectTemplate(project, undefined, { files })).template;
-    reports.push({ kind: 'template', name: project.config.template, issues: [] });
-  } catch (e) {
-    const issues = e instanceof ConfigError ? e.issues : [];
-    reports.push({
-      kind: 'template',
-      name: project.config.template,
-      file: e instanceof ConfigError ? e.file : undefined,
-      issues,
-      ...(issues.length ? {} : { error: errorMessage(e) }),
-    });
-  }
-
-  const names = scenarioArg !== undefined ? [scenarioArg] : project.scenarios;
-  for (const name of names) reports.push(await validateScenarioFile(project, name, { ...opts, template }, files));
-  return finish(ui, reports, opts);
+  return finish(ui, await validateProjectFiles(ws, projectArg, scenarioArg, { env: opts.env, until: opts.until }), opts);
 }
 
-async function validateScenarioFile(project: LoadedProject, name: string, opts: ValidateOptions & { template?: Template }, files: WorkFileFacts): Promise<FileReport> {
-  try {
-    const loaded = await loadScenario(project, name, { files, env: opts.env, until: opts.until, template: opts.template });
-    return { kind: 'scenario', name: loaded.name, file: loaded.file, issues: loaded.issues };
-  } catch (e) {
-    if (e instanceof ScenarioError && e.file) {
-      // loadScenario only reports errors: re-parse to list the warnings too.
-      const text = await readFile(e.file, 'utf8').catch(() => null);
-      const issues = text === null ? e.issues : parseScenario(text, { files, file: e.file, project, env: opts.env, until: opts.until, template: opts.template }).issues;
-      return { kind: 'scenario', name, file: e.file, issues };
-    }
-    return { kind: 'scenario', name, issues: [], error: errorMessage(e) };
-  }
-}
-
-function finish(ui: Ui, reports: FileReport[], opts: ValidateOptions): ExitCode {
+function finish(ui: Ui, reports: FileValidation[], opts: ValidateOptions): ExitCode {
   const failed = reports.some((r) => r.error !== undefined || errorsOf(r.issues).length > 0);
   if (opts.json) {
     ui.result(JSON.stringify({ ok: !failed, files: reports }, null, 2));

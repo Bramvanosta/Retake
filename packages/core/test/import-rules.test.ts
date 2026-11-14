@@ -572,11 +572,11 @@ describe('the import-rules ratchet', () => {
         'workspace-read packages/engine/src/a.ts → workspaceReader',
         'workspace-read packages/engine/src/a.ts → nodeWorkspaceDisk',
       ]);
-      // The port's folder, a type-only import, another name of core io, another module and a file outside the engine are free.
+      // The port's folder, a type-only import, another name of core io, another module and a file outside the engine and the CLI are free.
       expect(reads('packages/engine/src/workspace-reads/disk-reads.ts', "import { nodeWorkspaceReader } from '@retake/core/io';")).toEqual([]);
       expect(reads('packages/engine/src/a.ts', "import type { loadProject } from '@retake/core/io';\nimport { type listProjects, retakeHome } from '@retake/core/io';")).toEqual([]);
       expect(reads('packages/engine/src/a.ts', "import { loadProject } from './projects.js';\nimport { loadTemplate } from '@retake/core/template';")).toEqual([]);
-      expect(reads('packages/cli/src/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
+      expect(reads('packages/ui/src/server/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
     });
 
     it('flags a loader read off a namespace import, re-exported, or core io loaded by import() or require()', () => {
@@ -606,7 +606,19 @@ describe('the import-rules ratchet', () => {
       expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nconst m = io;\nm.loadProject('x');")).toEqual([]);
       expect(reads('packages/engine/src/a.ts', "import * as io from '@retake/core/io';\nconst k = 'loadProject';\nio[k]('x');")).toEqual([]);
       const title = (lib.CHECKS as { id: string; title: string }[]).find((c) => c.id === 'workspace-read')!.title;
-      for (const words of ['const { loadProject } = io', 'const m = io', 'io[name]', '`satisfies`', 'outside a root', 'WORKSPACE_LOADERS', 'MemoryWorkspace']) expect(title, words).toContain(words);
+      for (const words of ['const { loadProject } = io', 'const m = io', 'io[name]', '`satisfies`', 'outside a root', 'WORKSPACE_LOADERS', 'MemoryWorkspace', 'packages/cli/src/'])
+        expect(title, words).toContain(words);
+    });
+
+    it("reads the CLI's sources too (a command reads its workspace through its ports' WorkspaceReads); the other shells and adapters are not read", () => {
+      expect(lib.WORKSPACE_READ_SHELLS).toEqual(['packages/cli/src/']);
+      expect(reads('packages/cli/src/commands/a.ts', "import { listProjects, retakeHome } from '@retake/core/io';")).toEqual(['workspace-read packages/cli/src/commands/a.ts → listProjects']);
+      expect(reads('packages/cli/src/a.ts', "import * as io from '@retake/core/io';\nio.findWorkspaceRoot();")).toEqual(['workspace-read packages/cli/src/a.ts → findWorkspaceRoot']);
+      expect(reads('packages/cli/src/commands/a.ts', "import type { LoadedProject } from '@retake/core/io';\nimport { clientPath } from '@retake/core/io';")).toEqual([]);
+      expect(reads('packages/mcp/src/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
+      expect(reads('packages/runner-web/src/a.ts', "import { loadProject } from '@retake/core/io';")).toEqual([]);
+      // Holds today: no CLI source names a loader.
+      expect(ratchetOfRepo().filter((e) => e.startsWith('workspace-read packages/cli/'))).toEqual([]);
     });
 
     it('flags the disk adapter of the port, and its in-memory one, named as a value outside their roots', () => {
@@ -1021,8 +1033,8 @@ describe('the import-rules ratchet', () => {
       for (const words of ['import-equals alias', 'template key with a substitution', 'a destructured member', '`.call` / `.apply` / `.bind`']) expect(title, words).toContain(words);
     });
 
-    it("holds today: one exception, the doctor's exec probe; the wrapper starts them", () => {
-      expect(ratchetOfRepo().filter((e) => e.startsWith('media-call '))).toEqual(['media-call packages/cli/src/commands/doctor.ts → 2 media tool starts']);
+    it("holds today: no exception (the doctor's checks run programs through the exec probe they are handed); the wrapper starts them", () => {
+      expect(ratchetOfRepo().filter((e) => e.startsWith('media-call '))).toEqual([]);
       const home = readFileSync(join(ROOT, lib.MEDIA_RUN_HOME), 'utf8');
       for (const f of ['export function runMediaTool(', 'export function runMediaToolSync(', 'export function startMediaTool(', 'export class MediaToolError ']) expect(home, f).toContain(f);
     });

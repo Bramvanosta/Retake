@@ -227,6 +227,8 @@ export const CLOCK_HOME = 'packages/engine/src/clock.ts';
 export const STORE_HOME = 'packages/engine/src/store/';
 /** The WorkspaceReads port's folder (workspace-read, L7.38): the one engine folder that names a workspace loader of core io. */
 export const WORKSPACE_READS_HOME = 'packages/engine/src/workspace-reads/';
+/** The shell sources the workspace-read check reads beside the engine: the CLI's (its commands, its composition root). */
+export const WORKSPACE_READ_SHELLS = ['packages/cli/src/'];
 /** The product's Secrets adapter: the one engine file that calls core io's secret resolvers (secret-resolve). */
 export const SECRETS_HOME = 'packages/engine/src/secrets/system-secrets.ts';
 /** The Outputs port's folder (output-read): the one engine folder that names core io's readers of a run folder and of renders/. */
@@ -572,7 +574,7 @@ export const CHECKS = [
   },
   {
     id: 'workspace-read',
-    title: `the engine reads a workspace through its WorkspaceReads port (${WORKSPACE_READS_HOME}, L7.38): in packages/engine/src outside it, a value import of a workspace loader of \`@retake/core/io\` (WORKSPACE_LOADERS: the loaders of io workspace.ts, project.ts, scenario.ts, template.ts and sandbox.ts, their \`…On\` forms, \`workspaceReader\`, \`nodeWorkspaceReader\`, \`nodeWorkspaceDisk\`) under its name or an alias, a loader read off a namespace import of it (\`io.loadProject\`, \`io['loadProject']\`), a loader re-exported from it (\`export { loadProject } from\`, \`export * from\`), an \`import()\` or \`require()\` of it (\`import() of @retake/core/io\`, whatever it takes out); and the product's adapter \`diskWorkspaceReads\` named as a value outside PORT_ROOTS (\`<name> outside a root\`). Read through parentheses, \`as\`, \`satisfies\` and \`!\` around the namespace. Not seen: a loader reached through another module that re-exports it under its own name, a namespace member taken by destructuring (\`const { loadProject } = io\`), a namespace aliased (\`const m = io\` then \`m.loadProject\`) or passed on whole, a key computed at run time (\`io[name]\`); and the in-memory adapter \`MemoryWorkspace\` named as a value in packages/*/src outside its own file (a test's fake, \`<name> outside a root\`)`,
+    title: `the engine reads a workspace through its WorkspaceReads port (${WORKSPACE_READS_HOME}, L7.38), and so does the CLI: in packages/engine/src outside it and in ${WORKSPACE_READ_SHELLS.join(', ')} (WORKSPACE_READ_SHELLS), a value import of a workspace loader of \`@retake/core/io\` (WORKSPACE_LOADERS: the loaders of io workspace.ts, project.ts, scenario.ts, template.ts and sandbox.ts, their \`…On\` forms, \`workspaceReader\`, \`nodeWorkspaceReader\`, \`nodeWorkspaceDisk\`) under its name or an alias, a loader read off a namespace import of it (\`io.loadProject\`, \`io['loadProject']\`), a loader re-exported from it (\`export { loadProject } from\`, \`export * from\`), an \`import()\` or \`require()\` of it (\`import() of @retake/core/io\`, whatever it takes out); and the product's adapter \`diskWorkspaceReads\` named as a value outside PORT_ROOTS (\`<name> outside a root\`). Read through parentheses, \`as\`, \`satisfies\` and \`!\` around the namespace. Not seen: a loader reached through another module that re-exports it under its own name, a namespace member taken by destructuring (\`const { loadProject } = io\`), a namespace aliased (\`const m = io\` then \`m.loadProject\`) or passed on whole, a key computed at run time (\`io[name]\`); and the in-memory adapter \`MemoryWorkspace\` named as a value in packages/*/src outside its own file (a test's fake, \`<name> outside a root\`)`,
   },
   {
     id: 'loader-use',
@@ -1231,12 +1233,19 @@ const CORE_IO = '@retake/core/io';
 
 /**
  * The workspace reads' wiring (workspace-read), read from the syntax tree: in packages/engine/src outside
- * WORKSPACE_READS_HOME, a loader of WORKSPACE_LOADERS imported from `@retake/core/io` as a value (its name, an alias),
+ * WORKSPACE_READS_HOME and in the CLI's sources (WORKSPACE_READ_SHELLS: a command reads its workspace through the
+ * WorkspaceReads its ports hold, as the engine does), a loader of WORKSPACE_LOADERS imported from `@retake/core/io` as a value (its name, an alias),
  * read off a namespace import of it, re-exported from it, and `import()` / `require()` of it. Type-only imports load
  * nothing. `[{ rule, file, spec }]`, one per name and file.
  */
 export function workspaceReadHits(root, files) {
-  return coreIoNameHits(root, files, { rule: 'workspace-read', names: WORKSPACE_LOADERS, home: (rel) => rel.startsWith(WORKSPACE_READS_HOME), loads: true });
+  return coreIoNameHits(root, files, {
+    rule: 'workspace-read',
+    names: WORKSPACE_LOADERS,
+    home: (rel) => rel.startsWith(WORKSPACE_READS_HOME),
+    loads: true,
+    scope: (rel) => rel.startsWith('packages/engine/src/') || WORKSPACE_READ_SHELLS.some((s) => rel.startsWith(s)),
+  });
 }
 
 /**
@@ -1264,7 +1273,7 @@ function coreIoNameHits(root, files, o) {
   const hits = [];
   const LOADERS = new Set(o.names);
   for (const { rel, text } of files) {
-    if (!rel.startsWith('packages/engine/src/') || o.home(rel) || !text.includes(CORE_IO)) continue;
+    if (!(o.scope ?? ((r) => r.startsWith('packages/engine/src/')))(rel) || o.home(rel) || !text.includes(CORE_IO)) continue;
     const sf = parse(ts, rel, text);
     const found = new Set();
     const spaces = new Set();

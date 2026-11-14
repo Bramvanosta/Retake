@@ -57,6 +57,7 @@ function drawingRenderer(): Renderer {
     },
     stills: (req) => memory.stills(req),
     previews: memory.previews,
+    machine: memory.machine,
   };
 }
 

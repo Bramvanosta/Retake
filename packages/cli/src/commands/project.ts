@@ -1,6 +1,6 @@
 import { SLUG_RE } from '@retake/core/model';
 import { AUTH_KEYS, PERSONA_NONE, loginPatternForm, resolveEnvironment, resolvePersonas } from '@retake/core/environment';
-import { checkNewProject, listProjects, listTemplates, retakeHome } from '@retake/core/io';
+import { retakeHome } from '@retake/core/io';
 import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import { personScope, writeNewProject } from '@retake/engine';
@@ -57,7 +57,8 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
     throw new UsageError(`--theme ${opts.theme} and --template ${opts.template}: give the theme once (--template is the old name of --theme)`);
   const base = { name: opts.name ?? slug, slug, template: opts.theme ?? opts.template };
   if (interactive) {
-    await checkNewProject(ws.root, base);
+    // What a creation refuses, said before the questions (nothing written: the plan only).
+    await ws.reads.planNewProject(ws.root, base);
     ({ environments, auth } = await askSetup(ui));
   }
   const project = await writeNewProject(ws, { ...base, environments, ...(auth ? { auth } : {}) }, personScope(ws.root, cliPorts));
@@ -211,8 +212,8 @@ async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject
 
 export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: boolean }): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const projects = await listProjects(ws.root);
-  const templates = await listTemplates(ws.root);
+  const projects = await ws.reads.listProjects(ws.root);
+  const templates = await ws.reads.listTemplates(ws.root);
   const detailed = await Promise.all(
     projects.map(async (p) => {
       try {

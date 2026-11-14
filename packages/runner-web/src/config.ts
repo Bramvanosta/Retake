@@ -1,7 +1,4 @@
-import { isAbsolute, resolve } from 'node:path';
-import { expandHome } from '@retake/core/base';
 import { DEFAULT_CAPTURE, DEFAULT_PACING } from '@retake/core/model';
-import { authFor } from '@retake/core/environment';
 import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@retake/core/model';
 
 function defined<T extends object>(o: Partial<T> | undefined): Partial<T> {
@@ -38,20 +35,5 @@ export function projectBrowser(project: LoadedProject, override?: BrowserConfig)
   return b;
 }
 
-function projectPath(project: LoadedProject, p: string): string {
-  const e = expandHome(p);
-  return isAbsolute(e) ? e : resolve(project.dir, e);
-}
-
-/**
- * The legacy single-account profile / storage state of an environment (`auth` global, or keyed by environment name).
- * Runs use personas (core resolvePersonas: the legacy form is persona "default"); kept for `retake login` and hooks.
- */
-export function resolveAuth(project: LoadedProject, envName: string): { profileDir?: string; storageState?: string } {
-  const cfg = authFor(project.config, envName);
-  if (!cfg) return {};
-  return {
-    profileDir: cfg.profile ? projectPath(project, cfg.profile) : undefined,
-    storageState: cfg.storage_state ? projectPath(project, cfg.storage_state) : undefined,
-  };
-}
+/** The legacy single-account profile / storage state of an environment: core's (its one rule), named here for the package's callers. */
+export { resolveAuth } from '@retake/core/environment';

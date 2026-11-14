@@ -174,6 +174,7 @@ vi.mock('../../engine/src/sandboxes/package-sandboxes.ts', async (importOriginal
           fakes.calls.push({ call: 'initSandbox', options: { project, ...o } });
           return sandboxes.init(project, { ...o, isFree: o.isFree ?? (async () => true) });
         },
+        dockerPlaces: (home: string) => sandboxes.dockerPlaces(home),
       };
     },
   };
@@ -274,6 +275,7 @@ vi.mock('../../engine/src/render/editor-renderer.ts', async (importOriginal) => 
       video: (req) => now().video(req),
       stills: (req) => now().stills(req),
       previews: { bundle: (o) => now().previews.bundle(o), open: (bundle, o) => now().previews.open(bundle, o) },
+      machine: { path: (policy) => now().machine.path(policy), browser: () => now().machine.browser() },
     }),
   };
 });

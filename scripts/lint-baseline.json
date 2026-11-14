@@ -113,7 +113,6 @@
    "packages/mcp/test/stdio.test.ts": 1
   },
   "lint/complexity/useOptionalChain": {
-   "packages/cli/src/commands/doctor.ts": 3,
    "packages/components/src/geometry.ts": 1,
    "packages/components/src/kit/notifications.tsx": 1,
    "packages/core/src/hosts.ts": 1,
@@ -318,7 +317,6 @@
    "packages/ui/test/update-ops.test.ts": 1
   },
   "lint/suspicious/noImplicitAnyLet": {
-   "packages/cli/src/commands/doctor.ts": 1,
    "packages/cli/src/commands/inspect.ts": 1,
    "packages/cli/src/commands/mcp.ts": 2,
    "packages/cli/src/commands/render.ts": 1,

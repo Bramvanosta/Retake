@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { WORKSPACE_FILE } from '@retake/core/project';
 import { workPolicy } from '@retake/core/policy';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
@@ -47,9 +48,24 @@ export interface OpenedWorkspace extends WorkspaceConfig {
  */
 export async function openWorkspace(opts: WorkspaceOptions): Promise<OpenedWorkspace> {
   const { reads, outputs } = opts;
-  const root = opts.root ? resolve(opts.root) : reads.findWorkspaceRoot();
-  const ws = await reads.loadWorkspaceConfig(root);
+  const ws = await reads.loadWorkspaceConfig(workspaceRootOf(reads, opts.root));
   return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }), reads, outputs };
+}
+
+/**
+ * The workspace root a server serves (`retake mcp`, `retake ui`, the jobs worker): `root`, else $RETAKE_ROOT, else the
+ * retake.yaml lookup from the cwd — read by `reads`. `undefined` when it does not look like one (no retake.yaml, no
+ * projects/ folder): a server never serves a folder that is not a workspace.
+ */
+export function servedWorkspaceRoot(reads: WorkspaceReads, root?: string): string | undefined {
+  const at = workspaceRootOf(reads, root);
+  const kind = (name: string) => reads.disk.facts.kind(join(at, name));
+  return kind(WORKSPACE_FILE) !== undefined || kind('projects') === 'directory' ? at : undefined;
+}
+
+/** `root` resolved, else $RETAKE_ROOT, else the retake.yaml lookup from the cwd (read by `reads`): where a command works. */
+export function workspaceRootOf(reads: WorkspaceReads, root?: string): string {
+  return root ? resolve(root) : reads.findWorkspaceRoot();
 }
 
 /** retake.yaml `browser` ← project.yaml `browser` (the project wins; args from both are kept). */

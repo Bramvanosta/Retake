@@ -1,6 +1,6 @@
 /** `retake doctor` shows a worker lock's texts with every hidden character (core hidden-chars.ts) as `?`, capped. */
 import { describe, expect, it } from 'vitest';
-import { lockText } from '../src/commands/doctor.js';
+import { lockText } from '@retake/engine/doctor';
 
 describe('lockText', () => {
   it('each hidden character as ?, at most 300 characters', () => {

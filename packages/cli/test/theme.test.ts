@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, loadTemplate, fileFacts } from '@retake/core/io';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { unsafeTestResolveCheck } from '../src/commands/doctor.js';
+import { unsafeTestResolveCheck } from '@retake/engine/doctor';
 import type { DoctorProbes } from '../src/commands/doctor.js';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '@retake/test-support/site';
 import type { BrandSite } from '@retake/test-support/site';

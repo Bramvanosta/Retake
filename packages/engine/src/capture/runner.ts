@@ -10,12 +10,13 @@
  * Reviewer names the review's options through `@retake/review/checks`): a mirror of a run's options would only drift. The
  * engine adds one thing to a run's request: the hook runner its hooks run through (hook-run/runner.ts).
  */
-import type { LoadedProject, Timeline } from '@retake/core/model';
+import type { BrowserConfig, LoadedProject, Timeline } from '@retake/core/model';
 import type { ResolvedPersona, WritePolicy } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { PersonaRequestAuth } from '@retake/core/hooks';
 import type { RunRecord } from '@retake/core/run';
 import type {
+  ChromiumProbe,
   ExportCaptureOptions,
   HookPageOptions,
   PersonaAuthSource,
@@ -66,6 +67,8 @@ export interface CaptureSessions {
   lock(profileDir: string): Promise<ProfileLock>;
   /** The persona's last status file, or null. */
   status(file: string): Promise<PersonaStatusRecord | null>;
+  /** Save a check's result as the persona's last status (`version` and `checked_at`, now, added): what `status` reads next. */
+  save(file: string, status: Omit<PersonaStatusRecord, 'version' | 'checked_at'>): Promise<void>;
 }
 
 /** A browser js hooks run in outside a capture (one per persona): opaque to the engine, closed by it. */
@@ -139,6 +142,12 @@ export interface CaptureRunner {
   };
   /** A run's raw package (export-capture, run --raw). */
   readonly raw: CaptureRaw;
+  /**
+   * The capture browser a run would launch, launched once headless the way captures launch it (`retake doctor`): where
+   * it comes from, its version, its GPU and its sandbox as Chromium reports them. A browser that does not start is a
+   * probe that says so, never an error.
+   */
+  probe(browser: BrowserConfig | undefined, policy: WorkPolicy): Promise<ChromiumProbe>;
   /** The error a cancel aborts a running capture with (the runner's own cancel: its name, its kind). Synchronous. */
   cancelled(message?: string): Error;
   /** Remove every session copy this process made, synchronously (a second signal); how many were removed. */

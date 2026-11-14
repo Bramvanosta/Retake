@@ -61,6 +61,7 @@ export function runnerWebCapture(): CaptureRunner {
       signIn: async (o) => (await load()).signIn(o),
       lock: async (profileDir) => (await load()).profileLock(profileDir),
       status: async (file) => (await load()).readStatus(file),
+      save: async (file, status) => (await load()).writeStatus(file, status),
     },
     hookPages: {
       // As the hook commands opened it before the port (hooks.ts): a copy of the persona's session, the kit with its
@@ -107,6 +108,7 @@ export function runnerWebCapture(): CaptureRunner {
         return refusals(rw, () => rw.exportCapture(o));
       },
     },
+    probe: async (browser, policy) => (await load()).probeChromium(browser, { policy }),
     cancelled: (message) => {
       const { CancelledError } = sync('cancelled');
       return new CancelledError(message);

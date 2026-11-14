@@ -121,11 +121,57 @@ export interface PreviewRendering {
   open(bundle: PreviewBundle, o: PreviewOpenRequest): Promise<PreviewSession>;
 }
 
+/**
+ * The render path a 1080p render takes on this machine, from the checks a render makes (`retake doctor`'s "Renders"
+ * line): the settings asked and where each comes from, then what the probe found — the GL, the GPU, VideoToolbox, the
+ * encoder, the frames at a time and the ffmpeg that encodes them. `policy` is absent when the settings cannot be read
+ * (`error` says why); `error` beside a policy means every render would fail.
+ */
+export interface RenderPathProbe {
+  policy?: {
+    gl: { asked: string; resolved: 'angle' | 'software'; source: string };
+    encoder: { asked: string; source: string };
+    /** Which ffmpeg encodes the frames (absent from a probe of before it). */
+    ffmpeg?: { asked: string; source: string };
+    concurrency: number;
+    concurrencySource: string;
+    platform: string;
+  };
+  error?: string;
+  gpu?: { accelerated: boolean; renderer?: string };
+  browserError?: string;
+  gl?: 'angle' | 'software';
+  videotoolbox?: { ok: boolean; error?: string };
+  encoder?: 'h264_videotoolbox' | 'libx264';
+  concurrency?: number;
+  /**
+   * The ffmpeg that would encode the frames — this machine's (`own`, its version) or the rendering library's, and why
+   * not this machine's (`note`) — `byRule` when the library's is simply what the setting gives on this path.
+   */
+  ffmpeg?: { used: 'own' | 'library'; version?: string; note?: string; byRule?: true };
+}
+
+/** The browser renders use: its path (null: none, renders do not start), where it comes from, a note when it is not the expected one. */
+export interface RenderBrowserProbe {
+  path: string | null;
+  source: string;
+  note?: string;
+}
+
+/** What a check of the machine reads of the renderer (`retake doctor`): nothing is rendered, nothing written. */
+export interface RenderMachine {
+  /** The render path a 1080p render would take under `policy`. */
+  path(policy: WorkPolicy): Promise<RenderPathProbe>;
+  /** The browser renders would use. */
+  browser(): Promise<RenderBrowserProbe>;
+}
+
 export interface Renderer {
   video(req: RenderVideoRequest): Promise<RenderVideoResult>;
   /** The files, in the order asked. */
   stills(req: RenderStillsRequest): Promise<string[]>;
   readonly previews: PreviewRendering;
+  readonly machine: RenderMachine;
 }
 
 /** What a renderer's failure may say beside its message and its kind. */

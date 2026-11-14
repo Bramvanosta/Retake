@@ -1,0 +1,34 @@
+retake doctor
+  OK    Node.js                 22.12.0
+  OK    Chromium                141.0.7390.37 · /opt/chromium/Chromium · Playwright cache · new headless launch 640 ms
+  OK    Chromium sandbox        on · read from the capture browser's command line
+  OK    Render browser          /opt/chromium/headless_shell · Playwright cache
+  WARN  GPU                     the capture browser renders in software · SwiftShader · in software: webgl
+                                → captures will look choppy and cost more CPU: check the machine has a GPU Chromium can use (a VM or a remote session often has none)
+  WARN  Renders                 no GPU found for renders (SwiftShader): software · libx264 CRF 16 · 4 frames at a time
+                                → renders in software cost ≈ 2.5× the CPU: a VM or a remote session often has no GPU Chromium can use
+  FAIL  ffmpeg                  4.4.2 · /opt/media/bin/ffmpeg · retake.yaml (needs 5.1+)
+                                → upgrade ffmpeg (macOS: brew upgrade ffmpeg · Debian/Ubuntu: a release with ffmpeg 5.1 or later)
+  OK    ffprobe                 7.1 · /opt/media/bin/ffprobe · retake.yaml
+  OK    Display                 macOS desktop (needed by --headed and retake login)
+  OK    Secrets                 macOS Keychain via security ({{keychain:service/account}} refs)
+  WARN  Notifications           osascript not found: notify steps are only logged
+  WARN  Docker                  Compose 2.29.1, but the daemon is not running (Cannot connect to the Docker daemon) — only needed by docker-compose sandboxes
+                                → start Docker Desktop or OrbStack
+  OK    Workspace               <ws> (retake.yaml) · 1 project: shop
+  OK    Template default        fonts present (4 files)
+  OK    Template editorial      fonts present (4 files)
+  OK    Template motion         fonts present (4 files)
+  WARN  MCP                     <ws>/.retake (the job queue and history of this machine) is not ignored by git · node /opt/homebrew/bin/node · worker idle (a client starts it with its first job)
+                                → add .retake/ to the workspace's .gitignore
+  OK    Captures first          no take films now · markers: <home>/captures (this user on this Mac; made by the first take) · a render running when a take starts is slowed (background priority) · cap 20 min (RETAKE_CAPTURE_HOLD_MAX_MIN)
+  OK    Project shop            <ws>/projects/shop
+  WARN  Session home            <home> is inside the git work tree <home> (git not found: cannot tell whether it is ignored): a commit could publish a signed-in session
+                                → set RETAKE_HOME to a folder outside any repository (or ignore it in that repository)
+  WARN  Persona staging·editor  never signed in
+                                → sign in once: retake -C <ws> login shop --env staging --persona editor
+  OK    Host staging·app        https://app.staging.example.com → HTTP 200 (1.3 s)
+  FAIL  Host staging·admin      http://localhost:4999 unreachable: ECONNREFUSED
+                                → start the app first (the bundled fixture: pnpm fixture)
+  OK    Host prod·app           https://app.example.com → HTTP 200 (1.3 s)
+✗ 2 failures, 7 warnings

@@ -84,6 +84,7 @@ export default defineConfig({
       '@retake/engine/contract': fileURLToPath(new URL('./packages/engine/src/contract.ts', import.meta.url)),
       '@retake/engine/catalogue': fileURLToPath(new URL('./packages/engine/src/catalogue.ts', import.meta.url)),
       '@retake/engine/integrations': fileURLToPath(new URL('./packages/engine/src/integrations.ts', import.meta.url)),
+      '@retake/engine/doctor': fileURLToPath(new URL('./packages/engine/src/doctor-entry.ts', import.meta.url)),
       '@retake/engine': pkg('engine'),
       '@retake/mcp': pkg('mcp'),
       '@retake/ui': pkg('ui'),

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { probeRenderPath, resolveRenderPolicy } from '@retake/editor';
-import { rendersCheck } from '../src/commands/doctor.js';
+import { rendersCheck } from '@retake/engine/doctor';
 import type { RendersProbe } from '../src/commands/doctor.js';
 import { PERSON_POLICY } from '@retake/core';
 

@@ -12,7 +12,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isTakeOwnerCommand } from '@retake/engine';
-import { capturesCheck, systemProbes } from '../src/commands/doctor.js';
+import { capturesCheck } from '@retake/engine/doctor';
+import { systemProbes } from '../src/commands/doctor.js';
 import type { CapturesProbe } from '../src/commands/doctor.js';
 
 let base: string;

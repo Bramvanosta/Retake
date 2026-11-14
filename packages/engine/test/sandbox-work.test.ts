@@ -273,6 +273,7 @@ describe('sandboxWork (L7.28)', () => {
         await writeProject(dir, [...new Set(o.force ? [env, 'sandbox'] : ['sandbox', env])]);
         return result(env);
       },
+      dockerPlaces: async () => [],
     };
     const write = async () => undefined;
     const other = await sandboxWork.init({ sandboxes, reads: diskWorkspaceReads }, before, { env: 'other', force: true, write } as never);

@@ -15,10 +15,14 @@
  * (index-db/: node:sqlite, a cache of the files for the Studio's activity feed and search), the bounded stat poll of
  * the workspace's sources and the job watch behind the Studio's event stream.
  */
-export { openWorkspace, openProject } from './workspace.js';
+export { openWorkspace, openProject, servedWorkspaceRoot, workspaceRootOf } from './workspace.js';
+export { projectLoadReport, validateProjectFiles } from './validate-files.js';
+export { INIT_WORKSPACE_YAML, initWorkspace } from './init-workspace.js';
+export type { InitResult } from './init-workspace.js';
+export type { FileValidation, FileValidationOptions } from './validate-files.js';
 export type { OpenedWorkspace, WorkspaceOptions } from './workspace.js';
-export { personaState, personaStateView, projectPersonaStates, scenarioPersonaStates, tildePath } from './auth.js';
-export type { LoginCommandOf, PersonaState, PersonaStateView } from './auth.js';
+export { ago, checkedText, loginCommandAt, recheckSessions, personaState, personaStateView, projectPersonaStates, scenarioPersonaStates, tildePath } from './auth.js';
+export type { LoginCommandOf, PersonaState, PersonaStateView, RecheckOptions, SessionRecheck } from './auth.js';
 export { ENGINE_ERROR_CODES, EngineError, toEngineError } from './errors.js';
 export type { EngineErrorCode } from './errors.js';
 export { checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';

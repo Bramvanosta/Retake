@@ -70,4 +70,9 @@ export interface Sandboxes {
   open(project: LoadedProject, env: string | undefined, policy: WorkPolicy): Promise<SandboxHandle>;
   /** Scaffold a docker-compose sandbox in the project (its files written through `o.write`, the project store). */
   init(project: LoadedProject, o: InitSandboxOptions): Promise<InitSandboxResult>;
+  /**
+   * Where a docker binary is looked for after PATH (Docker Desktop's, OrbStack's, Homebrew's… under `home`), in the
+   * order docker-compose sandboxes look: what `retake doctor` checks. Nothing is run.
+   */
+  dockerPlaces(home: string): Promise<string[]>;
 }

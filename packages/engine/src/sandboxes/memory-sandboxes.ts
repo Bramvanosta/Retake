@@ -88,6 +88,11 @@ export class MemorySandboxes implements Sandboxes {
     this.calls.push({ op: 'init', ...(o.env !== undefined ? { env: o.env } : {}) });
     throw new SandboxError('the in-memory sandboxes write no scaffold: use the sandbox package (packageSandboxes) to init one');
   }
+
+  /** No docker in memory: no place to look for one. */
+  async dockerPlaces(_home: string): Promise<string[]> {
+    return [];
+  }
 }
 
 class MemorySandbox implements SandboxHandle {

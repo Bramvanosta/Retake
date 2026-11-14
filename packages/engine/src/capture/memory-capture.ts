@@ -12,7 +12,7 @@
  * an inspection's report, the filming events and the hooks through the handed hook runner, with no browser — and the
  * run contract (engine/test/capture-runner-contract.ts) runs it beside the runner package; the recording's window, the
  * sessions, the js-hook pages and the site come from memory-sessions.ts, the raw export from memory-raw.ts (its calls
- * kept in `calls` too), or from the options.
+ * kept in `calls` too), the browser's probe (`probe`) finds no browser — or each from the options.
  */
 import type { ErrorKind } from '@retake/core/base';
 import type { RunRecord } from '@retake/core/run';
@@ -51,7 +51,12 @@ export interface MemoryCaptureRunnerOptions {
   hookPages?: HookPages;
   site?: CaptureRunner['site'];
   raw?: CaptureRaw;
+  /** What `probe` answers (default: a browser that is not found — no browser in memory). */
+  probe?: CaptureRunner['probe'];
 }
+
+/** The capture browser of a runner with no browser: none is known, none launched. */
+const NO_BROWSER: CaptureRunner['probe'] = async () => ({ path: null, source: 'playwright', exists: false, launched: false });
 
 export class MemoryCaptureRunner implements CaptureRunner {
   readonly calls: MemoryCaptureCall[] = [];
@@ -62,6 +67,7 @@ export class MemoryCaptureRunner implements CaptureRunner {
   readonly hookPages: HookPages;
   readonly site: CaptureRunner['site'];
   readonly raw: CaptureRaw;
+  readonly probe: CaptureRunner['probe'];
   readonly #fail: MemoryStepFailure | undefined;
   readonly #clock: Clock;
   #loaded = false;
@@ -72,6 +78,7 @@ export class MemoryCaptureRunner implements CaptureRunner {
     this.hookPages = o.hookPages ?? memoryHookPages();
     this.site = o.site ?? memorySite();
     this.raw = o.raw ?? memoryRaw(this.calls);
+    this.probe = o.probe ?? NO_BROWSER;
     this.#fail = o.fail;
     this.#clock = o.clock ?? new ManualClock('2026-11-11T12:00:00.000Z');
   }

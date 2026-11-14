@@ -83,6 +83,15 @@ export function captureSessionsContract(adapter: string, make: (name: string) =>
       expect(await c.runner.sessions.status(file)).toEqual(rec);
     });
 
+    it("a check's result saved is the last status read next: version 1, stamped when it was saved", async () => {
+      const c = await make('save');
+      const file = c.persona('ada').statusFile;
+      await c.runner.sessions.save(file, { status: 'valid', by: 'auth-status', at: 'http://127.0.0.1/app', detail: 'app shows "Ada"' });
+      const read = await c.runner.sessions.status(file);
+      expect(read).toEqual({ version: 1, status: 'valid', by: 'auth-status', at: 'http://127.0.0.1/app', detail: 'app shows "Ada"', checked_at: expect.any(String) });
+      expect(Number.isNaN(Date.parse(read!.checked_at))).toBe(false);
+    });
+
     it('a js-hook browser of another runner is refused, never used', async () => {
       const c = await make('foreign');
       const env = resolveEnvironment(c.project, 'test');

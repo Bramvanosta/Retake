@@ -7,11 +7,10 @@
  * environment variable): never the token itself — and says that stdio is the safe default. A fixed port held by a
  * listener that is not this account's Retake MCP server is refused, with the advice to rotate the token.
  */
-import { existsSync, statSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientPath, findWorkspaceRoot } from '@retake/core/io';
-import { EngineError } from '@retake/engine';
+import { clientPath } from '@retake/core/io';
+import { EngineError, servedWorkspaceRoot } from '@retake/engine';
 import {
   MCP_HTTP_TOKEN_ENV,
   SERVER_NAME,
@@ -113,21 +112,12 @@ export function studioBin(): string {
   return basename(pkg) === 'src' ? join(dirname(pkg), 'dist', 'bin.js') : join(pkg, 'bin.js');
 }
 
-function isDir(p: string): boolean {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 /**
  * The workspace root `retake mcp` (and `retake ui`) serves: `--root`, $RETAKE_ROOT or the retake.yaml lookup; it
  * must look like one.
  */
 export function workspaceRoot(global: GlobalOptions): string | undefined {
-  const root = global.root ? resolve(global.root) : findWorkspaceRoot();
-  return existsSync(join(root, 'retake.yaml')) || isDir(join(root, 'projects')) ? root : undefined;
+  return servedWorkspaceRoot(cliPorts.reads, global.root);
 }
 
 export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommandOptions): Promise<ExitCode> {

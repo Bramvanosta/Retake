@@ -5,7 +5,8 @@
  *
  * What it writes: `video` writes a few bytes to `out` (a marker, not a playable file: whole on success, nothing after
  * a failure or a cancel) and answers a software / libx264 record with no `probe`; `stills` writes a 1 × 1 PNG per
- * frame; a preview session writes a 1 × 1 PNG (`still`) or GIF (`gif`). What it honours of the port: the signal
+ * frame; a preview session writes a 1 × 1 PNG (`still`) or GIF (`gif`); `machine` answers the software path and no render
+ * browser. What it honours of the port: the signal
  * (`cancelled`), a frame outside the plan (`invalid`), the progress order, `onProcess` at most once, a session closed.
  * Every request is kept in `calls`.
  */
@@ -19,6 +20,7 @@ import type {
   PreviewOpenRequest,
   PreviewRendering,
   PreviewSession,
+  RenderMachine,
   RenderProcess,
   RenderStillsRequest,
   RenderVideoRequest,
@@ -46,7 +48,26 @@ export interface MemoryRendererOptions {
   process?: RenderProcess;
   /** Warnings every render and session reports. */
   warnings?: string[];
+  /** What `machine` answers (default: the software path, libx264, no render browser). */
+  machine?: RenderMachine;
 }
+
+/** The machine of a renderer with no browser and no encoder: the software path, and no render browser. */
+const SOFTWARE_MACHINE: RenderMachine = {
+  path: async () => ({
+    policy: {
+      gl: { asked: 'auto', resolved: 'software', source: 'default' },
+      encoder: { asked: 'auto', source: 'default' },
+      concurrency: 1,
+      concurrencySource: 'default',
+      platform: 'memory',
+    },
+    gl: 'software',
+    encoder: 'libx264',
+    concurrency: 1,
+  }),
+  browser: async () => ({ path: null, source: 'none' }),
+};
 
 const cancelledError = (): Error => new EngineError('cancelled', 'render cancelled: no output written');
 
@@ -63,8 +84,11 @@ export class MemoryRenderer implements Renderer {
   readonly #bundles = new WeakSet<PreviewBundle>();
   readonly #seen = new Set<string>();
 
+  readonly machine: RenderMachine;
+
   constructor(o: MemoryRendererOptions = {}) {
     this.#o = o;
+    this.machine = o.machine ?? SOFTWARE_MACHINE;
   }
 
   async video(req: RenderVideoRequest): Promise<RenderVideoResult> {

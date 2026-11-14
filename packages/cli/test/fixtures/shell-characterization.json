@@ -1,0 +1,92 @@
+{
+  "validate shop": {
+    "code": 1,
+    "out": "",
+    "err": "✓ project shop <ws>/projects/shop/project.yaml\n✓ template default\n✗ scenario bad <ws>/projects/shop/scenarios/bad.yaml  1 error\n  <ws>/projects/shop/scenarios/bad.yaml:7:9 error scenes[0].steps[0]: unknown action \"clik\" (did you mean \"click\"?)\n✗ scenario broken <ws>/projects/shop/scenarios/broken.yaml  1 error\n  <ws>/projects/shop/scenarios/broken.yaml:2:1 error YAML: Flow sequence in block collection must be sufficiently indented and end with a ]\n✓ scenario good <ws>/projects/shop/scenarios/good.yaml\n"
+  },
+  "validate shop --json": {
+    "code": 1,
+    "out": "{\n  \"ok\": false,\n  \"files\": [\n    {\n      \"kind\": \"project\",\n      \"name\": \"shop\",\n      \"file\": \"<ws>/projects/shop/project.yaml\",\n      \"issues\": []\n    },\n    {\n      \"kind\": \"template\",\n      \"name\": \"default\",\n      \"issues\": []\n    },\n    {\n      \"kind\": \"scenario\",\n      \"name\": \"bad\",\n      \"file\": \"<ws>/projects/shop/scenarios/bad.yaml\",\n      \"issues\": [\n        {\n          \"severity\": \"error\",\n          \"path\": [\n            \"scenes\",\n            0,\n            \"steps\",\n            0\n          ],\n          \"message\": \"unknown action \\\"clik\\\" (did you mean \\\"click\\\"?)\",\n          \"line\": 7,\n          \"col\": 9\n        }\n      ]\n    },\n    {\n      \"kind\": \"scenario\",\n      \"name\": \"broken\",\n      \"file\": \"<ws>/projects/shop/scenarios/broken.yaml\",\n      \"issues\": [\n        {\n          \"severity\": \"error\",\n          \"path\": [],\n          \"message\": \"YAML: Flow sequence in block collection must be sufficiently indented and end with a ]\",\n          \"line\": 2,\n          \"col\": 1\n        }\n      ]\n    },\n    {\n      \"kind\": \"scenario\",\n      \"name\": \"good\",\n      \"file\": \"<ws>/projects/shop/scenarios/good.yaml\",\n      \"issues\": []\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "validate shop good": {
+    "code": 0,
+    "out": "",
+    "err": "✓ project shop <ws>/projects/shop/project.yaml\n✓ template default\n✓ scenario good <ws>/projects/shop/scenarios/good.yaml\n"
+  },
+  "validate shop bad --env staging": {
+    "code": 1,
+    "out": "",
+    "err": "✓ project shop <ws>/projects/shop/project.yaml\n✓ template default\n✗ scenario bad <ws>/projects/shop/scenarios/bad.yaml  1 error\n  <ws>/projects/shop/scenarios/bad.yaml:7:9 error scenes[0].steps[0]: unknown action \"clik\" (did you mean \"click\"?)\n"
+  },
+  "validate shop missing": {
+    "code": 1,
+    "out": "",
+    "err": "✓ project shop <ws>/projects/shop/project.yaml\n✓ template default\n✗ scenario missing: scenario \"missing\" not found in <ws>/projects/shop/scenarios (available: bad, broken, good)\n"
+  },
+  "validate odd --json": {
+    "code": 1,
+    "out": "{\n  \"ok\": false,\n  \"files\": [\n    {\n      \"kind\": \"project\",\n      \"name\": \"odd\",\n      \"file\": \"<ws>/projects/odd/project.yaml\",\n      \"issues\": [\n        {\n          \"severity\": \"error\",\n          \"path\": [\n            \"environments\",\n            \"prod\",\n            \"bogus\"\n          ],\n          \"message\": \"expected a string or a mapping, got 3\",\n          \"line\": 4,\n          \"col\": 49\n        }\n      ]\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "validate nope": {
+    "code": 1,
+    "out": "",
+    "err": "✗ project nope: project \"nope\" not found in <ws>/projects (available: odd, shop)\n"
+  },
+  "list": {
+    "code": 0,
+    "out": "Projects <ws>/projects\n  odd   project <ws>/projects/odd/project.yaml has 1 error:\n  shop  Shop  3 scenarios: bad, broken, good\nThemes templates\n  default, editorial, motion\n",
+    "err": ""
+  },
+  "list --json": {
+    "code": 0,
+    "out": "{\n  \"root\": \"<ws>\",\n  \"projects\": [\n    {\n      \"slug\": \"odd\",\n      \"name\": \"Odd\",\n      \"dir\": \"<ws>/projects/odd\",\n      \"scenarios\": [],\n      \"environments\": [],\n      \"error\": \"project <ws>/projects/odd/project.yaml has 1 error:\"\n    },\n    {\n      \"slug\": \"shop\",\n      \"name\": \"Shop\",\n      \"dir\": \"<ws>/projects/shop\",\n      \"scenarios\": [\n        \"bad\",\n        \"broken\",\n        \"good\"\n      ],\n      \"environments\": [\n        \"staging\"\n      ]\n    }\n  ],\n  \"templates\": [\n    {\n      \"name\": \"default\",\n      \"dir\": \"<templates>/default\",\n      \"source\": \"workspace\"\n    },\n    {\n      \"name\": \"editorial\",\n      \"dir\": \"<templates>/editorial\",\n      \"source\": \"workspace\"\n    },\n    {\n      \"name\": \"motion\",\n      \"dir\": \"<templates>/motion\",\n      \"source\": \"workspace\"\n    }\n  ]\n}\n",
+    "err": ""
+  },
+  "auth status": {
+    "code": 0,
+    "out": "shop · env staging\n  editor  never     never signed in\n          → sign in once: retake -C <ws> login shop --env staging --persona editor\n  viewer  never     never signed in\n          → sign in once: retake -C <ws> login shop --env staging --persona viewer\n",
+    "err": "! odd: project <ws>/projects/odd/project.yaml has 1 error:\n"
+  },
+  "auth status --json": {
+    "code": 0,
+    "out": "{\n  \"personas\": [\n    {\n      \"project\": \"shop\",\n      \"env\": \"staging\",\n      \"persona\": \"editor\",\n      \"session\": \"profile\",\n      \"legacy\": false,\n      \"status\": \"never\",\n      \"profile\": \"<home>/profiles/shop/staging/editor\",\n      \"snapshot\": \"<home>/sessions/shop/staging/editor.json\",\n      \"command\": \"retake -C <ws> login shop --env staging --persona editor\"\n    },\n    {\n      \"project\": \"shop\",\n      \"env\": \"staging\",\n      \"persona\": \"viewer\",\n      \"session\": \"profile\",\n      \"legacy\": false,\n      \"status\": \"never\",\n      \"profile\": \"<home>/profiles/shop/staging/viewer\",\n      \"snapshot\": \"<home>/sessions/shop/staging/viewer.json\",\n      \"command\": \"retake -C <ws> login shop --env staging --persona viewer\"\n    }\n  ]\n}\n",
+    "err": "! odd: project <ws>/projects/odd/project.yaml has 1 error:\n"
+  },
+  "auth status --project shop --env staging": {
+    "code": 0,
+    "out": "shop · env staging\n  editor  never     never signed in\n          → sign in once: retake -C <ws> login shop --env staging --persona editor\n  viewer  never     never signed in\n          → sign in once: retake -C <ws> login shop --env staging --persona viewer\n",
+    "err": ""
+  },
+  "auth status --env staging": {
+    "code": 2,
+    "out": "",
+    "err": "✗ --env needs --project (environments belong to a project)\n"
+  },
+  "new shop": {
+    "code": 1,
+    "out": "",
+    "err": "✗ project \"shop\" already exists (<ws>/projects/shop)\n"
+  },
+  "init fresh": {
+    "code": 0,
+    "out": "",
+    "err": "✓ workspace <ws>/fresh: retake.yaml, projects/ — next: retake new <slug> (from that folder, or with --root)\n"
+  },
+  "init the workspace": {
+    "code": 0,
+    "out": "",
+    "err": "✓ <ws> already is a workspace (retake.yaml left as it is)\n"
+  },
+  "init a folder not empty": {
+    "code": 1,
+    "out": "",
+    "err": "✗ <ws>/projects is not empty and is not a workspace (no retake.yaml): choose an empty or new folder, or add a retake.yaml yourself\n"
+  },
+  "init a file": {
+    "code": 1,
+    "out": "",
+    "err": "✗ <ws>/projects/shop/project.yaml is not a folder\n"
+  }
+}

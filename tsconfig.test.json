@@ -48,6 +48,7 @@
       "@retake/engine/contract": ["./packages/engine/src/contract.ts"],
       "@retake/engine/catalogue": ["./packages/engine/src/catalogue.ts"],
       "@retake/engine/integrations": ["./packages/engine/src/integrations.ts"],
+      "@retake/engine/doctor": ["./packages/engine/src/doctor-entry.ts"],
       "@retake/engine": ["./packages/engine/src/index.ts"],
       "@retake/mcp": ["./packages/mcp/src/index.ts"],
       "@retake/ui": ["./packages/ui/src/index.ts"],

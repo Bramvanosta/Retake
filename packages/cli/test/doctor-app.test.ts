@@ -15,9 +15,13 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, RETAKE_VERSION } from '@retake/core';
 import { APP_BUNDLE_ID, UPDATES_FILE, readUpdateChecks, writeAppSettings } from '@retake/engine/integrations';
 import type { BundleInfo } from '@retake/core/io';
-import { appChecks, doctorChecks, launchUpdates, updateCheck } from '../src/commands/doctor.js';
+import { appChecks as appChecksAt, launchUpdates, updateCheck } from '@retake/engine/doctor';
+import { doctorChecks } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
 import { diskOutputs, diskWorkspaceReads } from '@retake/engine';
+
+/** The app's lines seen now. */
+const appChecks = (p: DoctorProbes) => appChecksAt(p, Date.now());
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'doctor-app-')));
 afterAll(() => rmSync(base, { recursive: true, force: true }));

@@ -1,12 +1,19 @@
 import { resolve } from 'node:path';
-import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core/environment';
-import { listProjects } from '@retake/core/io';
-import { LoginOptionError, loginTarget, projectPersonaStates, signInPersona as signInCore, tildePath } from '@retake/engine';
+import {
+  LoginOptionError,
+  ago as agoAt,
+  checkedText as checkedTextAt,
+  loginCommandAt,
+  loginTarget,
+  projectPersonaStates,
+  recheckSessions,
+  signInPersona as signInCore,
+  tildePath,
+} from '@retake/engine';
 import type { LoginCommandOf, PersonaState } from '@retake/engine';
 import type { LoadedProject } from '@retake/core/model';
 import type { ResolvedPersona } from '@retake/core/environment';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { PersonaCheckResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -29,18 +36,12 @@ export function retakeCommand(global: GlobalOptions): string {
 
 /** The `retake login` command messages print; with `-C <root>` when the command line named the workspace root. */
 export function loginCommandFor(global: GlobalOptions): LoginCommandOf {
-  return (p) => coreLoginCommand(p).replace(/^retake /, `${retakeCommand(global)} `);
+  return loginCommandAt(retakeCommand(global));
 }
 
-/** "just now", "42 s ago", "3 min ago", "5 h ago", "2 days ago". */
+/** "just now", "42 s ago", "3 min ago", "5 h ago", "2 days ago" (the engine's words). */
 export function ago(iso: string, now = Date.now()): string {
-  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
-  if (!Number.isFinite(s)) return iso;
-  if (s < 5) return 'just now';
-  if (s < 60) return `${s} s ago`;
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 48 * 3600) return `${Math.round(s / 3600)} h ago`;
-  return `${Math.round(s / 86400)} days ago`;
+  return agoAt(iso, now);
 }
 
 // ── retake login ─────────────────────────────────────────────────────────────
@@ -145,20 +146,9 @@ export async function loginCommand(ui: Ui, global: GlobalOptions, projectArg: st
 
 // ── retake auth status ───────────────────────────────────────────────────────
 
-/** "checked 2 min ago (preflight of run …)". */
+/** "checked 2 min ago (preflight of run …)" (the engine's words). */
 export function checkedText(s: Pick<PersonaState, 'checked_at' | 'by' | 'run'>, now = Date.now()): string {
-  if (!s.checked_at) return '';
-  const by =
-    s.by === 'preflight'
-      ? `preflight of run ${s.run ?? '?'}`
-      : s.by === 'run'
-        ? `expired during run ${s.run ?? '?'}`
-        : s.by === 'login'
-          ? 'retake login'
-          : s.by === 'auth-status'
-            ? 'auth status --check'
-            : (s.by ?? '');
-  return `checked ${ago(s.checked_at, now)}${by ? ` (${by})` : ''}`;
+  return checkedTextAt(s, now);
 }
 
 export interface AuthStatusOptions {
@@ -182,7 +172,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
   const projects: LoadedProject[] = [];
   if (opts.project !== undefined) projects.push(await openProject(ws, opts.project));
   else {
-    for (const p of await listProjects(ws.root)) {
+    for (const p of await ws.reads.listProjects(ws.root)) {
       try {
         projects.push(await openProject(ws, p.dir));
       } catch (e) {
@@ -195,51 +185,21 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
     for (const r of await projectPersonaStates(project, command, cliPorts.capture.sessions, opts.env)) rows.push({ ...r, project });
   }
   if (opts.check) {
-    const { checkSavedSession, profileLock, writeStatus, PreflightError } = await import('@retake/runner-web');
-    /** Not checked now: nothing of the last check is shown with it. */
-    const unchecked = (s: PersonaState, detail: string) => {
-      Object.assign(s, { status: 'error', detail });
-      for (const k of ['checked_at', 'by', 'run', 'at'] as const) delete s[k];
-    };
     const stop = await onInterrupt(ui);
     try {
-      for (const r of rows) {
-        if (r.state.status === 'never') continue;
-        if (r.state.in_use) {
-          unchecked(r.state, 'not checked');
-          continue;
-        }
-        if (!opts.json) ui.setStatus(ui.c.dim(`  … checking ${r.project.slug} · ${r.state.env} · ${r.state.persona}`));
-        let res: PersonaCheckResult;
-        try {
-          res = await checkSavedSession({
-            policy: ws.policy,
-            project: r.project,
-            env: resolveEnvironment(r.project, r.state.env),
-            persona: r.persona,
-            signal: stop.signal,
-            log: (_level, msg) => ui.debug(msg),
-          });
-        } catch (e) {
-          if (stop.interrupted) return EXIT.interrupted;
-          if (e instanceof PreflightError && r.persona.profileDir) {
-            // Opened meanwhile (a retake login window?).
-            const lock = await profileLock(r.persona.profileDir);
-            r.state.in_use = lock.pid ? { pid: lock.pid } : {};
-            unchecked(r.state, 'not checked');
-          } else {
-            unchecked(r.state, `not checked: ${errorMessage(e).split('\n')[0]}`);
-          }
-          continue;
-        }
-        ui.clearStatus();
-        if (res.status === 'unchecked') continue;
-        await writeStatus(r.persona.statusFile, { status: res.status, by: 'auth-status', ...(res.at ? { at: res.at } : {}), detail: res.detail });
-        Object.assign(r.state, { status: res.status, checked_at: new Date().toISOString(), by: 'auth-status', detail: res.detail });
-        delete r.state.run;
-        delete r.state.at;
-        if (res.at) r.state.at = res.at;
-      }
+      const done = await recheckSessions(rows, {
+        policy: ws.policy,
+        sessions: cliPorts.capture.sessions,
+        now: () => cliPorts.clock.now(),
+        signal: stop.signal,
+        interrupted: () => stop.interrupted,
+        log: (_level, msg) => ui.debug(msg),
+        onCheck: (r) => {
+          if (!opts.json) ui.setStatus(ui.c.dim(`  … checking ${r.project.slug} · ${r.state.env} · ${r.state.persona}`));
+        },
+        onChecked: () => ui.clearStatus(),
+      });
+      if (done === 'interrupted') return EXIT.interrupted;
     } finally {
       stop.dispose();
       ui.clearStatus();

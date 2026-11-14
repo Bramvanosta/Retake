@@ -1,0 +1,135 @@
+{
+  "ok": false,
+  "failures": 2,
+  "warnings": 7,
+  "checks": [
+    {
+      "status": "ok",
+      "name": "Node.js",
+      "detail": "22.12.0"
+    },
+    {
+      "status": "ok",
+      "name": "Chromium",
+      "detail": "141.0.7390.37 · /opt/chromium/Chromium · Playwright cache · new headless launch 640 ms"
+    },
+    {
+      "status": "ok",
+      "name": "Chromium sandbox",
+      "detail": "on · read from the capture browser's command line"
+    },
+    {
+      "status": "ok",
+      "name": "Render browser",
+      "detail": "/opt/chromium/headless_shell · Playwright cache"
+    },
+    {
+      "status": "warn",
+      "name": "GPU",
+      "detail": "the capture browser renders in software · SwiftShader · in software: webgl",
+      "hint": "captures will look choppy and cost more CPU: check the machine has a GPU Chromium can use (a VM or a remote session often has none)"
+    },
+    {
+      "status": "warn",
+      "name": "Renders",
+      "detail": "no GPU found for renders (SwiftShader): software · libx264 CRF 16 · 4 frames at a time",
+      "hint": "renders in software cost ≈ 2.5× the CPU: a VM or a remote session often has no GPU Chromium can use"
+    },
+    {
+      "status": "fail",
+      "name": "ffmpeg",
+      "detail": "4.4.2 · /opt/media/bin/ffmpeg · retake.yaml (needs 5.1+)",
+      "hint": "upgrade ffmpeg (macOS: brew upgrade ffmpeg · Debian/Ubuntu: a release with ffmpeg 5.1 or later)"
+    },
+    {
+      "status": "ok",
+      "name": "ffprobe",
+      "detail": "7.1 · /opt/media/bin/ffprobe · retake.yaml"
+    },
+    {
+      "status": "ok",
+      "name": "Display",
+      "detail": "macOS desktop (needed by --headed and retake login)"
+    },
+    {
+      "status": "ok",
+      "name": "Secrets",
+      "detail": "macOS Keychain via security ({{keychain:service/account}} refs)"
+    },
+    {
+      "status": "warn",
+      "name": "Notifications",
+      "detail": "osascript not found: notify steps are only logged"
+    },
+    {
+      "status": "warn",
+      "name": "Docker",
+      "detail": "Compose 2.29.1, but the daemon is not running (Cannot connect to the Docker daemon) — only needed by docker-compose sandboxes",
+      "hint": "start Docker Desktop or OrbStack"
+    },
+    {
+      "status": "ok",
+      "name": "Workspace",
+      "detail": "<ws> (retake.yaml) · 1 project: shop"
+    },
+    {
+      "status": "ok",
+      "name": "Template default",
+      "detail": "fonts present (4 files)"
+    },
+    {
+      "status": "ok",
+      "name": "Template editorial",
+      "detail": "fonts present (4 files)"
+    },
+    {
+      "status": "ok",
+      "name": "Template motion",
+      "detail": "fonts present (4 files)"
+    },
+    {
+      "status": "warn",
+      "name": "MCP",
+      "detail": "<ws>/.retake (the job queue and history of this machine) is not ignored by git · node /opt/homebrew/bin/node · worker idle (a client starts it with its first job)",
+      "hint": "add .retake/ to the workspace's .gitignore"
+    },
+    {
+      "status": "ok",
+      "name": "Captures first",
+      "detail": "no take films now · markers: <home>/captures (this user on this Mac; made by the first take) · a render running when a take starts is slowed (background priority) · cap 20 min (RETAKE_CAPTURE_HOLD_MAX_MIN)"
+    },
+    {
+      "status": "ok",
+      "name": "Project shop",
+      "detail": "<ws>/projects/shop"
+    },
+    {
+      "status": "warn",
+      "name": "Session home",
+      "detail": "<home> is inside the git work tree <home> (git not found: cannot tell whether it is ignored): a commit could publish a signed-in session",
+      "hint": "set RETAKE_HOME to a folder outside any repository (or ignore it in that repository)"
+    },
+    {
+      "status": "warn",
+      "name": "Persona staging·editor",
+      "detail": "never signed in",
+      "hint": "sign in once: retake -C <ws> login shop --env staging --persona editor"
+    },
+    {
+      "status": "ok",
+      "name": "Host staging·app",
+      "detail": "https://app.staging.example.com → HTTP 200 (1.3 s)"
+    },
+    {
+      "status": "fail",
+      "name": "Host staging·admin",
+      "detail": "http://localhost:4999 unreachable: ECONNREFUSED",
+      "hint": "start the app first (the bundled fixture: pnpm fixture)"
+    },
+    {
+      "status": "ok",
+      "name": "Host prod·app",
+      "detail": "https://app.example.com → HTTP 200 (1.3 s)"
+    }
+  ]
+}

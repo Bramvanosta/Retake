@@ -1,12 +1,12 @@
 /**
  * The product's renderer: the editor's driver (its bundle, the render browser, the encoder and the probe) as the
- * engine's port. The editor is loaded through the engine's loader (lazy.ts), and this is the only place the editor's
+ * engine's port, and the editor's probes of this machine (`machine`). The editor is loaded through the engine's loader (lazy.ts), and this is the only place the editor's
  * driver is made: a composition root (the job process, the jobs worker, a shell's command run in process) calls
  * `editorRenderer()` and hands the port to the work.
  */
 import type { PreviewBackend } from '@retake/editor';
 import { editor } from '../lazy.js';
-import type { Renderer } from './renderer.js';
+import type { RenderMachine, Renderer } from './renderer.js';
 
 /**
  * Made on first use, once — and again after a failure: a load or a build that failed is not kept, so the next request
@@ -31,7 +31,7 @@ function once<T>(make: () => Promise<T>): () => Promise<T> {
  * for Remotion); the driver is made once and serves every request after it.
  */
 export function editorRenderer(): Renderer {
-  const driver = once(async () => (await editor()).createRenderer() satisfies Renderer);
+  const driver = once(async () => (await editor()).createRenderer() satisfies Omit<Renderer, 'machine'>);
   return {
     video: async (req) => (await driver()).video(req),
     stills: async (req) => (await driver()).stills(req),
@@ -39,8 +39,15 @@ export function editorRenderer(): Renderer {
       bundle: async (o) => (await driver()).previews.bundle(o),
       open: async (bundle, o) => (await driver()).previews.open(bundle, o),
     },
+    machine: editorMachine,
   };
 }
+
+/** The editor's probes of this machine: the render path (probeRenderPath) and the render browser (renderBrowser); no driver is made. */
+const editorMachine: RenderMachine = {
+  path: async (policy) => (await editor()).probeRenderPath({ workPolicy: policy }),
+  browser: async () => (await editor()).renderBrowser(),
+};
 
 /**
  * `renderer` with its previews drawn by a preview backend of the editor's instead (in-process tests of library
@@ -56,5 +63,6 @@ export function withPreviewBackend(renderer: Renderer, backend: PreviewBackend):
       bundle: async (o) => (await previews()).bundle(o),
       open: async (bundle, o) => (await previews()).open(bundle, o),
     },
+    machine: renderer.machine,
   };
 }
