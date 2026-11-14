@@ -139,6 +139,8 @@ export interface RenderOutputs extends OutputFolder {
    * with code EEXIST when anything is already there (two renders never take one version).
    */
   lock(path: string, text: string): Promise<void>;
+  /** Remove the lock file `path`: a file only (a folder there is a failure, said on the job); nothing there is done. */
+  unlock(path: string): Promise<void>;
 }
 
 /** The engine's generated outputs, by kind. */

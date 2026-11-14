@@ -59,6 +59,7 @@ const nodeOutputFs: OutputFs = {
   realpath: (path) => realpath(path),
   remove: (path) => rm(path, { recursive: true, force: true }),
   rmdir: (path) => rmdir(path),
+  removeFile: (path) => rm(path, { force: true }),
   // core's reads of records (renders/): names, a record's text without following a link, a file's identity.
   names: NODE_RECORD_FS.names,
   text: NODE_RECORD_FS.text,

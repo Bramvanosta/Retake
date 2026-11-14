@@ -289,9 +289,13 @@ export function outputsContract(name: string, make: () => Promise<OutputsFixture
           (e: NodeJS.ErrnoException) => e.code,
         ),
       ).toBe('EEXIST');
-      await o.renders.remove(lock);
+      await o.renders.unlock(lock);
       await o.renders.lock(lock, 'job 4\n');
       expect(await o.renders.readText(lock)).toBe('job 4\n');
+      // Unlocking removes a lock file only: a folder in its place stays, with what it holds, and the release fails.
+      expect(await o.renders.unlock(folder).then(() => 'removed', () => 'refused')).toBe('refused');
+      expect(await o.renders.readText(join(folder, 'x'))).toBe('x');
+      await o.renders.unlock(join(o.renders.dirOf(dir), '.quote-v9.lock'));
     });
 
     it('finds a render someone named through the one finder: an id, `latest` of a scenario, or why none is', async () => {

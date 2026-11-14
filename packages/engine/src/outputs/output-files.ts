@@ -40,6 +40,8 @@ export interface OutputFs extends RunFolderFs, RecordFs {
   remove(path: string): Promise<void>;
   /** Remove an empty folder (fails when it holds anything, as rmdir does). */
   rmdir(path: string): Promise<void>;
+  /** Remove one file (a folder there fails); nothing there is no failure. */
+  removeFile(path: string): Promise<void>;
 }
 
 const missing = (e: unknown): boolean => ['ENOENT', 'ENOTDIR'].includes((e as NodeJS.ErrnoException | null)?.code ?? '');
@@ -131,6 +133,7 @@ function renderOutputsOn(fs: OutputFs): RenderOutputs {
   return {
     ...outputFolderOn(fs, OUTPUT_DIRS.renders),
     lock: (path, text) => fs.createExclusive(path, text),
+    unlock: (path) => fs.removeFile(path),
     entries: (rendersDir, only) => readRendersFolder(rendersDir, { fs, ...(only ? { only } : {}) }),
     listed: (rendersDir, name) => readListedRender(rendersDir, name, { fs }),
     byId: (rendersDir, id) => readRenderById(rendersDir, id, { fs }),

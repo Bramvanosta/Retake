@@ -70,7 +70,7 @@ export async function reserveVersion(renders: RenderOutputs, dir: string, name: 
     const lock = versionLockFile(dir, name, version);
     try {
       await renders.lock(lock, `${owner}\n`);
-      return { version, release: () => renders.remove(lock) };
+      return { version, release: () => renders.unlock(lock) };
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
     }
@@ -80,5 +80,5 @@ export async function reserveVersion(renders: RenderOutputs, dir: string, name: 
 
 /** Free a version reserved before, by its number (a render job cancelled before it started, or failed early). */
 export async function releaseVersion(renders: RenderOutputs, dir: string, name: string, version: number): Promise<void> {
-  await renders.remove(versionLockFile(dir, name, version));
+  await renders.unlock(versionLockFile(dir, name, version));
 }

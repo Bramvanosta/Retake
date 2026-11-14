@@ -213,6 +213,11 @@ export class MemoryOutputs implements Outputs {
       remove: async (path) => {
         this.remove(path);
       },
+      removeFile: async (path) => {
+        const p = normalize(path);
+        if (this.#isFolder(p)) throw fsError('EISDIR', 'rm', p);
+        if (this.#files.delete(p)) this.#touch(dirname(p));
+      },
       rmdir: async (path) => {
         const p = normalize(path);
         if (this.#files.has(p)) throw fsError('ENOTDIR', 'rmdir', p);

@@ -48,7 +48,7 @@ describe('the job handlers and the worker ports (L7.29)', () => {
     expect(ports.processes.buildStamp()).toBe(buildStamp(dirs));
     const job = { id: 'j_1', kind: 'review', root: '/w', build: 'b', supervisor: 42, digest: 'd' };
     expect(ports.processes.command(job)).toEqual(jobProcessCommand('/w', { id: 'j_1', kind: 'review', build: 'b', supervisor: 42, digest: 'd' }));
-    expect(Object.keys(ports.renderer).sort()).toEqual(['previews', 'stills', 'video']);
+    expect(Object.keys(ports.renderer).sort()).toEqual(['machine', 'previews', 'stills', 'video']);
   });
 
   it('every port of the bag is said to be read by a heavy job or not (typed over WorkerPorts: none forgotten), the reads among them', () => {
