@@ -1,4 +1,5 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
+import type { RenderOutputs } from '../outputs/outputs.js';
 import { applyHunks, diffLines, hunkStats, invertHunks, joinLines, sameHunks, textLines, errorMessage } from '@retake/core/base';
 import { COMMENT_ENTRY_ID_RE } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
@@ -106,7 +107,7 @@ export async function applyProposal(
   id: string,
   req: CommentApplyRequest,
   author: CommentAuthor,
-  o: { registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { registry?: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<CommentApplied> {
   // The scenario is written as the caller's (the Studio's: a person applies there).
   const { scope } = o;
@@ -152,11 +153,11 @@ export async function applyProposal(
     const problems: string[] = [];
     let written: CommentWritten | undefined;
     try {
-      written = await writeAppended(project, f, r, applyEntryOf(author, entry.id, edited.hash, stampOf(scope.clock)), scope);
+      written = await writeAppended(project, f, r, applyEntryOf(author, entry.id, edited.hash, stampOf(scope.clock)), { scope, renders: o.renders });
     } catch (e) {
       problems.push(`the apply was written to ${edited.file} but not recorded in the thread (${errorMessage(e).split('\n')[0]}): the thread reads the proposal as applied from the file`);
     }
-    const thread = written?.thread ?? (await threadView(project.dir, r.thread, r.hash, await renderIndex(project.dir)));
+    const thread = written?.thread ?? (await threadView(project.dir, r.thread, r.hash, await renderIndex(o.renders, project.dir)));
     return {
       thread,
       hash: written?.hash ?? r.hash,

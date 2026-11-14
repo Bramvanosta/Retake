@@ -39,9 +39,8 @@ import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
 import { pathInside, bestEffort } from '@retake/core/base';
-import { projectPath } from '@retake/core/project';
 import { renderOfFile } from '@retake/core/render';
-import { readListedRender } from '@retake/core/io';
+import type { RenderOutputs } from '../outputs/outputs.js';
 import { renderEntries } from '../render-records.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
@@ -170,20 +169,20 @@ async function readSmall(dir: string, ref: string, max: number): Promise<string 
  * A member a record lacks is no column (null). renders/ is read only when its real path lies inside the project's (a
  * folder linked out of the project is never indexed).
  */
-export async function readRenders(dir: string): Promise<RenderRow[]> {
+export async function readRenders(renders: RenderOutputs, dir: string): Promise<RenderRow[]> {
   try {
-    const [project, renders] = await Promise.all([realpath(dir), realpath(projectPath(dir, 'renders'))]);
-    if (!pathInside(renders, project, { dotDotPrefix: true })) return [];
+    const [project, real] = await Promise.all([realpath(dir), realpath(renders.dirOf(dir))]);
+    if (!pathInside(real, project, { dotDotPrefix: true })) return [];
   } catch {
     return [];
   }
   const out: RenderRow[] = [];
   // One record at a time (a record holds its whole plan): the names as the reader lists them, nothing read for that …
   const names: string[] = [];
-  await renderEntries(dir, (name) => (names.push(name), false));
+  await renderEntries(renders, dir, (name) => (names.push(name), false));
   // … then each file under the listing's rules, its row taken and the record let go.
   for (const name of names) {
-    const entry = await readListedRender(projectPath(dir, 'renders'), name);
+    const entry = await renders.listed(renders.dirOf(dir), name);
     const r = entry.read;
     const record = renderOfFile(entry) ?? (!r.ok && r.problem === 'unknown-status' && r.record.id === entry.name ? r.record : null);
     if (!record) continue;
@@ -345,7 +344,7 @@ export class WorkspaceIndex {
         } catch {
           unreadable.add(key);
         }
-      } else if (kind === 'renders') r.renders = await readRenders(dir);
+      } else if (kind === 'renders') r.renders = await readRenders(this.ws.outputs.renders, dir);
     }
     const history = keys.includes('history') ? await this.readHistory() : undefined;
     if (this.closed) return { keys: [], runs: [], generation: 0 };

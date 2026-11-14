@@ -14,10 +14,10 @@
  * When the replay ends before the page could be inspected (a preflight or sign-in failure, a refused scenario), the job
  * still succeeds and reports the run's error under `untrusted` (and which persona must sign in); a cancel cancels it.
  */
+import type { OutputFolder } from '../outputs/outputs.js';
 import type { RunOutputs } from '../outputs/outputs.js';
 import type { Secrets } from '../secrets/secrets.js';
-import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { INSPECT_ID_RE, newUlidId } from '@retake/core/ids';
 import { resolveEnvironment } from '@retake/core/environment';
@@ -96,23 +96,20 @@ export async function activeInspections(queue: JobQueueView, slug: string): Prom
  * Keep the newest `keep` inspection folders of a project (ids sort by creation); `except` is never removed, nor —
  * given the workspace's job queue — the folder of an inspection whose job is still queued or running.
  */
-export async function pruneInspections(project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
+export async function pruneInspections(inspections: OutputFolder, project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
   const active = queue !== undefined ? await bestEffort(activeInspections(queue, project.slug), 'jobs that cannot be read: null, and nothing is pruned on a guess', null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
-  let names: string[];
-  try {
-    names = (await readdir(inspectRoot(project), { withFileTypes: true })).filter((e) => e.isDirectory() && INSPECT_ID_RE.test(e.name)).map((e) => e.name);
-  } catch {
-    return [];
-  }
+  const root = inspectRoot(project);
+  const names: string[] = [];
+  for (const name of await inspections.names(root)) if (INSPECT_ID_RE.test(name) && (await inspections.kind(join(root, name))) === 'folder') names.push(name);
   const old = names
     .sort()
     .reverse()
     .slice(keep)
     .filter((n) => !except.includes(n));
-  for (const n of old) await rm(join(inspectRoot(project), n), { recursive: true, force: true }).catch(() => undefined);
+  for (const n of old) await inspections.remove(join(root, n)).catch(() => undefined);
   return old;
 }
 
@@ -277,7 +274,7 @@ export async function submitInspectJob(
   const id = newInspectId();
   const dir = inspectDir(project, id);
   await mkdir(dir, { recursive: true });
-  await pruneInspections(project, INSPECT_KEEP, [id], ctx.queue);
+  await pruneInspections(ctx.ws.outputs.inspections, project, INSPECT_KEEP, [id], ctx.queue);
   const input: InspectJobInput = {
     version: JOB_INPUT_VERSION,
     kind: 'inspect',
@@ -488,7 +485,11 @@ const InspectReportSchema = z.object({
 
 /** inspect.json as a report, or null when there is none or it is not one. */
 export async function readInspectReport(file: string): Promise<InspectReport | null> {
-  const text = await readFile(file, 'utf8').catch(() => undefined);
+  return inspectReportOf(await readFile(file, 'utf8').catch(() => undefined));
+}
+
+/** An inspection's report from its file's text (undefined: no file), through its schema; null when it is none. */
+function inspectReportOf(text: string | undefined): InspectReport | null {
   return text === undefined ? null : ((storedJson(InspectReportSchema, text) as InspectReport | undefined) ?? null);
 }
 
@@ -497,8 +498,9 @@ export async function readInspection(ws: OpenedWorkspace, slug: string, id: stri
   checkProjectSlug(slug);
   const project = await openProjectBySlug(ws, slug);
   const dir = inspectDir(project, id);
-  const report = await readInspectReport(join(dir, 'inspect.json'));
-  const marked = existsSync(join(dir, 'marked.jpg')) ? join(dir, 'marked.jpg') : null;
+  const inspections = ws.outputs.inspections;
+  const report = inspectReportOf(await inspections.readText(join(dir, 'inspect.json')));
+  const marked = (await inspections.kind(join(dir, 'marked.jpg'))) === 'file' ? join(dir, 'marked.jpg') : null;
   // Paths as this folder has them (inspect.json is a file of the project: never trusted to point elsewhere).
   if (report) {
     report.file = join(dir, 'inspect.json');

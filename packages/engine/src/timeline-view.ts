@@ -31,7 +31,8 @@ import { projectPath, scenarioRef } from '@retake/core/project';
 import { isTemplatePath, parseScenario, scenarioBlocks, stepGuard } from '@retake/core/scenario';
 import { locateAnchorStep } from '@retake/core/comments';
 import { ffprobePackets, packetsArgs, readFfprobeJson, renderOfFile, sameRender } from '@retake/core/render';
-import { readListedRender, readPlainFile, ffprobeBin, startMediaTool } from '@retake/core/io';
+import { readPlainFile, ffprobeBin, startMediaTool } from '@retake/core/io';
+import type { RenderOutputs } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { FieldAt, FieldValue } from '@retake/core/scenario';
@@ -405,11 +406,11 @@ function themeHash(hashes: ThemeHashes, dir: string): string {
 /**
  * Which of the renders `asked` (by id, as each was when a comment was made on it) show this version — `true` at the
  * same index: renders/<id>.json read through the one reader of renders/ under a listing's rules — a background read,
- * not a render someone named: its own file, never through a link, within the listing's cap (core/io
- * readListedRender) —, a record of its own file (D-10, core renderOfFile) that succeeded, the same render as the one asked
+ * not a render someone named: its own file, never through a link, within the listing's cap (the Outputs port's
+ * renders.listed) —, a record of its own file (D-10, core renderOfFile) that succeeded, the same render as the one asked
  * (core sameRender: its id and its creation time), with its plan, this plan's signature and this theme's hash.
  */
-export async function versionMatches(projectDir: string, planSha: string, themeSha: string, asked: ReadonlyArray<{ id: string; created_at: string }>): Promise<boolean[]> {
+export async function versionMatches(renders: RenderOutputs, projectDir: string, planSha: string, themeSha: string, asked: ReadonlyArray<{ id: string; created_at: string }>): Promise<boolean[]> {
   const read = new Map<string, Promise<RenderEntry>>();
   const out: boolean[] = [];
   for (const a of asked) {
@@ -418,7 +419,7 @@ export async function versionMatches(projectDir: string, planSha: string, themeS
       continue;
     }
     let entry = read.get(a.id);
-    if (!entry) read.set(a.id, (entry = readListedRender(projectPath(projectDir, 'renders'), a.id)));
+    if (!entry) read.set(a.id, (entry = renders.listed(renders.dirOf(projectDir), a.id)));
     const record = renderOfFile(await entry);
     out.push(record !== null && record.status === 'succeeded' && sameRender(record, a) && record.template_sha256 === themeSha && record.plan !== undefined && planSignature(record.plan) === planSha);
   }
@@ -475,7 +476,7 @@ async function buildView(
   const labelText = fromScenario ? planned.editText : snap.ok ? snap.bytes.toString('utf8') : undefined;
   const model = timelineOf(plan, { labels: stepLabels(labelText), timeline: planned.timeline });
   // Comment pins (read-only, L3.6 threads): the scenario's last 50.
-  const threads = await listComments(project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
+  const threads = await listComments(ws.outputs.renders, project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
   // (A plan this version made always has a signature; '' would match no record.)
   const planSha = planSignature(plan) ?? '';
   const themeSha = themeHash(hashes, planned.template.dir);
@@ -483,6 +484,7 @@ async function buildView(
   // B M5); any other only at the step, marker or segment it pointed at.
   const onTake = (threads?.threads ?? []).filter((t) => t.run_id === planned.run.id);
   const matched = await versionMatches(
+    ws.outputs.renders,
     project.dir,
     planSha,
     themeSha,

@@ -9,6 +9,7 @@
  * jobs/run-job-record.ts), these functions the line of a CLI command, record.ts the line of `retake record`. Each
  * option bag carries the caller's `clock` (the CLI's `cliPorts`): what a line without its own `at` is stamped with.
  */
+import type { OutputFolder } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { RunRecord } from '@retake/core/run';
 import { executeRun } from './execute-run.js';
@@ -80,15 +81,15 @@ export async function runInProcess(p: PreparedRun, req: RunRequest, opts: Execut
 
 /**
  * An inspection without a job (`retake inspect`): runInspection, then — when its folder is the project's
- * (`pruneUnlessOpenIn`: the workspace's job queue, whose open inspections stay) — the older inspections pruned, then the
+ * (`pruneUnlessOpenIn`: the workspace's job queue, whose open inspections stay, and the inspections of the Outputs port) — the older inspections pruned, then the
  * history line (it counts nothing: a dry replay to read a page).
  */
-export async function inspectInProcess(o: InspectionOptions & { root: string; clock: Clock; pruneUnlessOpenIn?: JobQueueView }): Promise<InspectionRun> {
+export async function inspectInProcess(o: InspectionOptions & { root: string; clock: Clock; pruneUnlessOpenIn?: { queue: JobQueueView; inspections: OutputFolder } }): Promise<InspectionRun> {
   const { root, clock, pruneUnlessOpenIn, ...inspection } = o;
   const { project } = o.prepared;
   const started = clock.monotonic();
   const run = await runInspection(inspection);
-  if (pruneUnlessOpenIn) await pruneInspections(project, INSPECT_KEEP, [o.id], pruneUnlessOpenIn);
+  if (pruneUnlessOpenIn) await pruneInspections(pruneUnlessOpenIn.inspections, project, INSPECT_KEEP, [o.id], pruneUnlessOpenIn.queue);
   const r = run.report;
   await appendHistory(
     root,

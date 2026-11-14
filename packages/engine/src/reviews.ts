@@ -106,7 +106,7 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   checkProjectSlug(slug);
   if (o.scenario !== undefined) checkScenarioName(o.scenario);
   const project = await openProjectBySlug(ws, slug);
-  const record = await renderForWork(project, renderIdArg, o.scenario !== undefined ? { scenario: o.scenario } : {});
+  const record = await renderForWork(ws.outputs.renders, project, renderIdArg, o.scenario !== undefined ? { scenario: o.scenario } : {});
   const id = record.id;
   const dir = projectPath(project.dir, 'review', id);
   const job = (await queue.list({ project: slug, kinds: ['review'], renderId: id, limit: 1 }))[0];

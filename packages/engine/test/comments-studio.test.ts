@@ -9,6 +9,7 @@
  * Counts from the thread files alone (critique B8: memoised per file, a broken file counted as a problem). The
  * `comments:` event sources (plan D9).
  */
+import { diskOutputs } from '../src/index.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
@@ -196,9 +197,9 @@ describe('the Studio channel (T1)', () => {
         else expect(chips[i]).not.toHaveProperty('step_now');
       }
       expect(chips[2]).toMatchObject({ anchor: { marker: 'proposal', step_ref: 's2.1' }, step_now: 's2.1' });
-      expect((await engineError(anchorAt(project, { render: 'quote-v1', render_created_at: undefined as never, frame: 1 }))).details?.argument).toBe('render_created_at');
-      expect((await engineError(anchorAt(project, { render: 'quote-v1', render_created_at: '2020-01-01T00:00:00.000Z', frame: 1 }))).code).toBe('conflict');
-      expect((await engineError(anchorAt(project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: v1.record.frames }))).details?.argument).toBe('frame');
+      expect((await engineError(anchorAt(diskOutputs.renders, project, { render: 'quote-v1', render_created_at: undefined as never, frame: 1 }))).details?.argument).toBe('render_created_at');
+      expect((await engineError(anchorAt(diskOutputs.renders, project, { render: 'quote-v1', render_created_at: '2020-01-01T00:00:00.000Z', frame: 1 }))).code).toBe('conflict');
+      expect((await engineError(anchorAt(diskOutputs.renders, project, { render: 'quote-v1', render_created_at: v1.record.created_at, frame: v1.record.frames }))).details?.argument).toBe('frame');
     },
     LONG,
   );
@@ -216,6 +217,7 @@ describe('the Studio channel (T1)', () => {
         { render: 'slow-v1', frame: 5, text: 'The still waits' },
         { via: 'cli', name: 'Reviewer' },
         authorScope(project, { via: 'cli', name: 'Reviewer' }),
+        diskOutputs.renders,
         PERSON_POLICY,
         FRAMES,
       );

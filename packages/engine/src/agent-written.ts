@@ -37,20 +37,22 @@
  */
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
-import { realpath, rmdir } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { canonicalJson, errorMessage, interpolate } from '@retake/core/base';
 import { resolveEnvironment } from '@retake/core/environment';
 import { hookStepNames, sqlSource, usedNamedHooks } from '@retake/core/hooks';
-import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, projectPath, statePath } from '@retake/core/project';
+import { PROJECT_FILE, PROJECT_SCENARIO_WRITES_FILE, STATE_DIR, statePath } from '@retake/core/project';
 import type { TemplateContext } from '@retake/core/base';
 import type { HookStep, LoadedProject, Scenario, WorkFileFacts } from '@retake/core/model';
 import { UNREADABLE_FILE, trustedFileChanges } from '@retake/core/hooks';
 import type { HookFileChange, TrustedHookFiles } from '@retake/core/hooks';
-import { findWorkspaceUpward, loadScenario, loadWorkspaceConfig, reserveRunId } from '@retake/core/io';
+import { findWorkspaceUpward, loadScenario, loadWorkspaceConfig } from '@retake/core/io';
 import type { Caller } from './caller.js';
-import { stampOf } from './clock.js';
+import { dateOf, stampOf } from './clock.js';
+import type { RunOutputs } from './outputs/outputs.js';
+import { runsDirOf } from './outputs/outputs.js';
 import { EngineError } from './errors.js';
 import type { Clock } from './clock.js';
 import type { HookRunner } from './hook-run/runner.js';
@@ -668,12 +670,12 @@ export async function agentWrittenShellHooks(
 }
 
 /**
- * A run id reserved before the listing (core reserveRunId: its folder made), so the listing shows the `{{run.id}}` /
+ * A run id reserved before the listing (the Outputs port's runs.reserve: its folder made, named after the Clock port's time), so the listing shows the `{{run.id}}` /
  * `{{run.dir}}` the run will have; `release` removes the folder again when it is still empty (the run did not start).
  */
-export async function reserveListedRun(project: Pick<LoadedProject, 'dir'>, scenario: string): Promise<{ id: string; dir: string; release(): Promise<void> }> {
-  const { id, dir } = await reserveRunId(projectPath(project.dir, 'runs'), scenario);
-  return { id, dir, release: () => rmdir(dir).catch(() => undefined) };
+export async function reserveListedRun(runs: RunOutputs, clock: Clock, project: Pick<LoadedProject, 'dir'>, scenario: string): Promise<{ id: string; dir: string; release(): Promise<void> }> {
+  const { id, dir } = await runs.reserve(runsDirOf(project.dir), scenario, dateOf(clock));
+  return { id, dir, release: () => runs.unreserve(dir) };
 }
 
 // ── A person's trust (`retake hooks trust`) ──────────────────────────────────

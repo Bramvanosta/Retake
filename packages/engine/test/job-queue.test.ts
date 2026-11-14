@@ -10,7 +10,20 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ulid } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import { FileJobQueue, INSPECT_KEEP, MemoryJobQueue, RECORD_KEEP, inspectRoot, newInspectId, newRecordId, pruneInspections, pruneRecords, recordsRoot, selfIdentity } from '../src/index.js';
+import {
+  FileJobQueue,
+  INSPECT_KEEP,
+  MemoryJobQueue,
+  diskOutputs,
+  RECORD_KEEP,
+  inspectRoot,
+  newInspectId,
+  newRecordId,
+  pruneInspections,
+  pruneRecords,
+  recordsRoot,
+  selfIdentity,
+} from '../src/index.js';
 import type { JobQueueView, TakeHold } from '../src/index.js';
 import { systemClock } from '../src/clock.js';
 import { RUN_INPUT, jobQueueContract } from './job-queue-contract.js';
@@ -190,9 +203,9 @@ describe('the in-memory queue serves the code that is handed a queue', () => {
     await mkdir(join(inspectRoot(p), active), { recursive: true });
     for (let i = 0; i < INSPECT_KEEP + 2; i++) await mkdir(join(inspectRoot(p), newInspectId()), { recursive: true });
     const job = await q.enqueue({ version: 1, kind: 'inspect', project: p.slug, inspect_id: active, source: { kind: 'page', page: 'shop', path: '/' }, images: 'none', submitted_by: 'mcp' } as never);
-    expect(await pruneInspections(p, INSPECT_KEEP, [], q)).not.toContain(active);
+    expect(await pruneInspections(diskOutputs.inspections, p, INSPECT_KEEP, [], q)).not.toContain(active);
     expect(existsSync(join(inspectRoot(p), active))).toBe(true);
     await q.cancel(job.id, 'test');
-    expect(await pruneInspections(p, INSPECT_KEEP, [], q)).toContain(active);
+    expect(await pruneInspections(diskOutputs.inspections, p, INSPECT_KEEP, [], q)).toContain(active);
   });
 });

@@ -47,19 +47,20 @@
  * deletion to the items a person approved (an agent's prune: engine `projects.prune` asks first, approvals.ts
  * `takePruneApproval`).
  */
-import { lstat, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LoadedProject } from '@retake/core/model';
 import type { PruneAlone, PruneKeep, PruneNewer, PruneRenderFile, PruneSaid } from '@retake/core/run';
 import type { RenderNot, RenderSaid } from '@retake/core/render';
-import { RENDER_RECORD_MAX, RUN_RECORD_MAX, readRendersFolder, readRunFolder } from '@retake/core/io';
+import { RENDER_RECORD_MAX, RUN_RECORD_MAX } from '@retake/core/io';
 import { listCommentsAndUnread } from './comments/views.js';
 import { FORMAT_VERSIONS, errorMessage, newerFormatMessage } from '@retake/core/base';
 import { isMadeRunId, parseRenderId, runIdOfScenario } from '@retake/core/ids';
-import { projectPath, projectRef } from '@retake/core/project';
+import { projectRef } from '@retake/core/project';
 import { isFinishedRunStatus, orderRuns, pruneKeeper, pruneKeptWords } from '@retake/core/run';
 import { completeRender, renderKeeper, renderNotWords, renderOfFile, renderSaidOf } from '@retake/core/render';
 import { EngineError } from './errors.js';
+import type { Outputs } from './outputs/outputs.js';
+import { runsDirOf } from './outputs/outputs.js';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;
@@ -154,15 +155,6 @@ export interface PruneKeptTake {
 /** The files of renders/ left alone that a result names under `untrusted`, at most (`renders_alone.count` holds them all). */
 export const RENDERS_ALONE_NAMED = 50;
 
-async function sizeOf(path: string): Promise<number> {
-  const st = await lstat(path).catch(() => null);
-  if (!st) return 0;
-  if (!st.isDirectory()) return st.size;
-  let n = 0;
-  for (const e of await readdir(path).catch(() => [] as string[])) n += await sizeOf(join(path, e));
-  return n;
-}
-
 /**
  * What a run.json the one reader does not take as a record says all the same — prune's own read, kept on purpose for
  * that case alone: any JSON object with a text `id` and `status`, a linked run.json followed, as prune always read
@@ -175,12 +167,11 @@ async function sizeOf(path: string): Promise<number> {
  * reader's cap (RUN_RECORD_MAX: never read whole) says nothing. Null: the file says nothing (the folder is kept and
  * counted, as ever).
  */
-async function pruneSaid(dir: string): Promise<PruneSaid | PruneNewer | null> {
-  const file = join(dir, 'run.json');
+async function pruneSaid(outputs: Outputs, dir: string): Promise<PruneSaid | PruneNewer | null> {
   try {
-    const st = await stat(file);
-    if (!st.isFile() || st.size > RUN_RECORD_MAX) return null;
-    const r = JSON.parse(await readFile(file, 'utf8')) as { scenario?: unknown; mode?: unknown; status?: unknown; id?: unknown } | null;
+    const text = await outputs.runs.readCapped(dir, 'run.json', { max: RUN_RECORD_MAX, follow: true });
+    if (!text.ok) return null;
+    const r = JSON.parse(text.text) as { scenario?: unknown; mode?: unknown; status?: unknown; id?: unknown } | null;
     if (newerFormatMessage(r, { file: 'run.json', supported: FORMAT_VERSIONS.run }) !== undefined) return { newer: true, ...(typeof r?.scenario === 'string' ? { scenario: r.scenario } : {}) };
     return r && typeof r.id === 'string' && typeof r.status === 'string' ? { scenario: r.scenario, mode: r.mode, status: r.status } : null;
   } catch {
@@ -196,24 +187,25 @@ async function pruneSaid(dir: string): Promise<PruneSaid | PruneNewer | null> {
  * cap behind the link (it could say anything: nothing is listed). Null: it says nothing — a link to nothing, to a
  * folder, to a file that is no JSON object (one dead link never stops pruning).
  */
-async function renderSaid(file: string): Promise<RenderSaid | 'too-big' | null> {
+async function renderSaid(outputs: Outputs, file: string): Promise<RenderSaid | 'too-big' | null> {
   try {
-    const st = await stat(file);
-    if (!st.isFile()) return null;
-    if (st.size > RENDER_RECORD_MAX) return 'too-big';
-    return renderSaidOf(JSON.parse(await readFile(file, 'utf8')));
+    const text = await outputs.renders.readCapped(file, { max: RENDER_RECORD_MAX, follow: true });
+    if (!text.ok) return text.problem === 'too-big' ? 'too-big' : null;
+    return renderSaidOf(JSON.parse(text.text));
   } catch {
     return null;
   }
 }
 
 /** See the module comment. */
-export async function pruneProject(project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
+export async function pruneProject(outputs: Outputs, project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
   const keepRenders = req.keep_renders ?? DEFAULT_KEEP_RENDERS;
   if (!Number.isInteger(keepRenders) || keepRenders < 1) throw new EngineError('invalid', `keep_renders ${String(req.keep_renders)}: a whole number from 1`);
   const dry = req.dry_run !== false;
   const busy = req.busy ?? (() => false);
   const items: PruneItem[] = [];
+  /** The member of the Outputs port an item's paths are in (sized and removed there). */
+  const folderOf = (kind: PruneItem['kind']) => (kind === 'run' ? outputs.runs : kind === 'render' ? outputs.renders : outputs.reviews);
 
   // Comment threads: the render each was made (or resolved) on, and that render's take.
   const threadRenders = new Set<string>();
@@ -223,7 +215,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   let notListed: string | undefined;
   const keepOf: string[] = [];
   try {
-    const { list, unread } = await listCommentsAndUnread(project, { status: 'all' });
+    const { list, unread } = await listCommentsAndUnread(outputs.renders, project, { status: 'all' });
     for (const t of list.threads) {
       threadRenders.add(t.render_id);
       threadRuns.add(t.run_id);
@@ -269,13 +261,13 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   // Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names — core's rule
   // (renderKeeper), fed every `*.json` of renders/ as the one reader answers it. A record file that is a link was not
   // opened by the reader: what it says all the same is prune's own read through the link.
-  const rendersDir = projectPath(project.dir, 'renders');
-  const rendersFiles = await readdir(rendersDir).catch(() => [] as string[]);
+  const rendersDir = outputs.renders.dirOf(project.dir);
+  const rendersFiles = await outputs.renders.names(rendersDir);
   const renderRule = renderKeeper({ keep: keepRenders, thread: (id) => threadRenders.has(id), busy, unread: unreadRender });
-  const renderEntries = await readRendersFolder(rendersDir);
+  const renderEntries = await outputs.renders.entries(rendersDir);
   for (const entry of renderEntries) {
     const linked = entry.link && !entry.read.ok && entry.read.problem === 'not-a-file';
-    renderRule.add(entry, linked ? await renderSaid(join(rendersDir, `${entry.name}.json`)) : null);
+    renderRule.add(entry, linked ? await renderSaid(outputs, join(rendersDir, `${entry.name}.json`)) : null);
   }
   const keeps = renderRule.done(rendersFiles);
   // What is left alone, in the folder's order: every file that is no render of its own name (the rule's), and a
@@ -292,19 +284,19 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     // (No path comes from text inside a file: an item's id is its file's name, and its files are names of renders/.)
     const paths = r.paths.map((f) => join(rendersDir, f));
     let bytes = 0;
-    for (const p of paths) bytes += await sizeOf(p);
+    for (const p of paths) bytes += await outputs.renders.size(p);
     items.push({ kind: 'render', id: r.id, scenario: r.scenario, reason: r.reason, bytes, paths });
   }
   const listedRenders = new Set(keeps.items.map((i) => i.id));
   let rendersKept = keeps.kept_files;
 
   // Reviews: review/<render id>/ of the renders kept.
-  const reviewDir = projectPath(project.dir, 'review');
+  const reviewDir = outputs.reviews.dirOf(project.dir);
   let reviewsKept = 0;
-  for (const name of await readdir(reviewDir).catch(() => [] as string[])) {
+  for (const name of await outputs.reviews.names(reviewDir)) {
     if (name.startsWith('.')) continue;
     const path = join(reviewDir, name);
-    if (!(await lstat(path).catch(() => null))?.isDirectory()) continue;
+    if ((await outputs.reviews.kind(path)) !== 'folder') continue;
     // (While a file of renders/ is too big to read, no review is an item: it may be the review of what that file names.)
     if (keeps.kept.has(name) || busy(name) || keeps.unjudged) {
       reviewsKept++;
@@ -312,19 +304,19 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     }
     // The review of a render that is listed too, or of one that is gone.
     const known = listedRenders.has(name);
-    items.push({ kind: 'review', id: name, reason: known ? 'review of an older render' : 'review of a deleted render', bytes: await sizeOf(path), paths: [path] });
+    items.push({ kind: 'review', id: name, reason: known ? 'review of an older render' : 'review of a deleted render', bytes: await outputs.reviews.size(path), paths: [path] });
   }
 
   // Takes: per scenario the last succeeded capture, the last one that can be edited and the last complete one (core's
   // rule 3), and every take a kept render or a thread uses. Only a take of the shape the tool makes is ever a
   // candidate (a folder named by hand stays), read newest first by the one reader of the run folders.
-  const runsDir = projectPath(project.dir, 'runs');
+  const runsDir = runsDirOf(project.dir);
   const keeper = pruneKeeper();
-  for (const name of orderRuns((await readdir(runsDir).catch(() => [] as string[])).filter(isMadeRunId))) {
-    const facts = await readRunFolder(runsDir, name, { timeline: keeper.needsTimeline, filmFirst: true });
+  for (const name of orderRuns((await outputs.runs.names(runsDir)).filter(isMadeRunId))) {
+    const facts = await outputs.runs.folder(runsDir, name, { timeline: keeper.needsTimeline, filmFirst: true });
     // A real folder whose run.json is no record for the reader (and is not of a newer Retake): what it says all the same.
     const lenient = facts.folder === 'dir' && !facts.record.ok && facts.record.problem !== 'newer-format' && facts.record.problem !== 'unknown-status';
-    keeper.add(facts, lenient ? await pruneSaid(join(runsDir, name)) : null);
+    keeper.add(facts, lenient ? await pruneSaid(outputs, join(runsDir, name)) : null);
   }
   const { runs, alone, unread } = keeper.done();
   // The takes a thread or a kept render names; and those a file of renders/ that is no render names (R-1): said, when
@@ -359,7 +351,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     }
     const path = join(runsDir, r.id);
     const reason = r.mode === 'dry' ? 'dry run' : r.status === 'succeeded' ? 'older capture nothing uses' : `${r.status} take`;
-    items.push({ kind: 'run', id: r.id, scenario: r.scenario, reason, bytes: await sizeOf(path), paths: [path] });
+    items.push({ kind: 'run', id: r.id, scenario: r.scenario, reason, bytes: await outputs.runs.size(path), paths: [path] });
   }
   keptTakes.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 
@@ -398,7 +390,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
       if (!then) continue;
       const paths = i.paths.filter((p) => then.includes(p));
       let bytes = 0;
-      for (const p of paths) bytes += await sizeOf(p);
+      for (const p of paths) bytes += await folderOf(i.kind).size(p);
       approved.push({ ...i, paths, bytes });
     }
     items.splice(0, items.length, ...approved);
@@ -408,7 +400,9 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   if (!dry) {
     for (const it of items) {
       for (const p of it.paths) {
-        await rm(p, { recursive: true, force: true }).catch((e: unknown) => problems.push(`${p}: ${errorMessage(e)}`));
+        await folderOf(it.kind)
+          .remove(p)
+          .catch((e: unknown) => problems.push(`${p}: ${errorMessage(e)}`));
       }
     }
   }

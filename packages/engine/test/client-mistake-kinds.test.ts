@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { errorKindOf } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
-import { ERROR_STATUS, EngineError, checkHeadedDisplay, openLiveChannel, pruneProject, toEngineError } from '../src/index.js';
+import { ERROR_STATUS, EngineError, checkHeadedDisplay, diskOutputs, openLiveChannel, pruneProject, toEngineError } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { recordOutput } from '../src/operations/authoring.js';
 import { inspectOutput } from '../src/operations/inspect.js';
@@ -49,7 +49,12 @@ describe('client mistakes are refusals of their kind, not internal', () => {
   it('keep_renders below one: invalid (400), before anything is read', async () => {
     const project = { slug: 'p', dir: join(root, 'nowhere'), config: { name: 'P', environments: {} } } as unknown as LoadedProject;
     for (const keep of [0, 1.5, -1])
-      expect(await refusal(() => pruneProject(project, { keep_renders: keep }))).toEqual({ code: 'invalid', status: 400, known: true, message: `keep_renders ${keep}: a whole number from 1` });
+      expect(await refusal(() => pruneProject(diskOutputs, project, { keep_renders: keep }))).toEqual({
+        code: 'invalid',
+        status: 400,
+        known: true,
+        message: `keep_renders ${keep}: a whole number from 1`,
+      });
   });
 
   it('a live channel for what is not a run id: invalid (400)', async () => {

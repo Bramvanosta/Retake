@@ -1,4 +1,5 @@
 /** Creating a thread and appending entries to it: reply, resolve, reopen (see ../comments.ts). */
+import type { RenderOutputs } from '../outputs/outputs.js';
 import { randomBytes } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -189,7 +190,7 @@ export interface PreparedComment {
  * anchor computed from the render's plan and the run's scenario snapshot (review frameAnchor). The one code path of
  * `addComment` and of the Studio's anchor chips (`anchorAt`, R-UI-27): the chips shown are the anchor stored.
  */
-export async function prepareComment(project: LoadedProject, req: CommentPrepareRequest): Promise<PreparedComment> {
+export async function prepareComment(renders: RenderOutputs, project: LoadedProject, req: CommentPrepareRequest): Promise<PreparedComment> {
   if (req.region !== undefined) {
     const p = regionProblem(req.region);
     if (p) throw argError('region', p);
@@ -198,7 +199,7 @@ export async function prepareComment(project: LoadedProject, req: CommentPrepare
   if (req.render_created_at !== undefined && !isIsoUtcDate(req.render_created_at)) {
     throw argError('render_created_at', 'render_created_at is the created_at of the render record as read (an ISO 8601 UTC date)');
   }
-  const record = await renderForWork(project, req.render, req.scenario !== undefined ? { scenario: req.scenario } : {});
+  const record = await renderForWork(renders, project, req.render, req.scenario !== undefined ? { scenario: req.scenario } : {});
   if (req.scenario !== undefined && record.scenario !== req.scenario) throw argError('render', `render ${record.id} is a render of ${record.scenario}, not of ${req.scenario}`);
   if (renderIdOf(record.id, record.scenario) === null) {
     throw new EngineError('invalid', `render ${record.id} has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments`);
@@ -251,10 +252,10 @@ export interface CommentAnchorView {
 }
 
 /** The anchor a comment on that frame would store (prepareComment: the same code as addComment), and where its step is today. */
-export async function anchorAt(project: LoadedProject, req: CommentAnchorRequest): Promise<CommentAnchorView> {
+export async function anchorAt(renders: RenderOutputs, project: LoadedProject, req: CommentAnchorRequest): Promise<CommentAnchorView> {
   if (req.render_created_at === undefined || req.render_created_at === null) throw argError('render_created_at', 'render_created_at is required: the created_at of the render shown');
   if (typeof req.frame !== 'number') throw argError('frame', 'frame is an output frame number of the render');
-  const p = await prepareComment(project, { render: req.render, render_created_at: req.render_created_at, frame: req.frame, ...(req.region ? { region: req.region } : {}) });
+  const p = await prepareComment(renders, project, { render: req.render, render_created_at: req.render_created_at, frame: req.frame, ...(req.region ? { region: req.region } : {}) });
   const { anchor, untrusted: badAnchor } = trustedAnchor(p.anchor);
   let stepNow: string | null | undefined;
   if (anchor.scene !== undefined && anchor.step !== undefined) {
@@ -289,11 +290,12 @@ export async function addComment(
   req: CommentAddRequest,
   author: CommentAuthor,
   scope: StoreScope,
+  renders: RenderOutputs,
   policy: WorkPolicy,
   frames: Pick<FrameTools, 'still'>,
 ): Promise<CommentAdded> {
   const text = cleanText(req.text, 'the comment', 'text');
-  const { record, frame, anchor, warnings } = await prepareComment(project, req);
+  const { record, frame, anchor, warnings } = await prepareComment(renders, project, req);
   const clash = await caseVariantFolder(project.dir, record.scenario);
   if (clash) {
     throw new EngineError('refused', `${COMMENTS_DIR}/${clash}/ differs from ${record.scenario} only by case: a case-insensitive disk would write the thread there`, {
@@ -332,7 +334,7 @@ export async function addComment(
   }
   const written = await storeOf(project, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
   await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy, frames);
-  return { thread: await threadView(project.dir, parsed.data, written.sha256, await renderIndex(project.dir)), warnings };
+  return { thread: await threadView(project.dir, parsed.data, written.sha256, await renderIndex(renders, project.dir)), warnings };
 }
 
 export interface CommentWritten {
@@ -354,11 +356,18 @@ export interface CommentWritten {
  * Write `entry` appended to thread `r` (read under its lock, which the caller holds): appendedThread, written atomically
  * with the hash just read.
  */
-export async function writeAppended(project: LoadedProject, f: ThreadFile, r: { thread: CommentThread; hash: string }, entry: CommentEntry, scope: StoreScope): Promise<CommentWritten> {
+export async function writeAppended(
+  project: LoadedProject,
+  f: ThreadFile,
+  r: { thread: CommentThread; hash: string },
+  entry: CommentEntry,
+  o: { scope: StoreScope; renders: RenderOutputs },
+): Promise<CommentWritten> {
+  const { scope } = o;
   const next = appendedThread(f.id, r, entry);
   // The thread's lock already serialises every write of its file: no second (write) lock inside it.
   const written = await storeOf(project, scope).writeText(f.ref, next.text, { ifMatch: r.hash, locked: true, what: 'thread' });
-  return { thread: await threadView(project.dir, next.thread, written.sha256, await renderIndex(project.dir)), entry: entry.id, hash: written.sha256 };
+  return { thread: await threadView(project.dir, next.thread, written.sha256, await renderIndex(o.renders, project.dir)), entry: entry.id, hash: written.sha256 };
 }
 
 /**
@@ -370,7 +379,7 @@ export async function appendEntry(
   id: string,
   op: string,
   make: (thread: CommentThread, hash: string) => Promise<CommentEntry> | CommentEntry,
-  o: { ifMatch?: string; scope: StoreScope },
+  o: { ifMatch?: string; scope: StoreScope; renders: RenderOutputs },
 ): Promise<CommentWritten> {
   const f = await locateThread(project.dir, id);
   const lock = await lockThread(project.dir, id, op);
@@ -379,7 +388,7 @@ export async function appendEntry(
     if (!r.ok) throw new EngineError('invalid', `${r.problem} — the file is never overwritten: fix it or remove it`);
     checkIfMatch(f, r.hash, o.ifMatch);
     if (r.thread.entries.length >= COMMENT_ENTRIES_MAX) throw new EngineError('refused', `comment ${id} has ${COMMENT_ENTRIES_MAX} entries: start a new thread`);
-    return await writeAppended(project, f, r, await make(r.thread, r.hash), o.scope);
+    return await writeAppended(project, f, r, await make(r.thread, r.hash), o);
   } finally {
     lock.releaseSync();
   }
@@ -395,10 +404,10 @@ export async function replyComment(
   id: string,
   rawText: string,
   author: CommentAuthor,
-  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts; reads: WorkspaceReads },
+  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; renders: RenderOutputs; files: WorkFileFacts; reads: WorkspaceReads },
 ): Promise<CommentWritten> {
   const text = cleanText(rawText, 'the reply', 'text');
-  const write = { scope: o.scope };
+  const write = { scope: o.scope, renders: o.renders };
   if (o.proposal === undefined) {
     return appendEntry(project, id, 'reply', () => ({ id: newCommentEntryId(), kind: 'reply', author, text, created_at: stampOf(o.scope.clock) }), write);
   }
@@ -429,7 +438,7 @@ export interface CommentResolveRequest {
 }
 
 /** Resolve an open thread, optionally naming the render that answers it (stored with its `created_at`). */
-export async function resolveComment(project: LoadedProject, id: string, req: CommentResolveRequest, author: CommentAuthor, o: { scope: StoreScope }): Promise<CommentWritten> {
+export async function resolveComment(project: LoadedProject, id: string, req: CommentResolveRequest, author: CommentAuthor, o: { scope: StoreScope; renders: RenderOutputs }): Promise<CommentWritten> {
   const note = cleanText(req.note, 'the note', 'note');
   if (req.ifMatch !== undefined && (typeof req.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(req.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   const f = await locateThread(project.dir, id);
@@ -442,12 +451,12 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
       const r = await readThread(project.dir, f);
       if (!r.ok) throw new EngineError('invalid', r.problem);
       const variant = r.thread.render.variant;
-      latest = latestProjectRender(await renderEntries(project.dir), { scenario: f.scenario, variant, status: 'succeeded', quotable: true });
+      latest = latestProjectRender(await renderEntries(o.renders, project.dir), { scenario: f.scenario, variant, status: 'succeeded', quotable: true });
       const last = latest.pick;
       if (!last) throw new EngineError('not_found', `no finished ${variant} render of ${f.scenario} yet: render makes one`);
       renderId = last.id;
     }
-    answer = await renderForWork(project, renderId, { scenario: f.scenario });
+    answer = await renderForWork(o.renders, project, renderId, { scenario: f.scenario });
     if (!recordShapeOk(answer)) throw new EngineError('refused', `${projectRef('renders', `${answer.id}.json`)} has a scenario, created_at or variant the tool never writes: not used`);
   }
   const written = await appendEntry(
@@ -490,7 +499,7 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
         ...(answer ? { render_id: answer.id, render_created_at: answer.created_at } : {}),
       };
     },
-    { ...(req.ifMatch !== undefined ? { ifMatch: req.ifMatch } : {}), scope: o.scope },
+    { ...(req.ifMatch !== undefined ? { ifMatch: req.ifMatch } : {}), scope: o.scope, renders: o.renders },
   );
   // What `latest` passed over on the way to the render that answers (none for a render named by its id).
   return { ...written, ...latestRenderMembers(latest) };
@@ -500,7 +509,13 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
  * Reopen a resolved thread (a person disagreeing with its resolution); the note may be empty. `ifMatch`: the thread's
  * hash as last read (the Studio reopens the version it showed; refused as a conflict when it changed since).
  */
-export async function reopenComment(project: LoadedProject, id: string, rawNote: string | undefined, author: CommentAuthor, o: { ifMatch?: string; scope: StoreScope }): Promise<CommentWritten> {
+export async function reopenComment(
+  project: LoadedProject,
+  id: string,
+  rawNote: string | undefined,
+  author: CommentAuthor,
+  o: { ifMatch?: string; scope: StoreScope; renders: RenderOutputs },
+): Promise<CommentWritten> {
   const note = cleanText(rawNote ?? '', 'the note', 'note', false);
   if (o.ifMatch !== undefined && (typeof o.ifMatch !== 'string' || !/^[0-9a-f]{64}$/.test(o.ifMatch))) throw argError('if_match', 'if_match is the hash a listing returned (64 hex characters)');
   return appendEntry(
@@ -511,6 +526,6 @@ export async function reopenComment(project: LoadedProject, id: string, rawNote:
       if (deriveStatus(thread.entries).status !== 'resolved') throw new EngineError('conflict', `comment ${id} is open: only a resolved thread is reopened`, { details: { status: 'open' } });
       return { id: newCommentEntryId(), kind: 'reopen', author, text: note, created_at: stampOf(o.scope.clock) };
     },
-    { ...(o.ifMatch !== undefined ? { ifMatch: o.ifMatch } : {}), scope: o.scope },
+    { ...(o.ifMatch !== undefined ? { ifMatch: o.ifMatch } : {}), scope: o.scope, renders: o.renders },
   );
 }

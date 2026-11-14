@@ -277,7 +277,7 @@ async function offerFacts(engine: Engine, slug: string, t: CommentView): Promise
   if (!t.render_present) render = { missing: 'The commented render is gone: its theme and options are unknown' };
   else {
     try {
-      const rec = await renderForWork(p, t.render_id, { scenario: t.scenario });
+      const rec = await renderForWork(engine.workspace.outputs.renders, p, t.render_id, { scenario: t.scenario });
       if (rec.created_at !== t.render_created_at) render = { missing: 'The commented render was replaced since' };
       else {
         const o = rec.overrides && typeof rec.overrides === 'object' ? (rec.overrides as Record<string, unknown>) : {};

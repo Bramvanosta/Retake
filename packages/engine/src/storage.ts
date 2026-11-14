@@ -27,6 +27,8 @@ export interface StoredRef {
   bytes?: number;
   /** Hex sha256 of the content (when asked for). */
   sha256?: string;
+  /** A run file that is a link leaving its run folder: shown, never read (no size, no sha256). */
+  link?: 'refused';
 }
 
 export interface WriteResult {

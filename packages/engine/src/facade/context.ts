@@ -103,7 +103,7 @@ export async function engineContext(opts: EngineOptions, ports: EnginePorts): Pr
   // Both draw with this engine's reviewer (its frames: the product's load the review's light entry only).
   const runThumbs = new RunThumbs({ policy: ws.policy, frames: ports.reviewer.frames }, runData);
   // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails (critique B7).
-  const renderFrames = new RenderFrames({ policy: ws.policy, frames: ports.reviewer.frames, slots: runThumbs.ffmpegSlots, comments: commentIndex });
+  const renderFrames = new RenderFrames({ policy: ws.policy, frames: ports.reviewer.frames, renders: ws.outputs.renders, slots: runThumbs.ffmpegSlots, comments: commentIndex });
   const startWorker: EngineContext['startWorker'] = async () => {
     if (opts.autoStartWorker === false) return undefined;
     // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the Studio's

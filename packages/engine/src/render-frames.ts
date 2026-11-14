@@ -21,6 +21,7 @@
  * supersedes nothing); each request ends within RENDER_FRAME_TIMEOUT_MS (else `unavailable`, reason `timeout`). A video
  * that does not start at 0 or has a variable frame rate is refused (frame times would not be frame numbers).
  */
+import type { RenderOutputs } from './outputs/outputs.js';
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
@@ -127,6 +128,8 @@ export interface RenderFramesOptions {
   slots: Semaphore;
   /** What takes a frame of the video and makes its JPEG (its composition root's reviewer, review/reviewer.ts). */
   frames: Pick<FrameTools, 'load' | 'at' | 'thumb'>;
+  /** renders/ of the projects (the Outputs port's member): the record of a render is read there. */
+  renders: RenderOutputs;
   ffmpeg?: string;
   ffprobe?: string;
   cacheBytes?: number;
@@ -225,7 +228,7 @@ export class RenderFrames {
     }
     // The one reader of renders/, by its id (renderForWork: its own file, no link, succeeded, its plan, its files in the
     // project), then what a message may quote: a render of its scenario (core renderIdOf) that core quotableRender takes.
-    const record = await renderForWork(project, renderId);
+    const record = await renderForWork(this.o.renders, project, renderId);
     if (!recordShapeOk(record)) {
       throw new EngineError('refused', `${projectRef('renders', `${renderId}.json`)} has an id, scenario, created_at or variant the tool never writes: not used`);
     }

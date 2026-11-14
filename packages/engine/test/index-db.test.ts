@@ -401,7 +401,7 @@ describe('the workspace index', () => {
       // A member a record lacks is no column (as before: the file's own value when it is a text, else none).
       const { scenario: _sc, ...noScenario } = JSON.parse(rec('quote-v1')) as Record<string, unknown>;
       await writeFile(join(renders, 'quote-v1.json'), JSON.stringify(noScenario));
-      expect((await readRenders(proj)).find((r) => r.id === 'quote-v1')).toEqual({
+      expect((await readRenders(diskOutputs.renders, proj)).find((r) => r.id === 'quote-v1')).toEqual({
         id: 'quote-v1',
         run_id: '20261016-090000-catalogue',
         status: 'succeeded',

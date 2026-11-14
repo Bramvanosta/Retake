@@ -32,7 +32,7 @@ import type {
   SiteReport,
 } from '@retake/runner-web/types';
 import type { HookRunner } from '../hook-run/runner.js';
-import type { RunOutputs } from '../outputs/outputs.js';
+import type { Outputs, RunOutputs } from '../outputs/outputs.js';
 
 /**
  * A run of a scenario (capture, dry run, or a dry replay with `inspect`): the runner's options without its test seam
@@ -112,9 +112,13 @@ export interface HookPages {
  */
 export interface CaptureRaw {
   /** The run's timeline through the export's own gate (the one reader and the named run's rule: a dry run, no timeline, one that does not read, a run.json a newer Retake wrote are refused in the export's words; a missing film is not the gate's). */
-  timeline(runDir: string): Promise<Timeline>;
-  /** The package: clips, cursor data or layer, markers, manifest and README (the caller resolved the run and its theme). */
-  export(o: ExportCaptureOptions): Promise<RawExportResult>;
+  timeline(runDir: string, outputs: Pick<Outputs, 'runs'>): Promise<Timeline>;
+  /**
+   * The package: clips, cursor data or layer, markers, manifest and README (the caller resolved the run and its theme).
+   * `outputs`: where the in-memory export reads the take and writes the package (the package's adapter reads and
+   * writes the disk itself, as its run does).
+   */
+  export(o: ExportCaptureOptions, outputs: Pick<Outputs, 'runs' | 'exports'>): Promise<RawExportResult>;
 }
 
 export interface CaptureRunner {

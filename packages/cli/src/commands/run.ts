@@ -126,7 +126,7 @@ export async function runCommand(ui: Ui, global: GlobalOptions, projectArg: stri
       project,
       scenario,
       async () => {
-        listedRun = await reserveListedRun(project, scenario.name);
+        listedRun = await reserveListedRun(ws.outputs.runs, cliPorts.clock, project, scenario.name);
         return listingContext(project, scenario.scenario, sandboxEnv ?? opts.env ?? scenario.scenario.env, { id: listedRun.id, dir: listedRun.dir });
       },
       cliPorts.hooks,

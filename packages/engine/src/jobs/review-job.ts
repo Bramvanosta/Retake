@@ -69,10 +69,10 @@ export async function submitReviewJob(
   const fix = (id: string) => reviewCommandLine(ctx.cli, { project: req.project, render_id: id, fps, ...(req.previous !== undefined ? { previous: req.previous } : {}) });
   // With `latest`: what it passed over on the way (a count, and the names for `untrusted`).
   let latest: Parameters<typeof latestRenderMembers>[0];
-  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
+  const record = await renderForWork(ctx.ws.outputs.renders, project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
   if (typeof req.previous === 'string') {
     if (req.previous === record.id) throw new EngineError('invalid', `previous ${req.previous} is the render under review`);
-    await renderForWork(project, req.previous, { fix });
+    await renderForWork(ctx.ws.outputs.renders, project, req.previous, { fix });
   }
   const input: ReviewJobInput = {
     version: JOB_INPUT_VERSION,
@@ -129,13 +129,13 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
   const fix = (id: string) => reviewCommandLine(ctx.cli, { project: input.project, render_id: id, fps: input.fps, ...(input.previous !== undefined ? { previous: input.previous } : {}) });
-  const record = await renderForWork(project, input.render_id, { fix });
+  const record = await renderForWork(ctx.ws.outputs.renders, project, input.render_id, { fix });
   let previous: string | false;
-  if (typeof input.previous === 'string') previous = (await renderForWork(project, input.previous, { fix })).id;
+  if (typeof input.previous === 'string') previous = (await renderForWork(ctx.ws.outputs.renders, project, input.previous, { fix })).id;
   else if (input.previous === false) previous = false;
   else {
     // The default comparison: the previous render of the scenario, when it may be read (else none).
-    const found = await previousOfRender(project.dir, record);
+    const found = await previousOfRender(ctx.ws.outputs.renders, project.dir, record);
     const problem = found ? await renderPathProblem(project.dir, found) : null;
     if (problem) ctx.event({ type: 'log', level: 'warn', message: `not compared with ${found!.id}: its files are outside the project` });
     previous = found && !problem ? found.id : false;

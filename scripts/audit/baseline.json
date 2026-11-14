@@ -168,15 +168,6 @@
    ]
   },
   {
-   "rule": "output-read",
-   "reason": "Run folders read or reserved beside the Outputs port, with the outputs that are not on it yet: prune (it reads, sizes and removes runs, renders and reviews together), the in-memory raw export (an export's read of its take) and the terminal run's listed reservation (released by removing its folder); they move with the renders, reviews and exports.",
-   "entries": [
-    "packages/engine/src/agent-written.ts → reserveRunId",
-    "packages/engine/src/capture/memory-raw.ts → readNamedRun",
-    "packages/engine/src/prune.ts → readRunFolder"
-   ]
-  },
-  {
    "rule": "env-read",
    "reason": "Test defaults of the job queue adapters' constructors (the roots hand theirs through the ports' queue factory, as with their clock).",
    "entries": [

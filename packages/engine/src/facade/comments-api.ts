@@ -19,11 +19,11 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
   // (fail-safe). The name of a person channel is this process's (the page never names an author).
   const commentAuthor = (): CommentAuthor => (caller.channel === 'mcp' ? { via: 'mcp', name: MCP_AUTHOR_NAME } : { via: caller.channel, name: defaultAuthorName(ctx.ports.env) });
   return {
-    list: async (slug, req) => listComments(await project(slug), req),
-    get: async (slug, id) => getComment(await project(slug), id),
+    list: async (slug, req) => listComments(ws.outputs.renders, await project(slug), req),
+    get: async (slug, id) => getComment(ws.outputs.renders, await project(slug), id),
     add: async (slug, req) => {
       refuse(threadAddRefused(caller, req.render_created_at));
-      return addComment(await project(slug), req, commentAuthor(), scope, ws.policy, ctx.ports.reviewer.frames);
+      return addComment(await project(slug), req, commentAuthor(), scope, ws.outputs.renders, ws.policy, ctx.ports.reviewer.frames);
     },
     reply: async (slug, id, text, o = {}) => {
       refuse(commentReplyRefused(caller, o.proposal));
@@ -31,6 +31,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         ...(o.proposal !== undefined ? { proposal: o.proposal } : {}),
         registry: async () => (await memoRegistry(ws)).registry,
         scope,
+        renders: ws.outputs.renders,
         files: ctx.files,
         reads: ws.reads,
       });
@@ -42,19 +43,20 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         id,
         { note: req.note, ...(req.render_id !== undefined ? { render_id: req.render_id } : {}), ...(req.if_match !== undefined ? { ifMatch: req.if_match } : {}) },
         commentAuthor(),
-        { scope },
+        { scope, renders: ws.outputs.renders },
       );
     },
     reopen: async (slug, id, note, o = {}) => {
       refuse(threadReopenRefused(caller, o.if_match));
-      return reopenComment(await project(slug), id, note, commentAuthor(), { ...(o.if_match !== undefined && o.if_match !== null ? { ifMatch: o.if_match } : {}), scope });
+      return reopenComment(await project(slug), id, note, commentAuthor(), { ...(o.if_match !== undefined && o.if_match !== null ? { ifMatch: o.if_match } : {}), scope, renders: ws.outputs.renders });
     },
-    anchorAt: async (slug, req) => anchorAt(await project(slug), req),
+    anchorAt: async (slug, req) => anchorAt(ws.outputs.renders, await project(slug), req),
     apply: async (slug, id, req) => {
       refuse(proposalApplyRefused(caller, req.if_match));
       return applyProposal(await project(slug), id, { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) }, commentAuthor(), {
         registry: async () => (await memoRegistry(ws)).registry,
         scope,
+        renders: ws.outputs.renders,
         files: ctx.files,
         reads: ws.reads,
       });

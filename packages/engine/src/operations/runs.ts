@@ -41,7 +41,9 @@ export function runStatusSummary(r: RunStatusWithJob, project: string): string {
       : []),
     ...(r.perf ? [`take: ${perfSummary(r.perf)}`] : []),
     ...(r.screenshots.length ? [`${plural(r.screenshots.length, 'screenshot')} in ${r.dir}/screenshots (one per step: read them to see the product)`] : []),
-    ...r.outputs.filter((o) => o.ref.endsWith('.mp4') || o.ref.endsWith('timeline.json')).map((o) => `${o.ref.split('/').pop()}: ${o.path}`),
+    ...r.outputs
+      .filter((o) => o.ref.endsWith('.mp4') || o.ref.endsWith('timeline.json'))
+      .map((o) => `${o.ref.split('/').pop()}: ${o.link === 'refused' ? 'a link out of the run folder, not read' : o.path}`),
     ...(r.untrusted.error_message !== undefined || r.untrusted.warnings.length ? ['the error message and warnings are in "untrusted" (text from the filmed site)'] : []),
     ...(!r.finished ? [`follow it: run_status {project: "${project}", run_id: "${r.id}", wait_s: ${WAIT_MAX_S}}; stop it: run_cancel`] : []),
   ];

@@ -5,6 +5,7 @@
  * a run's thumbnails, a render's frame, a review's image and a workspace thumbnail all come from that reviewer's
  * frames — both the run thumbnails and the render frames, never the product's default beside it.
  */
+import { diskOutputs } from '../src/index.js';
 import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -185,7 +186,7 @@ describe("the render a review job compares with (the engine's previousOfRender, 
     await unlink(v3.record.file);
     const seen: Record<string, string> = {};
     for (const c of [v1, v2, v3, v4, v5]) {
-      const engine = (await previousOfRender(ws.project.dir, c.record))?.id ?? 'none';
+      const engine = (await previousOfRender(diskOutputs.renders, ws.project.dir, c.record))?.id ?? 'none';
       const pkg = (await findPrevious(ws.project, await findRender(ws.project, c.record.id), undefined))?.id ?? 'none';
       expect(engine, c.record.id).toBe(pkg);
       seen[c.record.id] = engine;

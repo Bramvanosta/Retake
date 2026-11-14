@@ -1,6 +1,6 @@
 /**
- * The Outputs port in memory (outputs.ts), for tests: the run folders in a Map of files, read by core's own reader of
- * a run folder and reserved by core's own reservation (output-files.ts `runOutputsOn`: the disk adapter's code), so a
+ * The Outputs port in memory (outputs.ts), for tests: the generated folders in a Map of files, read by core's own
+ * readers of a run folder and of renders/ and reserved by core's own reservation (output-files.ts `runOutputsOn`: the disk adapter's code), so a
  * test reads back what the engine and the in-memory capture runner wrote — no folder of the disk exists for it. The
  * same contract suite runs on both adapters (engine/test/outputs-contract.ts).
  *
@@ -8,18 +8,24 @@
  * folder's being there: no real path differs from its spelling), no file mode, no special file, case counts; a write
  * is atomic by being one Map entry. A signature is the path's write count, not a time. What reads a run folder outside
  * the port — a run's pictures, frames and videos (run-files.ts RunFolder, run-data.ts), the editor's and the review's
- * own reads of a take, the real capture runner's writes — still goes to the disk. Paths are absolute and compared as
+ * own reads of a take, the real capture runner's writes, the editor's render (its record and video), the review
+ * package's review folder — still goes to the disk (a worker handed these outputs must be handed its own capture
+ * runner: jobs/worker-ports.ts). Paths are absolute and compared as
  * written (normalised).
  */
 import { dirname, normalize, sep } from 'node:path';
-import type { Outputs, RunOutputs } from './outputs.js';
-import { runOutputsOn, sha256Of } from './output-files.js';
+import type { OutputFolder, Outputs, RenderOutputs, RunOutputs } from './outputs.js';
+import { outputsOn, sha256Of } from './output-files.js';
 import type { OutputFs, OutputStat } from './output-files.js';
 
-type Code = 'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EISDIR';
+type Code = 'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EISDIR' | 'ENOTEMPTY';
 
 function fsError(code: Code, syscall: string, path: string): NodeJS.ErrnoException {
-  return Object.assign(new Error(`${code}: ${syscall} '${path}'`), { code, syscall, path });
+  return Object.assign(new Error(`${code}: ${syscall} '${path}'`), {
+    code,
+    syscall,
+    path,
+  });
 }
 
 export class MemoryOutputs implements Outputs {
@@ -29,9 +35,18 @@ export class MemoryOutputs implements Outputs {
   readonly #writes = new Map<string, number>();
   #count = 0;
   readonly runs: RunOutputs;
+  readonly renders: RenderOutputs;
+  readonly reviews: OutputFolder;
+  readonly exports: OutputFolder;
+  readonly inspections: OutputFolder;
 
   constructor() {
-    this.runs = runOutputsOn(this.#fs());
+    const all = outputsOn(this.#fs());
+    this.runs = all.runs;
+    this.renders = all.renders;
+    this.reviews = all.reviews;
+    this.exports = all.exports;
+    this.inspections = all.inspections;
   }
 
   /** Put a file in place (absolute path; its folders exist with it). */
@@ -103,7 +118,14 @@ export class MemoryOutputs implements Outputs {
     const folder = data === undefined && this.#isFolder(p);
     if (data === undefined && !folder) throw fsError('ENOENT', syscall, p);
     const n = this.#writes.get(p) ?? 0;
-    return { isFile: () => data !== undefined, isDirectory: () => folder, isSymbolicLink: () => false, size: data?.length ?? 0, ino: n, mtimeMs: n };
+    return {
+      isFile: () => data !== undefined,
+      isDirectory: () => folder,
+      isSymbolicLink: () => false,
+      size: data?.length ?? 0,
+      ino: n,
+      mtimeMs: n,
+    };
   }
 
   #fs(): OutputFs {
@@ -129,7 +151,13 @@ export class MemoryOutputs implements Outputs {
           const isFile = rest === name && this.#files.has(k);
           names.set(name, (names.get(name) ?? false) || isFile);
         }
-        return [...names].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([name, isFile]) => ({ name, isFile: () => isFile, isDirectory: () => !isFile }));
+        return [...names]
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([name, isFile]) => ({
+            name,
+            isFile: () => isFile,
+            isDirectory: () => !isFile,
+          }));
       },
       mkdir: async (path, opts = {}) => {
         const p = normalize(path);
@@ -153,6 +181,39 @@ export class MemoryOutputs implements Outputs {
         const data = this.#files.get(normalize(path));
         if (data === undefined) throw fsError('ENOENT', 'open', path);
         return sha256Of(data);
+      },
+      names: async (path) => {
+        const p = normalize(path);
+        if (this.#files.has(p)) throw fsError('ENOTDIR', 'scandir', p);
+        if (!this.#isFolder(p)) throw fsError('ENOENT', 'scandir', p);
+        const under = p === sep ? sep : p + sep;
+        const names = new Set<string>();
+        for (const k of [...this.#files.keys(), ...this.#folders]) if (k.startsWith(under)) names.add(k.slice(under.length).split(sep)[0]!);
+        return [...names].sort();
+      },
+      text: async (path, o) => {
+        const p = normalize(path);
+        const data = this.#files.get(p);
+        if (data === undefined)
+          return {
+            ok: false,
+            problem: this.#isFolder(p) ? 'not-a-file' : 'missing',
+            link: false,
+          };
+        if (data.length > o.max) return { ok: false, problem: 'too-big', link: false };
+        return { ok: true, text: data.toString('utf8'), link: false };
+      },
+      remove: async (path) => {
+        this.remove(path);
+      },
+      rmdir: async (path) => {
+        const p = normalize(path);
+        if (this.#files.has(p)) throw fsError('ENOTDIR', 'rmdir', p);
+        if (!this.#isFolder(p)) throw fsError('ENOENT', 'rmdir', p);
+        const under = p + sep;
+        if ([...this.#files.keys(), ...this.#folders].some((k) => k.startsWith(under))) throw fsError('ENOTEMPTY', 'rmdir', p);
+        this.#folders.delete(p);
+        this.#touch(dirname(p));
       },
       realpath: async (path) => {
         const p = normalize(path);

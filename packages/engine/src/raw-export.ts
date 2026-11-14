@@ -6,6 +6,7 @@
  * re-use), then the package (`raw.export`). The caller resolved the run first (findRunOf: `latest`, an id or a folder)
  * and waited at its heavy-work gate in between; it prints the progress, the note and the result its own way.
  */
+import type { Outputs } from './outputs/outputs.js';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ExportCaptureOptions, RawExportProgress, RawExportResult } from '@retake/runner-web/types';
@@ -22,7 +23,7 @@ export interface RawExportWorkOptions {
   /** What exports it: the composition root's capture runner (its `raw`). */
   capture: Pick<CaptureRunner, 'raw'>;
   /** What the work runs under, and the ffmpeg the workspace names. */
-  ws: { policy: WorkPolicy; ffmpeg?: string; reads: WorkspaceReads };
+  ws: { policy: WorkPolicy; ffmpeg?: string; reads: WorkspaceReads; outputs: Outputs };
   project: LoadedProject;
   /** The run's folder (found by the caller). */
   runDir: string;
@@ -45,19 +46,22 @@ async function runTemplate(project: LoadedProject, timeline: Timeline, ws: Pick<
 /** Export a run's raw package (see the module comment); the port's refusals are EngineErrors in the export's words. */
 export async function rawExportWork(o: RawExportWorkOptions): Promise<RawExportResult> {
   // The gate first: a run it refuses is refused in its words, before the theme is looked for.
-  const timeline = await o.capture.raw.timeline(o.runDir);
+  const timeline = await o.capture.raw.timeline(o.runDir, o.ws.outputs);
   const { template, note } = await runTemplate(o.project, timeline, o.ws);
   if (note) o.onNote?.(note);
   const editFiles = await editFilesOf(o.project.dir, timeline, template);
-  return o.capture.raw.export({
-    policy: o.ws.policy,
-    project: o.project,
-    runDir: o.runDir,
-    ...(template ? { template } : {}),
-    ...o.settings,
-    editFiles,
-    ffmpeg: o.ws.ffmpeg,
-    signal: o.signal,
-    onProgress: o.onProgress,
-  });
+  return o.capture.raw.export(
+    {
+      policy: o.ws.policy,
+      project: o.project,
+      runDir: o.runDir,
+      ...(template ? { template } : {}),
+      ...o.settings,
+      editFiles,
+      ffmpeg: o.ws.ffmpeg,
+      signal: o.signal,
+      onProgress: o.onProgress,
+    },
+    o.ws.outputs,
+  );
 }

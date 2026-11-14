@@ -398,7 +398,7 @@ describe('run folders', () => {
   });
 
   it('pruning considers only the folders whose name is a run id the tool makes', async () => {
-    const r = await pruneProject(p);
+    const r = await pruneProject(diskOutputs, p);
     expect(r.items.filter((i) => i.kind === 'run').map((i) => [short(i.id), i.reason])).toEqual([
       // Every one a dry run: each folder considered goes.
       [`${STAMP}quote`, 'dry run'],
@@ -514,7 +514,7 @@ describe('render records', () => {
 
   it('a file of renders/ is a render record when its id is its file name, a render id', async () => {
     // L7.6b: read by the one reader of renders/, and a render by core's rule (a complete record of its own file whose id is one of its scenario).
-    const read = async (file: string): Promise<string | null> => projectRenderOf(await readListedRecord(p.dir, file))?.id ?? null;
+    const read = async (file: string): Promise<string | null> => projectRenderOf(await readListedRecord(diskOutputs.renders, p.dir, file))?.id ?? null;
     expect(
       (await Promise.all(['quote-v3', 'quote-v1-vertical', 'quote-v2-v1', 'Quote-v1', 'quote-v999999', `${a(197)}-v1`, 'final', 'quote-v8', 'quote-v9', 'missing-v1'].map(read))).map(
         (x) => x && short(x),
@@ -579,7 +579,7 @@ describe('render records', () => {
   });
 
   it('work on a render names it by its id, or latest', async () => {
-    const work = (id: string) => outcome(renderForWork(p, id));
+    const work = (id: string) => outcome(renderForWork(diskOutputs.renders, p, id));
     const status = (id: string) => outcome(engine.renders.status('records', id));
     const invalid = (id: string) => `invalid: invalid render id "${id}": <scenario>-v<N> (render returns it), or "latest"`;
     for (const call of [work, status]) {
@@ -603,7 +603,7 @@ describe('render records', () => {
         return `${(e as EngineError).code}: ${(e as Error).message}`;
       }
     };
-    const work = (scenario?: string) => outcome(renderForWork(q, 'latest', scenario === undefined ? {} : { scenario }));
+    const work = (scenario?: string) => outcome(renderForWork(diskOutputs.renders, q, 'latest', scenario === undefined ? {} : { scenario }));
     const NONE = {
       status: 'not_found: no render of latest yet: render starts one',
       statusOf: 'not_found: no render of latest · quote yet: render starts one',
@@ -623,7 +623,7 @@ describe('render records', () => {
     for (const w of [await work(), await work('quote')]) expect(w).toContain('quote-v4');
     // What latest names, the by-id calls take.
     expect((await engine.renders.status('latest', 'quote-v4')).render_id).toBe('quote-v4');
-    expect(await outcome(renderForWork(q, 'quote-v4'))).toBe(await work());
+    expect(await outcome(renderForWork(diskOutputs.renders, q, 'quote-v4'))).toBe(await work());
     // A render job whose render id is not one of its scenario is not the newest either.
     const job = `j_${ulid()}`;
     await mkdir(join(ws.root, '.retake', 'jobs', job), { recursive: true });
@@ -675,7 +675,7 @@ describe("a render's review, comments and frames", () => {
   });
 
   it('comments are listed for a render named by its id', async () => {
-    const list = (render: string) => outcome(listComments(ws.project, { render }));
+    const list = (render: string) => outcome(listComments(diskOutputs.renders, ws.project, { render }));
     expect(await list('quote-v1')).toBe('ok');
     expect((await Promise.all(['final', `${a(198)}-v1`].map(list))).map(short)).toEqual([
       'invalid: invalid render id "final": <scenario>-v<N>, or "latest"',
@@ -703,7 +703,7 @@ describe("a render's review, comments and frames", () => {
     const listed = async (scenario: string) => {
       await writeFile(join(dir, `c_${BODY}.json`), JSON.stringify(thread(scenario)));
       try {
-        const r = await listComments(ws.project, { status: 'all' });
+        const r = await listComments(diskOutputs.renders, ws.project, { status: 'all' });
         return `${r.threads.length} listed, ${r.problems?.length ?? 0} reported`;
       } catch (e) {
         return `throws ${(e as Error).name}`;
@@ -725,7 +725,17 @@ describe("a render's review, comments and frames", () => {
     await writeFile(mixed.file, '');
     await writeFile(mixed.record, JSON.stringify(mixed));
     const add = (render: string) =>
-      outcome(addComment(ws.project, { render, frame: 10, text: 'A comment' }, { via: 'cli', name: 'Reviewer' }, authorScope(ws.project, { via: 'cli', name: 'Reviewer' }), PERSON_POLICY, FRAMES));
+      outcome(
+        addComment(
+          ws.project,
+          { render, frame: 10, text: 'A comment' },
+          { via: 'cli', name: 'Reviewer' },
+          authorScope(ws.project, { via: 'cli', name: 'Reviewer' }),
+          diskOutputs.renders,
+          PERSON_POLICY,
+          FRAMES,
+        ),
+      );
     const frame = (render: string) => outcome(engine.renders.frame('demo', { render_id: render, created_at: demo.record.created_at, frame: 0 }));
     // L7.5 D-5: the id is the scenario's exactly, not by its start.
     expect(await add('quote-v2-v1')).toBe('invalid: render quote-v2-v1 has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments'); // D-5
@@ -793,7 +803,7 @@ describe("a render's review, comments and frames", () => {
 
 describe('pruning: the files of a render that goes', () => {
   const names = (paths: string[]) => paths.map((x) => x.slice(x.lastIndexOf('/') + 1)).sort();
-  const renderItems = async (p: LoadedProject) => (await pruneProject(p)).items.filter((i) => i.kind === 'render').map((i) => [i.id, names(i.paths)]);
+  const renderItems = async (p: LoadedProject) => (await pruneProject(diskOutputs, p)).items.filter((i) => i.kind === 'render').map((i) => [i.id, names(i.paths)]);
   const failed = { status: 'failed', plan: { fps: 30 } } as unknown as Partial<RenderRecord>;
 
   it('a render that goes takes its record, its video and its other files', async () => {

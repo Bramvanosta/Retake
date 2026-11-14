@@ -193,6 +193,10 @@ export async function runStatus(runs: RunOutputs, project: LoadedProject, runId:
   checkRunId(runId);
   const runRef = projectRef('runs', runId);
   const runDir = resolveIn(project.dir, runRef);
+  // A run folder that is no folder of the project's runs/ (a link out of it) is not read: neither its record nor its files.
+  if (!(await runs.inside(project.dir, runId)) && (await runs.describe(runsDirOf(project.dir), runId)) !== undefined) {
+    throw new EngineError('invalid', `run ${runId}: runs/${runId} is not a folder of the project's runs/ (a link out of it is not read)`);
+  }
   const { record, newer, unread } = await readRecord(runs, runDir);
   if (newer) throw new EngineError('invalid', `run ${runId}: ${newer}`);
   // The file is there and is no record: said as that, never as a run that does not exist.

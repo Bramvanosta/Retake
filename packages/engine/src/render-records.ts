@@ -6,11 +6,10 @@
  * read renders/ without importing the render views.
  */
 import { existsSync } from 'node:fs';
-import { projectPath } from '@retake/core/project';
 import { byIdProblem, previousRender, renderRecordsOf } from '@retake/core/render';
-import { readRenderById, readRendersFolder } from '@retake/core/io';
 import type { CompleteRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord } from '@retake/core/render';
 import { EngineError } from './errors.js';
+import type { RenderOutputs } from './outputs/outputs.js';
 
 /**
  * What a `latest` of renders says of the files it did not take: `renders_passed_over` — how many newer files of
@@ -47,14 +46,14 @@ export function latestRenderMembers(
   return { ...notice, ...(passed.length ? { untrusted: { renders_passed_over: passed } } : {}) };
 }
 
-/** renders/ of a project, read by the one reader as a listing reads it: no link followed, each file within the cap. */
-export function renderEntries(projectDir: string, only?: (name: string) => boolean): Promise<RenderEntry[]> {
-  return readRendersFolder(projectPath(projectDir, 'renders'), only ? { only } : {});
+/** renders/ of a project, read by the one reader (on the Outputs port) as a listing reads it: no link followed, each file within the cap. */
+export function renderEntries(renders: RenderOutputs, projectDir: string, only?: (name: string) => boolean): Promise<RenderEntry[]> {
+  return renders.entries(renders.dirOf(projectDir), only);
 }
 
 /** renders/<id>.json read by its id: the record's own file, never through a link, whatever its size (core/io readRenderById). */
-export function readById(projectDir: string, id: string): Promise<RenderEntry> {
-  return readRenderById(projectPath(projectDir, 'renders'), id);
+export function readById(renders: RenderOutputs, projectDir: string, id: string): Promise<RenderEntry> {
+  return renders.byId(renders.dirOf(projectDir), id);
 }
 
 /**
@@ -72,6 +71,10 @@ export function renderFileProblem(entry: RenderEntry, id: string): EngineError |
  * runs, over core, not the reviewer's): core previousRender over the complete records of their own file of renders/
  * (core renderRecordsOf), whose video is there. Undefined when there is none.
  */
-export async function previousOfRender(projectDir: string, current: Pick<StoredRenderRecord, 'file' | 'scenario' | 'variant' | 'created_at' | 'render_version'>): Promise<CompleteRender | undefined> {
-  return previousRender(renderRecordsOf(await renderEntries(projectDir)), current, existsSync);
+export async function previousOfRender(
+  renders: RenderOutputs,
+  projectDir: string,
+  current: Pick<StoredRenderRecord, 'file' | 'scenario' | 'variant' | 'created_at' | 'render_version'>,
+): Promise<CompleteRender | undefined> {
+  return previousRender(renderRecordsOf(await renderEntries(renders, projectDir)), current, existsSync);
 }

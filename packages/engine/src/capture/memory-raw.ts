@@ -4,23 +4,22 @@
  * port says (an EngineError of the sentence). The export writes a small package — a stand-in file per clip (one per
  * capture scene), the marker and cursor data names, manifest.json and README.md — into `out`, else the package's
  * default folder (`<project>/exports/<run>-raw-<format><fps>-<cursor>/`), and answers its manifest. Not exported from
- * the package (memory-capture.ts uses it).
+ * the package (memory-capture.ts uses it). The take is read and the package written through the Outputs port it is handed.
  */
-import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { missingOrInvalid } from '@retake/core/base';
-import { projectPath } from '@retake/core/project';
 import { namedRunProblem, takeWords, timelineProblem } from '@retake/core/run';
-import { readNamedRun } from '@retake/core/io';
 import type { Timeline } from '@retake/core/model';
 import type { ExportCaptureOptions, RawExportResult, RawManifest } from '@retake/runner-web/types';
 import { EngineError } from '../errors.js';
 import type { CaptureRaw } from './runner.js';
+import type { Outputs } from '../outputs/outputs.js';
+import { OUTPUT_DIRS } from '../outputs/outputs.js';
 
 const refused = (message: string) => new EngineError(missingOrInvalid(message), message);
 
-async function gate(runDir: string): Promise<Timeline> {
-  const { facts, timeline: whole } = await readNamedRun(runDir);
+async function gate(outputs: Pick<Outputs, 'runs'>, runDir: string): Promise<Timeline> {
+  const { facts, timeline: whole } = await outputs.runs.named(runDir);
   const run = (facts.timeline.ok ? facts.timeline.value.run_id : undefined) ?? basename(runDir);
   const problem = namedRunProblem(facts, { trust: 'author', inside: true });
   if (problem && problem.why !== 'no-film') throw refused(takeWords(problem, { run, verb: 'export', dir: runDir }));
@@ -33,26 +32,25 @@ export type MemoryRawCall = { member: 'raw.timeline'; runDir: string } | { membe
 
 export function memoryRaw(calls: { push(call: MemoryRawCall): unknown } = []): CaptureRaw {
   return {
-    timeline: async (runDir) => {
+    timeline: async (runDir, outputs) => {
       calls.push({ member: 'raw.timeline', runDir });
-      return gate(runDir);
+      return gate(outputs, runDir);
     },
-    export: async (o): Promise<RawExportResult> => {
+    export: async (o, outputs): Promise<RawExportResult> => {
       calls.push({ member: 'raw.export', options: o });
       o.signal?.throwIfAborted();
-      const timeline = await gate(resolve(o.runDir));
+      const timeline = await gate(outputs, resolve(o.runDir));
       const format = o.format ?? 'mp4';
       const fps = o.fps ?? 30;
       const cursor = o.cursor ?? (timeline.capture.cursor === 'hidden' ? 'none' : 'baked');
-      const dir = o.out ?? projectPath(o.project.dir, 'exports', `${timeline.run_id}-raw-${format}${fps}-${cursor}`);
-      await mkdir(dir, { recursive: true });
+      const dir = o.out ?? join(OUTPUT_DIRS.exports(o.project.dir), `${timeline.run_id}-raw-${format}${fps}-${cursor}`);
       const ext = format === 'prores' ? 'mov' : 'mp4';
       const scenes = timeline.scenes.filter((x) => x.kind === 'scene');
       const clips: RawManifest['clips'] = [];
       for (const [i, sc] of scenes.entries()) {
         o.onProgress?.({ stage: 'clip', done: i, total: scenes.length });
         const file = `${String(i + 1).padStart(2, '0')}-${sc.id}.${ext}`;
-        await writeFile(join(dir, file), 'memory clip');
+        await outputs.exports.write(join(dir, file), 'memory clip');
         clips.push({
           file,
           name: sc.id,
@@ -100,8 +98,8 @@ export function memoryRaw(calls: { push(call: MemoryRawCall): unknown } = []): C
       };
       const manifestFile = join(dir, 'manifest.json');
       const readme = join(dir, 'README.md');
-      await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
-      await writeFile(readme, '# raw package (in memory)\n');
+      await outputs.exports.write(manifestFile, JSON.stringify(manifest, null, 2));
+      await outputs.exports.write(readme, '# raw package (in memory)\n');
       o.onProgress?.({ stage: 'done', done: scenes.length, total: scenes.length });
       return { dir, manifest, manifestFile, readme };
     },

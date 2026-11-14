@@ -98,6 +98,11 @@ export function workerPorts(engine: EnginePorts, given: WorkerPortsGiven = {}, d
   if (handed.length > 0 && !heavyInProcess) {
     throw new Error(`a jobs worker handed its own ${handed.join(', ')} must run its heavy jobs in its own process (heavyInProcess): a job process reads the product's ports`);
   }
+  // The product's capture runner writes its run folders on the disk itself: beside outputs of a worker's own, the engine
+  // would read one storage while the runner wrote another.
+  if (given.outputs !== undefined && given.capture === undefined) {
+    throw new Error("a jobs worker handed its own outputs must be handed its own capture runner too: the product's runner writes the run folders on the disk");
+  }
   const p = given.processes ?? {};
   return {
     ...engine,

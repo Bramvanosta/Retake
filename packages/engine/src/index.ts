@@ -33,7 +33,7 @@ export type { WorkspaceReads } from './workspace-reads/reads.js';
 export { diskOutputs } from './outputs/disk-outputs.js';
 export { MemoryOutputs } from './outputs/memory-outputs.js';
 export { runsDirOf } from './outputs/outputs.js';
-export type { Outputs, RunFileFacts, RunFolderReadOptions, RunOutputs } from './outputs/outputs.js';
+export type { OutputFolder, OutputKind, Outputs, RenderOutputs, RunFileFacts, RunFolderReadOptions, RunOutputs } from './outputs/outputs.js';
 export type { FolderStage, ProjectFolder, ProjectStore, ProjectStores, StoreLabel, StoreScope, StoreWriteOptions, StoredText } from './store/store.js';
 export { ManualClock, dateOf, stampOf, systemClock } from './clock.js';
 export type { Clock } from './clock.js';

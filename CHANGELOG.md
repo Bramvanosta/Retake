@@ -12,6 +12,9 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- A run's status (MCP's `run_status`, the Studio) follows a symbolic link in a run folder only to a file inside that
+  run folder: a run file that is a link leading out of it, or nowhere, is listed as a refused link (`link: "refused"`)
+  with no size and no sha256.
 - A job is described in the same words everywhere: `retake jobs`, MCP's `job_list` / `job_status` and the Studio. A
   running review (and a render while it bundles) now shows its percent in `retake jobs`, not its phase alone; the MCP
   line of an environment reset says `env reset`, names the environment of a run, and counts one logo candidate as

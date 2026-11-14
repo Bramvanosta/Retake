@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
-import { EngineError, RenderFrames, Semaphore, addComment, createEngine, packageReviewer } from '../src/index.js';
+import { EngineError, RenderFrames, Semaphore, addComment, createEngine, diskOutputs, packageReviewer } from '../src/index.js';
 import { hasTool } from '@retake/test-support/repo';
 import { makeCase, scenesTimeline, workspace } from '@retake/test-support/review';
 import type { Case, Workspace } from '@retake/test-support/review';
@@ -105,7 +105,8 @@ async function withRecord<T>(edit: (r: RenderRecord) => RenderRecord, fn: () => 
     await writeFile(recordFile(), savedRecord);
   }
 }
-const frames = (o: Partial<ConstructorParameters<typeof RenderFrames>[0]> = {}) => new RenderFrames({ policy: PERSON_POLICY, slots: new Semaphore(2), ...o, frames: o.frames ?? FRAMES });
+const frames = (o: Partial<ConstructorParameters<typeof RenderFrames>[0]> = {}) =>
+  new RenderFrames({ policy: PERSON_POLICY, slots: new Semaphore(2), ...o, frames: o.frames ?? FRAMES, renders: o.renders ?? diskOutputs.renders });
 const ask = (rf: RenderFrames, frame: number, o: { session?: string; created_at?: string } = {}) =>
   rf.frame(project, { render_id: 'quote-v1', created_at: o.created_at ?? v1.record.created_at, frame }, o.session ? { session: o.session } : {});
 
@@ -202,6 +203,7 @@ describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
           { render: 'quote-v1', render_created_at: v1.record.created_at, frame: f, text: 'This frame' },
           { via: 'cli', name: 'Reviewer' },
           authorScope(project, { via: 'cli', name: 'Reviewer' }),
+          diskOutputs.renders,
           PERSON_POLICY,
           FRAMES,
         );

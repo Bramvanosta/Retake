@@ -5,6 +5,7 @@
  *
  * The frozen copy below is not to follow the product: it is what the property is measured against.
  */
+import { diskOutputs } from '../src/index.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -111,7 +112,7 @@ describe('prune only keeps more than it did before L7.7', () => {
       const b = buildLayout(root, 'generated', { slug: `g-${String(n).padStart(3, '0')}`, layout });
       const project = { slug: b.slug, dir: b.dir, root, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(b.dir, 'project.yaml') } as unknown as LoadedProject;
       const before = await oldPrune(b.runs);
-      const after = await pruneProject(project, { dry_run: true });
+      const after = await pruneProject(diskOutputs, project, { dry_run: true });
       const listed = after.items.filter((i) => i.kind === 'run');
       for (const i of listed) {
         if (!before.listed.has(i.id)) wrong.push(`${b.slug} [${shape.join(', ')}]: lists ${i.id} (${i.reason}), which was kept`);
@@ -351,7 +352,7 @@ describe('prune only keeps more than it did before L7.6b: the renders', () => {
       // The last three renders of a scenario and variant (the default), or the last one (so that most layouts list some).
       const keep = chance(0.5) ? 1 : 3;
       const before = await oldRenders(b.dir, { keep, threadRenders: new Set(threadOn ? [threadOn] : []), busy }).catch((e: unknown) => e as Error);
-      const after = await pruneProject(project, { dry_run: true, keep_renders: keep, busy }).catch((e: unknown) => e as Error);
+      const after = await pruneProject(diskOutputs, project, { dry_run: true, keep_renders: keep, busy }).catch((e: unknown) => e as Error);
       // The product never throws on a file of renders/: it answers a list in every layout.
       if (after instanceof Error) {
         wrong.push(`${where}: the product throws "${after.message}"`);

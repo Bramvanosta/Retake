@@ -686,6 +686,14 @@ describe('the import-rules ratchet', () => {
       expect(at(f, "import * as io from '@retake/core/io';\nio.readRunRecord(x);\nio['readNamedRun'](x);")).toEqual([`${f} → readRunRecord`, `${f} → readNamedRun`]);
       expect(at(f, "export { readTimeline } from '@retake/core/io';")).toEqual([`${f} → readTimeline re-exported`]);
       expect(at(f, "import type { RunFolderFs } from '@retake/core/io';")).toEqual([]);
+      // renders/ too: its readers as a listing and a by-id call read it.
+      expect(lib.RENDER_FOLDER_READERS).toEqual(['readRendersFolder', 'readListedRender', 'readRenderById']);
+      expect(at(f, "import { readListedRender, readRenderById as byId } from '@retake/core/io';\nimport * as io from '@retake/core/io';\nio.readRendersFolder(d);")).toEqual([
+        `${f} → readListedRender`,
+        `${f} → readRenderById`,
+        `${f} → readRendersFolder`,
+      ]);
+      expect(at(f, "import { findNamedRender } from '@retake/core/io';")).toEqual([]);
       expect(at('packages/engine/src/outputs/output-files.ts', "import { readRunFolder } from '@retake/core/io';")).toEqual([]);
       expect(at('packages/editor/src/render/runs.ts', "import { readRunFolder } from '@retake/core/io';")).toEqual([]);
     });
@@ -703,12 +711,8 @@ describe('the import-rules ratchet', () => {
       expect(ports('packages/engine/src/index.ts', "export { MemoryOutputs } from './outputs/memory-outputs.js';")).toEqual([]);
     });
 
-    it('holds today: the engine reads its run folders through the port but prune, the in-memory raw export and the listed reservation (the outputs not on it yet), pinned', () => {
-      expect(ratchetOfRepo().filter((e) => e.startsWith('output-read '))).toEqual([
-        'output-read packages/engine/src/agent-written.ts → reserveRunId',
-        'output-read packages/engine/src/capture/memory-raw.ts → readNamedRun',
-        'output-read packages/engine/src/prune.ts → readRunFolder',
-      ]);
+    it('holds today: the engine reads and reserves its run folders, and reads renders/, through the port only (no entry)', () => {
+      expect(ratchetOfRepo().filter((e) => e.startsWith('output-read '))).toEqual([]);
     });
   });
 
@@ -2440,18 +2444,18 @@ describe('the import-rules ratchet', () => {
       const index = src('packages/engine/src/index-db/index-db.ts');
       expect(parsesIn(index)).toEqual([]);
       expect(index.match(/readHistoryLine\((line|r\.entry)\)/g)).toHaveLength(2);
-      expect(index).toMatch(/await renderEntries\(dir, \(name\) => \(names\.push\(name\), false\)\)/);
-      expect(index).toMatch(/const entry = await readListedRender\(projectPath\(dir, 'renders'\), name\)/);
+      expect(index).toMatch(/await renderEntries\(renders, dir, \(name\) => \(names\.push\(name\), false\)\)/);
+      expect(index).toMatch(/const entry = await renders\.listed\(renders\.dirOf\(dir\), name\)/);
       expect(index).toMatch(/renderOfFile\(entry\)/);
       expect(index).not.toMatch(/readSmall\(dir, projectRef\('renders'|readdir\(projectPath\(dir, 'renders'\)\)/);
       // The timeline: it parses nothing itself (ffprobe's output is core's reader's, L7.31); the record of a pin is read
-      // under a listing's rules (readListedRender: no link, the listing's cap) and judged by core's rules; renders/ is
-      // named in that one call only.
+      // under a listing's rules (the port's renders.listed: no link, the listing's cap) and judged by core's rules; renders/
+      // is never named by hand.
       const timeline = src('packages/engine/src/timeline-view.ts');
       expect(parsesIn(timeline)).toEqual([]);
       expect(timeline).toMatch(/ffprobePackets\(readFfprobeJson\(text\)\)/);
-      expect(timeline).toMatch(/readListedRender\(projectPath\(projectDir, 'renders'\), a\.id\)/);
-      expect(timeline.match(/'renders'/g)).toHaveLength(1);
+      expect(timeline).toMatch(/renders\.listed\(renders\.dirOf\(projectDir\), a\.id\)/);
+      expect(timeline.match(/'renders'/g)).toBeNull();
       expect(timeline).toMatch(/renderOfFile\(await entry\)/);
       expect(timeline).toMatch(/sameRender\(record, a\)/);
       // The frame service: it parses nothing itself (probeFd's ffprobe output is core's reader's, L7.31); its record comes
@@ -2460,7 +2464,7 @@ describe('the import-rules ratchet', () => {
       expect(parsesIn(frames)).toEqual([]);
       expect(frames).toMatch(/openVideoFromJson\(readFfprobeJson\(out\)\)/);
       expect(frames).not.toMatch(/readFile|readPlainFile|readJson|readRenders?Folder|readListedRender|readNamedRender|readRenderById/);
-      expect(frames).toMatch(/await renderForWork\(project, renderId\)/);
+      expect(frames).toMatch(/await renderForWork\(this\.o\.renders, project, renderId\)/);
       expect(frames.match(/sameRender\(record, \{/g)).toHaveLength(2);
       expect(frames).not.toMatch(/[!=]== record\.created_at|record\.created_at [!=]==|render_created_at [!=]==/);
     });

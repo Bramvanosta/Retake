@@ -979,8 +979,8 @@ describe('the render records, state by state and site by site', () => {
         const v = await engine.renders.status(b.slug, ask(b.state));
         return `${v.render_id}:${v.status}${v.record ? '' : ' (no record)'}`;
       }),
-    work: (b: BuiltRenders) => answer(b, async () => `taken ${(await renderForWork(await loadProject(b.slug, root), ask(b.state))).id}`),
-    workLatest: (b: BuiltRenders) => answer(b, async () => `taken ${(await renderForWork(await loadProject(b.slug, root), 'latest', { scenario: 'quote' })).id}`),
+    work: (b: BuiltRenders) => answer(b, async () => `taken ${(await renderForWork(diskOutputs.renders, await loadProject(b.slug, root), ask(b.state))).id}`),
+    workLatest: (b: BuiltRenders) => answer(b, async () => `taken ${(await renderForWork(diskOutputs.renders, await loadProject(b.slug, root), 'latest', { scenario: 'quote' })).id}`),
     studio: (b: BuiltRenders) =>
       answer(
         b,
@@ -994,14 +994,14 @@ describe('the render records, state by state and site by site', () => {
         const s = (await engine.projects.board(b.slug)).scenarios.find((x) => x.name === 'quote');
         return `${s?.render ? `${s.render.render_id}:${s.render.status}` : '-'}${s?.render_failed ? ` failed ${s.render_failed.render_id}` : ''}`;
       }),
-    index: (b: BuiltRenders) => answer(b, async () => (await renderIndex(b.dir)).map((r) => r.id).join(' ') || '-'),
+    index: (b: BuiltRenders) => answer(b, async () => (await renderIndex(diskOutputs.renders, b.dir)).map((r) => r.id).join(' ') || '-'),
     commentsLatest: (b: BuiltRenders) => answer(b, async () => `listed ${(await engine.comments.list(b.slug, { render: 'latest', scenario: 'quote' })).total}`),
     // L7.6c: the search index's rows of the project (id:status), in the order of ids.
     search: (b: BuiltRenders) =>
       answer(
         b,
         async () =>
-          (await readRenders(b.dir))
+          (await readRenders(diskOutputs.renders, b.dir))
             .map((r) => `${r.id}:${r.status ?? '-'}`)
             .sort()
             .join(' ') || '-',
@@ -1013,6 +1013,7 @@ describe('the render records, state by state and site by site', () => {
         const plan = JSON.parse(JSON.stringify(RENDER_STATES.record.plan).replaceAll('$RUN', b.new).replaceAll('$PROJECT', b.slug)) as unknown;
         const at = ['2026-10-02T09:01:00.000Z', '2026-10-02T09:02:00.000Z'];
         const got = await versionMatches(
+          diskOutputs.renders,
           b.dir,
           planSignature(plan)!,
           '0123456789abcdef',
@@ -1780,6 +1781,6 @@ describe('the render records, state by state and site by site', () => {
       'quote-v1 succeeded editorial landscape run - plan',
     ]);
     expect((await engine.projects.board(b.slug)).scenarios.find((x) => x.name === 'quote')?.render?.render_id).toBe('quote-v4');
-    expect((await renderIndex(b.dir)).map((r) => r.id)).toEqual(['quote-v1', 'quote-v2', 'quote-v3', 'quote-v4']);
+    expect((await renderIndex(diskOutputs.renders, b.dir)).map((r) => r.id)).toEqual(['quote-v1', 'quote-v2', 'quote-v3', 'quote-v4']);
   });
 });

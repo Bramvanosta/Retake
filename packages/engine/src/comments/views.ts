@@ -14,6 +14,7 @@ import type { ProjectRender, RenderEntry, RenderLatestPick, StoredRenderRecord }
 import { EngineError } from '../errors.js';
 import { checkScenarioName } from '../refs.js';
 import { latestRenderMembers, readById, renderEntries, renderFileProblem } from '../render-records.js';
+import type { RenderOutputs } from '../outputs/outputs.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { LocalStorage } from '../storage.js';
 import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, argError, commentRef, commentStillFile, locateThread, readThread } from './store.js';
@@ -125,8 +126,8 @@ export function quotableRenders(entries: readonly RenderEntry[]): StoredRenderRe
 }
 
 /** The project's renders a message may quote (read once per call, by the one reader of renders/), oldest first. */
-export async function renderIndex(projectDir: string): Promise<StoredRenderRecord[]> {
-  return quotableRenders(await renderEntries(projectDir));
+export async function renderIndex(renders: RenderOutputs, projectDir: string): Promise<StoredRenderRecord[]> {
+  return quotableRenders(await renderEntries(renders, projectDir));
 }
 
 /** The thread's still when it is a plain JPEG of the project: a real file (no link, one name — no hard link), ≤ 10 MB, JPEG bytes. */
@@ -295,17 +296,17 @@ export interface CommentsUnread {
 }
 
 /** The threads of a project (see CommentListRequest). */
-export async function listComments(project: LoadedProject, req: CommentListRequest = {}): Promise<CommentListView> {
-  return (await listCommentsAndUnread(project, req)).list;
+export async function listComments(renders: RenderOutputs, project: LoadedProject, req: CommentListRequest = {}): Promise<CommentListView> {
+  return (await listCommentsAndUnread(renders, project, req)).list;
 }
 
 /** `listComments`, with what the listing could not read as threads (CommentsUnread). */
-export async function listCommentsAndUnread(project: LoadedProject, req: CommentListRequest = {}): Promise<{ list: CommentListView; unread: CommentsUnread }> {
+export async function listCommentsAndUnread(renderFiles: RenderOutputs, project: LoadedProject, req: CommentListRequest = {}): Promise<{ list: CommentListView; unread: CommentsUnread }> {
   const status = req.status ?? 'open';
   if (!['open', 'resolved', 'all'].includes(status)) throw argError('status', `status "${String(status)}": open, resolved or all`);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   if (req.limit !== undefined && (!Number.isInteger(req.limit) || req.limit < 1)) throw argError('limit', `limit ${String(req.limit)}: a whole number from 1`);
-  const entries = await renderEntries(project.dir);
+  const entries = await renderEntries(renderFiles, project.dir);
   const renders = quotableRenders(entries);
   let onRender: StoredRenderRecord | undefined;
   let latest: RenderLatestPick<ProjectRender> | undefined;
@@ -324,7 +325,7 @@ export async function listCommentsAndUnread(project: LoadedProject, req: Comment
       onRender = renders.find((r) => r.id === id);
       // A render NAMED has no listing's cap: a record too big for the listing is read whole by its id.
       const listed = entries.find((e) => e.name === id);
-      const entry = !onRender && listed && !listed.read.ok && listed.read.problem === 'too-big' ? await readById(project.dir, id) : listed;
+      const entry = !onRender && listed && !listed.read.ok && listed.read.problem === 'too-big' ? await readById(renderFiles, project.dir, id) : listed;
       if (!onRender && entry && entry !== listed) onRender = quotableRenders([entry])[0];
       if (!onRender) {
         // A file that is there is never "not found": what it is, and why no thread is listed on it.
@@ -425,11 +426,11 @@ function notQuoted(entry: RenderEntry, id: string): EngineError {
 }
 
 /** One thread's view. */
-export async function getComment(project: LoadedProject, id: string): Promise<CommentView> {
+export async function getComment(renders: RenderOutputs, project: LoadedProject, id: string): Promise<CommentView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
   if (!r.ok) throw new EngineError('invalid', r.problem);
-  return threadView(project.dir, r.thread, r.hash, await renderIndex(project.dir));
+  return threadView(project.dir, r.thread, r.hash, await renderIndex(renders, project.dir));
 }
 
 // ── Counts and pins from the thread files alone (L4.6, critique B8) ─────────

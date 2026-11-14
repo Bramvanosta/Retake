@@ -13,7 +13,8 @@ import { SLUG_RE } from '@retake/core/model';
 import { formatRenderId, isRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
 import { projectPath, projectRef } from '@retake/core/project';
 import { latestProjectRender, orderRenders, projectRenderOf, renderLackWords, renderNot, renderNotWords } from '@retake/core/render';
-import { readListedRender, readPlainFile } from '@retake/core/io';
+import { readPlainFile } from '@retake/core/io';
+import type { RenderOutputs } from './outputs/outputs.js';
 import type { LoadedProject } from '@retake/core/model';
 import type { ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
 import type { StoredRender } from '@retake/editor/plan';
@@ -372,6 +373,7 @@ export type RenderForWork = Extract<StoredRender, { status: 'succeeded' }>;
  * (symbolic links resolved): a record's paths are absolute, a hand-edited one could name any file.
  */
 export async function renderForWork(
+  renders: RenderOutputs,
   project: LoadedProject,
   renderIdArg: string,
   o: {
@@ -385,14 +387,14 @@ export async function renderForWork(
   let id = renderIdArg;
   if (renderIdArg === 'latest') {
     // The newest succeeded render of its scenario (core's rule, the engine's `latest`): a complete record of its own file.
-    const pick = latestProjectRender(await renderEntries(project.dir), { ...(scenario !== undefined ? { scenario } : {}), status: 'succeeded' });
+    const pick = latestProjectRender(await renderEntries(renders, project.dir), { ...(scenario !== undefined ? { scenario } : {}), status: 'succeeded' });
     if (!pick.pick) throw new EngineError('not_found', `no finished render of ${project.slug}${scenario ? ` · ${scenario}` : ''} yet: render makes one`);
     o.latest?.(pick);
     id = pick.pick.id;
   } else if (!isRenderId(renderIdArg)) {
     throw new EngineError('invalid', `invalid render id "${String(renderIdArg)}": <scenario>-v<N> (render returns it), or "latest"`);
   }
-  const entry = await readById(project.dir, id);
+  const entry = await readById(renders, project.dir, id);
   const unread = renderFileProblem(entry, id);
   if (unread) throw unread;
   if (!entry.read.ok) {
@@ -419,13 +421,14 @@ export async function renderForWork(
  * renders of their scenario only (isRenderOfItsScenario), so the id is one the by-id call takes.
  */
 async function latestRenderId(
+  renders: RenderOutputs,
   projectDir: string,
   queue: JobQueueView,
   slug: string,
   scenario?: string,
 ): Promise<{ id?: string /** The id is a record's whose status Retake never writes. */; unknown: boolean; pick: RenderLatestPick<unknown> }> {
   // The newest record of any status (core's rule; a status Retake never writes is answered as unknown) …
-  const pick = latestProjectRender(await renderEntries(projectDir), { ...(scenario !== undefined ? { scenario } : {}), status: 'any' });
+  const pick = latestProjectRender(await renderEntries(renders, projectDir), { ...(scenario !== undefined ? { scenario } : {}), status: 'any' });
   let best = pick.pick ? { id: pick.pick.id as string, at: 'record' in pick.pick ? pick.pick.record.created_at : pick.pick.unknown.created_at, unknown: 'unknown' in pick.pick } : undefined;
   // … or a newer job of a render (a record wins a tie, as it always did).
   for (const j of await queue.list({ project: slug, kinds: ['render'], limit: 200 })) {
@@ -443,7 +446,7 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
   let renderId = renderIdArg;
   let latest: Awaited<ReturnType<typeof latestRenderId>> | undefined;
   if (renderIdArg === 'latest') {
-    latest = await latestRenderId(project.dir, queue, slug, scenario);
+    latest = await latestRenderId(ws.outputs.renders, project.dir, queue, slug, scenario);
     if (!latest.id) throw new EngineError('not_found', `no render of ${slug}${scenario ? ` · ${scenario}` : ''} yet: render starts one`);
     renderId = latest.id;
   } else if (!isRenderId(renderIdArg)) {
@@ -452,7 +455,7 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
   const job = await queue.ofRender(slug, renderId);
   // The record of this id, read leniently: a status question is answered whatever the record lacks (its plan, its
   // creation time) and whatever its status says. A file that is there and is no record of this id is said as that.
-  const entry = await readById(project.dir, renderId);
+  const entry = await readById(ws.outputs.renders, project.dir, renderId);
   const unread = renderFileProblem(entry, renderId);
   let record: StoredRenderRecord | UnknownStatusRender | undefined = unread ? undefined : entry.read.ok ? entry.read.value : entry.read.problem === 'unknown-status' ? entry.read.record : undefined;
   if (!job && unread) throw unread;
@@ -733,9 +736,9 @@ function reportSummary(projectDir: string, id: string, since: string): { summary
 export const renderRecordReads = { n: 0 };
 
 /** renders/<name>.json as a listing reads it (the one reader: no link followed, within the cap) — the board's read, held while the file's stat holds. */
-export function readListedRecord(projectDir: string, name: string): Promise<RenderEntry> {
+export function readListedRecord(renders: RenderOutputs, projectDir: string, name: string): Promise<RenderEntry> {
   renderRecordReads.n++;
-  return readListedRender(projectPath(projectDir, 'renders'), name);
+  return renders.listed(renders.dirOf(projectDir), name);
 }
 
 /** The render of `scenario` an entry of renders/ is (core projectRenderOf: a complete record of its own file, its id of its scenario), or null. */
@@ -802,7 +805,7 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   const reviewJobs = await queue.list({ project: slug, kinds: ['review'], states: ['queued', 'running'], limit: 50 });
 
   // Records: renders/<scenario>-v<N>[-variant].json only (named by the file first: other scenarios' records are not read).
-  const entries = await renderEntries(project.dir, (name) => {
+  const entries = await renderEntries(ws.outputs.renders, project.dir, (name) => {
     if (renderIdOf(name, scenario) === null) return false;
     renderRecordReads.n++;
     return true;

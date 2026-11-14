@@ -229,10 +229,12 @@ export const STORE_HOME = 'packages/engine/src/store/';
 export const WORKSPACE_READS_HOME = 'packages/engine/src/workspace-reads/';
 /** The product's Secrets adapter: the one engine file that calls core io's secret resolvers (secret-resolve). */
 export const SECRETS_HOME = 'packages/engine/src/secrets/system-secrets.ts';
-/** The Outputs port's folder (output-read): the one engine folder that names core io's readers of a run folder. */
+/** The Outputs port's folder (output-read): the one engine folder that names core io's readers of a run folder and of renders/. */
 export const OUTPUTS_HOME = 'packages/engine/src/outputs/';
 /** Core io's readers of a run folder and its reservation of one (io run-folder.ts, files.ts reserveRunId): the run outputs' code. */
 export const RUN_FOLDER_READERS = ['readRunFolder', 'readNamedRunFolder', 'readNamedRun', 'readRunRecord', 'readTimeline', 'readTimelineHead', 'reserveRunId'];
+/** Core io's readers of renders/ as a listing and a by-id call read it (io render-folder.ts): the render outputs' code. */
+export const RENDER_FOLDER_READERS = ['readRendersFolder', 'readListedRender', 'readRenderById'];
 /** Core io's secret resolvers (io secrets.ts): on this process's environment unless handed another. */
 export const SECRET_RESOLVERS = ['resolveSecretRef', 'prefetchSecrets'];
 /**
@@ -596,7 +598,7 @@ export const CHECKS = [
   },
   {
     id: 'output-read',
-    title: `the engine reads and reserves its run folders through its Outputs port (${OUTPUTS_HOME}): in packages/engine/src outside it, core io's readers of a run folder and its reservation of one (${RUN_FOLDER_READERS.join(', ')}) imported from \`@retake/core/io\` as a value under their name or an alias, read off a namespace import of it (\`io.readRunFolder\`, \`io['reserveRunId']\`) or re-exported from it are hits (entries: the file and the name); and the port's adapters \`diskOutputs\` and \`MemoryOutputs\` named as values in packages/*/src outside PORT_ROOTS (\`<name> outside a root\`: the disk's at the composition roots, the memory's a test's fake). Not seen: a reader reached through another module that re-exports it under its own name, a namespace member taken by destructuring or aliased, a key computed at run time, a run folder read with node:fs directly; an \`import()\` or \`require()\` of core io is workspace-read's hit`,
+    title: `the engine reads and reserves its run folders, and reads renders/, through its Outputs port (${OUTPUTS_HOME}): in packages/engine/src outside it, core io's readers of a run folder and its reservation of one (${RUN_FOLDER_READERS.join(', ')}) and its readers of renders/ (${RENDER_FOLDER_READERS.join(', ')}) imported from \`@retake/core/io\` as a value under their name or an alias, read off a namespace import of it (\`io.readRunFolder\`, \`io['reserveRunId']\`) or re-exported from it are hits (entries: the file and the name); and the port's adapters \`diskOutputs\` and \`MemoryOutputs\` named as values in packages/*/src outside PORT_ROOTS (\`<name> outside a root\`: the disk's at the composition roots, the memory's a test's fake). Not seen: a reader reached through another module that re-exports it under its own name, a namespace member taken by destructuring or aliased, a key computed at run time, a run folder read with node:fs directly; an \`import()\` or \`require()\` of core io is workspace-read's hit`,
   },
   {
     id: 'env-read',
@@ -1253,7 +1255,7 @@ export function secretResolveHits(root, files) {
  * core io is workspace-read's hit.
  */
 export function outputReadHits(root, files) {
-  return coreIoNameHits(root, files, { rule: 'output-read', names: RUN_FOLDER_READERS, home: (rel) => rel.startsWith(OUTPUTS_HOME), loads: false });
+  return coreIoNameHits(root, files, { rule: 'output-read', names: [...RUN_FOLDER_READERS, ...RENDER_FOLDER_READERS], home: (rel) => rel.startsWith(OUTPUTS_HOME), loads: false });
 }
 
 /** Names of `@retake/core/io` used as values in packages/engine/src outside a home (`loads`: an import() or require() of core io is a hit too). */

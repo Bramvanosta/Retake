@@ -80,7 +80,7 @@ export async function submitExportJob(
   const fix = (id: string) => exportCommandLine(ctx.cli, { project: req.project, render_id: id, formats });
   // With `latest`: what it passed over on the way (a count, and the names for `untrusted`).
   let latest: Parameters<typeof latestRenderMembers>[0];
-  const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
+  const record = await renderForWork(ctx.ws.outputs.renders, project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
   // The admission rules see the render this export is of once `latest` is resolved (admission.ts export_cap).
   await o.admit?.(record.id);
   const exporting = await exportPlanning();
@@ -163,7 +163,7 @@ export interface ExportJobContext extends EnginePorts {
 export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJobResult> {
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
-  await renderForWork(project, input.render_id, { fix: (id) => exportCommandLine(ctx.cli, { project: input.project, render_id: id, formats: input.formats }) });
+  await renderForWork(ctx.ws.outputs.renders, project, input.render_id, { fix: (id) => exportCommandLine(ctx.cli, { project: input.project, render_id: id, formats: input.formats }) });
   const total = input.formats.length;
   let done = 0;
   let last = '';

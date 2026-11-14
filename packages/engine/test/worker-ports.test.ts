@@ -23,6 +23,8 @@ import type { WorkerPortsGiven } from '../src/jobs/worker-ports.js';
 import { enginePorts } from '../src/ports.js';
 import { freeBytesOf } from '../src/library.js';
 import { ManualClock } from '../src/clock.js';
+import { MemoryOutputs } from '../src/outputs/memory-outputs.js';
+import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 
 describe('the job handlers and the worker ports (L7.29)', () => {
@@ -78,6 +80,9 @@ describe('the job handlers and the worker ports (L7.29)', () => {
     expect(refused({ clock: new ManualClock('2030-01-01T00:00:00.000Z') })).toThrow(/clock/);
     expect(refused({ queues: memoryJobQueues() })).toThrow(/queues/);
     expect(refused({ recordWindow: { headless: true }, capture: enginePorts().capture })).toThrow(/capture/);
+    // Its own outputs with the product's capture runner (which writes the disk): refused, in-process or not.
+    expect(() => workerPorts(enginePorts({ outputs: new MemoryOutputs() }), { outputs: new MemoryOutputs() }, dirs, true)).toThrow(/handed its own outputs must be handed its own capture runner too/);
+    expect(() => workerPorts(enginePorts(), { outputs: new MemoryOutputs(), capture: new MemoryCaptureRunner() }, dirs, true)).not.toThrow();
     // Said, the same ports are taken: heavy jobs then run in this process on them.
     const given = { reads: mem.reads, renderer: new MemoryRenderer() };
     const ports = workerPorts(enginePorts(given), given, dirs, true);

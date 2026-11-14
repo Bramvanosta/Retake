@@ -160,6 +160,7 @@ export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectAr
       },
       by,
       personScope(project.root, cliPorts),
+      ws.outputs.renders,
       ws.policy,
       cliPorts.reviewer.frames,
     ),
@@ -185,7 +186,7 @@ export async function commentListCommand(ui: Ui, global: GlobalOptions, projectA
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   const list: CommentListView = await engineCall(() =>
-    listComments(project, {
+    listComments(ws.outputs.renders, project, {
       ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}),
       ...(opts.render !== undefined ? { render: opts.render } : {}),
       ...(opts.status !== undefined ? { status: opts.status } : {}),
@@ -221,7 +222,7 @@ export async function commentReplyCommand(ui: Ui, global: GlobalOptions, project
   return printWritten(
     ui,
     'replied to',
-    await engineCall(() => replyComment(project, id, text, by, { scope: personScope(project.root, cliPorts), files: fileFacts(ws.policy), reads: ws.reads })),
+    await engineCall(() => replyComment(project, id, text, by, { scope: personScope(project.root, cliPorts), renders: ws.outputs.renders, files: fileFacts(ws.policy), reads: ws.reads })),
     opts.json,
   );
 }
@@ -230,9 +231,13 @@ export async function commentReplyCommand(ui: Ui, global: GlobalOptions, project
 export async function commentResolveCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, opts: CommentWriteOptions): Promise<ExitCode> {
   if (opts.note === undefined) throw new UsageError('--note "<what was changed>" is required');
   const by = author(opts.author);
-  const project = await openProject(await openWorkspace(global), projectArg);
+  const ws = await openWorkspace(global);
+  const project = await openProject(ws, projectArg);
   const w = await engineCall(() =>
-    resolveComment(project, id, { note: opts.note as string, ...(opts.render !== undefined ? { render_id: opts.render } : {}) }, by, { scope: personScope(project.root, cliPorts) }),
+    resolveComment(project, id, { note: opts.note as string, ...(opts.render !== undefined ? { render_id: opts.render } : {}) }, by, {
+      scope: personScope(project.root, cliPorts),
+      renders: ws.outputs.renders,
+    }),
   );
   return printWritten(ui, 'resolved', w, opts.json);
 }
@@ -240,6 +245,7 @@ export async function commentResolveCommand(ui: Ui, global: GlobalOptions, proje
 /** `retake comment reopen <project> <id> [--note "…"]`. */
 export async function commentReopenCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, opts: CommentWriteOptions): Promise<ExitCode> {
   const by = author(opts.author);
-  const project = await openProject(await openWorkspace(global), projectArg);
-  return printWritten(ui, 'reopened', await engineCall(() => reopenComment(project, id, opts.note, by, { scope: personScope(project.root, cliPorts) })), opts.json);
+  const ws = await openWorkspace(global);
+  const project = await openProject(ws, projectArg);
+  return printWritten(ui, 'reopened', await engineCall(() => reopenComment(project, id, opts.note, by, { scope: personScope(project.root, cliPorts), renders: ws.outputs.renders })), opts.json);
 }

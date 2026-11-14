@@ -1,7 +1,8 @@
 /**
- * The Outputs port: what the engine generates in a project and reads back — today the run folders (runs/<id>/: run.json,
- * timeline.json, the scenario snapshot, the film), each kind a member of its own (renders, reviews, exports and
- * inspections join it, each a member beside `runs`). The project store (store/store.ts) is the port of the authored
+ * The Outputs port: what the engine generates in a project and reads back, each kind a member of its own — the run
+ * folders (runs/<id>/: run.json, timeline.json, the scenario snapshot, the film), the renders (renders/: a record and
+ * the files named after it), the reviews (review/<render id>/), the raw exports (exports/) and the page inspections
+ * (.retake/inspect/<id>/). The project store (store/store.ts) is the port of the authored
  * writes; the workspace reads (workspace-reads/reads.ts), of the loaders; this one, of the generated outputs.
  *
  * Chosen at the composition roots (ports.ts `enginePorts`): `diskOutputs` (disk-outputs.ts) for the product,
@@ -10,16 +11,18 @@
  * the in-memory runner writes its run folder there). Both adapters are one implementation (output-files.ts
  * `runOutputsOn`) over a file layer of their own: core's one reader of a run folder (core io run-folder.ts) and its
  * reservation of a run id (core io reserveRunId) on either; nothing in the engine outside this folder names those
- * readers (the import-rules ratchet's `output-read` check). The same contract suite runs on both adapters
+ * readers, nor core's reader of renders/ (the import-rules ratchet's `output-read` check). The same contract suite runs on both adapters
  * (engine/test/outputs-contract.ts).
  *
  * Paths are absolute, as core's readers take them and as run.json records them: a runs folder (`runsDirOf`), a run
  * folder in it, a file of the run folder named by one segment.
  */
-import { projectPath } from '@retake/core/project';
+import { projectPath, statePath } from '@retake/core/project';
 import type { RunId } from '@retake/core/ids';
 import type { Read, RunFolderFacts, RunRead } from '@retake/core/run';
+import type { RecordFileText } from '@retake/core/io';
 import type { Timeline } from '@retake/core/model';
+import type { RenderEntry } from '@retake/core/render';
 
 /** What a listed run folder's read may be spared (core io readRunFolder's options). */
 export interface RunFolderReadOptions {
@@ -29,10 +32,14 @@ export interface RunFolderReadOptions {
   filmFirst?: boolean;
 }
 
-/** A file of a run folder as described: when it is a regular file (through a link), its size and, asked, the sha256 of its bytes. */
+/**
+ * A file of a run folder as described: when it is a regular file, its size and, asked, the sha256 of its bytes; a link
+ * whose real path leaves the run folder (or leads nowhere) is `link: 'refused'`, with neither.
+ */
 export interface RunFileFacts {
   bytes?: number;
   sha256?: string;
+  link?: 'refused';
 }
 
 /** The run folders of the projects: their reads and the engine's own writes into them. */
@@ -51,8 +58,9 @@ export interface RunOutputs {
   /** The UTF-8 text of the file `file` of the run folder `dir`; undefined when it is not there. */
   readText(dir: string, file: string): Promise<string | undefined>;
   /**
-   * What is at `file` of the run folder `dir`, read through a link as the run status always read it: undefined when
-   * nothing is there; a regular file's size (and, `hash`, its sha256); `{}` for anything else.
+   * What is at `file` of the run folder `dir`: undefined when nothing is there; a regular file's size (and, `hash`, its
+   * sha256); `{}` for anything else. A link is followed only to a real path inside the run folder's real path; any
+   * other link is `{ link: 'refused' }`.
    */
   describe(dir: string, file: string, o?: { hash?: boolean }): Promise<RunFileFacts | undefined>;
   /**
@@ -65,6 +73,16 @@ export interface RunOutputs {
    * folder, which lies in the project: the run folders the engine's views offer as takes.
    */
   inside(projectDir: string, id: string): Promise<boolean>;
+  /** Every entry name of `runsDir` (folders, links, files), in the storage's order; [] when it does not exist. */
+  names(runsDir: string): Promise<string[]>;
+  /** The text of the file `file` of the run folder `dir`, of at most `max` bytes (RecordFs text: `follow` or not). */
+  readCapped(dir: string, file: string, o: { max: number; follow: boolean }): Promise<RecordFileText>;
+  /** The bytes under `path` (a run folder, a file of one), no link followed; 0 when nothing is there. */
+  size(path: string): Promise<number>;
+  /** Remove the run folder `dir` and everything in it (nothing there: done). */
+  remove(dir: string): Promise<void>;
+  /** Remove a reserved run folder again while it is empty (a run that did not start); one that holds anything stays. */
+  unreserve(dir: string): Promise<void>;
   /** A new run folder of `scenario` under `runsDir` (core io reserveRunId on this storage), named after the time `at`. */
   reserve(runsDir: string, scenario: string, at: Date): Promise<{ id: RunId; dir: string }>;
   /** Write the file `file` of the run folder `dir` atomically (its folder made); a text is written as UTF-8. */
@@ -73,12 +91,64 @@ export interface RunOutputs {
   writeJson(dir: string, file: string, value: unknown): Promise<void>;
 }
 
-/** The engine's generated outputs, by kind (slice by slice: the runs first). */
+/** What is at a path of a generated folder, no link followed: undefined when nothing is there. */
+export type OutputKind = 'file' | 'folder' | 'link' | 'other';
+
+/**
+ * A generated folder of the projects (renders/, review/, exports/, .retake/inspect/): its reads, its sizes and the
+ * engine's own writes and removals in it. Paths are absolute; none is followed through a link but by `readText`.
+ */
+export interface OutputFolder {
+  /** The folder of the project `projectDir` this member holds. */
+  dirOf(projectDir: string): string;
+  /** The names of the entries of `dir`, in the storage's order; [] when it does not exist (or is no folder). */
+  names(dir: string): Promise<string[]>;
+  /** What is at `path`, no link followed. */
+  kind(path: string): Promise<OutputKind | undefined>;
+  /** The UTF-8 text of the file `path`; undefined when it is not there (or is a folder). */
+  readText(path: string): Promise<string | undefined>;
+  /** The text of a file of at most `max` bytes, as core's readers of records read one (RecordFs text: `follow` or not, never blocking). */
+  readCapped(path: string, o: { max: number; follow: boolean }): Promise<RecordFileText>;
+  /** The bytes under `path`: a file's size, a folder's files added up (no link followed: a link counts its own size); 0 when nothing is there. */
+  size(path: string): Promise<number>;
+  /** Remove a file or a folder and everything under it (nothing there: done). */
+  remove(path: string): Promise<void>;
+  /** Write the file `path` atomically (its folder made); a text is written as UTF-8. */
+  write(path: string, data: string | Uint8Array): Promise<void>;
+  /** Write a JSON file (core io writeJson's form: two-space indent, a final newline). */
+  writeJson(path: string, value: unknown): Promise<void>;
+  /** What tells a held read of `path` that it is stale (`-` when nothing is there; no link followed). */
+  signature(path: string): Promise<string>;
+}
+
+/** renders/ of the projects: a generated folder, and its records through core's one reader of renders/. */
+export interface RenderOutputs extends OutputFolder {
+  /** renders/ of `dir` as a listing reads it (core io readRendersFolder: no link followed, each file within its cap); `only` picks names. */
+  entries(rendersDir: string, only?: (name: string) => boolean): Promise<RenderEntry[]>;
+  /** renders/<name>.json as a listing reads it (core io readListedRender: no link followed, within the cap). */
+  listed(rendersDir: string, name: string): Promise<RenderEntry>;
+  /** renders/<id>.json read by its id: the record's own file, never through a link, whatever its size (core io readRenderById). */
+  byId(rendersDir: string, id: string): Promise<RenderEntry>;
+}
+
+/** The engine's generated outputs, by kind. */
 export interface Outputs {
   readonly runs: RunOutputs;
+  readonly renders: RenderOutputs;
+  readonly reviews: OutputFolder;
+  readonly exports: OutputFolder;
+  readonly inspections: OutputFolder;
 }
 
 /** The runs folder of a project (runs/). */
 export function runsDirOf(projectDir: string): string {
   return projectPath(projectDir, 'runs');
 }
+
+/** Where each generated folder of a project is (the members' `dirOf`). */
+export const OUTPUT_DIRS = {
+  renders: (projectDir: string) => projectPath(projectDir, 'renders'),
+  reviews: (projectDir: string) => projectPath(projectDir, 'review'),
+  exports: (projectDir: string) => projectPath(projectDir, 'exports'),
+  inspections: (projectDir: string) => statePath(projectDir, 'inspect'),
+} as const;

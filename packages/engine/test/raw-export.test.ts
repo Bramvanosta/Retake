@@ -93,14 +93,14 @@ async function refusal(work: Promise<unknown>): Promise<EngineError> {
 /** The gate's contract, one adapter's `raw` made new for each case. */
 function gateContract(raw: () => CaptureRaw): void {
   it("gives the timeline of a run that reads, also of one without its film (the film is not the gate's)", async () => {
-    expect((await raw().timeline(runDir(RUN))).run_id).toBe(RUN);
-    expect((await raw().timeline(runDir(FILMLESS))).run_id).toBe(FILMLESS);
+    expect((await raw().timeline(runDir(RUN), diskOutputs)).run_id).toBe(RUN);
+    expect((await raw().timeline(runDir(FILMLESS), diskOutputs)).run_id).toBe(FILMLESS);
   });
 
   it("refuses a dry run and a folder without a timeline in the export's words, as EngineErrors", async () => {
-    const dry = await refusal(raw().timeline(runDir(DRY)));
+    const dry = await refusal(raw().timeline(runDir(DRY), diskOutputs));
     expect([dry.code, dry.message]).toEqual(['invalid', `run ${DRY} is a dry run: it has no capture to export`]);
-    const bare = await refusal(raw().timeline(runDir(BARE)));
+    const bare = await refusal(raw().timeline(runDir(BARE), diskOutputs));
     expect([bare.code, bare.message]).toEqual(['invalid', `${runDir(BARE)} has no timeline.json (not a run, or the run did not finish)`]);
   });
 }
@@ -117,7 +117,7 @@ describe('rawExportWork (in memory)', () => {
     const out = join(root, 'exports-a');
     const r = await rawExportWork({
       capture,
-      ws: { policy: ws.policy, ffmpeg: '/opt/ffmpeg', reads: ws.reads },
+      ws: { policy: ws.policy, ffmpeg: '/opt/ffmpeg', reads: ws.reads, outputs: ws.outputs },
       project,
       runDir: runDir(RUN),
       settings: { format: 'prores', fps: 60, cuts: false, out },

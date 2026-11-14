@@ -753,7 +753,7 @@ export class ProjectBoards {
       const sig = sigs[i] as string;
       let held = this.renderRecords.get(key);
       if (!held || held.sig !== sig) {
-        held = { sig, entry: await readListedRecord(p.dir, f.slice(0, -5)) };
+        held = { sig, entry: await readListedRecord(this.ctx.ws.outputs.renders, p.dir, f.slice(0, -5)) };
         remember(this.renderRecords, key, held, 4096);
       }
       const record = scenarioRenderOf(held.entry, scenario);

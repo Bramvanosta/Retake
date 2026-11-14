@@ -78,7 +78,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
       policy: ws.policy,
       root: ws.root,
       clock: cliPorts.clock,
-      ...(opts.out === undefined ? { pruneUnlessOpenIn: workspaceQueue(ws) } : {}),
+      ...(opts.out === undefined ? { pruneUnlessOpenIn: { queue: workspaceQueue(ws), inspections: ws.outputs.inspections } } : {}),
       prepared,
       runsDir,
       id,

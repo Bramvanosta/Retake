@@ -31,7 +31,8 @@ export const cutMessage = (s: string, max = COMPACT_MESSAGE_MAX): string => (s.l
 
 /** A run's status, compact: no per-step screenshot list, no hashes, the take's cost as one line. */
 export function compactRunStatus(r: RunStatusWithJob): CompactRunStatus {
-  const out = (name: string) => r.outputs.find((o) => o.ref.endsWith(`/${name}`))?.path;
+  // A run file that is a refused link (it leads out of its run folder) is no output of the run: its path is not offered.
+  const out = (name: string) => r.outputs.find((o) => o.ref.endsWith(`/${name}`) && o.link !== 'refused')?.path;
   const hooks = Object.fromEntries(Object.entries(r.hooks).filter(([, v]) => v !== undefined && v !== 'none'));
   const warnings = r.untrusted.warnings;
   return {
