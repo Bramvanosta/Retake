@@ -7,10 +7,19 @@
  * Both walk the folder the same way: regular files only (a link is named, never followed), dot entries, node_modules
  * and previews skipped, at most THEME_FILES_MAX files; the hash reads at most THEME_HASH_BYTES_MAX bytes in all, a file
  * beyond that counted by its size and mtime.
+ *
+ * Pure over the file layer it is handed (`ThemeFiles`, synchronous: the engine's node:fs one), so the planner entry
+ * exports it and reads no disk itself.
  */
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+
+/** What the theme hashes read of a folder, synchronously (node:fs's readdirSync / lstatSync / readFileSync answer it). */
+export interface ThemeFiles {
+  readdir(dir: string): string[];
+  lstat(path: string): { isSymbolicLink(): boolean; isDirectory(): boolean; isFile(): boolean; size: number; mtimeMs: number };
+  readFile(path: string): Uint8Array;
+}
 
 /** Bytes of theme files read for the hash, at most (files beyond: by size and mtime). */
 export const THEME_HASH_BYTES_MAX = 64 * 1024 * 1024;
@@ -21,12 +30,12 @@ const SKIP_DIRS = new Set(['node_modules', 'previews']);
 type Entry = { rel: string; file: string; size: number; mtimeMs: number; link: boolean };
 
 /** `budget`: entries looked at, shared with the caller's other walks (the Studio's watch); spent → the walk stops. */
-function walk(dir: string, budget?: { left: number }): Entry[] {
+function walk(fs: ThemeFiles, dir: string, budget?: { left: number }): Entry[] {
   const out: Entry[] = [];
   const go = (d: string) => {
     let names: string[];
     try {
-      names = readdirSync(d).sort();
+      names = fs.readdir(d).sort();
     } catch {
       return;
     }
@@ -35,9 +44,9 @@ function walk(dir: string, budget?: { left: number }): Entry[] {
       if (n.startsWith('.')) continue;
       if (budget && budget.left-- <= 0) return;
       const p = join(d, n);
-      let st;
+      let st: ReturnType<ThemeFiles['lstat']>;
       try {
-        st = lstatSync(p);
+        st = fs.lstat(p);
       } catch {
         continue;
       }
@@ -53,16 +62,16 @@ function walk(dir: string, budget?: { left: number }): Entry[] {
 }
 
 /** The theme folder's content hash (16 hex; see the module comment). */
-export function themeContentHash(dir: string): string {
+export function themeContentHash(dir: string, fs: ThemeFiles): string {
   const h = createHash('sha256');
   let budget = THEME_HASH_BYTES_MAX;
-  for (const e of walk(dir)) {
+  for (const e of walk(fs, dir)) {
     h.update(`${e.rel}\0`);
     if (e.link) h.update('link\0');
     else if (e.size <= budget) {
-      let bytes: Buffer;
+      let bytes: Uint8Array;
       try {
-        bytes = readFileSync(e.file);
+        bytes = fs.readFile(e.file);
       } catch {
         h.update('unreadable\0');
         continue;
@@ -78,9 +87,9 @@ export function themeContentHash(dir: string): string {
  * A cheap signature of the theme folder's files: names, sizes and mtimes (16 hex). `o.budget`: entries the walk may
  * look at, decremented (the Studio's watch shares one budget over every folder it scans; spent: the walk stops there).
  */
-export function themeStatSignature(dir: string, o: { budget?: { left: number } } = {}): string {
+export function themeStatSignature(dir: string, fs: ThemeFiles, o: { budget?: { left: number } } = {}): string {
   const h = createHash('sha256');
-  for (const e of walk(dir, o.budget)) h.update(`${e.rel}\0${e.link ? 'link' : e.size}\0${e.mtimeMs}\0`);
+  for (const e of walk(fs, dir, o.budget)) h.update(`${e.rel}\0${e.link ? 'link' : e.size}\0${e.mtimeMs}\0`);
   if (o.budget && o.budget.left < 0) h.update('truncated\0');
   return h.digest('hex').slice(0, 16);
 }

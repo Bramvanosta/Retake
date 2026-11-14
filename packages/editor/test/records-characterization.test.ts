@@ -16,6 +16,7 @@ import { PERSON_POLICY, takeWords } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
+import { noRerender } from '@retake/test-support/render';
 import { PlanTrustError, RenderError, exportRender, findRenderRecord, findRun, listRenders, planRun, runEnv } from '@retake/editor';
 import { NoCaptureRunError } from '../src/render/runs.js';
 import type { RunRef } from '@retake/editor';
@@ -284,7 +285,7 @@ describe('the render records as the editor answers them, state by state', () => 
   /** An export of the named render to one copied format: the id it says, the folder it writes by default, whose bytes went out. */
   const exported = (b: BuiltRenders, trust: 'author' | 'mcp') =>
     ranswer(b, async () => {
-      const r = await exportRender({ workPolicy: PERSON_POLICY, project: await loadProject(b.slug, root), root, render: name(b.state), formats: ['mp4_1080p'], trust });
+      const r = await exportRender({ workPolicy: PERSON_POLICY, project: await loadProject(b.slug, root), root, render: name(b.state), formats: ['mp4_1080p'], trust, rerender: noRerender });
       const bytes = readFileSync(r.outputs[0]!.file);
       return `export ${r.render} → ${r.dir.slice(b.dir.length + 1)} (${r.outputs[0]!.method}, ${bytes.equals(films.alt) ? 'the alt film' : bytes.equals(films.film) ? 'the film' : 'other bytes'})`;
     });
@@ -614,7 +615,7 @@ describe('the render records as the editor answers them, state by state', () => 
     const v = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
     const exported = async (trust: 'author' | 'mcp'): Promise<string> => {
       try {
-        await exportRender({ workPolicy: PERSON_POLICY, project: await loadProject(b.slug, root), root, render: 'quote-v2', formats: ['mp4_1080p'], trust });
+        await exportRender({ workPolicy: PERSON_POLICY, project: await loadProject(b.slug, root), root, render: 'quote-v2', formats: ['mp4_1080p'], trust, rerender: noRerender });
         return 'exported';
       } catch (e) {
         return (e as Error).message.replaceAll(root, '<root>');

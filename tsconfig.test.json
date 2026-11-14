@@ -61,6 +61,7 @@
       "@retake/test-support/http": ["./packages/test-support/src/http.ts"],
       "@retake/test-support/postgres": ["./packages/test-support/src/postgres.ts"],
       "@retake/test-support/render": ["./packages/test-support/src/render.ts"],
+      "@retake/test-support/render-use-case": ["./packages/test-support/src/render-use-case.ts"],
       "@retake/test-support/repo": ["./packages/test-support/src/repo.ts"],
       "@retake/test-support/review": ["./packages/test-support/src/review.ts"],
       "@retake/test-support/runs": ["./packages/test-support/src/runs.ts"],

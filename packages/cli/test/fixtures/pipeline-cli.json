@@ -11,6 +11,7 @@
    {
     "call": "renderVideo",
     "options": {
+     "clock": "<clock>",
      "concurrency": 2,
      "onProgress": "<function>",
      "out": "<undefined>",
@@ -26,7 +27,8 @@
      "template": "<undefined>",
      "workPolicy": {
       "agentFolders": null
-     }
+     },
+     "ws": "<workspace>"
     }
    }
   ]
@@ -43,6 +45,7 @@
    {
     "call": "renderVideo",
     "options": {
+     "clock": "<clock>",
      "concurrency": "<undefined>",
      "onProgress": "<function>",
      "out": "<undefined>",
@@ -58,7 +61,8 @@
      "template": "<undefined>",
      "workPolicy": {
       "agentFolders": null
-     }
+     },
+     "ws": "<workspace>"
     }
    },
    {
@@ -241,7 +245,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
-     "renderer": "<renderer>",
+     "rerender": "<function>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -270,7 +274,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
-     "renderer": "<renderer>",
+     "rerender": "<function>",
      "root": "<ws>",
      "scenario": "tour",
      "signal": "<signal>",
@@ -552,6 +556,7 @@
    {
     "call": "renderVideo",
     "options": {
+     "clock": "<clock>",
      "concurrency": "<undefined>",
      "onProgress": "<function>",
      "out": "<undefined>",
@@ -565,7 +570,8 @@
      "template": "<undefined>",
      "workPolicy": {
       "agentFolders": null
-     }
+     },
+     "ws": "<workspace>"
     }
    }
   ]
@@ -649,7 +655,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
-     "renderer": "<renderer>",
+     "rerender": "<function>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -678,7 +684,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v9",
-     "renderer": "<renderer>",
+     "rerender": "<function>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -707,7 +713,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
-     "renderer": "<renderer>",
+     "rerender": "<function>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",

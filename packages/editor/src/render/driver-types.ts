@@ -1,6 +1,6 @@
 /**
  * The render driver: the editor's own shape of what renders — a video, stills, component previews — so its use cases
- * (renderVideo, renderStill, exportRender, the component previews) can be handed another one. The engine's Renderer
+ * (renderStill, the component previews; the engine's render use case) can be handed another one. The engine's Renderer
  * port (engine render/renderer.ts) is the same shape, owned there; the two are checked against each other where the
  * engine builds the driver. Types only.
  *

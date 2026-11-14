@@ -33,18 +33,15 @@ import {
   geometryFiles,
   listRenders,
   musicVolumeAt,
-  nextVersion,
   parseRange,
   planComponentIds,
   planEdit,
   registryModuleSource,
   renderBrowser,
-  reserveVersion,
   runEnv,
   srcFrameAt,
   standInTransition,
   startAssetServer,
-  takenVersions,
   transitionWindows,
   urlAt,
 } from '@retake/editor';
@@ -293,21 +290,6 @@ describe('composition frame helpers', () => {
 });
 
 describe('render versions and records', () => {
-  it('versions: next free N over mp4, json and locks of both variants; reservations never collide', async () => {
-    const dir = join(tmp, 'renders');
-    await mkdir(dir, { recursive: true });
-    expect(nextVersion(dir, 'quote')).toBe(1);
-    for (const f of ['quote-v1.mp4', 'quote-v1.json', 'quote-v3-vertical.mp4', 'quote-extra-v9.mp4', 'catalogue-v7.mp4', '.quote-v4.lock']) await writeFile(join(dir, f), '');
-    expect(takenVersions(dir, 'quote')).toEqual([1, 3, 4]);
-    expect(nextVersion(dir, 'quote')).toBe(5);
-    expect(nextVersion(dir, 'catalogue')).toBe(8);
-    const rs = await Promise.all([reserveVersion(dir, 'quote'), reserveVersion(dir, 'quote'), reserveVersion(dir, 'quote')]);
-    expect(rs.map((r) => r.version).sort()).toEqual([5, 6, 7]);
-    for (const r of rs) await r.release();
-    expect(nextVersion(dir, 'quote')).toBe(5);
-    expect(nextVersion(join(tmp, 'nope'), 'quote')).toBe(1);
-  });
-
   it('listRenders reads the records of renders/ (oldest first) and skips other files', async () => {
     const project = join(tmp, 'p');
     await mkdir(join(project, 'renders'), { recursive: true });

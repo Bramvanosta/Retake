@@ -257,6 +257,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     // The render, then its line of the workspace's history (the engine's in-process operation).
     const record = await renderInProcess({
       renderer: cliPorts.renderer,
+      ws,
       workPolicy: ws.policy,
       project,
       root: ws.root,

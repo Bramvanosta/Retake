@@ -1,6 +1,7 @@
 /**
  * Which driver a use case renders with: the one it was handed, or — when its caller names none — this package's own.
- * The one place that decides it, for renderVideo, renderStill, exportRender and the component previews.
+ * The one place that decides it, for renderStill and the component previews (the render of a run is the engine's
+ * use case; an export is handed what renders a format again).
  *
  * The rule is read from the options' `renderer` key, not from its value:
  * - no `renderer` key: the caller renders standalone, on this package's own driver (Remotion). That is this package's

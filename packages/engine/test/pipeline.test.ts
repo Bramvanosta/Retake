@@ -1,7 +1,8 @@
 /**
  * The pipeline shared by the CLI and the worker's jobs (src/pipeline.ts) and the in-process functions of the CLI
- * (src/in-process.ts). The heavy calls are replaced at their package boundary (the editor's renderVideo and
- * exportRender, the review's reviewRender) to see what each caller hands them:
+ * (src/in-process.ts). The heavy calls are replaced at their boundary (the engine's render use case at its module,
+ * render/render-video.ts; the editor's exportRender, the review's reviewRender at their package) to see what each
+ * caller hands them:
  * - a render, export or review job passes the trust of work submitted through MCP, the network guard, its reserved id
  *   and its signal through the pipeline's call, and builds its result from what that call returned;
  * - a pipeline call writes no history line; an in-process function writes exactly one, of its kind, as the CLI's; an export
@@ -30,11 +31,16 @@ vi.mock('../src/lazy.js', async (importOriginal) => {
   return { ...real, editor: () => ((seen.editorLoads += 1), real.editor()) };
 });
 
+// The render use case is the engine's own (render/render-video.ts): replaced at its module, its call named as before.
+vi.mock('../src/render/render-video.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/render/render-video.js')>();
+  return { ...real, renderVideoWork: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderVideo', options: o }), seen.record) };
+});
+
 vi.mock('@retake/editor', async (importOriginal) => {
   const real = await importOriginal<typeof import('@retake/editor')>();
   return {
     ...real,
-    renderVideo: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderVideo', options: o }), seen.record),
     renderStill: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderStill', options: o }), '/still.png'),
     renderComponentPreviews: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderComponentPreviews', options: o }), []),
     renderComponentLoops: async (o: Record<string, unknown>) => (seen.calls.push({ call: 'renderComponentLoops', options: o }), { items: [] }),
@@ -84,8 +90,9 @@ let engine: Engine;
 const retakeHome = scratchHome();
 
 const historyLines = async (): Promise<string[]> => (await readFile(historyFile(root), 'utf8').catch(() => '')).split('\n').filter(Boolean);
-/** The renderer every caller here hands: the editor's use cases are replaced above, so nothing is asked of it. */
+/** The renderer every caller here hands: the use cases are replaced above, so nothing is asked of it. */
 const renderer = new MemoryRenderer();
+
 const ctx = <I>(input: I) => ({
   ...enginePorts(),
   ws: engine.workspace,
@@ -192,7 +199,9 @@ describe('the jobs run the shared pipeline with their own options', () => {
     const exported = await executeExportJob(e);
     expect(seen.calls[0]).toMatchObject({ call: 'exportRender', options: { render: `${SCENARIO}-v1`, formats: ['vertical_9x16'], root, trust: 'mcp', network: 'guard' } });
     expect(seen.calls[0].options.signal).toBe(e.signal);
-    expect(seen.calls[0].options.renderer).toBe(renderer);
+    // The editor's export renders no format again by itself: it is handed the engine's render use case.
+    const rerender = seen.calls[0].options.rerender as (r: Record<string, unknown>) => Promise<unknown>;
+    expect([typeof rerender, 'renderer' in seen.calls[0].options]).toEqual(['function', false]);
     expect(exported).toMatchObject({ kind: 'export', rendered: 1, failed: [] });
     const rev: ReviewJobInput = { version: 1, kind: 'review', project: 'demo', render_id: `${SCENARIO}-v1`, fps: 2, previous: false, submitted_by: 'test' };
     const r = ctx(rev);
@@ -200,6 +209,11 @@ describe('the jobs run the shared pipeline with their own options', () => {
     expect(seen.calls[1]).toMatchObject({ call: 'reviewRender', options: { render: `${SCENARIO}-v1`, fps: 2, previous: false, thumbnails: false, root } });
     expect(seen.calls[1].options.signal).toBe(r.signal);
     expect(reviewed).toMatchObject({ kind: 'review', clean: true, ms: 5 });
+    // A format rendered again goes through the render use case, on the job's renderer and its workspace's renders.
+    seen.record = recordOf(`${SCENARIO}-v9-vertical`);
+    await rerender({ run: join(dir, 'runs', RUN), scenario: SCENARIO, template: 'editorial', overrides: {}, out: join(root, 'x.mp4'), trust: 'mcp', onProgress: () => undefined });
+    expect(seen.calls[2]).toMatchObject({ call: 'renderVideo', options: { run: join(dir, 'runs', RUN), trust: 'mcp', root, workPolicy: engine.workspace.policy } });
+    expect([seen.calls[2].options.renderer, seen.calls[2].options.ws, seen.calls[2].options.clock]).toEqual([renderer, engine.workspace, e.clock]);
   });
 
   it('no job writes the history itself (the worker does, once the job is finished)', async () => {
@@ -214,10 +228,10 @@ describe('the in-process functions write one history line each; the pipeline non
     const project = await openProject(engine.workspace, 'demo');
     seen.record = recordOf(`${SCENARIO}-v3`);
     const before = await historyLines();
-    await renderWork({ renderer, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO });
+    await renderWork({ renderer, ws: engine.workspace, clock: new ManualClock('2026-02-03T04:05:06.789Z'), workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO });
     expect(await historyLines()).toEqual(before);
     // The line is stamped with the clock the caller hands (the CLI's cliPorts), never the system's.
-    await renderInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: new ManualClock('2026-02-03T04:05:06.789Z') });
+    await renderInProcess({ renderer, ws: engine.workspace, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, clock: new ManualClock('2026-02-03T04:05:06.789Z') });
     const added = (await historyLines()).slice(before.length).map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(added).toEqual([
       { v: 1, at: '2026-02-03T04:05:06.789Z', kind: 'render', project: 'demo', submitted_by: 'cli', state: 'succeeded', ms: 4321, counted: { captures: 0, dry_runs: 0, renders: 1 } },
@@ -255,20 +269,33 @@ describe('the in-process functions write one history line each; the pipeline non
 
   it('every use case of the editor is reached through the one guarded helper of render/work.ts', async () => {
     // L7.34 (finding C4): held by behaviour instead of the helper's five statements — each work of render/work.ts calls
-    // its own use case of the editor once, handing it the renderer it was given (the refusal before the editor loads
-    // is the case above; that the editor's entries are named in work.ts only is the ratchet's `render-call`).
+    // its own use case once, handing it the renderer it was given (the refusal before the editor loads is the case
+    // above; that the editor's entries are named in work.ts only is the ratchet's `render-call`). The render of a run is
+    // the engine's own use case (replaced above at its module): it loads no editor here; an export is handed it.
     const project = await openProject(engine.workspace, 'demo');
-    const o = { workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, render: `${SCENARIO}-v1`, formats: ['webm'], renderer } as never;
+    const o = {
+      workPolicy: PERSON_POLICY,
+      project,
+      root,
+      run: RUN,
+      scenario: SCENARIO,
+      render: `${SCENARIO}-v1`,
+      formats: ['webm'],
+      renderer,
+      ws: engine.workspace,
+      clock: new ManualClock('2026-02-03T04:05:06.789Z'),
+    } as never;
     seen.editorLoads = 0;
     await renderWork(o);
     await stillWork(o);
     await exportWork(o);
     await previewsWork(o);
     await loopsWork(o);
-    // One load per use case, through the engine's loader.
-    expect(seen.editorLoads).toBe(5);
+    // One load per use case of the editor, through the engine's loader.
+    expect(seen.editorLoads).toBe(4);
     expect(seen.calls.map((c) => c.call)).toEqual(['renderVideo', 'renderStill', 'exportRender', 'renderComponentPreviews', 'renderComponentLoops']);
-    for (const c of seen.calls) expect(c.options.renderer, c.call).toBe(renderer);
+    for (const c of seen.calls) expect(c.options.renderer, c.call).toBe(c.call === 'exportRender' ? undefined : renderer);
+    expect(typeof seen.calls[2].options.rerender).toBe('function');
     // After the request's own fields: what it asked is what the use case got, the renderer beside it.
     for (const c of seen.calls) expect(c.options, c.call).toMatchObject({ project, root, workPolicy: PERSON_POLICY });
     // The editor read a failure too (diskFullWork): its own rule.
@@ -278,12 +305,21 @@ describe('the in-process functions write one history line each; the pipeline non
   it('export: re-rendered formats count (one line), transcodes alone write none; exportWork alone none', async () => {
     const project = await openProject(engine.workspace, 'demo');
     const before = await historyLines();
-    await exportWork({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16'] });
+    await exportWork({
+      renderer,
+      ws: engine.workspace,
+      clock: new ManualClock('2026-02-03T04:05:06.789Z'),
+      workPolicy: PERSON_POLICY,
+      project,
+      root,
+      render: `${SCENARIO}-v1`,
+      formats: ['vertical_9x16'],
+    });
     expect(await historyLines()).toEqual(before);
     const clock = new ManualClock('2026-02-03T04:05:06.789Z');
-    await exportInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16', 'square_1x1'], clock });
+    await exportInProcess({ renderer, ws: engine.workspace, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16', 'square_1x1'], clock });
     seen.exportMethod = 'transcode';
-    await exportInProcess({ renderer, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'], clock });
+    await exportInProcess({ renderer, ws: engine.workspace, workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'], clock });
     const added = (await historyLines()).slice(before.length).map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(added).toEqual([{ v: 1, at: '2026-02-03T04:05:06.789Z', kind: 'export', project: 'demo', submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 2 } }]);
   });

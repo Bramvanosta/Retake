@@ -269,5 +269,52 @@ export function outputsContract(name: string, make: () => Promise<OutputsFixture
       await f.seed(join(at, 'big-v1.json'), `"${'x'.repeat(17 * 1024 * 1024)}"`);
       expect((await o.renders.entries(at, (name) => name === 'big-v1'))[0]!.read).toMatchObject({ ok: false, problem: 'too-big' });
     });
+
+    it("takes a render version's lock once: its folder made, its text kept, a second take refused (EEXIST) and nothing changed", async () => {
+      const { o, dir } = await project();
+      const lock = join(o.renders.dirOf(dir), '.quote-v1.lock');
+      await o.renders.lock(lock, 'job 1\n');
+      expect(await o.renders.readText(lock)).toBe('job 1\n');
+      const again = await o.renders.lock(lock, 'job 2\n').then(
+        () => 'taken twice',
+        (e: NodeJS.ErrnoException) => e.code,
+      );
+      expect([again, await o.renders.readText(lock)]).toEqual(['EEXIST', 'job 1\n']);
+      // A folder in its place is no free lock either.
+      const folder = join(o.renders.dirOf(dir), '.quote-v2.lock');
+      await o.renders.write(join(folder, 'x'), 'x');
+      expect(
+        await o.renders.lock(folder, 'job 3\n').then(
+          () => 'taken',
+          (e: NodeJS.ErrnoException) => e.code,
+        ),
+      ).toBe('EEXIST');
+      await o.renders.remove(lock);
+      await o.renders.lock(lock, 'job 4\n');
+      expect(await o.renders.readText(lock)).toBe('job 4\n');
+    });
+
+    it('finds a render someone named through the one finder: an id, `latest` of a scenario, or why none is', async () => {
+      const { o, dir } = await project();
+      const at = o.renders.dirOf(dir);
+      const rec = (id: string, at_: string) => ({
+        version: 1,
+        id,
+        scenario: 'quote',
+        status: 'succeeded',
+        created_at: at_,
+        file: join(at, `${id}.mp4`),
+        record: join(at, `${id}.json`),
+        plan: { version: 1 },
+      });
+      await o.renders.writeJson(join(at, 'quote-v1.json'), rec('quote-v1', '2026-11-14T09:00:00.000Z'));
+      await o.renders.writeJson(join(at, 'quote-v2.json'), rec('quote-v2', '2026-11-14T10:00:00.000Z'));
+      const byId = await o.renders.named(at, 'quote-v1', { verb: 'export', slug: 'demo' });
+      expect(byId.ok && [byId.render.entry.name, byId.render.record.id]).toEqual(['quote-v1', 'quote-v1']);
+      const latest = await o.renders.named(at, 'latest', { verb: 'export', slug: 'demo', scenario: 'quote' });
+      expect(latest.ok && latest.render.record.id).toBe('quote-v2');
+      const none = await o.renders.named(at, 'quote-v9', { verb: 'export', slug: 'demo', trust: 'mcp' });
+      expect(none.ok).toBe(false);
+    });
   });
 }

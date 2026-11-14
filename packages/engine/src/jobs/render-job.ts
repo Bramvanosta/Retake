@@ -1,6 +1,6 @@
 /**
  * `render` jobs (L3.2, R-MCP-29): a render submitted by a client outside the CLI (the MCP server) and executed by the
- * jobs worker with the editor's `renderVideo`, guarded (trust `mcp`, network guard).
+ * jobs worker with the engine's render use case (render/render-video.ts), guarded (trust `mcp`, network guard).
  *
  * Submit plans the run in the client's process (editor `planRun` with trust `mcp`: its two gates refuse files outside
  * the project, a theme named by folder, remote slot values — no browser is opened), hashes the run's timeline, reserves
@@ -44,7 +44,8 @@ import type { JobFileRead } from './job-queue.js';
 import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
-import { planTrustProblems, releaseRenderVersion, reserveRenderVersion } from '../render/editor-calls.js';
+import { planTrustProblems } from '../render/editor-calls.js';
+import { releaseVersion, reserveVersion } from '../render/versions.js';
 import { planWork, renderWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
 import type { Reviewer } from '../review/reviewer.js';
@@ -248,7 +249,8 @@ export async function submitRenderJob(
   if (req.expect_edit_sha256 !== undefined) await checkShownEdit(project, req.scenario, planned, req.expect_edit_sha256);
   const timelineSha = sha256Hex(await readFile(join(planned.run.dir, 'timeline.json')));
   const scenario = planned.timeline.scenario;
-  const { version, release } = await reserveRenderVersion(project, scenario, `submitted by ${ctx.client} (pid ${process.pid})`);
+  const renders = ctx.ws.outputs.renders;
+  const { version, release } = await reserveVersion(renders, renders.dirOf(project.dir), scenario, `submitted by ${ctx.client} (pid ${process.pid})`);
   const renderId = formatRenderId(scenario, version, planned.plan.variant);
   const input: RenderJobInput = {
     version: JOB_INPUT_VERSION,
@@ -293,7 +295,7 @@ export async function submitRenderJob(
 export async function releaseRenderLock(ws: OpenedWorkspace, input: Pick<RenderJobInput, 'project' | 'scenario' | 'render_id'>): Promise<void> {
   const project = await openProjectBySlug(ws, input.project);
   const { version } = renderVersionOf(input.render_id, input.scenario);
-  await releaseRenderVersion(project, input.scenario, version);
+  await releaseVersion(ws.outputs.renders, ws.outputs.renders.dirOf(project.dir), input.scenario, version);
 }
 
 /** A render browser recorded by a job: its process identity and its temporary profile folder. */
@@ -472,6 +474,8 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
   // The pipeline's render that the CLI's `retake render` runs too, with the trust of work submitted through MCP and its reserved id.
   const record = await renderWork({
     renderer: ctx.renderer,
+    ws: ctx.ws,
+    clock: ctx.clock,
     workPolicy: ctx.ws.policy,
     project,
     run: input.run_id,

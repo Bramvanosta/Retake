@@ -281,7 +281,6 @@
    "packages/ui/src/app/ui-kit/Menu.tsx": 1
   },
   "lint/suspicious/noConfusingVoidType": {
-   "packages/editor/src/render/render.ts": 1,
    "packages/engine/src/execute-run.ts": 1,
    "packages/engine/src/jobs/job-handlers.ts": 1,
    "packages/engine/src/jobs/run-job-record.ts": 1,
@@ -330,7 +329,6 @@
    "packages/core/test/field-edits.test.ts": 1,
    "packages/core/test/fixture-names.test.ts": 1,
    "packages/core/test/theme-edits.test.ts": 1,
-   "packages/editor/src/render/theme-hash.ts": 1,
    "packages/engine/src/brand/copy.ts": 1,
    "packages/engine/src/brand/create.ts": 1,
    "packages/engine/src/brand/file-list.ts": 1,

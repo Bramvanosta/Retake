@@ -71,6 +71,9 @@ export type {
   TimelineZoom,
 } from './timeline.js';
 export { withPlan } from './render-record.js';
+export { RENDER_ENCODING, audioOf, recordPathProblem, sceneCaptions } from './render-fields.js';
+export { THEME_FILES_MAX, THEME_HASH_BYTES_MAX, themeContentHash, themeStatSignature } from './theme-hash.js';
+export type { ThemeFiles } from './theme-hash.js';
 export type { FinishedRender, NamedRender, RenderAttempt, RenderRecord, StoredRender } from './render-record.js';
 // The frame geometry of src/remotion/frames.ts is renderer-free (no React, no Remotion): the compositions draw with it,
 // the review checks frames with it.

@@ -69,7 +69,7 @@ function contentType(file: string): string {
   return CONTENT_TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream';
 }
 
-/** Start the server. Close it when the render is over (renderVideo / renderStill do). */
+/** Start the server. Close it when the render is over (renderPlan / renderStill do). */
 export async function startAssetServer(): Promise<AssetServer> {
   const token = randomBytes(9).toString('base64url');
   const byPath = new Map<string, string>();

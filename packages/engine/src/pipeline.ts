@@ -1,8 +1,8 @@
 /**
  * The pipeline, run in this process: plan, render, still, export and review — one function each, shared by the CLI's
  * commands (through in-process.ts: they run no job) and the worker's jobs (render-job.ts, export-job.ts, review-job.ts).
- * Each is the adapter's own call (the editor's planRun / renderVideo / renderStill / exportRender, the reviewer's
- * review) behind the engine's lazy imports or its ports: the caller passes its own options — trust, network guard and
+ * Each is the engine's render use case (render/render-video.ts) or the adapter's own call (the editor's planRun /
+ * renderStill / exportRender, the reviewer's review) behind the engine's lazy imports or its ports: the caller passes its own options — trust, network guard and
  * reserved id for a job; output location and concurrency for the CLI — and gets the adapter's result and errors
  * unchanged. What renders takes the renderer to draw with (render/renderer.ts), what reviews the reviewer
  * (review/reviewer.ts): only a composition root chooses them. A run
@@ -14,7 +14,8 @@ import { projectPath } from '@retake/core/project';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { EditOverrides, ExportProgress, RenderProgress, RenderRecord } from '@retake/editor/plan';
-import type { ExportFormat, ExportRenderOptions, ExportResult, FoundRender, PlannedRun, RenderStillOptions, RenderVideoOptions, RunRef } from './render/editor-calls.js';
+import type { ExportFormat, ExportRenderOptions, ExportResult, FoundRender, PlannedRun, RenderStillOptions, RunRef } from './render/editor-calls.js';
+import type { RenderVideoOptions } from './render/render-video.js';
 import type { ReviewResult } from '@retake/review/checks';
 import { summarizePlan } from '@retake/editor/plan';
 import { findRunOf, planWork } from './render/editor-calls.js';
@@ -85,7 +86,7 @@ export async function planOfRun(ws: { root: string; policy: WorkPolicy }, projec
 
 // What renders — a video, a still, an export's re-rendered formats — runs on the renderer its caller hands (render/work.ts).
 export { exportWork, renderWork, stillWork } from './render/work.js';
-export type { OnRenderer } from './render/work.js';
+export type { ExportWorkOptions, OnRenderer } from './render/work.js';
 
 // What reviews a render runs on the reviewer its caller hands (review/work.ts).
 export { reviewWork } from './review/work.js';

@@ -1,37 +1,29 @@
 /**
  * The editor's work the engine asks for outside a render, behind names of its own: planning a run's edit, the run and
- * render lookups of a terminal, the versions of a renders folder, a render's paths checked against its project, the
- * plan of an export, the files an edit reads, the theme hashes, a media probe, what component previews are made of,
- * and which of the editor's errors a failure is. The engine loads the editor here, in the render folder, and nowhere
+ * render lookups of a terminal, the plan of an export, the files an edit reads, a media probe, what component
+ * previews are made of, the editor's render errors and which of them a failure is. The renders folder's versions are
+ * on the Outputs port (versions.ts); a render's paths and the theme hashes are the planner entry's pure values. The engine loads the editor here, in the render folder, and nowhere
  * else (the import-rules ratchet's `loader-use`); the planner's pure values (`@retake/editor/plan`) are free.
  */
-import { mkdir, rm } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { LoadedProject, LoadedTemplate, WorkFileFacts } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ComponentRegistry } from '@retake/components/geometry';
 import type { Timeline } from '@retake/core/model';
-import type { FoundRender, PlanRunOptions, PlannedRun, RenderRecord, RunRef } from '@retake/editor';
+import type { FoundRender } from '@retake/editor';
+import type { PlanRunOptions, PlannedRun, RenderAttempt, RunRef } from '@retake/editor/plan';
+import type { RenderSettings } from '@retake/core/model';
+import { withPlan } from '@retake/editor/plan';
 import { editor } from '../lazy.js';
+import type { RenderOutputs } from '../outputs/outputs.js';
 
 type Editor = Awaited<ReturnType<typeof editor>>;
 
-// The editor's types the engine's callers name: the render home hands them on, so that no file outside it imports
-// the editor's root (types included).
-export type {
-  ExportFormat,
-  ExportRenderOptions,
-  ExportResult,
-  FoundRender,
-  PlanRunOptions,
-  PlannedRun,
-  PreviewBackend,
-  RenderLoopsOptions,
-  RenderPreviewsOptions,
-  RenderStillOptions,
-  RenderVideoOptions,
-  RunRef,
-} from '@retake/editor';
+// The editor's types the engine's callers name: the planner entry's, and the few still declared beside the renderer
+// (a found render's answer, a still's and the previews' options, a preview backend), which the render home hands on so
+// that no file outside it imports the editor's root (types included). That list is pinned (core import-rules test).
+export type { ExportFormat, ExportRenderOptions, ExportResult, PlanRunOptions, PlannedRun, RunRef } from '@retake/editor/plan';
+export type { FoundRender, PreviewBackend, RenderLoopsOptions, RenderPreviewsOptions, RenderStillOptions } from '@retake/editor';
 
 // ── planning and lookups ──
 
@@ -46,44 +38,21 @@ export async function findRunOf(project: LoadedProject, arg: string, scenario?: 
 }
 
 /**
- * The render named at a terminal: `latest` (of `scenario`), an id, or a .json / .mp4 path (the editor's
- * locateRenderRecord; ExportError otherwise) — the record, the FILE it was read from (`entry.name`: what a command then
- * names, never the id the record says) and, with `latest`, what it passed over.
+ * The render named at a terminal: `latest` (of `scenario`), an id, or a .json / .mp4 path, read through the renders of
+ * the Outputs port (core io findNamedRender on its file layer; the editor's ExportError otherwise) — the record, the
+ * FILE it was read from (`entry.name`: what a command then names, never the id the record says) and, with `latest`,
+ * what it passed over.
  */
-export async function findRenderOf(project: LoadedProject, arg: string, scenario?: string): Promise<FoundRender> {
-  return (await editor()).locateRenderRecord(project, arg, scenario);
+export async function findRenderOf(renders: RenderOutputs, project: LoadedProject, arg: string, scenario?: string): Promise<FoundRender> {
+  const found = await renders.named(renders.dirOf(project.dir), arg, { verb: 'export', slug: project.slug, ...(scenario !== undefined ? { scenario } : {}) });
+  if (!found.ok) throw new (await editor()).ExportError(found.message);
+  // (findNamedRender refuses a record without its plan: this is the editor's type for what it read.)
+  return { ...found.render, record: withPlan(found.render.record).value };
 }
 
 /** The theme a shell's component previews are drawn with, read with the workspace's file facts. */
 export async function previewThemeOf(theme: string, root: string, facts: WorkFileFacts): Promise<LoadedTemplate> {
   return (await editor()).loadPreviewTheme(theme, root, facts);
-}
-
-// ── the renders folder ──
-
-/** The version the next render of `scenario` takes in the project's renders folder (none reserved: a preview's guess). */
-export async function nextRenderVersion(project: Pick<LoadedProject, 'dir'>, scenario: string): Promise<number> {
-  const ed = await editor();
-  return ed.nextVersion(ed.rendersDir(project), scenario);
-}
-
-/** Reserve the next version of `scenario` (its lock file, holding `owner`); `release` frees it again. */
-export async function reserveRenderVersion(project: Pick<LoadedProject, 'dir'>, scenario: string, owner: string): Promise<{ version: number; release: () => Promise<void> }> {
-  const ed = await editor();
-  const dir = ed.rendersDir(project);
-  await mkdir(dir, { recursive: true });
-  return ed.reserveVersion(dir, scenario, owner);
-}
-
-/** Free a version reserved before, by its number (a render job cancelled before it started, or failed early). */
-export async function releaseRenderVersion(project: Pick<LoadedProject, 'dir'>, scenario: string, version: number): Promise<void> {
-  const ed = await editor();
-  await rm(ed.versionLockFile(ed.rendersDir(project), scenario, version), { force: true });
-}
-
-/** Why a render may not be read by work an agent submitted (its video or run folder outside the project), or null. */
-export async function renderPathProblem(projectDir: string, record: Pick<RenderRecord, 'id' | 'file' | 'run_dir'>): Promise<string | null> {
-  return (await editor()).recordPathProblem(projectDir, record);
 }
 
 // ── exports and raw packages ──
@@ -106,17 +75,6 @@ export async function editFilesOf(projectDir: string, timeline: Pick<Timeline, '
 }
 
 // ── hashes and probes ──
-
-/** A theme folder's content hash (a render record's template_sha256) and the signature of its files (names, sizes, mtimes). */
-export interface ThemeHashes {
-  contentHash: Editor['themeContentHash'];
-  statSignature: Editor['themeStatSignature'];
-}
-
-export async function themeHashes(): Promise<ThemeHashes> {
-  const ed = await editor();
-  return { contentHash: ed.themeContentHash, statSignature: ed.themeStatSignature };
-}
 
 /** What ffprobe says of a media file (undefined when it cannot be read), under the work's policy. */
 export async function probeMediaFile(file: string, policy: WorkPolicy): ReturnType<Editor['probeMedia']> {
@@ -158,6 +116,35 @@ export async function previewMaking(): Promise<PreviewMaking> {
 }
 
 // ── the editor's errors ──
+
+/**
+ * The editor's render errors, made here for the engine's render use case (render-video.ts, versions.ts): what a
+ * client is told of a render, and how a shell reads it (editorErrorOf), stays the editor's classes.
+ */
+export const renderErrors = {
+  /** A render that cannot start or failed (RenderError), with the attempt it carries. */
+  async render(message: string, record?: RenderAttempt): Promise<Error> {
+    return new (await editor()).RenderError(message, record);
+  },
+  /** A render cancelled through its signal (RenderCancelledError): nothing written under the final names. */
+  async cancelled(record?: RenderAttempt): Promise<Error> {
+    return new (await editor()).RenderCancelledError(record);
+  },
+};
+
+/**
+ * The concurrency a render's record says before the renderer answers: the one asked, else the render policy's under
+ * `policy` and `settings` (its default when the policy cannot be read: the render then says why).
+ */
+export async function plannedConcurrency(policy: WorkPolicy, settings: RenderSettings | undefined, asked: number | undefined): Promise<number> {
+  const ed = await editor();
+  if (asked !== undefined) return asked;
+  try {
+    return ed.renderPolicy(policy, settings).concurrency;
+  } catch {
+    return ed.defaultConcurrency();
+  }
+}
 
 /** The problems of a plan refused by the trust rules of agent work (the editor's PlanTrustError), or undefined. */
 export async function planTrustProblems(e: unknown): Promise<{ message: string; problems: string[] } | undefined> {

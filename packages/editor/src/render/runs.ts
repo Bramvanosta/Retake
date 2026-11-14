@@ -1,12 +1,11 @@
 /**
- * Runs and renders of a project on disk: the run a render works on (id, directory or `latest`), the next free render
- * version and the render records already written.
+ * Runs and renders of a project on disk: the run a render works on (id, directory or `latest`) and the render records
+ * already written. The versions of a renders folder are the engine's (its render use case, on the Outputs port).
  */
 import { existsSync, readdirSync } from 'node:fs';
-import { open, readFile, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RENDER_VERSION_MAX, renderFileVersionOf, renderLockName, renderSuffix } from '@retake/core/ids';
-import { projectPath, projectRef } from '@retake/core/project';
+import { projectPath } from '@retake/core/project';
 import { insideFolder, parseScenario } from '@retake/core/scenario';
 import { latestTake, orderRuns, takeNeedsTimeline, takeOf, takeWords } from '@retake/core/run';
 import { renderRecordsOf } from '@retake/core/render';
@@ -16,17 +15,9 @@ import type { LatestPick, RunRead } from '@retake/core/run';
 import { withPlan } from '../render-record.js';
 import type { StoredRender } from '../render-record.js';
 import { RenderError } from './types.js';
+import type { RunRef } from '../work-types.js';
 
-export interface RunRef {
-  id: string;
-  dir: string;
-  /**
-   * Set when the run was picked as `latest` (core latestTake): the take — `take.until` when the capture was stopped by
-   * `--until` — and the newer captures of the scenario it passed over, for whoever says so. Absent for a run named
-   * by its id or its folder.
-   */
-  latest?: LatestPick;
-}
+export type { RunRef } from '../work-types.js';
 
 /** `latest` found no capture to edit: what it passed over on the way (`pick.take` is absent). */
 export class NoCaptureRunError extends RenderError {
@@ -144,75 +135,6 @@ export async function runEnv(dir: string): Promise<string | undefined> {
 /** `<project>/renders` */
 export function rendersDir(project: Pick<LoadedProject, 'dir'>): string {
   return projectPath(project.dir, 'renders');
-}
-
-/** The files of `dir` that take a version of `name` (core renderFileVersionOf), in name order. */
-function versionFiles(dir: string, name: string): Array<{ file: string; version: number }> {
-  let files: string[];
-  try {
-    files = readdirSync(dir);
-  } catch {
-    return [];
-  }
-  const taken: Array<{ file: string; version: number }> = [];
-  const versionOf = renderFileVersionOf(name);
-  for (const file of files.sort()) {
-    const version = versionOf(file);
-    if (version !== null) taken.push({ file, version });
-  }
-  return taken;
-}
-
-/** Versions already taken (sorted, unique) by `<name>-v<N>[-vertical|-square].{mp4,json}` and pending `.<name>-v<N>.lock` files. */
-export function takenVersions(dir: string, name: string): number[] {
-  return [...new Set(versionFiles(dir, name).map((t) => t.version))].sort((a, b) => a - b);
-}
-
-/**
- * The next free version of `name` in `dir`: 1 + the highest version on disk (renders, records and pending locks), at
- * most RENDER_VERSION_MAX. When a file already claims that version or more — whatever number its digits read as —
- * nothing is handed out: the refusal names the file, so that two renders never get the same id.
- */
-export function nextVersion(dir: string, name: string): number {
-  let top: { file: string; version: number } | undefined;
-  for (const t of versionFiles(dir, name)) if (!top || t.version > top.version) top = t;
-  if (!top) return 1;
-  if (!(top.version < RENDER_VERSION_MAX)) {
-    const written = renderSuffix(top.file.slice(0, top.file.lastIndexOf('.')))?.digits ?? String(top.version);
-    throw new RenderError(
-      `${projectRef('renders')}/ holds ${top.file}, which claims version ${written} of ${name}: the highest version is ${RENDER_VERSION_MAX}. Remove or rename that file, then render again.`,
-    );
-  }
-  return top.version + 1;
-}
-
-/**
- * The lock file that reserves version `version` of `name` in `dir` (`.<name>-v<N>.lock`); a RangeError for a version
- * that is not a whole number from 0 to RENDER_VERSION_MAX (core renderLockName).
- */
-export function versionLockFile(dir: string, name: string, version: number): string {
-  return join(dir, renderLockName(name, version));
-}
-
-/**
- * Reserve the next free version (an exclusive `.<name>-v<N>.lock` file, so two renders of the same scenario never
- * pick the same N). `release()` removes the lock. `owner`: what the lock says holds it (default this process's pid;
- * a render job submitted through MCP: `job <id>`). Refused as nextVersion refuses (no lock is written).
- */
-export async function reserveVersion(dir: string, name: string, owner = String(process.pid)): Promise<{ version: number; release: () => Promise<void> }> {
-  for (let attempt = 0; attempt < 1000; attempt++) {
-    const version = nextVersion(dir, name);
-    const lock = versionLockFile(dir, name, version);
-    try {
-      const fh = await open(lock, 'wx');
-      await fh.writeFile(`${owner}\n`);
-      await fh.close();
-      return { version, release: () => rm(lock, { force: true }) };
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
-    }
-  }
-  throw new RenderError(`could not reserve a render version of ${name} in ${dir}`);
 }
 
 /**

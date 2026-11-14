@@ -19,7 +19,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
 import type { RenderSettings } from '@retake/core';
-import { renderVideo } from '@retake/editor';
+
+import { renderRun } from '@retake/test-support/render-use-case';
 import type { RenderProgress } from '@retake/editor';
 import { OWN_FRAME_FILTER, ownEncodeFailedEarlier, ownFfmpeg, readsImagePipe, resetOwnFfmpeg } from '../src/render/encode-tools.js';
 import type { OwnFfmpeg } from '../src/render/encode-tools.js';
@@ -57,8 +58,8 @@ const never = async (): Promise<OwnFfmpeg> => expect.unreachable("this machine's
 /** Our ffmpeg for a render: the noting script (or `path`), with the real one's facts. */
 const ours = (path: string) => async (): Promise<OwnFfmpeg> => ({ ok: true, path, facts: real!.facts });
 
-const render = (name: string, settings: RenderSettings, o: Partial<Parameters<typeof renderVideo>[0]> = {}) =>
-  renderVideo({
+const render = (name: string, settings: RenderSettings, o: Partial<Parameters<typeof renderRun>[0]> = {}) =>
+  renderRun({
     workPolicy: PERSON_POLICY,
     project: ws.project,
     root: ws.root,

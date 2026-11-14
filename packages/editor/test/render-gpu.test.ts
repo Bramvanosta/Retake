@@ -42,10 +42,10 @@ import {
   renderComponentLoops,
   renderPlan,
   renderStills,
-  renderVideo,
   resetVideotoolboxProbes,
   videotoolboxRenderWorks,
 } from '@retake/editor';
+import { renderRun } from '@retake/test-support/render-use-case';
 import type { BrowserProcessInfo, EditPlan, PreviewBackend, RenderProgress } from '@retake/editor';
 import { SHARED_CACHE, renderWorkspace } from '@retake/test-support/render';
 import { hasTool } from '@retake/test-support/repo';
@@ -168,7 +168,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   it(
     'the default policy draws with ANGLE (Metal) and encodes with VideoToolbox: said in the record, a key frame every 2 s, SSIM ≥ 0.995 against software',
     async () => {
-      const gpu = await renderVideo({
+      const gpu = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,
@@ -191,7 +191,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
       // 57 frames, a key frame every 60: one (ffmpeg's default of 12 without gopSize gives 5).
       expect(gpu.frames).toBe(57);
       expect(keyFrames(gpu.file)).toBe(1);
-      const sw = await renderVideo({
+      const sw = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,
@@ -414,7 +414,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     async () => {
       const progress: RenderProgress[] = [];
       let atRetry: string[] = [];
-      const res = await renderVideo({
+      const res = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,
@@ -515,7 +515,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
   it(
     'review B L1: a render failing on the GPU path and again in software keeps the GPU story in its record',
     async () => {
-      const err = await renderVideo({
+      const err = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,
@@ -662,7 +662,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     'a GPU left during the render (Chromium falls back by itself) is what the record says: read again at the end',
     async () => {
       let calls = 0;
-      const res = await renderVideo({
+      const res = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,

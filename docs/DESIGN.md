@@ -1915,7 +1915,8 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   façade's keys and every sub-API's, in order.
 - **The pipeline, one function per part** (L6.7, `pipeline.ts`; the word in the [glossary](GLOSSARY.md)). Plan,
   render, still, export and review are each one function over the adapter's call (`planWork` / `renderWork` /
-  `stillWork` / `exportWork` over the editor's `planRun` / `renderVideo` / `renderStill` / `exportRender`, `reviewWork`
+  `stillWork` / `exportWork` — the render of a run is the engine's own use case (render/render-video.ts, on the
+  editor's `planRun` and the renderer), the others over the editor's `renderStill` / `exportRender`, `reviewWork`
   over the review's `reviewRender`, behind the engine's lazy imports), called by the worker's jobs (with trust `mcp`,
   the network guard, a reserved id) and by the CLI (its own options: no trust, an output path, a concurrency): options,
   results and errors pass through unchanged. Since L7.1 the parts that render (render, still, export, and the
@@ -3805,7 +3806,7 @@ to a version still memoised plans nothing.
 `PlannedRun.editText`, its sha256 = the job's `edit_sha256`) into the job folder before job.json (`FileJobQueue.enqueue
 (input, {files})`: plain names only — `[a-z][a-z0-9-]*.(yaml|json|txt)`, never the queue's own files — mode 0600,
 exclusive create). The worker reads it without following a link (≤ 2 MB), refuses one whose sha256 is not the job's
-(conflict) and plans from it (`renderVideo` / `planRun {editText}` → core `scenarioSinceRun(…, nowText)`: the same parse,
+(conflict) and plans from it (the render use case / `planRun {editText}` → core `scenarioSinceRun(…, nowText)`: the same parse,
 filmed check and trust gates); a job without one (queued by an older build) reads today's file as before. A render
 job's `review: {fps: 1 | 2}` (core `RenderJobInputSchema`, engine `RenderRequest.review`) reviews the render in the
 same job once it is written (`reviewInline`: the review job's own execution with the job's signal; progress phases

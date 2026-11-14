@@ -11,7 +11,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
-import { themeContentHash } from '@retake/editor';
+import { themeContentHash } from '@retake/editor/plan';
+import { NODE_THEME_FILES } from '../src/theme-files.js';
 import { clearTimelineViewMemo, createEngine } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
@@ -97,7 +98,7 @@ describe("a scenario's theme on an existing take (critique B1)", () => {
   it("set_field template → the take's next plan uses the new theme and its hash; a theme edit changes the hash; removing it restores the project's", async () => {
     clearTimelineViewMemo();
     const before = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
-    expect(before).toMatchObject({ theme: 'editorial', theme_sha256: themeContentHash(join(STARTER_TEMPLATES_DIR, 'editorial')), source: { scenario_changed: false } });
+    expect(before).toMatchObject({ theme: 'editorial', theme_sha256: themeContentHash(join(STARTER_TEMPLATES_DIR, 'editorial'), NODE_THEME_FILES), source: { scenario_changed: false } });
     // The inspector's switch: the project's theme (null), then the listed themes by name.
     const choice = before.choices.video.find((c) => c.field === 'template')!;
     expect(choice).toMatchObject({ at: { entry: 'top' }, field: 'template', editable: true });
@@ -109,7 +110,7 @@ describe("a scenario's theme on an existing take (critique B1)", () => {
     const themed = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const brandDir = join(root, 'templates', 'brand');
     expect(themed).toMatchObject({ theme: 'brand', run_id: RUN, source: { edit: 'scenario', scenario_changed: false } });
-    expect(themed.theme_sha256).toBe(themeContentHash(brandDir));
+    expect(themed.theme_sha256).toBe(themeContentHash(brandDir, NODE_THEME_FILES));
     expect(themed.theme_sha256).not.toBe(before.theme_sha256);
     expect(themed.choices.video.find((c) => c.field === 'template')!.current).toBe('brand');
     // The Studio edits the theme: the next plan of the same take has the new files' hash.
@@ -117,7 +118,7 @@ describe("a scenario's theme on an existing take (critique B1)", () => {
     await engine.templates.edit('brand', { if_match: tv.sha256, edit: { kind: 'set_field', field: 'colors.accent', from: '#8a2332', to: '#225588' } });
     const edited = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     expect(edited.theme).toBe('brand');
-    expect(edited.theme_sha256).toBe(themeContentHash(brandDir));
+    expect(edited.theme_sha256).toBe(themeContentHash(brandDir, NODE_THEME_FILES));
     expect(edited.theme_sha256).not.toBe(themed.theme_sha256);
     // Back to the project's theme.
     await engine.scenarios.edit('demo', SCENARIO, { hash: set.hash, edit: { kind: 'set_field', at: { entry: 'top' }, field: 'template', from: 'brand' } });

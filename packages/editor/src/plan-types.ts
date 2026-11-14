@@ -455,7 +455,7 @@ export interface PlanMusic {
   /** A track shorter than the video loops (seams crossfaded over `crossfade_s`); false: it plays once. */
   loop: boolean;
   crossfade_s: number;
-  /** Length of the track (s), when the caller measured it (renderVideo does, with ffprobe): loops are then planned. */
+  /** Length of the track (s), when the caller measured it (planRun does, with ffprobe): loops are then planned. */
   duration_s?: number;
   /**
    * The track's plays (output frames): one, trimmed to the video (a longer track, or `loop: false`), or one per loop

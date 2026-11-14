@@ -347,12 +347,11 @@ export const PORT_FILES = [
   'packages/engine/src/outputs/outputs.ts',
 ];
 /**
- * The editor's render entries: its functions that render (a video, stills, an export's formats, component previews)
+ * The editor's render entries: its functions that render (a plan's video, stills, an export's formats, component previews)
  * and what makes its renderer or a part of one (the driver, the plan's part, the previews' part and their backend).
  * A render entry the editor exports and this list misses fails packages/core/test/import-rules.test.ts.
  */
 export const RENDER_CALLS = [
-  'renderVideo',
   'renderStill',
   'renderStills',
   'renderPlan',
@@ -621,7 +620,7 @@ export const CHECKS = [
   },
   {
     id: 'render-call',
-    title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function`,
+    title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderPlan\`, \`ed['renderPlan']\`, a key spelt in pieces: \`ed['render' + 'Plan']\`), a destructured name in a declaration or an assignment (\`{ renderPlan }\`, \`({ renderPlan: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderPlan\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function`,
   },
   {
     id: 'policy-state',
@@ -940,7 +939,7 @@ const assignedTo = (ts, obj) => {
     }
     if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return p.left === n;
     if (ts.isForOfStatement(p) || ts.isForInStatement(p)) return p.initializer === n;
-    // Nested patterns: `({ a: { renderVideo: f } } = x)`, `[{ renderVideo: f }] = xs`, a default (`{ … } = {}` inside).
+    // Nested patterns: `({ a: { renderPlan: f } } = x)`, `[{ renderPlan: f }] = xs`, a default (`{ … } = {}` inside).
     if ((ts.isPropertyAssignment(p) && p.initializer === n) || ts.isArrayLiteralExpression(p) || ts.isObjectLiteralExpression(p) || ts.isSpreadElement(p) || ts.isSpreadAssignment(p)) {
       n = p;
       continue;
@@ -965,9 +964,9 @@ const POLICY_STATE_TYPE = /\b(?:WorkPolicy|RenderSettings|RenderPolicy|ProgramPo
  * work's policy — named after it (POLICY_STATE_NAME) or typed or set with its types (POLICY_STATE_TYPE): the policy is a
  * value the engine passes on, never state a setter changes (a `const` of such a type is a value, not state). And in the
  * engine outside RENDER_HOME and in the shells, one of the editor's render functions (RENDER_CALLS) taken off anything:
- * a property (`ed.renderVideo`, `ed['renderVideo']`, `ed['render' + 'Video']`, called or not), a destructured name in a
- * declaration or an assignment (`{ renderVideo }`, `{ renderVideo: f }`, `({ renderVideo: f } = ed)`), a shorthand
- * property, an alias (`import f = ed.renderVideo`), or a value imported or re-exported from @retake/editor under any
+ * a property (`ed.renderPlan`, `ed['renderPlan']`, `ed['render' + 'Plan']`, called or not), a destructured name in a
+ * declaration or an assignment (`{ renderPlan }`, `{ renderPlan: f }`, `({ renderPlan: f } = ed)`), a shorthand
+ * property, an alias (`import f = ed.renderPlan`), or a value imported or re-exported from @retake/editor under any
  * local name. A key computed at run time (`ed[name]`) is the check's limit: nothing in the text names the function.
  */
 export function wiringHits(root, files) {
@@ -995,7 +994,7 @@ export function wiringHits(root, files) {
         const typeOnly = n.isTypeOnly || n.parent.parent.isTypeOnly;
         if (render && !typeOnly && RENDER_CALL_SET.has(orig) && ts.isImportDeclaration(decl) && retake(literal(ts, decl.moduleSpecifier) ?? '') === 'editor') found.add(`render-call:${orig}`);
       }
-      // A render entry re-exported from the editor (`export { renderVideo } from`, `export * from`, `export * as ed from`):
+      // A render entry re-exported from the editor (`export { renderPlan } from`, `export * from`, `export * as ed from`):
       // the file would hand it on under its own name.
       if (render && ts.isExportDeclaration(n) && !n.isTypeOnly && retake(literal(ts, n.moduleSpecifier) ?? '') === 'editor') {
         if (!n.exportClause || ts.isNamespaceExport(n.exportClause)) found.add('render-call:export * from @retake/editor');
@@ -1051,7 +1050,7 @@ export function wiringHits(root, files) {
         if (ref || destructured || indexed || shorthand || aliased) found.add(`queue:${QUEUE_CLASS} as a value`);
       }
       if (render && !typeHere) {
-        // Any way a render function is taken off something: called or not, so an alias (`const f = ed.renderVideo`) counts.
+        // Any way a render function is taken off something: called or not, so an alias (`const f = ed.renderPlan`) counts.
         const member = ts.isPropertyAccessExpression(n)
           ? n.name.text
           : ts.isElementAccessExpression(n)
@@ -1064,10 +1063,10 @@ export function wiringHits(root, files) {
                   : undefined
               : ts.isShorthandPropertyAssignment(n)
                 ? n.name.text
-                : // An assignment's pattern: `({ renderVideo: f } = ed)` (a key being defined in an object that is read is not a use).
+                : // An assignment's pattern: `({ renderPlan: f } = ed)` (a key being defined in an object that is read is not a use).
                   ts.isPropertyAssignment(n) && assignedTo(ts, n.parent)
                   ? keyText(ts, n.name)
-                  : // `import f = ed.renderVideo` (an alias of a namespace's member).
+                  : // `import f = ed.renderPlan` (an alias of a namespace's member).
                     ts.isImportEqualsDeclaration(n) && ts.isQualifiedName(n.moduleReference)
                     ? n.moduleReference.right.text
                     : undefined;

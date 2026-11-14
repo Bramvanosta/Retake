@@ -155,3 +155,11 @@ export async function renderWorkspace(): Promise<RenderWorkspace> {
   const project = await loadProject('demo', root);
   return { root, project, runDir, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
+
+/**
+ * An export's re-render for the tests of exports that never render a format again (an editor export is handed what
+ * renders one: the engine's render use case): it refuses, so a test that reached it says so.
+ */
+export async function noRerender(): Promise<never> {
+  throw new Error('this test renders no format of an export again');
+}

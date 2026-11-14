@@ -36,6 +36,17 @@ async function writeAtomic(path: string, data: string | Uint8Array): Promise<voi
   }
 }
 
+/** A new file, never over anything there (open 'wx': EEXIST), its folder made. */
+async function createExclusive(path: string, text: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const fh = await open(path, 'wx');
+  try {
+    await fh.writeFile(text);
+  } finally {
+    await fh.close();
+  }
+}
+
 const nodeOutputFs: OutputFs = {
   lstat,
   stat,
@@ -43,6 +54,7 @@ const nodeOutputFs: OutputFs = {
   readdir: (path) => readdir(path, { withFileTypes: true }),
   mkdir: (path, opts) => mkdir(path, opts),
   writeAtomic,
+  createExclusive,
   hash: hashFile,
   realpath: (path) => realpath(path),
   remove: (path) => rm(path, { recursive: true, force: true }),

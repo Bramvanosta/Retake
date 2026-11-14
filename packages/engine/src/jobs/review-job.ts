@@ -21,7 +21,8 @@ import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { latestRenderMembers, previousOfRender } from '../render-records.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
-import { renderPathProblem } from '../render/editor-calls.js';
+import { nodeFileFacts } from '@retake/core/io';
+import { recordPathProblem } from '@retake/editor/plan';
 import { reviewWork } from '../review/work.js';
 import type { Reviewer } from '../review/reviewer.js';
 import type { SubmitContext } from './run-job.js';
@@ -136,7 +137,7 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
   else {
     // The default comparison: the previous render of the scenario, when it may be read (else none).
     const found = await previousOfRender(ctx.ws.outputs.renders, project.dir, record);
-    const problem = found ? await renderPathProblem(project.dir, found) : null;
+    const problem = found ? recordPathProblem(project.dir, found, nodeFileFacts) : null;
     if (problem) ctx.event({ type: 'log', level: 'warn', message: `not compared with ${found!.id}: its files are outside the project` });
     previous = found && !problem ? found.id : false;
   }

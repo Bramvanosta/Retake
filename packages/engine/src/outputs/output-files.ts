@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { pathInside } from '@retake/core/base';
 import { isRunId } from '@retake/core/ids';
 import { orderRuns } from '@retake/core/run';
-import { readListedRender, readNamedRun, readRenderById, readRendersFolder, readRunFolder, readRunRecord, reserveRunId } from '@retake/core/io';
+import { findNamedRender, readListedRender, readNamedRun, readRenderById, readRendersFolder, readRunFolder, readRunRecord, reserveRunId } from '@retake/core/io';
 import type { RecordFs, RunFolderFs, RunFolderStat } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import type { OutputFolder, OutputKind, Outputs, RenderOutputs, RunOutputs } from './outputs.js';
@@ -31,6 +31,8 @@ export interface OutputFs extends RunFolderFs, RecordFs {
   mkdir(path: string, opts?: { recursive?: boolean }): Promise<unknown>;
   /** Write a file whole, atomically (temporary file + rename on a disk), its folder made. */
   writeAtomic(path: string, data: string | Uint8Array): Promise<void>;
+  /** Create a file that is not there yet with `text`, its folder made; fails with code EEXIST when anything is there. */
+  createExclusive(path: string, text: string): Promise<void>;
   /** The sha256 of a file's bytes (streamed on a disk), never through a link (refused: ELOOP). */
   hash(path: string): Promise<string>;
   realpath(path: string): Promise<string>;
@@ -128,9 +130,11 @@ function outputFolderOn(fs: OutputFs, dirOf: (projectDir: string) => string): Ou
 function renderOutputsOn(fs: OutputFs): RenderOutputs {
   return {
     ...outputFolderOn(fs, OUTPUT_DIRS.renders),
+    lock: (path, text) => fs.createExclusive(path, text),
     entries: (rendersDir, only) => readRendersFolder(rendersDir, { fs, ...(only ? { only } : {}) }),
     listed: (rendersDir, name) => readListedRender(rendersDir, name, { fs }),
     byId: (rendersDir, id) => readRenderById(rendersDir, id, { fs }),
+    named: (rendersDir, arg, o) => findNamedRender(rendersDir, arg, { ...o, fs }),
   };
 }
 

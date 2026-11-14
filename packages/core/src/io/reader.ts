@@ -15,7 +15,7 @@ import { nodeWorkspaceDisk } from './file-facts.js';
 import { listProjectsOn, loadProjectOn, planNewProjectOn } from './project.js';
 import { loadScenarioOn, readScenarioSourceOn } from './scenario.js';
 import type { ScenarioLoadOptions, ScenarioReadOptions } from './scenario.js';
-import { listTemplatesOn, loadProjectTemplateOn, loadTemplateOn, projectTemplateFolderIdOn } from './template.js';
+import { listTemplatesOn, loadProjectTemplateOn, loadTemplateOn, projectTemplateFolderIdOn, templateFolderIdOn } from './template.js';
 import type { TemplateLoadOptions } from './template.js';
 import { fileFacts } from './work-files.js';
 import { findWorkspaceRootOn, findWorkspaceUpwardOn, loadWorkspaceConfigOn } from './workspace.js';
@@ -38,6 +38,8 @@ export interface WorkspaceReader {
   loadTemplate(nameOrDir: string, root: string | undefined, o: TemplateLoadOptions): Promise<LoadedTemplate>;
   loadProjectTemplate(project: LoadedProject, override: string | undefined, o: TemplateLoadOptions): Promise<LoadedTemplate>;
   projectTemplateFolderId(project: Pick<LoadedProject, 'root' | 'dir'>, ref: string | undefined): Promise<string | undefined>;
+  /** A theme folder's identity, as a render record holds it (`template_folder`: template.ts templateFolderId). */
+  templateFolderId(dir: string, root: string): string;
 }
 
 /**
@@ -60,6 +62,7 @@ export function workspaceReader(disk: WorkspaceDisk, facts: (policy: WorkPolicy)
     loadTemplate: (nameOrDir: string, root: string | undefined, o: TemplateLoadOptions) => loadTemplateOn(disk, nameOrDir, root, o),
     loadProjectTemplate: (project: LoadedProject, override: string | undefined, o: TemplateLoadOptions) => loadProjectTemplateOn(disk, project, override, o),
     projectTemplateFolderId: (project: Pick<LoadedProject, 'root' | 'dir'>, ref: string | undefined) => projectTemplateFolderIdOn(disk, project, ref),
+    templateFolderId: (dir: string, root: string) => templateFolderIdOn(disk, dir, root),
   });
 }
 

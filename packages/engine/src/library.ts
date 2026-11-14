@@ -41,7 +41,8 @@ import type { ComponentRegistry, JsonSchemaNode } from '@retake/components/geome
 import type { PreviewSamples } from '@retake/editor/plan';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
-import { previewMaking, themeHashes } from './render/editor-calls.js';
+import { previewMaking } from './render/editor-calls.js';
+import { NODE_THEME_HASHES } from './theme-files.js';
 import type { OpenedWorkspace } from './workspace.js';
 import { bestEffort, printableText } from '@retake/core/base';
 
@@ -102,7 +103,7 @@ export interface LibraryKeyContext {
 }
 
 export async function libraryKeyContext(template: LoadedTemplate, registry: ComponentRegistry, o: { browser?: string; policy: WorkPolicy }): Promise<LibraryKeyContext> {
-  const [making, hashes] = [await previewMaking(), await themeHashes()];
+  const [making, hashes] = [await previewMaking(), NODE_THEME_HASHES];
   let registryHash: Promise<string> | undefined;
   return {
     template,

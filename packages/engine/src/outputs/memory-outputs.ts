@@ -8,7 +8,8 @@
  * folder's being there: no real path differs from its spelling), no file mode, no special file, case counts; a write
  * is atomic by being one Map entry. A signature is the path's write count, not a time. What reads a run folder outside
  * the port — a run's pictures, frames and videos (run-files.ts RunFolder, run-data.ts), the editor's and the review's
- * own reads of a take, the real capture runner's writes, the editor's render (its record and video), the review
+ * own reads of a take, the real capture runner's writes, the video a renderer writes (the render's record and lock go
+ * through the port), the review
  * package's review folder — still goes to the disk (a worker handed these outputs must be handed its own capture
  * runner: jobs/worker-ports.ts). Paths are absolute and compared as
  * written (normalised).
@@ -176,6 +177,12 @@ export class MemoryOutputs implements Outputs {
         const p = normalize(path);
         this.#through(p, 'open');
         this.#put(p, Buffer.from(data));
+      },
+      createExclusive: async (path, text) => {
+        const p = normalize(path);
+        this.#through(p, 'open');
+        if (this.#files.has(p) || this.#isFolder(p)) throw fsError('EEXIST', 'open', p);
+        this.#put(p, Buffer.from(text));
       },
       hash: async (path) => {
         const data = this.#files.get(normalize(path));

@@ -1,6 +1,6 @@
 /**
- * Run ids and render versions as the editor reads them from a project's folders (L7.5): which capture `latest` picks,
- * which files of renders/ take a version, the next free version and its lock, and how an export names its render.
+ * Run ids as the editor reads them from a project's folders (L7.5): which capture `latest` picks and how an export
+ * names its render. The versions of renders/ are the engine's (engine/test/render-versions.test.ts).
  * Hand-made folders and files in a temp project; nothing is planned or rendered.
  *
  * A row marked `D-<n>` or `G` is an outcome a decision of the lot changed; the mark names it (G: the version bound).
@@ -9,14 +9,14 @@
  * rows those decisions moved are marked so.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import { exportRender, findRun, nextVersion, reserveVersion, takenVersions, versionLockFile } from '../src/index.js';
-import { syntheticRunRecord } from '@retake/test-support/render';
+import { exportRender, findRun } from '../src/index.js';
+import { noRerender, syntheticRunRecord } from '@retake/test-support/render';
 
 let tmp: string;
 let n = 0;
@@ -134,132 +134,6 @@ describe('the run `latest` names', () => {
   });
 });
 
-const VERSION_FILES = [
-  'quote-v2.mp4',
-  '.quote-v3.lock',
-  '.quote-v3.mp4',
-  '.quote-v4.json',
-  'quote-v5.lock',
-  '.quote-v6-square.lock',
-  'quote-v7-vertical.lock',
-  'quote-v007.json',
-  'quote-v4-square.json',
-  'quote-v11-vertical.mp4',
-  // not counted for quote:
-  'Quote-v90.json',
-  'quote-v2-v91.json',
-  'xquote-v92.json',
-  'quote-v93.webm',
-  'quote-v94-tall.mp4',
-  'quote-v95.json.tmp',
-  'quote-v96-vertical-square.mp4',
-  'quote-V97.mp4',
-  'quote-v.mp4',
-  'quote-v98.mp4\n',
-  '..quote-v99.lock',
-  'quote_-v100.mp4',
-  'aXb-v1.json',
-];
-
-describe('the versions taken in renders/', () => {
-  it('a version is taken by <name>-v<N>[-vertical|-square] with .mp4, .json or .lock, with or without a leading dot', async () => {
-    const p = await project();
-    const dir = join(p.dir, 'renders');
-    for (const f of VERSION_FILES) await writeFile(join(dir, f), '');
-    expect(takenVersions(dir, 'quote')).toEqual([2, 3, 4, 5, 6, 7, 11]);
-    expect(nextVersion(dir, 'quote')).toBe(12);
-    // The name is read as it is written: its "." is a dot, an upper-case letter is not its lower-case one.
-    expect(takenVersions(dir, 'a.b')).toEqual([]);
-    expect(takenVersions(dir, 'aXb')).toEqual([1]);
-    expect(takenVersions(dir, 'Quote')).toEqual([90]);
-    expect(takenVersions(dir, 'quote-v2')).toEqual([91]);
-    expect(takenVersions(dir, 'quote_')).toEqual([100]);
-    expect(takenVersions(dir, 'catalogue')).toEqual([]);
-    expect(nextVersion(dir, 'catalogue')).toBe(1);
-    expect(takenVersions(join(dir, 'missing'), 'quote')).toEqual([]);
-  });
-
-  it('the lock of a version is .<name>-v<N>.lock, whatever the variant', async () => {
-    expect(versionLockFile('/renders', 'quote', 3)).toBe('/renders/.quote-v3.lock');
-    expect(versionLockFile('/renders', 'Quote_2', 12)).toBe('/renders/.Quote_2-v12.lock');
-    const p = await project();
-    const dir = join(p.dir, 'renders');
-    const r = await reserveVersion(dir, 'quote', 'a test');
-    expect([r.version, await readdir(dir)]).toEqual([1, ['.quote-v1.lock']]);
-    const second = await reserveVersion(dir, 'quote', 'a test');
-    expect(second.version).toBe(2);
-    await r.release();
-    await second.release();
-    expect(await readdir(dir)).toEqual([]);
-  });
-
-  /**
-   * Two renders in a row on a folder holding `planted`: the version each got — or the refusal, as "refused: <file
-   * named> <version it claims>" —, and the lock names seen while a version was held.
-   */
-  async function twoRenders(planted: string): Promise<{ versions: string[]; locks: string[] }> {
-    const p = await project();
-    const dir = join(p.dir, 'renders');
-    await writeFile(join(dir, planted), '');
-    const versions: string[] = [];
-    const locks: string[] = [];
-    for (let i = 0; i < 2; i++) {
-      try {
-        const r = await reserveVersion(dir, 'quote', 'a test');
-        versions.push(String(r.version));
-        locks.push(...(await readdir(dir)).filter((f) => f.endsWith('.lock') && f !== planted));
-        await writeFile(join(dir, `quote-v${r.version}.mp4`), '');
-        await r.release();
-      } catch (e) {
-        const m = /^renders\/ holds (\S+), which claims version (\d+) of quote: the highest version is 999999\. Remove or rename that file, then render again\.$/.exec((e as Error).message);
-        versions.push(m ? `refused: ${m[1]} ${m[2]}` : `another error: ${(e as Error).message}`);
-        locks.push(...(await readdir(dir)).filter((f) => f.endsWith('.lock') && f !== planted));
-      }
-    }
-    return { versions, locks };
-  }
-
-  it('two renders in a row get two versions, each one above every file of the folder, up to version 999999', async () => {
-    expect(await twoRenders('quote-v999997.json')).toEqual({ versions: ['999998', '999999'], locks: ['.quote-v999998.lock', '.quote-v999999.lock'] });
-    // L7.5 G (the version bound): 999999 is the last version handed out; a file that claims it or more is named by the
-    // refusal, and no lock is written.
-    expect(await twoRenders('quote-v999998.json')).toEqual({ versions: ['999999', 'refused: quote-v999999.mp4 999999'], locks: ['.quote-v999999.lock'] }); // G
-    expect(await twoRenders('quote-v999999.mp4')).toEqual({ versions: ['refused: quote-v999999.mp4 999999', 'refused: quote-v999999.mp4 999999'], locks: [] }); // G
-    expect(await twoRenders('.quote-v1000000.lock')).toEqual({ versions: ['refused: .quote-v1000000.lock 1000000', 'refused: .quote-v1000000.lock 1000000'], locks: [] }); // G
-    expect((await twoRenders('quote-v9007199254740990-vertical.mp4')).versions).toEqual([
-      'refused: quote-v9007199254740990-vertical.mp4 9007199254740990',
-      'refused: quote-v9007199254740990-vertical.mp4 9007199254740990',
-    ]); // G
-  });
-
-  it('a file that claims a version past what a number holds is named with its digits as written, and nothing is reserved', async () => {
-    // L7.5 G (the version bound): two renders never get the same version.
-    expect(await twoRenders('quote-v9007199254740992.json')).toEqual({
-      versions: ['refused: quote-v9007199254740992.json 9007199254740992', 'refused: quote-v9007199254740992.json 9007199254740992'],
-      locks: [],
-    }); // G
-    expect((await twoRenders('quote-v9007199254740993.mp4')).versions).toEqual(['refused: quote-v9007199254740993.mp4 9007199254740993', 'refused: quote-v9007199254740993.mp4 9007199254740993']); // G
-    expect((await twoRenders('.quote-v99999999999999999999.lock')).versions).toEqual([
-      'refused: .quote-v99999999999999999999.lock 99999999999999999999',
-      'refused: .quote-v99999999999999999999.lock 99999999999999999999',
-    ]); // G
-    expect(await twoRenders('quote-v9999999999999999999999-vertical.mp4')).toEqual({
-      versions: ['refused: quote-v9999999999999999999999-vertical.mp4 9999999999999999999999', 'refused: quote-v9999999999999999999999-vertical.mp4 9999999999999999999999'],
-      locks: [],
-    }); // G
-  });
-
-  it('a file of one scenario never changes the versions of another', async () => {
-    const p = await project();
-    const dir = join(p.dir, 'renders');
-    await writeFile(join(dir, 'quote-v9007199254740992.json'), '');
-    expect(nextVersion(dir, 'catalogue')).toBe(1);
-    const r = await reserveVersion(dir, 'catalogue', 'a test');
-    expect(r.version).toBe(1);
-    await r.release();
-  });
-});
-
 describe("an export under an agent's trust names its render by its id", () => {
   it('a name that is not one is refused before anything is read', async () => {
     const p = await project();
@@ -273,7 +147,7 @@ describe("an export under an agent's trust names its render by its id", () => {
     await mkdir(join(p.dir, 'runs', 'r'), { recursive: true });
     const exported = async (render: string) => {
       try {
-        await exportRender({ project: p, render, trust: 'mcp', workPolicy: PERSON_POLICY });
+        await exportRender({ project: p, render, trust: 'mcp', workPolicy: PERSON_POLICY, rerender: noRerender });
         return 'exported';
       } catch (e) {
         return (e as Error).message.split(p.dir).join('<project>');

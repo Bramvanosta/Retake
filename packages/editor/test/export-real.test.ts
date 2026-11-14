@@ -12,7 +12,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
-import { exportRender, generateTestTrack, gifWindow, planEdit, renderStill, renderVideo } from '@retake/editor';
+import { generateTestTrack, gifWindow, planEdit, renderStill } from '@retake/editor';
+import { exportRun, renderRun } from '@retake/test-support/render-use-case';
 import type { ClipSegment, ExportResult, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameOfColour, pixelAt, renderWorkspace } from '@retake/test-support/render';
 import { hasTool } from '@retake/test-support/repo';
@@ -73,7 +74,7 @@ describe.skipIf(!canRender)('square, music bed and export on real renders', () =
     async () => {
       const track = await generateTestTrack(join(ws.project.dir, 'assets', 'bed.m4a'), { workPolicy: PERSON_POLICY, seconds: 1.5 });
       expect(Number(probe(track).format.duration)).toBeCloseTo(1.5, 1);
-      record = await renderVideo({
+      record = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,
@@ -103,7 +104,7 @@ describe.skipIf(!canRender)('square, music bed and export on real renders', () =
   it(
     'exportRender: 1080p and WebM transcoded, a GIF preview, the square variant re-rendered; manifest.json',
     async () => {
-      exported = await exportRender({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, render: record.id, formats: ['mp4_1080p', 'webm', 'gif_preview', 'square_1x1'], concurrency: 2 });
+      exported = await exportRun({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, render: record.id, formats: ['mp4_1080p', 'webm', 'gif_preview', 'square_1x1'], concurrency: 2 });
       expect(exported.failures).toEqual([]);
       expect(exported.dir).toBe(join(ws.project.dir, 'exports', record.id));
       const by = Object.fromEntries(exported.outputs.map((o) => [o.format, o]));
@@ -121,10 +122,10 @@ describe.skipIf(!canRender)('square, music bed and export on real renders', () =
       expect(manifest.outputs.map((o) => o.format)).toEqual(['mp4_1080p', 'webm', 'square_1x1', 'gif_preview']);
       expect(manifest.master).toMatchObject({ width: 480, height: 270, variant: 'landscape' });
       // A second export adds to the manifest (other formats are kept).
-      const again = await exportRender({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, render: 'latest', formats: ['gif_preview'], gif: { start_s: 0.5, duration_s: 1 } });
+      const again = await exportRun({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, render: 'latest', formats: ['gif_preview'], gif: { start_s: 0.5, duration_s: 1 } });
       expect(again.outputs.map((o) => o.format)).toEqual(['mp4_1080p', 'webm', 'square_1x1', 'gif_preview']);
       expect(again.outputs.find((o) => o.format === 'gif_preview')!.window).toEqual({ start_s: 0.5, duration_s: 1, reason: 'asked' });
-      await expect(exportRender({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, render: 'nope' })).rejects.toThrow(/not found/);
+      await expect(exportRun({ workPolicy: PERSON_POLICY, project: ws.project, root: ws.root, render: 'nope' })).rejects.toThrow(/not found/);
     },
     LONG,
   );

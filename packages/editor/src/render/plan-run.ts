@@ -27,8 +27,7 @@ import { editReplannedMessage, insideFolder, parseScenario, renderFileProblems, 
 import { DEFAULT_FILM, namedRunProblem, takeWords, timelineProblem } from '@retake/core/run';
 import { loadProjectTemplate, readNamedRun, scenarioSinceRun, nodeFileFacts, fileFacts } from '@retake/core/io';
 import type { TemplateContext, ErrorKind } from '@retake/core/base';
-import type { LoadedProject, LoadedTemplate, Scenario, Timeline, WorkFileFacts } from '@retake/core/model';
-import type { WorkPolicy } from '@retake/core/policy';
+import type { LoadedProject, LoadedTemplate, Timeline, WorkFileFacts } from '@retake/core/model';
 import type { NamedProblem, Read, RunFolderFacts } from '@retake/core/run';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components/geometry';
@@ -41,8 +40,8 @@ import { probeMedia } from './probe.js';
 import { locateRun, recordEnv, runScenario } from './runs.js';
 import type { RunRef } from './runs.js';
 import { RenderError } from './types.js';
-import type { PlanTrust } from '../work-types.js';
-export type { PlanTrust } from '../work-types.js';
+import type { PlanRunOptions, PlannedEdit, PlannedRun } from '../work-types.js';
+export type { PlanRunOptions, PlanTrust, PlannedEdit, PlannedRun } from '../work-types.js';
 
 /** A plan refused by the trust rules of work submitted through MCP: one positioned message per problem. */
 export class PlanTrustError extends RenderError {
@@ -59,87 +58,6 @@ export class PlanTrustError extends RenderError {
   override get errorDocs(): string {
     return GUIDE.security;
   }
-}
-
-export interface PlanRunOptions {
-  /** What the work runs under (core WorkPolicy): the ffprobe of its files. */
-  workPolicy: WorkPolicy;
-  project: LoadedProject;
-  /** Run id, run directory, or "latest" (of `scenario` when given); or a run its caller already found (no second lookup). */
-  run: string | RunRef;
-  /** Scenario name: required to match the run's; picks the run with "latest". */
-  scenario?: string;
-  /** Theme to use instead of the run's (name, ./path or a loaded template). */
-  template?: string | LoadedTemplate;
-  overrides?: EditOverrides;
-  /** Workspace root (default: the project's). */
-  root?: string;
-  registry?: ComponentRegistry;
-  /** Default `author`: no trust gate. */
-  trust?: PlanTrust;
-  /** Measure the music bed with ffprobe so the plan loops or trims it (default true; a still does without). */
-  measureMusic?: boolean;
-  /** How the music bed is measured (default: ffprobe each time; the Studio's timeline memoises it by file, L4.5). */
-  musicLength?: (file: string) => Promise<number | undefined>;
-  /**
-   * Where the edit comes from (L5.5). `auto` (default): today's scenario file when its filmed part is unchanged since
-   * the run, else the run as captured. `run`: the run as captured.
-   */
-  edit?: 'auto' | 'run';
-  /**
-   * The scenario file's text to plan the edit from instead of today's file (L4.5, critique B5): a render job's snapshot
-   * of the file as it was planned at submit (its job folder's edit.yaml). The same parse, filmed-part check and trust
-   * gates apply; only the source of the text differs.
-   */
-  editText?: string;
-  /**
-   * What the plan is for (L7.22). `render` (default): what renders it — its words say render, and a run without its
-   * film is refused. `plan`: a plan alone (`retake plan`) — its words say plan, and a run without its film still plans
-   * (a plan reads no film).
-   */
-  purpose?: 'render' | 'plan';
-}
-
-/**
- * Where a plan's edit came from (L5.5): today's scenario file re-planned on the run (`scenario`: its filmed part is
- * unchanged since the capture), or the run as captured (`run`: no snapshot or file, the filmed part changed, or today's
- * file does not validate).
- */
-export interface PlannedEdit {
-  from: 'scenario' | 'run';
-  /** sha256 of today's file the edit was planned from (from `scenario`). */
-  sha256?: string;
-  /** What today's edit changed against the run's (keys, scene ids, step keys; from `scenario`). */
-  changes?: string[];
-  /**
-   * Whether the filmed part changed since the run (true: re-capture to film it), absent when it cannot be told (no
-   * scenario file or no snapshot).
-   */
-  scenario_changed?: boolean;
-  /** What changed in the filmed part (keys, scene ids, step keys); absent when the file no longer reads as YAML. */
-  filmed_changes?: string[];
-  /** Why today's file was not used although its filmed part is unchanged. */
-  reason?: string;
-}
-
-export interface PlannedRun {
-  project: LoadedProject;
-  root: string;
-  run: RunRef;
-  timeline: Timeline;
-  template: LoadedTemplate;
-  registry: ComponentRegistry;
-  captureFile: string;
-  /** The overrides planned with (`theme` set to the theme's name when one was asked). */
-  overrides: EditOverrides;
-  /** The run's scenario snapshot (undefined when absent or invalid). */
-  scenario?: Scenario;
-  /** Where the edit came from (L5.5). */
-  edit: PlannedEdit;
-  /** The scenario text the edit was planned from (from `scenario`): what a render job snapshots at submit (L4.5). */
-  editText?: string;
-  plan: EditPlan;
-  plan_ms: number;
 }
 
 /** The theme a plan of this run uses: asked, else the overrides', else the run's, else the project's. */

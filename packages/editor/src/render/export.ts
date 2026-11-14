@@ -12,7 +12,7 @@ import { basename, extname, join, resolve } from 'node:path';
 import { GUIDE, missingOrInvalid, printableText, bestEffort, errorMessage } from '@retake/core/base';
 import { isThemeName } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
-import { insideFolder, isTemplatePath } from '@retake/core/scenario';
+import { isTemplatePath } from '@retake/core/scenario';
 import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/render';
 import {
   STARTER_FOLDER_ID_PREFIX,
@@ -30,23 +30,18 @@ import {
 } from '@retake/core/io';
 import type { ErrorKind } from '@retake/core/base';
 import type { LoadedProject } from '@retake/core/model';
-import type { WorkPolicy } from '@retake/core/policy';
 import type { H264Encoder, NamedRenderFound } from '@retake/core/io';
-import type { ComponentRegistry } from '@retake/components/geometry';
 import type { PlanVariant } from '../plan-types.js';
-import type { BrowserProcessInfo } from './network-guard.js';
 import { PlanTrustError } from './plan-run.js';
 import type { PlanTrust } from './plan-run.js';
-import { handedProject, probeMedia, renderVideo } from './render.js';
-import { handedDriver } from './driver-guard.js';
-import type { RenderDriver } from './driver-types.js';
-import type { RenderNetwork } from './render.js';
+import { handedProject, probeMedia } from './render.js';
 import { rendersDir } from './runs.js';
 import { RenderError } from './types.js';
 import { withPlan } from '../render-record.js';
 import type { NamedRender, RenderRecord } from '../render-record.js';
-import type { ExportProgress, ExportFormat } from '../work-types.js';
-export type { ExportProgress, ExportFormat } from '../work-types.js';
+import { recordPathProblem } from '../render-fields.js';
+import type { ExportFormat, ExportOutput, ExportRenderOptions, ExportRerender, ExportResult } from '../work-types.js';
+export type { ExportProgress, ExportFormat, ExportOutput, ExportRenderOptions, ExportResult } from '../work-types.js';
 
 /** Delivery formats (one list with core's job input). */
 export const EXPORT_FORMATS = EXPORT_FORMAT_NAMES;
@@ -63,74 +58,11 @@ const SIZES: Record<PlanVariant, { base: [number, number]; k4: [number, number] 
   square: { base: [1080, 1080], k4: [2160, 2160] },
 };
 
-export interface ExportOutput {
-  format: ExportFormat;
-  /** Absolute path. */
-  file: string;
-  /** copy: the master as is; transcode: ffmpeg from the master; render: re-rendered through the planner. */
-  method: 'copy' | 'transcode' | 'render';
-  width: number;
-  height: number;
-  duration_s: number;
-  fps: number;
-  video_codec?: string;
-  audio_codec?: string;
-  audio_streams: number;
-  size_bytes: number;
-  ms: number;
-  /** GIF: the window of the master it shows (seconds) and why. */
-  window?: { start_s: number; duration_s: number; reason: 'first' | 'highlight' | 'asked' };
-  /** Re-rendered formats: the render record written next to the file. */
-  record?: string;
-  warnings: string[];
-}
-
-export interface ExportResult {
-  version: 1;
-  project: string;
-  render: string;
-  scenario: string;
-  run_id: string;
-  /** The master render. */
-  master: { file: string; record: string; variant: PlanVariant; width: number; height: number; duration_s: number; fps: number };
-  dir: string;
-  manifest: string;
-  created_at: string;
-  outputs: ExportOutput[];
-  /** Formats that failed (the others are still written). */
-  failures: Array<{ format: ExportFormat; error: string }>;
-}
-
-export interface ExportRenderOptions {
-  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
-  workPolicy: WorkPolicy;
-  /** The project, loaded by the caller: the editor finds no project by itself. */
-  project: LoadedProject;
-  /** Render id (renders/<id>.json), a path to a record / video, or `latest` (of `scenario` when given). */
-  render: string;
-  scenario?: string;
-  formats?: readonly ExportFormat[];
-  /** Output folder (default `<project>/exports/<render-id>/`). */
-  out?: string;
-  /** GIF window (default: around the first marker, else the first 15 s). */
-  gif?: { start_s?: number; duration_s?: number };
-  root?: string;
-  registry?: ComponentRegistry;
-  concurrency?: number;
-  signal?: AbortSignal;
-  onProgress?: (p: ExportProgress) => void;
-  ffmpeg?: string;
-  /**
-   * `mcp` (an export job of the worker): the render is named by its id only, its video and run must lie in the project
-   * folder, and re-rendered formats pass planRun's trust gates. Default `author`.
-   */
-  trust?: PlanTrust;
-  /** The network of re-rendered formats (export jobs: `guard`). */
-  network?: RenderNetwork;
-  /** Called once a re-render's browser runs, with its process. */
-  onBrowser?: (b: BrowserProcessInfo) => void;
-  /** What renders a re-rendered format (renderVideo `renderer`; no such key: this package's driver). */
-  renderer?: Pick<RenderDriver, 'video'>;
+/** The re-render an export was handed; a caller outside the type checker that hands none is refused. */
+function handedRerender(opts: object): ExportRerender {
+  const r = (opts as { rerender?: unknown }).rerender;
+  if (typeof r !== 'function') throw new RenderError('export: nothing was handed to render a format again with (the caller renders: its render use case)');
+  return r as ExportRerender;
 }
 
 /** An export that cannot start (message written for the user). */
@@ -272,23 +204,6 @@ export function exportRenderWarnings(warnings: readonly string[]): string[] {
   return warnings.filter((w) => /upscaled|missing|not found|blocked|\bGPU\b|VideoToolbox|in software/i.test(w));
 }
 
-/**
- * Why a render may not be exported (or reviewed) by work submitted through MCP, or null: its video and its run folder
- * must lie in the project folder, symbolic links resolved (a record's paths are absolute: one edited by hand, or of a
- * moved workspace, could name any file).
- */
-export function recordPathProblem(projectDir: string, record: Pick<RenderRecord, 'id' | 'file' | 'run_dir'>): string | null {
-  for (const [what, p] of [
-    ['video', record.file],
-    ['run folder', record.run_dir],
-  ] as const) {
-    if (typeof p !== 'string' || !insideFolder(projectDir, p, nodeFileFacts)) {
-      return `the ${what} of render ${record.id} (${String(p)}) is outside the project folder: through MCP a render is read only from the project`;
-    }
-  }
-  return null;
-}
-
 const SUFFIX: Record<ExportFormat, string> = {
   mp4_1080p: '-1080p.mp4',
   mp4_4k: '-4k.mp4',
@@ -341,10 +256,9 @@ export async function transcodeMp4(bin: string, input: string, size: readonly [n
  * (`manifest.json`) keeps the entries of formats exported earlier into the same folder.
  */
 export async function exportRender(opts: ExportRenderOptions): Promise<ExportResult> {
-  // Before any work: a renderer named but not handed is refused (driver-guard.ts), whatever the formats need.
-  const handed = handedDriver('export', opts, 'video');
+  // Before any work: an export handed nothing to render a format again with is refused, whatever the formats need.
+  const rerenderWith = handedRerender(opts);
   const project = handedProject(opts.project);
-  const root = resolve(opts.root ?? project.root);
   const trust = opts.trust ?? 'author';
   // Through MCP: a render id, its own file (core/io findNamedRender). At a terminal: as a person names it.
   const found = await locateRenderRecord(project, opts.render, opts.scenario, { trust });
@@ -353,7 +267,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   const name = found.output;
   const label = printableText(name);
   if (trust === 'mcp') {
-    const problem = recordPathProblem(project.dir, record);
+    const problem = recordPathProblem(project.dir, record, nodeFileFacts);
     if (problem) throw new ExportError(problem);
   }
   if (record.status !== 'succeeded')
@@ -405,10 +319,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
     const overrides = { ...record.overrides, variant: over.variant };
     if (over.scale !== undefined) overrides.scale = over.scale;
     else delete overrides.scale;
-    const r = await renderVideo({
-      workPolicy: opts.workPolicy,
-      project,
-      root,
+    const r = await rerenderWith({
       run: record.run_dir,
       scenario: record.scenario,
       template: theme,
@@ -422,8 +333,6 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       trust,
       ...(opts.network ? { network: opts.network } : {}),
       ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
-      // The caller's `renderer` key as it came (checked at the start: a key that holds nothing never gets here).
-      ...(handed ? { renderer: handed } : {}),
       onProgress: (p) => emit({ format, stage: 'progress', progress: p.overall, message: p.stage }),
     });
     return finish(format, file, 'render', t0, { record: r.record, warnings: exportRenderWarnings(r.warnings) });

@@ -24,8 +24,9 @@ import { checkProjectSlug, checkScenarioName, isRenderOfItsScenario } from './re
 import { latestRenderNotice, readById, renderEntries, renderFileProblem } from './render-records.js';
 import type { PassedOverRenders } from './render-records.js';
 import { latestNoticeOf, planRenderRequest } from './jobs/render-job.js';
-import { summarizePlan, withPlan } from '@retake/editor/plan';
-import { nextRenderVersion, renderPathProblem } from './render/editor-calls.js';
+import { recordPathProblem, summarizePlan, withPlan } from '@retake/editor/plan';
+import { nodeFileFacts } from '@retake/core/io';
+import { nextVersion } from './render/versions.js';
 import type { PassedOverRuns, RenderRequest } from './jobs/render-job.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
@@ -96,7 +97,7 @@ export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderR
   const plan = planned.plan;
   const latest = latestNoticeOf(planned);
   const scenario = planned.timeline.scenario;
-  const next = await nextRenderVersion(project, scenario);
+  const next = await nextVersion(ws.outputs.renders, ws.outputs.renders.dirOf(project.dir), scenario);
   return {
     project: project.slug,
     scenario,
@@ -408,7 +409,7 @@ export async function renderForWork(
   if (!planned.ok) throw new EngineError('invalid', `render ${id} has ${renderLackWords('plan')} (${projectRef('renders', `${id}.json`)}): nothing to read`);
   const record = planned.value;
   if (record.status !== 'succeeded') throw new EngineError('invalid', `render ${id} ${record.status}: nothing to read`);
-  const problem = await renderPathProblem(project.dir, record);
+  const problem = recordPathProblem(project.dir, record, nodeFileFacts);
   if (problem) throw new EngineError('refused', problem, { ...(o.fix ? { fix: o.fix(id) } : {}), details: { problems: [problem] } });
   // (The path is the record's text: under `details.untrusted`, never in the sentence.)
   if (!existsSync(record.file))

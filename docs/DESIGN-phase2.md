@@ -659,8 +659,11 @@ planEdit(input: { timeline; template: LoadedTemplate; project; registry: Compone
 //  L6.10: plan.ts runs the named steps of src/planner/ (context, sources, components, entries and runs, cameras,
 //  segments, transitions, clip details, tap targets, brand, music) in order; `@retake/editor/plan` is the editor
 //  without its renderer (it reaches the components only through `@retake/components/geometry`).
-renderVideo(opts: { project /* loaded */; run /* id or dir */; root?; scenario?; template?; overrides?; out?; onProgress?; signal?;
-                    concurrency? }): Promise<RenderRecord>
+// The render of a run is the engine's use case (packages/engine/src/render/render-video.ts, `renderWork`): the plan
+// (planRun), the version reserved, the record written and the files placed through the Outputs port's renders, the
+// video drawn by the renderer it is handed (the editor's driver: renderPlan and the probe of the file).
+renderWork(opts: { project /* loaded */; run /* id or dir */; root?; scenario?; template?; overrides?; out?; onProgress?; signal?;
+                   concurrency?; renderer; ws; clock }): Promise<RenderRecord>
 //  renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square") and renders/<scenario>-v<N>.json (RenderRecord incl. plan +
 //  overrides); measures the music track (ffprobe) and passes its length to planEdit (`musicDuration_s`)
 renderStill(opts: { plan; frame; out; root }): Promise<string>      // root: the workspace (never found from the cwd)
@@ -833,7 +836,7 @@ so a failed or cancelled render leaves nothing under the final name.
 
 **Planning a run (L3.2, `render/plan-run.ts`).** `planRun({project, run, scenario?, template?, overrides?, root?,
 registry?, trust?, measureMusic?})` is the one place a run becomes an EditPlan (run, timeline, theme, registry, the
-music's length by ffprobe, `planInputFiles`, `planEdit`): `renderVideo`, `retake still` and the engine (plan_preview,
+music's length by ffprobe, `planInputFiles`, `planEdit`): the render use case, `retake still` and the engine (plan_preview,
 render submit, the render job) all call it. With `trust: 'mcp'` it holds two gates (core agent-trust): **gate 1**,
 before any file is read (no ffprobe, no CSV read — a refusal is no existence oracle): every `planFileUses` ref
 (card / overlay image and `data:` slots, own media; Lottie `.json` as code) and the music bed (`musicSpecOf` of the
@@ -841,9 +844,10 @@ run, `overrides.music`) are project files (`renderFileProblems`), the theme ref 
 `template` (`templateRefProblem`), no slot value is `http(s):` (`remoteSlotUses`); **gate 2**, after planning: every
 `plan.assets` file realpaths into the project, the run or the theme folder (`servedFileProblems`: an extension-less
 image slot, a theme logo / font leaving its folder). A refusal is `PlanTrustError` (one positioned problem per file).
-`renderVideo({reserved: {scenario, version, variant}})` adopts a version a render job reserved at submit (its lock is
-removed at the end, whatever happens; a plan of another scenario or variant is refused); `reserveVersion(dir, name,
-owner)` writes who holds a lock.
+The engine's render use case (`renderWork({reserved: {scenario, version, variant}})`) adopts a version a render job
+reserved at submit (its lock is removed at the end, whatever happens; a plan of another scenario or variant is
+refused); `reserveVersion(renders, dir, name, owner)` (engine render/versions.ts, on the Outputs port) writes who holds
+a lock.
 **Edit without re-capture (L5.5; replaces the L3.8 rule "a render shows the run as captured").** The capture comes from
 the run, the edit from today's scenario file while the scenario's **filmed part** is unchanged since the capture.
 Core `filmedChanges(now, then)` (`filmed.ts`) compares the filmed part of two scenario texts as data (core parseYaml;
@@ -880,7 +884,7 @@ park or hold: what `overlayFor` reads). `PlannedRun.edit = {from: 'scenario', sh
 `planRun({edit: 'run'})` forces the run as captured. `RenderRecord.edit = {from, sha256?, changes?, captions?}`
 (`captions`: each scene's caption texts as planned, which the review's caption checks then use instead of the
 timeline's). A render job's input carries `edit_sha256` (the file planned at submit; absent: the run as captured) and
-`renderVideo({editSha256})` refuses a plan from another version (the file changed while the job waited: submit again);
+the render use case (`renderWork({editSha256})`) refuses a plan from another version (the file changed while the job waited: submit again);
 an export's re-render passes the master's sha (`edit: 'run'` for a master made before L5.5 or from the run).
 `scenarioChangedMessage(scenario, runId, recapture, filmed?)` is the one wording of a filmed change (the first 8 parts,
 then "and N more"); `editReplannedMessage(scenario, runId)` of an edit re-planned. Engine `planRenderRequest` returns

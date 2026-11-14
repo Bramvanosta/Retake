@@ -50,8 +50,9 @@ import { planSignature } from './renders.js';
 import { checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';
 import { planRenderRequest } from './jobs/render-job.js';
 import { placePins, timelineOf } from '@retake/editor/plan';
-import { probeMediaFile, themeHashes } from './render/editor-calls.js';
-import type { ThemeHashes } from './render/editor-calls.js';
+import { probeMediaFile } from './render/editor-calls.js';
+import { NODE_THEME_HASHES } from './theme-files.js';
+import type { ThemeHashes } from './theme-files.js';
 import type { RenderEditSource } from './jobs/render-job.js';
 import { getScenario, scenarioEditBlocker } from './scenarios.js';
 import { sha256Hex } from './storage.js';
@@ -468,7 +469,7 @@ async function buildView(
     throw e;
   }
   const planMs = Math.round(performance.now() - t0);
-  const hashes = await themeHashes();
+  const hashes = NODE_THEME_HASHES;
   const plan = planned.plan;
   const fromScenario = planned.edit.from === 'scenario';
   // Labels from the file the plan matches: the text it was planned from, else the run's snapshot.
@@ -655,7 +656,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       viewDeps.delete(oldest);
     }
     built.catch(() => viewMemo.delete(key));
-    const hashes = await themeHashes();
+    const hashes = NODE_THEME_HASHES;
     void built.then(
       (r) => {
         const now = depsOf(hashes, r);

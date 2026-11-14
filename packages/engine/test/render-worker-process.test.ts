@@ -16,13 +16,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '@retake/core/io';
-import { renderVideo } from '@retake/editor';
 import { FileJobQueue, createEngine, historyFile } from '../src/index.js';
 import type { Engine, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '@retake/test-support/timeline';
 import { TEMPLATES, hasTool } from '@retake/test-support/repo';
 import { linkSharedCache, makeColourCapture, syntheticRunRecord } from '@retake/test-support/render';
 import { REPO } from '@retake/test-support/repo';
+import { renderRun } from '@retake/test-support/render-use-case';
 import { PERSON_POLICY } from '@retake/core';
 import { scratchHome } from '@retake/test-support/home';
 
@@ -208,7 +208,7 @@ describe.skipIf(!canRender)('review and export jobs whose worker is killed', () 
   let renderId: string;
   beforeAll(async () => {
     const project = await loadProject('demo', root);
-    const r = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: '20260101-120000-synthetic', overrides: { scale: 0.5 }, concurrency: 2 });
+    const r = await renderRun({ workPolicy: PERSON_POLICY, project, root, run: '20260101-120000-synthetic', overrides: { scale: 0.5 }, concurrency: 2 });
     renderId = r.id;
   }, LONG);
 

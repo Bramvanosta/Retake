@@ -12,7 +12,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Timeline } from '@retake/core';
-import { overlayBoxAt, renderVideo } from '@retake/editor';
+import { overlayBoxAt } from '@retake/editor';
+import { renderRun } from '@retake/test-support/render-use-case';
 import type { ClipSegment, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameColour, pixelAt, renderWorkspace, syntheticTimeline } from '@retake/test-support/render';
 import { hasTool } from '@retake/test-support/repo';
@@ -83,7 +84,7 @@ beforeAll(async () => {
   withOverlay(t, 'a', { t_start: 1.1, t_end: 1.2 }, 'assets/half.webm');
   withOverlay(t, 'b', { t_start: 3.2, t_end: 3.3 }, 'assets/half.mov');
   await writeFile(join(ws.runDir, 'timeline.json'), JSON.stringify(t, null, 2));
-  record = await renderVideo({
+  record = await renderRun({
     workPolicy: PERSON_POLICY,
     project: ws.project,
     root: ws.root,

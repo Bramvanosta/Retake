@@ -1,6 +1,6 @@
 /**
  * Real renders with Remotion on a tiny synthetic run (≈ 2 s, half size): the bundle cache (miss, hit, miss after a
- * component change), renderVideo (record, version, duration, fps, size, an audio track, faststart, yuv420p) with
+ * component change), the render use case (the engine's, on this package's driver: record, version, duration, fps, size, an audio track, faststart, yuv420p) with
  * every rendered capture frame checked against the plan's source frame (the capture's frames are colour-coded),
  * cancellation through an AbortSignal (nothing left under the final names) and renderStill.
  * Needs ffmpeg/ffprobe and a Chromium headless shell (Playwright's or $RETAKE_CHROMIUM_HEADLESS_SHELL).
@@ -13,7 +13,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { Timeline } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
-import { RenderCancelledError, bundleComponentsFor, ensureBundle, listRenders, planEdit, renderStill, renderVideo } from '@retake/editor';
+import { RenderCancelledError, bundleComponentsFor, ensureBundle, listRenders, planEdit, renderStill } from '@retake/editor';
+import { renderRun } from '@retake/test-support/render-use-case';
 import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameColour, frameOfColour, pixelAt, renderWorkspace } from '@retake/test-support/render';
 import { hasTool } from '@retake/test-support/repo';
@@ -91,7 +92,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     'writes renders/<scenario>-v1.mp4 + .json: the plan duration, fps and size, h264 yuv420p faststart with an audio track',
     async () => {
       const stages = new Set<string>();
-      record = await renderVideo({
+      record = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,
@@ -181,7 +182,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     async () => {
       const controller = new AbortController();
       let rendered = 0;
-      const p = renderVideo({
+      const p = renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,
@@ -253,7 +254,7 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
       const music = join(ws.project.dir, 'assets', 'bed.wav');
       await mkdir(dirname(music), { recursive: true });
       execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', music]);
-      const rec = await renderVideo({
+      const rec = await renderRun({
         workPolicy: PERSON_POLICY,
         project: ws.project,
         root: ws.root,

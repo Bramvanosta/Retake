@@ -13,7 +13,8 @@ packages/runner-web   headless Chromium runner: in-page kit (cursor, resolver), 
 packages/cli          the `retake` command
 packages/components   components: manifest schema, registry, validation, scaffolds, theme tokens, kit (L2.2)
 packages/editor       edit planner (planEdit → EditPlan, reframing), the Remotion compositions (src/remotion) and the
-                      render pipeline (bundle cache, asset server, renderVideo / renderStill / listRenders, exportRender)
+                      render pipeline (bundle cache, asset server, renderPlan / renderStill / listRenders, exportRender);
+                      the render of a run (version, record, placement) is the engine's (render/render-video.ts)
 packages/review       review of a render: contact sheets, key frames, output-time timeline, checks, report, diff
 packages/engine       the engine API the CLI and the MCP server share: workspace / project loading, project, scenario
                       (if_match saves), run, persona-session and sandbox reads, local storage refs, EngineError codes,

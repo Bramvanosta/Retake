@@ -27,15 +27,23 @@ const ts = createRequire(import.meta.url)('typescript') as typeof import('typesc
 /** A specifier no module of the planner may import: the renderer's, Remotion's, React's, the file system's, processes'. */
 const FORBIDDEN =
   /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|os|worker_threads|module|stream|zlib)$|^(react|react-dom|remotion|@remotion\/|playwright|playwright-core|esbuild|sharp)(\/|$)/;
-/** The packages the planner's modules import (each is the planner's own decision; core by its entries since L7.35). */
+/**
+ * The packages the planner's modules import (each is the planner's own decision; core by its entries since L7.35): core's
+ * scenario entry for a render's paths checked against its project, node:crypto for the theme hashes (on the file layer
+ * they are handed), and the types of core's policy and run entries (the options and the answer of planning a run).
+ */
 const PACKAGES = [
   '@retake/components/geometry',
   '@retake/core/base',
   '@retake/core/environment',
   '@retake/core/language',
   '@retake/core/model',
+  '@retake/core/policy',
   '@retake/core/render',
+  '@retake/core/run',
+  '@retake/core/scenario',
   '@retake/core/theme',
+  'node:crypto',
   'node:path',
 ];
 
@@ -97,7 +105,7 @@ describe('@retake/editor/plan (the planner entry)', () => {
     const names = Object.keys(entry);
     expect(names.length).toBeGreaterThan(100);
     for (const n of names) expect((root as Record<string, unknown>)[n], n).toBe((entry as Record<string, unknown>)[n]);
-    for (const n of ['renderVideo', 'listRenders', 'probeMedia', 'ensureBundle', 'planInputFiles']) {
+    for (const n of ['renderPlan', 'listRenders', 'probeMedia', 'ensureBundle', 'planInputFiles']) {
       expect(n in root).toBe(true);
       expect(n in entry).toBe(false);
     }

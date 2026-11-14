@@ -97,6 +97,7 @@ export default defineConfig({
       '@retake/test-support/home': fileURLToPath(new URL('./packages/test-support/src/home.ts', import.meta.url)),
       '@retake/test-support/http': fileURLToPath(new URL('./packages/test-support/src/http.ts', import.meta.url)),
       '@retake/test-support/postgres': fileURLToPath(new URL('./packages/test-support/src/postgres.ts', import.meta.url)),
+      '@retake/test-support/render-use-case': fileURLToPath(new URL('./packages/test-support/src/render-use-case.ts', import.meta.url)),
       '@retake/test-support/render': fileURLToPath(new URL('./packages/test-support/src/render.ts', import.meta.url)),
       '@retake/test-support/repo': fileURLToPath(new URL('./packages/test-support/src/repo.ts', import.meta.url)),
       '@retake/test-support/review': fileURLToPath(new URL('./packages/test-support/src/review.ts', import.meta.url)),

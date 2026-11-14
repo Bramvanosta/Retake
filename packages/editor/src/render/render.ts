@@ -8,15 +8,15 @@
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { ffmpegBin, runMediaTool, templateFolderId } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, RenderSettings, Timeline } from '@retake/core/model';
+import { ffmpegBin, runMediaTool } from '@retake/core/io';
+import type { LoadedProject, RenderSettings } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo } from '@retake/core/render';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components/geometry';
-import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
+import type { EditPlan } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
 import { startAssetServer } from './asset-server.js';
 import { assertRenderBrowser, renderBrowser } from './browser.js';
@@ -25,7 +25,6 @@ import { bundleComponentsFor, ensureBundle } from './bundle.js';
 import type { RenderBundle } from './bundle.js';
 import { GUARDED_NO_OTHER_BROWSER, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, pickFreePort } from './network-guard.js';
 import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
-import { planRun } from './plan-run.js';
 import {
   chooseEncode,
   ownEncodeFailure,
@@ -41,19 +40,13 @@ import {
 } from './policy.js';
 import type { ChooseEncodeOptions, EncodeChoice, EncodeFfmpegChoice, RenderEncoder, RenderGl, RenderPolicy, VideotoolboxProbe } from './policy.js';
 import { noteOwnEncodeFailed, rewritePreStitcher } from './encode-tools.js';
-import type { PlanTrust } from './plan-run.js';
-import { rendersDir, reserveVersion, versionLockFile } from './runs.js';
-import { themeContentHash } from './theme-hash.js';
 import { VIDEO_COMPOSITIONS, videoProps } from '../remotion/contract.js';
-import { playsSound } from '../remotion/frames.js';
+import { RENDER_ENCODING } from '../render-fields.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia } from './probe.js';
-import type { RenderAttempt, RenderRecord } from '../render-record.js';
+import type { RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
-import { errorKindOf, errorMessage } from '@retake/core/base';
-import { formatRenderId } from '@retake/core/ids';
-import { finishedRender, renderAttempt } from '@retake/core/render';
-import type { RenderFields } from '@retake/core/render';
+import { errorMessage } from '@retake/core/base';
 import { handedDriver } from './driver-guard.js';
 import { rendererLibrary } from './library.js';
 import type { LibraryBrowser, RenderBrowserHandle } from './library.js';
@@ -62,7 +55,7 @@ import type { RenderDriver } from './driver-types.js';
 export { probeMedia } from './probe.js';
 
 /** What every render encodes (the encoder and its rate are the policy's: ./policy.ts `remotionEncoding`). */
-export const RENDER_ENCODING = { codec: 'h264', pixel_format: 'yuv420p' } as const;
+export { RENDER_ENCODING };
 /** JPEG quality of the frames Remotion captures before encoding (high: captures are full of small text). */
 export const FRAME_JPEG_QUALITY = 95;
 /** Composition ids by variant (written once, in ../remotion/contract.ts). */
@@ -651,58 +644,7 @@ async function ensureAudioTrack(file: string, work: WorkPolicy): Promise<void> {
   await rename(tmp, file);
 }
 
-// ── renderVideo ───────────────────────────────────────────────────────────────
-
-export interface RenderVideoOptions {
-  /** The project, loaded by the caller (the engine's workspace reads): the editor finds no project by itself. */
-  project: LoadedProject;
-  /** Run id, run directory, or "latest" (of `scenario` when given). */
-  run: string;
-  /** Scenario name: required to match the run's; picks the run with "latest". */
-  scenario?: string;
-  /** Theme to use instead of the one the run was captured with (name, ./path or a loaded template). */
-  template?: string | LoadedTemplate;
-  overrides?: EditOverrides;
-  /** Explicit output .mp4 (default renders/<scenario>-v<N>[-vertical|-square].mp4 with the next free N). */
-  out?: string;
-  onProgress?: (p: RenderProgress) => void;
-  signal?: AbortSignal;
-  concurrency?: number;
-  /** Workspace root (default: the project's). */
-  root?: string;
-  registry?: ComponentRegistry;
-  /** Bundle cache folder (default <root>/.retake/cache). */
-  cacheDir?: string;
-  /** `mcp`: the plan passes planRun's trust gates first (work submitted through the MCP server). Default `author`. */
-  trust?: PlanTrust;
-  /** The render's network (default `open`; renders of the jobs worker: `guard`). */
-  network?: RenderNetwork;
-  /** Called once the render browser runs, with its process. */
-  onBrowser?: (b: BrowserProcessInfo) => void;
-  /**
-   * A version reserved before (a render job: `.<scenario>-v<N>.lock` taken at submit): the render writes
-   * `<scenario>-v<N><suffix>` and removes the lock at the end, whatever happens. The plan must still be of that
-   * scenario and variant (the id's suffix), else the render is refused.
-   */
-  reserved?: { scenario: string; version: number; variant: PlanVariant };
-  /** Where the edit comes from (L5.5, planRun `edit`): default `auto`. */
-  edit?: 'auto' | 'run';
-  /**
-   * The sha256 of the scenario file the edit must come from (null: the run as captured), as planned before (a render
-   * job at submit, an export of a master): a plan of another edit is refused. Undefined: no check.
-   */
-  editSha256?: string | null;
-  /** The scenario text to plan the edit from instead of today's file (a render job's snapshot, L4.5: planRun `editText`). */
-  editText?: string;
-  /** Render settings over the process's (renderPlan `settings`). */
-  settings?: RenderSettings;
-  /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
-  workPolicy: WorkPolicy;
-  /** Tests only (renderPlan `seams`). */
-  seams?: RenderSeams;
-  /** What renders the plan (no such key: this package's driver — Remotion, with `cacheDir` and `seams`; with one, those two are refused: driver-guard.ts). */
-  renderer?: Pick<RenderDriver, 'video'>;
-}
+// ── this package's driver ──────────────────────────────────────────────────────
 
 /**
  * renderPlan's failure as a driver's: what it tried leaves `path` (this package's name, RenderError.path) for
@@ -775,195 +717,6 @@ export function planDriver(o: { cacheDir?: string; seams?: RenderSeams } = {}): 
       });
     },
   };
-}
-
-/**
- * Plan and render a run: renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square" for those variants) and the RenderRecord
- * renders/<scenario>-v<N>.json (plan, overrides, theme, run, duration, frames, size, status). N is the next free
- * version. Nothing is written under the final names when the render fails or is cancelled.
- */
-/** The caption texts of each scene of a timeline (its own and its steps'): what a review expects a clip to show. */
-function sceneCaptions(timeline: Timeline): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
-  for (const s of timeline.scenes) if (s.kind === 'scene' && s.caption?.text) (out[s.id] ??= []).push(s.caption.text);
-  for (const ev of timeline.events) if (ev.step >= 0 && ev.caption?.text) (out[ev.scene] ??= []).push(ev.caption.text);
-  return out;
-}
-
-export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecord> {
-  const t0 = performance.now();
-  const createdAt = new Date().toISOString();
-  const emit = opts.onProgress ?? (() => undefined);
-  emit({ stage: 'planning', progress: 0, overall: 0 });
-  const project = handedProject(opts.project);
-  const dir = rendersDir(project);
-  // A version reserved by someone else (a render job: its lock was taken at submit) is released here, whatever happens.
-  // A version no reservation hands out (core renderLockName) has no lock: nothing is planned or rendered under it.
-  let reservedLock: string | undefined;
-  if (opts.reserved) {
-    try {
-      reservedLock = versionLockFile(dir, opts.reserved.scenario, opts.reserved.version);
-    } catch (e) {
-      throw new RenderError(`the reserved render version of ${opts.reserved.scenario} cannot be used: ${errorMessage(e)}`);
-    }
-  }
-  const reservedRelease = () => (reservedLock ? rm(reservedLock, { force: true }) : Promise.resolve());
-  let planned: Awaited<ReturnType<typeof planRun>>;
-  let handed: Pick<RenderDriver, 'video'> | undefined;
-  try {
-    // Before any work: a renderer named but not handed, or handed beside this driver's own options, is refused.
-    handed = handedDriver('render', opts, 'video');
-    planned = await planRun({
-      workPolicy: opts.workPolicy,
-      project,
-      run: opts.run,
-      ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}),
-      ...(opts.template !== undefined ? { template: opts.template } : {}),
-      ...(opts.overrides ? { overrides: opts.overrides } : {}),
-      ...(opts.root !== undefined ? { root: opts.root } : {}),
-      ...(opts.registry ? { registry: opts.registry } : {}),
-      ...(opts.trust ? { trust: opts.trust } : {}),
-      ...(opts.edit ? { edit: opts.edit } : {}),
-      ...(opts.editText !== undefined ? { editText: opts.editText } : {}),
-    });
-    if (opts.editSha256 !== undefined && (planned.edit.sha256 ?? null) !== opts.editSha256) {
-      throw new RenderError(
-        `the scenario ${planned.timeline.scenario} changed since this render was planned (its edit ${planned.edit.from === 'scenario' ? 'is now re-planned from another version of the file' : 'now comes from the run as captured'}): plan or submit the render again`,
-      );
-    }
-    if (opts.reserved && (planned.timeline.scenario !== opts.reserved.scenario || planned.plan.variant !== opts.reserved.variant)) {
-      throw new RenderError(
-        `the plan changed since the render was submitted (now ${planned.timeline.scenario}, ${planned.plan.variant}; reserved ${opts.reserved.scenario}, ${opts.reserved.variant}): submit the render again`,
-      );
-    }
-  } catch (e) {
-    await reservedRelease();
-    throw e;
-  }
-  const { root, run, timeline, template, registry, overrides, plan, edit } = planned;
-  const planMs = Math.round(performance.now() - t0);
-  emit({ stage: 'planning', progress: 1, overall: 0 });
-
-  const scenario = timeline.scenario;
-  let file: string;
-  let version: number | undefined;
-  let release = async () => undefined as void;
-  if (opts.reserved) {
-    version = opts.reserved.version;
-    release = reservedRelease;
-    file = join(dir, `${formatRenderId(scenario, version, plan.variant)}.mp4`);
-  } else if (opts.out) {
-    file = resolve(opts.out);
-    if (extname(file).toLowerCase() !== '.mp4') throw new RenderError(`--out must name an .mp4 file: ${file}`);
-  } else {
-    await mkdir(dir, { recursive: true });
-    const r = await reserveVersion(dir, scenario);
-    version = r.version;
-    release = r.release;
-    file = join(dir, `${formatRenderId(scenario, version, plan.variant)}.mp4`);
-  }
-  const recordFile = file.replace(/\.mp4$/i, '.json');
-  const id = basename(file, extname(file));
-  const templateSha256 = themeContentHash(template.dir);
-  let plannedConcurrency = opts.concurrency ?? defaultConcurrency();
-  try {
-    if (opts.concurrency === undefined) plannedConcurrency = renderPolicy(opts.workPolicy, opts.settings).concurrency;
-  } catch {
-    /* renderPlan says why */
-  }
-  // Every member of the record but its status, its error, its policy and its probe: the two functions of core
-  // render-record.ts make the state (a succeeded record never holds an error; a failed one is never written).
-  const base = (): RenderFields<EditPlan, EditOverrides> => ({
-    version: 1,
-    id,
-    project: project.slug,
-    scenario,
-    run_id: timeline.run_id,
-    run_dir: run.dir,
-    template: template.name,
-    template_sha256: templateSha256,
-    template_folder: templateFolderId(template.dir, project.root),
-    overrides,
-    edit: {
-      from: edit.from,
-      ...(edit.sha256 ? { sha256: edit.sha256 } : {}),
-      ...(edit.changes?.length ? { changes: edit.changes } : {}),
-      ...(edit.from === 'scenario' ? { captions: sceneCaptions(timeline) } : {}),
-    },
-    variant: plan.variant,
-    file,
-    record: recordFile,
-    ...(version !== undefined ? { render_version: version } : {}),
-    created_at: createdAt,
-    finished_at: new Date().toISOString(),
-    duration_s: Math.round((plan.durationInFrames / plan.fps) * 1000) / 1000,
-    frames: plan.durationInFrames,
-    fps: plan.fps,
-    width: plan.width,
-    height: plan.height,
-    size_bytes: 0,
-    encoding: { ...RENDER_ENCODING, faststart: true, audio: audioOf(plan) },
-    concurrency: plannedConcurrency,
-    bundle: { hash: '', cached: false, ms: 0 },
-    browser: { path: null, source: 'none' },
-    timings: { plan_ms: planMs, bundle_ms: 0, render_ms: 0, total_ms: 0 },
-    warnings: [...plan.warnings],
-    plan,
-  });
-  try {
-    const renderer = handed ?? planDriver({ ...(opts.cacheDir ? { cacheDir: opts.cacheDir } : {}), ...(opts.seams ? { seams: opts.seams } : {}) });
-    const res = await renderer.video({
-      workPolicy: opts.workPolicy,
-      plan,
-      out: file,
-      root,
-      registry,
-      concurrency: opts.concurrency,
-      signal: opts.signal,
-      onProgress: emit,
-      ...(opts.network ? { network: opts.network } : {}),
-      ...(opts.onBrowser ? { onProcess: opts.onBrowser } : {}),
-      ...(opts.settings ? { settings: opts.settings } : {}),
-    });
-    const fields = base();
-    fields.size_bytes = res.size_bytes;
-    fields.concurrency = res.concurrency;
-    fields.encoding = { ...fields.encoding, ...res.encoding };
-    fields.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
-    fields.browser = { path: res.browser.path, source: res.browser.source };
-    fields.warnings.push(...res.warnings);
-    // The driver's probe of the file it wrote (ffprobe for this package's; a driver that has none says nothing).
-    const probe = res.probe;
-    if (probe) {
-      const expected = plan.durationInFrames / plan.fps;
-      if (Math.abs(probe.duration_s - expected) > 1.5 / plan.fps) fields.warnings.push(`the file lasts ${probe.duration_s.toFixed(3)} s, the plan ${expected.toFixed(3)} s`);
-    }
-    fields.finished_at = new Date().toISOString();
-    fields.timings = { plan_ms: planMs, bundle_ms: res.bundle_ms, render_ms: res.render_ms, total_ms: Math.round(performance.now() - t0) };
-    const record: RenderRecord = finishedRender(fields, { ...(res.renderPath ? { policy: res.renderPath } : {}), ...(probe ? { probe } : {}) });
-    await writeFile(recordFile, `${JSON.stringify(record, null, 2)}\n`);
-    emit({ stage: 'done', progress: 1, overall: 1, totalFrames: plan.durationInFrames });
-    return record;
-  } catch (e) {
-    // The driver's failure, read by what it says (its kind, its fields), never by its class: another driver's counts too.
-    const cancelled = errorKindOf(e) === 'cancelled';
-    const said = (e ?? {}) as { renderPath?: RenderRecord['policy']; renderWarnings?: unknown };
-    const fields = base();
-    // The warnings so far (review B L1).
-    if (Array.isArray(said.renderWarnings)) fields.warnings.push(...said.renderWarnings.filter((w): w is string => typeof w === 'string'));
-    fields.finished_at = new Date().toISOString();
-    fields.timings.total_ms = Math.round(performance.now() - t0);
-    // What was tried (the GPU path, its fallback and why). Never written to a disk: it rides on the error.
-    const record: RenderAttempt = renderAttempt(fields, {
-      status: cancelled ? 'cancelled' : 'failed',
-      error: errorMessage(e),
-      ...(said.renderPath && typeof said.renderPath === 'object' ? { policy: said.renderPath } : {}),
-    });
-    if (cancelled) throw new RenderCancelledError(record);
-    throw new RenderError(errorMessage(e), record);
-  } finally {
-    await release();
-  }
 }
 
 // ── renderStill ───────────────────────────────────────────────────────────────
@@ -1089,10 +842,4 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
   } finally {
     await session.close();
   }
-}
-
-/** What the audio track of a render carries: the music bed and / or the own sound of the plan's files (L2.12). */
-export function audioOf(plan: Pick<EditPlan, 'music' | 'segments'>): RenderRecord['encoding']['audio'] {
-  const files = plan.segments.some((s) => playsSound(s.component) || (s.kind === 'clip' && s.overlays.some((o) => playsSound(o.component))));
-  return plan.music ? (files ? 'music+files' : 'music') : files ? 'files' : 'silent';
 }

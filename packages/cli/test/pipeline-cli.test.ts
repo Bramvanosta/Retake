@@ -2,8 +2,9 @@
  * What the pipeline's commands print, exit with and record — `retake render`, `still`, `export`, `review`, `run` and
  * `inspect` — held byte for byte against fixtures/pipeline-cli.json: stdout, stderr, the exit code and the lines each
  * one adds to the workspace's history and journal (.retake/history.jsonl, .retake/journal.jsonl). The heavy calls are
- * replaced at their package boundary (the editor's renderVideo / renderStill / planRun / exportRender, the review's
- * reviewRender, the runner's runScenario) with fixed results, so no browser, capture or render runs; everything between
+ * replaced at their boundary (the engine's render use case at its module — render/render-video.ts, named renderVideo
+ * here as before —, the editor's renderStill / planRun / exportRender, the review's reviewRender, the runner's
+ * runScenario) with fixed results, so no browser, capture or render runs; everything between
  * the command line and those calls (the options, the run and render lookups, the summaries, the errors, the history
  * lines, the pruning of older inspections) is the real code. A refactor of the CLI or of the engine functions it calls
  * keeps every case; a change of what a command prints or records changes some. After an intended change:
@@ -35,11 +36,15 @@ const fakes = vi.hoisted(() => ({
   resolvers: [] as unknown[],
 }));
 
+// The render of a run is the engine's own use case: replaced at its module (the engine is read from its sources).
+vi.mock('../../engine/src/render/render-video.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../engine/src/render/render-video.js')>();
+  return { ...real, renderVideoWork: (o: Record<string, unknown>) => fakes.renderVideo(o) };
+});
 vi.mock('@retake/editor', async (importOriginal) => {
   const real = await importOriginal<typeof import('@retake/editor')>();
   return {
     ...real,
-    renderVideo: (o: Record<string, unknown>) => fakes.renderVideo(o),
     renderStill: (o: Record<string, unknown>) => fakes.renderStill(o),
     planRun: (o: Record<string, unknown>) => fakes.planRun(o),
     exportRender: (o: Record<string, unknown>) => fakes.exportRender(o),
@@ -122,7 +127,8 @@ function callShape(options: Record<string, unknown>): Record<string, unknown> {
     else if (v instanceof AbortSignal) out[k] = '<signal>';
     else if (k === 'project' && v && typeof v === 'object') out[k] = `<project ${(v as { slug: string }).slug}>`;
     else if (k === 'scenario' && v && typeof v === 'object') out[k] = `<scenario ${(v as { name: string }).name}>`;
-    else if (k === 'template' || k === 'registry' || k === 'plan' || k === 'ffmpeg' || k === 'renderer') out[k] = v === undefined ? '<undefined>' : `<${k}>`;
+    else if (k === 'template' || k === 'registry' || k === 'plan' || k === 'ffmpeg' || k === 'renderer' || k === 'clock') out[k] = v === undefined ? '<undefined>' : `<${k}>`;
+    else if (k === 'ws' && v && typeof v === 'object') out[k] = '<workspace>';
     else if (k === 'inspect' && v && typeof v === 'object') out[k] = callShape(v as Record<string, unknown>);
     else out[k] = v === undefined ? '<undefined>' : JSON.parse(normalise(JSON.stringify(v)));
   }

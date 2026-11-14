@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { statePath } from '@retake/core/project';
-import { themeHashes } from './render/editor-calls.js';
+import { NODE_THEME_HASHES } from './theme-files.js';
 
 /** Entries a tree signature looks at, at most (a component folder is a handful of files). */
 export const WATCH_ENTRIES_MAX = 5000;
@@ -121,7 +121,7 @@ export function componentNamespaceSignatures(componentsDir: string, budget: Watc
 
 /** One signature per real theme folder of templates_dir (themeStatSignature: the files of the theme content hash). */
 export async function themeSignatures(templatesDir: string, budget: WatchBudget = watchBudget()): Promise<Map<string, string>> {
-  const { statSignature: themeStatSignature } = await themeHashes();
+  const themeStatSignature = NODE_THEME_HASHES.statSignature;
   const out = new Map<string, string>();
   for (const name of realFolders(templatesDir)) {
     const dir = join(templatesDir, name);

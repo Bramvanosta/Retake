@@ -20,7 +20,7 @@
 import { projectPath, statePath } from '@retake/core/project';
 import type { RunId } from '@retake/core/ids';
 import type { Read, RunFolderFacts, RunRead } from '@retake/core/run';
-import type { RecordFileText } from '@retake/core/io';
+import type { NamedRenderFind, NamedRenderVerb, RecordFileText } from '@retake/core/io';
 import type { Timeline } from '@retake/core/model';
 import type { RenderEntry } from '@retake/core/render';
 
@@ -129,6 +129,16 @@ export interface RenderOutputs extends OutputFolder {
   listed(rendersDir: string, name: string): Promise<RenderEntry>;
   /** renders/<id>.json read by its id: the record's own file, never through a link, whatever its size (core io readRenderById). */
   byId(rendersDir: string, id: string): Promise<RenderEntry>;
+  /**
+   * The render someone named (core io findNamedRender: `latest` of a scenario, an id, or a .json / .mp4 path at a
+   * terminal; an id only through MCP), or why none is.
+   */
+  named(rendersDir: string, arg: string, o: { verb: NamedRenderVerb; slug: string; scenario?: string; trust?: 'author' | 'mcp' }): Promise<NamedRenderFind>;
+  /**
+   * Take the lock file `path` (a render version's, `.<scenario>-v<N>.lock`) holding `text`, its folder made: rejects
+   * with code EEXIST when anything is already there (two renders never take one version).
+   */
+  lock(path: string, text: string): Promise<void>;
 }
 
 /** The engine's generated outputs, by kind. */

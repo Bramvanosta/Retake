@@ -1,23 +1,21 @@
 /**
  * The work that renders, on a renderer the caller hands (the port of renderer.ts): a video, a still, an export's
- * re-rendered formats, component previews and loops. Each is the editor's use case — planning, the version reserved,
- * the render record, where files go — given the renderer to draw with; the editor's result and errors come back
- * unchanged. No function here picks a renderer: the composition roots do (editor-renderer.ts, or a test's own).
+ * re-rendered formats, component previews and loops. A video is the engine's own use case (render-video.ts: the plan,
+ * the version reserved, the record, where the files go, on the Outputs port's renders); a still, an export's
+ * transcodes and the previews are the editor's, given the renderer to draw with (an export's re-rendered formats come
+ * back to the engine's render use case). Results and errors come back unchanged. No function here picks a renderer:
+ * the composition roots do (editor-renderer.ts, or a test's own).
  */
-import type {
-  ExportRenderOptions,
-  ExportResult,
-  RenderLoopsOptions,
-  RenderLoopsResult,
-  RenderPreviewsOptions,
-  RenderRecord,
-  RenderStillOptions,
-  RenderVideoOptions,
-  RenderedPreview,
-} from '@retake/editor';
+import type { ExportRenderOptions, ExportResult, RenderLoopsOptions, RenderLoopsResult, RenderPreviewsOptions, RenderStillOptions, RenderedPreview } from '@retake/editor';
+import type { RenderRecord } from '@retake/editor/plan';
 import { EngineError } from '../errors.js';
 import { editor } from '../lazy.js';
+import { renderVideoWork } from './render-video.js';
+import type { RenderVideoOptions } from './render-video.js';
 import type { Renderer } from './renderer.js';
+import { versionLockFile } from './versions.js';
+
+export type { RenderVideoOptions } from './render-video.js';
 
 /**
  * An editor use case's options with the renderer it runs on, required. What belongs to the editor's own driver is not
@@ -46,9 +44,28 @@ async function onRenderer<O extends { renderer: Renderer }, R>(work: string, o: 
   return run(await editor(), { ...o, renderer });
 }
 
-/** Render a run into renders/<scenario>-v<N>.mp4 + .json (the editor's renderVideo). */
-export async function renderWork(o: OnRenderer<RenderVideoOptions>): Promise<RenderRecord> {
-  return onRenderer('render', o, (ed, on) => ed.renderVideo(on));
+/** The lock of a version reserved before, removed after a refusal that comes before the render (best effort). */
+async function releaseReserved(o: Partial<Pick<RenderVideoOptions, 'reserved' | 'ws' | 'project'>>): Promise<void> {
+  const { reserved, project } = o;
+  const renders = o.ws?.outputs?.renders;
+  if (!reserved || !renders || typeof renders.remove !== 'function' || typeof project?.dir !== 'string') return;
+  try {
+    await renders.remove(versionLockFile(renders.dirOf(project.dir), reserved.scenario, reserved.version));
+  } catch {
+    // A version no reservation hands out has no lock (the render refuses it by name).
+  }
+}
+
+/** Render a run into renders/<scenario>-v<N>.mp4 + .json (render-video.ts, on the renderer and the renders handed). */
+export async function renderWork(o: RenderVideoOptions): Promise<RenderRecord> {
+  let renderer: Renderer;
+  try {
+    renderer = rendererOf(o, 'render');
+  } catch (e) {
+    await releaseReserved(o);
+    throw e;
+  }
+  return renderVideoWork({ ...o, renderer });
 }
 
 /** Render one output frame of a plan to a PNG (the editor's renderStill). */
@@ -56,9 +73,30 @@ export async function stillWork(o: OnRenderer<RenderStillOptions>): Promise<stri
   return onRenderer('still', o, (ed, on) => ed.renderStill(on));
 }
 
-/** Export a render's delivery files into exports/<render-id>/ (the editor's exportRender; the renderer draws its re-rendered formats). */
-export async function exportWork(o: OnRenderer<ExportRenderOptions>): Promise<ExportResult> {
-  return onRenderer('export', o, (ed, on) => ed.exportRender(on));
+/** What an export is asked: the editor's options, the renderer its re-rendered formats are drawn with, the workspace they are placed in and the clock that stamps their records. */
+export type ExportWorkOptions = Omit<OnRenderer<ExportRenderOptions>, 'rerender'> & Pick<RenderVideoOptions, 'ws' | 'clock'>;
+
+/**
+ * Export a render's delivery files into exports/<render-id>/ (the editor's exportRender): a format rendered again from
+ * the master is the engine's render use case, on the renderer and the renders handed (its version, its record).
+ */
+export async function exportWork(o: ExportWorkOptions): Promise<ExportResult> {
+  return onRenderer('export', o, (ed, on) => {
+    const { renderer, ws, clock, ...rest } = on;
+    return ed.exportRender({
+      ...rest,
+      rerender: (r) =>
+        renderVideoWork({
+          ...r,
+          workPolicy: on.workPolicy,
+          project: on.project,
+          ...(on.root !== undefined ? { root: on.root } : {}),
+          renderer,
+          ws,
+          clock,
+        }),
+    });
+  });
 }
 
 /** Stills of components or of a theme (the editor's renderComponentPreviews). */

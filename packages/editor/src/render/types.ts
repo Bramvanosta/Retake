@@ -1,4 +1,4 @@
-/** Types of the render API (DESIGN-phase2 §2: renderVideo, renderStill, listRenders). */
+/** Types of the render API (DESIGN-phase2 §2: renderPlan, renderStill, listRenders). */
 import type { RenderAttempt, RenderRecord } from '../render-record.js';
 import { GUIDE } from '@retake/core/base';
 import type { ErrorKind } from '@retake/core/base';

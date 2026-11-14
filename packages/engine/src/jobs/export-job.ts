@@ -170,6 +170,8 @@ export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJob
   // The pipeline's export that the CLI's `retake export` runs too, with the trust of work submitted through MCP.
   const result = await exportWork({
     renderer: ctx.renderer,
+    ws: ctx.ws,
+    clock: ctx.clock,
     workPolicy: ctx.ws.policy,
     project,
     root: ctx.ws.root,

@@ -3,8 +3,9 @@
  * component previews. The engine owns these types; the product's adapter is the editor's driver (editor-renderer.ts,
  * checked against this file with `satisfies`), the tests' is the in-memory renderer (memory-renderer.ts).
  *
- * What is around the port and stays the editor's use cases (renderVideo, renderStill, exportRender, the component
- * previews): planning, the version reserved, the render record and where files go. Under the port: the bundle, the
+ * What is around the port: the engine's render use case (render-video.ts: the plan, the version reserved, the render
+ * record and where files go, on the Outputs port) and the editor's (renderStill, exportRender's transcodes, the
+ * component previews). Under the port: the bundle, the
  * render browser, the encoder, and the probe of the file written — so a renderer that drives none of them serves a
  * whole render with no browser and no ffmpeg / ffprobe.
  *

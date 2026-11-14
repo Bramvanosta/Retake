@@ -1,7 +1,8 @@
 /**
  * @retake/editor — the edit planner (`planEdit`: timeline + theme + components → EditPlan, pure and
  * deterministic), the EditPlan contract shared with the compositions and the review, and the render pipeline
- * (`renderVideo` / `renderStill` / `listRenders`: Remotion bundle cache, local asset server) — docs/DESIGN-phase2.md
+ * (`renderPlan` / `renderStill` / `listRenders`: Remotion bundle cache, local asset server; the render use case — the
+ * version, the record, where the files go — is the engine's) — docs/DESIGN-phase2.md
  * §2. The compositions themselves (src/remotion, React) are only loaded by the render bundle. The planner alone, without
  * the renderer, is the `@retake/editor/plan` entry (./plan-entry.ts): everything it exports is exported here too.
  */
@@ -17,16 +18,14 @@ export type { RenderProgress, RenderStage } from './render/types.js';
 export {
   COMPOSITION_IDS,
   FRAME_JPEG_QUALITY,
-  RENDER_ENCODING,
   defaultConcurrency,
   guardEncoderPipe,
   probeMedia,
   renderPlan,
   renderStill,
   renderStills,
-  renderVideo,
 } from './render/render.js';
-export type { RenderNetwork, RenderPathRecord, RenderPlanOptions, RenderPlanResult, RenderSeams, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
+export type { RenderNetwork, RenderPathRecord, RenderPlanOptions, RenderPlanResult, RenderSeams, RenderStillOptions, RenderStillsOptions } from './render/render.js';
 export {
   GPU_CONCURRENCY,
   RENDER_CRF,
@@ -68,8 +67,7 @@ export {
   pickFreePort,
 } from './render/network-guard.js';
 export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
-export { THEME_FILES_MAX, THEME_HASH_BYTES_MAX, themeContentHash, themeStatSignature } from './render/theme-hash.js';
-export { NoCaptureRunError, findRun, listRenders, nextVersion, recordEnv, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';
+export { NoCaptureRunError, findRun, listRenders, recordEnv, rendersDir, runEnv, runScenario } from './render/runs.js';
 export type { RunRef } from './render/runs.js';
 export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';
 export type { AssetServer } from './render/asset-server.js';
@@ -147,7 +145,6 @@ export {
   gifWindow,
   locateRenderRecord,
   mp4TranscodeArgs,
-  recordPathProblem,
   transcodeMp4,
 } from './render/export.js';
 export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult, FoundRender } from './render/export.js';

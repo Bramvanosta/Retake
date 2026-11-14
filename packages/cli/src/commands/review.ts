@@ -102,11 +102,11 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   let found: Awaited<ReturnType<typeof findRenderOf>> | undefined;
   if (render === 'latest') {
     try {
-      found = await findRenderOf(project, render, opts.scenario);
+      found = await findRenderOf(ws.outputs.renders, project, render, opts.scenario);
     } catch (e) {
       throw new CliError(errorMessage(e));
     }
-  } else found = await bestEffort(findRenderOf(project, render), 'a render that cannot be found is reviewed by its id as given (review says what is missing)');
+  } else found = await bestEffort(findRenderOf(ws.outputs.renders, project, render), 'a render that cannot be found is reviewed by its id as given (review says what is missing)');
   const renderId = render === 'latest' && found ? found.entry.name : render;
   if (found && !opts.json) for (const line of renderNotes(project.dir, found)) ui.warn(line);
   const gate = await heavyGate(ui, { root: ws.root, what: 'reviewing', noWait: opts.wait === false });
