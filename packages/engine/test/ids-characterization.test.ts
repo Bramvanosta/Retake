@@ -28,6 +28,7 @@ import {
   consumeApprovals,
   createEngine,
   listComments,
+  diskOutputs,
   listRuns,
   openLiveChannel,
   pruneProject,
@@ -320,7 +321,7 @@ describe('run folders', () => {
   });
 
   it('the run list holds the folders whose name is a run id', async () => {
-    const listed = (await listRuns(p, { limit: 100 })).map((r) => short(r.id)).sort();
+    const listed = (await listRuns(diskOutputs.runs, p, { limit: 100 })).map((r) => short(r.id)).sort();
     expect(listed).toEqual(
       [
         `${STAMP}quote`,

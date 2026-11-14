@@ -199,6 +199,7 @@
     "packages/engine/test/memory-store.test.ts",
     "packages/engine/test/operation-catalogue.test.ts",
     "packages/engine/test/operations.test.ts",
+    "packages/engine/test/outputs.test.ts",
     "packages/engine/test/path-theme-long-name.test.ts",
     "packages/engine/test/pick.test.ts",
     "packages/engine/test/pipeline.test.ts",

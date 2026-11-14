@@ -104,11 +104,10 @@
   },
   {
    "rule": "store-new",
-   "reason": "Reads of a project folder through the media storage (R-ARC-03), not authored writes: a run's status, a scenario's text (14 callers), a thread view's scenario text, the search index's small files. They move when project reads get a port.",
+   "reason": "Reads of a project folder through the media storage (R-ARC-03), not authored writes: a scenario's text (14 callers), a thread view's scenario text, the search index's small files. They move when project reads get a port.",
    "entries": [
     "packages/engine/src/comments/views.ts → new LocalStorage",
     "packages/engine/src/index-db/index-db.ts → new LocalStorage",
-    "packages/engine/src/runs.ts → new LocalStorage",
     "packages/engine/src/scenarios.ts → new LocalStorage"
    ]
   },
@@ -138,6 +137,15 @@
     "packages/ui/src/server/theme-ops.ts → 1 operation defined",
     "packages/ui/src/server/unsaved.ts → 1 operation defined",
     "packages/ui/src/server/update-ops.ts → 2 operations defined"
+   ]
+  },
+  {
+   "rule": "output-read",
+   "reason": "Run folders read or reserved beside the Outputs port, with the outputs that are not on it yet: prune (it reads, sizes and removes runs, renders and reviews together), the in-memory raw export (an export's read of its take) and the terminal run's listed reservation (released by removing its folder); they move with the renders, reviews and exports.",
+   "entries": [
+    "packages/engine/src/agent-written.ts → reserveRunId",
+    "packages/engine/src/capture/memory-raw.ts → readNamedRun",
+    "packages/engine/src/prune.ts → readRunFolder"
    ]
   },
   {

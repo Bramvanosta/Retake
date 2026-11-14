@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { workPolicy } from '@retake/core/policy';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
+import type { Outputs } from './outputs/outputs.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
 
 /** Where a workspace is: `root` (the CLI's `--root`), else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
@@ -19,6 +20,11 @@ export interface WorkspaceOptions {
    * product, a MemoryWorkspace's in tests. Said by every caller, never left to a default.
    */
   reads: WorkspaceReads;
+  /**
+   * What its generated outputs — its projects' run folders — are read and written through (ports.ts EnginePorts
+   * `outputs`): the disk's for the product, a MemoryOutputs in tests. Said by every caller, never left to a default.
+   */
+  outputs: Outputs;
 }
 
 /** A workspace as a command opened it: its retake.yaml, and the policy its work runs under (core WorkPolicy). */
@@ -31,6 +37,8 @@ export interface OpenedWorkspace extends WorkspaceConfig {
   readonly policy: WorkPolicy;
   /** What this workspace is read by (WorkspaceOptions.reads): every load of its projects, scenarios and themes. */
   readonly reads: WorkspaceReads;
+  /** What the outputs of its projects are read and written through (WorkspaceOptions.outputs). */
+  readonly outputs: Outputs;
 }
 
 /**
@@ -38,10 +46,10 @@ export interface OpenedWorkspace extends WorkspaceConfig {
  * policy its work runs under (`agent`: the agent policy on for its folders).
  */
 export async function openWorkspace(opts: WorkspaceOptions): Promise<OpenedWorkspace> {
-  const { reads } = opts;
+  const { reads, outputs } = opts;
   const root = opts.root ? resolve(opts.root) : reads.findWorkspaceRoot();
   const ws = await reads.loadWorkspaceConfig(root);
-  return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }), reads };
+  return { ...ws, policy: workPolicy(ws, { agent: !!opts.agent }), reads, outputs };
 }
 
 /** retake.yaml `browser` ← project.yaml `browser` (the project wins; args from both are kept). */

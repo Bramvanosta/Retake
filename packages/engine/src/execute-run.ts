@@ -272,6 +272,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   try {
     return await opts.capture.run({
       resolveSecret: (ref) => opts.secrets.resolve(ref),
+      runs: ws.outputs.runs,
       policy: opts.policy,
       project,
       scenario,

@@ -29,6 +29,7 @@
  * - a recording the Studio started (`submittedBy: 'ui'`, L4.8) is never saved here (`not_saved: 'studio'`): the person
  *   arranges the draft and saves it from the Record screen (record-studio.ts).
  */
+import type { RunOutputs } from './outputs/outputs.js';
 import type { Secrets } from './secrets/secrets.js';
 import { noDisplay } from './env.js';
 import type { EngineEnv } from './env.js';
@@ -558,7 +559,7 @@ export async function recordScenario(ws: OpenedWorkspace, project: LoadedProject
   else if (!valid) check = { status: 'skipped', scope: null, reason: 'invalid_draft', steps_passed: 0, steps_total: 0 };
   else {
     ports.onPhase?.('check');
-    check = await checkReplay({ project, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, ports });
+    check = await checkReplay({ project, runs: ws.outputs.runs, policy: ws.policy, envName: env.name, dir, draftFile, yaml: draft.yaml, firstWrite: draft.firstWrite, pacing: INSPECT_PACING, ports });
   }
   await recordJson({ saved: saved ? saved.file : null, not_saved: notSaved ?? null, check });
   await history(ws, ports.clock, project, req, 'succeeded', started, id, draft.stats.steps, saved !== null, ports.history !== false);
@@ -599,6 +600,8 @@ async function history(
 /** The dry replay of a fresh draft (see the module comment). Never throws: a failure is the check's result. */
 async function checkReplay(o: {
   project: LoadedProject;
+  /** Where an in-memory runner writes the check's run (its workspace's Outputs port). */
+  runs: RunOutputs;
   policy: WorkPolicy;
   envName: string;
   dir: string;
@@ -630,6 +633,7 @@ async function checkReplay(o: {
   try {
     record = await ports.capture.run({
       resolveSecret: (ref) => ports.secrets.resolve(ref),
+      runs: o.runs,
       policy: o.policy,
       project,
       scenario: loaded,

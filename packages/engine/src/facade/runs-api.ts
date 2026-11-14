@@ -10,8 +10,9 @@ import type { Engine, RunListItem, RunStatusWithJob } from './types.js';
 /** engine.runs. */
 export function runsApi(ctx: EngineContext): Engine['runs'] {
   const { opts, project, queue, submitCtx, startWorker, overlaid, admitted, runThumbs, boards } = ctx;
+  const runs = ctx.ws.outputs.runs;
   const runStatusWithJob = async (slug: string, runId: string): Promise<RunStatusWithJob> => {
-    const view: RunStatusWithJob = await runStatus(await project(slug), runId);
+    const view: RunStatusWithJob = await runStatus(runs, await project(slug), runId);
     const job = await queue.ofRun(slug, runId);
     if (!job) return view;
     const position = job.state === 'queued' ? await queue.position(job.id) : undefined;
@@ -32,14 +33,14 @@ export function runsApi(ctx: EngineContext): Engine['runs'] {
   };
   return {
     list: async (slug, o) => {
-      const runs: RunListItem[] = await listRuns(await project(slug), o);
-      for (const r of runs) {
+      const list: RunListItem[] = await listRuns(runs, await project(slug), o);
+      for (const r of list) {
         if (r.newer || r.unread || (r.status !== 'queued' && r.status !== 'running')) continue;
         const job = await queue.ofRun(slug, r.id);
         const status = job ? overlaid(r.status, job) : undefined;
         if (status) r.status = status;
       }
-      return runs;
+      return list;
     },
     status: runStatusWithJob,
     submit: async (req, o = {}) => {
@@ -51,7 +52,7 @@ export function runsApi(ctx: EngineContext): Engine['runs'] {
       await project(slug);
       const job = await queue.ofRun(slug, runId);
       if (!job) {
-        await runStatus(await project(slug), runId); // not_found when there is no such run
+        await runStatus(runs, await project(slug), runId); // not_found when there is no such run
         throw new EngineError('refused', `run ${runId} was not started through a job (a \`retake run\` in a terminal): it is stopped with Ctrl-C there`);
       }
       const rec = await queue.cancel(job.id, opts.client);
@@ -62,7 +63,7 @@ export function runsApi(ctx: EngineContext): Engine['runs'] {
       const p = await project(slug);
       const job = await queue.ofRun(slug, runId);
       if (!job) {
-        await runStatus(p, runId); // not_found when there is no such run
+        await runStatus(runs, p, runId); // not_found when there is no such run
         throw new EngineError('refused', `run ${runId} was not started through a job (a \`retake run\` in a terminal): it cannot be paused from here`);
       }
       if (paused) {

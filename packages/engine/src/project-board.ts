@@ -48,6 +48,7 @@ import type { ThumbSource } from './run-thumbs.js';
 import { readListedRecord, renderView, failureWords, scenarioRenderOf } from './renders.js';
 import type { ScenarioRenderView } from './renders.js';
 import { readRecord, runFolderIds, takeVerdict } from './runs.js';
+import { runsDirOf } from './outputs/outputs.js';
 import type { RunRecordOnDisk } from './runs.js';
 import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
@@ -555,14 +556,15 @@ export class ProjectBoards {
 
   /** run.json of a run: re-checked by its stat (`check`), else held once read (an older finished run). */
   private async record(projectDir: string, id: string, check: boolean): Promise<RunRecordOnDisk | null> {
-    const file = projectPath(projectDir, 'runs', id, 'run.json');
+    const runs = this.ctx.ws.outputs.runs;
+    const dir = join(runsDirOf(projectDir), id);
     const key = `${projectDir}\0${id}`;
     const held = this.runs.get(key);
     if (held && !check && (held.record === null || settled(this.statusOf(held.record.status)))) return held.record;
-    const sig = await lsig(file);
+    const sig = await runs.signature(join(dir, 'run.json'));
     if (held && held.sig === sig) return held.record;
     this.stats.runs++;
-    const { record } = sig === '-' ? { record: undefined } : await readRecord(file);
+    const { record } = sig === '-' ? { record: undefined } : await readRecord(runs, dir);
     const rec = record && typeof record.scenario === 'string' ? record : null;
     remember(this.runs, key, { sig, record: rec }, RUN_MEMO_MAX);
     return rec;
@@ -576,11 +578,12 @@ export class ProjectBoards {
 
   /** Whether a run is a take (core takeOf over the one reader), held while its folder and its timeline keep their signatures. */
   private async takeOf(projectDir: string, id: string): Promise<boolean> {
-    const dir = projectPath(projectDir, 'runs', id);
-    const key = `${projectDir}\0${id}\0${await lsig(dir)}\0${await lsig(join(dir, 'timeline.json'))}`;
+    const runs = this.ctx.ws.outputs.runs;
+    const dir = join(runsDirOf(projectDir), id);
+    const key = `${projectDir}\0${id}\0${await runs.signature(dir)}\0${await runs.signature(join(dir, 'timeline.json'))}`;
     if (this.takes.has(key)) return this.takes.get(key)!;
-    // As the board's pictures: only of a run folder that really lies in the project (RunFolder).
-    return remember(this.takes, key, (await takeVerdict(projectDir, id)).usable && (await RunFolder.open(projectDir, id)) !== null, 2048);
+    // As the board's pictures: only of a run folder that really lies in the project (takeVerdict asks the port's `inside`).
+    return remember(this.takes, key, (await takeVerdict(runs, projectDir, id)).usable, 2048);
   }
 
   /** One finished run into its scenario's group (newest first: the first of each kind wins). */
@@ -642,7 +645,7 @@ export class ProjectBoards {
     let ids: string[] = [];
     try {
       // The one order of runs (core orderRuns): a folder named to sort above the dates is never before a dated run.
-      ids = await runFolderIds(p.dir);
+      ids = await runFolderIds(this.ctx.ws.outputs.runs, p.dir);
     } catch {
       return groups;
     }

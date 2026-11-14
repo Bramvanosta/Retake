@@ -22,7 +22,6 @@
 import { lstat, mkdir, open as openFile, realpath, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import type { LoadedProject } from '@retake/core/model';
 import { historyFile, readHistoryLine } from '../history.js';
 import type { HistoryEntry } from '../history.js';
 import type { JobQueueView } from '../jobs/job-queue.js';
@@ -342,7 +341,7 @@ export class WorkspaceIndex {
       } else if (kind === 'readme') r.readme = await readmeText(dir);
       else if (kind === 'runs') {
         try {
-          r.runs = await listRuns({ dir } as LoadedProject, { limit: RUNS_INDEX_MAX });
+          r.runs = await listRuns(this.ws.outputs.runs, { dir }, { limit: RUNS_INDEX_MAX });
         } catch {
           unreadable.add(key);
         }

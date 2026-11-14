@@ -50,7 +50,6 @@ import {
 } from '@retake/engine';
 import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
-import type { LoadedProject } from '@retake/core/model';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 import { errorMessage } from '@retake/core/base';
 
@@ -241,7 +240,7 @@ export class Live {
       if (kind !== 'runs' || project === undefined) continue;
       let read: Awaited<ReturnType<typeof listRuns>> = [];
       try {
-        if (next.has(key)) read = await listRuns({ dir: join(this.o.ws.projectsDir, project) } as LoadedProject, { limit: RUNS_INDEX_MAX });
+        if (next.has(key)) read = await listRuns(this.o.ws.outputs.runs, { dir: join(this.o.ws.projectsDir, project) }, { limit: RUNS_INDEX_MAX });
       } catch {
         // A runs/ folder that cannot be read: its rows and old signature are kept (read again on the next pass), never
         // "every run deleted".

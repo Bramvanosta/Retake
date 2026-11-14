@@ -519,7 +519,7 @@ async function buildView(
   const choices = await choicesOf(registry, root, plan, editable, themes);
   const capture = await memoCapture(planned.captureFile, ws.policy);
   // The takes to choose from: the scenario's newest captures of any status, in the one order of runs.
-  const runs = (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
+  const runs = (await (await import('./runs.js')).listRuns(ws.outputs.runs, project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
   if (defaulted && !runs.includes(planned.run.id)) runs.unshift(planned.run.id);
   const { untrusted, ...shape } = model;
   const view: TimelineView = {
@@ -602,7 +602,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   // runs shares, over every run folder (no window): the take the scenario view names as Render's (`capture`), which
   // asks the same rule the same way (scenario-view.ts captureOf). Its timeline.json's size and mtime are in the key.
   const asked = proposal?.run_id ?? req.run_id;
-  const runId = asked ?? (await (await import('./runs.js')).latestCapture(project, req.scenario)).take?.run;
+  const runId = asked ?? (await (await import('./runs.js')).latestCapture(ws.outputs.runs, project, req.scenario)).take?.run;
   const timelineStat = runId ? statKey(projectPath(project.dir, 'runs', runId, 'timeline.json')) : 'none';
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
   const commentsStat = statKey(projectPath(project.dir, 'comments', req.scenario));

@@ -3,8 +3,8 @@
  * server and the Studio leave out), the jobs worker (`WorkerOptions.ports`), the job process and the CLI
  * (`cli/src/workspace.ts` `cliPorts`). `enginePorts` is the one place their defaults are written: nothing but those
  * roots calls it, nor names `systemClock`, `diskProjectStores`, `diskWorkspaceReads`, `packageHookRunner`,
- * `packageReviewer`, `runnerWebCapture`, `packageSandboxes`, `editorRenderer`, `systemSecrets` or `FileJobQueue` (the import-rules
- * ratchet's `clock-read`, `store-new`, `workspace-read`, `loader-use` and `queue` checks).
+ * `packageReviewer`, `runnerWebCapture`, `packageSandboxes`, `editorRenderer`, `systemSecrets`, `diskOutputs` or `FileJobQueue` (the
+ * import-rules ratchet's `clock-read`, `store-new`, `workspace-read`, `loader-use`, `output-read` and `queue` checks).
  */
 import { runnerWebCapture } from './capture/runner-web-capture.js';
 import type { CaptureRunner } from './capture/runner.js';
@@ -23,6 +23,8 @@ import { packageSandboxes } from './sandboxes/package-sandboxes.js';
 import type { Sandboxes } from './sandboxes/sandboxes.js';
 import { systemSecrets } from './secrets/system-secrets.js';
 import type { Secrets } from './secrets/secrets.js';
+import { diskOutputs } from './outputs/disk-outputs.js';
+import type { Outputs } from './outputs/outputs.js';
 import { diskProjectStores } from './store/project-store.js';
 import type { ProjectStores } from './store/store.js';
 import { diskWorkspaceReads } from './workspace-reads/disk-reads.js';
@@ -51,6 +53,8 @@ export interface EnginePorts {
   env: EngineEnv;
   /** What resolves the secret references its adapters meet (secrets/secrets.ts): handed to a run, a sign-in, a hook. */
   secrets: Secrets;
+  /** What the engine's generated outputs are read and written through — the run folders (outputs/outputs.ts). */
+  outputs: Outputs;
 }
 
 /** The product's queue: the file queue of the workspace's `.retake/jobs` (jobs/queue.ts). */
@@ -61,7 +65,7 @@ const fileJobQueues: JobQueues = (root, cli, clock, env) => {
 
 /**
  * The ports given, the product's adapters for the others: the system's clock, the disk's stores and reads, the hooks package and
- * the review package, the runner package, the file queue and the editor's renderer (none loaded before a member's
+ * the review package, the runner package, the file queue, the editor's renderer and the disk's outputs (none loaded before a member's
  * first call or, for the runner, its `load()`).
  */
 export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
@@ -80,6 +84,7 @@ export function enginePorts(given: Partial<EnginePorts> = {}): EnginePorts {
     renderer: given.renderer ?? editorRenderer(),
     env,
     secrets,
+    outputs: given.outputs ?? diskOutputs,
   };
 }
 
@@ -97,5 +102,6 @@ export function portsOf(from: EnginePorts): EnginePorts {
     renderer: from.renderer,
     env: from.env,
     secrets: from.secrets,
+    outputs: from.outputs,
   };
 }

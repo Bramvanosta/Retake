@@ -32,6 +32,7 @@ import type {
   SiteReport,
 } from '@retake/runner-web/types';
 import type { HookRunner } from '../hook-run/runner.js';
+import type { RunOutputs } from '../outputs/outputs.js';
 
 /**
  * A run of a scenario (capture, dry run, or a dry replay with `inspect`): the runner's options without its test seam
@@ -42,6 +43,11 @@ export type CaptureRequest = Omit<RunOptions, 'browser' | 'resolveSecret' | 'hoo
   hookRunner: HookRunner;
   /** What the run's secret references are resolved with: its composition root's Secrets port (required: never the runner's own). */
   resolveSecret: (ref: string) => Promise<string>;
+  /**
+   * The run folders of its composition root's Outputs port (outputs/outputs.ts): where an in-memory runner writes the
+   * run. The runner package writes its run folder on the disk itself (the product's outputs are the disk's).
+   */
+  runs: RunOutputs;
 };
 
 /** A live check of a persona's saved session, the way a run sees it (no window; its test seam `browser` left out). */

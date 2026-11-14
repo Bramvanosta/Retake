@@ -9,21 +9,21 @@
  */
 import type { EngineEnv } from '../env.js';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';
 import { listSteps, resolveStepRef } from '@retake/core/language';
 import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core/environment';
 import { usedNamedHooks } from '@retake/core/hooks';
-import { projectPath, statePath, projectRef } from '@retake/core/project';
+import { statePath, projectRef } from '@retake/core/project';
 import { closeReservedRun, queuedRun } from '@retake/core/run';
 import { JOB_INPUT_VERSION } from './job-input.js';
-import { reserveRunId, writeJson } from '@retake/core/io';
 import type { LoadedProject, RunStatus } from '@retake/core/model';
 import type { RunProgress } from '@retake/core/run';
 import type { JobApproval, JobClient, RunJobInput } from './job-input.js';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web/types';
-import { stampOf } from '../clock.js';
+import { dateOf, stampOf } from '../clock.js';
+import { runsDirOf } from '../outputs/outputs.js';
+import type { RunOutputs } from '../outputs/outputs.js';
 import type { Clock } from '../clock.js';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
@@ -106,9 +106,9 @@ function stepsTotal(prepared: PreparedRun, until: string | undefined): number {
  * run.json of a reserved run as it lies there, read leniently on purpose: a record the reader of run folders would
  * refuse (a member it does not know how to read) must still be closed, or it would say `running` for ever.
  */
-async function runRecordOf(dir: string): Promise<Record<string, unknown> | undefined> {
+async function runRecordOf(runs: RunOutputs, dir: string): Promise<Record<string, unknown> | undefined> {
   try {
-    const value: unknown = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8'));
+    const value: unknown = JSON.parse((await runs.readText(dir, 'run.json')) ?? '');
     return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
   } catch {
     return undefined;
@@ -119,10 +119,10 @@ async function runRecordOf(dir: string): Promise<Record<string, unknown> | undef
  * Close a reserved run whose run.json an early exit left `queued` (or a runner that threw left `running`): it gets its
  * final status and the reason. A run the runner finished is never touched.
  */
-export async function finaliseReservedRun(dir: string, status: Extract<RunStatus, 'failed' | 'cancelled'>, message: string, clock: Clock): Promise<void> {
-  const rec = await runRecordOf(dir);
+export async function finaliseReservedRun(runs: RunOutputs, dir: string, status: Extract<RunStatus, 'failed' | 'cancelled'>, message: string, clock: Clock): Promise<void> {
+  const rec = await runRecordOf(runs, dir);
   if (!rec || (rec.status !== 'queued' && rec.status !== 'running')) return;
-  await writeJson(join(dir, 'run.json'), closeReservedRun({ ...rec, status: rec.status }, { status, at: stampOf(clock), message }));
+  await runs.writeJson(dir, 'run.json', closeReservedRun({ ...rec, status: rec.status }, { status, at: stampOf(clock), message }));
 }
 
 /** A run request opened and prepared once (its project, its scenario loaded and checked against its environment). */
@@ -332,7 +332,8 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   }
   // The run id's reserve and the enqueue: under the admission's reserve (its run rule again, under the queue's lock) when admitted.
   const reserveAndQueue = async (): Promise<{ job: JobRecord; runId: string; dir: string }> => {
-    const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
+    const runs = ctx.ws.outputs.runs;
+    const { id: runId, dir } = await runs.reserve(runsDirOf(project.dir), prepared.scenario.name, dateOf(ctx.clock));
     const queued = queuedRun({
       version: FORMAT_VERSIONS.run,
       id: runId,
@@ -349,7 +350,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
       hooks: { setup: 'none', teardown: 'none' },
       warnings: [],
     });
-    await writeJson(join(dir, 'run.json'), queued);
+    await runs.writeJson(dir, 'run.json', queued);
     const input: RunJobInput = {
       version: JOB_INPUT_VERSION,
       kind: 'run',
@@ -369,7 +370,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
     try {
       job = await ctx.queue.enqueue(input);
     } catch (e) {
-      await finaliseReservedRun(dir, 'failed', `not queued: ${errorMessage(e)}`, ctx.clock);
+      await finaliseReservedRun(runs, dir, 'failed', `not queued: ${errorMessage(e)}`, ctx.clock);
       throw e;
     }
     return { job, runId, dir };
@@ -417,7 +418,7 @@ export function pauseMaxMs(env: EngineEnv): number | undefined {
 export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
-  const runDir = projectPath(project.dir, 'runs', input.run_id);
+  const runDir = join(runsDirOf(project.dir), input.run_id);
   try {
     // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
     const prepared = await prepareRun(ctx.ws, project, input.scenario, {
@@ -513,7 +514,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
     };
   } catch (e) {
     const cancelled = ctx.signal.aborted || toEngineError(e).code === 'cancelled';
-    await finaliseReservedRun(runDir, cancelled ? 'cancelled' : 'failed', (e as Error)?.message ?? String(e), ctx.clock);
+    await finaliseReservedRun(ctx.ws.outputs.runs, runDir, cancelled ? 'cancelled' : 'failed', (e as Error)?.message ?? String(e), ctx.clock);
     throw e;
   }
 }

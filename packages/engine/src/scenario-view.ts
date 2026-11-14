@@ -28,19 +28,19 @@ import { isRunId } from '@retake/core/ids';
 import { environmentAccess, resolveEnvironment } from '@retake/core/environment';
 import { projectPath } from '@retake/core/project';
 import { filmedChanges, parseScenario, matchRunSteps, movedSteps, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core/scenario';
-import { isFinishedRunStatus, isRunViewStatus, orderRuns, parseRunRecord } from '@retake/core/run';
+import { isFinishedRunStatus, isRunViewStatus } from '@retake/core/run';
 import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { ScenarioBlocks, ScenarioIdentity, SceneBlock } from '@retake/core/scenario';
 import type { StoredRunRecord, RunViewStatus, UnknownRunStatus } from '@retake/core/run';
 import type { AgentChannel } from './caller.js';
-import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';
 import { errorScreenshotName, fileSlug, stepScreenshotName } from './run-data.js';
 import type { RunData, RunDataCache } from './run-data.js';
-import { RUN_JSON_MAX, runPictures } from './run-data.js';
-import { RunFolder, lsig } from './run-files.js';
+import { runPictures } from './run-data.js';
+import { lsig } from './run-files.js';
+import { runsDirOf } from './outputs/outputs.js';
 import type { ThumbSource } from './run-thumbs.js';
 import { isReadRun, latestCapture, listRuns, takeVerdict } from './runs.js';
 import type { RunRecordOnDisk, RunSummary } from './runs.js';
@@ -574,17 +574,18 @@ export class ScenarioViews {
 
   /** What tells the cached run list is stale: the runs folder, its newest folders and their run.json, unfinished runs'. */
   private async runsSig(p: LoadedProject, memo: RunListMemo | undefined): Promise<string> {
-    const dir = projectPath(p.dir, 'runs');
+    const runs = this.ctx.ws.outputs.runs;
+    const dir = runsDirOf(p.dir);
     let names: string[] = [];
     try {
-      names = orderRuns(await readdir(dir)).slice(0, 8);
+      names = (await runs.ids(dir)).slice(0, 8);
     } catch {
       return '-';
     }
     const watch = new Set(names);
     for (const r of memo?.runs ?? []) if (!isFinishedRunStatus(r.status)) watch.add(r.id);
-    const parts = await Promise.all([...watch].sort().map(async (id) => `${id}=${await lsig(join(dir, id))}/${await lsig(join(dir, id, 'run.json'))}`));
-    return [await lsig(dir), ...parts].join('|');
+    const parts = await Promise.all([...watch].sort().map(async (id) => `${id}=${await runs.signature(join(dir, id))}/${await runs.signature(join(dir, id, 'run.json'))}`));
+    return [await runs.signature(dir), ...parts].join('|');
   }
 
   private async runChoices(p: LoadedProject, slug: string, name: string): Promise<ScenarioRunChoice[]> {
@@ -594,7 +595,7 @@ export class ScenarioViews {
     let list = memo && memo.sig === sig ? memo.runs : undefined;
     if (!list) {
       this.stats.list++;
-      list = (await listRuns(p, { scenario: name, limit: VIEW_RUNS_MAX })).filter(isReadRun);
+      list = (await listRuns(this.ctx.ws.outputs.runs, p, { scenario: name, limit: VIEW_RUNS_MAX })).filter(isReadRun);
       remember(this.lists, key, { sig, runs: list }, 64);
     }
     return Promise.all(
@@ -614,27 +615,24 @@ export class ScenarioViews {
    */
   private async factsOf(projectDir: string, id: string, mode: string, finished: boolean, failed: boolean, capture: boolean): Promise<RunFacts> {
     // A succeeded capture's verdict also reads its timeline's head: that file's signature is in its key.
-    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}${capture ? `\0${await lsig(projectPath(projectDir, 'runs', id, 'timeline.json'))}` : ''}`;
+    const runs = this.ctx.ws.outputs.runs;
+    const runDir = join(runsDirOf(projectDir), id);
+    const key = `${projectDir}\0${id}\0${await runs.signature(runDir)}${capture ? `\0${await runs.signature(join(runDir, 'timeline.json'))}` : ''}`;
     const hit = finished ? this.facts.get(key) : undefined;
     if (hit) return hit;
     const pictures = await runPictures(projectDir, id, mode);
-    const snapshot = (await lsig(projectPath(projectDir, 'runs', id, 'scenario.yaml'))) !== '-';
+    const snapshot = (await runs.signature(join(runDir, 'scenario.yaml'))) !== '-';
     let failedAt: string | undefined;
-    if (failed) {
-      const folder = await RunFolder.open(projectDir, id);
-      const r = folder ? await folder.read('run.json', RUN_JSON_MAX) : undefined;
-      try {
-        const record = r?.ok ? parseRunRecord(JSON.parse(r.bytes.toString('utf8'))) : undefined;
-        const err = record?.ok ? record.value.error : undefined;
-        if (err && typeof err.scene === 'string') failedAt = stepRef(err.scene, err.step);
-      } catch {
-        /* not a run.json the runner wrote */
-      }
+    // Where a failed run failed: its run.json through the one reader, of a run folder that lies in the project.
+    if (failed && (await runs.inside(projectDir, id))) {
+      const record = await runs.record(runDir);
+      const err = record.ok ? record.value.error : undefined;
+      if (err && typeof err.scene === 'string') failedAt = stepRef(err.scene, err.step);
     }
     // Only a capture whose record says it succeeded can be a take: the rule is asked for those alone (one read, held;
     // runs.ts takeVerdict: a take is a run folder that really lies in the project).
     if (capture) this.stats.takes++;
-    const take = capture ? (await takeVerdict(projectDir, id)).usable : false;
+    const take = capture ? (await takeVerdict(runs, projectDir, id)).usable : false;
     const facts: RunFacts = { pictures, snapshot, take, ...(failedAt ? { failedAt } : {}) };
     if (finished) remember(this.facts, key, facts, 512);
     return facts;
@@ -677,7 +675,7 @@ export class ScenarioViews {
     const listed = runs.find((r) => r.take);
     if (listed) return { id: listed.id, ...(listed.finished_at ? { finished_at: listed.finished_at } : {}) };
     if (runs.length < VIEW_RUNS_MAX) return undefined;
-    const take = (await latestCapture(p, name)).take;
+    const take = (await latestCapture(this.ctx.ws.outputs.runs, p, name)).take;
     return take ? { id: take.run, finished_at: take.finished_at } : undefined;
   }
 

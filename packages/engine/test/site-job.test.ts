@@ -46,6 +46,7 @@ import {
   personScope,
   enginePorts,
   diskWorkspaceReads,
+  diskOutputs,
 } from '../src/index.js';
 import type { ApprovalOutcome, Approver, Engine, EngineError, JobRecord, OpenedWorkspace, SiteApprovalRequest, SiteJobResult } from '../src/index.js';
 import { ManualClock, systemClock } from '../src/clock.js';
@@ -91,7 +92,7 @@ beforeAll(async () => {
   await mkdir(join(root, 'projects', 'demo', 'scenarios'), { recursive: true });
   // cdn.test is a page of an environment here: never extracted as a site.
   await writeFile(join(root, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "https://cdn.test/app"}\n');
-  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
+  ws = { ...(await loadWorkspaceConfig(root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 }, 60_000);
 
@@ -197,7 +198,7 @@ describe('site jobs without any network', () => {
       await writeFile(join(ws2root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
       await mkdir(join(ws2root, '.retake'), { recursive: true });
       await symlink(other, join(ws2root, '.retake', 'site'));
-      const ws2 = { ...(await loadWorkspaceConfig(ws2root)), policy: PERSON_POLICY, reads: diskWorkspaceReads };
+      const ws2 = { ...(await loadWorkspaceConfig(ws2root)), policy: PERSON_POLICY, reads: diskWorkspaceReads, outputs: diskOutputs };
       await expect(makeSiteDir(ws2, newSiteId())).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/is not a folder \(a link or a file\)/) });
       expect(await readdir(other)).toEqual([]);
       // Pruning never goes through the link either.

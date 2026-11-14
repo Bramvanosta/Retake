@@ -6,7 +6,8 @@
  */
 import { rm, writeFile } from 'node:fs/promises';
 import { RETAKE_VERSION, bestEffort, errorMessage } from '@retake/core/base';
-import { projectPath } from '@retake/core/project';
+import { join } from 'node:path';
+import { runsDirOf } from '../outputs/outputs.js';
 import { JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from './job-input.js';
 import type { RenderJobInput, RunJobInput } from './job-input.js';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web/types';
@@ -359,7 +360,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
   async function finaliseRun(input: RunJobInput, status: 'cancelled' | 'failed', message: string): Promise<void> {
     try {
       const project = await openProjectBySlug(ws, input.project);
-      await finaliseReservedRun(projectPath(project.dir, 'runs', input.run_id), status, message, clock);
+      await finaliseReservedRun(ws.outputs.runs, join(runsDirOf(project.dir), input.run_id), status, message, clock);
     } catch (e) {
       log(`run ${input.run_id}: not finalised (${errorMessage(e)})`);
     }

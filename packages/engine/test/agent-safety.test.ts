@@ -29,6 +29,7 @@ import {
   verifiedApprovals,
   enginePorts,
   diskWorkspaceReads,
+  diskOutputs,
 } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { scratchHome } from '@retake/test-support/home';
@@ -127,7 +128,7 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
     await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), leak);
     try {
       const input = sub.job.input as HooksJobInput;
-      const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads });
+      const wsc = await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
       const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ...enginePorts(), ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
       // Other bytes than submitted: a conflict before they are parsed.
       expect((await exec(input)).code).toBe('conflict');
@@ -210,7 +211,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
       const input = { ...(sub.job.input as RunJobInput), scenario_sha256: sha256Hex(swapped) };
       const out = await executeRunJob({
         ...enginePorts(),
-        ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads }),
+        ws: await openWorkspace({ root: ws, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs }),
         cli: 'retake',
         input,
         signal: new AbortController().signal,

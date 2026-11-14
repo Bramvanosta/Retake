@@ -32,6 +32,7 @@ import { processTableSync } from '@retake/core/io';
 import { stampOf } from '../clock.js';
 import { enginePorts } from '../ports.js';
 import { openWorkspace } from '../workspace.js';
+import type { Outputs } from '../outputs/outputs.js';
 import type { WorkspaceReads } from '../workspace-reads/reads.js';
 import { buildDirs } from './build.js';
 import { heldFile } from './captures.js';
@@ -51,11 +52,11 @@ import { errorMessage } from '@retake/core/base';
 export type { WorkerOptions } from './worker-record.js';
 
 /** The workspace a worker serves, opened under the agent policy; undefined (said) when it cannot be. */
-async function openForWorker(root: string, reads: WorkspaceReads, log: (message: string) => void): Promise<Workspace | undefined> {
+async function openForWorker(root: string, reads: WorkspaceReads, outputs: Outputs, log: (message: string) => void): Promise<Workspace | undefined> {
   let ws: Workspace;
   try {
     // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
-    ws = await openWorkspace({ root, agent: true, reads });
+    ws = await openWorkspace({ root, agent: true, reads, outputs });
   } catch (e) {
     log(`no workspace at ${root}: ${errorMessage(e)}`);
     return undefined;
@@ -74,7 +75,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const { clock, stores, reads, hooks, reviewer, capture, sandboxes } = ports;
   const log = o.log ?? ((m: string) => void process.stderr.write(`${stampOf(clock)} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
-  const ws = await openForWorker(root, reads, log);
+  const ws = await openForWorker(root, reads, ports.outputs, log);
   if (!ws) return 1;
   const cli = `retake -C ${shellQuote(root)}`;
   // The worker process's composition root: the one queue this worker reads and writes (its ports' factory).

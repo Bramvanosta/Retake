@@ -8,8 +8,8 @@
  *
  * Limits (what only the disk has, said so a test does not rely on the fake for it): no file modes, no special files (a
  * FIFO), no program can run (`isExecutable` is false), case counts (APFS ignores it by default), a video is probed only
- * when seeded (`video`), and the engine's reads and records that are not through a port — run folders, renders, the job
- * queue, the index, a store's `stage.copy` source, the project's record of scenario writes (a save warns that it could
+ * when seeded (`video`), the run folders are the Outputs port's (a test hands outputs/memory-outputs.ts beside this
+ * one), and the engine's reads and records that are not through a port — renders, the job queue, the index, a store's `stage.copy` source, the project's record of scenario writes (a save warns that it could
  * not be written) — still go to the disk. The store does not follow the links seeded here: a write under a link's path
  * lands in the Map under the path as named (on the disk it would land where the link leads), so a test of a write
  * through a link belongs on the disk. The app-bundle check (core io insideBundle, a node real path) is not on the

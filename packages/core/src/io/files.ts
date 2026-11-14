@@ -8,14 +8,21 @@ import { RUN_ID_MAX, parseRunId } from '../id-grammar.js';
 import type { RunId } from '../id-grammar.js';
 import { newRunId } from '../ids.js';
 
+/** What reserveRunId makes its folders with (node:fs/promises `mkdir` by default). */
+export interface RunFolderMaker {
+  mkdir(path: string, opts?: { recursive?: boolean }): Promise<unknown>;
+}
+
 /**
  * Reserve a new run folder of `scenario` under `runsDir` (created): `newRunId`, and when that folder exists (two runs of
  * one scenario started in the same second — concurrent runs, L1.6 — or a run reserved ahead by a job) the next free
  * second. Run ids keep their format and their order. The runner calls it for a run without a pre-assigned id; the
  * engine calls it when a job is submitted, so the run id is known before the run starts. A scenario whose name leaves
  * no room for a run id is refused before any folder is made: a folder that is no run id is a run no list shows.
+ * `fs`: what makes the folders (node:fs by default; the engine's outputs port hands its own): `mkdir(path)` without
+ * `recursive` fails with code `EEXIST` when the folder is there.
  */
-export async function reserveRunId(runsDir: string, scenario: string, date: Date = new Date()): Promise<{ id: RunId; dir: string }> {
+export async function reserveRunId(runsDir: string, scenario: string, date: Date = new Date(), fs: RunFolderMaker = { mkdir }): Promise<{ id: RunId; dir: string }> {
   const first = parseRunId(newRunId(scenario, date));
   if (first === null) {
     const room = RUN_ID_MAX - newRunId('', date).length + 'run'.length;
@@ -23,14 +30,14 @@ export async function reserveRunId(runsDir: string, scenario: string, date: Date
       `scenario "${scenario.slice(0, 40)}…": its name is too long for a run folder, which is named after it (a run id holds at most ${RUN_ID_MAX} characters: ${room} for the scenario's name) — give the scenario file a shorter name`,
     );
   }
-  await mkdir(runsDir, { recursive: true });
+  await fs.mkdir(runsDir, { recursive: true });
   for (let k = 0; ; k++) {
     const id = k === 0 ? first : parseRunId(newRunId(scenario, new Date(date.getTime() + k * 1000)));
     // Cannot happen once `first` parsed (a later second gives an id of the same length): kept for the type alone.
     if (id === null) throw new Error(`no run id for scenario "${scenario.slice(0, 40)}"`);
     const dir = join(runsDir, id);
     try {
-      await mkdir(dir);
+      await fs.mkdir(dir);
       return { id, dir };
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'EEXIST' || k >= 120) throw e;

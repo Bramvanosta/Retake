@@ -643,6 +643,47 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe('output-read: the engine reads and reserves its run folders through its Outputs port only', () => {
+    const at = (rel: string, text: string): string[] =>
+      (lib.outputReadHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; spec: string }>).map((h) => `${h.file} → ${h.spec}`);
+    const ports = (rel: string, text: string): string[] =>
+      lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: { rule: string; file: string; spec: string }) => `${h.rule} ${h.file} → ${h.spec}`);
+
+    it("flags core io's run-folder readers and its reservation in the engine outside the port's folder: imported, aliased, off a namespace, re-exported; not types, not other packages", () => {
+      expect(lib.OUTPUTS_HOME).toBe('packages/engine/src/outputs/');
+      expect(lib.PORT_FILES).toContain('packages/engine/src/outputs/outputs.ts');
+      const f = 'packages/engine/src/runs-x.ts';
+      expect(at(f, "import { readRunFolder } from '@retake/core/io';\nawait readRunFolder(d, n);")).toEqual([`${f} → readRunFolder`]);
+      expect(at(f, "import { reserveRunId as r } from '@retake/core/io';")).toEqual([`${f} → reserveRunId`]);
+      expect(at(f, "import * as io from '@retake/core/io';\nio.readRunRecord(x);\nio['readNamedRun'](x);")).toEqual([`${f} → readRunRecord`, `${f} → readNamedRun`]);
+      expect(at(f, "export { readTimeline } from '@retake/core/io';")).toEqual([`${f} → readTimeline re-exported`]);
+      expect(at(f, "import type { RunFolderFs } from '@retake/core/io';")).toEqual([]);
+      expect(at('packages/engine/src/outputs/output-files.ts', "import { readRunFolder } from '@retake/core/io';")).toEqual([]);
+      expect(at('packages/editor/src/render/runs.ts', "import { readRunFolder } from '@retake/core/io';")).toEqual([]);
+    });
+
+    it('flags the disk adapter of the port, and its in-memory one, named as a value outside their roots', () => {
+      expect(lib.PORT_ROOTS.diskOutputs).toEqual(['packages/engine/src/outputs/disk-outputs.ts', 'packages/engine/src/ports.ts']);
+      expect(ports('packages/engine/src/runs.ts', "import { diskOutputs } from './outputs/disk-outputs.js';\nconst r = diskOutputs.runs;")).toEqual([
+        'output-read packages/engine/src/runs.ts → diskOutputs outside a root',
+      ]);
+      expect(ports('packages/cli/src/a.ts', "import { diskOutputs as d } from '@retake/engine';\nf(d);")).toEqual(['output-read packages/cli/src/a.ts → diskOutputs outside a root']);
+      expect(ports('packages/engine/src/ports.ts', "import { diskOutputs } from './outputs/disk-outputs.js';\nconst o = diskOutputs;")).toEqual([]);
+      expect(ports('packages/engine/src/engine.ts', "import { MemoryOutputs } from './outputs/memory-outputs.js';\nconst m = new MemoryOutputs();")).toEqual([
+        'output-read packages/engine/src/engine.ts → MemoryOutputs outside a root',
+      ]);
+      expect(ports('packages/engine/src/index.ts', "export { MemoryOutputs } from './outputs/memory-outputs.js';")).toEqual([]);
+    });
+
+    it('holds today: the engine reads its run folders through the port but prune, the in-memory raw export and the listed reservation (the outputs not on it yet), pinned', () => {
+      expect(ratchetOfRepo().filter((e) => e.startsWith('output-read '))).toEqual([
+        'output-read packages/engine/src/agent-written.ts → reserveRunId',
+        'output-read packages/engine/src/capture/memory-raw.ts → readNamedRun',
+        'output-read packages/engine/src/prune.ts → readRunFolder',
+      ]);
+    });
+  });
+
   describe('env-read: the engine reads the environment its composition root hands it', () => {
     const at = (rel: string, text: string): string[] =>
       (lib.envReadHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]) as Array<{ file: string; count: number }>).map((h) => `${h.file} → ${h.count}`);

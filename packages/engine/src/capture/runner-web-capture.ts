@@ -52,8 +52,9 @@ export function runnerWebCapture(): CaptureRunner {
   };
   return {
     load: async () => void (await load()),
-    // The request is handed on as is: the runner reads its own options (the hook runner is the engine's addition).
-    run: async (req) => (await load()).runScenario(req),
+    // The request is handed on as is but for the outputs port: the runner reads its own options (the hook runner is the
+    // engine's addition) and writes its run folder on the disk itself.
+    run: async ({ runs: _runs, ...req }) => (await load()).runScenario(req),
     record: async (o) => (await load()).recordSession(o),
     sessions: {
       check: async (o) => (await load()).checkSavedSession(o),

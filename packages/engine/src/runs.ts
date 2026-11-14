@@ -3,19 +3,18 @@
  * by the runner). Paths become project refs + local paths; text the filmed site controls (step error messages,
  * warnings) is kept apart under `untrusted`, never mixed into what the engine itself says.
  */
-import { readdir } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
 import { relativeInside } from '@retake/core/base';
-import { projectPath, projectRef } from '@retake/core/project';
-import { isFinishedRunStatus, latestTake, orderRuns, takeNeedsTimeline, takeOf } from '@retake/core/run';
-import { readRunFolder, readRunRecord } from '@retake/core/io';
+import { projectRef } from '@retake/core/project';
+import { isFinishedRunStatus, latestTake, takeNeedsTimeline, takeOf } from '@retake/core/run';
 import type { LoadedProject, MissingTarget, RunMode, RunStatus } from '@retake/core/model';
 import type { RunId } from '@retake/core/ids';
 import type { LatestPick, RunRead, RunRecord, StoredRunPerf, StoredRunRecord, TakeVerdict, UnknownRunStatus, UnknownStatusRun } from '@retake/core/run';
 import { EngineError } from './errors.js';
+import { runsDirOf } from './outputs/outputs.js';
+import type { RunOutputs } from './outputs/outputs.js';
 import { checkRunId } from './refs.js';
-import { RunFolder } from './run-files.js';
-import { LocalStorage } from './storage.js';
+import { resolveIn } from './storage.js';
 import type { StoredRef } from './storage.js';
 
 export interface RunSummary {
@@ -63,23 +62,23 @@ export function listedRecord(r: RunRead): RunRecordOnDisk | undefined {
 }
 
 /**
- * A run.json through the one reader: only a regular file within its cap (the runner never writes anything else) — a
- * link (leading out of the project, review A L3) or a FIFO is skipped like a folder without run.json, and so is a file
- * that parses and is no run record (an empty list, an object without its status). `newer`: the sentence of a record a
- * newer Retake wrote. `unread`: the file is there and gave no record (unreadWords) — said, never shown as a run.
+ * The run.json of the run folder `dir` through the one reader (the Outputs port's `record`): only a regular file within
+ * its cap (the runner never writes anything else) — a link (leading out of the project, review A L3) or a FIFO is
+ * skipped like a folder without run.json, and so is a file that parses and is no run record (an empty list, an object
+ * without its status). `newer`: the sentence of a record a newer Retake wrote. `unread`: the file is there and gave no
+ * record (unreadWords) — said, never shown as a run.
  */
-export async function readRecord(file: string): Promise<{ record?: RunRecordOnDisk; newer?: string; unread?: string }> {
-  const r = await readRunRecord(file);
+export async function readRecord(runs: RunOutputs, dir: string): Promise<{ record?: RunRecordOnDisk; newer?: string; unread?: string }> {
+  const r = await runs.record(dir);
   if (!r.ok && r.problem === 'newer-format') return { newer: r.message };
   const record = listedRecord(r);
   if (record) return { record };
   return !r.ok && r.problem !== 'missing' ? { unread: unreadWords(r.problem === 'invalid' ? r.detail : undefined) } : {};
 }
 
-/** The run folders of a project, in the one order of runs (core orderRuns): real folders named by a run id. */
-export async function runFolderIds(projectDir: string): Promise<RunId[]> {
-  const names = (await readdir(projectPath(projectDir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
-  return orderRuns(names);
+/** The run folders of a project, in the one order of runs (core orderRuns): real folders named by a run id; [] without runs/. */
+export async function runFolderIds(runs: RunOutputs, projectDir: string): Promise<RunId[]> {
+  return runs.ids(runsDirOf(projectDir));
 }
 
 /**
@@ -87,12 +86,12 @@ export async function runFolderIds(projectDir: string): Promise<RunId[]> {
  * run's record first; its timeline only when the record does not already rule the run out (core takeNeedsTimeline;
  * `scenario`: the one asked for, when one is).
  */
-export async function takeVerdict(projectDir: string, id: string, scenario?: string): Promise<TakeVerdict> {
-  const facts = await readRunFolder(projectPath(projectDir, 'runs'), id, { timeline: (record) => takeNeedsTimeline(record, scenario) });
+export async function takeVerdict(runs: RunOutputs, projectDir: string, id: string, scenario?: string): Promise<TakeVerdict> {
+  const facts = await runs.folder(runsDirOf(projectDir), id, { timeline: (record) => takeNeedsTimeline(record, scenario) });
   const verdict = takeOf(facts);
-  // As every read of the engine's views, a take is a run folder that really lies in the project (RunFolder: a runs/
-  // linked to another disk holds no take the Studio offers, as it shows none of its pictures).
-  return verdict.usable && (await RunFolder.open(projectDir, id)) === null ? takeOf(facts, { outside: true }) : verdict;
+  // As every read of the engine's views, a take is a run folder that really lies in the project (the port's `inside`:
+  // a runs/ linked to another disk holds no take the Studio offers, as it shows none of its pictures).
+  return verdict.usable && !(await runs.inside(projectDir, id)) ? takeOf(facts, { outside: true }) : verdict;
 }
 
 /**
@@ -100,14 +99,14 @@ export async function takeVerdict(projectDir: string, id: string, scenario?: str
  * what was passed over on the way. No take: the project has no capture of it that can be edited. No window: every run
  * folder is a candidate, newest first, and nothing older than the take is read.
  */
-export async function latestCapture(project: Pick<LoadedProject, 'dir'>, scenario: string): Promise<LatestPick> {
+export async function latestCapture(runs: RunOutputs, project: Pick<LoadedProject, 'dir'>, scenario: string): Promise<LatestPick> {
   let ids: RunId[];
   try {
-    ids = await runFolderIds(project.dir);
+    ids = await runFolderIds(runs, project.dir);
   } catch {
     ids = [];
   }
-  return latestTake(ids, scenario, (id) => takeVerdict(project.dir, id, scenario));
+  return latestTake(ids, scenario, (id) => takeVerdict(runs, project.dir, id, scenario));
 }
 
 function summary(id: string, r: RunRecordOnDisk): RunSummary {
@@ -134,20 +133,14 @@ function summary(id: string, r: RunRecordOnDisk): RunSummary {
  * list — it is said, as a row that holds its id and the sentence (`unread`), when no filter is asked (a filter is
  * about what a record says, and this file says nothing).
  */
-export async function listRuns(project: LoadedProject, opts: { scenario?: string; mode?: RunMode; limit?: number } = {}): Promise<RunSummary[]> {
-  const runsDir = projectPath(project.dir, 'runs');
-  let ids: string[];
-  try {
-    ids = await runFolderIds(project.dir);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw e;
-  }
+export async function listRuns(runs: RunOutputs, project: Pick<LoadedProject, 'dir'>, opts: { scenario?: string; mode?: RunMode; limit?: number } = {}): Promise<RunSummary[]> {
+  const runsDir = runsDirOf(project.dir);
+  const ids: string[] = await runFolderIds(runs, project.dir);
   const limit = opts.limit ?? 20;
   const out: RunSummary[] = [];
   for (const id of ids) {
     if (out.length >= limit) break;
-    const { record, newer, unread } = await readRecord(join(runsDir, id, 'run.json'));
+    const { record, newer, unread } = await readRecord(runs, join(runsDir, id));
     if (newer || unread) {
       if (opts.scenario === undefined && opts.mode === undefined) out.push({ id, ...(newer ? { newer } : { unread }) } as RunSummary);
       continue;
@@ -196,12 +189,11 @@ export interface RunStatusView extends RunSummary {
 }
 
 /** A run's status from its run.json. */
-export async function runStatus(project: LoadedProject, runId: string): Promise<RunStatusView> {
+export async function runStatus(runs: RunOutputs, project: LoadedProject, runId: string): Promise<RunStatusView> {
   checkRunId(runId);
-  const storage = new LocalStorage(project.dir);
   const runRef = projectRef('runs', runId);
-  const runDir = storage.resolve(runRef);
-  const { record, newer, unread } = await readRecord(join(runDir, 'run.json'));
+  const runDir = resolveIn(project.dir, runRef);
+  const { record, newer, unread } = await readRecord(runs, runDir);
   if (newer) throw new EngineError('invalid', `run ${runId}: ${newer}`);
   // The file is there and is no record: said as that, never as a run that does not exist.
   if (unread) throw new EngineError('invalid', `run "${runId}" of ${project.slug}: ${unread}`);
@@ -215,7 +207,7 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
     if (rel === undefined) return undefined;
     const ref = `${runRef}/${rel.split(sep).join('/')}`;
     try {
-      return { ref, path: storage.resolve(ref) };
+      return { ref, path: resolveIn(project.dir, ref) };
     } catch {
       return undefined;
     }
@@ -228,8 +220,8 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
     ['timeline.json', finished],
     ['capture.mp4', finished],
   ] as const) {
-    const d = await storage.describe(`${runRef}/${name}`, 'run', { hash });
-    if (d) outputs.push(d);
+    const d = await runs.describe(runDir, name, { hash });
+    if (d) outputs.push({ ref: `${runRef}/${name}`, path: join(runDir, name), kind: 'run', ...d });
   }
   const err = record.error;
   const env = record.environment;

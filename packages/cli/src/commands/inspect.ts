@@ -89,6 +89,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
       frames: cliPorts.reviewer.frames,
       capture: cliPorts.capture,
       secrets: cliPorts.secrets,
+      runs: ws.outputs.runs,
       hooks: cliPorts.hooks,
       loginCommand: loginCommandFor(global),
     });

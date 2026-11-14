@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoadedProject } from '@retake/core';
-import { EngineError, openWorkspace, planOfRun, planWork, rawExportWork, runnerWebCapture, diskWorkspaceReads } from '../src/index.js';
+import { EngineError, openWorkspace, planOfRun, planWork, rawExportWork, runnerWebCapture, diskWorkspaceReads, diskOutputs } from '../src/index.js';
 import type { CaptureRaw, OpenedWorkspace, RunRef } from '../src/index.js';
 import { MemoryCaptureRunner } from '../src/capture/memory-capture.js';
 import { openProjectBySlug } from '../src/projects.js';
@@ -57,7 +57,7 @@ beforeAll(async () => {
   const dir = join(root, 'projects', 'film');
   await mkdir(join(dir, 'assets'), { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Film\nenvironments:\n  local: {shop: "http://shop.example.test", console: "http://console.example.test"}\ntemplate: editorial\n');
-  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads });
+  ws = await openWorkspace({ root, agent: false, reads: diskWorkspaceReads, outputs: diskOutputs });
   project = await openProjectBySlug(ws, 'film');
   await runFolder(RUN, { timeline: (t) => t });
   await runFolder(DRY, { timeline: (t) => ({ ...t, mode: 'dry' }) });

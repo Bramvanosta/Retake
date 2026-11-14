@@ -1,7 +1,7 @@
 /**
  * The in-memory capture runner's run (memory-capture.ts `run`, L7.12 Part 2): what a run does that the engine reads,
- * without a browser or an encoder — the run folder and its run.json through core's writers (reserveRunId, startedRun,
- * finishRun, writeJson), scenario.yaml, a minimal timeline.json, a marker capture.mp4 in capture mode; the progress
+ * without a browser or an encoder — the run folder and its run.json through the request's Outputs port (`req.runs`:
+ * reserve, writeJson) and core's records (startedRun, finishRun), scenario.yaml, a minimal timeline.json, a marker capture.mp4 in capture mode; the progress
  * events (`run_start`, `outline`, hooks, `scene_start`, `step_start` / `step_end`, pauses, `run_end`); the signal, `until`,
  * the pause gate, the live sink (one frame per step while it is wanted), an inspection's report (inspect.json and
  * `onResult`), `onFilming` (start, pause, resume, stop) and the scenario's hooks through the handed hook runner (setup,
@@ -12,7 +12,6 @@
  * persona, no sign-in, no secret, no write guard; a dry run executes every step (no irreversible one is skipped).
  * What it stamps (run.json's times, a pause's, the timeline's) is its clock's; elapsed times are performance.now()'s.
  */
-import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { FORMAT_VERSIONS, errorMessage } from '@retake/core/base';
 import { isCaptureScene } from '@retake/core/model';
@@ -25,7 +24,6 @@ import { finishRun, startedRun } from '@retake/core/run';
 import type { HookStep, RunError, RunPause, Timeline, TimelineEvent } from '@retake/core/model';
 import type { HookContext, HookPhase } from '@retake/core/hooks';
 import type { RunEnd, RunProgress, RunRecord, RunningRun } from '@retake/core/run';
-import { reserveRunId, writeJson } from '@retake/core/io';
 import type { InspectReport } from '@retake/runner-web/types';
 import { dateOf, stampOf } from '../clock.js';
 import type { Clock } from '../clock.js';
@@ -87,9 +85,9 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
   const runsDir = resolve(req.runsDir ?? projectPath(project.dir, 'runs'));
   const given = req.runId !== undefined ? parseRunId(req.runId) : undefined;
   if (given === null) throw new EngineError('invalid', `run id ${JSON.stringify(String(req.runId))} is not a run id`);
-  const { id: runId, dir } = given !== undefined ? { id: given, dir: join(runsDir, given) } : await reserveRunId(runsDir, loaded.name, dateOf(clock));
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, 'scenario.yaml'), loaded.text);
+  const { runs } = req;
+  const { id: runId, dir } = given !== undefined ? { id: given, dir: join(runsDir, given) } : await runs.reserve(runsDir, loaded.name, dateOf(clock));
+  await runs.write(dir, 'scenario.yaml', loaded.text);
 
   const toRun = listSteps(sc).filter((s) => !until || s.sceneIndex < until.sceneIndex || (s.sceneIndex === until.sceneIndex && s.step.index <= until.stepIndex));
   const record: RunningRun = startedRun({
@@ -109,7 +107,6 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
     warnings: [],
     environment: { access: env.access === 'read-only' ? 'read-only' : 'read-write' },
   });
-  const runFile = join(dir, 'run.json');
   const emit = (e: RunProgress) => {
     try {
       req.onProgress?.(e);
@@ -118,7 +115,7 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
     }
   };
   emit({ type: 'run_start', run: { ...record } });
-  await writeJson(runFile, record);
+  await runs.writeJson(dir, 'run.json', record);
   emit({ type: 'outline', steps: toRun.map((s) => ({ scene: s.scene.id ?? sceneId(s.scene, s.sceneIndex), step: s.step.index, action: s.step.action, desc: s.step.action })) });
 
   const signal = req.signal;
@@ -208,7 +205,7 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
         const since = performance.now();
         const sinceStamp = stampOf(clock);
         record.paused = { scene, step: s.step.index, since: sinceStamp };
-        await writeJson(runFile, record);
+        await runs.writeJson(dir, 'run.json', record);
         emit({ type: 'pause', state: 'paused', scene, step: s.step.index, max_ms: maxMs });
         tell('pause');
         try {
@@ -316,7 +313,7 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
       untrusted: { url: '', title: '', headings: [], ...(failure ? { error: failure.message } : {}), warnings: [] },
     };
     if (!(failure instanceof Cancel)) {
-      await writeJson(r.file, r);
+      await runs.writeJson(dir, 'inspect.json', r);
       await req.inspect.onResult(r);
     }
   }
@@ -355,11 +352,11 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
     warnings: [],
   };
   const timelineFile = join(dir, 'timeline.json');
-  await writeJson(timelineFile, timeline);
+  await runs.writeJson(dir, 'timeline.json', timeline);
   record.timeline = timelineFile;
   if (mode === 'capture' && !failure) {
     const file = join(dir, 'capture.mp4');
-    await writeFile(file, `memory capture of ${runId}\n`);
+    await runs.write(dir, 'capture.mp4', `memory capture of ${runId}\n`);
     record.capture = file;
   }
 
@@ -371,7 +368,7 @@ export async function memoryRun(req: CaptureRequest, o: { clock: Clock; fail?: M
     end = { status: failure instanceof Cancel ? 'cancelled' : 'failed', at: stamp, warnings: [], error };
   }
   const done = finishRun(record, end);
-  await writeJson(runFile, done);
+  await runs.writeJson(dir, 'run.json', done);
   emit({ type: 'run_end', run: { ...done } });
   return done;
 }

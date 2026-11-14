@@ -15,7 +15,7 @@ import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, RunDataCache, createEngine, planSignature, renderForWork } from '../src/index.js';
+import { EngineError, RunDataCache, createEngine, diskOutputs, planSignature, renderForWork } from '../src/index.js';
 import { readRenders } from '../src/index-db/index-db.js';
 import { versionMatches } from '../src/timeline-view.js';
 import { renderIndex } from '../src/comments/views.js';
@@ -909,7 +909,7 @@ describe('the records the engine writes', () => {
     const dir = mkdtempSync(join(root, 'close-'));
     writeFileSync(join(dir, 'run.json'), typeof before === 'string' ? before : JSON.stringify(before));
     // The stamp comes from the clock handed (the job's, the worker's), never from the system's.
-    await finaliseReservedRun(dir, status, message, new ManualClock(at));
+    await finaliseReservedRun(diskOutputs.runs, dir, status, message, new ManualClock(at));
     return readFileSync(join(dir, 'run.json'), 'utf8');
   }
   const text = (rel: string) => `${JSON.stringify(recordFixture(rel), null, 2)}\n`;

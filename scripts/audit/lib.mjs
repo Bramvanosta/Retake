@@ -229,6 +229,10 @@ export const STORE_HOME = 'packages/engine/src/store/';
 export const WORKSPACE_READS_HOME = 'packages/engine/src/workspace-reads/';
 /** The product's Secrets adapter: the one engine file that calls core io's secret resolvers (secret-resolve). */
 export const SECRETS_HOME = 'packages/engine/src/secrets/system-secrets.ts';
+/** The Outputs port's folder (output-read): the one engine folder that names core io's readers of a run folder. */
+export const OUTPUTS_HOME = 'packages/engine/src/outputs/';
+/** Core io's readers of a run folder and its reservation of one (io run-folder.ts, files.ts reserveRunId): the run outputs' code. */
+export const RUN_FOLDER_READERS = ['readRunFolder', 'readNamedRunFolder', 'readNamedRun', 'readRunRecord', 'readTimeline', 'readTimelineHead', 'reserveRunId'];
 /** Core io's secret resolvers (io secrets.ts): on this process's environment unless handed another. */
 export const SECRET_RESOLVERS = ['resolveSecretRef', 'prefetchSecrets'];
 /**
@@ -280,6 +284,8 @@ export const PORT_ROOTS = {
   packageSandboxes: ['packages/engine/src/sandboxes/package-sandboxes.ts', 'packages/engine/src/ports.ts'],
   editorRenderer: ['packages/engine/src/render/editor-renderer.ts', 'packages/engine/src/ports.ts'],
   systemSecrets: ['packages/engine/src/secrets/system-secrets.ts', 'packages/engine/src/ports.ts'],
+  diskOutputs: ['packages/engine/src/outputs/disk-outputs.ts', 'packages/engine/src/ports.ts'],
+  MemoryOutputs: ['packages/engine/src/outputs/memory-outputs.ts'],
   FileJobQueue: ['packages/engine/src/jobs/queue.ts', 'packages/engine/src/ports.ts'],
 };
 /** The check that holds each product adapter of PORT_ROOTS to its roots (its entries: `<name> outside a root`). */
@@ -295,6 +301,8 @@ export const PORT_ROOT_RULE = {
   packageSandboxes: 'loader-use',
   editorRenderer: 'loader-use',
   systemSecrets: 'loader-use',
+  diskOutputs: 'output-read',
+  MemoryOutputs: 'output-read',
   FileJobQueue: 'queue',
 };
 /**
@@ -332,6 +340,7 @@ export const PORT_FILES = [
   'packages/engine/src/sandboxes/sandboxes.ts',
   'packages/engine/src/secrets/secrets.ts',
   'packages/engine/src/workspace-reads/reads.ts',
+  'packages/engine/src/outputs/outputs.ts',
 ];
 /**
  * The editor's render entries: its functions that render (a video, stills, an export's formats, component previews)
@@ -573,6 +582,10 @@ export const CHECKS = [
   {
     id: 'secret-resolve',
     title: `the engine resolves a secret reference through its Secrets port only (packages/engine/src/secrets/secrets.ts): in packages/engine/src outside ${SECRETS_HOME} (the product's adapter), core io's secret resolvers (${SECRET_RESOLVERS.join(', ')}) imported from \`@retake/core/io\` as a value under their name or an alias, read off a namespace import of it (\`io.resolveSecretRef\`, \`io['prefetchSecrets']\`) or re-exported from it are hits (entries: the file and the name). Not seen: a resolver reached through another module that re-exports it under its own name, a namespace member taken by destructuring or aliased, a key computed at run time; an \`import()\` or \`require()\` of core io is workspace-read's hit`,
+  },
+  {
+    id: 'output-read',
+    title: `the engine reads and reserves its run folders through its Outputs port (${OUTPUTS_HOME}): in packages/engine/src outside it, core io's readers of a run folder and its reservation of one (${RUN_FOLDER_READERS.join(', ')}) imported from \`@retake/core/io\` as a value under their name or an alias, read off a namespace import of it (\`io.readRunFolder\`, \`io['reserveRunId']\`) or re-exported from it are hits (entries: the file and the name); and the port's adapters \`diskOutputs\` and \`MemoryOutputs\` named as values in packages/*/src outside PORT_ROOTS (\`<name> outside a root\`: the disk's at the composition roots, the memory's a test's fake). Not seen: a reader reached through another module that re-exports it under its own name, a namespace member taken by destructuring or aliased, a key computed at run time, a run folder read with node:fs directly; an \`import()\` or \`require()\` of core io is workspace-read's hit`,
   },
   {
     id: 'env-read',
@@ -1220,6 +1233,16 @@ export function workspaceReadHits(root, files) {
  */
 export function secretResolveHits(root, files) {
   return coreIoNameHits(root, files, { rule: 'secret-resolve', names: SECRET_RESOLVERS, home: (rel) => rel === SECRETS_HOME, loads: false });
+}
+
+/**
+ * The outputs' wiring (output-read), read as workspace-read reads its loaders: in packages/engine/src outside
+ * OUTPUTS_HOME, core io's readers of a run folder and its reservation of one (RUN_FOLDER_READERS) imported as a value
+ * (a name, an alias), read off a namespace import of core io or re-exported from it. An `import()` / `require()` of
+ * core io is workspace-read's hit.
+ */
+export function outputReadHits(root, files) {
+  return coreIoNameHits(root, files, { rule: 'output-read', names: RUN_FOLDER_READERS, home: (rel) => rel.startsWith(OUTPUTS_HOME), loads: false });
 }
 
 /** Names of `@retake/core/io` used as values in packages/engine/src outside a home (`loads`: an import() or require() of core io is a hit too). */
@@ -2278,6 +2301,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
     ...loaderHits(root, scanned.files),
     ...workspaceReadHits(root, scanned.files),
     ...secretResolveHits(root, scanned.files),
+    ...outputReadHits(root, scanned.files),
     ...portTypeHits(scanned.fileImports),
     ...coreContextHits(root, scanned.files),
     ...coreRootHits(root, scanned.files),
