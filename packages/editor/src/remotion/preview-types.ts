@@ -4,7 +4,7 @@
  * (../render/preview.ts). Every URL is already served (asset server).
  */
 import type { ComponentKind } from '@retake/core/model';
-import type { CaptionCue, LayoutRects, MediaValue, ProgressChapter, ThemeTokens } from '@retake/components';
+import type { CaptionCue, LayoutRects, MediaValue, ProgressChapter, ThemeTokens } from '@retake/components/geometry';
 
 export interface PreviewRect {
   x: number;

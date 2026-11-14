@@ -45,3 +45,8 @@ export type {
   ThemeTokens,
 } from './types.js';
 export type { ComponentRegistry } from './registry.js';
+// The contract's vocabulary the engine names (types only: they load nothing at run time).
+export type { ComponentInfo, ComponentSource } from './types.js';
+export type { ComponentFit, ComponentUse } from './fit.js';
+export type { JsonSchemaNode } from './json-schema.js';
+export type { Palette, PaletteCheck } from './brand/palette.js';

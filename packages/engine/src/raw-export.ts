@@ -6,12 +6,11 @@
  * re-use), then the package (`raw.export`). The caller resolved the run first (findRunOf: `latest`, an id or a folder)
  * and waited at its heavy-work gate in between; it prints the progress, the note and the result its own way.
  */
-import { isAbsolute, join } from 'node:path';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { ExportCaptureOptions, RawExportProgress, RawExportResult } from '@retake/runner-web/types';
 import type { CaptureRunner } from './capture/runner.js';
-import { editor } from './lazy.js';
+import { editFilesOf } from './render/editor-calls.js';
 import type { OpenedWorkspace } from './workspace.js';
 import type { WorkspaceReads } from './workspace-reads/reads.js';
 import { errorMessage } from '@retake/core/base';
@@ -49,8 +48,7 @@ export async function rawExportWork(o: RawExportWorkOptions): Promise<RawExportR
   const timeline = await o.capture.raw.timeline(o.runDir);
   const { template, note } = await runTemplate(o.project, timeline, o.ws);
   if (note) o.onNote?.(note);
-  const ed = await editor();
-  const editFiles = [...ed.planFileRefs(timeline).map((f) => (isAbsolute(f) ? f : join(o.project.dir, f))), ...ed.themeFileRefs(template)];
+  const editFiles = await editFilesOf(o.project.dir, timeline, template);
   return o.capture.raw.export({
     policy: o.ws.policy,
     project: o.project,

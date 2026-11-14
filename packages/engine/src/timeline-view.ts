@@ -36,8 +36,8 @@ import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { FieldAt, FieldValue } from '@retake/core/scenario';
 import type { RenderEntry } from '@retake/core/render';
-import type { ComponentRegistry } from '@retake/components';
-import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
+import type { ComponentRegistry } from '@retake/components/geometry';
+import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor/plan';
 import { listComments, proposalForPreview } from './comments.js';
 import type { ProposalPreview } from './comments.js';
 import { components } from './components.js';
@@ -48,7 +48,9 @@ import { openProjectBySlug } from './projects.js';
 import { planSignature } from './renders.js';
 import { checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';
 import { planRenderRequest } from './jobs/render-job.js';
-import { editor } from './lazy.js';
+import { placePins, timelineOf } from '@retake/editor/plan';
+import { probeMediaFile, themeHashes } from './render/editor-calls.js';
+import type { ThemeHashes } from './render/editor-calls.js';
 import type { RenderEditSource } from './jobs/render-job.js';
 import { getScenario, scenarioEditBlocker } from './scenarios.js';
 import { sha256Hex } from './storage.js';
@@ -214,8 +216,7 @@ const ffprobeKey = (policy: WorkPolicy): string => {
 async function musicLength(file: string, policy: WorkPolicy): Promise<number | undefined> {
   const key = `${file}|${statKey(file)}|${ffprobeKey(policy)}`;
   if (musicMemo.has(key)) return musicMemo.get(key);
-  const ed = await editor();
-  const probe = await ed.probeMedia(file, policy);
+  const probe = await probeMediaFile(file, policy);
   const length = probe && probe.duration_s > 0 ? probe.duration_s : undefined;
   if (musicMemo.size > 32) musicMemo.delete(musicMemo.keys().next().value!);
   musicMemo.set(key, length);
@@ -390,11 +391,11 @@ export function filmedChangeWords(change: string): string {
 }
 
 /** A theme folder's content hash, memoised by its files' signature (names, sizes, mtimes). */
-function themeHash(ed: Awaited<ReturnType<typeof editor>>, dir: string): string {
-  const key = `${dir}|${ed.themeStatSignature(dir)}`;
+function themeHash(hashes: ThemeHashes, dir: string): string {
+  const key = `${dir}|${hashes.statSignature(dir)}`;
   let h = themeHashMemo.get(key);
   if (h === undefined) {
-    h = ed.themeContentHash(dir);
+    h = hashes.contentHash(dir);
     if (themeHashMemo.size > 16) themeHashMemo.delete(themeHashMemo.keys().next().value!);
     themeHashMemo.set(key, h);
   }
@@ -466,18 +467,18 @@ async function buildView(
     throw e;
   }
   const planMs = Math.round(performance.now() - t0);
-  const ed = await editor();
+  const hashes = await themeHashes();
   const plan = planned.plan;
   const fromScenario = planned.edit.from === 'scenario';
   // Labels from the file the plan matches: the text it was planned from, else the run's snapshot.
   const snap = readPlainFile(join(planned.run.dir, 'scenario.yaml'), 2 * 1024 * 1024);
   const labelText = fromScenario ? planned.editText : snap.ok ? snap.bytes.toString('utf8') : undefined;
-  const model = ed.timelineOf(plan, { labels: stepLabels(labelText), timeline: planned.timeline });
+  const model = timelineOf(plan, { labels: stepLabels(labelText), timeline: planned.timeline });
   // Comment pins (read-only, L3.6 threads): the scenario's last 50.
   const threads = await listComments(project, { scenario: req.scenario, status: 'all', limit: 50 }).catch(() => undefined);
   // (A plan this version made always has a signature; '' would match no record.)
   const planSha = planSignature(plan) ?? '';
-  const themeSha = themeHash(ed, planned.template.dir);
+  const themeSha = themeHash(hashes, planned.template.dir);
   // A thread made on a render of this very version (the same plan and theme files) is pinned at its own frame (review
   // B M5); any other only at the step, marker or segment it pointed at.
   const onTake = (threads?.threads ?? []).filter((t) => t.run_id === planned.run.id);
@@ -502,7 +503,7 @@ async function buildView(
         : {}),
     ...(thisVersion.has(t.id) ? { frame: t.frame } : {}),
   }));
-  const pins = ed.placePins(model, pinThreads, { run_id: planned.run.id, edit: planned.edit.from });
+  const pins = placePins(model, pinThreads, { run_id: planned.run.id, edit: planned.edit.from });
   let editable: true | { why: string } = true;
   if (proposal) editable = { why: 'Previewing a proposal: apply it to edit' };
   else if (file.hash === undefined) editable = { why: `${scenarioRef(req.scenario)} is not there: nothing to switch` };
@@ -558,11 +559,11 @@ async function buildView(
 }
 
 /** What a planned view read beyond its memo key: the theme folder's files and every file the plan serves (signature). */
-function depsOf(ed: Awaited<ReturnType<typeof editor>>, r: TimelineViewResult): (() => string) | undefined {
+function depsOf(hashes: ThemeHashes, r: TimelineViewResult): (() => string) | undefined {
   if (!('view' in r)) return undefined;
   const theme = r.folders.theme;
   const files = [...new Set(Object.values(r.plan.assets))].sort();
-  return () => sha256Hex(`${ed.themeStatSignature(theme)}\n${files.map((f) => `${f}:${statKey(f)}`).join('\n')}`).slice(0, 16);
+  return () => sha256Hex(`${hashes.statSignature(theme)}\n${files.map((f) => `${f}:${statKey(f)}`).join('\n')}`).slice(0, 16);
 }
 
 /**
@@ -652,10 +653,10 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       viewDeps.delete(oldest);
     }
     built.catch(() => viewMemo.delete(key));
-    const ed = await editor();
+    const hashes = await themeHashes();
     void built.then(
       (r) => {
-        const now = depsOf(ed, r);
+        const now = depsOf(hashes, r);
         if (now && viewMemo.get(key) === built) viewDeps.set(key, { sig: now(), now });
       },
       () => undefined,

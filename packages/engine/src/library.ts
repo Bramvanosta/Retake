@@ -37,11 +37,11 @@ import { LIBRARY_PREVIEW_KEY_RE } from './jobs/job-input.js';
 import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
 import type { LoadedTemplate } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
-import type { PreviewSamples } from '@retake/editor';
+import type { ComponentRegistry, JsonSchemaNode } from '@retake/components/geometry';
+import type { PreviewSamples } from '@retake/editor/plan';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
-import { editor } from './lazy.js';
+import { previewMaking, themeHashes } from './render/editor-calls.js';
 import type { OpenedWorkspace } from './workspace.js';
 import { bestEffort, printableText } from '@retake/core/base';
 
@@ -102,17 +102,17 @@ export interface LibraryKeyContext {
 }
 
 export async function libraryKeyContext(template: LoadedTemplate, registry: ComponentRegistry, o: { browser?: string; policy: WorkPolicy }): Promise<LibraryKeyContext> {
-  const ed = await editor();
+  const [making, hashes] = [await previewMaking(), await themeHashes()];
   let registryHash: Promise<string> | undefined;
   return {
     template,
     registry,
-    themeHash: ed.themeContentHash(template.dir),
-    composition: await ed.compositionHash(),
-    samples: ed.loadPreviewSamples(),
+    themeHash: hashes.contentHash(template.dir),
+    composition: await making.compositionHash(),
+    samples: making.loadSamples(),
     // The GL the previews are drawn with is part of the picture (L5.15, critique M1): the resolved policy, which the
     // Studio server and the job process compute alike (same retake.yaml, same environment), never the GL a job found.
-    browser: o.browser ?? `${ed.renderBrowserIdentity()} gl=${ed.previewGlKey(o.policy)}`,
+    browser: o.browser ?? making.browserIdentity(o.policy),
     folders: new Map(),
     files: new Map(),
     registryHash: () => (registryHash ??= libraryRegistryHash(registry)),
@@ -121,8 +121,7 @@ export async function libraryKeyContext(template: LoadedTemplate, registry: Comp
 
 /** The registry bundle's hash (see LibraryKeyContext.registryHash). */
 export async function libraryRegistryHash(registry: ComponentRegistry): Promise<string> {
-  const ed = await editor();
-  return ed.bundleHash(await ed.registryBundleComponents(registry));
+  return (await previewMaking()).registryHash(registry);
 }
 
 /** Whether a recorded failure still holds: recorded under the registry bundle as it is now (else it is stale: missing). */
@@ -146,9 +145,9 @@ function fileSha(ctx: LibraryKeyContext, file: string): string {
 async function folderHashOf(ctx: LibraryKeyContext, id: string): Promise<string> {
   let h = ctx.folders.get(id);
   if (h === undefined) {
-    const [ed, comps] = [await editor(), await components()];
+    const [making, comps] = [await previewMaking(), await components()];
     const info = ctx.registry.get(id);
-    h = await ed.componentFolderHash({ id, dir: info.dir, entry: info.entry, defaults: comps.paramDefaults(info.manifest.params as JsonSchemaNode | undefined) });
+    h = await making.folderHash({ id, dir: info.dir, entry: info.entry, defaults: comps.paramDefaults(info.manifest.params as JsonSchemaNode | undefined) });
     ctx.folders.set(id, h);
   }
   return h;
@@ -156,7 +155,7 @@ async function folderHashOf(ctx: LibraryKeyContext, id: string): Promise<string>
 
 /** The key of a component's poster or loop in the context's theme (throws when the id is not in the registry). */
 export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind: LibraryPreviewKind): Promise<string> {
-  const [ed, comps] = [await editor(), await components()];
+  const [making, comps] = [await previewMaking(), await components()];
   const info = ctx.registry.get(id);
   const tpl = ctx.template;
   const url = (f: string) => `asset:${fileSha(ctx, f)}`;
@@ -170,10 +169,10 @@ export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind
   add('composition', ctx.composition);
   add('browser', ctx.browser);
   add('kind', kind);
-  add('output', JSON.stringify(kind === 'poster' ? { size: comps.PREVIEW_SIZE, max_bytes: comps.PREVIEW_MAX_BYTES } : ed.LOOP_FORMAT));
+  add('output', JSON.stringify(kind === 'poster' ? { size: comps.PREVIEW_SIZE, max_bytes: comps.PREVIEW_MAX_BYTES } : making.loopFormat));
   add('theme', ctx.themeHash);
   add('target', `${id} ${await folderHashOf(ctx, id)}`);
-  let built: ReturnType<typeof ed.buildComponentPreview> | undefined;
+  let built: ReturnType<typeof making.build> | undefined;
   let error: string | undefined;
   try {
     const tokens = comps.themeTokens(tpl, {
@@ -181,7 +180,7 @@ export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind
       wordmark: tpl.assets.wordmark ? url(tpl.assets.wordmark) : undefined,
       fonts: { display: url(tpl.assets.display), body: tpl.assets.body.map(url) },
     });
-    built = ed.buildComponentPreview({
+    built = making.build({
       target: { id, manifest: info.manifest },
       template: tpl,
       tokens,
@@ -304,7 +303,7 @@ function failureOk(m: unknown, key: string): m is LibraryFailure {
 
 /** The image cap of a kind (bytes). */
 async function imageCap(kind: LibraryPreviewKind): Promise<number> {
-  return kind === 'poster' ? (await components()).PREVIEW_MAX_BYTES : (await editor()).LOOP_FORMAT.max_bytes;
+  return kind === 'poster' ? (await components()).PREVIEW_MAX_BYTES : (await previewMaking()).loopFormat.max_bytes;
 }
 
 /** An entry's image bytes when it is a plain file of its kind (magic, cap), else null. */

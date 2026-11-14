@@ -15,7 +15,7 @@
  *
  * The editor is imported lazily: a capture-only worker, and an MCP process that never plans, do not load Remotion.
  */
-import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { formatRenderId, isRunId, isThemeName, renderIdOf } from '@retake/core/ids';
@@ -27,8 +27,9 @@ import type { RenderVariant } from '@retake/core/ids';
 import type { LoadedProject } from '@retake/core/model';
 import type { NotUsable } from '@retake/core/run';
 import type { EditOverridesInput, RenderJobInput } from './job-input.js';
-import type { ComponentRegistry } from '@retake/components';
-import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
+import type { ComponentRegistry } from '@retake/components/geometry';
+import type { BrowserProcessInfo, EditOverrides, RenderProgress } from '@retake/editor/plan';
+import type { PlannedRun } from '../render/editor-calls.js';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -43,7 +44,7 @@ import type { JobFileRead } from './job-queue.js';
 import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
-import { editor } from '../lazy.js';
+import { planTrustProblems, releaseRenderVersion, reserveRenderVersion } from '../render/editor-calls.js';
 import { planWork, renderWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
 import type { Reviewer } from '../review/reviewer.js';
@@ -181,7 +182,6 @@ export async function planRenderRequest(
 ): Promise<{ project: LoadedProject; planned: PlannedRun; overrides: EditOverridesInput; source: RenderEditSource }> {
   const overrides = checkRenderRequest(req);
   const project = await openProjectBySlug(ws, req.project);
-  const ed = await editor();
   try {
     const planned = await planWork({
       workPolicy: ws.policy,
@@ -203,9 +203,8 @@ export async function planRenderRequest(
     }
     return { project, planned, overrides, source: editSourceOf(planned) };
   } catch (e) {
-    if (e instanceof ed.PlanTrustError) {
-      throw new EngineError('refused', e.message, { fix: renderCommandLine(cli, req), details: { problems: e.problems } });
-    }
+    const refused = await planTrustProblems(e);
+    if (refused) throw new EngineError('refused', refused.message, { fix: renderCommandLine(cli, req), details: { problems: refused.problems } });
     throw toEngineError(e);
   }
 }
@@ -247,12 +246,9 @@ export async function submitRenderJob(
 > {
   const { project, planned, overrides, source } = await planRenderRequest(ctx.ws, ctx.cli, req);
   if (req.expect_edit_sha256 !== undefined) await checkShownEdit(project, req.scenario, planned, req.expect_edit_sha256);
-  const ed = await editor();
   const timelineSha = sha256Hex(await readFile(join(planned.run.dir, 'timeline.json')));
   const scenario = planned.timeline.scenario;
-  const dir = ed.rendersDir(project);
-  await mkdir(dir, { recursive: true });
-  const { version, release } = await ed.reserveVersion(dir, scenario, `submitted by ${ctx.client} (pid ${process.pid})`);
+  const { version, release } = await reserveRenderVersion(project, scenario, `submitted by ${ctx.client} (pid ${process.pid})`);
   const renderId = formatRenderId(scenario, version, planned.plan.variant);
   const input: RenderJobInput = {
     version: JOB_INPUT_VERSION,
@@ -296,9 +292,8 @@ export async function submitRenderJob(
 /** Remove the version lock a render job reserved (a cancel before it started, an early failure). */
 export async function releaseRenderLock(ws: OpenedWorkspace, input: Pick<RenderJobInput, 'project' | 'scenario' | 'render_id'>): Promise<void> {
   const project = await openProjectBySlug(ws, input.project);
-  const ed = await editor();
   const { version } = renderVersionOf(input.render_id, input.scenario);
-  await rm(ed.versionLockFile(ed.rendersDir(project), input.scenario, version), { force: true });
+  await releaseRenderVersion(project, input.scenario, version);
 }
 
 /** A render browser recorded by a job: its process identity and its temporary profile folder. */

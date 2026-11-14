@@ -14,7 +14,6 @@ import { relativeInside, bestEffort } from '@retake/core/base';
 import { COMPONENT_KINDS } from '@retake/core/model';
 import { statePath } from '@retake/core/project';
 import { bundleInfoOrNull, realTarget, realpathOr } from '@retake/core/io';
-import type { ComponentKind } from '@retake/core/model';
 import {
   HASHED_FILE,
   MANIFEST_FILE,
@@ -32,6 +31,8 @@ import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { EditPlan } from '../plan-types.js';
 import { usedComponentIds } from '../remotion/preview-mode.js';
 import { bundlerLibrary, libraryVersions } from './library.js';
+import type { BundleComponent } from '../work-types.js';
+export type { BundleComponent } from '../work-types.js';
 
 /** Bump when the generated files or the bundle layout change (invalidates every cached bundle). 2: the CSP meta. */
 export const BUNDLE_FORMAT = 2;
@@ -54,21 +55,6 @@ export const BUNDLE_CACHE_KEEP = 6;
 
 /** packages/editor (this module lives in src/render or dist/render). */
 export const EDITOR_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-
-/** A component implementation to bundle. */
-export interface BundleComponent {
-  /** Component id, or `scaffolds/<kind>` for a stand-in. */
-  id: string;
-  kind: ComponentKind;
-  /** Absolute component folder (hashed: every code file in it). */
-  dir: string;
-  /** Absolute implementation file. */
-  entry: string;
-  /** Params defaults of the manifest. */
-  defaults: Record<string, unknown>;
-  /** Stand-in of its kind (a scaffold). */
-  scaffold?: boolean;
-}
 
 export interface RenderBundle {
   /** The bundle folder Remotion serves (selectComposition / renderMedia `serveUrl`). */

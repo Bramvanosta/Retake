@@ -133,3 +133,6 @@ export {
   stepBoxes,
 } from './panes.js';
 export type { InsetPlanInput } from './panes.js';
+// The vocabulary the editor's work shares with its callers (types only, renderer-free): the engine names these here.
+export type * from './work-types.js';
+export type { ComponentPreviewSpec, PreviewRect, PreviewScene, PreviewUse } from './remotion/preview-types.js';

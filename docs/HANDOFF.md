@@ -75,6 +75,48 @@ Each lot adds its "State (after <lot>)" section here, above the previous one: ne
 inserts it above the first such heading). When this part holds more than a few lots, move the older sections verbatim to
 the archive, above its "State (after L7.34)".
 
+## State (after L7.45)
+- **L7.45 done (2026-11-14; branch `claude/arch-l7`)** — the engine reaches the editor from its render folder only; it
+  names an adapter's root (types included) in that adapter's home only; the editor finds no workspace and loads no
+  project by itself.
+  - Code: `LOADER_HOMES.editor = render/`; new `packages/engine/src/render/editor-calls.ts` holds the editor work the
+    engine asks for outside a render (planWork, findRunOf, findRenderOf, previewThemeOf, next / reserve / release a
+    render version, renderPathProblem, exportPlanning, editFilesOf, themeHashes, probeMediaFile, previewMaking,
+    planTrustProblems, editorErrorOf) and re-exports the editor's option types; the 11 files outside render/
+    (library-watch, components, renders, pipeline, raw-export, theme-preview, library, timeline-view, export-job,
+    render-job, review-job) call it, or the planner entry for the pure values (summarizePlan, withPlan, timelineOf,
+    placePins). New `packages/editor/src/work-types.ts` (types only, renderer-free: render progress, the browser
+    process, PlanTrust, ExportFormat / ExportProgress, BundleComponent, the preview samples and targets, loop items),
+    exported by `@retake/editor/plan`, with `ComponentPreviewSpec` and its pieces (preview-types.ts now on the
+    components' geometry entry); the geometry entry exports the contract's types the engine names (ComponentInfo,
+    ComponentSource, ComponentUse, ComponentFit, JsonSchemaNode, Palette, PaletteCheck). Every engine file outside
+    the homes imports types from the domain entries (20 files); the renderer port file too. The editor's
+    `renderPlan` / `renderStill(s)` and the driver / port requests take a required `root` (no `findWorkspaceRoot()`
+    from the cwd), `renderVideo` / `exportRender` a required `LoadedProject` (no `loadProject` by slug); an untyped
+    caller that hands neither is refused (`handedRoot`, `handedProject`).
+  - Rules: R9 frees the planner entry's values; R11 now holds types too outside `ADAPTER_HOMES` (the folders of
+    LOADER_HOMES: render/, hook-run/, review/, capture/, sandboxes/), the editor's root included, and values inside
+    them; loader-use holds the editor's loader to render/. Baseline 108 → 106 (the `port-types` group: 2 entries).
+    docs/audit/target-architecture.md says the rule that holds.
+  - Tests: import-rules (R9, R11, loader-use and the namespace re-export cases updated; ADAPTER_HOMES pinned);
+    render-driver.test.ts +2 (a slug / folder project refused by renderVideo and exportRender before any driver call;
+    a still and a video with no root refused although the cwd is a workspace); renderer.test.ts hands `root`.
+  - Mutations (all red, restored): homes treated as everywhere (2 tests), the editor's loader home removed (6 tests),
+    the planner entry no longer free for R9 (5 tests + 3 new ratchet violations), a type import of the editor root in
+    caller.ts (a new R11 violation), handedRoot / handedProject disabled (the 2 new tests).
+  - Gates: `npx tsc -b`, `pnpm typecheck`, `pnpm lint` (463, none new), `pnpm format:check`, `rules.mjs --check`
+    (106), `requirements.mjs --check-cites` on a scratch copy with the edits applied: exit 0. `test-guard`: 3 renamed
+    titles (below), no expect or test lost. 14 targeted files green, each alone: core import-rules; editor
+    render-driver, plan-entry; components geometry-entry; engine renderer, pipeline, timeline-view, library-cache,
+    raw-export, render-jobs, review-export-jobs, render-on-renderer, editor-renderer, preview-library-job.
+  - Not done: the render use case still lives in the editor (`renderVideo` reserves the version, writes the record,
+    places the file; `exportRender` likewise). Moving it into `engine/render/work.ts` means moving ~200 lines plus
+    `planRun`'s callers and rewriting the 7 editor test files that call `renderVideo` / `exportRender` directly
+    (render-driver, render-version, render-real, render-gpu, render-media, render-own-ffmpeg, export-real) — the L part
+    of A-S1, better done with the Outputs port of L7.47 (renders slice), where the record write lands. The helpers of
+    `editor-calls.ts` that touch renders/ (versions, renderPathProblem, findRenderOf) are the ones that move onto that
+    port then. The review's workspace lookup (`review/src/load.ts`) and runner-web's lifecycle stay L7.47's.
+
 ## State (after L7.44)
 - **L7.44 done (2026-11-13; branch `claude/arch-l7`)** — CC-S1, CC-S2, CC-S3, A-S7, A-S8, A-N12 closed: a job's words,
   the small helpers, "hidden character", the stored formats' reads, "a run is finished" and the caption max-width rule

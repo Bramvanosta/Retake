@@ -24,7 +24,8 @@ export interface DriverProcess {
 
 interface DriverRequestBase {
   workPolicy: WorkPolicy;
-  root?: string;
+  /** Workspace root (bundle cache). */
+  root: string;
   registry?: ComponentRegistry;
   settings?: RenderSettings;
   network?: 'open' | 'guard';

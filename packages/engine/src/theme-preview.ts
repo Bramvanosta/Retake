@@ -8,11 +8,11 @@
  */
 import type { ComponentKind, LoadedTemplate } from '@retake/core/model';
 import { isTemplateMediaRef } from '@retake/core/theme';
-import type { ComponentRegistry } from '@retake/components';
-import type { ComponentPreviewSpec, PreviewSamples } from '@retake/editor';
+import type { ComponentRegistry } from '@retake/components/geometry';
+import type { ComponentPreviewSpec, PreviewSamples } from '@retake/editor/plan';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
-import { editor } from './lazy.js';
+import { previewMaking } from './render/editor-calls.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { pathFree } from './renders.js';
 import { themeAssetProblems, themeForWork } from './templates.js';
@@ -121,8 +121,8 @@ export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequ
   }
   const info = registry.get(id);
   const register = o.start();
-  const [ed, comps] = [await editor(), await components()];
-  samplesMemo ??= Promise.resolve().then(() => ed.loadPreviewSamples());
+  const [making, comps] = [await previewMaking(), await components()];
+  samplesMemo ??= Promise.resolve().then(() => making.loadSamples());
   samplesMemo.catch(() => (samplesMemo = undefined));
   const samples = await samplesMemo;
   // Every file the spec names is served by the shell under the project's capability, from its own folder only.
@@ -130,7 +130,7 @@ export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequ
     (within: string) =>
     (file: string): string => {
       const url = register(file, [within]);
-      if (url === undefined) throw new ed.PreviewPlanError(`a file of ${within === loaded.dir ? `theme ${loaded.name}` : 'the preview samples'} cannot be served (a link, or not a plain file)`);
+      if (url === undefined) throw making.planError(`a file of ${within === loaded.dir ? `theme ${loaded.name}` : 'the preview samples'} cannot be served (a link, or not a plain file)`);
       return url;
     };
   const themeUrl = serve(loaded.dir);
@@ -141,7 +141,7 @@ export async function buildThemePreview(ws: OpenedWorkspace, a: ThemePreviewRequ
       ...(tpl.assets.wordmark ? { wordmark: themeUrl(tpl.assets.wordmark) } : {}),
       fonts: { display: themeUrl(tpl.assets.display), body: tpl.assets.body.map(themeUrl) },
     });
-    built = ed.buildComponentPreview({
+    built = making.build({
       target: { id, manifest: info.manifest },
       template: tpl,
       tokens,

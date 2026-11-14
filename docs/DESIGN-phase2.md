@@ -659,19 +659,19 @@ planEdit(input: { timeline; template: LoadedTemplate; project; registry: Compone
 //  L6.10: plan.ts runs the named steps of src/planner/ (context, sources, components, entries and runs, cameras,
 //  segments, transitions, clip details, tap targets, brand, music) in order; `@retake/editor/plan` is the editor
 //  without its renderer (it reaches the components only through `@retake/components/geometry`).
-renderVideo(opts: { project; run /* id or dir */; scenario?; template?; overrides?; out?; onProgress?; signal?;
+renderVideo(opts: { project /* loaded */; run /* id or dir */; root?; scenario?; template?; overrides?; out?; onProgress?; signal?;
                     concurrency? }): Promise<RenderRecord>
 //  renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square") and renders/<scenario>-v<N>.json (RenderRecord incl. plan +
 //  overrides); measures the music track (ffprobe) and passes its length to planEdit (`musicDuration_s`)
-renderStill(opts: { plan; frame; out }): Promise<string>
-renderStills(opts: { plan; frames: Array<{ frame; out }> }): Promise<string[]>   // one browser session for all frames
+renderStill(opts: { plan; frame; out; root }): Promise<string>      // root: the workspace (never found from the cwd)
+renderStills(opts: { plan; frames: Array<{ frame; out }>; root }): Promise<string[]>   // one browser session for all frames
 renderComponentPreviews(opts: { root; targets: { id, dir, entry, manifest, slots?, params?, at?, file? }[];
                                  template: LoadedTemplate; registry?; outDir?; cacheDir?; signal?; network?;
                                  onBrowser?; onWarnings?; onProgress? }): Promise<RenderedPreview[]>   // L2.7 (see §2.3)
 buildComponentPreview(opts: { …, slots?, params?, at? }): { spec: ComponentPreviewSpec; at; screen?; components }   // pure
 //  A theme preview (MCP template_preview, L3.2) is renderComponentPreviews over the theme's own pick per kind (intro,
 //  layout, card, interstitial, outro, each with the theme's params): no separate previewTemplate.
-exportRender(opts: { project; render /* id | path | latest */; formats?: ExportFormat[]; out?; gif?: {start_s?,
+exportRender(opts: { project /* loaded */; render /* id | path | latest */; formats?: ExportFormat[]; out?; gif?: {start_s?,
                      duration_s?}; concurrency?; signal?; onProgress? }): Promise<ExportResult>   // L2.8
 //  'mp4_1080p' | 'mp4_4k' | 'webm' | 'vertical_9x16' | 'square_1x1' | 'gif_preview' → <project>/exports/<render-id>/
 //  + manifest.json. Derived from the master with ffmpeg: 1080p (copy, or scaled from 4K), WebM (VP9 CRF 32 + Opus),

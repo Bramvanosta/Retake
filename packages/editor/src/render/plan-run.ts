@@ -41,9 +41,8 @@ import { probeMedia } from './probe.js';
 import { locateRun, recordEnv, runScenario } from './runs.js';
 import type { RunRef } from './runs.js';
 import { RenderError } from './types.js';
-
-/** Who asked: a human at the CLI (`author`), or work submitted through the MCP server (`mcp`). */
-export type PlanTrust = 'author' | 'mcp';
+import type { PlanTrust } from '../work-types.js';
+export type { PlanTrust } from '../work-types.js';
 
 /** A plan refused by the trust rules of work submitted through MCP: one positioned message per problem. */
 export class PlanTrustError extends RenderError {

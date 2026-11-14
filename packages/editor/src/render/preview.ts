@@ -43,7 +43,7 @@ import {
   themeTokens,
   writePreviewReadme,
 } from '@retake/components';
-import type { ComponentManifest, ComponentRegistry, JsonSchemaNode, PreviewMeta } from '@retake/components';
+import type { ComponentRegistry, JsonSchemaNode, PreviewMeta } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples } from '../preview.js';
 import type { BuiltPreview, ComponentPreviewSpec, PreviewSamples } from '../preview.js';
 import { PREVIEW_COMPOSITION, previewProps } from '../remotion/contract.js';
@@ -62,6 +62,8 @@ import { handedDriver } from './driver-guard.js';
 import { rendererLibrary } from './library.js';
 import type { RenderBrowserHandle } from './library.js';
 import type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, RenderDriver } from './driver-types.js';
+import type { PreviewComponentTarget, PreviewReadmeWriter, LoopItem, RenderedLoop, RenderedLoopItem } from '../work-types.js';
+export type { PreviewComponentTarget, PreviewReadmeWriter, LoopItem, RenderedPoster, RenderedLoop, RenderedLoopItem } from '../work-types.js';
 
 /** The starter templates shipped with Retake (default, editorial, motion). */
 export { STARTER_TEMPLATES_DIR };
@@ -84,22 +86,6 @@ export { PREVIEW_COMPOSITION };
  * rendered again at 480×270, still over → no loop ("too large").
  */
 export const LOOP_FORMAT = { width: 640, height: 360, fps: 15, max_s: 6, max_bytes: 1_500_000, fallback_width: 480 } as const;
-
-/** A component to preview: a registry entry, a scaffold (`scaffolds/<kind>`) or any component folder. */
-export interface PreviewComponentTarget {
-  id: string;
-  dir: string;
-  entry: string;
-  manifest: ComponentManifest;
-  /** Slot values over the manifest's preview samples (checked by the caller). */
-  slots?: Record<string, string>;
-  /** Params over the manifest's preview params (validated by the caller). */
-  params?: Record<string, unknown>;
-  /** Second shown (default: the manifest's preview moment). */
-  at?: number;
-  /** With outDir: the image's file name (default `<namespace>/<name>.png`). */
-  file?: string;
-}
 
 /** Which components a preview session bundles. */
 export type PreviewBundleMode =
@@ -170,18 +156,6 @@ interface PreviewSessionOptions {
   settings?: RenderSettings;
 }
 
-/** How the README of a component folder is written (RenderPreviewsOptions.readmes). */
-export interface PreviewReadmeWriter {
-  /** The folder whose components' READMEs go through `write` (a workspace's components folder). */
-  root: string;
-  /**
-   * Write `file` (a component's README.md under `root`) with `text`, merged into `previous`: the README as it was read —
-   * the write is made on that version (`if_match` its hash) — or null when there was none (`if_match` null: created,
-   * never over a README made in between). The engine's project store: an authored write, journaled.
-   */
-  write(file: string, text: string, previous: string | null): Promise<void>;
-}
-
 export interface RenderPreviewsOptions extends PreviewSessionOptions {
   targets: PreviewComponentTarget[];
   /** Write only the images, to `<outDir>/<namespace>/<name>.png`, instead of updating the component folders. */
@@ -207,36 +181,6 @@ export interface RenderedPreview {
   /** Written in the component folder (without outDir). */
   meta?: PreviewMeta;
   readme?: string;
-}
-
-/** One component of `renderComponentLoops` and the files it writes (absolute; their folder exists). */
-export interface LoopItem {
-  target: PreviewComponentTarget;
-  /** The poster (PNG 960×540, the still of `renderComponentPreviews`). */
-  poster?: string;
-  /** The loop (GIF, LOOP_FORMAT). */
-  loop?: string;
-}
-
-export interface RenderedPoster {
-  file: string;
-  bytes: number;
-  width: number;
-  height: number;
-  /** Second shown. */
-  at: number;
-  quantized: boolean;
-}
-
-export type RenderedLoop =
-  | { file: string; bytes: number; width: number; height: number; fps: number; frames: number; duration_s: number }
-  /** Over LOOP_FORMAT.max_bytes even at the fallback width: no file written. */
-  | { too_large: true; bytes: number };
-
-export interface RenderedLoopItem {
-  id: string;
-  poster?: RenderedPoster;
-  loop?: RenderedLoop;
 }
 
 /** A component of a session that could not be built or rendered. `reason` may carry the component's own words: untrusted text. */

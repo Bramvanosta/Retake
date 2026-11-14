@@ -143,6 +143,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   (now one engine helper in `errors.ts`, execute-run's local copy gone; also `record-job.ts` and the jobs' older
   `e.message` log lines in the same files).
 | L7.44 | One rule, one place (final audits CC-S1, CC-S2, CC-S3, A-S7, A-S8, A-N12) | done | A job's words once (engine job-words.ts, switches; CLI and MCP compose them); helpers once (core errorMessage — 139 idioms —, decodeOrKeep, sleep, realpathOr / realTarget, processTree, pidExists, lstatOrNull; VersionLedger; stopSignal; Studio useThrottled); "hidden character" once (core hidden-chars.ts, Studio mirror held by a test, five surfaces on one code-point table); stored formats read through one zod schema each (stored-json.ts; `record-read` counts a typed parse outside FORMAT_READ_HOMES); core isFinishedRunStatus + RunViewStatus; geometry captionOverBand |
+| L7.45 | The editor behind its ports: the engine loads the editor from its render folder only (`render/editor-calls.ts`: planning, the lookups, the renders folder's versions, the theme hashes, a media probe, what previews are made of, the editor's errors) and reaches its pure values through the planner entry; outside the adapter homes the engine names an adapter's root in no form, types included (R11; the editor's work vocabulary in `@retake/editor/plan`, the contract's in `@retake/components/geometry`); the editor finds no workspace and loads no project by itself (root and loaded project required) | M | **done** (2026-11-14; A-M1, A-S11, A-S1 render part — the use-case move left for L7.47; baseline 108 → 106; mutations red; test-guard: 3 titles renamed, no decrease) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1258,6 +1259,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.44 — One rule, one place (M; decided 2026-11-13)
 - **Goal:** a job's words, the small helpers, "hidden character", the stored formats' reads and "a run is finished" each written once
 - **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.44)". hidden-character rule, job words, helpers and stored-format readers each in one place; final audits CC-S1, CC-S2, CC-S3, A-S7, A-S8, A-N12 closed
+
+### L7.45 — The editor behind its ports (M; decided 2026-11-13)
+- **Goal:** the engine reaches the editor through one loader home and shares its vocabulary through types-only entries; renders take their workspace root and a loaded project
+- **Done (2026-11-13, branch `claude/arch-l7`):** see HANDOFF "State (after L7.45)". editor calls in engine render/editor-calls.ts, shared types in editor work-types.ts and the plan / geometry entries, R11 tighter, render root and project passed in; final audit A-M1, A-S11 and the render part of A-S1 closed (the render use case moves with L7.47)
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

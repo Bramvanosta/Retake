@@ -24,6 +24,8 @@
 import { createServer } from 'node:net';
 import type { CdpConnection, RenderBrowserHandle } from './library.js';
 import { bestEffort, errorMessage } from '@retake/core/base';
+import type { BrowserProcessInfo } from '../work-types.js';
+export type { BrowserProcessInfo } from '../work-types.js';
 
 /** What a guarded render may load. */
 export interface NetworkAllowList {
@@ -162,13 +164,6 @@ export async function armNetworkGuard(browser: RenderBrowserHandle, allow: Netwo
       await conn.send('Fetch.disable').catch(() => undefined);
     },
   };
-}
-
-/** The render browser's process (to kill it after its parent was killed: Remotion starts it detached). */
-export interface BrowserProcessInfo {
-  pid: number;
-  /** --user-data-dir of the browser (a temporary profile folder Remotion creates). */
-  user_data_dir?: string;
 }
 
 /** The browser process of a HeadlessBrowser, through CDP; undefined when the browser does not say. */

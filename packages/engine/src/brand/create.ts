@@ -24,7 +24,7 @@ import { AuthorBrandInputSchema, BrandInputSchema, TEMPLATE_FILE, fontRefFile, p
 import { STARTER_TEMPLATES_DIR, nodeFileFacts } from '@retake/core/io';
 import type { NewThemeName } from '@retake/core/ids';
 import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core/theme';
-import type { Palette } from '@retake/components';
+import type { Palette } from '@retake/components/geometry';
 import { components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';

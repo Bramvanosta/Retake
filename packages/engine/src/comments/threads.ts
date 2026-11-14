@@ -22,7 +22,7 @@ import type { FrameCommentAnchor, LoadedProject, Timeline, ValidationIssue } fro
 import type { RenderVariant } from '@retake/core/ids';
 import type { CommentAuthor, CommentEntry, CommentRegion, CommentThread } from '@retake/core/comments';
 import type { ProjectRender, RenderLatestPick } from '@retake/core/render';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import { EngineError } from '../errors.js';
 import { toolDir } from '../project-lock.js';
 import { checkRunId, checkScenarioName } from '../refs.js';

@@ -26,7 +26,7 @@ import { nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario, Template, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { AgentTrustEnvironment, FieldEdit, PositionedTrustProblem, StepEdit } from '@retake/core/scenario';
 import type { AgentChannel } from './caller.js';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import { recordScenarioWrite } from './agent-written.js';
 import { components } from './components.js';
 import { EngineError } from './errors.js';

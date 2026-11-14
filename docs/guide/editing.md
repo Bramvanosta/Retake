@@ -325,13 +325,14 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
   Retake runs from it), else none: the render refuses to start and says how to install one (Remotion never downloads a
   browser of its own; an app bundle without its headless shell: reinstall it). A job of the worker (the Studio, the
   desktop app, an MCP client) refuses a render browser inside the workspace (see [Workspace](workspace.md)).
-- **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?,
+- **API** (a caller passes the workspace root and a loaded project: the editor never looks for either itself):
+  `renderVideo({project /* loaded */, run, root?, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?,
   settings?})` → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `retrying` — the GPU path failed
   and the video renders again in software, progress does not go back —, `encoding`, `done`; `settings`: the
   `render:` keys below, over the workspace's); `renderStill({plan,
-  frame, out})` → the PNG path; `renderStills({plan, frames: [{frame, out}…]})` renders several frames in one
+  frame, out, root})` → the PNG path; `renderStills({plan, frames: [{frame, out}…], root})` renders several frames in one
   browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the complete records of their own file in `renders/`, oldest first;
-  `renderPlan({plan, out})` renders any plan.
+  `renderPlan({plan, out, root})` renders any plan.
 
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
 (≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached. On an M4 Mac (10 cores) a 1-minute
@@ -471,7 +472,7 @@ audio file in the repository).
 
 ### Export
 
-`retake export <project> <render|latest> --formats …` (API `exportRender({project, render, formats})`) writes delivery
+`retake export <project> <render|latest> --formats …` (API `exportRender({project /* loaded */, render, formats})`) writes delivery
 files to `exports/<render-id>/` with a `manifest.json` (per file: format, method, size, duration, fps, codecs, audio
 streams, time taken, the GIF window, warnings — for a re-rendered format, the render's warnings about files
 upscaled, missing or blocked and about how it was drawn and encoded (no GPU, VideoToolbox's size limit, the GPU path

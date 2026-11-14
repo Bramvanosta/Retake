@@ -7,7 +7,7 @@
 import { fieldComponentKind, fieldKindOf } from '@retake/core/scenario';
 import type { ComponentKind } from '@retake/core/model';
 import type { FieldAt, FieldEdit, FieldValue } from '@retake/core/scenario';
-import type { ComponentRegistry, ComponentUse } from '@retake/components';
+import type { ComponentFit, ComponentRegistry, ComponentUse } from '@retake/components/geometry';
 import { components } from './components.js';
 
 /** One value offered for a field: `value` null = the theme's default (the key removed). */
@@ -98,7 +98,7 @@ export function componentUseOf(entry: Obj | undefined, field: string): Component
  */
 export function fieldFitProblem(
   registry: ComponentRegistry,
-  componentFit: typeof import('@retake/components').componentFit,
+  componentFit: (registry: ComponentRegistry, id: string, use: ComponentUse) => ComponentFit,
   root: unknown,
   edit: Pick<FieldEdit, 'at' | 'field' | 'to'>,
 ): string | null {

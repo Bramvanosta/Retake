@@ -26,7 +26,9 @@ import {
   previewDriver,
   renderComponentLoops,
   renderComponentPreviews,
+  renderPlan,
   renderStill,
+  renderStills,
   renderVideo,
   versionLockFile,
 } from '@retake/editor';
@@ -479,5 +481,41 @@ describe("an export's re-rendered format uses the master's theme folder", () => 
       const rec = JSON.parse(await readFile(out!.record!, 'utf8')) as { template_folder?: string };
       expect(rec.template_folder).toBe('projects/pathy/themes/brand');
     }
+  });
+});
+
+describe('the editor finds no workspace and loads no project by itself', () => {
+  // Untyped on purpose: callers the type checker never saw (plain JS, a spread that lost the value).
+  const loose = <T>(o: Record<string, unknown>): T => o as T;
+  const refused = async (p: Promise<unknown>): Promise<string> => {
+    const e = await p.then(
+      () => new Error('it ran'),
+      (x: unknown) => x,
+    );
+    expect(e).toBeInstanceOf(RenderError);
+    return (e as Error).message;
+  };
+
+  it('renderVideo and exportRender refuse a project slug or folder, before any plan or driver call', async () => {
+    const d = driver();
+    for (const p of ['demo', join(root, 'projects', 'demo'), undefined]) {
+      expect(await refused(renderVideo(loose({ workPolicy: PERSON_POLICY, project: p, root, run: RUN_ID, renderer: d })))).toMatch(/no loaded project was handed/);
+      expect(await refused(exportRender(loose({ workPolicy: PERSON_POLICY, project: p, root, render: 'latest', renderer: d })))).toMatch(/no loaded project was handed/);
+    }
+    expect(d.videos).toEqual([]);
+  });
+
+  it('a still and a video of a plan refuse a request with no workspace root, whatever the current folder holds', async () => {
+    const { plan } = await planRun({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID });
+    const here = process.cwd();
+    // The current folder is a workspace: before, a request with no root used it.
+    process.chdir(root);
+    try {
+      expect(await refused(renderStills(loose({ workPolicy: PERSON_POLICY, plan, frames: [{ frame: 0, out: join(root, 'x.png') }], registry })))).toMatch(/no workspace root was handed/);
+      expect(await refused(renderPlan(loose({ workPolicy: PERSON_POLICY, plan, out: join(root, 'x.mp4'), registry })))).toMatch(/no workspace root was handed/);
+    } finally {
+      process.chdir(here);
+    }
+    expect(existsSync(join(root, 'x.png'))).toBe(false);
   });
 });

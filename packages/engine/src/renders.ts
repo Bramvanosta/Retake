@@ -16,14 +16,15 @@ import { latestProjectRender, orderRenders, projectRenderOf, renderLackWords, re
 import { readListedRender, readPlainFile } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core/model';
 import type { ProjectRender, RenderEntry, RenderLatestPick, RenderNot, StoredRenderRecord, UnknownStatusRender } from '@retake/core/render';
-import type { StoredRender } from '@retake/editor';
+import type { StoredRender } from '@retake/editor/plan';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName, isRenderOfItsScenario } from './refs.js';
 import { latestRenderNotice, readById, renderEntries, renderFileProblem } from './render-records.js';
 import type { PassedOverRenders } from './render-records.js';
 import { latestNoticeOf, planRenderRequest } from './jobs/render-job.js';
-import { editor } from './lazy.js';
+import { summarizePlan, withPlan } from '@retake/editor/plan';
+import { nextRenderVersion, renderPathProblem } from './render/editor-calls.js';
 import type { PassedOverRuns, RenderRequest } from './jobs/render-job.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
@@ -91,11 +92,10 @@ const s3 = (frames: number, fps: number) => Math.round((frames / fps) * 1000) / 
 /** Plan a render request (trust `mcp`) and describe the plan; nothing is rendered, no browser is opened. */
 export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderRequest): Promise<PlanPreviewView> {
   const { project, planned, source } = await planRenderRequest(ws, cli, req);
-  const ed = await editor();
   const plan = planned.plan;
   const latest = latestNoticeOf(planned);
   const scenario = planned.timeline.scenario;
-  const next = ed.nextVersion(ed.rendersDir(project), scenario);
+  const next = await nextRenderVersion(project, scenario);
   return {
     project: project.slug,
     scenario,
@@ -124,7 +124,7 @@ export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderR
       ...(latest.passed.length ? { passed_over: latest.passed } : {}),
       captions: plan.captions.map((c) => ({ from_s: s3(c.from, plan.fps), to_s: s3(c.to, plan.fps), scene: c.scene, text: c.text, ...(c.kicker ? { kicker: c.kicker } : {}) })),
       warnings: plan.warnings,
-      summary: ed.summarizePlan(plan).join('\n'),
+      summary: summarizePlan(plan).join('\n'),
     },
   };
 }
@@ -382,7 +382,6 @@ export async function renderForWork(
   } = {},
 ): Promise<RenderForWork> {
   const scenario = o.scenario;
-  const ed = await editor();
   let id = renderIdArg;
   if (renderIdArg === 'latest') {
     // The newest succeeded render of its scenario (core's rule, the engine's `latest`): a complete record of its own file.
@@ -403,11 +402,11 @@ export async function renderForWork(
   }
   if (entry.read.value.status !== 'succeeded') throw new EngineError('invalid', `render ${id} ${entry.read.value.status}: nothing to read`);
   // Work reads the plan: a record without it is refused here, naming it (the one place a stored plan becomes an edit plan).
-  const planned = ed.withPlan(entry.read.value);
+  const planned = withPlan(entry.read.value);
   if (!planned.ok) throw new EngineError('invalid', `render ${id} has ${renderLackWords('plan')} (${projectRef('renders', `${id}.json`)}): nothing to read`);
   const record = planned.value;
   if (record.status !== 'succeeded') throw new EngineError('invalid', `render ${id} ${record.status}: nothing to read`);
-  const problem = ed.recordPathProblem(project.dir, record);
+  const problem = await renderPathProblem(project.dir, record);
   if (problem) throw new EngineError('refused', problem, { ...(o.fix ? { fix: o.fix(id) } : {}), details: { problems: [problem] } });
   // (The path is the record's text: under `details.untrusted`, never in the sentence.)
   if (!existsSync(record.file))

@@ -24,7 +24,7 @@ import { SCENARIO_EDIT_MAX_CHARS, ScenarioError, filmedChangesOf, textEol } from
 import { CommentProposalSchema, PROPOSAL_CHANGED_LINES_MAX, proposalHunksProblem, proposalLineProblem } from '@retake/core/comments';
 import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { CommentProposal } from '@retake/core/comments';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import { EngineError } from './errors.js';
 import { getScenario, prepareScenarioEdit } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';

@@ -21,7 +21,7 @@ import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { latestRenderMembers, previousOfRender } from '../render-records.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
-import { editor } from '../lazy.js';
+import { renderPathProblem } from '../render/editor-calls.js';
 import { reviewWork } from '../review/work.js';
 import type { Reviewer } from '../review/reviewer.js';
 import type { SubmitContext } from './run-job.js';
@@ -136,8 +136,7 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
   else {
     // The default comparison: the previous render of the scenario, when it may be read (else none).
     const found = await previousOfRender(project.dir, record);
-    const ed = await editor();
-    const problem = found ? ed.recordPathProblem(project.dir, found) : null;
+    const problem = found ? await renderPathProblem(project.dir, found) : null;
     if (problem) ctx.event({ type: 'log', level: 'warn', message: `not compared with ${found!.id}: its files are outside the project` });
     previous = found && !problem ? found.id : false;
   }

@@ -13,23 +13,11 @@ import { RENDER_VARIANT_SUFFIX } from '@retake/core/ids';
 import { projectPath } from '@retake/core/project';
 import type { LoadedProject } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type {
-  EditOverrides,
-  ExportFormat,
-  ExportProgress,
-  ExportRenderOptions,
-  ExportResult,
-  FoundRender,
-  PlanRunOptions,
-  PlannedRun,
-  RenderProgress,
-  RenderRecord,
-  RenderStillOptions,
-  RenderVideoOptions,
-  RunRef,
-} from '@retake/editor';
+import type { EditOverrides, ExportProgress, RenderProgress, RenderRecord } from '@retake/editor/plan';
+import type { ExportFormat, ExportRenderOptions, ExportResult, FoundRender, PlannedRun, RenderStillOptions, RenderVideoOptions, RunRef } from './render/editor-calls.js';
 import type { ReviewResult } from '@retake/review/checks';
-import { editor } from './lazy.js';
+import { summarizePlan } from '@retake/editor/plan';
+import { findRunOf, planWork } from './render/editor-calls.js';
 
 export type {
   EditOverrides,
@@ -49,10 +37,8 @@ export type {
 
 // ── the pipeline ──
 
-/** Plan a run's edit (the editor's planRun: no browser). */
-export async function planWork(o: PlanRunOptions): Promise<PlannedRun> {
-  return (await editor()).planRun(o);
-}
+// Planning a run's edit, the run and render lookups and the editor's errors are the render home's (render/editor-calls.ts).
+export { editorErrorOf, findRenderOf, findRunOf, planWork } from './render/editor-calls.js';
 
 /** What `planOfRun` is asked: the run's scenario (with `latest`), a theme in place of the run's, the overrides, who asks. */
 export interface PlanOfRunOptions {
@@ -94,7 +80,7 @@ export async function planOfRun(ws: { root: string; policy: WorkPolicy }, projec
     measureMusic: false,
     purpose: 'plan',
   });
-  return { ...planned, summary: (await editor()).summarizePlan(planned.plan) };
+  return { ...planned, summary: summarizePlan(planned.plan) };
 }
 
 // What renders — a video, a still, an export's re-rendered formats — runs on the renderer its caller hands (render/work.ts).
@@ -106,34 +92,7 @@ export { reviewWork } from './review/work.js';
 
 // ── lookups and errors of the pipeline, for a caller that does not load the adapters itself ──
 
-/** The run a render works on: a run id, a run directory or `latest` of `scenario` (the editor's findRun; RenderError otherwise). */
-export async function findRunOf(project: LoadedProject, arg: string, scenario?: string): Promise<RunRef> {
-  return (await editor()).findRun(project, arg, scenario);
-}
-
-/**
- * The render named at a terminal: `latest` (of `scenario`), an id, or a .json / .mp4 path (the editor's
- * locateRenderRecord; ExportError otherwise) — the record, the FILE it was read from (`entry.name`: what a command then
- * names, never the id the record says) and, with `latest`, what it passed over.
- */
-export async function findRenderOf(project: LoadedProject, arg: string, scenario?: string): Promise<FoundRender> {
-  return (await editor()).locateRenderRecord(project, arg, scenario);
-}
-
 /** Where a still of `scenario` goes by default: renders/stills/<scenario><variant suffix>-f<frame, 5 digits>.png. */
 export async function defaultStillFile(project: Pick<LoadedProject, 'dir'>, scenario: string, variant: PlannedRun['plan']['variant'], frame: number): Promise<string> {
   return projectPath(project.dir, 'renders', 'stills', `${scenario}${RENDER_VARIANT_SUFFIX[variant]}-f${String(frame).padStart(5, '0')}.png`);
-}
-
-/**
- * Which of the editor's own errors `e` is: a cancelled render (`render_cancelled`), another render error (`render`: a
- * failed render, an unknown run, a plan refused…), an export error (`export`); undefined for anything else.
- */
-export async function editorErrorOf(e: unknown): Promise<'render_cancelled' | 'render' | 'export' | undefined> {
-  if (!(e instanceof Error)) return undefined;
-  const ed = await editor();
-  if (e instanceof ed.RenderCancelledError) return 'render_cancelled';
-  if (e instanceof ed.RenderError) return 'render';
-  if (e instanceof ed.ExportError) return 'export';
-  return undefined;
 }

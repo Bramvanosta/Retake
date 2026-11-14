@@ -1,6 +1,7 @@
 /**
  * The engine's lazy imports of the heavy packages, one each: loaded on first use, so a command that needs neither never
- * pays for them. Each adapter's loader is used in its home only (the import-rules ratchet's `loader-use`): `hooks` in
+ * pays for them. Each adapter's loader is used in its home only (the import-rules ratchet's `loader-use`): `editor` in
+ * render/ (the Renderer port's package adapter and the editor's other work: render/editor-calls.ts), `hooks` in
  * hook-run/ (the HookRunner port's package adapter), `review` and `thumbs` in review/ (the Reviewer's), `runnerWeb` in
  * capture/ (the CaptureRunner's), `sandbox` in sandboxes/ (the Sandboxes port's, L7.25).
  */

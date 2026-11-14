@@ -400,14 +400,14 @@ describe('the import-rules ratchet', () => {
     const loaders = (rel: string, text: string): string[] => lib.loaderHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
     const ports = (rel: string, text: string): string[] => lib.portHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).hits.map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
 
-    it('flags an adapter loader imported from lazy.ts outside its home, under its name or an alias; its home and the editor loader are free', () => {
+    it('flags an adapter loader imported from lazy.ts outside its home, under its name or an alias; its home is free', () => {
       expect(loaders('packages/engine/src/jobs/a.ts', "import { review } from '../lazy.js';\nawait review();")).toEqual(['loader-use packages/engine/src/jobs/a.ts → review']);
       expect(loaders('packages/engine/src/a.ts', "import { hooks as h, thumbs } from './lazy.js';")).toEqual([
         'loader-use packages/engine/src/a.ts → hooks',
         'loader-use packages/engine/src/a.ts → thumbs',
       ]);
       expect(loaders('packages/engine/src/comments/a.ts', "import { review } from '../lazy';")).toEqual(['loader-use packages/engine/src/comments/a.ts → review']);
-      // The homes (LOADER_HOMES), the loader file itself, a type-only import and the editor's loader (R9's) are free.
+      // The homes (LOADER_HOMES), the loader file itself and a type-only import are free.
       expect(loaders('packages/engine/src/review/review-package.ts', "import { review, thumbs } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/hook-run/package-hooks.ts', "import { hooks } from '../lazy.js';")).toEqual([]);
       expect(loaders('packages/engine/src/review/x.ts', "import { hooks } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/review/x.ts → hooks']);
@@ -416,7 +416,12 @@ describe('the import-rules ratchet', () => {
       expect(loaders('packages/engine/src/jobs/worker.ts', "import { runnerWeb as rw } from '../lazy.js';\nawait rw();")).toEqual(['loader-use packages/engine/src/jobs/worker.ts → runnerWeb']);
       expect(loaders('packages/engine/src/capture/x.ts', "export { runnerWeb } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/capture/x.ts → runnerWeb re-exported']);
       expect(loaders('packages/engine/src/lazy.ts', "export const review = () => import('@retake/review');")).toEqual([]);
-      expect(loaders('packages/engine/src/a.ts', "import type { review } from './lazy.js';\nimport { editor } from './lazy.js';\nimport { type hooks } from './lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/a.ts', "import type { review } from './lazy.js';\nimport { type hooks } from './lazy.js';")).toEqual([]);
+      // The editor's loader: in the render folder only, where the renderer's adapter and the work on the editor are.
+      expect(lib.LOADER_HOMES.editor).toBe('packages/engine/src/render/');
+      expect(loaders('packages/engine/src/render/editor-calls.ts', "import { editor } from '../lazy.js';")).toEqual([]);
+      expect(loaders('packages/engine/src/renders.ts', "import { editor } from './lazy.js';\nawait editor();")).toEqual(['loader-use packages/engine/src/renders.ts → editor']);
+      expect(loaders('packages/engine/src/jobs/render-job.ts', "import { editor as ed } from '../lazy.js';")).toEqual(['loader-use packages/engine/src/jobs/render-job.ts → editor']);
       // Another module of the same name is not the loader file.
       expect(loaders('packages/engine/src/a.ts', "import { review } from './jobs/lazy.js';\nimport { review as r } from './lazy-review.js';")).toEqual([]);
     });
@@ -425,6 +430,7 @@ describe('the import-rules ratchet', () => {
       expect(loaders('packages/engine/src/a.ts', "import * as lazy from './lazy.js';\nawait lazy.review();")).toEqual(['loader-use packages/engine/src/a.ts → * as lazy']);
       expect(loaders('packages/engine/src/review/a.ts', "const { review } = await import('../lazy.js');")).toEqual(['loader-use packages/engine/src/review/a.ts → import() of lazy.ts']);
       expect(loaders('packages/engine/src/jobs/a.ts', "import { editor, review } from '../lazy.js';\nexport { review };")).toEqual([
+        'loader-use packages/engine/src/jobs/a.ts → editor',
         'loader-use packages/engine/src/jobs/a.ts → review',
         'loader-use packages/engine/src/jobs/a.ts → review re-exported',
       ]);
@@ -1197,7 +1203,7 @@ describe('the import-rules ratchet', () => {
     ]);
   });
 
-  it('flags a value import of the editor in the engine outside its loader: static, re-export, import(); its types are free', () => {
+  it('flags a value import of the editor in the engine outside its loader: static, re-export, import(); its types and its planner entry are free', () => {
     const eng = (name: string, text: string, spec = '@retake/editor') => [`packages/engine/src/${name}.ts`, { text, specs: [spec] }] as const;
     const files = Object.fromEntries([
       eng('lazy', "export const editor = () => import('@retake/editor');\n"),
@@ -1215,10 +1221,11 @@ describe('the import-rules ratchet', () => {
     const flagged = hitsOf(files)
       .filter((h) => h.startsWith('R9 '))
       .map((h) => h.replace(/^R9 packages\/engine\/src\/(.+)\.ts → @retake\/editor.*$/, '$1'));
-    expect(flagged.sort()).toEqual(['dynamic', 'plan-value', 'reexport', 'render/editor-renderer', 'value']);
+    // The planner entry is a domain entry (pure: no renderer, Remotion or file system), so its values are free.
+    expect(flagged.sort()).toEqual(['dynamic', 'reexport', 'render/editor-renderer', 'value']);
   });
 
-  it('flags a value import of an adapter in the engine outside its loader: static, re-export, import(); its types and the domain entries are free', () => {
+  it('flags an import of an adapter root in the engine outside its adapter homes, types included, and a value one inside them; the domain entries are free', () => {
     const eng = (name: string, text: string, spec: string) => [`packages/engine/src/${name}.ts`, { text, specs: [spec] }] as const;
     const files = Object.fromEntries([
       eng('lazy', "export const sandbox = () => import('@retake/sandbox');\n", '@retake/sandbox'),
@@ -1245,6 +1252,14 @@ describe('the import-rules ratchet', () => {
       eng('editor-value', "import { renderVideo } from '@retake/editor';\n", '@retake/editor'),
       eng('plan-value', "import { planEdit } from '@retake/editor/plan';\n", '@retake/editor/plan'),
       eng('core-value', "import { parseScenario } from '@retake/core';\n", '@retake/core'),
+      eng('editor-types', "import type { PlannedRun } from '@retake/editor';\n", '@retake/editor'),
+      eng('plan-types', "import type { EditPlan } from '@retake/editor/plan';\n", '@retake/editor/plan'),
+      // In an adapter home (ADAPTER_HOMES: the folders of LOADER_HOMES) an adapter root's types are free, its values are
+      // not; the editor's values there are R9's.
+      eng('review/home-types', "import type { ReviewOptions } from '@retake/review';\n", '@retake/review'),
+      eng('render/home-editor-types', "import type { RenderVideoOptions } from '@retake/editor';\n", '@retake/editor'),
+      eng('render/home-editor-value', "import { renderVideo } from '@retake/editor';\n", '@retake/editor'),
+      eng('render/home-value', "import { pidAlive } from '@retake/sandbox';\n", '@retake/sandbox'),
       ['packages/mcp/src/a.ts', { text: "import { pidAlive } from '@retake/sandbox';\n", specs: ['@retake/sandbox'] }] as const,
     ]);
     const all = hitsOf(files);
@@ -1252,27 +1267,42 @@ describe('the import-rules ratchet', () => {
     expect(flagged.sort()).toEqual([
       'dynamic-template: @retake/runner-web',
       'dynamic: @retake/runner-web',
+      'editor-types: @retake/editor',
+      'editor-value: @retake/editor',
       'import-equals: @retake/sandbox',
       'jobs/thumbs: @retake/review/thumbs',
       'mixed: @retake/sandbox',
+      'named-types: @retake/sandbox',
       'reexport-all: @retake/hooks',
       'reexport-namespace: @retake/hooks',
+      'reexport-types: @retake/sandbox',
       'reexport: @retake/sandbox',
+      'render/home-value: @retake/sandbox',
       'require: @retake/sandbox',
       'root-of-a-domain-entry: @retake/components',
       'side-effect: @retake/sandbox',
+      'type-position: @retake/sandbox',
+      'types: @retake/sandbox',
       'value: @retake/sandbox',
     ]);
-    // The editor's values stay R9's hits, under R9's name only.
+    // The editor's values outside its home are R9's hits (it loads) and R11's (it names the root); its planner entry is
+    // free of both; in the render folder its values are R9's only.
     expect(
       all
         .filter((h) => h.includes('editor-value') || h.includes('plan-value'))
         .map((h) => h.split(' ')[0])
         .sort(),
-    ).toEqual(['R9', 'R9']);
+    ).toEqual(['R11', 'R9', 'R9']);
+    expect(lib.ADAPTER_HOMES).toEqual([
+      'packages/engine/src/render/',
+      'packages/engine/src/hook-run/',
+      'packages/engine/src/review/',
+      'packages/engine/src/capture/',
+      'packages/engine/src/sandboxes/',
+    ]);
     // R11 is a rule of the list, with no loader check of its own (R9 owns the loaders of these files).
-    const r11 = (lib.RULES as { id: string; typeOnlyCheck?: boolean; loaders?: boolean }[]).find((r) => r.id === 'R11')!;
-    expect(r11.typeOnlyCheck).toBe(true);
+    const r11 = (lib.RULES as { id: string; typeOnlyCheck?: unknown; loaders?: boolean }[]).find((r) => r.id === 'R11')!;
+    expect(typeof r11.typeOnlyCheck).toBe('function');
     expect(r11.loaders).toBeUndefined();
     // So R11's cover of a loader that names nothing rests on R9: it checks loaders, on the very files R11 reads.
     const r9 = (lib.RULES as { id: string; loaders?: boolean; files: (f: string) => boolean }[]).find((r) => r.id === 'R9')!;
@@ -1470,6 +1500,9 @@ describe('the import-rules ratchet', () => {
     ).toEqual([
       'R1 packages/core/src/x.ts → node:fs',
       'R1 packages/core/src/y.ts → ./io/index.js',
+      // Outside an adapter home the engine names an adapter root in no form: a type-only re-export, the editor's too.
+      'R11 packages/engine/src/types.ts → @retake/sandbox',
+      'R11 packages/engine/src/x.ts → @retake/editor',
       'R11 packages/engine/src/x.ts → @retake/hooks',
       'R12 packages/review/src/spans.ts → @retake/components',
       'R2 packages/hooks/src/x.ts → @retake/engine',

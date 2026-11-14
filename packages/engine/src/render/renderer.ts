@@ -14,9 +14,8 @@
  */
 import type { RenderSettings } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
-import type { ComponentRegistry } from '@retake/components';
-import type { EditPlan, RenderRecord } from '@retake/editor/plan';
-import type { BundleComponent, ComponentPreviewSpec, RenderProgress } from '@retake/editor';
+import type { ComponentRegistry } from '@retake/components/geometry';
+import type { BundleComponent, ComponentPreviewSpec, EditPlan, RenderProgress, RenderRecord } from '@retake/editor/plan';
 
 /** The render process a renderer started (the jobs worker records it, to kill it after a crash). */
 export interface RenderProcess {
@@ -28,8 +27,8 @@ export interface RenderProcess {
 export interface RenderRequestBase {
   /** What the work runs under (core WorkPolicy). */
   workPolicy: WorkPolicy;
-  /** Workspace root (default: the workspace of the cwd). */
-  root?: string;
+  /** Workspace root: where the bundle cache is (the caller's; a renderer never looks for one from the current folder). */
+  root: string;
   /** Where the plan's component implementations are found (default: the workspace's). */
   registry?: ComponentRegistry;
   /** Render settings over the process's. */

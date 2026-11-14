@@ -21,7 +21,6 @@ import {
   findNamedRender,
   h264CodecArgs,
   h264Encoder,
-  loadProject,
   nodeFileFacts,
   projectTemplateFolderId,
   realpathOr,
@@ -38,7 +37,7 @@ import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
 import { PlanTrustError } from './plan-run.js';
 import type { PlanTrust } from './plan-run.js';
-import { probeMedia, renderVideo } from './render.js';
+import { handedProject, probeMedia, renderVideo } from './render.js';
 import { handedDriver } from './driver-guard.js';
 import type { RenderDriver } from './driver-types.js';
 import type { RenderNetwork } from './render.js';
@@ -46,10 +45,11 @@ import { rendersDir } from './runs.js';
 import { RenderError } from './types.js';
 import { withPlan } from '../render-record.js';
 import type { NamedRender, RenderRecord } from '../render-record.js';
+import type { ExportProgress, ExportFormat } from '../work-types.js';
+export type { ExportProgress, ExportFormat } from '../work-types.js';
 
 /** Delivery formats (one list with core's job input). */
 export const EXPORT_FORMATS = EXPORT_FORMAT_NAMES;
-export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 /** Formats exported when none are named (the ones derived from the master, no re-render): core's one list. */
 export const DEFAULT_EXPORT_FORMATS: readonly ExportFormat[] = DEFAULT_EXPORT_FORMAT_NAMES;
 
@@ -101,18 +101,11 @@ export interface ExportResult {
   failures: Array<{ format: ExportFormat; error: string }>;
 }
 
-export interface ExportProgress {
-  format: ExportFormat;
-  stage: 'start' | 'progress' | 'done' | 'failed';
-  /** 0..1 within the format (re-renders report their render progress). */
-  progress: number;
-  message?: string;
-}
-
 export interface ExportRenderOptions {
   /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
   workPolicy: WorkPolicy;
-  project: LoadedProject | string;
+  /** The project, loaded by the caller: the editor finds no project by itself. */
+  project: LoadedProject;
   /** Render id (renders/<id>.json), a path to a record / video, or `latest` (of `scenario` when given). */
   render: string;
   scenario?: string;
@@ -350,7 +343,7 @@ export async function transcodeMp4(bin: string, input: string, size: readonly [n
 export async function exportRender(opts: ExportRenderOptions): Promise<ExportResult> {
   // Before any work: a renderer named but not handed is refused (driver-guard.ts), whatever the formats need.
   const handed = handedDriver('export', opts, 'video');
-  const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
+  const project = handedProject(opts.project);
   const root = resolve(opts.root ?? project.root);
   const trust = opts.trust ?? 'author';
   // Through MCP: a render id, its own file (core/io findNamedRender). At a terminal: as a person names it.

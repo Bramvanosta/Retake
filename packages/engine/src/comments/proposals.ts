@@ -7,7 +7,7 @@ import { COMMENT_AUTHOR_MAX, deriveStatus, PROPOSAL_CHANGED_LINES_MAX, proposalS
 import { scenarioSinceRun } from '@retake/core/io';
 import type { LoadedProject, ValidationIssue, WorkFileFacts } from '@retake/core/model';
 import type { CommentAuthor, CommentEntry, CommentProposal, CommentThread, ProposalState } from '@retake/core/comments';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import { EngineError } from '../errors.js';
 import type { StoreScope } from '../store/store.js';
 import { checkRunId } from '../refs.js';

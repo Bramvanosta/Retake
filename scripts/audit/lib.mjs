@@ -190,8 +190,8 @@ export const HOME_HELPER = 'packages/test-support/src/home.ts';
 /**
  * The domain entries of the adapter packages (docs/audit/target-architecture.md, the domain line): pure modules — no
  * I/O, no renderer, no adapter code. A shell may import their types only (R4: a value would be the shell doing the
- * application's work by itself); the engine may import their values (R11), all but the editor's, which R9 holds whole
- * (`@retake/editor/plan` as a value in the engine outside its loader is an R9 hit). Each is held pure by its own walk
+ * application's work by itself); the engine may import their values and types anywhere (R9, R11), while it names an
+ * adapter's root in that adapter's home only (R11, ADAPTER_HOMES). Each is held pure by its own walk
  * test (components geometry-entry, editor plan-entry, review checks-entry, hooks describe-entry, runner-web types-entry
  * and sandbox types-entry: type-only entries, whose built files load nothing).
  */
@@ -299,15 +299,24 @@ export const PORT_ROOT_RULE = {
 };
 /**
  * The loaders of lazy.ts held to a home (loader-use): each is imported from lazy.ts only in its port's folder, where the
- * port's package adapter lives. The editor's loader is not here: R9 and render-call hold the editor.
+ * port's package adapter lives — the editor's in the render folder, where the renderer's adapter and the work on the
+ * editor are (render-call holds its render entries there too).
  */
 export const LOADER_HOMES = {
+  editor: RENDER_HOME,
   hooks: 'packages/engine/src/hook-run/',
   review: 'packages/engine/src/review/',
   thumbs: 'packages/engine/src/review/',
   runnerWeb: 'packages/engine/src/capture/',
   sandbox: 'packages/engine/src/sandboxes/',
 };
+/**
+ * The engine's adapter homes (the folders of LOADER_HOMES): where a port's package adapter lives, the only engine files
+ * that may name an adapter package's root — its types included (R11). Everywhere else the engine names an adapter
+ * through its domain entry (DOMAIN_ENTRIES), or through a name a home hands on.
+ */
+export const ADAPTER_HOMES = [...new Set(Object.values(LOADER_HOMES))];
+const inAdapterHome = (f) => ADAPTER_HOMES.some((h) => f.startsWith(h));
 /**
  * The engine's port files (port-types): the interfaces its adapters satisfy, which name no adapter package — types
  * included — but through a domain entry (an adapter satisfies a port structurally: R2 forbids it the engine's types).
@@ -480,18 +489,18 @@ export const RULES = [
   },
   {
     id: 'R9',
-    title: `the engine loads the editor's code in its loader only (${ENGINE_LOADER}): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit, and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; the other adapters' loaders are not checked yet)`,
+    title: `the engine loads the editor's code in its loader only (${ENGINE_LOADER}): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit (its planner entry, @retake/editor/plan, a pure domain entry, is free), and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; the other adapters' loaders are not checked yet)`,
     files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER,
-    bad: (s) => retake(s) === 'editor',
+    bad: (s) => retake(s) === 'editor' && s !== '@retake/editor/plan',
     typeOnlyCheck: true,
     loaders: true,
   },
   {
     id: 'R11',
-    title: `the engine imports the adapter packages as types only outside its loader (${ENGINE_LOADER}; the editor is R9's): a value import, re-export or import() of runner-web, review, sandbox, hooks or components is a hit; their domain entries are free (the editor's, @retake/editor/plan, is not: R9 holds the editor whole). Not seen: a value reached through another engine file (the loader included) and \`typeof import()\` in a type position, which loads nothing`,
+    title: `the engine names an adapter package's root in its adapter homes only (ADAPTER_HOMES: the folders of LOADER_HOMES, where each port's package adapter lives), outside its loader (${ENGINE_LOADER}): elsewhere in packages/engine/src an import of runner-web, review, sandbox, hooks, components or the editor in any form — a type import, a type re-export, \`typeof import()\`, a value — is a hit, and inside a home a value one of the first five (the editor's values there are R9's); their domain entries (DOMAIN_ENTRIES) are free everywhere. Not seen: a value or a type reached through another engine file (the loader, a home that hands a name on)`,
     files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER,
-    bad: (s) => ADAPTERS.includes(retake(s)) && retake(s) !== 'editor' && !DOMAIN_ENTRIES.includes(s),
-    typeOnlyCheck: true,
+    bad: (s, f) => ADAPTERS.includes(retake(s)) && !DOMAIN_ENTRIES.includes(s) && !(retake(s) === 'editor' && inAdapterHome(f)),
+    typeOnlyCheck: (_s, f) => inAdapterHome(f),
   },
   {
     id: 'R12',
@@ -545,7 +554,7 @@ export const CHECKS = [
   },
   {
     id: 'loader-use',
-    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer and of the secrets, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\` and \`systemSecrets\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: the editor's loader (R9 and render-call hold the editor), \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
+    title: `each adapter loader of ${ENGINE_LOADER} is imported in its home only (LOADER_HOMES: \`editor\` in render/, \`hooks\` in hook-run/, \`review\` and \`thumbs\` in review/, \`runnerWeb\` in capture/, \`sandbox\` in sandboxes/ — where its port's package adapter lives), in packages/engine/src: a loader imported from the loader file outside its home (under an alias too: \`loader-use:<name>\`), the loader file imported whole (\`import * as\`, a default import, \`import lazy = require(…)\`) or by \`import()\` / \`require()\` of its name, and a loader re-exported anywhere (\`export { review }\`, \`export { review } from\`, \`export * from\` the loader file: \`<name> re-exported\`); and the product's adapters of those ports, of the renderer and of the secrets, \`packageHookRunner\`, \`packageReviewer\`, \`runnerWebCapture\`, \`packageSandboxes\`, \`editorRenderer\` and \`systemSecrets\`, named as values outside PORT_ROOTS (\`<name> outside a root\`, read as clock-read reads its names). Not seen: \`import(p)\` or \`require(p)\` of a name computed at run time (R9 counts a computed \`import()\` as a loader), a loader taken under another name and exported that way (\`export const load = review\`, a wrapper function), a value of the adapter that a file of the home hands on under a name of its own (the work on the port, on purpose), a loader reached through another engine module that imported it`,
   },
   {
     id: 'port-types',

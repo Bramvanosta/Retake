@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, ffmpegBin, runMediaTool, templateFolderId } from '@retake/core/io';
+import { ffmpegBin, runMediaTool, templateFolderId } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, RenderSettings, Timeline } from '@retake/core/model';
 import type { WorkPolicy } from '@retake/core/policy';
 import type { GpuInfo } from '@retake/core/render';
@@ -72,6 +72,23 @@ export const COMPOSITION_IDS = VIDEO_COMPOSITIONS;
 export { defaultConcurrency };
 
 /**
+ * The workspace root a render was handed, resolved. The editor never looks for a workspace from the current folder:
+ * a caller outside the type checker that hands none is refused.
+ */
+function handedRoot(root: unknown): string {
+  if (typeof root !== 'string' || root === '') throw new RenderError('no workspace root was handed to the render (the caller names its workspace)');
+  return resolve(root);
+}
+
+/** The loaded project a use case was handed: the editor loads no project by itself (a slug or a folder is refused). */
+export function handedProject(project: unknown): LoadedProject {
+  if (typeof project !== 'object' || project === null || typeof (project as LoadedProject).dir !== 'string') {
+    throw new RenderError('no loaded project was handed (the caller loads the project; a slug or a folder is not read here)');
+  }
+  return project as LoadedProject;
+}
+
+/**
  * Remotion's encoder pipe rejects with EPIPE, unhandled, when the encoder dies under it (a failed render; a hardware
  * encoder refusing its session): the render itself fails with that error, the process must not die of it. Installed
  * once per process by the first render or still (a `retake render`, an export, the Studio, the worker — whose own
@@ -126,8 +143,8 @@ export interface RenderPlanOptions {
   plan: EditPlan;
   /** Output .mp4 (written to a temporary name first, renamed on success). */
   out: string;
-  /** Workspace root (bundle cache); default: the workspace of the cwd. */
-  root?: string;
+  /** Workspace root (bundle cache): the caller's, never looked for from the current folder. */
+  root: string;
   /** Registry to find the plan's component implementations (default: the workspace's). */
   registry?: ComponentRegistry;
   /** Bundle cache folder (default <root>/.retake/cache). */
@@ -310,7 +327,7 @@ function softwarePolicy(p: RenderPolicy): RenderPolicy {
 export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanResult> {
   const out = resolve(opts.out);
   if (extname(out).toLowerCase() !== '.mp4') throw new RenderError(`render output must be an .mp4 file: ${out}`);
-  const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
+  const root = handedRoot(opts.root);
   const asked = renderPolicy(opts.workPolicy, opts.settings);
   const policy: RenderPolicy = opts.concurrency !== undefined ? { ...asked, concurrency: Math.max(1, Math.round(opts.concurrency)), concurrencySource: 'option' } : asked;
   const range = opts.frameRange;
@@ -637,8 +654,8 @@ async function ensureAudioTrack(file: string, work: WorkPolicy): Promise<void> {
 // ── renderVideo ───────────────────────────────────────────────────────────────
 
 export interface RenderVideoOptions {
-  /** A loaded project, or a project slug / directory (resolved in `root`). */
-  project: LoadedProject | string;
+  /** The project, loaded by the caller (the engine's workspace reads): the editor finds no project by itself. */
+  project: LoadedProject;
   /** Run id, run directory, or "latest" (of `scenario` when given). */
   run: string;
   /** Scenario name: required to match the run's; picks the run with "latest". */
@@ -778,7 +795,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   const createdAt = new Date().toISOString();
   const emit = opts.onProgress ?? (() => undefined);
   emit({ stage: 'planning', progress: 0, overall: 0 });
-  const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
+  const project = handedProject(opts.project);
   const dir = rendersDir(project);
   // A version reserved by someone else (a render job: its lock was taken at submit) is released here, whatever happens.
   // A version no reservation hands out (core renderLockName) has no lock: nothing is planned or rendered under it.
@@ -957,7 +974,8 @@ export interface RenderStillOptions {
   frame: number;
   /** Output .png. */
   out: string;
-  root?: string;
+  /** Workspace root (bundle cache). */
+  root: string;
   registry?: ComponentRegistry;
   cacheDir?: string;
   settings?: RenderSettings;
@@ -988,7 +1006,8 @@ export interface RenderStillsOptions {
   plan: EditPlan;
   /** Output frames (0-based) and the .png each one goes to. */
   frames: Array<{ frame: number; out: string }>;
-  root?: string;
+  /** Workspace root (bundle cache). */
+  root: string;
   registry?: ComponentRegistry;
   cacheDir?: string;
   /** The stills' network (default `open`; previews of the jobs worker: `guard`). */
@@ -1016,7 +1035,7 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
       throw new RenderError(`frame ${f.frame} is outside the video (0–${opts.plan.durationInFrames - 1})`);
     }
   }
-  const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
+  const root = handedRoot(opts.root);
   const policy = renderPolicy(opts.workPolicy, opts.settings);
   guardEncoderPipe();
   const session = await openSession({

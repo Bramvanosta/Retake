@@ -2,6 +2,7 @@
 import type { RenderAttempt, RenderRecord } from '../render-record.js';
 import { GUIDE } from '@retake/core/base';
 import type { ErrorKind } from '@retake/core/base';
+export type { RenderStage, RenderProgress } from '../work-types.js';
 
 /** A render that cannot start or failed (message written for the user). */
 export class RenderError extends Error {
@@ -70,22 +71,4 @@ export function isDiskFullError(e: unknown): boolean {
   if ((e as { code?: unknown }).code === 'ENOSPC') return true;
   const message = (e as { message?: unknown }).message;
   return typeof message === 'string' && /\bENOSPC\b|no space left on device/i.test(message);
-}
-
-/** `retrying`: the GPU path failed and the video renders again in software (L5.15; progress does not go back). */
-export type RenderStage = 'planning' | 'bundling' | 'rendering' | 'retrying' | 'encoding' | 'done';
-
-export interface RenderProgress {
-  stage: RenderStage;
-  /** 0..1 within the stage. */
-  progress: number;
-  /** 0..1 over the whole render (bundling ≈ 0–10 %, rendering 10–95 %, encoding 95–100 %). */
-  overall: number;
-  totalFrames?: number;
-  renderedFrames?: number;
-  encodedFrames?: number;
-  /** bundling: the bundle came from the cache. */
-  cached?: boolean;
-  /** Seconds left (rendering), when Remotion estimates it. */
-  eta_s?: number;
 }

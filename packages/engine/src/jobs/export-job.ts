@@ -14,7 +14,7 @@ import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES } from '@retake/core/r
 import { JOB_INPUT_VERSION } from './job-input.js';
 import type { ExportFormatName } from '@retake/core/render';
 import type { ExportJobInput } from './job-input.js';
-import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
+import type { BrowserProcessInfo, ExportProgress } from '@retake/editor/plan';
 import { stampOf } from '../clock.js';
 import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -23,7 +23,7 @@ import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { latestRenderMembers } from '../render-records.js';
 import type { LatestRenderNotice, PassedOverRenders } from '../render-records.js';
 import { renderForWork } from '../renders.js';
-import { editor } from '../lazy.js';
+import { exportPlanning, planTrustProblems } from '../render/editor-calls.js';
 import { exportWork, planWork } from '../pipeline.js';
 import type { Renderer } from '../render/renderer.js';
 import { killRecordedBrowser, removePartials } from './render-job.js';
@@ -83,11 +83,11 @@ export async function submitExportJob(
   const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix, latest: (pick) => (latest = pick) });
   // The admission rules see the render this export is of once `latest` is resolved (admission.ts export_cap).
   await o.admit?.(record.id);
-  const ed = await editor();
+  const exporting = await exportPlanning();
   // (A variant this version does not write has no size: the editor's sentence in fixed words, as the engine's error.)
   let rerendered: ExportFormatName[];
   try {
-    rerendered = formats.filter((f) => ed.exportMethod(record, f, { trust: ENGINE_TRUST }) === 'render');
+    rerendered = formats.filter((f) => exporting.method(record, f, { trust: ENGINE_TRUST }) === 'render');
   } catch (e) {
     throw toEngineError(e);
   }
@@ -100,7 +100,7 @@ export async function submitExportJob(
         project,
         run: record.run_dir,
         scenario: record.scenario,
-        template: await ed.exportThemeRef(project, record, { trust: ENGINE_TRUST }),
+        template: await exporting.themeRef(project, record, { trust: ENGINE_TRUST }),
         overrides: record.overrides,
         root: ctx.ws.root,
         trust: ENGINE_TRUST,
@@ -108,7 +108,8 @@ export async function submitExportJob(
         ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }),
       });
     } catch (e) {
-      if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
+      const refused = await planTrustProblems(e);
+      if (refused) throw new EngineError('refused', refused.message, { fix: fix(record.id), details: { problems: refused.problems } });
       throw toEngineError(e);
     }
   }

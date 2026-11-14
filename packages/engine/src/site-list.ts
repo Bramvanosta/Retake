@@ -14,7 +14,7 @@ import { SITE_ID_RE, ULID_PREFIXES, ulidTime } from '@retake/core/ids';
 import { statePath } from '@retake/core/project';
 import { parseSiteUrl, unsafeTestResolve } from '@retake/core/theme';
 import { readPlainFile } from '@retake/core/io';
-import type { PaletteCheck } from '@retake/components';
+import type { PaletteCheck } from '@retake/components/geometry';
 import { components } from './components.js';
 import { SITE_KEEP, siteRoot, siteView } from './jobs/site-job.js';
 import type { OpenedWorkspace } from './workspace.js';

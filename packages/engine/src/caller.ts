@@ -24,7 +24,7 @@ import type { Confinement } from '@retake/core/model';
 import type { HookTrust } from '@retake/core/hooks';
 import type { CommentVia } from '@retake/core/comments';
 import type { JobClient } from './jobs/job-input.js';
-import type { PlanTrust } from '@retake/editor';
+import type { PlanTrust } from '@retake/editor/plan';
 
 /** Who drives the engine: recorded with what it starts (a job's `submitted_by`). */
 export type EngineClient = JobClient;

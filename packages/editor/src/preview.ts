@@ -14,39 +14,13 @@ import { MEDIA_SLOT_TYPES } from '@retake/components';
 import type { CaptionCue, ComponentManifest, ComponentRegistry, JsonSchemaNode, MediaValue, ResolvedComponentRef, ThemeTokens } from '@retake/components';
 import { FALLBACK_GEOMETRY, planLayout } from './layout.js';
 import { brandmarkRect, layoutRects } from './remotion/frames.js';
-import type { ComponentPreviewSpec, PreviewRect, PreviewScene, PreviewUse } from './remotion/preview-types.js';
+import type { ComponentPreviewSpec, PreviewScene, PreviewUse } from './remotion/preview-types.js';
 import { transitionKindOf } from './resolve.js';
 import { loupeRegion } from './tutorial.js';
+import type { PreviewScreenName, PreviewSample, PreviewMediaSamples, PreviewSamples } from './work-types.js';
+export type { PreviewScreenName, PreviewSample, PreviewMediaSamples, PreviewSamples } from './work-types.js';
 
 export type { ComponentPreviewSpec, PreviewScene, PreviewUse } from './remotion/preview-types.js';
-
-export type PreviewScreenName = 'desktop' | 'tablet' | 'phone';
-
-/** A neutral sample screen (packages/components/preview/, generated once from the fixture by scripts/preview-samples.mjs). */
-export interface PreviewSample {
-  /** Absolute image file. */
-  file: string;
-  width: number;
-  height: number;
-  /** Address a browser layout shows. */
-  url: string;
-  /** A button of the screen (overlay previews point at it), sample px. */
-  anchor?: PreviewRect;
-  /** A text field of the screen (a loupe preview magnifies it), sample px. */
-  field?: PreviewRect;
-}
-
-/** Sample artefacts for previews of components with `email` / `document` slots (files absolute). */
-export interface PreviewMediaSamples {
-  email?: { file: string; width: number; height: number; from: string; from_name?: string; to: string[]; subject: string; date: string; preview: string };
-  document?: { file_name: string; pages: Array<{ file: string; width: number; height: number; width_pt: number; height_pt: number }> };
-  /** Two states of one screen, for `frame` slots (before / after cards). */
-  frames?: Array<{ file: string; width: number; height: number; label: string }>;
-  /** A user image for `media` slots (studio/media, L2.12). */
-  image?: { file: string; width: number; height: number };
-  /** A Lottie animation for `lottie` slots (studio/lottie, L2.12). */
-  lottie?: { file: string; width: number; height: number; fps: number; frames: number };
-}
 
 /** The table a preview shows for `data` slots (chart cards). */
 export const SAMPLE_TABLE = {
@@ -60,8 +34,6 @@ export const SAMPLE_TABLE = {
     ['Jun', '112'],
   ],
 };
-
-export type PreviewSamples = Record<PreviewScreenName, PreviewSample> & { media?: PreviewMediaSamples };
 
 /** The sample screens shipped with the components package. */
 export function loadPreviewSamples(dir = PREVIEW_SAMPLES_DIR): PreviewSamples {

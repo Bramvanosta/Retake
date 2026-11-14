@@ -17,7 +17,7 @@ import { TEMPLATE_FILE } from '@retake/core/theme';
 import { nodeFileFacts } from '@retake/core/io';
 import type { ComponentKind, LoadedProject, LoadedTemplate } from '@retake/core/model';
 import type { NewThemeName, ThemeName } from '@retake/core/ids';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import { workspaceRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';

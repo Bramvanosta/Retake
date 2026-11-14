@@ -31,7 +31,7 @@ import { TEMPLATE_FILE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, applyThemeEdit,
 import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
 import type { ComponentKind, Template } from '@retake/core/model';
 import type { TemplateEntry, ThemeEdit, ThemeField } from '@retake/core/theme';
-import type { PaletteCheck } from '@retake/components';
+import type { PaletteCheck } from '@retake/components/geometry';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { components, workspaceRegistry } from './components.js';
 import { callerOf, editsThemes } from './caller.js';
