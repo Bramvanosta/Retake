@@ -237,6 +237,7 @@ describe('the workspace journal', () => {
       'journalLine',
       'journalPath',
       'readJournal',
+      'readJournalLine',
     ]);
     const src = readFileSync(join(REPO, 'packages/engine/src/store/journal.ts'), 'utf8');
     // L7.26: the journal appends and reads through the line logs' one discipline (store/append-log.ts), which the

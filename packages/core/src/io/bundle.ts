@@ -23,7 +23,11 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { errorMessage } from '../util.js';
+
+/** core util.ts errorMessage, written again: this module imports nothing but node: builtins (the app bundle loads it first). */
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 /** The manifest file of a bundle (in `Contents/Resources`, or the stage folder). */
 export const BUNDLE_FILE = 'bundle.json';
